@@ -1,0 +1,20 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY ["src/DigitalPreservation/Preservation.API/Preservation.API.csproj", "Preservation.API/"]
+RUN dotnet restore "Preservation.API/Preservation.API.csproj"
+
+COPY src/DigitalPreservation/ .
+WORKDIR "/src/Preservation.API"
+RUN dotnet build "Preservation.API.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "Preservation.API.csproj" -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+
+LABEL org.opencontainers.image.source=https://github.com/uol-dlip/digital-preservation
+LABEL org.opencontainers.image.description="UoL DLIP Preservation API"
+
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "Preservation.API.dll"]

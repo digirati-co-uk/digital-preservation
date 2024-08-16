@@ -1,0 +1,14 @@
+services:
+  storage:
+    build:
+      context: .
+      dockerfile: Dockerfile.StorageApi
+    ports:
+      - "8001:8080"
+
+  preservation:
+    build:
+      context: .
+      dockerfile: Dockerfile.PreservationApi
+    ports:
+      - "8002:8080"
