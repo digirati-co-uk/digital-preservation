@@ -7,5 +7,5 @@ public class ApiSettings
     /// <summary>
     /// Root URI for storage-api
     /// </summary>
-    public StorageOptions ApiStorageOptions { get; set; }
+    public required StorageOptions ApiStorageOptions { get; set; }
 }

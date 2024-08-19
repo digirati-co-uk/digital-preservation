@@ -49,3 +49,6 @@ finally
     Log.Information("Shut down complete");
     Log.CloseAndFlush();
 }
+
+// required for WebApplicationFactory
+public partial class Program { }
