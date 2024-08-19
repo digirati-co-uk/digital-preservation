@@ -1,4 +1,7 @@
+using DigitalPreservation.Core.Configuration;
+using DigitalPreservation.Core.Web.Headers;
 using Serilog;
+using Storage.API.Infrastructure;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -13,17 +16,23 @@ try
         => loggerConfiguration
             .ReadFrom.Configuration(hostContext.Configuration)
             .Enrich.FromLogContext()
-            .Enrich.WithCorrelationId(addValueIfHeaderAbsence: true));
+            .Enrich.WithCorrelationId());
     
-    builder.Services.AddHttpContextAccessor();
+    builder.Services
+        .ConfigureForwardedHeaders()
+        .AddHttpContextAccessor()
+        .AddStorageHealthChecks()
+        .AddCorrelationIdHeaderPropagation();
     
     var app = builder.Build();
     app
+        .UseMiddleware<CorrelationIdMiddleware>()
         .UseSerilogRequestLogging()
         .UseForwardedHeaders();
     
+    // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Storage: Hello World!");
-
+    app.UseHealthChecks("/health");
     app.Run();
 }
 catch (HostAbortedException)

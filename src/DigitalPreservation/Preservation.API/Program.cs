@@ -1,8 +1,5 @@
-using DigitalPreservation.Core;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
-using MediatR;
-using Preservation.API.Features.Storage.Requests;
 using Preservation.API.Infrastructure;
 using Serilog;
 using Storage.Client;
@@ -38,10 +35,10 @@ try
         .UseRouting()
         .UseForwardedHeaders();
     
-    // TODO - remove these, they are only used for initial setup
+    // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Preservation: Hello World!");
     app.MapControllers();
-    app.MapHealthChecks("/health");
+    app.UseHealthChecks("/health");
     app.Run();
 }
 catch (HostAbortedException)
