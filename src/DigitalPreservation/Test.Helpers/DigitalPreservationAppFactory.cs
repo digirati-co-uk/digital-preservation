@@ -7,7 +7,7 @@ namespace Test.Helpers;
 
 public class DigitalPreservationAppFactory<TStartup> : WebApplicationFactory<TStartup> where TStartup : class
 {
-    private readonly Dictionary<string, string?> configuration = new() { ["ASPNETCORE_ENVIRONMENT"] = "Testing" };
+    private readonly Dictionary<string, string?> configuration = new();
     private Action<IServiceCollection>? configureTestServices;
 
     /// <summary>
