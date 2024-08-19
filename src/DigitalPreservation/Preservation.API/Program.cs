@@ -20,7 +20,7 @@ try
         => loggerConfiguration
             .ReadFrom.Configuration(hostContext.Configuration)
             .Enrich.FromLogContext()
-            .Enrich.WithCorrelationId(addValueIfHeaderAbsence: true));
+            .Enrich.WithCorrelationId());
     
     builder.Services
         .ConfigureForwardedHeaders()

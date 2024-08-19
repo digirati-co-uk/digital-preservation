@@ -1,6 +1,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY ["src/DigitalPreservation/Preservation.API/Preservation.API.csproj", "Preservation.API/"]
+COPY ["src/DigitalPreservation/DigitalPreservation.Core/DigitalPreservation.Core.csproj", "DigitalPreservation.Core/"]
+COPY ["src/DigitalPreservation/Storage.Client/Storage.Client.csproj", "Storage.Client/"]
+
 RUN dotnet restore "Preservation.API/Preservation.API.csproj"
 
 COPY src/DigitalPreservation/ .

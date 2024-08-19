@@ -10,5 +10,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.PreservationApi
+    env_file:
+      - .env
     ports:
       - "8002:8080"
