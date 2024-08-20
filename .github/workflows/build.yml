@@ -50,6 +50,8 @@ jobs:
         with:
           image-name: "storage-api"
           dockerfile: "Dockerfile.StorageApi"
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+          ecr-prefix: ${{ vars.ECR_PREFIX }}
 
   build-push-preservation:
     runs-on: ubuntu-latest
@@ -65,6 +67,8 @@ jobs:
         with:
           image-name: "preservation-api"
           dockerfile: "Dockerfile.PreservationApi"
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+          ecr-prefix: ${{ vars.ECR_PREFIX }}
   
   deploy-development:
     needs: [build-push-storage, build-push-preservation]

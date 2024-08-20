@@ -12,10 +12,16 @@ inputs:
     description: "The context to use when building the Dockerfile."
     required: false
     default: "."
+  iam-role:
+    description: "AWS IAM role to assume for pushing to ECR"
+    required: true
+  ecr-prefix:
+    description: "Prefix for ECR registry"
+    required: true
 outputs:
   docker-tag:
-    description: "Docker tags applied"
-    value: ${{ fromJSON(steps.docker-meta.outputs.json).tags[0] }}
+    description: "Docker tag applied"
+    value: ${{ github.sha }}
 
 runs:
   using: "composite"
@@ -26,7 +32,7 @@ runs:
     - id: configure-aws-credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ secrets.PUBLISH_IAM_ROLE }}
+        role-to-assume: ${{ inputs.iam-role }}
         aws-region: eu-west-1
 
     - id: login-ecr
@@ -38,7 +44,7 @@ runs:
     - id: docker-meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ vars.ECR_PREFIX }}/dlip-pres-${{ inputs.image-name }}
+        images: ${{ inputs.ecr-prefix }}/dlip-pres-${{ inputs.image-name }}
         tags: |
           type=ref,event=branch
           type=ref,event=pr
