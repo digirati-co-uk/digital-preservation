@@ -68,4 +68,3 @@ jobs:
       image_tag: "${{ github.sha }}"
       target_env: development
     secrets: inherit
-  #     slack_webhook: ${{ secrets.SLACK_WEBHOOK }}
