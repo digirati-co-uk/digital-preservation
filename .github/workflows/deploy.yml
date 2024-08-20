@@ -23,76 +23,43 @@ permissions:
 
 jobs:
 
-  # pre-notification:
-  #   runs-on: ubuntu-latest
-  #   environment: ${{ inputs.target_env }}
-  #   steps:
-  #     - uses: slackapi/slack-github-action@v1.24.0
-  #       with:
-  #         payload: |
-  #           {
-  #             "text": "Deploying tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :rocket:\nWait services? ${{ inputs.wait_services }}\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-  #             "link_names": 1
-  #           }
-  #       env:
-  #         SLACK_WEBHOOK_URL: ${{ secrets.slack_webhook }}
-
-  deploy-images:
+  # NOTE - This suits a matrix but we cannot use it here as we need to read environment ${{vars}} for matrix setup but it's not available
+  deploy-storage:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target_env }}
-    #needs: [pre-notification]
-    strategy:
-      matrix:
-        include:
-          - image: "dlip-pres-storage-api"
-            service_name: "${{ vars.STORAGE_SERVICE }}"
-          - image: "dlip-pres-preservation-api"
-            service_name: "${{ vars.PRESERVATION_SERVICE }}"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ecr-retag
         name: retag image
         with:
-          source-image: "${{ vars.ECR_PREFIX }}/${{ matrix.image }}"
-          source-tag: "${{ inputs.image_tag }}"
-          target-tag: "${{ inputs.target_env }}"
+          source-image: ${{ vars.ECR_PREFIX }}/dlip-pres-storage-api
+          source-tag: ${{ inputs.image_tag }}
+          target-tag: ${{ inputs.target_env }}
           iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
       - uses: ./.github/actions/ecs-bounce
         name: bounce service
         with:
-          target-ecs-service: "${{ matrix.service_name }}"
-          target-ecs-cluster: "${{ vars.CLUSTER_NAME }}"
-          wait-for-services: "${{ inputs.wait_services }}"
-          role-arn: "${{ secrets.DEPLOY_IAM_ROLE }}"
-  
-  # post-notification-success:
-  #   runs-on: ubuntu-latest
-  #   environment: ${{ inputs.target_env }}
-  #   if: ${{ success() }}
-  #   needs: [deploy-storage-api, deploy-preservation-api]
-  #   steps:
-  #     - uses: slackapi/slack-github-action@v1.24.0
-  #       with:
-  #         payload: |
-  #           {
-  #             "text": "Successfully deployed tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :rocket:\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-  #             "link_names": 1
-  #           }
-  #       env:
-  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+          target-ecs-service: ${{ vars.STORAGE_SERVICE }}
+          target-ecs-cluster: ${{ vars.CLUSTER_NAME }}
+          wait-for-services: ${{ inputs.wait_services }}
+          role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}
 
-  # post-notification-failure:
-  #   runs-on: ubuntu-latest
-  #   environment: ${{ inputs.target_env }}
-  #   if: ${{ failure() }}
-  #   needs: [deploy-storage-api, deploy-preservation-api]
-  #   steps:
-  #     - uses: slackapi/slack-github-action@v1.24.0
-  #       with:
-  #         payload: |
-  #           {
-  #             "text": "Failed to deployed tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :exclamation:\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-  #             "link_names": 1
-  #           }
-  #       env:
-  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+  deploy-preservation:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ecr-retag
+        name: retag image
+        with:
+          source-image: ${{ vars.ECR_PREFIX }}/dlip-pres-preservation-api
+          source-tag: ${{ inputs.image_tag }}
+          target-tag: ${{ inputs.target_env }}
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+      - uses: ./.github/actions/ecs-bounce
+        name: bounce service
+        with:
+          target-ecs-service: ${{ vars.PRESERVATION_SERVICE }}
+          target-ecs-cluster: ${{ vars.CLUSTER_NAME }}
+          wait-for-services: ${{ inputs.wait_services }}
+          role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}
