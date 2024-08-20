@@ -1,0 +1,51 @@
+name: ECR Retag
+description: Composite GitHub Action to pull ECR image, retag and push
+
+permissions:
+  id-token: write  # required for OIDC / AWS
+  contents: read   # This is required for actions/checkout
+
+inputs:
+  source-image:
+    description: "Name of ECR image to retag"
+    required: true
+  source-tag:
+    description: "The source image tag to pull"
+    required: true
+  target-tag:
+    description: "Name of the image to push to the ECR repository"
+    required: true
+  iam-role:
+    description: "IAM role to tag + push ECR"
+
+runs:
+  using: "composite"
+  steps:
+    - id: checkout
+      uses: actions/checkout@v4
+
+    - id: configure-aws-creds
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::563450718166:role/Delegated_StLouisFed_GitHubActions_CI
+        aws-region: eu-west-1
+
+    - id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      with:
+        mask-password: 'true'
+
+    - id: pull-docker-image
+      shell: bash
+      run: |
+        docker image pull ${{ inputs.source-image }}:${{ inputs.source-tag }}
+
+    - id: retag-docker-image
+      shell: bash
+      run: |
+        docker tag ${{ inputs.source-image }}:${{ inputs.source-tag }} ${{ inputs.source-image }}:${{ inputs.target-tag }}
+
+    - id: push-ecr-image
+      shell: bash
+      run: |  
+        docker push ${{ inputs.source-image }}:${{ inputs.target-tag }}

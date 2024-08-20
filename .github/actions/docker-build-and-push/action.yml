@@ -21,7 +21,7 @@ inputs:
 outputs:
   docker-tag:
     description: "Docker tag applied"
-    value: ${{ github.sha }}
+    value: ${{ fromJSON(steps.docker-meta.outputs.json).labels['org.opencontainers.image.revision'] }}
 
 runs:
   using: "composite"

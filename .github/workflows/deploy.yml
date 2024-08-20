@@ -49,7 +49,7 @@ jobs:
           source_image: "${{ vars.ECR_PREFIX }}/dlip-pres-storage-api"
           source_tag: "${{ inputs.image_tag }}"
           target_tag: "${{ inputs.target_env }}"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
 
       - uses: ./.github/actions/ecs-bounce
         name: bounce service
@@ -58,7 +58,6 @@ jobs:
           target_ecs_cluster: "${{ vars.CLUSTER_NAME }}"
           wait_for_services: "${{ inputs.wait_services }}"
           role_arn: "${{ secrets.DEPLOY_IAM_ROLE }}"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   deploy-preservation-api:
     runs-on: ubuntu-latest
@@ -72,7 +71,7 @@ jobs:
           source_image: "${{ vars.ECR_PREFIX }}/dlip-pres-preservation-api"
           source_tag: "${{ inputs.image_tag }}"
           target_tag: "${{ inputs.target_env }}"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
 
       - uses: ./.github/actions/ecs-bounce
         name: bounce service
@@ -81,7 +80,6 @@ jobs:
           target_ecs_cluster: "${{ vars.CLUSTER_NAME }}"
           wait_for_services: "${{ inputs.wait_services }}"
           role_arn: "${{ secrets.DEPLOY_IAM_ROLE }}"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   post-notification-success:
     runs-on: ubuntu-latest

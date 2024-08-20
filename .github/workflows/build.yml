@@ -36,46 +36,36 @@ jobs:
       - id: test-dotnet
         run: dotnet test $SOLUTION --filter 'Category!=Manual' --configuration $BUILD_CONFIG --no-restore --no-build --verbosity normal
 
-  build-push-storage:
+  build-push-images:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     needs: test-dotnet
+    strategy:
+      matrix:
+        include:
+          - image: "storage-api"
+            dockerfile: "Dockerfile.StorageApi"
+          - image: "preservation-api"
+            dockerfile: "Dockerfile.PreservationApi"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-build-and-push
         id: buildpush
         name: build and push
         with:
-          image-name: "storage-api"
-          dockerfile: "Dockerfile.StorageApi"
-          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
-          ecr-prefix: ${{ vars.ECR_PREFIX }}
-
-  build-push-preservation:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    needs: test-dotnet
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/docker-build-and-push
-        id: buildpush
-        name: build and push
-        with:
-          image-name: "preservation-api"
-          dockerfile: "Dockerfile.PreservationApi"
+          image-name: ${{ matrix.image }}
+          dockerfile: ${{ matrix.dockerfile }}
           iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
           ecr-prefix: ${{ vars.ECR_PREFIX }}
   
-  deploy-development:
-    needs: [build-push-storage, build-push-preservation]
-    uses: ./.github/workflows/deploy.yml
-    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
-    with:
-      image_tag: "${{ needs.build-push-storage.outputs.docker-tag }}"
-      target_env: development
-    secrets:
-      slack_webhook: ${{ secrets.SLACK_WEBHOOK }}
+  # deploy-development:
+  #   needs: [build-push-storage, build-push-preservation]
+  #   uses: ./.github/workflows/deploy.yml
+  #   if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
+  #   with:
+  #     image_tag: "${{ needs.build-push-storage.outputs.docker-tag }}"
+  #     target_env: development
+  #   secrets: inherit
+  ##     slack_webhook: ${{ secrets.SLACK_WEBHOOK }}

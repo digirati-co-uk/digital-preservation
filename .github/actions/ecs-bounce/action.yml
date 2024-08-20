@@ -18,9 +18,6 @@ inputs:
   role_arn:
     description: "AWS role arn to assume"
     required: true
-  github_token:
-    description: "The GitHub token used when interacting with GCHR."
-    required: true
 
 runs:
   using: "composite"
