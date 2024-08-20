@@ -23,92 +23,76 @@ permissions:
 
 jobs:
 
-  pre-notification:
+  # pre-notification:
+  #   runs-on: ubuntu-latest
+  #   environment: ${{ inputs.target_env }}
+  #   steps:
+  #     - uses: slackapi/slack-github-action@v1.24.0
+  #       with:
+  #         payload: |
+  #           {
+  #             "text": "Deploying tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :rocket:\nWait services? ${{ inputs.wait_services }}\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+  #             "link_names": 1
+  #           }
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.slack_webhook }}
+
+  deploy-images:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target_env }}
+    #needs: [pre-notification]
+    strategy:
+      matrix:
+        include:
+          - image: "dlip-pres-storage-api"
+            service_name: "${{ vars.STORAGE_SERVICE }}"
+          - image: "dlip-pres-preservation-api"
+            service_name: "${{ vars.PRESERVATION_SERVICE }}"
     steps:
-      - uses: slackapi/slack-github-action@v1.24.0
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ecr-retag
+        name: retag image
         with:
-          payload: |
-            {
-              "text": "Deploying tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :rocket:\nWait services? ${{ inputs.wait_services }}\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "link_names": 1
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.slack_webhook }}
+          source-image: "${{ vars.ECR_PREFIX }}/${{ matrix.image }}"
+          source-tag: "${{ inputs.image_tag }}"
+          target-tag: "${{ inputs.target_env }}"
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+      - uses: ./.github/actions/ecs-bounce
+        name: bounce service
+        with:
+          target-ecs-service: "${{ matrix.service_name }}"
+          target-ecs-cluster: "${{ vars.CLUSTER_NAME }}"
+          wait-for-services: "${{ inputs.wait_services }}"
+          role-arn: "${{ secrets.DEPLOY_IAM_ROLE }}"
   
-  deploy-storage-api:
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.target_env }}
-    needs: [pre-notification]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/ecr-retag
-        name: retag image
-        with:
-          source_image: "${{ vars.ECR_PREFIX }}/dlip-pres-storage-api"
-          source_tag: "${{ inputs.image_tag }}"
-          target_tag: "${{ inputs.target_env }}"
-          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+  # post-notification-success:
+  #   runs-on: ubuntu-latest
+  #   environment: ${{ inputs.target_env }}
+  #   if: ${{ success() }}
+  #   needs: [deploy-storage-api, deploy-preservation-api]
+  #   steps:
+  #     - uses: slackapi/slack-github-action@v1.24.0
+  #       with:
+  #         payload: |
+  #           {
+  #             "text": "Successfully deployed tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :rocket:\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+  #             "link_names": 1
+  #           }
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
 
-      - uses: ./.github/actions/ecs-bounce
-        name: bounce service
-        with:
-          target_ecs_service: "${{ vars.STORAGE_SERVICE }}"
-          target_ecs_cluster: "${{ vars.CLUSTER_NAME }}"
-          wait_for_services: "${{ inputs.wait_services }}"
-          role_arn: "${{ secrets.DEPLOY_IAM_ROLE }}"
-
-  deploy-preservation-api:
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.target_env }}
-    needs: [pre-notification]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/ecr-retag
-        name: retag image
-        with:
-          source_image: "${{ vars.ECR_PREFIX }}/dlip-pres-preservation-api"
-          source_tag: "${{ inputs.image_tag }}"
-          target_tag: "${{ inputs.target_env }}"
-          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
-
-      - uses: ./.github/actions/ecs-bounce
-        name: bounce service
-        with:
-          target_ecs_service: "${{ vars.PRESERVATION_SERVICE }}"
-          target_ecs_cluster: "${{ vars.CLUSTER_NAME }}"
-          wait_for_services: "${{ inputs.wait_services }}"
-          role_arn: "${{ secrets.DEPLOY_IAM_ROLE }}"
-
-  post-notification-success:
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.target_env }}
-    if: ${{ success() }}
-    needs: [deploy-storage-api, deploy-preservation-api]
-    steps:
-      - uses: slackapi/slack-github-action@v1.24.0
-        with:
-          payload: |
-            {
-              "text": "Successfully deployed tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :rocket:\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "link_names": 1
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
-
-  post-notification-failure:
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.target_env }}
-    if: ${{ failure() }}
-    needs: [deploy-storage-api, deploy-preservation-api]
-    steps:
-      - uses: slackapi/slack-github-action@v1.24.0
-        with:
-          payload: |
-            {
-              "text": "Failed to deployed tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :exclamation:\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "link_names": 1
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+  # post-notification-failure:
+  #   runs-on: ubuntu-latest
+  #   environment: ${{ inputs.target_env }}
+  #   if: ${{ failure() }}
+  #   needs: [deploy-storage-api, deploy-preservation-api]
+  #   steps:
+  #     - uses: slackapi/slack-github-action@v1.24.0
+  #       with:
+  #         payload: |
+  #           {
+  #             "text": "Failed to deployed tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :exclamation:\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+  #             "link_names": 1
+  #           }
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

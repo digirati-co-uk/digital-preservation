@@ -18,10 +18,6 @@ inputs:
   ecr-prefix:
     description: "Prefix for ECR registry"
     required: true
-outputs:
-  docker-tag:
-    description: "Docker tag applied"
-    value: ${{ fromJSON(steps.docker-meta.outputs.json).labels['org.opencontainers.image.revision'] }}
 
 runs:
   using: "composite"

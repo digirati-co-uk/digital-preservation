@@ -6,16 +6,16 @@ permissions:
   contents: read   # This is required for actions/checkout
 
 inputs:
-  target_ecs_service:
+  target-ecs-service:
     description: "Name of the ECS service to restart"
     required: true
-  target_ecs_cluster:
+  target-ecs-cluster:
     description: "Name of the ECS cluster running services"
     required: true
-  wait_for_services:
+  wait-for-services:
     description: "If true, build will wait for ECS service to report as healthy"
     required: true
-  role_arn:
+  role-arn:
     description: "AWS role arn to assume"
     required: true
 
@@ -28,14 +28,14 @@ runs:
     - id: configure-aws-creds
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ inputs.role_arn }}
+        role-to-assume: ${{ inputs.role-arn }}
         aws-region: eu-west-1
 
     - id: restart-service
       shell: bash
       env:
-        ECS_SERVICE: ${{ inputs.target_ecs_service }}
-        ECS_CLUSTER: ${{ inputs.target_ecs_cluster }}
+        ECS_SERVICE: ${{ inputs.target-ecs-service }}
+        ECS_CLUSTER: ${{ inputs.target-ecs-cluster }}
       run: |
         export IFS=","
         for svc in $ECS_SERVICE; do
@@ -43,11 +43,11 @@ runs:
         done
 
     - id: wait-service
-      if: ${{ inputs.wait_for_services == 'true' }}
+      if: ${{ inputs.wait-for-services == 'true' }}
       shell: bash
       env:
-        ECS_SERVICE: ${{ inputs.target_ecs_service }}
-        ECS_CLUSTER: ${{ inputs.target_ecs_cluster }}
+        ECS_SERVICE: ${{ inputs.target-ecs-service }}
+        ECS_CLUSTER: ${{ inputs.target-ecs-cluster }}
       run: |
         export IFS=","
         for svc in $ECS_SERVICE; do

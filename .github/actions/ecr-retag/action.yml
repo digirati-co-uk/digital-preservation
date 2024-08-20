@@ -27,7 +27,7 @@ runs:
     - id: configure-aws-creds
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: arn:aws:iam::563450718166:role/Delegated_StLouisFed_GitHubActions_CI
+        role-to-assume: ${{ inputs.iam-role }}
         aws-region: eu-west-1
 
     - id: login-ecr

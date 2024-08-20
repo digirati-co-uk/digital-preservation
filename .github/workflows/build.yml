@@ -60,12 +60,12 @@ jobs:
           iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
           ecr-prefix: ${{ vars.ECR_PREFIX }}
   
-  # deploy-development:
-  #   needs: [build-push-storage, build-push-preservation]
-  #   uses: ./.github/workflows/deploy.yml
-  #   if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
-  #   with:
-  #     image_tag: "${{ needs.build-push-storage.outputs.docker-tag }}"
-  #     target_env: development
-  #   secrets: inherit
-  ##     slack_webhook: ${{ secrets.SLACK_WEBHOOK }}
+  deploy-development:
+    needs: [build-push-images]
+    uses: ./.github/workflows/deploy.yml
+    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
+    with:
+      image_tag: "${{ github.sha }}"
+      target_env: development
+    secrets: inherit
+  #     slack_webhook: ${{ secrets.SLACK_WEBHOOK }}
