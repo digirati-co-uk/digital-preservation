@@ -1,0 +1,58 @@
+name: Docker Build & Push
+description: Composite GitHub Action to build and push Docker images to the ECR repository.
+
+inputs:
+  image-name:
+    description: "Docker image prefix used to push to ECR."
+    required: true
+  dockerfile:
+    description: "The Dockerfile to build and push."
+    required: true
+  context:
+    description: "The context to use when building the Dockerfile."
+    required: false
+    default: "."
+outputs:
+  docker-tag:
+    description: "Docker tags applied"
+    value: ${{ fromJSON(steps.docker-meta.outputs.json).tags[0] }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: checkout
+      uses: actions/checkout@v4
+
+    - id: configure-aws-credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.PUBLISH_IAM_ROLE }}
+        aws-region: eu-west-1
+
+    - id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+  
+    - id: docker-setup-buildx
+      uses: docker/setup-buildx-action@v3
+
+    - id: docker-meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ vars.ECR_PREFIX }}/dlip-pres-${{ inputs.image-name }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,enable=true,prefix=,format=long
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+
+    - id: docker-build-push
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        builder: ${{ steps.docker-setup-buildx.outputs.name }}
+        tags: ${{ steps.docker-meta.outputs.tags }}
+        labels: ${{ steps.docker-meta.outputs.labels }}
+        push: ${{ github.actor != 'dependabot[bot]' }}

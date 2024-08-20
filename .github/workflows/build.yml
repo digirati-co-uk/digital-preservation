@@ -1,0 +1,77 @@
+name: Build, Test & Publish Images
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+    paths:
+      - "src/DigitalPreservation/**"
+      - ".github/**"
+      - "Dockerfile.*"
+  workflow_dispatch: {}
+
+jobs:
+  test-dotnet:
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./src/DigitalPreservation/
+    env:
+      BUILD_CONFIG: "Release"
+      SOLUTION: "DigitalPreservation.sln"
+    steps:
+      - id: checkout
+        uses: actions/checkout@v4
+      - id: setup-dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - id: restore-dotnet-dependencies
+        run: dotnet restore $SOLUTION
+      - id: build-dotnet
+        run: dotnet build $SOLUTION --configuration $BUILD_CONFIG --no-restore
+      - id: test-dotnet
+        run: dotnet test $SOLUTION --filter 'Category!=Manual' --configuration $BUILD_CONFIG --no-restore --no-build --verbosity normal
+
+  build-push-storage:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    needs: test-dotnet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-build-and-push
+        id: buildpush
+        name: build and push
+        with:
+          image-name: "storage-api"
+          dockerfile: "Dockerfile.StorageApi"
+
+  build-push-preservation:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    needs: test-dotnet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-build-and-push
+        id: buildpush
+        name: build and push
+        with:
+          image-name: "preservation-api"
+          dockerfile: "Dockerfile.PreservationApi"
+  
+  deploy-development:
+    needs: [build-push-storage, build-push-preservation]
+    uses: ./.github/workflows/deploy.yml
+    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
+    with:
+      image_tag: "${{ needs.build-push-storage.outputs.docker-tag }}"
+      target_env: development
+    secrets:
+      slack_webhook: ${{ secrets.SLACK_WEBHOOK }}

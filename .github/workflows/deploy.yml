@@ -1,0 +1,116 @@
+name: Build and Deploy IIIF Builder Services
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        required: true
+        type: string
+      wait_services:
+        required: false
+        type: string
+        default: 'false'
+      target_env:
+        required: true
+        type: string
+    secrets:
+      slack_webhook:
+        required: true       
+
+permissions:
+  id-token: write  # required for OIDC / AWS
+  contents: read   # This is required for actions/checkout
+
+jobs:
+
+  pre-notification:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    steps:
+      - uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "Deploying tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :rocket:\nWait services? ${{ inputs.wait_services }}\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "link_names": 1
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.slack_webhook }}
+  
+  deploy-storage-api:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    needs: [pre-notification]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ecr-retag
+        name: retag image
+        with:
+          source_image: "${{ vars.ECR_PREFIX }}/dlip-pres-storage-api"
+          source_tag: "${{ inputs.image_tag }}"
+          target_tag: "${{ inputs.target_env }}"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/ecs-bounce
+        name: bounce service
+        with:
+          target_ecs_service: "${{ vars.STORAGE_SERVICE }}"
+          target_ecs_cluster: "${{ vars.CLUSTER_NAME }}"
+          wait_for_services: "${{ inputs.wait_services }}"
+          role_arn: "${{ secrets.DEPLOY_IAM_ROLE }}"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-preservation-api:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    needs: [pre-notification]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ecr-retag
+        name: retag image
+        with:
+          source_image: "${{ vars.ECR_PREFIX }}/dlip-pres-preservation-api"
+          source_tag: "${{ inputs.image_tag }}"
+          target_tag: "${{ inputs.target_env }}"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/ecs-bounce
+        name: bounce service
+        with:
+          target_ecs_service: "${{ vars.PRESERVATION_SERVICE }}"
+          target_ecs_cluster: "${{ vars.CLUSTER_NAME }}"
+          wait_for_services: "${{ inputs.wait_services }}"
+          role_arn: "${{ secrets.DEPLOY_IAM_ROLE }}"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  post-notification-success:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    if: ${{ success() }}
+    needs: [deploy-storage-api, deploy-preservation-api]
+    steps:
+      - uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "Successfully deployed tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :rocket:\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "link_names": 1
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  post-notification-failure:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    if: ${{ failure() }}
+    needs: [deploy-storage-api, deploy-preservation-api]
+    steps:
+      - uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "Failed to deployed tag `:${{ inputs.image_tag }}` to `${{ inputs.target_env }}` :exclamation:\nAction: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "link_names": 1
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
