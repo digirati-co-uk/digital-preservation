@@ -2,6 +2,8 @@
 
 public class StorageOptions
 {
+    public const string Storage = "Storage";
+    
     /// <summary>
     /// Root URI for StorageAPI
     /// </summary>
