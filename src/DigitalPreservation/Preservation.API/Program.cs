@@ -23,7 +23,7 @@ try
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
         .AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>())
-        .AddStorageClient(builder.Configuration, "Preservation-API")
+        .AddStorageClient("Preservation-API")
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddControllers();
