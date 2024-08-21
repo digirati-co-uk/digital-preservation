@@ -1,6 +1,6 @@
 namespace Storage.API.Infrastructure;
 
-public static class ServicesCollectionX
+public static class ServiceCollectionX
 {
     /// <summary>
     /// Add required health checks

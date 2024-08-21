@@ -14,3 +14,12 @@ services:
       - .env
     ports:
       - "8002:8080"
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.UI
+    env_file:
+      - .env
+    ports:
+      - "8003:8080"  
