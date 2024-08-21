@@ -37,6 +37,7 @@ try
     
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Preservation: Hello World!");
+    app.MapGet("/test", (IConfiguration configuration) => $"Config value 'TestVal': {configuration["TestVal"]} ");
     app.MapControllers();
     app.UseHealthChecks("/health");
     app.Run();
