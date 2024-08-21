@@ -16,6 +16,7 @@ There are a number of entry points (ie runnable) projects and various shared pro
 
 * DigitalPreservation.Core - various common helper functions.
 * Storage.Client - HTTP client for Storage API.
+* Preservation.Client - HTTP client for Preservation API.
 
 ## Technology :robot:
 

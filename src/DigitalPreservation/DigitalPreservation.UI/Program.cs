@@ -1,4 +1,5 @@
 using DigitalPreservation.UI.Infrastructure;
+using Preservation.Client;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -19,6 +20,8 @@ try
     // Add services to the container.
     builder.Services
         .AddHttpContextAccessor()
+        .AddPreservationClient(builder.Configuration, "DigitalPreservation UI")
+        .AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>())
         .AddUIHealthChecks()
         .AddRazorPages();
 
@@ -33,11 +36,11 @@ try
         app.UseHsts();
     }
 
-    app.UseHttpsRedirection();
-    app.UseStaticFiles();
-
-    app.UseRouting();
-    app.UseAuthorization();
+    app
+        .UseHttpsRedirection()
+        .UseStaticFiles()
+        .UseRouting()
+        .UseAuthorization();
     app.MapRazorPages();
     app.UseHealthChecks("/health");
     app.Run();

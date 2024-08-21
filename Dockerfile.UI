@@ -2,6 +2,7 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY ["src/DigitalPreservation/DigitalPreservation.UI/DigitalPreservation.UI.csproj", "DigitalPreservation.UI/"]
 COPY ["src/DigitalPreservation/DigitalPreservation.Core/DigitalPreservation.Core.csproj", "DigitalPreservation.Core/"]
+COPY ["src/DigitalPreservation/Preservation.Client/Preservation.Client.csproj", "Preservation.Client/"]
 
 RUN dotnet restore "DigitalPreservation.UI/DigitalPreservation.UI.csproj"
 
