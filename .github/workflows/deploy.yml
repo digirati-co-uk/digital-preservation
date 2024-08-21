@@ -26,7 +26,9 @@ jobs:
   # NOTE - This suits a matrix but we cannot use it here as we need to read environment ${{vars}} for matrix setup but it's not available
   deploy-storage:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target_env }}
+    environment: 
+      name: ${{ inputs.target_env }}
+      url: ${{ vars.STORAGE_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ecr-retag
@@ -46,7 +48,9 @@ jobs:
 
   deploy-preservation:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target_env }}
+    environment: 
+      name: ${{ inputs.target_env }}
+      url: ${{ vars.PRESERVATION_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/ecr-retag
