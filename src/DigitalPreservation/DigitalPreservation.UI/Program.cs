@@ -1,3 +1,4 @@
+using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
 using Preservation.Client;
 using Serilog;
@@ -15,18 +16,21 @@ try
         => loggerConfiguration
             .ReadFrom.Configuration(hostContext.Configuration)
             .Enrich.FromLogContext()
-            .Enrich.WithCorrelationId(addValueIfHeaderAbsence: true));
+            .Enrich.WithCorrelationId());
 
     // Add services to the container.
     builder.Services
         .AddHttpContextAccessor()
         .AddPreservationClient(builder.Configuration, "DigitalPreservation UI")
         .AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>())
+        .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks()
         .AddRazorPages();
 
     var app = builder.Build();
-    app.UseSerilogRequestLogging();
+    app
+        .UseMiddleware<CorrelationIdMiddleware>()
+        .UseSerilogRequestLogging();
 
     // Configure the HTTP request pipeline.
     if (!app.Environment.IsDevelopment())
