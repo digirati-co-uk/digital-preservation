@@ -67,3 +67,25 @@ jobs:
           target-ecs-cluster: ${{ vars.CLUSTER_NAME }}
           wait-for-services: ${{ inputs.wait_services }}
           role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}
+
+  deploy-preservation-ui:
+    runs-on: ubuntu-latest
+    environment: 
+      name: ${{ inputs.target_env }}
+      url: ${{ vars.PRESERVATION_UI_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ecr-retag
+        name: retag image
+        with:
+          source-image: ${{ vars.ECR_PREFIX }}/dlip-pres-preservation-ui
+          source-tag: ${{ inputs.image_tag }}
+          target-tag: ${{ inputs.target_env }}
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+      - uses: ./.github/actions/ecs-bounce
+        name: bounce service
+        with:
+          target-ecs-service: ${{ vars.PRESERVATION_UI_SERVICE }}
+          target-ecs-cluster: ${{ vars.CLUSTER_NAME }}
+          wait-for-services: ${{ inputs.wait_services }}
+          role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}

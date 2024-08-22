@@ -10,11 +10,13 @@ There are a number of entry points (ie runnable) projects and various shared pro
 
 * Storage.API - wrapper on top of underlying Fedora storage.
 * Preservation.API - higher level Preservation API consuming Storage API.
+* DigitalPreservation.UI - user interface for interacting with above services.
 
 ### Shared
 
 * DigitalPreservation.Core - various common helper functions.
 * Storage.Client - HTTP client for Storage API.
+* Preservation.Client - HTTP client for Preservation API.
 
 ## Technology :robot:
 
