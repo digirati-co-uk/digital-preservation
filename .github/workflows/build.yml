@@ -50,7 +50,7 @@ jobs:
           - image: "preservation-api"
             dockerfile: "Dockerfile.PreservationApi"
           - image: "preservation-ui"
-            dockerfile: "Dockerfile.PreservationUI"
+            dockerfile: "Dockerfile.UI"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-build-and-push
