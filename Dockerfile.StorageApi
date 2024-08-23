@@ -19,4 +19,5 @@ LABEL org.opencontainers.image.description="UoL DLIP Storage API"
 
 WORKDIR /app
 COPY --from=publish /app/publish .
+USER $APP_UID
 ENTRYPOINT ["dotnet", "Storage.API.dll"]

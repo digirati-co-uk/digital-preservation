@@ -20,4 +20,5 @@ LABEL org.opencontainers.image.description="UoL DLIP Digital Preservation UI"
 
 WORKDIR /app
 COPY --from=publish /app/publish .
+USER $APP_UID
 ENTRYPOINT ["dotnet", "DigitalPreservation.UI.dll"]
