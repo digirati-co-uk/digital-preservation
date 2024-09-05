@@ -1,10 +1,20 @@
-﻿namespace Preservation.Client;
+﻿using Microsoft.Extensions.Logging;
 
-internal class PreservationApiClient(HttpClient httpClient) : IPreservationApiClient
+namespace Preservation.Client;
+
+internal class PreservationApiClient(HttpClient httpClient, ILogger<PreservationApiClient> logger) : IPreservationApiClient
 {
     public async Task<bool> IsAlive(CancellationToken cancellationToken = default)
     {
-        var res = await httpClient.GetAsync("/storage", cancellationToken);
-        return res.IsSuccessStatusCode;
+        try
+        {
+            var res = await httpClient.GetAsync("/storage", cancellationToken);
+            return res.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error occured while checking if Fedora is alive");
+            return false;
+        }
     }
 }

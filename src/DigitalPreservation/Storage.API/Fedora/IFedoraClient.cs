@@ -1,5 +1,11 @@
 namespace Storage.API.Fedora;
 
+/// <summary>
+/// Interface for interacting with Fedora
+/// </summary>
+/// <remarks>
+/// We may want to split this eventually (ie read/write or for different operations) but single interface for now
+/// </remarks>
 public interface IFedoraClient
 {
     /// <summary>

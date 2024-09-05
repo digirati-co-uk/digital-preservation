@@ -1,4 +1,6 @@
-﻿namespace Storage.Client;
+﻿using Microsoft.Extensions.Logging;
+
+namespace Storage.Client;
 
 /// <summary>
 /// Concrete implementation of <see cref="IStorageApiClient"/> for interacting with Storage API
@@ -7,11 +9,19 @@
 /// Marked internal to avoid consumers depending on this implementation, which will allow us to alter how it's
 /// implemented in the future to use, e.g. Refit client instead
 /// </remarks>
-internal class StorageApiClient(HttpClient httpClient) : IStorageApiClient
+internal class StorageApiClient(HttpClient httpClient, ILogger<StorageApiClient> logger) : IStorageApiClient
 {
     public async Task<bool> IsAlive(CancellationToken cancellationToken = default)
     {
-        var res = await httpClient.GetAsync("/", cancellationToken);
-        return res.IsSuccessStatusCode;
+        try
+        {
+            var res = await httpClient.GetAsync("/fedora", cancellationToken);
+            return res.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error occured while checking if API is alive");
+            return false;
+        }
     }
 }
