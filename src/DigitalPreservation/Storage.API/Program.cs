@@ -1,6 +1,7 @@
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Serilog;
+using Storage.API.Fedora;
 using Storage.API.Infrastructure;
 
 Log.Logger = new LoggerConfiguration()
@@ -21,17 +22,22 @@ try
     builder.Services
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
+        .AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>())
+        .AddFedoraClient(builder.Configuration, "Storage-API")
         .AddStorageHealthChecks()
-        .AddCorrelationIdHeaderPropagation();
+        .AddCorrelationIdHeaderPropagation()
+        .AddControllers();
     
     var app = builder.Build();
     app
         .UseMiddleware<CorrelationIdMiddleware>()
         .UseSerilogRequestLogging()
+        .UseRouting()
         .UseForwardedHeaders();
     
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Storage: Hello World!");
+    app.MapControllers();
     app.UseHealthChecks("/health");
     app.Run();
 }

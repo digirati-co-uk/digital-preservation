@@ -1,14 +1,12 @@
-﻿using Microsoft.Extensions.Logging;
+namespace Storage.API.Fedora;
 
-namespace Preservation.Client;
-
-internal class PreservationApiClient(HttpClient httpClient, ILogger<PreservationApiClient> logger) : IPreservationApiClient
+internal class FedoraClient(HttpClient httpClient, ILogger<FedoraClient> logger) : IFedoraClient
 {
     public async Task<bool> IsAlive(CancellationToken cancellationToken = default)
     {
         try
         {
-            var res = await httpClient.GetAsync("/storage", cancellationToken);
+            var res = await httpClient.GetAsync("./fcr:systeminfo", cancellationToken);
             return res.IsSuccessStatusCode;
         }
         catch (Exception ex)
