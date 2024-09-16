@@ -1,0 +1,58 @@
+using System.Net;
+using Amazon.S3;
+using Amazon.S3.Model;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace Storage.Repository.Common;
+
+public class Storage(
+    IAmazonS3 s3Client,
+    IOptions<AwsStorageOptions> options,
+    ILogger<Storage> logger) : IStorage
+{
+    private readonly AwsStorageOptions options = options.Value;
+    
+    public async Task<bool> CanSeeStorage()
+    {
+        try
+        {
+            var req = new GetObjectRequest
+            {
+                BucketName = options.DefaultWorkingBucket,
+                Key = options.S3HealthCheckKey
+            };
+            var resp = await s3Client.GetObjectAsync(req);
+            switch (resp.HttpStatusCode)
+            {
+                case HttpStatusCode.OK:
+                    logger.LogDebug("S3 check can read S3 bucket");
+                    return true;
+                case HttpStatusCode.NotFound:
+                {
+                    var pReq = new PutObjectRequest
+                    {
+                        BucketName = options.DefaultWorkingBucket,
+                        Key = options.S3HealthCheckKey,
+                        ContentBody = """{"test": "value"}""",
+                        ContentType = "application/json"
+                    };
+                    var pResp = await s3Client.PutObjectAsync(pReq);
+                    if (pResp.HttpStatusCode == HttpStatusCode.Created)
+                    {
+                        logger.LogDebug("S3 check can write to S3 bucket");
+                        return true;
+                    }
+                    logger.LogWarning("S3 check returned status {status} on PUT", pResp.HttpStatusCode);
+                    return false;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "S3 check failed");
+        }
+
+        return false;
+    }
+}
