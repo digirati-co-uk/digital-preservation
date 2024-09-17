@@ -1,7 +1,8 @@
 ﻿using Amazon.S3;
-using Storage.Repository.Common;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace Storage.API.S3;
+namespace Storage.Repository.Common.S3;
 
 public static class S3ServiceCollectionX
 {
