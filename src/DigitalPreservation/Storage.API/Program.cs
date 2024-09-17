@@ -3,7 +3,7 @@ using DigitalPreservation.Core.Web.Headers;
 using Serilog;
 using Storage.API.Fedora;
 using Storage.API.Infrastructure;
-using Amazon.S3;
+using Storage.API.S3;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -25,8 +25,7 @@ try
         .AddHttpContextAccessor()
         .AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>())
         .AddFedoraClient(builder.Configuration, "Storage-API")
-        .AddDefaultAWSOptions(builder.Configuration.GetAWSOptions("Storage-AWS"))
-        .AddAWSService<IAmazonS3>()
+        .AddStorageAwsAccess(builder.Configuration)
         .AddStorageHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddControllers();
