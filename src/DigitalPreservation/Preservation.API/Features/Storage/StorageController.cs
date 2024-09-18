@@ -31,7 +31,7 @@ public class StorageController(IMediator mediator) : Controller
     [Route("check-storage-s3")]
     public async Task<IActionResult> S3StorageCheck()
     {
-        // Can Preservation API speak to S3?
+        // Can Storage API speak to S3?
         var res = await mediator.Send(new VerifyStorageCanSeeS3());
         return new OkObjectResult(res);
     }
