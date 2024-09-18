@@ -2,6 +2,8 @@ using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
 using Preservation.Client;
 using Serilog;
+using Storage.Repository.Common;
+using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -22,7 +24,12 @@ try
     builder.Services
         .AddHttpContextAccessor()
         .AddPreservationClient(builder.Configuration, "DigitalPreservation UI")
-        .AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>())
+        .AddMediatR(cfg =>
+        {
+            cfg.RegisterServicesFromAssemblyContaining<Program>();
+            cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+        })
+        .AddStorageAwsAccess(builder.Configuration)
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks()
         .AddRazorPages();

@@ -3,6 +3,8 @@ using DigitalPreservation.Core.Web.Headers;
 using Serilog;
 using Storage.API.Fedora;
 using Storage.API.Infrastructure;
+using Storage.Repository.Common;
+using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -22,8 +24,13 @@ try
     builder.Services
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
-        .AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>())
+        .AddMediatR(cfg =>
+        {
+            cfg.RegisterServicesFromAssemblyContaining<Program>();
+            cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+        })
         .AddFedoraClient(builder.Configuration, "Storage-API")
+        .AddStorageAwsAccess(builder.Configuration)
         .AddStorageHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddControllers();

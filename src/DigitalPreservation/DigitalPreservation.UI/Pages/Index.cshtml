@@ -4,7 +4,16 @@
     ViewData["Title"] = "Home page";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Hello World</h1>
-    <p>@Model.Message</p>
+<div>
+    <h1 class="display-4">Connectivity Checks</h1>
+    @foreach (var connectivityCheckResult in Model.ConnectivityChecks)
+    {
+        <div class="card" style="width: 30rem; margin-top: 4rem">
+            <div class="card-body">
+                <h5 class="card-title">@connectivityCheckResult.Name</h5>
+                <h6 class="card-subtitle mb-2 text-muted">@connectivityCheckResult.Success</h6>
+                <p class="card-text">@connectivityCheckResult.Error</p>
+            </div>
+        </div>
+    }
 </div>

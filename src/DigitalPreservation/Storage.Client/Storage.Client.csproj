@@ -13,6 +13,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Core\DigitalPreservation.Core.csproj" />
+      <ProjectReference Include="..\Storage.Repository.Common\Storage.Repository.Common.csproj" />
     </ItemGroup>
 
 </Project>

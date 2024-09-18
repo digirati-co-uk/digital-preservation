@@ -14,6 +14,6 @@ public class FedoraController(IMediator mediator) : Controller
     public async Task<IActionResult> FedoraCheck()
     {
         var res = await mediator.Send(new VerifyFedoraRunning());
-        return new OkObjectResult(new { FedoraAccessible = res });
+        return new OkObjectResult(res);
     }
 }

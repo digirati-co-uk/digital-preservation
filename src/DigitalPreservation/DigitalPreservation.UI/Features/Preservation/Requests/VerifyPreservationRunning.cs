@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using Preservation.Client;
+using Storage.Repository.Common;
 
 namespace DigitalPreservation.UI.Features.Preservation.Requests;
 
@@ -8,13 +9,13 @@ namespace DigitalPreservation.UI.Features.Preservation.Requests;
 /// requests implemented. It's a means to verify deployment only.
 /// </summary>
 // ReSharper disable once ClassNeverInstantiated.Global
-public class VerifyPreservationRunning : IRequest<bool>
+public class VerifyPreservationRunning : IRequest<ConnectivityCheckResult>
 {
 }
 
 public class VerifyPreservationRunningHandler(IPreservationApiClient preservationApiClient)
-    : IRequestHandler<VerifyPreservationRunning, bool>
+    : IRequestHandler<VerifyPreservationRunning, ConnectivityCheckResult?>
 {
-    public Task<bool> Handle(VerifyPreservationRunning request, CancellationToken cancellationToken)
+    public Task<ConnectivityCheckResult?> Handle(VerifyPreservationRunning request, CancellationToken cancellationToken)
         => preservationApiClient.IsAlive(cancellationToken);
 }
