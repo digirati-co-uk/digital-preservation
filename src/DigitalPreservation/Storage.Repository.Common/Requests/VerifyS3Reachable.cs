@@ -2,10 +2,10 @@ using MediatR;
 
 namespace Storage.Repository.Common.Requests;
 
-public class VerifyS3Reachable : IRequest<ConnectivityCheckResult>
+public class VerifyS3Reachable(string source) : IRequest<ConnectivityCheckResult>
 {
     // Who is testing S3 access?
-    public required string Source { get; set; }
+    public string Source { get; set; } = source;
 }
 
 public class VerifyS3ReachableHandler(IStorage storage)

@@ -11,7 +11,7 @@ public class StorageCheckController(IMediator mediator) : Controller
 {
     public async Task<IActionResult> S3Check()
     {
-        var res = await mediator.Send(new VerifyS3Reachable{Source = ConnectivityCheckResult.StorageApiReadS3});
+        var res = await mediator.Send(new VerifyS3Reachable(ConnectivityCheckResult.StorageApiReadS3));
         return new OkObjectResult(res);
     }
 }

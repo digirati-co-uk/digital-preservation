@@ -24,7 +24,7 @@ public class StorageController(IMediator mediator) : Controller
     {
         // Can Preservation API speak to S3?
         var res = await mediator.Send(
-            new VerifyS3Reachable{Source = ConnectivityCheckResult.PreservationApiReadS3});
+            new VerifyS3Reachable(ConnectivityCheckResult.PreservationApiReadS3));
         return new OkObjectResult(res);
     }
     
