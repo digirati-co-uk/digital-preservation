@@ -6,12 +6,21 @@ using Microsoft.Extensions.Options;
 
 namespace Storage.Repository.Common;
 
-public class Storage(
-    IAmazonS3 s3Client,
-    IOptions<AwsStorageOptions> options,
-    ILogger<Storage> logger) : IStorage
+public class Storage : IStorage
 {
-    private readonly AwsStorageOptions options = options.Value;
+    private readonly AwsStorageOptions options;
+    private readonly IAmazonS3 s3Client;
+    private readonly ILogger<Storage> logger;
+    
+    public Storage(IAmazonS3 s3Client,
+        IOptions<AwsStorageOptions> options,
+        ILogger<Storage> logger)
+    {
+        this.s3Client = s3Client;
+        this.logger = logger;
+        this.options = options.Value;
+    }
+    
     
     public async Task<bool> CanSeeStorage()
     {
