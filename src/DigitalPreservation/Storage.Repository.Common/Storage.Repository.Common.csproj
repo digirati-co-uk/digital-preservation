@@ -9,6 +9,8 @@
     <ItemGroup>
       <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
       <PackageReference Include="AWSSDK.S3" Version="3.7.402.11" />
+      <PackageReference Include="AWSSDK.SSO" Version="3.7.400.21" />
+      <PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.400.21" />
       <PackageReference Include="MediatR" Version="12.4.1" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
         <FrameworkReference Include="Microsoft.AspNetCore.App" />

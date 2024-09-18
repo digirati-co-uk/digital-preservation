@@ -21,9 +21,9 @@ public class Storage : IStorage
         this.options = options.Value;
     }
     
-    
     public async Task<bool> CanSeeStorage()
     {
+        GetObjectResponse resp;
         try
         {
             var req = new GetObjectRequest
@@ -31,13 +31,13 @@ public class Storage : IStorage
                 BucketName = options.DefaultWorkingBucket,
                 Key = options.S3HealthCheckKey
             };
-            var resp = await s3Client.GetObjectAsync(req);
-            switch (resp.HttpStatusCode)
+            try
             {
-                case HttpStatusCode.OK:
-                    logger.LogDebug("S3 check can read S3 bucket");
-                    return true;
-                case HttpStatusCode.NotFound:
+                resp = await s3Client.GetObjectAsync(req);
+            }
+            catch (AmazonS3Exception s3e)
+            {
+                if (s3e.StatusCode == HttpStatusCode.NotFound)
                 {
                     var pReq = new PutObjectRequest
                     {
@@ -47,7 +47,7 @@ public class Storage : IStorage
                         ContentType = "application/json"
                     };
                     var pResp = await s3Client.PutObjectAsync(pReq);
-                    if (pResp.HttpStatusCode == HttpStatusCode.Created)
+                    if (pResp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
                     {
                         logger.LogDebug("S3 check can write to S3 bucket");
                         return true;
@@ -55,6 +55,13 @@ public class Storage : IStorage
                     logger.LogWarning("S3 check returned status {status} on PUT", pResp.HttpStatusCode);
                     return false;
                 }
+                throw;
+            }
+
+            if (resp.HttpStatusCode == HttpStatusCode.OK)
+            {
+                logger.LogDebug("S3 check can read S3 bucket");
+                return true;
             }
         }
         catch (Exception e)
