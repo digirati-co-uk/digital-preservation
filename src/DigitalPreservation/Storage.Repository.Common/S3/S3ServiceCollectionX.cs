@@ -14,7 +14,7 @@ public static class S3ServiceCollectionX
             .AddDefaultAWSOptions(configuration.GetAWSOptions("Storage-AWS"))
             .AddAWSService<IAmazonS3>()
             .Configure<AwsStorageOptions>(configuration.GetSection(AwsStorageOptions.AwsStorage));
-        serviceCollection.AddSingleton<Repository.Common.IStorage, Repository.Common.Storage>();
+        serviceCollection.AddSingleton<IStorage, Storage>();
         return serviceCollection;
     }
 }

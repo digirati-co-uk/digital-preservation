@@ -1,48 +1,66 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Net.Http.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.VisualBasic;
+using Storage.Repository.Common;
 
 namespace Preservation.Client;
 
 internal class PreservationApiClient(HttpClient httpClient, ILogger<PreservationApiClient> logger) : IPreservationApiClient
 {
-    public async Task<bool> IsAlive(CancellationToken cancellationToken = default)
+    public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {
         try
         {
-            var res = await httpClient.GetAsync("/storage", cancellationToken);
-            return res.IsSuccessStatusCode;
+            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage", cancellationToken);
+            return res;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error occured while checking if Fedora is alive");
-            return false;
+            return new ConnectivityCheckResult
+            {
+                Name = ConnectivityCheckResult.DigitalPreservationBackEnd,
+                Success = false,
+                Error = ex.Message
+            };
         }
     }
 
-    public async Task<bool> CanTalkToS3(CancellationToken cancellationToken)
+    public async Task<ConnectivityCheckResult?> CanTalkToS3(CancellationToken cancellationToken)
     {
         try
         {
-            var res = await httpClient.GetAsync("/storage/check-s3", cancellationToken);
-            return res.IsSuccessStatusCode;
+            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-s3", cancellationToken);
+            return res;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error occured while checking if Preservation API can see S3");
-            return false;
+            return new ConnectivityCheckResult
+            {
+                Name = ConnectivityCheckResult.PreservationApiReadS3,
+                Success = false,
+                Error = ex.Message
+            };
         }
     }
 
-    public async Task<bool> CanSeeThatStorageCanTalkToS3(CancellationToken cancellationToken)
+    public async Task<ConnectivityCheckResult?> CanSeeThatStorageCanTalkToS3(CancellationToken cancellationToken)
     {
         try
         {
-            var res = await httpClient.GetAsync("/storage/check-storage-s3", cancellationToken);
-            return res.IsSuccessStatusCode;
+            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-storage-s3", cancellationToken);
+            return res;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error occured while checking if Preservation API can see that Storage API can see S3");
-            return false;
+            return new ConnectivityCheckResult
+            {
+                Name = ConnectivityCheckResult.StorageApiReadS3,
+                Success = false,
+                Error = ex.Message
+            };
         }
     }
 }

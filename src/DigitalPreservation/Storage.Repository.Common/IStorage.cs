@@ -2,5 +2,5 @@
 
 public interface IStorage
 {
-    Task<bool> CanSeeStorage();
+    Task<ConnectivityCheckResult> CanSeeStorage(string source);
 }

@@ -1,4 +1,6 @@
-﻿namespace Preservation.Client;
+﻿using Storage.Repository.Common;
+
+namespace Preservation.Client;
 
 public interface IPreservationApiClient
 {
@@ -7,8 +9,8 @@ public interface IPreservationApiClient
     /// </summary>
     /// <remarks>This is intended for testing only, will be removed</remarks>
     /// <returns>true if alive, else false</returns>
-    Task<bool> IsAlive(CancellationToken cancellationToken = default);
+    Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default);
 
-    Task<bool> CanTalkToS3(CancellationToken cancellationToken);
-    Task<bool> CanSeeThatStorageCanTalkToS3(CancellationToken cancellationToken);
+    Task<ConnectivityCheckResult?> CanTalkToS3(CancellationToken cancellationToken);
+    Task<ConnectivityCheckResult?> CanSeeThatStorageCanTalkToS3(CancellationToken cancellationToken);
 }

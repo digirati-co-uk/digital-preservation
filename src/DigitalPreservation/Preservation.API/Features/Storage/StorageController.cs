@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Storage.Requests;
+using Storage.Repository.Common;
 using Storage.Repository.Common.Requests;
 
 namespace Preservation.API.Features.Storage;
@@ -15,22 +16,23 @@ public class StorageController(IMediator mediator) : Controller
     public async Task<IActionResult> StorageCheck()
     {
         var res = await mediator.Send(new VerifyStorageRunning());
-        return new OkObjectResult(new { StorageAccessible = res });
+        return new OkObjectResult(res);
     }
     
-    [Route("[controller]/check-s3")]
+    [Route("check-s3")]
     public async Task<IActionResult> S3Check()
     {
         // Can Preservation API speak to S3?
-        var res = await mediator.Send(new VerifyS3Reachable());
-        return new OkObjectResult(new { S3Accessible = res });
+        var res = await mediator.Send(
+            new VerifyS3Reachable{Source = ConnectivityCheckResult.PreservationApiReadS3});
+        return new OkObjectResult(res);
     }
     
-    [Route("[controller]/check-storage-s3")]
+    [Route("check-storage-s3")]
     public async Task<IActionResult> S3StorageCheck()
     {
         // Can Preservation API speak to S3?
         var res = await mediator.Send(new VerifyStorageCanSeeS3());
-        return new OkObjectResult(new { StorageCanSeeS3 = res });
+        return new OkObjectResult(res);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using Storage.Client;
+using Storage.Repository.Common;
 
 namespace Preservation.API.Features.Storage.Requests;
 
@@ -8,13 +9,13 @@ namespace Preservation.API.Features.Storage.Requests;
 /// implemented. It's a means to verify deployment only.
 /// </summary>
 // ReSharper disable once ClassNeverInstantiated.Global
-public class VerifyStorageRunning : IRequest<bool>
+public class VerifyStorageRunning : IRequest<ConnectivityCheckResult>
 {
 }
 
 public class VerifyStorageRunningHandler(IStorageApiClient storageApiClient)
-    : IRequestHandler<VerifyStorageRunning, bool>
+    : IRequestHandler<VerifyStorageRunning, ConnectivityCheckResult?>
 {
-    public Task<bool> Handle(VerifyStorageRunning request, CancellationToken cancellationToken)
+    public Task<ConnectivityCheckResult?> Handle(VerifyStorageRunning request, CancellationToken cancellationToken)
         => storageApiClient.IsAlive(cancellationToken);
 }

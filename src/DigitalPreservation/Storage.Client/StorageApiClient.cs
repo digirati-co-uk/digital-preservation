@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Net.Http.Json;
+using Microsoft.Extensions.Logging;
+using Storage.Repository.Common;
 
 namespace Storage.Client;
 
@@ -13,31 +15,37 @@ internal class StorageApiClient(
     HttpClient httpClient, 
     ILogger<StorageApiClient> logger) : IStorageApiClient
 {
-    public async Task<bool> IsAlive(CancellationToken cancellationToken = default)
+    public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {
         try
         {
-            var res = await httpClient.GetAsync("/fedora", cancellationToken);
-            return res.IsSuccessStatusCode;
+            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/fedora", cancellationToken);
+            return res;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error occured while checking if API is alive");
-            return false;
+            return new ConnectivityCheckResult
+            {
+                Name = ConnectivityCheckResult.DigitalPreservationBackEnd, Success = false
+            };
         }
     }
 
-    public async Task<bool> CanSeeS3(CancellationToken cancellationToken = default)
+    public async Task<ConnectivityCheckResult?> CanSeeS3(CancellationToken cancellationToken = default)
     {
         try
         {
-            var res = await httpClient.GetAsync("/storagecheck", cancellationToken);
-            return res.IsSuccessStatusCode;
+            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storagecheck", cancellationToken);
+            return res;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error occured while checking if API is alive");
-            return false;
+            return new ConnectivityCheckResult
+            {
+                Name = ConnectivityCheckResult.StorageApiReadS3, Success = false
+            };
         }
     }
 }
