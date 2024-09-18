@@ -55,6 +55,7 @@ public class Storage : IStorage
                         return result;
                     }
                     logger.LogWarning("S3 check returned status {status} on PUT", pResp.HttpStatusCode);
+                    result.Error = $"S3 check returned status ${pResp.HttpStatusCode} on PUT";
                     return result;
                 }
                 throw;
@@ -70,6 +71,7 @@ public class Storage : IStorage
         catch (Exception e)
         {
             logger.LogError(e, "S3 check failed");
+            result.Error = e.Message;
         }
 
         return result;
