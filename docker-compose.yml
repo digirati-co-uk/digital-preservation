@@ -13,6 +13,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.PreservationApi
+    environment:
+      - RunMigrations=true
     env_file:
       - .env
     ports:
