@@ -38,6 +38,22 @@ docker compose build
 docker compose up
 ```
 
+For local development `docker-compose.local.yml` can be used to run any dependencies (e.g. Postgres)
+
+```bash
+docker compose -f docker-compose.local.yml  up
+```
+
+## Migrations
+
+Migrations can be added by running the following:
+
+```bash
+cd src/DigitalPreservation
+
+dotnet ef migrations add "<migration-name>" -p Preservation.API -o Data/Migrations
+```
+
 ## Deployments
 
 Github actions are used for deployments. 

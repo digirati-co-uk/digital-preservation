@@ -1,4 +1,6 @@
-﻿namespace Preservation.API.Infrastructure;
+﻿using Preservation.API.Data;
+
+namespace Preservation.API.Infrastructure;
 
 public static class ServiceCollectionX
 {
@@ -7,7 +9,9 @@ public static class ServiceCollectionX
     /// </summary>
     public static IServiceCollection AddPreservationHealthChecks(this IServiceCollection services)
     {
-        services.AddHealthChecks();
+        services
+            .AddHealthChecks()
+            .AddDbContextCheck<PreservationContext>();
         return services;
     }
 }
