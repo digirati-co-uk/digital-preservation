@@ -21,8 +21,4 @@
       <ProjectReference Include="..\Storage.Repository.Common\Storage.Repository.Common.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="S3\" />
-    </ItemGroup>
-
 </Project>
