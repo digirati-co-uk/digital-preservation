@@ -1,3 +1,6 @@
+volumes:
+  preservation_postgres_data: {}
+
 services:
   storage:
     build:
@@ -10,6 +13,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.PreservationApi
+    environment:
+      - RunMigrations=true
     env_file:
       - .env
     ports:
@@ -23,3 +28,12 @@ services:
       - .env
     ports:
       - "8003:8080"  
+
+  db:
+    image: postgres:14-alpine
+    environment:
+      - POSTGRES_PASSWORD=preservation
+    ports:
+      - "5433:5432"
+    volumes:
+      - preservation_postgres_data:/var/lib/postgresql/data
