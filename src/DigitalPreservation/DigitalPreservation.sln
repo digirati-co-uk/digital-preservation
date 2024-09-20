@@ -24,6 +24,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Preservation.Client", "Pres
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Storage.Repository.Common", "Storage.Repository.Common\Storage.Repository.Common.csproj", "{F72F9200-D493-4DA5-8516-625273202895}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalPreservation.Common.Model", "DigitalPreservation.Common.Model\DigitalPreservation.Common.Model.csproj", "{26BF1D22-CC10-470A-8639-6CADFB58EEC0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -74,6 +76,10 @@ Global
 		{F72F9200-D493-4DA5-8516-625273202895}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F72F9200-D493-4DA5-8516-625273202895}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F72F9200-D493-4DA5-8516-625273202895}.Release|Any CPU.Build.0 = Release|Any CPU
+		{26BF1D22-CC10-470A-8639-6CADFB58EEC0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{26BF1D22-CC10-470A-8639-6CADFB58EEC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{26BF1D22-CC10-470A-8639-6CADFB58EEC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{26BF1D22-CC10-470A-8639-6CADFB58EEC0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E045329F-268B-4E69-8C2A-82B2CBEB9014} = {2FF7269F-F433-41F9-84BF-EAA8CFCFFCF5}

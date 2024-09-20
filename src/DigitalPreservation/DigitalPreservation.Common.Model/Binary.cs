@@ -1,0 +1,25 @@
+﻿using System.Text.Json.Serialization;
+
+namespace DigitalPreservation.Common.Model;
+
+public class Binary : PreservedResource
+{
+    public override string Type { get; set; } = nameof(Binary); 
+    
+    [JsonPropertyName("contentType")]
+    [JsonPropertyOrder(300)]
+    public string? ContentType { get; set; }
+
+    [JsonPropertyName("size")]
+    [JsonPropertyOrder(310)]
+    public long Size { get; set; }
+
+    [JsonPropertyName("digest")]
+    [JsonPropertyOrder(320)]
+    public string? Digest { get; set; }
+
+    public override string ToString()
+    {
+        return $"🗎 {Name ?? GetSlug() ?? GetType().Name}";
+    }
+}
