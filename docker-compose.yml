@@ -1,3 +1,6 @@
+volumes:
+  preservation_postgres_data: {}
+
 services:
   storage:
     build:
@@ -23,3 +26,12 @@ services:
       - .env
     ports:
       - "8003:8080"  
+
+  db:
+    image: postgres:14-alpine
+    environment:
+      - POSTGRES_PASSWORD=preservation
+    ports:
+      - "5433:5432"
+    volumes:
+      - preservation_postgres_data:/var/lib/postgresql/data

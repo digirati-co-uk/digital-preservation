@@ -1,5 +1,6 @@
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
+using Preservation.API.Data;
 using Preservation.API.Infrastructure;
 using Serilog;
 using Storage.Client;
@@ -33,6 +34,7 @@ try
         .AddStorageClient(builder.Configuration, "Preservation-API")
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
+        .AddPreservationContext(builder.Configuration)
         .AddControllers();
     
     var app = builder.Build();
@@ -40,7 +42,8 @@ try
         .UseMiddleware<CorrelationIdMiddleware>()
         .UseSerilogRequestLogging()
         .UseRouting()
-        .UseForwardedHeaders();
+        .UseForwardedHeaders()
+        .TryRunMigrations(builder.Configuration, app.Logger);
     
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Preservation: Hello World!");
