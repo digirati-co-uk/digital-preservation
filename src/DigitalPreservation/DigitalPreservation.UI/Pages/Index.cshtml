@@ -5,15 +5,9 @@
 }
 
 <div>
-    <h1 class="display-4">Connectivity Checks</h1>
-    @foreach (var connectivityCheckResult in Model.ConnectivityChecks)
+    <h1 class="display-4">Containers</h1>
+    @foreach (var container in Model.RepositoryRoot!.Containers!)
     {
-        <div class="card" style="width: 30rem; margin-top: 4rem">
-            <div class="card-body">
-                <h5 class="card-title">@connectivityCheckResult.Name</h5>
-                <h6 class="card-subtitle mb-2 text-muted">@connectivityCheckResult.Success</h6>
-                <p class="card-text">@connectivityCheckResult.Error</p>
-            </div>
-        </div>
+        <p>@container.ToString()</p>
     }
 </div>

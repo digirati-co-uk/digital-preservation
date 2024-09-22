@@ -1,3 +1,5 @@
+using DigitalPreservation.Common.Model;
+using Storage.API.Fedora.Model;
 using Storage.Repository.Common;
 
 namespace Storage.API.Fedora;
@@ -16,4 +18,6 @@ public interface IFedoraClient
     /// <remarks>This is intended for testing only, will be removed</remarks>
     /// <returns>true if alive, else false</returns>
     Task<ConnectivityCheckResult> IsAlive(CancellationToken cancellationToken = default);
+
+    Task<PreservedResource?> GetResource(Uri uri, Transaction? transaction = null, CancellationToken cancellationToken = default);
 }
