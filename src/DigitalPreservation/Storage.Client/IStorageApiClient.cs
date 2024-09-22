@@ -1,9 +1,14 @@
+using DigitalPreservation.Common.Model;
 using Storage.Repository.Common;
 
 namespace Storage.Client;
 
 public interface IStorageApiClient
 {
+    Task<PreservedResource?> GetResource(string path);
+    
+    Task<Container?> CreateContainer(string path, string? name = null);
+
     /// <summary>
     /// Basic ping to check Storage API is alive. 
     /// </summary>

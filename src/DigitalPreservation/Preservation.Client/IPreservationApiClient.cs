@@ -5,9 +5,9 @@ namespace Preservation.Client;
 
 public interface IPreservationApiClient
 {
-    Task<PreservedResource> GetResource(string path);
+    Task<PreservedResource?> GetResource(string path);
     
-    Task<Container> CreateContainer(string path, string? name = null);
+    Task<Container?> CreateContainer(string path, string? name = null);
     
     
     

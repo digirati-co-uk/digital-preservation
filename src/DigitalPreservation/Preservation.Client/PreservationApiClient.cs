@@ -1,21 +1,49 @@
 ﻿using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Core.Utils;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualBasic;
 using Storage.Repository.Common;
 
 namespace Preservation.Client;
 
 internal class PreservationApiClient(HttpClient httpClient, ILogger<PreservationApiClient> logger) : IPreservationApiClient
 {
-    public Task<PreservedResource> GetResource(string path)
+    public async Task<PreservedResource?> GetResource(string path)
     {
-        throw new NotImplementedException();
+        var uri = new Uri(path, UriKind.Relative);
+        var req = new HttpRequestMessage(HttpMethod.Get, uri);
+        var response = await httpClient.SendAsync(req);
+        var stream = await response.Content.ReadAsStreamAsync();
+        var parsed = Deserializer.Parse(stream);
+        if (parsed != null)
+        {
+            return parsed;
+        }
+        // TODO: Handle missing resource
+        return null;
     }
 
-    public Task<Container> CreateContainer(string path, string? name = null)
+    public async Task<Container?> CreateContainer(string path, string? name = null)
     {
-        throw new NotImplementedException();
+        var uri = new Uri(path, UriKind.Relative);
+        HttpResponseMessage response;
+        if (name.HasText())
+        {
+            var container = new Container { Name = name };
+            response = await httpClient.PutAsJsonAsync(uri, container);
+        }
+        else
+        {
+            response = await httpClient.PutAsync(uri, null);
+        }
+        var stream = await response.Content.ReadAsStreamAsync();
+        var parsed = Deserializer.Parse(stream);
+        if (parsed is Container createdContainer)
+        {
+            return createdContainer;
+        }
+        // TODO: Handle missing resource
+        return null;
     }
 
 
