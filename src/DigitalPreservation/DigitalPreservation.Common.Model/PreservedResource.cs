@@ -2,6 +2,9 @@
 
 namespace DigitalPreservation.Common.Model;
 
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(Container), typeDiscriminator: nameof(Container))]
+[JsonDerivedType(typeof(Binary), typeDiscriminator: nameof(Binary))]
 public abstract class PreservedResource : Resource
 {
     [JsonPropertyOrder(10)]

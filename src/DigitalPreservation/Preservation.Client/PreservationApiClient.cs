@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Json;
+using DigitalPreservation.Common.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualBasic;
 using Storage.Repository.Common;
@@ -7,6 +8,17 @@ namespace Preservation.Client;
 
 internal class PreservationApiClient(HttpClient httpClient, ILogger<PreservationApiClient> logger) : IPreservationApiClient
 {
+    public Task<PreservedResource> GetResource(string path)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<Container> CreateContainer(string path, string? name = null)
+    {
+        throw new NotImplementedException();
+    }
+
+
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {
         try

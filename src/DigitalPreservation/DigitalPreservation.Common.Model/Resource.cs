@@ -13,14 +13,18 @@ public abstract class Resource
     public abstract string Type { get; set; }
 
     [JsonPropertyOrder(500)]
+    [JsonPropertyName("created")]
     public DateTime? Created { get; set; }
 
     [JsonPropertyOrder(501)]
+    [JsonPropertyName("createdBy")]
     public Uri? CreatedBy { get; set; }
 
     [JsonPropertyOrder(502)]
+    [JsonPropertyName("lastModified")]
     public DateTime? LastModified { get; set; }
 
     [JsonPropertyOrder(503)]
+    [JsonPropertyName("lastModifiedBy")]
     public Uri? LastModifiedBy { get; set; }
 }
