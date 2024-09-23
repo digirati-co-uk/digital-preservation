@@ -1,0 +1,16 @@
+﻿@page "{*path}"
+@using DigitalPreservation.Common.Model
+@model BrowseModel
+@{
+    ViewData["Title"] = "Browse the repository";
+}
+
+<div>
+    <h1 class="display-4">Containers</h1>
+    <ul>
+        @foreach (var container in Model.Resource.Containers)
+        {
+            <li><a asp-page="./Browse" asp-route-path="@container.GetPathUnderRoot()">@container.ToString()</a></li>
+        }
+    </ul>
+</div>

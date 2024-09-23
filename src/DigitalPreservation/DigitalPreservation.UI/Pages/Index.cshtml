@@ -6,9 +6,9 @@
 
 <div>
     <h1 class="display-4">Containers</h1>
-    @foreach (var container in Model.RepositoryRoot!.Containers!)
-    {
-        <p>@container.ToString()</p>
-    }
-    <p>(needs not to be a draft pr)</p>
+    
+    <ul>
+        <li><a asp-page="./Browse">Browse the repository</a></li>
+        <li><a asp-page="./Status">View connectivity checks</a></li>
+    </ul>
 </div>
