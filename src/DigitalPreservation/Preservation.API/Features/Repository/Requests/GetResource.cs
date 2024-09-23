@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
 using MediatR;
+using Preservation.API.Mutation;
 using Storage.Client;
 
 namespace Preservation.API.Features.Repository.Requests;
@@ -13,10 +14,14 @@ public class GetResource(string path) : IRequest<PreservedResource?>
     public string Path { get; } = path;
 }
 
-public class GetResourceHandler(IStorageApiClient storageApiClient) : IRequestHandler<GetResource, PreservedResource?>
+public class GetResourceHandler(
+    IStorageApiClient storageApiClient,
+    ResourceMutator resourceMutator) : IRequestHandler<GetResource, PreservedResource?>
 {
     public async Task<PreservedResource?> Handle(GetResource request, CancellationToken cancellationToken)
     {
-        return await storageApiClient.GetResource(request.Path);
+        var storageResource = await storageApiClient.GetResource(request.Path);
+        resourceMutator.MutateStorageResource(storageResource); 
+        return storageResource;
     }
 }
