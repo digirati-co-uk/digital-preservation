@@ -5,6 +5,11 @@ namespace Preservation.Client;
 
 public interface IPreservationApiClient
 {
+    /// <summary>
+    /// Retrieve a resource, which may be a container, binary, ArchivalGroup or the repository root.
+    /// </summary>
+    /// <param name="path">The full path including the /repository/ initial path element</param>
+    /// <returns></returns>
     Task<PreservedResource?> GetResource(string path);
     
     Task<Container?> CreateContainer(string path, string? name = null);

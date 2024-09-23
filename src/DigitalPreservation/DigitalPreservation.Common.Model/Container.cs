@@ -8,7 +8,7 @@ public class Container : PreservedResource
 
     [JsonPropertyName("containers")]
     [JsonPropertyOrder(300)]
-    public Container[]? Containers { get; set; } = [];
+    public List<Container> Containers { get; set; } = [];
     
     [JsonPropertyName("containerPager")]
     [JsonPropertyOrder(301)]
@@ -17,7 +17,7 @@ public class Container : PreservedResource
     
     [JsonPropertyName("binaries")]
     [JsonPropertyOrder(310)]
-    public Binary[]? Binaries { get; set; } = [];
+    public List<Binary> Binaries { get; set; } = [];
     
     public override string ToString()
     {

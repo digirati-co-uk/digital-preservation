@@ -12,6 +12,6 @@ public class PolymorphicSerialisationTests
         Resource resource = new Container {Id = new Uri("https://example.com/test")};
         var json = JsonSerializer.Serialize(resource, jOpts);
         Resource? deSer = Deserializer.Parse(json);
-        deSer.GetType().Should().Be(typeof(Container));
+        deSer!.GetType().Should().Be(typeof(Container));
     }
 }

@@ -19,6 +19,7 @@ internal class StorageApiClient(
 {
     public async Task<PreservedResource?> GetResource(string path)
     {
+        // path MUST be the full /repository... path, which we just pass through as-is
         var uri = new Uri(path, UriKind.Relative);
         var req = new HttpRequestMessage(HttpMethod.Get, uri);
         var response = await httpClient.SendAsync(req);

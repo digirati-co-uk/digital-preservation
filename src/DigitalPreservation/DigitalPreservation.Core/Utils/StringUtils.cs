@@ -46,5 +46,27 @@ public static class StringUtils
 
         return str;
     }
+    
+    
+    /// <summary>
+    /// like String.Replace, but only replaces the first instance of search in str
+    /// </summary>
+    /// <param name="str"></param>
+    /// <param name="search"></param>
+    /// <param name="replace"></param>
+    /// <returns></returns>
+    public static string ReplaceFirst(this string str, string search, string replace)
+    {
+        if (string.IsNullOrEmpty(search))
+        {
+            return str;
+        }
+        int pos = str.IndexOf(search, StringComparison.Ordinal);
+        if (pos < 0)
+        {
+            return str;
+        }
+        return str.Substring(0, pos) + replace + str.Substring(pos + search.Length);
+    }
 
 }

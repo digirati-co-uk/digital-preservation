@@ -2,9 +2,6 @@
 
 namespace DigitalPreservation.Common.Model;
 
-[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
-[JsonDerivedType(typeof(Container), typeDiscriminator: nameof(Container))]
-[JsonDerivedType(typeof(Binary), typeDiscriminator: nameof(Binary))]
 public abstract class PreservedResource : Resource
 {
     [JsonPropertyOrder(10)]
@@ -26,4 +23,6 @@ public abstract class PreservedResource : Resource
     {
         return Id != null ? Id.Segments[^1] : null;
     }
+
+    public const string BasePathElement = "repository";
 }

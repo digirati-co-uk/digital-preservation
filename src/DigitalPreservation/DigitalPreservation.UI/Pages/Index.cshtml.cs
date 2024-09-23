@@ -13,5 +13,10 @@ public class IndexModel(IMediator mediator) : PageModel
     public async Task OnGet()
     {
         RepositoryRoot = await mediator.Send(new GetResource("repository")) as Container;
+        var r1 = await mediator.Send(new GetResource("repository")) as Container;
+        var r2 = await mediator.Send(new GetResource("repository/")) as Container;
+        var r3 = await mediator.Send(new GetResource("/repository/")) as Container;
+        var r4 = await mediator.Send(new GetResource("/repository")) as Container;
+        RepositoryRoot = r1;
     }
 }

@@ -19,5 +19,12 @@ public interface IFedoraClient
     /// <returns>true if alive, else false</returns>
     Task<ConnectivityCheckResult> IsAlive(CancellationToken cancellationToken = default);
 
-    Task<PreservedResource?> GetResource(Uri uri, Transaction? transaction = null, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Get a resource from fedora
+    /// </summary>
+    /// <param name="pathUnderFedoraRoot">The path within the repository - i.e., not including /fcrepo/rest/ or /repository/</param>
+    /// <param name="transaction"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    Task<PreservedResource?> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default);
 }
