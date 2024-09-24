@@ -101,6 +101,10 @@ public static class StringUtils
     
     public static string? GetSlug(this Uri uri)
     {
+        if (uri.Segments is ["/"])
+        {
+            return null;
+        }
         if (uri.Segments.Length > 0)
         {
             return uri.Segments[^1].Trim('/');
