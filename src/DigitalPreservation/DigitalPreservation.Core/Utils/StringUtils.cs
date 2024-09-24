@@ -69,5 +69,21 @@ public static class StringUtils
         return str.Substring(0, pos) + replace + str.Substring(pos + search.Length);
     }
 
+    public static string BuildPath(bool startWithSeparator, params string?[] elements)
+    {
+        var parts = new List<string>();
+        foreach (var element in elements)
+        {
+            if (element.HasText())
+            {
+                var subParts = element.Split("/", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                parts.AddRange(subParts);
+            }
+        }
+        var path = string.Join("/", parts);
+        if(startWithSeparator) path = "/" + path;
+        return path;
+    }
+
     
 }

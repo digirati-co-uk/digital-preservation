@@ -18,4 +18,6 @@ public class RepositoryController(IMediator mediator) : Controller
         var res = await mediator.Send(new GetResource(Request.Path));
         return new OkObjectResult(res);
     }
+    
+    
 }

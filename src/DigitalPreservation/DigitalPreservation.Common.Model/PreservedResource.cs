@@ -25,4 +25,26 @@ public abstract class PreservedResource : Resource
     }
 
     public const string BasePathElement = "repository";
+
+    public static bool ValidSlug(string slug)
+    {
+        var len = slug.Length;
+        var valid = len is >= 1 and <= 254;
+        if (!valid) return valid;
+        for (int i = 0; i < len; i++)
+        {
+            valid = (     slug[i] >= 48 && slug[i] <= 57) // 0-9
+                    // || (slug[i] >= 65 && slug[i] <= 90) // A-Z
+                       || (slug[i] >= 97 && slug[i] <= 122) // a-z
+                    // || slug[i] == '@'
+                    // || slug[i] == '/'
+                       || slug[i] == '.'
+                       || slug[i] == '_'
+                       || slug[i] == '-';
+
+            if (!valid) return false;
+        }
+        return valid;
+    } 
+    
 }

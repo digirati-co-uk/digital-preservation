@@ -1,4 +1,4 @@
-﻿@page "{*path}"
+﻿@page "{*pathUnderRoot}"
 @using DigitalPreservation.Common.Model
 @model BrowseModel
 @{
@@ -6,11 +6,60 @@
 }
 
 <div>
-    <h1 class="display-4">Containers</h1>
-    <ul>
-        @foreach (var container in Model.Resource?.Containers ?? [])
-        {
-            <li><a href="/browse/@container.GetPathUnderRoot()">@container.ToString()</a></li>
-        }
-    </ul>
+    <h1 class="display-4">Browse</h1>
+    
+    @if (TempData["CreateContainerError"] != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>@TempData["CreateContainerError"]</p>
+        </div>
+    }
+    
+    <div class="container">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#newContainerModal">
+            📁 New Folder...
+        </button>
+    </div>
+    
+    <hr/>
+    
+    <div class="container">
+        <ul>
+            @foreach (var container in Model.Resource?.Containers ?? [])
+            {
+                <li><a href="/browse/@container.GetPathUnderRoot()">@container.ToString()</a></li>
+            }
+        </ul>
+    </div>
+</div>
+
+
+<!-- Modal -->
+<div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="newContainerModalLabel"> 📁 New Folder</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="containerSlug" class="form-label">Folder path name</label>
+                            <input type="text" class="form-control" id="containerSlug" name="containerSlug" aria-describedby="containerSlugHelp">
+                            <div id="containerSlugHelp" class="form-text">The path of the folder as appears in URLs - no special characters</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="containerTitle" class="form-label">Folder title</label>
+                            <input type="text" class="form-control" id="containerTitle" name="containerTitle" aria-describedby="containerTitleHelp">
+                            <div id="containerTitleHelp" class="form-text">A friendly name for the folder, may contain any characters</div>
+                        </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">📁 Create New Folder</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
