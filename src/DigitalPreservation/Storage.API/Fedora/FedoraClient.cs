@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Core.Utils;
 using Storage.API.Fedora.Http;
 using Storage.API.Fedora.Model;
 using Storage.Repository.Common;
@@ -40,8 +41,66 @@ internal class FedoraClient(
         return resource;
     }
 
+    public async Task<Container?> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        // TODO: Validate New Container
+        // Does the slug only contain valid chars? ✓
+        // Is there already something at this path? - no ✓
+        // Is there a Container at the parent of this path - yes ✓
+        // Is the parent Container an Archival Group or part of an Archival Group? no ✓
+        // OK...
+        return await CreateContainerInternal(false, pathUnderFedoraRoot, name, transaction);
+    }
+
+    private async Task<Container?> CreateContainerInternal(
+        bool asArchivalGroup,
+        string pathUnderFedoraRoot,
+        string? name,
+        Transaction? transaction = null)
+    {
+        // TODO: This follows the prototype and performs a POST, adding a _desired_ slug.
+        // Investigate whether a PUT would be better (or worse)
+        var fedoraUri = converters.GetFedoraUri(pathUnderFedoraRoot);
+        
+        var req = MakeHttpRequestMessage(fedoraUri.GetParentUri()!, HttpMethod.Post)
+            .InTransaction(transaction)
+            .WithName(name)
+            .WithSlug(fedoraUri.GetSlug()!);
+        if (asArchivalGroup)
+        {
+            req.AsArchivalGroup();
+        }
+        var response = await httpClient.SendAsync(req);
+        response.EnsureSuccessStatusCode();
+
+        if(asArchivalGroup)
+        {
+            // TODO - could combine this with .WithName(name) and make a more general .WithRdf(string name = null, string type = null)
+            // so that the extra info goes on the initial POST and this little PATCH isn't required
+            var patchReq = MakeHttpRequestMessage(response.Headers.Location!, HttpMethod.Patch)
+                .InTransaction(transaction);
+            // We give the AG this _additional_ type so that we can see that it's an AG when we get bulk child members back from .WithContainedDescriptions
+            patchReq.AsInsertTypePatch("<http://purl.org/dc/dcmitype/Collection>");
+            var patchResponse = await httpClient.SendAsync(patchReq);
+            patchResponse.EnsureSuccessStatusCode();
+        }
+        // The body is the new resource URL
+        var newReq = MakeHttpRequestMessage(response.Headers.Location!, HttpMethod.Get)
+            .InTransaction(transaction)
+            .ForJsonLd();
+        var newResponse = await httpClient.SendAsync(newReq);
+
+        var containerResponse = await MakeFedoraResponse<FedoraJsonLdResponse>(newResponse);
+        if (containerResponse == null)
+        {
+            return null;
+        }
+        return asArchivalGroup ? converters.MakeArchivalGroup(containerResponse) : converters.MakeContainer(containerResponse);
+    }
+
     private async Task<Container?> GetPopulatedContainer(Uri uri, bool isArchivalGroup, bool recurse, Transaction? transaction = null)
     {
+        // TODO: This is not using transaction - should it?
         var request = MakeHttpRequestMessage(uri, HttpMethod.Get)
             .ForJsonLd()
             .WithContainedDescriptions();
@@ -158,5 +217,19 @@ internal class FedoraClient(
                 Error = ex.Message
             };
         }
+    }
+    
+    
+    private static async Task<T?> MakeFedoraResponse<T>(HttpResponseMessage response) where T : FedoraJsonLdResponse
+    {
+        // works for SINGLE resources, not contained responses that send back a @graph
+        var fedoraResponse = await response.Content.ReadFromJsonAsync<T>();
+        if (fedoraResponse != null)
+        {
+            fedoraResponse.HttpResponseHeaders = response.Headers;
+            fedoraResponse.HttpStatusCode = response.StatusCode;
+            fedoraResponse.Body = await response.Content.ReadAsStringAsync();
+        }
+        return fedoraResponse;
     }
 }

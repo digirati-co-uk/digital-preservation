@@ -1,17 +1,25 @@
 ﻿@page "{*pathUnderRoot}"
 @using DigitalPreservation.Common.Model
+@using DigitalPreservation.Core.Utils
 @model BrowseModel
 @{
     ViewData["Title"] = "Browse the repository";
 }
 
 <div>
-    <h1 class="display-4">Browse</h1>
+    <h1 class="display-4">Browse - @(Model.Resource!.Name ?? @Model.Resource!.Id!.GetSlug())</h1>
     
     @if (TempData["CreateContainerError"] != null)
     {
         <div class="alert alert-danger" role="alert">
             <p>@TempData["CreateContainerError"]</p>
+        </div>
+    }
+
+    @if (TempData["ContainerCreated"] != null)
+    {
+        <div class="alert alert-success" role="alert">
+            <p>@TempData["ContainerCreated"]</p>
         </div>
     }
     
@@ -24,10 +32,10 @@
     <hr/>
     
     <div class="container">
-        <ul>
+        <ul style="list-style-type:none;">
             @foreach (var container in Model.Resource?.Containers ?? [])
             {
-                <li><a href="/browse/@container.GetPathUnderRoot()">@container.ToString()</a></li>
+                <li>📁 <a href="/browse/@container.GetPathUnderRoot()">@(container.Name ?? container.Id!.GetSlug())</a></li>
             }
         </ul>
     </div>

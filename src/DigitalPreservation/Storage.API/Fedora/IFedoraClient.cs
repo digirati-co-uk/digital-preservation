@@ -27,4 +27,6 @@ public interface IFedoraClient
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     Task<PreservedResource?> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default);
+
+    Task<Container?> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default);
 }

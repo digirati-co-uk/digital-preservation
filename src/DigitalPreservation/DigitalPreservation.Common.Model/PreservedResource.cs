@@ -21,7 +21,7 @@ public abstract class PreservedResource : Resource
 
     protected string? GetSlug()
     {
-        return Id != null ? Id.Segments[^1] : null;
+        return Id != null ? Id.Segments[^1].Trim('/') : null;
     }
 
     public const string BasePathElement = "repository";

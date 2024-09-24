@@ -85,5 +85,26 @@ public static class StringUtils
         return path;
     }
 
+    public static Uri? GetParentUri(this Uri uri)
+    {
+        if (uri.AbsolutePath == "/")
+        {
+            return null;
+        }
+        if (uri.AbsolutePath.EndsWith('/'))
+        {
+            return new Uri(uri, "..");
+        }
+        return new Uri(uri, ".");
+    }
     
+    
+    public static string? GetSlug(this Uri uri)
+    {
+        if (uri.Segments.Length > 0)
+        {
+            return uri.Segments[^1].Trim('/');
+        }
+        return null;
+    }
 }

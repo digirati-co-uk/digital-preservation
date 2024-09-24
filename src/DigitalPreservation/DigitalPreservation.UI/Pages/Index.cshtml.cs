@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace DigitalPreservation.UI.Pages;
 
-public class IndexModel(IMediator mediator) : PageModel
+public class IndexModel : PageModel
 {
     public void OnGet()
     {

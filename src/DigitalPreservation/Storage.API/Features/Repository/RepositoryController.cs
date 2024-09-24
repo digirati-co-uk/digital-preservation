@@ -18,4 +18,18 @@ public class RepositoryController(IMediator mediator) : Controller
         var res = await mediator.Send(new GetResourceFromFedora(path));
         return new OkObjectResult(res);
     }
+    
+    
+    [HttpPut(Name = "CreateContainer")]
+    [ProducesResponseType<Container>(200, "application/json")]
+    public async Task<ActionResult<Container?>> CreateContainer([FromRoute] string path, [FromBody] Container? container = null)
+    {
+        string? name = null;
+        if (container != null)
+        {
+            name = container.Name;
+        }
+        var newContainer = await mediator.Send(new CreateContainerInFedora(path, name));
+        return newContainer;
+    }
 }

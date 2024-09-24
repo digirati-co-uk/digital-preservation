@@ -24,25 +24,32 @@ public class BrowseModel(IMediator mediator) : PageModel
     }
 
 
-    public async Task OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle)
+    public async Task<IActionResult> OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle)
     {
         if (containerSlug.IsNullOrWhiteSpace())
         {
             TempData["CreateContainerError"] = "Missing container name";
             await BindResource(pathUnderRoot);
-            return;
+            return Redirect(Request.Path);
         }
         
         var slug = containerSlug.ToLowerInvariant();
         if (ValidateNewContainer(pathUnderRoot, slug, containerTitle))
         {
             var newContainer = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle));
+            if (newContainer != null)
+            {
+                TempData["ContainerCreated"] = "Created Container " + newContainer;
+            }
+            else
+            {
+                TempData["CreateContainerError"] = "Failed to create Container";
+            }
+            return Redirect(Request.Path);
         }
-        else
-        {
-            TempData["CreateContainerError"] = "Invalid container name";
-        }
-        await BindResource(pathUnderRoot);
+
+        TempData["CreateContainerError"] = "Invalid container name";
+        return Redirect(Request.Path);
     }
 
     private bool ValidateNewContainer(string? path, string slug, string? containerTitle)

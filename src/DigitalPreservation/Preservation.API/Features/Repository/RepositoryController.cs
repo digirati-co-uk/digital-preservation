@@ -20,4 +20,19 @@ public class RepositoryController(IMediator mediator) : Controller
     }
     
     
+    [HttpPut(Name = "CreateContainer")]
+    [ProducesResponseType<Container>(200, "application/json")]
+    public async Task<ActionResult<Container?>> CreateContainer([FromRoute] string? path = null, [FromBody] Container? container = null)
+    {
+        string? name = null;
+        if (container != null)
+        {
+            name = container.Name;
+        }
+        var newContainer = await mediator.Send(new CreateContainer(Request.Path, name));
+        return newContainer;
+    }
+    
+    
+    
 }
