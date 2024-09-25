@@ -1,4 +1,5 @@
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Results;
 using Storage.API.Fedora.Model;
 using Storage.Repository.Common;
 
@@ -26,7 +27,7 @@ public interface IFedoraClient
     /// <param name="transaction"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task<PreservedResource?> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default);
 
-    Task<Container?> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default);
 }

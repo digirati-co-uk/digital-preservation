@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Core.Utils;
+﻿using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model;
 

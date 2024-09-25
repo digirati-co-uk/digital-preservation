@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Storage.API.Features.Repository.Requests;
@@ -13,23 +14,28 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType<Container>(200, "application/json")]
     [ProducesResponseType<Binary>(200, "application/json")]
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
     public async Task<IActionResult> Browse([FromRoute] string? path)
     {
-        var res = await mediator.Send(new GetResourceFromFedora(path));
-        return new OkObjectResult(res);
+        var result = await mediator.Send(new GetResourceFromFedora(path));
+        return this.StatusResponseFromResult(result);
     }
     
     
     [HttpPut(Name = "CreateContainer")]
     [ProducesResponseType<Container>(200, "application/json")]
-    public async Task<ActionResult<Container?>> CreateContainer([FromRoute] string path, [FromBody] Container? container = null)
+    [ProducesResponseType(401)]
+    [ProducesResponseType(409)]
+    [ProducesResponseType(400)]
+    public async Task<ActionResult> CreateContainer([FromRoute] string path, [FromBody] Container? container = null)
     {
         string? name = null;
         if (container != null)
         {
             name = container.Name;
         }
-        var newContainer = await mediator.Send(new CreateContainerInFedora(path, name));
-        return newContainer;
+        var result = await mediator.Send(new CreateContainerInFedora(path, name));
+        return this.StatusResponseFromResult(result);
     }
 }

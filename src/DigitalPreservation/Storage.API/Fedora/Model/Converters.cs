@@ -1,5 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.Core.Utils;
+using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
 
 namespace Storage.API.Fedora.Model;

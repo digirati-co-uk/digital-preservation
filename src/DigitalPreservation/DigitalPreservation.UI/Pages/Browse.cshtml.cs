@@ -1,6 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.Core.Utils;
 using DigitalPreservation.UI.Features.Repository.Requests;
+using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -20,7 +20,11 @@ public class BrowseModel(IMediator mediator) : PageModel
     private async Task BindResource(string? pathUnderRoot)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
-        Resource = await mediator.Send(new GetResource(resourcePath)) as Container;
+        var result = await mediator.Send(new GetResource(resourcePath));
+        if (result.Success)
+        {
+            Resource = result.Value as Container;
+        }
     }
 
 
@@ -36,19 +40,19 @@ public class BrowseModel(IMediator mediator) : PageModel
         var slug = containerSlug.ToLowerInvariant();
         if (ValidateNewContainer(pathUnderRoot, slug, containerTitle))
         {
-            var newContainer = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle));
-            if (newContainer != null)
+            var result = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle));
+            if(result is { Success: true, Value: not null })
             {
-                TempData["ContainerCreated"] = "Created Container " + newContainer;
+                TempData["ContainerCreated"] = "Created Container " + result.Value;
             }
             else
             {
-                TempData["CreateContainerError"] = "Failed to create Container";
+                TempData["CreateContainerError"] = "Failed to create Container: " + result.ErrorCode + ": " + result.ErrorMessage;
             }
             return Redirect(Request.Path);
         }
 
-        TempData["CreateContainerError"] = "Invalid container name";
+        TempData["CreateContainerError"] = "Invalid container file path - only a-z, 0-9 and .-_ are allowed.";
         return Redirect(Request.Path);
     }
 

@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace DigitalPreservation.Core.Utils;
+namespace DigitalPreservation.Utils;
 
 public static class StringUtils
 {

@@ -7,4 +7,8 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\DigitalPreservation.Common.Model\DigitalPreservation.Common.Model.csproj" />
+    </ItemGroup>
+
 </Project>

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalPreservation.Common.Model;
-using DigitalPreservation.Core.Utils;
+using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Utils;
 using Storage.API.Fedora.Http;
 using Storage.API.Fedora.Model;
 using Storage.Repository.Common;
@@ -12,7 +13,7 @@ internal class FedoraClient(
     ILogger<FedoraClient> logger,
     Converters converters) : IFedoraClient
 {
-    public async Task<PreservedResource?> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default)
+    public async Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
         PreservedResource? resource;
@@ -38,10 +39,10 @@ internal class FedoraClient(
         
         // set partOf
         
-        return resource;
+        return Result.Ok(resource);
     }
 
-    public async Task<Container?> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default)
+    public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
         // TODO: Validate New Container
         // Does the slug only contain valid chars? ✓
@@ -49,7 +50,8 @@ internal class FedoraClient(
         // Is there a Container at the parent of this path - yes ✓
         // Is the parent Container an Archival Group or part of an Archival Group? no ✓
         // OK...
-        return await CreateContainerInternal(false, pathUnderFedoraRoot, name, transaction);
+        var container = await CreateContainerInternal(false, pathUnderFedoraRoot, name, transaction);
+        return Result.Ok(container);
     }
 
     private async Task<Container?> CreateContainerInternal(

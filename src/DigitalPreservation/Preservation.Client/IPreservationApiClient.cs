@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Results;
 using Storage.Repository.Common;
 
 namespace Preservation.Client;
@@ -10,9 +11,9 @@ public interface IPreservationApiClient
     /// </summary>
     /// <param name="path">The full path including the /repository/ initial path element</param>
     /// <returns></returns>
-    Task<PreservedResource?> GetResource(string path);
+    Task<Result<PreservedResource?>> GetResource(string path);
     
-    Task<Container?> CreateContainer(string path, string? name = null);
+    Task<Result<Container?>> CreateContainer(string path, string? name = null);
     
     
     

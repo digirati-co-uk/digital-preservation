@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Core.Utils;
+﻿
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Core.Tests.Strings;
 

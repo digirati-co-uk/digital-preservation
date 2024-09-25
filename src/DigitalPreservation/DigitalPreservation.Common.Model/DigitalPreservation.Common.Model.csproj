@@ -11,7 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\DigitalPreservation.Core\DigitalPreservation.Core.csproj" />
+      <ProjectReference Include="..\DigitalPreservation.Utils\DigitalPreservation.Utils.csproj" />
     </ItemGroup>
 
 </Project>
