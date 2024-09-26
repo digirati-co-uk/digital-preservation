@@ -1,9 +1,13 @@
+using System.Net;
 using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Utils;
+using Microsoft.Extensions.Caching.Memory;
 using Storage.API.Fedora.Http;
 using Storage.API.Fedora.Model;
+using Storage.API.Fedora.Vocab;
 using Storage.Repository.Common;
 
 namespace Storage.API.Fedora;
@@ -11,37 +15,221 @@ namespace Storage.API.Fedora;
 internal class FedoraClient(
     HttpClient httpClient,
     ILogger<FedoraClient> logger,
-    Converters converters) : IFedoraClient
+    Converters converters,
+    IMemoryCache cache,
+    IStorageMapper storageMapper) : IFedoraClient
 {
     public async Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
-        PreservedResource? resource;
+        var typeRes = await GetResourceType(pathUnderFedoraRoot, transaction);
+        if (typeRes.Value == nameof(ArchivalGroup))
+        {
+            var agResult = await GetPopulatedArchivalGroup(pathUnderFedoraRoot!, null, transaction);
+            if (agResult.Success)
+            {
+                return Result.Ok(agResult.Value as PreservedResource);
+            }
+            return Result.Fail<PreservedResource?>(agResult.ErrorCode ?? ErrorCodes.UnknownError, agResult.ErrorMessage);
+        }
         
-        // See proto FedoraWrapper:514 and 779
-        // First pass, assume it is a container. And don't find parent AG.
-        // Later we'll need to interrogate
+        var storageMap = await FindParentStorageMap(uri);
+        PreservedResource? resource = null;
+        if (typeRes.Value == nameof(Binary))
+        {
+            var binary = await GetResourceInternal<Binary>(uri, transaction);
+            if(storageMap != null && binary != null)
+            {
+                PopulateOrigin(storageMap, binary);
+            }
+            resource = binary;
+        }
         
-        // 514:
-        // getResourceInfo
-        
-        // is it an AG? => MakeAG
-        
-        // walk up to tree to find AG (if exists) => Get (cached) storageMap
-        // first pass - it won't be in an AG because we can't make AGs yet
-        
-        // Is it a binary?
-        
-        // Is it a container? => 779 GetPopulatedContainer(..)
-        
-        // proto version takes objectversion but does nothing with it - see comments there
-        resource = await GetPopulatedContainer(uri, false, false, transaction);
-        
-        // set partOf
-        
+        else if (typeRes.Value == nameof(Container))
+        {
+            // this is also true for archival group so test this last
+            var container = await GetPopulatedContainer(uri, false, false, transaction);
+            if (storageMap != null && container != null)
+            {
+                PopulateOrigins(storageMap, container);
+            }
+            resource = container;
+        }
+        if (storageMap != null && resource != null)
+        {
+            resource.PartOf = converters.ConvertToRepositoryUri(storageMap.ArchivalGroup);
+        }
         return Result.Ok(resource);
     }
 
+    public async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(string pathUnderFedoraRoot, string? version = null, Transaction? transaction = null)
+    {
+        var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
+        return await GetPopulatedArchivalGroup(uri, version, transaction);
+    }
+
+    private async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(Uri uri, string? version = null, Transaction? transaction = null)
+    {
+        var versions = await GetFedoraVersions(uri);
+        if (versions == null)
+        {
+            return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"No versions found for {uri}");
+        }
+        var storageMap = await GetCacheableStorageMap(uri, version, true);
+        MergeVersions(versions, storageMap.AllVersions);
+        ObjectVersion? objectVersion = null;
+        if(!string.IsNullOrWhiteSpace(version))
+        {
+            // TODO: Are we going to pass this into GetPopulatedContainer? (see comment there)
+            // If not, we don't need the cost of obtaining it.
+            objectVersion = versions.Single(v => v.MementoTimestamp == version || v.OcflVersion == version);
+        }
+
+        if(await GetPopulatedContainer(uri, true, true, transaction) is not ArchivalGroup archivalGroup)
+        {
+            return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"{uri} is not an Archival Group");
+        }
+        if(archivalGroup.Id != converters.ConvertToRepositoryUri(uri))
+        {
+            return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"{uri} does not match {archivalGroup.Id}");
+        }
+
+        archivalGroup.Origin = storageMapper.GetArchivalGroupOrigin(archivalGroup.Id);
+        archivalGroup.Versions = versions;
+        archivalGroup.StorageMap = storageMap;
+        archivalGroup.Version = versions.Single(v => v.OcflVersion == storageMap.Version.OcflVersion);
+        if(archivalGroup.Version.Equals(archivalGroup.StorageMap.HeadVersion))
+        {
+            PopulateOrigins(storageMap, archivalGroup);
+        }
+        return Result.Ok(archivalGroup);
+    }
+    
+    private async Task<T?> GetResourceInternal<T>(Uri uri, Transaction? transaction = null) where T : Resource
+    {
+        var isBinary = typeof(T) == typeof(Binary);
+        var reqUri = isBinary ? uri.MetadataUri() : uri;
+        var request = MakeHttpRequestMessage(reqUri, HttpMethod.Get)
+            .ForJsonLd(); 
+        var response = await httpClient.SendAsync(request);
+
+        if (isBinary)
+        {
+            var fileResponse = await MakeFedoraResponse<BinaryMetadataResponse>(response);
+            return converters.MakeBinary(fileResponse!) as T;
+        }
+
+        var directoryResponse = await MakeFedoraResponse<FedoraJsonLdResponse>(response);
+        if (directoryResponse == null) return null;
+            
+        if (response.HasArchivalGroupTypeHeader())
+        {
+            return converters.MakeArchivalGroup(directoryResponse) as T;
+        }
+        return converters.MakeContainer(directoryResponse) as T;
+    }
+    
+    private async Task<Result<string?>> GetResourceType(Uri uri, Transaction? transaction = null)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Head, uri)
+            .InTransaction(transaction);
+        req.Headers.Accept.Clear();
+        var headResponse = await httpClient.SendAsync(req);
+        if (headResponse.IsSuccessStatusCode)
+        {
+            string? typeName;
+            if (headResponse.HasArchivalGroupTypeHeader())
+            {
+                typeName = nameof(ArchivalGroup);
+            }
+            else if (headResponse.HasBinaryTypeHeader())
+            {
+                typeName = nameof(Binary);
+            }
+            else if (headResponse.HasBasicContainerTypeHeader())
+            {
+                typeName = nameof(Container);
+            }
+            else
+            {
+                return Result.Fail<string?>(ErrorCodes.UnknownError, headResponse.ReasonPhrase ?? "Unknown Type");
+            }
+            if (typeName.HasText())
+            {
+                return Result.Ok(typeName);
+            }
+        }
+
+        return headResponse.StatusCode switch
+        {
+            HttpStatusCode.NotFound => Result.Fail<string?>(ErrorCodes.NotFound, "Not found"),
+            HttpStatusCode.Unauthorized => Result.Fail<string?>(ErrorCodes.Unauthorized, "Unauthorized"),
+            _ => Result.Fail<string?>(ErrorCodes.UnknownError, "Status from repository was " + headResponse.StatusCode)
+        };
+    }
+    
+    public async Task<Result<string?>> GetResourceType(string? pathUnderFedoraRoot, Transaction? transaction = null)
+    {
+        var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
+        return await GetResourceType(uri, transaction);
+    }
+    
+    /// <summary>
+    /// Walk up the Uri of a resource until we get to an ArchivalGroup or to the Fedora root
+    /// </summary>
+    /// <param name="resourceUri"></param>
+    /// <returns></returns>
+    private async Task<StorageMap?> FindParentStorageMap(Uri resourceUri)
+    {
+        var testUris = new List<Uri>();
+        
+        var parentUri = resourceUri.GetParentUri();
+        while (parentUri != null)
+        {
+            testUris.Add(parentUri);
+            parentUri = parentUri.GetParentUri();
+        }
+
+        StorageMap? storageMap;
+        // first test the cache
+        foreach (var testUri in testUris)
+        {
+            if (cache.TryGetValue(GetStorageMapCacheKey(testUri, null), out storageMap))
+            {
+                return storageMap;
+            }
+        }
+        // now we need to actually probe for a storage map
+        foreach (var testUri in testUris)
+        {
+            var testUriResult = await GetResourceType(testUri);
+            if (testUriResult.Value == nameof(ArchivalGroup))
+            {
+                storageMap = await GetCacheableStorageMap(testUri);
+                return storageMap;
+            }
+        }
+        return null;
+    }
+
+    private async Task<StorageMap> GetCacheableStorageMap(Uri archivalGroupUri, string? version = null, bool refresh = false)
+    {
+        string cacheKey = GetStorageMapCacheKey(archivalGroupUri, version);
+        if (refresh || !cache.TryGetValue(cacheKey, out StorageMap? storageMap))
+        {
+            storageMap = await storageMapper.GetStorageMap(archivalGroupUri, version);
+            var cacheOpts = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromSeconds(10));
+            cache.Set(cacheKey, storageMap, cacheOpts);
+        }
+        return storageMap!;
+    }
+    
+    private static string GetStorageMapCacheKey(Uri archivalGroupUri, string? version)
+    {
+        return $"{archivalGroupUri}?version={version}";
+    }
+    
     public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
         // TODO: Validate New Container
@@ -112,7 +300,7 @@ internal class FedoraClient(
         // check for archival group as per lines 847-855
         
         
-        // WithContainedDescriptions could return @graph or it could return a single object if the container has no children
+        // WithContainedDescriptions could return @graph, or it could return a single object if the container has no children
         // This is the only place that needs to check for @graph so can remain here
         var stream = await response.Content.ReadAsStreamAsync();
         
@@ -125,7 +313,7 @@ internal class FedoraClient(
         }
         else
         {
-            if (jDoc.RootElement.TryGetProperty("@id", out JsonElement idElement))
+            if (jDoc.RootElement.TryGetProperty("@id", out _))
             {
                 containerAndContained = [jDoc.RootElement];
             }
@@ -202,7 +390,7 @@ internal class FedoraClient(
     {
         try
         {
-            var res = await httpClient.GetAsync("./fcr:systeminfo", cancellationToken);
+            _ = await httpClient.GetAsync("./fcr:systeminfo", cancellationToken);
             return new ConnectivityCheckResult
             {
                 Name = ConnectivityCheckResult.DigitalPreservationBackEnd,
@@ -233,5 +421,65 @@ internal class FedoraClient(
             fedoraResponse.Body = await response.Content.ReadAsStringAsync();
         }
         return fedoraResponse;
+    }
+    
+    private void PopulateOrigins(StorageMap storageMap, Container container)
+    {
+        foreach(var binary in container.Binaries)
+        {
+            PopulateOrigin(storageMap, binary);
+        }
+        foreach (var childContainer in container.Containers)
+        {
+            PopulateOrigins(storageMap, childContainer);
+        }
+    }
+    
+    private static void PopulateOrigin(StorageMap storageMap, Binary binary)
+    {
+        if (storageMap.StorageType == StorageTypes.S3)
+        {
+            binary.Origin = new Uri($"s3://{storageMap.Root}/{storageMap.ObjectPath}/{storageMap.Hashes[binary.Digest!]}");
+        }
+        // filesystem later
+    }
+    
+    private async Task<ObjectVersion[]?> GetFedoraVersions(Uri uri)
+    {
+        var request = MakeHttpRequestMessage(uri.VersionsUri(), HttpMethod.Get)
+            .ForJsonLd();
+
+        var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var jDoc = JsonDocument.Parse(content);
+        var childIds = GetIdsFromContainsProperty(jDoc.RootElement);
+        // We could go and request each of these.
+        // But... the Fedora API gives the created and lastmodified date of the original, not the version, when you ask for a versioned response.
+        // Is that a bug?
+        // We're not going to learn anything more than we would by parsing the memento path elements - which is TERRIBLY non-REST-y
+        return childIds
+            .Select(id => id.Split('/').Last())
+            .Select(p => new ObjectVersion { MementoTimestamp = p, MementoDateTime = p.DateTimeFromMementoTimestamp() })
+            .OrderBy(ov => ov.MementoTimestamp)
+            .ToArray();
+    }
+    
+    private void MergeVersions(ObjectVersion[] fedoraVersions, ObjectVersion[] ocflVersions)
+    {
+        if(fedoraVersions.Length != ocflVersions.Length)
+        {
+            throw new InvalidOperationException("Fedora reports a different number of versions from OCFL");
+        }
+        for(int i = 0; i < fedoraVersions.Length; i++)
+        {
+            if(fedoraVersions[i].MementoTimestamp != ocflVersions[i].MementoTimestamp)
+            {
+                throw new InvalidOperationException($"Fedora reports a different MementoTimestamp {fedoraVersions[i].MementoTimestamp} from OCFL: {ocflVersions[i].MementoTimestamp}");
+            }
+            fedoraVersions[i].OcflVersion = ocflVersions[i].OcflVersion;
+        }
     }
 }

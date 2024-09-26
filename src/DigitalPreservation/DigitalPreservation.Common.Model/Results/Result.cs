@@ -24,9 +24,9 @@ public class Result
         return new Result(false, code, message);
     }
 
-    public static Result<T> Fail<T>(string code, string? message = null)
+    public static Result<T?> Fail<T>(string code, string? message = null)
     {
-        return new Result<T>(default, false, code, message);
+        return new Result<T?>(default, false, code, message);
     }
 
     public static Result Ok()
@@ -34,9 +34,9 @@ public class Result
         return new Result(true);
     }
 
-    public static Result<T> Ok<T>(T value)
+    public static Result<T?> Ok<T>(T? value)
     {
-        return new Result<T>(value, true);
+        return new Result<T?>(value, true);
     }
 
     public static Result Combine(params Result[] results)

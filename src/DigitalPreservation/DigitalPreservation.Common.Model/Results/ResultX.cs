@@ -30,7 +30,7 @@ public static class ResultX
         return Result.Ok();
     }
 
-    public static Result<T> OnSuccess<T>(this Result result, Func<T> func)
+    public static Result<T?> OnSuccess<T>(this Result result, Func<T> func)
     {
         if (result.Failure)
             return Result.Fail<T>(result.ErrorCode!, result.ErrorMessage);
@@ -38,7 +38,7 @@ public static class ResultX
         return Result.Ok(func());
     }
 
-    public static Result<T> OnSuccess<T>(this Result result, Func<Result<T>> func)
+    public static Result<T?> OnSuccess<T>(this Result result, Func<Result<T?>> func)
     {
         if (result.Failure)
             return Result.Fail<T>(result.ErrorCode!, result.ErrorMessage);

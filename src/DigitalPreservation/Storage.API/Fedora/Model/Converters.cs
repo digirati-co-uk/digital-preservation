@@ -76,7 +76,7 @@ public class Converters
         resource.LastModifiedBy = ConvertToAgentUri(fedoraJsonLdResponse.LastModifiedBy);
     }
 
-    private Uri ConvertToRepositoryUri(Uri fedoraUri)
+    public Uri ConvertToRepositoryUri(Uri fedoraUri)
     {
         var repositoryUri = fedoraUri.ToString().ReplaceFirst(fedoraRoot, repositoryRoot);
         return new Uri(repositoryUri);

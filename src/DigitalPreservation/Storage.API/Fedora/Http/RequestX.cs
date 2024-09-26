@@ -92,4 +92,29 @@ internal static class RequestX
         }
         return httpContent;
     }
+    
+    /// <summary>
+    /// This should really obtain the rel=describedBy link via a HEAD request
+    /// But in the interests of efficienct, we'll be a little less RESTful and
+    /// assume a Fedora convention.
+    /// </summary>
+    /// <param name="resourceUri"></param>
+    /// <returns></returns>
+    public static Uri MetadataUri(this Uri resourceUri)
+    {
+        // I think it's actually impossible to construct the Uri in .NET without dropping back to strings
+        // because resourceUri does not have a trailing slash, and the relative Uri would have to be "./fcr:metadata"
+        // if you construct that Uri it ends up as https://domain.com/fcr:metadata - the path is stripped.
+        return new Uri($"{resourceUri}/fcr:metadata");
+    }
+
+    /// <summary>
+    /// Same comments as above
+    /// </summary>
+    /// <param name="resourceUri"></param>
+    /// <returns></returns>
+    public static Uri VersionsUri(this Uri resourceUri)
+    {
+        return new Uri($"{resourceUri}/fcr:versions");
+    }
 }

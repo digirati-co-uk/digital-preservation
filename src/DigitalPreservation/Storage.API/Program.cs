@@ -29,6 +29,7 @@ try
             cfg.RegisterServicesFromAssemblyContaining<Program>();
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
         })
+        .AddMemoryCache()
         .AddFedoraClient(builder.Configuration, "Storage-API")
         .AddStorageAwsAccess(builder.Configuration)
         .AddStorageHealthChecks()

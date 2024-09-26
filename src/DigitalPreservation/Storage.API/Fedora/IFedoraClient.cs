@@ -29,5 +29,9 @@ public interface IFedoraClient
     /// <returns></returns>
     Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default);
 
+    Task<Result<string?>> GetResourceType(string? pathUnderFedoraRoot, Transaction? transaction = null);
+    
     Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default);
+
+    Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(string pathUnderFedoraRoot, string? version = null, Transaction? transaction = null);
 }
