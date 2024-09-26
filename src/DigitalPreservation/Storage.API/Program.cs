@@ -3,6 +3,7 @@ using DigitalPreservation.Core.Web.Headers;
 using Serilog;
 using Storage.API.Fedora;
 using Storage.API.Infrastructure;
+using Storage.API.Ocfl;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
@@ -30,6 +31,7 @@ try
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
         })
         .AddMemoryCache()
+        .AddOcfl(builder.Configuration)
         .AddFedoraClient(builder.Configuration, "Storage-API")
         .AddStorageAwsAccess(builder.Configuration)
         .AddStorageHealthChecks()
