@@ -111,4 +111,31 @@ public static class StringUtils
         }
         return null;
     }
+    
+    
+    public static string GetSlug(this string path)
+    {
+        // Will return "slug" for .../slug and /slug/ - do we want that?
+        if (path.EndsWith('/'))
+        {
+            path = path[..^1];
+        }
+        return path.Split('/')[^1];
+    }
+    
+    
+    public static string? GetParent(this string path)
+    {
+        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return null;
+        }
+        var joined = string.Join('/', parts[..^1]);
+        if (path.StartsWith('/'))
+        {
+            return '/' + joined;
+        }
+        return joined;
+    }
 }

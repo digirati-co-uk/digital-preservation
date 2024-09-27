@@ -10,6 +10,7 @@ public class Converters
     private readonly ConverterOptions converterOptions;
     
     private readonly string fedoraRoot;
+    private readonly Uri fedoraRootUri;
     private readonly string repositoryRoot;
     private readonly string fedoraAgentRoot; // Not sure what this is going to be yet
     private readonly string agentRoot;
@@ -19,6 +20,7 @@ public class Converters
     {
         this.fedoraOptions = fedoraOptions.Value;
         this.converterOptions = converterOptions.Value;
+        fedoraRootUri = fedoraOptions.Value.Root;
         fedoraRoot = fedoraOptions.Value.Root.ToString();
         repositoryRoot = converterOptions.Value.RepositoryRoot.ToString();
         fedoraAgentRoot = fedoraOptions.Value.Root.ToString(); // make it same for now
@@ -98,5 +100,9 @@ public class Converters
     {
         return new Uri(fedoraOptions.Root, pathUnderFedoraRoot);
     }
-    
+
+    public bool IsFedoraRoot(Uri uri)
+    {
+        return uri == fedoraRootUri;
+    }
 }

@@ -181,15 +181,26 @@ internal class FedoraClient(
     /// <returns></returns>
     private async Task<StorageMap?> FindParentStorageMap(Uri resourceUri)
     {
+        if(converters.IsFedoraRoot(resourceUri))
+        {
+            return null;
+        }
+
         var testUris = new List<Uri>();
         
         var parentUri = resourceUri.GetParentUri();
-        while (parentUri != null)
+        while (parentUri != null && !converters.IsFedoraRoot(parentUri))
         {
+            // We know the root is not an Archival Group, we can skip testing it.
             testUris.Add(parentUri);
             parentUri = parentUri.GetParentUri();
         }
-
+        
+        if(testUris.Count == 0)
+        {
+            return null;
+        }
+        
         StorageMap? storageMap;
         // first test the cache
         foreach (var testUri in testUris)
@@ -203,6 +214,11 @@ internal class FedoraClient(
         foreach (var testUri in testUris)
         {
             var testUriResult = await GetResourceType(testUri);
+            if (testUriResult.Failure)
+            {
+                // This is a genuine THROW scenario, it's bad
+                throw new InvalidOperationException("Walk up known tree could not resolve resource");
+            }
             if (testUriResult.Value == nameof(ArchivalGroup))
             {
                 storageMap = await GetCacheableStorageMap(testUri);
@@ -232,12 +248,37 @@ internal class FedoraClient(
     
     public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
-        // TODO: Validate New Container
         // Does the slug only contain valid chars? ✓
+        var slug = pathUnderFedoraRoot.GetSlug();
+        if (!PreservedResource.ValidSlug(slug))
+        {
+            return Result.Fail<Container?>(ErrorCodes.BadRequest, "Invalid slug: " + slug);
+        }
+        
         // Is there already something at this path? - no ✓
+        var existing = await GetResourceType(pathUnderFedoraRoot, transaction);
+        if (existing.ErrorCode != ErrorCodes.NotFound)
+        {
+            // This is the ONLY acceptable state
+            return Result.Fail<Container?>(ErrorCodes.Conflict,
+                $"Resource already exists at {pathUnderFedoraRoot} ({existing.Value})");
+        }
+        
         // Is there a Container at the parent of this path - yes ✓
         // Is the parent Container an Archival Group or part of an Archival Group? no ✓
-        // OK...
+        string? parentPath = pathUnderFedoraRoot.GetParent();
+        while (parentPath != null)
+        {
+            var parent = await GetResourceType(parentPath, transaction);
+            if (parent is not { Success: true, Value: nameof(Container) }) // i.e., not ArchivalGroup or Binary or whatever
+            {
+                return Result.Fail<Container?>(ErrorCodes.Conflict,
+                    $"Ancestors of {pathUnderFedoraRoot} must all be Containers, {parentPath} is a {parent.Value}.");
+            }
+            parentPath = pathUnderFedoraRoot.GetParent();
+        }
+        
+        // All tests passed
         var container = await CreateContainerInternal(false, pathUnderFedoraRoot, name, transaction);
         return Result.Ok(container);
     }
