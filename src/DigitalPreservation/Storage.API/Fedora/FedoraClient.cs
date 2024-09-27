@@ -77,13 +77,6 @@ internal class FedoraClient(
         }
         var storageMap = await GetCacheableStorageMap(uri, version, true);
         MergeVersions(versions, storageMap.AllVersions);
-        ObjectVersion? objectVersion = null;
-        if(!string.IsNullOrWhiteSpace(version))
-        {
-            // TODO: Are we going to pass this into GetPopulatedContainer? (see comment there)
-            // If not, we don't need the cost of obtaining it.
-            objectVersion = versions.Single(v => v.MementoTimestamp == version || v.OcflVersion == version);
-        }
 
         if(await GetPopulatedContainer(uri, true, true, transaction) is not ArchivalGroup archivalGroup)
         {
@@ -337,8 +330,15 @@ internal class FedoraClient(
             .WithContainedDescriptions();
         
         var response = await httpClient.SendAsync(request);
-        
-        // check for archival group as per lines 847-855
+        bool hasArchivalGroupHeader = response.HasArchivalGroupTypeHeader();
+        if (isArchivalGroup && !hasArchivalGroupHeader)
+        {
+            throw new InvalidOperationException("Response is not an Archival Group, when Archival Group expected");
+        }
+        if (!isArchivalGroup && hasArchivalGroupHeader)
+        {
+            throw new InvalidOperationException("Response is an Archival Group, when Basic Container expected");
+        }
         
         
         // WithContainedDescriptions could return @graph, or it could return a single object if the container has no children

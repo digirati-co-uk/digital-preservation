@@ -15,6 +15,12 @@ public class Converters
     private readonly string fedoraAgentRoot; // Not sure what this is going to be yet
     private readonly string agentRoot;
     private readonly Uri agentRootUri;
+
+    // We could register the vocab with Fedora and alias the type
+    // But this will always work without having to do anything special to Fedora.
+    // The only thing to watch out for here is if Fedora starts using this type in the future.
+    // TODO: Consider minting our own URI for ArchivalGroupRdfType
+    public const string ArchivalGroupRdfType = "http://purl.org/dc/dcmitype/Collection";
     
     public Converters(IOptions<FedoraOptions> fedoraOptions, IOptions<ConverterOptions> converterOptions)
     {
@@ -51,9 +57,8 @@ public class Converters
         {
             container.Type = "RepositoryRoot";
         }
-        else if (fedoraJsonLdResponse.Type.Contains("http://purl.org/dc/dcmitype/Collection"))
+        else if (fedoraJsonLdResponse.Type.Contains(ArchivalGroupRdfType))
         {
-            // TODO - introduce this dcmi namespace and also check for dcmi:Collection (or whatever prefix)
             container.Type = "ArchivalGroup";
         }
         else
