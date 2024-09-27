@@ -18,9 +18,7 @@ public class Container : PreservedResource
     [JsonPropertyName("binaries")]
     [JsonPropertyOrder(310)]
     public List<Binary> Binaries { get; set; } = [];
-    
-    public override string ToString()
-    {
-        return $"📁 {Name ?? GetSlug() ?? GetType().Name}";
-    }
+
+
+    public override string StringIcon => "📁";
 }

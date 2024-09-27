@@ -47,4 +47,12 @@ public abstract class PreservedResource : Resource
         return valid;
     } 
     
+    
+    public override string ToString()
+    {
+        return $"{StringIcon} {Name ?? GetSlug() ?? GetType().Name}";
+    }
+
+    public abstract string StringIcon { get; }
+    
 }

@@ -18,4 +18,6 @@ public class ArchivalGroup : Container
     [JsonPropertyName("storageMap")]
     [JsonPropertyOrder(101)]
     public StorageMap? StorageMap { get; set; }
+
+    public override string StringIcon => "📦";
 }

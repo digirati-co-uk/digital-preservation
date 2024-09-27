@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Utils;
+﻿using System.Runtime.CompilerServices;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model;
 
@@ -14,6 +15,11 @@ public static class ResourceX
             .RemoveStart("/");
         
         return pathUnderRoot;
+    }
+
+    public static string GetDisplayName(this PreservedResource resource)
+    {
+        return resource.Name ?? resource.Id?.GetSlug() ?? $"[{resource.GetType()}]";
     }
     
 }

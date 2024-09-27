@@ -1,15 +1,14 @@
 ﻿@page "{*pathUnderRoot}"
 @using DigitalPreservation.Common.Model
+@using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @using Microsoft.AspNetCore.Mvc.TagHelpers
 @model BrowseModel
 @{
-    ViewData["Title"] = "Browse the repository";
+    ViewData["Title"] = "Browse - " + (Model.Resource!.Name ?? Model.Resource!.Id!.GetSlug());
 }
 
 <div>
-    <h1 class="display-4">Browse - @(Model.Resource!.Name ?? @Model.Resource!.Id!.GetSlug())</h1>
-    
     @if (TempData["CreateContainerError"] != null)
     {
         <div class="alert alert-danger" role="alert">
@@ -31,19 +30,41 @@
     </div>
     
     <hr/>
-    
-    <div class="container">
-        <ul style="list-style-type:none;">
+
+
+    <div class="table-responsive small">
+        <table class="table table-striped table-sm plain-link-table">
+            <thead>
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">Name</th>
+                <th scope="col">Last Modified</th>
+                <th scope="col">By</th>
+                <th scope="col">Created</th>
+                <th scope="col">By</th>
+            </tr>
+            </thead>
+            <tbody>
             @foreach (var container in Model.Resource?.Containers ?? [])
             {
-                <li>📁 <a href="/browse/@container.GetPathUnderRoot()">@(container.Name ?? container.Id!.GetSlug())</a></li>
+                string path = "/browse/" + container.GetPathUnderRoot();
+                <tr>
+                    <td><a href="@path">@container.StringIcon</a></td>
+                    <td><a href="@path">@container.GetDisplayName()</a></td>
+                    <td><a href="@path">@container.LastModified.GetDateDisplay()</a></td>
+                    <td><a href="@path">@container.LastModifiedBy?.GetSlug()</a></td>
+                    <td><a href="@path">@container.Created.GetDateDisplay()</a></td>
+                    <td><a href="@path">@container.CreatedBy?.GetSlug()</a></td>
+                </tr>
             }
-        </ul>
+            </tbody>
+        </table>
     </div>
+    
 </div>
 
 
-<!-- Modal -->
+    <!-- Modal -->
 <div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">

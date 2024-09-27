@@ -18,8 +18,5 @@ public class Binary : PreservedResource
     [JsonPropertyOrder(320)]
     public string? Digest { get; set; }
 
-    public override string ToString()
-    {
-        return $"🗎 {Name ?? GetSlug() ?? GetType().Name}";
-    }
+    public override string StringIcon => "🗎";
 }

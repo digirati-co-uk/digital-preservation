@@ -155,3 +155,7 @@
 .navbar .form-control {
     padding: .75rem 1rem;
 }
+
+table.plain-link-table a {
+    text-decoration: none;
+}
