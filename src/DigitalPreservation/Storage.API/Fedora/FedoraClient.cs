@@ -374,7 +374,9 @@ internal class FedoraClient(
         var topContainer = isArchivalGroup ? converters.MakeArchivalGroup(fedoraObject!) : converters.MakeContainer(fedoraObject!);
 
         // Get the contains property which may be a single value or an array
-        foreach (var id in GetIdsFromContainsProperty(containerAndContained[0]))
+        var idsFromContainmentPredicate = GetIdsFromContainsProperty(containerAndContained[0]);
+        idsFromContainmentPredicate.Sort();
+        foreach (var id in idsFromContainmentPredicate)
         {
             var resource = dict[id];
             if (resource.HasType("fedora:Container"))

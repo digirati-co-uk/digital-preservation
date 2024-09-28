@@ -9,6 +9,19 @@
     ViewData["section"] = "browse";
 }
 
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">@ViewData["Title"]</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+
+        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newContainerModal">
+            📁 New Folder
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
+            <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
+        </button>
+    </div>
+</div>
+
 <div>
     @if (TempData["CreateContainerError"] != null)
     {
@@ -24,25 +37,18 @@
         </div>
     }
     
-    <div class="container">
-        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#newContainerModal">
-            📁 New Folder...
-        </button>
-    </div>
-    
-    <hr/>
-
-
     <div class="table-responsive small">
         <table class="table table-striped table-sm plain-link-table">
             <thead>
             <tr>
                 <th scope="col"> </th>
-                <th scope="col">Name</th>
+                <th scope="col">Path</th>
+                <th scope="col">Title</th>
                 <th scope="col">Last Modified</th>
                 <th scope="col">By</th>
                 <th scope="col">Created</th>
                 <th scope="col">By</th>
+                <th scope="col"><svg class="bi"><use xlink:href="#box-seam"/></svg></th>
             </tr>
             </thead>
             <tbody>
@@ -51,11 +57,17 @@
                 string path = "/browse/" + container.GetPathUnderRoot();
                 <tr>
                     <td><a href="@path">@container.StringIcon</a></td>
-                    <td><a href="@path">@container.GetDisplayName()</a></td>
+                    <td><a href="@path">@container.Id?.GetSlug()</a></td>
+                    <td><a href="@path">@container.Name</a></td>
                     <td><a href="@path">@container.LastModified.GetDateDisplay()</a></td>
                     <td><a href="@path">@container.LastModifiedBy?.GetSlug()</a></td>
                     <td><a href="@path">@container.Created.GetDateDisplay()</a></td>
                     <td><a href="@path">@container.CreatedBy?.GetSlug()</a></td>
+                    <td><a href="#"><svg class="bi"><use xlink:href="#box-seam"/></svg></a></td> <!-- for AGs in this list only; -->
+                    <!--
+                    if container.type is AG, show the link to DEPOSITS for the AG (browse path as normal)
+                    Always shown whether there is an existing deposit or not
+                    -->
                 </tr>
             }
             </tbody>
@@ -66,15 +78,15 @@
 
 
     <!-- Modal -->
-<div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="post">
-                <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="newContainerModalLabel"> 📁 New Folder</h1>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
+    <div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="newContainerModalLabel"> 📁 New Folder</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
                         <div class="mb-3">
                             <label for="containerSlug" class="form-label">Folder path name</label>
                             <input type="text" class="form-control" id="containerSlug" name="containerSlug" aria-describedby="containerSlugHelp">
@@ -85,12 +97,45 @@
                             <input type="text" class="form-control" id="containerTitle" name="containerTitle" aria-describedby="containerTitleHelp">
                             <div id="containerTitleHelp" class="form-text">A friendly name for the folder, may contain any characters</div>
                         </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">📁 Create New Folder</button>
-                </div>
-            </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">📁 Create New Folder</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</div>
+    
+    <div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" asp-action="tbc">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="agSlug" class="form-label">Path of Archival Group (Optional)</label>
+                            <input type="text" class="form-control" id="agSlug" name="agSlug" aria-describedby="agSlugHelp">
+                            <div id="agSlugHelp" class="form-text">The deposit will <strong>eventually</strong> create an Archival Group with this path:<br/>
+                                <code>@(Model.PathUnderRoot)/&lt;path&gt;</code>.<br/>
+                                You do not have to specify this now.<br/>
+                                It can be set later, and may be changed before the Archival Group is created.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="depositSubmissionText" class="form-label">Note (Optional)</label>
+                            <input type="text" class="form-control" id="depositSubmissionText" name="depositSubmissionText" aria-describedby="depositSubmissionTextHelp">
+                            <div id="depositSubmissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <input type="hidden" name="expectedToBeNewArchivalGroup" value="true" />
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>

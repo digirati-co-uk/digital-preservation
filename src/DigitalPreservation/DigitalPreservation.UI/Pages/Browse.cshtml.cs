@@ -11,6 +11,7 @@ public class BrowseModel(IMediator mediator) : PageModel
 {
     // Assumes Resource is always a container for now
     [BindProperty] public Container? Resource { get; set; }
+    [BindProperty] public string? PathUnderRoot { get; set; }
     
     public async Task OnGet(string? pathUnderRoot)
     {
@@ -24,6 +25,7 @@ public class BrowseModel(IMediator mediator) : PageModel
         if (result.Success)
         {
             Resource = result.Value as Container;
+            PathUnderRoot = pathUnderRoot;
         }
     }
 
