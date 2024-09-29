@@ -1,4 +1,6 @@
 ﻿using System.Net.Http.Json;
+using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
@@ -10,6 +12,12 @@ internal class PreservationApiClient(
     ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
     private readonly HttpClient preservationHttpClient = httpClient;
+
+    public Task<Result<Deposit?>> CreateDeposit(string? archivalGroupPathUnderRoot, string? archivalGroupProposedName, string? submissionText,
+        CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
 
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {

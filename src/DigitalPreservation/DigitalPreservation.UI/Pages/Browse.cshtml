@@ -1,6 +1,7 @@
 ﻿@page "{*pathUnderRoot}"
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.UI.Features
+@using DigitalPreservation.UI.Features.Preservation
 @using DigitalPreservation.Utils
 @using Microsoft.AspNetCore.Mvc.TagHelpers
 @model BrowseModel
@@ -110,28 +111,34 @@
 <div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" asp-action="">
+            <form method="post" action="/deposits">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="agSlug" class="form-label">Path of Archival Group (Optional)</label>
-                        <input type="text" class="form-control" id="agSlug" name="agSlug" aria-describedby="agSlugHelp">
-                        <div id="agSlugHelp" class="form-text">The deposit will <strong>eventually</strong> create an Archival Group with this path:<br/>
+                        <label for="archivalGroupSlug" class="form-label">Path of Archival Group (Optional)</label>
+                        <input type="text" class="form-control" id="archivalGroupSlug" name="NewDepositModel.ArchivalGroupSlug" aria-describedby="archivalGroupSlugHelp">
+                        <div id="archivalGroupSlugHelp" class="form-text">The deposit will <strong>eventually</strong> create an Archival Group with this path:<br/>
                             <code>@(Model.PathUnderRoot)/&lt;path&gt;</code>.<br/>
                             You do not have to specify this now.<br/>
                             It can be set later, and may be changed before the Archival Group is created.</div>
                     </div>
                     <div class="mb-3">
-                        <label for="depositSubmissionText" class="form-label">Note (Optional)</label>
-                        <input type="text" class="form-control" id="depositSubmissionText" name="depositSubmissionText" aria-describedby="depositSubmissionTextHelp">
-                        <div id="depositSubmissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                        <label for="archivalGroupProposedName" class="form-label">Name of object (optional)</label>
+                        <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp">
+                        <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="submissionText" class="form-label">Note (Optional)</label>
+                        <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
+                        <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <input type="hidden" name="expectedToBeNewArchivalGroup" value="true" />
+                    <input type="hidden" name="NewDepositModel.ExpectedToBeNewArchivalGroup" value="true" />
+                    <input type="hidden" name="NewDepositModel.ParentPathUnderRoot" value="@(Model.PathUnderRoot)" />
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
                 </div>
