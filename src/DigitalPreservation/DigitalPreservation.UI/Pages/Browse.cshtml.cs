@@ -10,15 +10,10 @@ namespace DigitalPreservation.UI.Pages;
 public class BrowseModel(IMediator mediator) : PageModel
 {
     // Assumes Resource is always a container for now
-    [BindProperty] public Container? Resource { get; set; }
-    [BindProperty] public string? PathUnderRoot { get; set; }
+    public Container? Resource { get; set; }
+    public string? PathUnderRoot { get; set; }
     
     public async Task OnGet(string? pathUnderRoot)
-    {
-        await BindResource(pathUnderRoot);
-    }
-
-    private async Task BindResource(string? pathUnderRoot)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
         var result = await mediator.Send(new GetResource(resourcePath));
@@ -28,14 +23,11 @@ public class BrowseModel(IMediator mediator) : PageModel
             PathUnderRoot = pathUnderRoot;
         }
     }
-
-
     public async Task<IActionResult> OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle)
     {
         if (containerSlug.IsNullOrWhiteSpace())
         {
             TempData["CreateContainerError"] = "Missing container name";
-            await BindResource(pathUnderRoot);
             return Redirect(Request.Path);
         }
         

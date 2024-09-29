@@ -268,7 +268,7 @@ internal class FedoraClient(
                 return Result.Fail<Container?>(ErrorCodes.Conflict,
                     $"Ancestors of {pathUnderFedoraRoot} must all be Containers, {parentPath} is a {parent.Value}.");
             }
-            parentPath = pathUnderFedoraRoot.GetParent();
+            parentPath = parentPath.GetParent();
         }
         
         // All tests passed

@@ -77,65 +77,65 @@
 </div>
 
 
-    <!-- Modal -->
-    <div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="post">
-                    <div class="modal-header">
-                        <h1 class="modal-title fs-5" id="newContainerModalLabel"> 📁 New Folder</h1>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<!-- Modal -->
+<div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="newContainerModalLabel"> 📁 New Folder</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="containerSlug" class="form-label">Folder path name</label>
+                        <input type="text" class="form-control" id="containerSlug" name="containerSlug" aria-describedby="containerSlugHelp">
+                        <div id="containerSlugHelp" class="form-text">The path of the folder as appears in URLs - no special characters</div>
                     </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="containerSlug" class="form-label">Folder path name</label>
-                            <input type="text" class="form-control" id="containerSlug" name="containerSlug" aria-describedby="containerSlugHelp">
-                            <div id="containerSlugHelp" class="form-text">The path of the folder as appears in URLs - no special characters</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="containerTitle" class="form-label">Folder title</label>
-                            <input type="text" class="form-control" id="containerTitle" name="containerTitle" aria-describedby="containerTitleHelp">
-                            <div id="containerTitleHelp" class="form-text">A friendly name for the folder, may contain any characters</div>
-                        </div>
+                    <div class="mb-3">
+                        <label for="containerTitle" class="form-label">Folder title</label>
+                        <input type="text" class="form-control" id="containerTitle" name="containerTitle" aria-describedby="containerTitleHelp">
+                        <div id="containerTitleHelp" class="form-text">A friendly name for the folder, may contain any characters</div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">📁 Create New Folder</button>
-                    </div>
-                </form>
-            </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">📁 Create New Folder</button>
+                </div>
+            </form>
         </div>
     </div>
-    
-    <div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="post" asp-action="tbc">
-                    <div class="modal-header">
-                        <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+
+<div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-action="">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="agSlug" class="form-label">Path of Archival Group (Optional)</label>
+                        <input type="text" class="form-control" id="agSlug" name="agSlug" aria-describedby="agSlugHelp">
+                        <div id="agSlugHelp" class="form-text">The deposit will <strong>eventually</strong> create an Archival Group with this path:<br/>
+                            <code>@(Model.PathUnderRoot)/&lt;path&gt;</code>.<br/>
+                            You do not have to specify this now.<br/>
+                            It can be set later, and may be changed before the Archival Group is created.</div>
                     </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="agSlug" class="form-label">Path of Archival Group (Optional)</label>
-                            <input type="text" class="form-control" id="agSlug" name="agSlug" aria-describedby="agSlugHelp">
-                            <div id="agSlugHelp" class="form-text">The deposit will <strong>eventually</strong> create an Archival Group with this path:<br/>
-                                <code>@(Model.PathUnderRoot)/&lt;path&gt;</code>.<br/>
-                                You do not have to specify this now.<br/>
-                                It can be set later, and may be changed before the Archival Group is created.</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="depositSubmissionText" class="form-label">Note (Optional)</label>
-                            <input type="text" class="form-control" id="depositSubmissionText" name="depositSubmissionText" aria-describedby="depositSubmissionTextHelp">
-                            <div id="depositSubmissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
-                        </div>
+                    <div class="mb-3">
+                        <label for="depositSubmissionText" class="form-label">Note (Optional)</label>
+                        <input type="text" class="form-control" id="depositSubmissionText" name="depositSubmissionText" aria-describedby="depositSubmissionTextHelp">
+                        <div id="depositSubmissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
                     </div>
-                    <div class="modal-footer">
-                        <input type="hidden" name="expectedToBeNewArchivalGroup" value="true" />
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
-                    </div>
-                </form>
-            </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" name="expectedToBeNewArchivalGroup" value="true" />
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
+                </div>
+            </form>
         </div>
     </div>
+</div>
