@@ -5,9 +5,10 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace DigitalPreservation.UI.Pages.Deposits;
+namespace DigitalPreservation.UI.Pages;
 
-public class IndexModel(IMediator mediator, ILogger<IndexModel> logger) : PageModel
+
+public class DepositTestModel(IMediator mediator, ILogger<Deposits.IndexModel> logger) : PageModel
 {
     public void OnGet()
     {
@@ -19,14 +20,20 @@ public class IndexModel(IMediator mediator, ILogger<IndexModel> logger) : PageMo
         logger.LogDebug("OnPost");
     }
 
-    public void OnPostNewDeposit()
+    public void OnPost(NewDepositModel newDepositModel)
     {
-        logger.LogDebug("OnPostNewDeposit()");
+        logger.LogDebug("OnPost(NewDepositModel newDepositModel)");
     }
+
+    // public void OnPostNewDeposit()
+    // {
+    //     logger.LogDebug("OnPostNewDeposit()");
+    // }
     
 
     public async Task<IActionResult> OnPostNewDeposit(NewDepositModel newDepositModel)
     {
+        logger.LogDebug("OnPostNewDeposit(NewDepositModel newDepositModel)");
         if (ValidateAndNormaliseNewDeposit(newDepositModel))
         {
             var result = await mediator.Send(new CreateDeposit(

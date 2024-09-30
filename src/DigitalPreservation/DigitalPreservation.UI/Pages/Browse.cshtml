@@ -111,7 +111,7 @@
 <div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" action="/deposits">
+            <form method="post" asp-page="DepositTest" asp-page-handler="NewDeposit">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -145,4 +145,10 @@
             </form>
         </div>
     </div>
+</div>
+
+<div>
+    <form method="post" asp-page="DepositTest" asp-page-handler="NewDeposit">
+        <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
+    </form>
 </div>
