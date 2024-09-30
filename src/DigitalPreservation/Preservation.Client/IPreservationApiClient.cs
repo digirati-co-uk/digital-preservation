@@ -15,6 +15,10 @@ public interface IPreservationApiClient
     Task<Result<PreservedResource?>> GetResource(string path);
     
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
+    Task<Result<Deposit?>> CreateDeposit(string? archivalGroupPathUnderRoot, string? archivalGroupProposedName, string? submissionText, CancellationToken cancellationToken);
+    Task<Result<List<Deposit>>> GetDepositsForArchivalGroup(string depositsForArchivalGroupPath, CancellationToken cancellationToken = default);
+    
+    
     
     
     
@@ -28,5 +32,4 @@ public interface IPreservationApiClient
     Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default);
     Task<ConnectivityCheckResult?> CanTalkToS3(CancellationToken cancellationToken);
     Task<ConnectivityCheckResult?> CanSeeThatStorageCanTalkToS3(CancellationToken cancellationToken);
-    Task<Result<Deposit?>> CreateDeposit(string? archivalGroupPathUnderRoot, string? archivalGroupProposedName, string? submissionText, CancellationToken cancellationToken);
 }

@@ -1,6 +1,60 @@
-﻿namespace DigitalPreservation.Common.Model.PreservationApi;
+﻿using System.Text.Json.Serialization;
+
+namespace DigitalPreservation.Common.Model.PreservationApi;
 
 public class Deposit : Resource
 {
     public override string Type { get; set; } = nameof(Deposit); 
+    
+    [JsonPropertyOrder(110)]
+    [JsonPropertyName("archivalGroup")] // aka digitalObject
+    public Uri? ArchivalGroup { get; set; }
+    
+    [JsonPropertyOrder(120)]
+    [JsonPropertyName("files")] 
+    public Uri? Files { get; set; }
+
+    [JsonPropertyOrder(130)]
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "new";
+    
+    [JsonPropertyOrder(140)]
+    [JsonPropertyName("submissionText")]
+    public string? SubmissionText { get; set; }
+    
+    [JsonPropertyOrder(150)]
+    [JsonPropertyName("archivalGroupName")]
+    public string? ArchivalGroupName { get; set; }
+    
+    [JsonPropertyOrder(160)]
+    [JsonPropertyName("active")]
+    public bool Active { get; set; }
+    
+    
+    [JsonPropertyOrder(210)]
+    [JsonPropertyName("preserved")]
+    public DateTime? Preserved { get; set; }  // if not null can't be reused?
+    
+    [JsonPropertyOrder(220)]
+    [JsonPropertyName("preservedBy")]
+    public Uri? PreservedBy { get; set; }
+    
+    [JsonPropertyOrder(230)]
+    [JsonPropertyName("versionPreserved")]
+    public string? VersionPreserved { get; set; }
+    
+    [JsonPropertyOrder(250)]
+    [JsonPropertyName("exported")]
+    public DateTime? Exported { get; set; }
+    
+    [JsonPropertyOrder(260)]
+    [JsonPropertyName("exportedBy")]
+    public string? ExportedBy { get; set; }
+    
+    [JsonPropertyOrder(270)]
+    [JsonPropertyName("versionExported")]
+    public string? VersionExported { get; set; }
+
+    
+
 }
