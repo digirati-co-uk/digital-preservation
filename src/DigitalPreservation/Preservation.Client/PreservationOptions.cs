@@ -12,5 +12,5 @@ internal class PreservationOptions
     /// <summary>
     /// Timeout, in MS, for requests made to preservation client 
     /// </summary>
-    public double TimeoutMs { get; set; } = 15000;
+    public double TimeoutMs { get; set; } = 100000;
 }

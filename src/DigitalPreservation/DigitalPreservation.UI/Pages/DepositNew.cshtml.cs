@@ -43,8 +43,17 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
 
     private async Task<bool> ValidateAndNormaliseNewDeposit(NewDepositModel newDepositModel)
     {
-        newDepositModel.ArchivalGroupPathUnderRoot ??= StringUtils.BuildPath(false,
-            newDepositModel.ParentPathUnderRoot, newDepositModel.ArchivalGroupSlug);
+        if (newDepositModel.FromBrowseContext)
+        {
+            newDepositModel.ArchivalGroupPathUnderRoot ??= StringUtils.BuildPath(false,
+                newDepositModel.ParentPathUnderRoot, newDepositModel.ArchivalGroupSlug);
+        }
+
+        if (newDepositModel.ArchivalGroupPathUnderRoot.IsNullOrWhiteSpace())
+        {
+            // nothing to validate, as an intended AG has not been specified
+            return true;
+        }
 
         var agSlug = newDepositModel.ArchivalGroupPathUnderRoot.GetSlug();
         if(!PreservedResource.ValidSlug(agSlug))
@@ -63,7 +72,6 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
         var depositsForArchivalGroupResult = await mediator.Send(new GetDeposits(new DepositQuery{ArchivalGroupPath = archivalGroupRepositoryPath}));
         if (depositsForArchivalGroupResult.Success)
         {
-            // Need to establish a contract that the active one (if there is one) will be first, then the rest, up to a limit (a big limit, e.g., 100)
             if (depositsForArchivalGroupResult.Value == null) // empty list is OK though, and expected a lot of the time
             {
                 TempData["CreateDepositFail"] = "Can't obtain details of existing deposits for the archival group.";
@@ -72,10 +80,10 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
 
             if (depositsForArchivalGroupResult.Value is { Count: > 0 })
             {
-                var topDeposit = depositsForArchivalGroupResult.Value[0];
-                if (topDeposit.Active)
+                var activeDeposit = depositsForArchivalGroupResult.Value.FirstOrDefault(d => d.Active); // should be SingleOrDefault
+                if (activeDeposit is { Active: true })
                 {
-                    var depositPath = "/deposits/" + topDeposit.Id!.GetSlug();
+                    var depositPath = "/deposits/" + activeDeposit.Id!.GetSlug();
                     TempData["CreateDepositFail"] = "There is already an ACTIVE deposit for the archival group.<br/>" +
                                                     $"<a href=\"{depositPath}\">{depositPath}</a>";
                     return false;
@@ -90,8 +98,9 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
         
         var existingResourceResult = await mediator.Send(new GetResource(archivalGroupRepositoryPath));
 
-        if (newDepositModel.ExpectedToBeNewArchivalGroup)
+        if (newDepositModel.FromBrowseContext)
         {
+            // User intends to make a NEW deposit
             if (existingResourceResult.ErrorCode != ErrorCodes.NotFound || existingResourceResult.Value != null) // this is belt and braces really
             {
                 TempData["CreateDepositFail"] = "There is already an archival group at " + archivalGroupRepositoryPath + ".<br/>" +
@@ -131,7 +140,7 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
                                             "but " + archivalGroupRepositoryPath + " could not be found.<br/>";
             return false;
         }
-        TempData["CreateDepositFail"] = "Reason for failure";
+        TempData["CreateDepositFail"] = "UNHANDLED reason for failure";
         return false;
     }
 }

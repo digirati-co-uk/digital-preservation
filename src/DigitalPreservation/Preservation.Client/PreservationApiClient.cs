@@ -24,13 +24,13 @@ internal class PreservationApiClient(
     {
         var deposit = new Deposit
         {
-            ArchivalGroup = new Uri(httpClient.BaseAddress!, archivalGroupRepositoryPath),
+            ArchivalGroup = archivalGroupRepositoryPath.HasText() ? new Uri(httpClient.BaseAddress!, archivalGroupRepositoryPath) : null,
             ArchivalGroupName = archivalGroupProposedName,
             SubmissionText = submissionText
         };
         try
         {
-            var uri = new Uri("/deposits", UriKind.Relative);
+            var uri = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
             HttpResponseMessage response = await httpClient.PostAsJsonAsync(uri, deposit, cancellationToken);
             if (response.IsSuccessStatusCode)
             {

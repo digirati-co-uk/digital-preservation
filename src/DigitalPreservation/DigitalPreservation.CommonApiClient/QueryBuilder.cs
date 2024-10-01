@@ -44,6 +44,11 @@ public class QueryBuilder
         {
             queryString.Add(nameof(query.Status), query.Status);
         }
+        if (query.Active)
+        {
+            queryString.Add(nameof(query.Active), "true");
+        }
+        
         return queryString.ToString() ?? string.Empty;
     }
 

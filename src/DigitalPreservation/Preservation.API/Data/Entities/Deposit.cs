@@ -1,7 +1,5 @@
 // ReSharper disable EntityFramework.ModelValidation.UnlimitedStringLength
 
-using System.ComponentModel.DataAnnotations.Schema;
-
 namespace Preservation.API.Data.Entities;
 
 /// <summary>
@@ -24,7 +22,7 @@ public class Deposit
     /// </summary>
     public string? ArchivalGroupPathUnderRoot { get; set; }
     public string? ArchivalGroupProposedName { get; set; }
-    public string Status { get; set; } = "new";  // exported / preserved
+    public required string Status { get; set; }  // new / exported / preserved
     public string? SubmissionText { get; set; }
     
     /// <summary>
@@ -35,14 +33,15 @@ public class Deposit
     /// <summary>
     /// Created timestamp
     /// </summary>
-    public DateTime CreatedOn { get; set; }
+    public required DateTime Created { get; set; }
     public required string CreatedBy { get; set; }
-    public DateTime? LastModified { get; set; }
-    public string? LastModifiedBy { get; set; }
+    public required DateTime LastModified { get; set; }
+    public required string LastModifiedBy { get; set; }
     public DateTime? Preserved { get; set; }  // if not null can't be reused?
     public string? PreservedBy { get; set; }
     public string? VersionPreserved { get; set; }
     public DateTime? Exported { get; set; }
     public string? ExportedBy { get; set; }
     public string? VersionExported { get; set; }
+    public Uri? Files { get; set; }
 }

@@ -10,4 +10,5 @@ public class DepositQuery : QueryBase
     public DateTime? ExportedAfter { get; set; }
     public DateTime? ExportedBefore { get; set; }
     public string? Status { get; set; }
+    public bool Active { get; set; }
 }

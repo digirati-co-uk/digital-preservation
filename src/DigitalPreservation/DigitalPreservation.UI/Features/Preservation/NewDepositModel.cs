@@ -12,5 +12,7 @@ public class NewDepositModel
     public string? ArchivalGroupProposedName { get; set; }
     
     public string? SubmissionText { get; set; }
-    public bool ExpectedToBeNewArchivalGroup { get; set; }
+    
+    // The request has come for a particular location; it MAY have a slug 
+    public bool FromBrowseContext { get; set; }
 }

@@ -18,7 +18,7 @@ public class PreservationContext : DbContext
         modelBuilder.Entity<Deposit>(builder =>
         {
             builder
-                .Property(su => su.CreatedOn)
+                .Property(su => su.Created)
                 .HasDefaultValueSql("now()");
         });
     }
