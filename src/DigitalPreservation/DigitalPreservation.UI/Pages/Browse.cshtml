@@ -38,8 +38,8 @@
         </div>
     }
     
-    <div class="table-responsive small" aria-label="table-resources">
-        <table class="table table-striped table-sm plain-link-table">
+    <div class="table-responsive small">
+        <table class="table table-striped table-sm plain-link-table" aria-label="table-resources">
             <thead>
             <tr>
                 <th scope="col"> </th>
@@ -59,7 +59,7 @@
             @foreach (var container in Model.Resource?.Containers ?? [])
             {
                 string path = "/browse/" + container.GetPathUnderRoot();
-                <tr aria-label="row-@counter">
+                <tr aria-label="row-@(counter++)">
                     <td aria-label="td-icon"><a href="@path">@container.StringIcon</a></td>
                     <td aria-label="td-path"><a href="@path">@container.Id?.GetSlug()</a></td>
                     <td aria-label="td-title"><a href="@path">@container.Name</a></td>
