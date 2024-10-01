@@ -41,7 +41,7 @@ public class BrowseModel(IMediator mediator) : PageModel
             }
             else
             {
-                TempData["CreateContainerError"] = "Failed to create Container: " + result.ErrorCode + ": " + result.ErrorMessage;
+                TempData["CreateContainerError"] = "Failed to create Container: " + result.CodeAndMessage();
             }
             return Redirect(Request.Path);
         }

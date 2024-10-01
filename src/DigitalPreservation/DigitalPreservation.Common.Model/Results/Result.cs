@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Text;
 
 namespace DigitalPreservation.Common.Model.Results;
 
@@ -19,6 +20,21 @@ public class Result
         ErrorMessage = errorMessage;
     }
 
+    public string? CodeAndMessage()
+    {
+        var sb = new StringBuilder();
+        if (ErrorCode != null)
+        {
+            sb.Append(ErrorCode);
+            if (ErrorMessage != null)
+            {
+                sb.Append(": ");
+            }
+        }
+        sb.Append(ErrorMessage ?? string.Empty);
+        return sb.ToString();
+    }
+
     public static Result Fail(string code, string? message = null)
     {
         return new Result(false, code, message);
@@ -27,6 +43,12 @@ public class Result
     public static Result<T?> Fail<T>(string code, string? message = null)
     {
         return new Result<T?>(default, false, code, message);
+    }
+    
+    
+    public static Result<T> FailNotNull<T>(string code, string? message = null)
+    {
+        return new Result<T>(default, false, code, message);
     }
 
     public static Result Ok()
@@ -37,6 +59,11 @@ public class Result
     public static Result<T?> Ok<T>(T? value)
     {
         return new Result<T?>(value, true);
+    }
+    
+    public static Result<T> OkNotNull<T>(T value)
+    {
+        return new Result<T>(value, true);
     }
 
     public static Result Combine(params Result[] results)

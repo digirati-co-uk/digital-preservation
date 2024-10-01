@@ -1,7 +1,10 @@
-﻿using System.Net.Http.Json;
+﻿using System.Net;
+using System.Net.Http.Json;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
+using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -13,46 +16,82 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
-    public async Task<Result<Deposit?>> CreateDeposit(string? archivalGroupPathUnderRoot, string? archivalGroupProposedName, string? submissionText,
+    public async Task<Result<Deposit?>> CreateDeposit(
+        string? archivalGroupRepositoryPath,
+        string? archivalGroupProposedName,
+        string? submissionText,
         CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
-    }
-
-    public async Task<Result<List<Deposit>>> GetDepositsForArchivalGroup(string depositsForArchivalGroupPath, CancellationToken cancellationToken = default)
-    {        // path MUST be the full /repository... path, which we just pass through as-is
+        var deposit = new Deposit
+        {
+            ArchivalGroup = new Uri(httpClient.BaseAddress!, archivalGroupRepositoryPath),
+            ArchivalGroupName = archivalGroupProposedName,
+            SubmissionText = submissionText
+        };
         try
         {
-            var uri = new Uri(depositsForArchivalGroupPath, UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await httpClient.SendAsync(req);
-            var stream = await response.Content.ReadAsStreamAsync();
+            var uri = new Uri("/deposits", UriKind.Relative);
+            HttpResponseMessage response = await httpClient.PostAsJsonAsync(uri, deposit, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
-                // just copied this lot so far:
-                
-                var parsed = Deserializer.Parse(stream);
-                if (parsed != null)
+                var createdDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
+                if (createdDeposit is not null)
                 {
-                    return Result.Ok<PreservedResource?>(parsed);
+                    return Result.Ok(createdDeposit);
                 }
-                return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+                return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
             }
-
             switch (response.StatusCode)
             {
-                case HttpStatusCode.NotFound:
-                    return Result.Fail<PreservedResource?>(ErrorCodes.NotFound, "No resource at " + uri);
                 case HttpStatusCode.Unauthorized:
-                    return Result.Fail<PreservedResource?>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
+                    return Result.Fail<Deposit>(ErrorCodes.Unauthorized, "Unauthorized for creating new deposits");
+                case HttpStatusCode.BadRequest:
+                    return Result.Fail<Deposit>(ErrorCodes.BadRequest, "Bad Request");
                 default:
-                    return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+                    return Result.Fail<Deposit>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
             }
         }
         catch (Exception e)
         {
             logger.LogError(e, e.Message);
-            return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, e.Message);
+            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<List<Deposit>>> GetDeposits(DepositQuery query, CancellationToken cancellationToken = default)
+    {        
+        try
+        {
+            var queryString = QueryBuilder.MakeQueryString(query);
+            var relPath = "/deposits";
+            if (queryString.HasText())
+            {
+                relPath += $"?{queryString}";   
+            }
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await httpClient.SendAsync(req, cancellationToken);
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.OK:
+                    var deposits = await response.Content.ReadFromJsonAsync<List<Deposit>>(cancellationToken: cancellationToken);
+                    if (deposits is not null)
+                    {
+                        return Result.OkNotNull(deposits);
+                    }
+                    return Result.FailNotNull<List<Deposit>>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.NotFound:
+                    return Result.FailNotNull<List<Deposit>>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.Unauthorized:
+                    return Result.FailNotNull<List<Deposit>>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
+                default:
+                    return Result.FailNotNull<List<Deposit>>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<List<Deposit>>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

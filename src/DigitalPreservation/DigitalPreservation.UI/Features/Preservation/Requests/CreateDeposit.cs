@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.PreservationApi;
+﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Preservation.Client;
@@ -20,7 +21,11 @@ public class CreateDepositHandler(
 {
     public async Task<Result<Deposit?>> Handle(CreateDeposit request, CancellationToken cancellationToken)
     {
-        var result = await preservationApiClient.CreateDeposit(request.ArchivalGroupPathUnderRoot, request.ArchivalGroupProposedName, request.SubmissionText, cancellationToken);
+        var result = await preservationApiClient.CreateDeposit(
+            request.ArchivalGroupPathUnderRoot.GetRepositoryPath(),
+            request.ArchivalGroupProposedName,
+            request.SubmissionText,
+            cancellationToken);
         return result;
     }
 }

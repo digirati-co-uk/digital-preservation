@@ -19,13 +19,5 @@ public class ArchivalGroup : Container
     [JsonPropertyOrder(101)]
     public StorageMap? StorageMap { get; set; }
     
-    Here:  
-    // This is not in the RFC docs    
-    
-    // grr we can't do this because for a new one there is no AG! We need to get the URL someother way and pass it to the mediatr
-    [JsonPropertyName("deposits")]
-    [JsonPropertyOrder(110)]
-    public Uri? Deposits { get; set; }
-        
     public override string StringIcon => "📦";
 }

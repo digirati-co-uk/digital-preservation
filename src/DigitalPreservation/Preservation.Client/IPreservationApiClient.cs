@@ -15,8 +15,8 @@ public interface IPreservationApiClient
     Task<Result<PreservedResource?>> GetResource(string path);
     
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
-    Task<Result<Deposit?>> CreateDeposit(string? archivalGroupPathUnderRoot, string? archivalGroupProposedName, string? submissionText, CancellationToken cancellationToken);
-    Task<Result<List<Deposit>>> GetDepositsForArchivalGroup(string depositsForArchivalGroupPath, CancellationToken cancellationToken = default);
+    Task<Result<Deposit?>> CreateDeposit(string? archivalGroupRepositoryPath, string? archivalGroupProposedName, string? submissionText, CancellationToken cancellationToken);
+    Task<Result<List<Deposit>>> GetDeposits(DepositQuery query, CancellationToken cancellationToken = default);
     
     
     

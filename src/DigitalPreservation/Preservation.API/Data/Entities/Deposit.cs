@@ -29,7 +29,7 @@ public class Deposit
     
     /// <summary>
     /// The dep
-    /// </summary>
+    /// </summary> // how is this different from Status?
     public bool Active { get; set; } // name? If not active its files in S3 have been deleted
     
     /// <summary>

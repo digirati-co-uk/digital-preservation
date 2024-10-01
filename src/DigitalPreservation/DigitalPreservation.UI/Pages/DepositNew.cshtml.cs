@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.Repository.Requests;
@@ -23,7 +24,7 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
         NewDeposit = newDepositModel;
         
         logger.LogDebug("OnPostNewDeposit(NewDepositModel newDepositModel)");
-        if (ValidateAndNormaliseNewDeposit(newDepositModel))
+        if (await ValidateAndNormaliseNewDeposit(newDepositModel))
         {
             var result = await mediator.Send(new CreateDeposit(
                 newDepositModel.ArchivalGroupPathUnderRoot,
@@ -34,7 +35,7 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
                 TempData["CreateDepositSuccess"] = "Created new deposit";
                 return Redirect("/deposits/" + result.Value!.Id!.GetSlug());
             }
-            TempData["CreateDepositFail"] = $"{result.ErrorCode}: {result.ErrorMessage}";
+            TempData["CreateDepositFail"] = $"{result.CodeAndMessage()}";
         }
         return Redirect(Request.Path);
     }
@@ -43,8 +44,14 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
     private async Task<bool> ValidateAndNormaliseNewDeposit(NewDepositModel newDepositModel)
     {
         newDepositModel.ArchivalGroupPathUnderRoot ??= StringUtils.BuildPath(false,
-            newDepositModel.ArchivalGroupPathUnderRoot, newDepositModel.ArchivalGroupProposedName);
+            newDepositModel.ParentPathUnderRoot, newDepositModel.ArchivalGroupSlug);
 
+        var agSlug = newDepositModel.ArchivalGroupPathUnderRoot.GetSlug();
+        if(!PreservedResource.ValidSlug(agSlug))
+        {
+            TempData["CreateDepositFail"] = "Not a valid path name: " + agSlug;
+            return false;
+        }
         var parentPath = newDepositModel.ArchivalGroupPathUnderRoot.GetParent();
         if (parentPath.IsNullOrWhiteSpace())
         {
@@ -53,16 +60,32 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
         }
         
         var archivalGroupRepositoryPath = newDepositModel.ArchivalGroupPathUnderRoot.GetRepositoryPath();
-        var depositsForArchivalGroupResult = await mediator.Send(new GetDepositsForArchivalGroup(archivalGroupRepositoryPath));
+        var depositsForArchivalGroupResult = await mediator.Send(new GetDeposits(new DepositQuery{ArchivalGroupPath = archivalGroupRepositoryPath}));
         if (depositsForArchivalGroupResult.Success)
         {
-            // Need to establish a contract that the active one (if there is one) will be first, then the rest, up to a limit (a big limit, eg 100)
+            // Need to establish a contract that the active one (if there is one) will be first, then the rest, up to a limit (a big limit, e.g., 100)
             if (depositsForArchivalGroupResult.Value == null) // empty list is OK though, and expected a lot of the time
             {
                 TempData["CreateDepositFail"] = "Can't obtain details of existing deposits for the archival group.";
                 return false;
             }
-            if(depositsForArchivalGroupResult.Value != null && depositsForArchivalGroupResult.Value.Count > 0)
+
+            if (depositsForArchivalGroupResult.Value is { Count: > 0 })
+            {
+                var topDeposit = depositsForArchivalGroupResult.Value[0];
+                if (topDeposit.Active)
+                {
+                    var depositPath = "/deposits/" + topDeposit.Id!.GetSlug();
+                    TempData["CreateDepositFail"] = "There is already an ACTIVE deposit for the archival group.<br/>" +
+                                                    $"<a href=\"{depositPath}\">{depositPath}</a>";
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            TempData["CreateDepositFail"] = "Unable to query for existing deposits: " + depositsForArchivalGroupResult.CodeAndMessage();
+            return false;
         }
         
         var existingResourceResult = await mediator.Send(new GetResource(archivalGroupRepositoryPath));
