@@ -15,7 +15,8 @@ public class CreateDepositHandler(
     ILogger<GetDepositHandler> logger,
     PreservationContext dbContext,
     ResourceMutator resourceMutator,
-    IIdentityService identityService) : IRequestHandler<CreateDeposit, Result<Deposit?>>
+    IIdentityService identityService,
+    IDepositWorkingFileLocationProvider locationProvider) : IRequestHandler<CreateDeposit, Result<Deposit?>>
 {
     public Task<Result<Deposit?>> Handle(CreateDeposit request, CancellationToken cancellationToken)
     {
