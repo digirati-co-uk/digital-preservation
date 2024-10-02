@@ -7,7 +7,7 @@ using Preservation.API.Features.Deposits.Requests;
 namespace Preservation.API.Features.Deposits;
 
 
-[Route("[controller]/{id?}")]
+[Route("[controller]")]
 [ApiController]
 public class DepositsController(IMediator mediator) : Controller
 {
@@ -15,14 +15,14 @@ public class DepositsController(IMediator mediator) : Controller
     [ProducesResponseType<List<Deposit>>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> ListDeposits([FromQuery] DepositQuery query)
+    public async Task<IActionResult> ListDeposits() // [FromQuery] DepositQuery? query
     {
-        var result = await mediator.Send(new GetDeposits(query));
+        var result = await mediator.Send(new GetDeposits(null));
         return this.StatusResponseFromResult(result);
     }
     
     
-    [HttpGet(Name = "GetDeposit")]
+    [HttpGet("{id}", Name = "GetDeposit")]
     [ProducesResponseType<List<Deposit>>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
@@ -32,15 +32,13 @@ public class DepositsController(IMediator mediator) : Controller
         return this.StatusResponseFromResult(result);
     }
     
-    
-    
     [HttpPost(Name = "CreateDeposit")]
     [ProducesResponseType<List<Deposit>>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     public async Task<IActionResult> CreateDeposit([FromBody] Deposit deposit)
     {
-        var result = await mediator.Send(new Cre(id));
+        var result = await mediator.Send(new CreateDeposit(deposit));
         return this.StatusResponseFromResult(result);
     }
 

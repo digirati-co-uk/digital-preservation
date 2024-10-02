@@ -7,8 +7,12 @@ namespace DigitalPreservation.CommonApiClient;
 
 public class QueryBuilder
 {
-    public static string MakeQueryString(DepositQuery query)
+    public static string MakeQueryString(DepositQuery? query)
     {
+        if (query == null)
+        {
+            return string.Empty;
+        }
         var queryString = BuildBase(query);
         
         if (query.PreservedBy != null)

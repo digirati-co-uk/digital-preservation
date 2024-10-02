@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace DigitalPreservation.UI.Pages;
 
 
-public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> logger) : PageModel
+public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger) : PageModel
 {
     public NewDepositModel? NewDeposit { get; set; }
     public void OnGet()
@@ -129,18 +129,16 @@ public class DepositNewModel(IMediator mediator, ILogger<Deposits.IndexModel> lo
                                                 "See <a href=\"/browse/" + parent.PartOf.GetPathUnderRoot() + "\">parent.PartOf.GetPathUnderRoot()</a>";
                 return false;
             }
+
+            return true;
         }
-        else
+
+        if (existingResourceResult is { Value: ArchivalGroup, ErrorCode: not null })
         {
-            if (existingResourceResult is { Value: ArchivalGroup, ErrorCode: not null })
-            {
-                return true;
-            }
-            TempData["CreateDepositFail"] = "We expected to create a deposit for an existing Archival Group," +
-                                            "but " + archivalGroupRepositoryPath + " could not be found.<br/>";
-            return false;
+            return true;
         }
-        TempData["CreateDepositFail"] = "UNHANDLED reason for failure";
+        TempData["CreateDepositFail"] = "We expected to create a deposit for an existing Archival Group," +
+                                        "but " + archivalGroupRepositoryPath + " could not be found.<br/>";
         return false;
     }
 }

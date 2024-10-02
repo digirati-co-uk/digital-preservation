@@ -5,10 +5,10 @@ using Preservation.Client;
 
 namespace DigitalPreservation.UI.Features.Preservation.Requests;
 
-public class GetDeposits(DepositQuery query) : IRequest<Result<List<Deposit>>>
+public class GetDeposits(DepositQuery? query) : IRequest<Result<List<Deposit>>>
 {
     // Ideally the Mediator Request would be the query class - but you need to pass it to the API Client
-    public DepositQuery Query { get; set; } = query;
+    public DepositQuery? Query { get; set; } = query;
 }
 
 public class GetDepositsForArchivalGroupHandler(IPreservationApiClient preservationApiClient) : IRequestHandler<GetDeposits, Result<List<Deposit>>>

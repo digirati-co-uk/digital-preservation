@@ -12,7 +12,7 @@ namespace DigitalPreservation.CommonApiClient;
 /// </summary>
 /// <param name="httpClient"></param>
 /// <param name="logger"></param>
-public class CommonApiBase(HttpClient httpClient, ILogger logger)
+public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
 {
     public async Task<Result<PreservedResource?>> GetResource(string path)
     {

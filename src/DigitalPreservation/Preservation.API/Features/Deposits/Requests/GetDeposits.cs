@@ -11,9 +11,9 @@ using DepositEntity = Preservation.API.Data.Entities.Deposit;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class GetDeposits(DepositQuery query) : IRequest<Result<List<Deposit>>>
+public class GetDeposits(DepositQuery? query) : IRequest<Result<List<Deposit>>>
 {
-    public DepositQuery Query  { get; } = query;
+    public DepositQuery? Query  { get; } = query;
 }
 
 public class GetDepositsHandler(
@@ -25,6 +25,12 @@ public class GetDepositsHandler(
     {
         try
         {
+            if (request.Query is null)
+            {
+                var noQueryEntities = dbContext.Deposits
+                    .AsQueryable().OrderByDescending(d => d.Created).Take(500);
+                return Result.OkNotNull(resourceMutator.MutateDeposits(noQueryEntities));
+            }
             var q = request.Query;
             var predicate = PredicateBuilder.New<DepositEntity>();
             if (q.ArchivalGroupPath.HasText())

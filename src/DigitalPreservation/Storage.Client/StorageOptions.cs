@@ -12,6 +12,6 @@ public class StorageOptions
     /// <summary>
     /// Timeout, in MS, for requests made to storage client 
     /// </summary>
-    public double TimeoutMs { get; set; } = 15000;
+    public double TimeoutMs { get; set; } = 100000;
     
 }

@@ -24,14 +24,14 @@ internal class PreservationApiClient(
     {
         var deposit = new Deposit
         {
-            ArchivalGroup = archivalGroupRepositoryPath.HasText() ? new Uri(httpClient.BaseAddress!, archivalGroupRepositoryPath) : null,
+            ArchivalGroup = archivalGroupRepositoryPath.HasText() ? new Uri(preservationHttpClient.BaseAddress!, archivalGroupRepositoryPath) : null,
             ArchivalGroupName = archivalGroupProposedName,
             SubmissionText = submissionText
         };
         try
         {
             var uri = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
-            HttpResponseMessage response = await httpClient.PostAsJsonAsync(uri, deposit, cancellationToken);
+            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(uri, deposit, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var createdDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
@@ -58,19 +58,19 @@ internal class PreservationApiClient(
         }
     }
 
-    public async Task<Result<List<Deposit>>> GetDeposits(DepositQuery query, CancellationToken cancellationToken = default)
+    public async Task<Result<List<Deposit>>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
     {        
         try
         {
-            var queryString = QueryBuilder.MakeQueryString(query);
             var relPath = "/deposits";
+            var queryString = QueryBuilder.MakeQueryString(query);
             if (queryString.HasText())
             {
                 relPath += $"?{queryString}";   
             }
             var uri = new Uri(relPath, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await httpClient.SendAsync(req, cancellationToken);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
             switch (response.StatusCode)
             {
                 case HttpStatusCode.OK:

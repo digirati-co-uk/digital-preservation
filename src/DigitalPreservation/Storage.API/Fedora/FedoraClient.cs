@@ -23,6 +23,11 @@ internal class FedoraClient(
     {
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
         var typeRes = await GetResourceType(pathUnderFedoraRoot, transaction);
+        if (!typeRes.Success)
+        {
+            return Result.Fail<PreservedResource?>(typeRes.ErrorCode ?? ErrorCodes.UnknownError, typeRes.ErrorMessage);
+        }
+        
         if (typeRes.Value == nameof(ArchivalGroup))
         {
             var agResult = await GetPopulatedArchivalGroup(pathUnderFedoraRoot!, null, transaction);

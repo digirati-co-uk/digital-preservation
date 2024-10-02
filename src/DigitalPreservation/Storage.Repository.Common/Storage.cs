@@ -1,36 +1,80 @@
 using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
+using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Results;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Storage.Repository.Common;
 
-public class Storage : IStorage
+public class Storage(
+    IAmazonS3 s3Client,
+    IOptions<AwsStorageOptions> options,
+    ILogger<Storage> logger) : IStorage
 {
-    private readonly AwsStorageOptions options;
-    private readonly IAmazonS3 s3Client;
-    private readonly ILogger<Storage> logger;
-    
-    public Storage(IAmazonS3 s3Client,
-        IOptions<AwsStorageOptions> options,
-        ILogger<Storage> logger)
+    private readonly AwsStorageOptions options = options.Value;
+
+    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, string? callerIdentity = null)
     {
-        this.s3Client = s3Client;
-        this.logger = logger;
-        this.options = options.Value;
+        // This will be able to yield different locations in different buckets for different callers
+        // e.g., Goobi
+        var key = "deposits/" + idPart + "/";
+        if (await Exists(key))
+        {
+            return Result.FailNotNull<Uri>(ErrorCodes.Conflict, $"The deposit file location for {idPart} already exists.");
+        }
+        var pReq = new PutObjectRequest
+        {
+            BucketName = options.DefaultWorkingBucket,
+            Key = key
+        };
+        var pResp = await s3Client.PutObjectAsync(pReq);
+        if (pResp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
+        {
+            return Result.OkNotNull(pReq.GetS3Uri());
+        }
+        return Result.FailNotNull<Uri>(ErrorCodes.UnknownError, $"AWS returned status code {pResp.HttpStatusCode} when trying to create {pReq.GetS3Uri()}.");
     }
-    
+
+
+    private GetObjectRequest MakeGetRequest(string key, string? bucket = null)
+    {
+        return new GetObjectRequest
+        {
+            BucketName = bucket ?? options.DefaultWorkingBucket,
+            Key = key
+        };
+    }
+
+    private async Task<bool> Exists(string key, string? bucket = null)
+    {
+        var req = MakeGetRequest(key, bucket);
+        try
+        {
+            var resp = await s3Client.GetObjectAsync(req);
+            if (resp.HttpStatusCode == HttpStatusCode.OK)
+            {
+                return true;
+            }
+            throw new InvalidOperationException("AWS returned status code: " + resp.HttpStatusCode + " from GetObjectRequest");
+        }
+        catch (AmazonS3Exception s3E)
+        {
+            if (s3E.StatusCode == HttpStatusCode.NotFound)
+            {
+                return false;
+            }
+            throw;
+        }
+    }
+
     public async Task<ConnectivityCheckResult> CanSeeStorage(string source)
     {
         var result = new ConnectivityCheckResult { Name = source, Success = false };
         try
         {
-            var req = new GetObjectRequest
-            {
-                BucketName = options.DefaultWorkingBucket,
-                Key = options.S3HealthCheckKey
-            };
+            var req = MakeGetRequest(options.S3HealthCheckKey!);
             GetObjectResponse resp;
             try
             {

@@ -1,3 +1,4 @@
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Preservation.API.Data;
@@ -34,6 +35,7 @@ try
         .AddStorageAwsAccess(builder.Configuration)
         .AddStorageClient(builder.Configuration, "Preservation-API")
         .AddResourceMutator(builder.Configuration)
+        .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddPreservationContext(builder.Configuration)

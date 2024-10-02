@@ -21,7 +21,7 @@ public class Deposit
     /// The intended Archival Group that this deposit will make (new), or is for (existing)
     /// </summary>
     public string? ArchivalGroupPathUnderRoot { get; set; }
-    public string? ArchivalGroupProposedName { get; set; }
+    public string? ArchivalGroupName { get; set; }
     public required string Status { get; set; }  // new / exported / preserved
     public string? SubmissionText { get; set; }
     

@@ -1,4 +1,5 @@
-﻿@model IndexModel
+﻿@page "/deposits"
+@model IndexModel
 @{
 ViewData["Title"] = "Deposits";
 ViewData["section"] = "deposits";
@@ -13,5 +14,8 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
-
-<p>Table of deposits</p>
+@foreach (var deposit in Model.Deposits)
+{
+    <p>@deposit.Id</p>
+    
+}

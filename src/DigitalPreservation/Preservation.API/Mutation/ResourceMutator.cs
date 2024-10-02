@@ -63,7 +63,7 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
             ArchivalGroup = entity.ArchivalGroupPathUnderRoot.HasText()
                 ? new Uri($"{preservationHost}/{PreservedResource.BasePathElement}/{entity.ArchivalGroupPathUnderRoot}")
                 : null,
-            ArchivalGroupName = entity.ArchivalGroupProposedName,
+            ArchivalGroupName = entity.ArchivalGroupName,
             Files = entity.Files,
             Active = entity.Active,
             Status = entity.Status,
