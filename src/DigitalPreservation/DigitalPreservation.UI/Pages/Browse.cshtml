@@ -121,20 +121,19 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="archivalGroupSlug" class="form-label">Path of Archival Group (Optional)</label>
-                        <input type="text" class="form-control" id="archivalGroupSlug" name="NewDepositModel.ArchivalGroupSlug" aria-describedby="archivalGroupSlugHelp">
-                        <div id="archivalGroupSlugHelp" class="form-text">The deposit will <strong>eventually</strong> create an Archival Group with this path:<br/>
-                            <code>@(Model.PathUnderRoot)/&lt;path&gt;</code>.<br/>
-                            You do not have to specify this now.<br/>
-                            It can be set later, and may be changed before the Archival Group is created.</div>
-                    </div>
-                    <div class="mb-3">
                         <label for="archivalGroupProposedName" class="form-label">Name of object (optional)</label>
                         <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp">
                         <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later.</div>
                     </div>
                     <div class="mb-3">
-                        <label for="submissionText" class="form-label">Note (Optional)</label>
+                        <label for="archivalGroupSlug" class="form-label">Path of Archival Group (optional)</label>
+                        <input type="text" class="form-control" id="archivalGroupSlug" name="NewDepositModel.ArchivalGroupSlug" aria-describedby="archivalGroupSlugHelp">
+                        <code>@(Model.PathUnderRoot)/<span id="slugDisplay">...</span></code><br/>
+                        <div id="archivalGroupSlugHelp" class="form-text">The deposit will <em>eventually</em> create an Archival Group with this path.<br/>
+                            This may be set or changed later.<br/></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="submissionText" class="form-label">Note (optional)</label>
                         <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
                         <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
                     </div>
@@ -149,3 +148,41 @@
         </div>
     </div>
 </div>
+
+<script>
+    
+    const nameInput = document.getElementById('archivalGroupProposedName');
+    const slugInput = document.getElementById('archivalGroupSlug');
+    const slugDisplay = document.getElementById('slugDisplay');
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789.-_".split('');
+    let touched = false;
+    
+    nameInput.addEventListener('input', (event) => {
+        if (!touched){
+            slugInput.value = '';
+            const low = nameInput.value.toLowerCase();
+            for (const c of low) {
+                if (chars.includes(c)){
+                    slugInput.value += c;
+                }
+                if (c === ' '){
+                    slugInput.value += '-';
+                }
+            }
+            slugDisplay.innerHTML = slugInput.value;
+        }        
+    });
+    document.getElementById('archivalGroupSlug').addEventListener('beforeinput', (event) => {
+        touched = true; // no longer update this from the name box
+        console.log(event.data);
+        if (event.data && !chars.includes(event.data)){
+            event.preventDefault();            
+        }
+    });
+    document.getElementById('archivalGroupSlug').addEventListener('input', () => {
+        slugDisplay.innerHTML = slugInput.value;
+    });
+
+
+
+</script>

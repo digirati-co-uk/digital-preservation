@@ -1,4 +1,7 @@
 ﻿@page "/deposits"
+@using DigitalPreservation.Common.Model
+@using DigitalPreservation.UI.Features
+@using DigitalPreservation.Utils
 @model IndexModel
 @{
 ViewData["Title"] = "Deposits";
@@ -14,8 +17,103 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
-@foreach (var deposit in Model.Deposits)
-{
-    <p>@deposit.Id</p>
-    
-}
+
+<div class="table-responsive small">
+    <table class="table table-striped table-sm plain-link-table" aria-label="table-deposits-index">
+        <thead>
+        <tr>
+            <th scope="col">Id</th>
+            <th scope="col">Archival Group</th>
+            <th scope="col">Status</th>
+            <th scope="col">Last Modified</th>
+            <th scope="col">By</th>
+            <th scope="col">Created</th>
+            <th scope="col">By</th>
+            <th scope="col">Preserved</th>
+            <th scope="col">By</th>
+            <th scope="col">Exported</th>
+            <th scope="col">By</th>
+        </tr>
+        </thead>
+        <tbody>
+        @{
+            int counter = 1;
+        }
+        @foreach (var deposit in Model.Deposits)
+        {
+            var slug = deposit.Id!.GetSlug();
+            var agPath = deposit.ArchivalGroup?.GetPathUnderRoot();
+            var path = "/deposits/" + slug;
+            var agDisplay = " - ";
+            if (deposit.ArchivalGroupName.HasText())
+            {
+                agDisplay = deposit.ArchivalGroupName;
+                if (agPath != null)
+                {
+                    agDisplay += "<br/><small>" + agPath + "</small>";
+                }
+            }
+            else if (agPath != null)
+            {
+                agDisplay = agPath;
+            }
+
+            <tr aria-label="row-@(counter++)">
+                <td aria-label="td-id"><b><a href="@path">@slug</a></b></td>
+                <td aria-label="td-archival-group">
+                    @if (deposit.VersionPreserved.HasText())
+                    {
+                        // Just because we have an AG URI doesn't mean it exists; it might not have been preserved yet 
+                        <a href="/browse/@agPath">@Html.Raw(agDisplay)</a>
+                    }
+                    else
+                    {
+                        @Html.Raw(agDisplay)
+                    }
+                </td>
+                <td aria-label="td-status">@deposit.Status</td>
+                <td aria-label="td-last-modified">@deposit.LastModified.GetDateDisplay()</td>
+                <td aria-label="td-last-modified-by">@deposit.LastModifiedBy?.GetSlug()</td>
+                <td aria-label="td-created">@deposit.Created.GetDateDisplay()</td>
+                <td aria-label="td-created-by">@deposit.CreatedBy?.GetSlug()</td>
+                <td aria-label="td-preserved">@deposit.Preserved.GetDateDisplay()</td>
+                <td aria-label="td-preserved-by">@deposit.PreservedBy?.GetSlug()</td>
+                <td aria-label="td-exported">@deposit.Exported.GetDateDisplay()</td>
+                <td aria-label="td-exported-by">@deposit.ExportedBy?.GetSlug()</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+
+
+<div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page="/DepositNew" asp-page-handler="Create">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="archivalGroupProposedName" class="form-label">Name of object (optional)</label>
+                        <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp">
+                        <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="submissionText" class="form-label">Note (optional)</label>
+                        <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
+                        <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" name="NewDepositModel.FromBrowseContext" value="false" />
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
