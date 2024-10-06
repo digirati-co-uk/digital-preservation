@@ -2,8 +2,8 @@
 
 public static class DateX
 {
-    public static string? GetDateDisplay(this DateTime? dt)
+    public static string? GetDateDisplay(this DateTime? dt, string? fallback = null)
     {
-        return dt?.ToString("s").Replace("T", " ");
+        return !dt.HasValue ? fallback : dt?.ToString("s").Replace("T", " ");
     }
 }

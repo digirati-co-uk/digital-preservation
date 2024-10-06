@@ -95,6 +95,38 @@ internal class PreservationApiClient(
         }
     }
 
+    public async Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default)
+    {        
+        try
+        {
+            var relPath = $"/deposits/{id}";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.OK:
+                    var deposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
+                    if (deposit is not null)
+                    {
+                        return Result.Ok(deposit);
+                    }
+                    return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.NotFound:
+                    return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.Unauthorized:
+                    return Result.Fail<Deposit>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
+                default:
+                    return Result.Fail<Deposit>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {
         try

@@ -1,4 +1,5 @@
 ﻿@page "/deposits/{id}"
+@using DigitalPreservation.UI.Features
 @model DepositModel
 @{
 ViewData["Title"] = "Deposit " + Model.Id;
@@ -14,8 +15,173 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
+<div>
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>@Html.Raw(TempData["Error"])</p>
+        </div>
+    }
+ </div>
 
-<p>Detail for @Model.Id</p>
+@if(Model.Deposit != null)
+{
+    // This is eventually a METS model
+    // Create a pseudo METS as soon as we have a file?
+    // On first upload
+    // Also put first file in /objects to establish the separation, create a stub METS file (JSON) with the sha256
+    
+    // Show the files location so that people can go and upload stuff themselves
+    
+    // Get a recursive listing from S3 - This is where we introduce files/folders not containers/binaries?
+    
+    // File upload form; contextualised to selection in browse
+    
+    // Display/set AG name and path, not editable if already preserved
+    // submission note
+    
+    // Display all the other properties, last edited etc
+    // collapsible side panel?
+    
+    
+    
+    
+    <!-- THESE ARE MODALS!!! doh -->
+    <!-- Top bar buttons - upload file, create folder -->
+    
+    <div class="container">
+        <div class="row align-items-start">
+            <div class="col">
+
+                <div class="border border-primary rounded mb-4 p-3">
+                    <form>
+                        <legend>Upload a file</legend>
+                        <div class="mb-3">
+                            <label for="depositFile" class="form-label">Choose a file to upload</label>
+                            <input type="file" class="form-control" id="depositFile" name="depositFile" aria-describedby="fileHelp">
+                            <div id="fileHelp" class="form-text">Checksum will be calculated locally and after upload.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="checksum" class="form-label">Checksum</label>
+                            <input disabled type="text" class="form-control" id="checksum" name="checksum">
+                        </div>
+                        <div class="mb-3">
+                            <label for="depositFileName" class="form-label">File name</label>
+                            <input type="text" class="form-control" id="depositFileName" name="depositFileName" aria-describedby="depositFileNameHelp">
+                            <div id="depositFileNameHelp" class="form-text">Use this to modify the stored file name.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="depositFileContentType" class="form-label">Content type</label>
+                            <input type="text" class="form-control" id="depositFileContentType" name="depositFileContentType" aria-describedby="depositFileContentTypeHelp">
+                            <div id="depositFileContentTypeHelp" class="form-text">(Also known as MIME type)</div>
+                        </div>
+                        <input type="hidden" id="newFileContext" name="newFileContext">
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                    </form>
+                </div>
+
+                <div class="border border-primary rounded mb-4 p-3">
+                    <form>
+                        <legend>Create a folder</legend>
+                        <div class="mb-3">
+                            <label for="newFolderName" class="form-label">New folder</label>
+                            <input type="text" class="form-control" id="newFolderName" name="newFolderName" aria-describedby="newFolderNameHelp">
+                            <div id="newFolderNameHelp" class="form-text">Create a new folder in the digital object</div>
+                        </div>
+                        <input type="hidden" id="newFolderContext" name="newFolderContext">
+                        <button type="submit" class="btn btn-primary">Create folder</button>
+                    </form>
+                </div>
+
+
+                <div class="border border-primary rounded mb-4 p-3" id="depositFileExplorer">
+                     
+                    Model.Files is a "Container", cbs and binaries but files and folders...
+                    
+                </div>
+                
+            </div>
+            <div class="col-3">
+                <dl>
+                    <dt>Created</dt>
+                    <dd>@Model.Deposit.Created.GetDateDisplay()</dd>
+                    <dt>Created by</dt>
+                    <dd><agent-link uri="@Model.Deposit.CreatedBy"></agent-link></dd>
+                    <dt>Last modified</dt>
+                    <dd>@Model.Deposit.LastModified.GetDateDisplay()</dd>
+                    <dt>Last modified by</dt>
+                    <dd><agent-link uri="@Model.Deposit.LastModifiedBy"></agent-link></dd>
+                    <dt>Preserved</dt>
+                    <dd>@Model.Deposit.Preserved.GetDateDisplay("-")</dd>
+                    <dt>Preserved by</dt>
+                    <dd><agent-link uri="@Model.Deposit.PreservedBy"></agent-link></dd>
+                    <dt>Version preserved</dt>
+                    <dd>@(Model.Deposit.VersionPreserved ?? "-")</dd>
+                    <dt>Exported</dt>
+                    <dd>@Model.Deposit.Exported.GetDateDisplay("-")</dd>
+                    <dt>Exported by</dt>
+                    <dd><agent-link uri="@Model.Deposit.ExportedBy"></agent-link></dd>
+                    <dt>Version exported</dt>
+                    <dd>@(Model.Deposit.VersionExported ?? "-")</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    
+    
+}
 
 
 <partial name="Shared/_NewDepositForm"/>
+
+<script>
+    const fileSelector = document.getElementById('depositFile');
+    const checksum = document.getElementById('checksum');
+    const fileName = document.getElementById('depositFileName');
+    const fileContentType = document.getElementById('depositFileContentType');
+
+    fileSelector.addEventListener('change', (event) => {
+        hashFile();
+        fileName.value = fileSelector.files[0].name;
+        fileContentType.value = fileSelector.files[0].type;
+    });
+    
+    function hashFile() {
+      readBinaryFile(fileSelector.files[0])
+        .then(function (result) {
+          result = new Uint8Array(result);
+          return window.crypto.subtle.digest("SHA-256", result);
+        })
+        .then(function (result) {
+          result = new Uint8Array(result);
+          checksum.value = Uint8ArrayToHexString(result);
+        });
+    }
+
+    function readBinaryFile(file) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => {
+          resolve(fr.result);
+        };
+        fr.readAsArrayBuffer(file);
+      });
+    }
+
+    function Uint8ArrayToHexString(ui8array) {
+      let hexString = "",
+        h;
+      for (var i = 0; i < ui8array.length; i++) {
+        h = ui8array[i].toString(16);
+        if (h.length === 1) {
+          h = "0" + h;
+        }
+          hexString += h;
+      }
+      const p = Math.pow(2, Math.ceil(Math.log2(hexString.length)));
+        hexString = hexString.padStart(p, "0");
+      return hexString;
+    }
+  
+
+</script>

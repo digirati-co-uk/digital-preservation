@@ -159,3 +159,7 @@
 table.plain-link-table a {
     text-decoration: none;
 }
+
+#depositFileExplorer {
+    background-color: #f5f5f5;
+}
