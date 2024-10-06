@@ -10,4 +10,15 @@ public class QueryBase
     public DateTime? LastModifiedBefore { get; set; }
     public string? OrderBy { get; set; }
     public bool? Ascending { get; set; }
+
+    public virtual bool NoTerms()
+    {
+        return
+            CreatedBy is null &&
+            CreatedAfter is null &&
+            CreatedBefore is null &&
+            LastModifiedBy is null &&
+            LastModifiedAfter is null &&
+            LastModifiedBefore is null;
+    }
 }

@@ -25,7 +25,7 @@ public class GetDepositsHandler(
     {
         try
         {
-            if (request.Query is null)
+            if (request.Query is null || request.Query.NoTerms())
             {
                 var noQueryEntities = dbContext.Deposits
                     .AsQueryable().OrderByDescending(d => d.Created).Take(500);
@@ -35,7 +35,7 @@ public class GetDepositsHandler(
             var predicate = PredicateBuilder.New<DepositEntity>();
             if (q.ArchivalGroupPath.HasText())
             {
-                predicate = predicate.And(x => x.ArchivalGroupPathUnderRoot == q.ArchivalGroupPath);
+                predicate = predicate.And(x => x.ArchivalGroupPathUnderRoot == q.ArchivalGroupPath.GetPathUnderRoot());
             }
 
             if (q.CreatedAfter.HasValue)

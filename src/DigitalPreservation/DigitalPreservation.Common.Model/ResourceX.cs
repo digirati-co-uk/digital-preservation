@@ -13,8 +13,12 @@ public static class ResourceX
     public static string? GetPathUnderRoot(this Uri? uri)
     {
         if(uri == null) return null;
+        return GetPathUnderRoot(uri.AbsolutePath);
+    }
 
-        var pathUnderRoot = uri.AbsolutePath
+    public static string? GetPathUnderRoot(this string absolutePath)
+    {
+        var pathUnderRoot = absolutePath
             .RemoveStart("/")
             .RemoveStart(PreservedResource.BasePathElement)
             .RemoveStart("/");
@@ -22,8 +26,12 @@ public static class ResourceX
         return pathUnderRoot;
     }
 
-    public static string GetRepositoryPath(this string? pathUnderRoot)
+    public static string? GetRepositoryPath(this string? pathUnderRoot)
     {
+        if (pathUnderRoot == null)
+        {
+            return null;
+        }
         return StringUtils.BuildPath(true,
             PreservedResource.BasePathElement, pathUnderRoot);
     }

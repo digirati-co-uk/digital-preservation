@@ -5,6 +5,7 @@ namespace DigitalPreservation.UI.TagHelpers;
 public class DlipNavLink : TagHelper
 {
     public required string IconId { get; set; }
+    public required string ActiveIconId { get; set; }
     public required string Label { get; set; }
     public required string Section { get; set; }
     public required string ActiveSection { get; set; }
@@ -17,6 +18,7 @@ public class DlipNavLink : TagHelper
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         bool active = Section == ActiveSection;
+        string icon = active ? ActiveIconId : IconId;
         output.TagName = "a";
         const string cssClass = "nav-link d-flex align-items-center gap-2";
         output.Attributes.SetAttribute("class", active ? cssClass + " active" : cssClass);
@@ -27,7 +29,7 @@ public class DlipNavLink : TagHelper
         output.Attributes.SetAttribute("href", Href); 
         
         output.Content.SetHtmlContent($"""
-                                          <svg class="bi"><use xlink:href="#{IconId}"/></svg>
+                                          <svg class="bi"><use xlink:href="#{icon}"/></svg>
                                           {Label}
                                       """);
     }

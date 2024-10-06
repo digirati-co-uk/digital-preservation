@@ -19,7 +19,7 @@ ViewData["section"] = "deposits";
     @if (TempData["CreateDepositFail"] != null)
     {
     <div class="alert alert-danger" role="alert">
-        <p>@TempData["CreateDepositFail"]</p>
+        <p>@Html.Raw(TempData["CreateDepositFail"])</p>
     </div>
     }
 

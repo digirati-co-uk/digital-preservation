@@ -44,7 +44,8 @@ public abstract class PreservedResource : Resource
 
             if (!valid) return false;
         }
-        return valid;
+
+        return slug != BasePathElement && valid;
     } 
     
     

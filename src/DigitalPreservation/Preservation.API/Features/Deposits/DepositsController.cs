@@ -15,9 +15,9 @@ public class DepositsController(IMediator mediator) : Controller
     [ProducesResponseType<List<Deposit>>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> ListDeposits() // [FromQuery] DepositQuery? query
+    public async Task<IActionResult> ListDeposits([FromQuery] DepositQuery? query) // 
     {
-        var result = await mediator.Send(new GetDeposits(null));
+        var result = await mediator.Send(new GetDeposits(query));
         return this.StatusResponseFromResult(result);
     }
     

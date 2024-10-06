@@ -43,7 +43,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
 
     private async Task<bool> ValidateAndNormaliseNewDeposit(NewDepositModel newDepositModel)
     {
-        if (newDepositModel.FromBrowseContext)
+        if (newDepositModel.FromBrowseContext && newDepositModel.ArchivalGroupSlug.HasText())
         {
             newDepositModel.ArchivalGroupPathUnderRoot ??= StringUtils.BuildPath(false,
                 newDepositModel.ParentPathUnderRoot, newDepositModel.ArchivalGroupSlug);
@@ -68,7 +68,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             return false;
         }
         
-        var archivalGroupRepositoryPath = newDepositModel.ArchivalGroupPathUnderRoot.GetRepositoryPath();
+        var archivalGroupRepositoryPath = newDepositModel.ArchivalGroupPathUnderRoot.GetRepositoryPath()!;
         var depositsForArchivalGroupResult = await mediator.Send(new GetDeposits(new DepositQuery{ArchivalGroupPath = archivalGroupRepositoryPath}));
         if (depositsForArchivalGroupResult.Success)
         {
@@ -110,7 +110,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             }
 
             var parentRepositoryPath = parentPath.GetRepositoryPath();
-            var parentResult = await mediator.Send(new GetResource(parentRepositoryPath));
+            var parentResult = await mediator.Send(new GetResource(parentRepositoryPath!));
             if(parentResult.ErrorCode == ErrorCodes.NotFound || parentResult.Value == null)
             {
                 TempData["CreateDepositFail"] = "There is no parent resource at " + parentRepositoryPath + ".";
