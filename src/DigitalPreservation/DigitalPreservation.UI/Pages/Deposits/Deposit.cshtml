@@ -2,15 +2,18 @@
 @using DigitalPreservation.UI.Features
 @model DepositModel
 @{
-ViewData["Title"] = "Deposit " + Model.Id;
+ViewData["Title"] = "Deposit " + Model.Deposit?.Id ?? Model.Id;
 ViewData["section"] = "deposits";
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
-            <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
+        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+            <svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New Folder</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#uploadFileModal">
+            <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload File</span>
         </button>
     </div>
 </div>
@@ -53,51 +56,11 @@ ViewData["section"] = "deposits";
         <div class="row align-items-start">
             <div class="col">
 
-                <div class="border border-primary rounded mb-4 p-3">
-                    <form>
-                        <legend>Upload a file</legend>
-                        <div class="mb-3">
-                            <label for="depositFile" class="form-label">Choose a file to upload</label>
-                            <input type="file" class="form-control" id="depositFile" name="depositFile" aria-describedby="fileHelp">
-                            <div id="fileHelp" class="form-text">Checksum will be calculated locally and after upload.</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="checksum" class="form-label">Checksum</label>
-                            <input disabled type="text" class="form-control" id="checksum" name="checksum">
-                        </div>
-                        <div class="mb-3">
-                            <label for="depositFileName" class="form-label">File name</label>
-                            <input type="text" class="form-control" id="depositFileName" name="depositFileName" aria-describedby="depositFileNameHelp">
-                            <div id="depositFileNameHelp" class="form-text">Use this to modify the stored file name.</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="depositFileContentType" class="form-label">Content type</label>
-                            <input type="text" class="form-control" id="depositFileContentType" name="depositFileContentType" aria-describedby="depositFileContentTypeHelp">
-                            <div id="depositFileContentTypeHelp" class="form-text">(Also known as MIME type)</div>
-                        </div>
-                        <input type="hidden" id="newFileContext" name="newFileContext">
-                        <button type="submit" class="btn btn-primary">Upload</button>
-                    </form>
-                </div>
-
-                <div class="border border-primary rounded mb-4 p-3">
-                    <form>
-                        <legend>Create a folder</legend>
-                        <div class="mb-3">
-                            <label for="newFolderName" class="form-label">New folder</label>
-                            <input type="text" class="form-control" id="newFolderName" name="newFolderName" aria-describedby="newFolderNameHelp">
-                            <div id="newFolderNameHelp" class="form-text">Create a new folder in the digital object</div>
-                        </div>
-                        <input type="hidden" id="newFolderContext" name="newFolderContext">
-                        <button type="submit" class="btn btn-primary">Create folder</button>
-                    </form>
-                </div>
-
 
                 <div class="border border-primary rounded mb-4 p-3" id="depositFileExplorer">
-                     
-                    Model.Files is a "Container", cbs and binaries but files and folders...
-                    
+
+                    Here we render Model.Files
+
                 </div>
                 
             </div>
@@ -131,8 +94,75 @@ ViewData["section"] = "deposits";
     
 }
 
+<div class="modal fade" id="uploadFileModal" tabindex="-1" aria-labelledby="uploadFileModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
 
-<partial name="Shared/_NewDepositForm"/>
+            <form method="post" enctype="multipart/form-data" asp-page-handler="UploadFile">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="uploadFileModalLabel"><svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="depositFile" class="form-label">Choose a file to upload</label>
+                        <input type="file" class="form-control" id="depositFile" name="depositFile" aria-describedby="fileHelp">
+                        <div id="fileHelp" class="form-text">Checksum will be calculated locally and after upload.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="checksum" class="form-label">Checksum</label>
+                        <input disabled type="text" class="form-control" id="checksum" name="checksum">
+                    </div>
+                    <div class="mb-3">
+                        <label for="depositFileName" class="form-label">File name</label>
+                        <input type="text" class="form-control" id="depositFileName" name="depositFileName" aria-describedby="depositFileNameHelp">
+                        <div id="depositFileNameHelp" class="form-text">Use this to modify the stored file name.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="depositFileContentType" class="form-label">Content type</label>
+                        <input type="text" class="form-control" id="depositFileContentType" name="depositFileContentType" aria-describedby="depositFileContentTypeHelp">
+                        <div id="depositFileContentTypeHelp" class="form-text">(Also known as MIME type)</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" id="newFileContext" name="newFileContext">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></button>
+                </div>
+            </form>
+            
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            
+            <form method="post" asp-page-handler="CreateFolder">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="newFolderModalLabel"><svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New Folder</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="newFolderName" class="form-label">New folder</label>
+                        <input type="text" class="form-control" id="newFolderName" name="newFolderName" aria-describedby="newFolderNameHelp">
+                        <div id="newFolderNameHelp" class="form-text">Create a new folder in the digital object</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" id="newFolderContext" name="newFolderContext">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">Create new folder</span></button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
 
 <script>
     const fileSelector = document.getElementById('depositFile');
@@ -140,7 +170,7 @@ ViewData["section"] = "deposits";
     const fileName = document.getElementById('depositFileName');
     const fileContentType = document.getElementById('depositFileContentType');
 
-    fileSelector.addEventListener('change', (event) => {
+    fileSelector.addEventListener('change', () => {
         hashFile();
         fileName.value = fileSelector.files[0].name;
         fileContentType.value = fileSelector.files[0].type;
@@ -159,7 +189,7 @@ ViewData["section"] = "deposits";
     }
 
     function readBinaryFile(file) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         const fr = new FileReader();
         fr.onload = () => {
           resolve(fr.result);
@@ -171,7 +201,7 @@ ViewData["section"] = "deposits";
     function Uint8ArrayToHexString(ui8array) {
       let hexString = "",
         h;
-      for (var i = 0; i < ui8array.length; i++) {
+      for (let i = 0; i < ui8array.length; i++) {
         h = ui8array[i].toString(16);
         if (h.length === 1) {
           h = "0" + h;

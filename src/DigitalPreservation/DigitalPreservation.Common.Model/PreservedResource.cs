@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Text;
+using System.Text.Json.Serialization;
 
 namespace DigitalPreservation.Common.Model;
 
@@ -33,27 +34,43 @@ public abstract class PreservedResource : Resource
         if (!valid) return valid;
         for (int i = 0; i < len; i++)
         {
-            valid = (     slug[i] >= 48 && slug[i] <= 57) // 0-9
-                    // || (slug[i] >= 65 && slug[i] <= 90) // A-Z
-                       || (slug[i] >= 97 && slug[i] <= 122) // a-z
-                    // || slug[i] == '@'
-                    // || slug[i] == '/'
-                       || slug[i] == '.'
-                       || slug[i] == '_'
-                       || slug[i] == '-';
-
+            var slugChar = slug[i];
+            valid = ValidSlugChar(slugChar);
             if (!valid) return false;
         }
 
         return slug != BasePathElement && valid;
-    } 
-    
-    
+    }
+
+    private static bool ValidSlugChar(char slugChar)
+    {
+        var valid = (      slugChar >= 48 && slugChar <= 57) // 0-9
+                         // || (slugChar >= 65 && slugChar <= 90) // A-Z
+                            || (slugChar >= 97 && slugChar <= 122) // a-z
+                            // || slugChar == '@'
+                            // || slugChar == '/'
+                            || slugChar == '.'
+                            || slugChar == '_'
+                            || slugChar == '-';
+        return valid;
+    }
+
+
     public override string ToString()
     {
         return $"{StringIcon} {Name ?? GetSlug() ?? GetType().Name}";
     }
 
     public abstract string StringIcon { get; }
-    
+
+    public static string MakeValidSlug(string unsafeName)
+    {
+        var lowered = unsafeName.ToLowerInvariant();
+        var sb = new StringBuilder();
+        foreach (var c in lowered)
+        {
+            sb.Append(ValidSlugChar(c) ? c : '-'); // Do we want to use '-'? Or just omit?
+        }
+        return sb.ToString();
+    }
 }
