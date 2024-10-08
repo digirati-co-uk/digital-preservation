@@ -4,6 +4,13 @@ namespace DigitalPreservation.Utils;
 
 public static class StringUtils
 {
+    private static readonly string[] FileSizeSuffixes;
+    static StringUtils()
+    {
+        //Longs run out around EB
+        FileSizeSuffixes = new[] { "B", "KB", "MB", "GB", "TB", "PB", "EB" };
+    }
+    
     public static bool IsNullOrWhiteSpace([NotNullWhen(false)] this string? s)
     {
         return string.IsNullOrWhiteSpace(s);
@@ -137,5 +144,32 @@ public static class StringUtils
             return '/' + joined;
         }
         return joined;
+    }
+
+    /// <summary>
+    /// Create a nice display format for file size given a raw byte value
+    /// 
+    /// 42 => "42 B"
+    /// 1100 => "1.07 KB"
+    /// 6958472 => "6.37 MB"
+    /// 
+    /// </summary>
+    /// <param name="sizeInBytes"></param>
+    /// <param name="withSpace">include a space between number and unit</param>
+    /// <param name="fallbackIfNull">Return this string if the size is null</param>
+    /// <returns></returns>
+    public static string FormatFileSize(long? sizeInBytes, bool withSpace = false, string fallbackIfNull = "-")
+    {
+        if (!sizeInBytes.HasValue)
+        {
+            return fallbackIfNull;
+        }
+        var spacer = withSpace ? " " : "";
+        if (sizeInBytes == 0)
+            return "0" + spacer + FileSizeSuffixes[0];
+        long bytes = Math.Abs(sizeInBytes.Value);
+        int place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
+        double num = Math.Round(bytes / Math.Pow(1024, place), 1);
+        return (Math.Sign(sizeInBytes.Value) * num) + spacer +  FileSizeSuffixes[place];
     }
 }

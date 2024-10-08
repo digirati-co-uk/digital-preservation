@@ -1,0 +1,21 @@
+﻿@using DigitalPreservation.Utils
+@model DigitalPreservation.Common.Model.Transit.MovingDirectory
+
+@if (Model.LocalPath.HasText())
+{
+    <a href="#" class="list-group-item-action"><svg class="bi"><use xlink:href="#folder"/></svg> @Model.GetSlug()</a>
+}
+<ul class="list-group-flush">
+    @foreach (var dir in Model.Directories)
+    {
+        <li class="list-group-item">
+              @await Html.PartialAsync("_RenderDirectory.cshtml", dir)
+        </li>
+    }
+    @foreach (var file in Model.Files)
+    {
+        <li class="list-group-item">
+            <a href="#" class="list-group-item-action"><svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @file.GetSlug()</a>
+        </li>
+    } 
+</ul>

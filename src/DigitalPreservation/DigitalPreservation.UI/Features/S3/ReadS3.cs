@@ -42,22 +42,20 @@ public class ReadS3Handler(IAmazonS3 s3Client) : IRequestHandler<ReadS3, Result<
             // Create the directories
             foreach (var s3Object in s3Objects.OrderBy(o => o.Key.Replace('/', '~')))
             {
+                if (s3Object.Key == s3Uri.Key)
+                {
+                    continue; // we don't want the deposit root itself, we already have that in top
+                }
                 var path = s3Object.Key.RemoveStart(s3Uri.Key)!;
                 if (path.EndsWith('/'))
                 {
                     var dir = top.FindDirectory(path, true);
                     dir.Modified = s3Object.LastModified;
                 }
-            }
-
-            // Create the files
-            foreach (var s3Object in s3Objects)
-            {
-                var path = s3Object.Key.RemoveStart(s3Uri.Key)!;
-                if (!path.EndsWith('/'))
+                else
                 {
                     // a file
-                    var dir = top.FindDirectory(path.GetParent(), false);
+                    var dir = top.FindDirectory(path.GetParent(), true);
                     dir.Files.Add(new MovingFile
                     {
                         LocalPath = path,

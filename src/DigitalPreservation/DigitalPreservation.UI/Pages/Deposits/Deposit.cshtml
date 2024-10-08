@@ -1,14 +1,16 @@
 ﻿@page "/deposits/{id}"
 @using DigitalPreservation.UI.Features
+@using DigitalPreservation.Utils
 @model DepositModel
 @{
-ViewData["Title"] = "Deposit " + Model.Deposit?.Id ?? Model.Id;
+ViewData["Title"] = "Deposit " + Model.Deposit?.Id.GetSlug() ?? Model.Id;
 ViewData["section"] = "deposits";
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
+        <p id="tableRowContext"></p>
         <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newFolderModal">
             <svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New Folder</span>
         </button>
@@ -56,12 +58,33 @@ ViewData["section"] = "deposits";
         <div class="row align-items-start">
             <div class="col">
 
-
-                <div class="border border-primary rounded mb-4 p-3" id="depositFileExplorer">
-
-                    Here we render Model.Files
-
-                </div>
+                @* *@
+                @* <div class="border border-primary rounded mb-4 p-3" id="depositFileExplorer"> *@
+                    @if (Model.Files is not null)
+                    {
+                        <div class="table-responsive small">
+                            <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-files">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Path</th>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">Hash</th>
+                                    <th scope="col">Size</th>
+                                    <th scope="col">Type</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                    @await Html.PartialAsync("_RenderDirectoryAsTableRows", Model.Files)
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p>No files have been uploaded yet.</p>
+                        
+                    }
+                @* </div> *@
                 
             </div>
             <div class="col-3">
@@ -163,6 +186,54 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
+<script>
+    const contextDisplay = document.getElementById("tableRowContext");
+    const rows = document.getElementsByClassName("deposit-row");
+
+    const newFolderContext = document.getElementById("newFolderContext");
+    const newFileContext = document.getElementById("newFileContext");
+    
+    let clicked = false;
+    for (const row of rows) {
+        row.addEventListener('mouseover', (event) => {
+            if (!clicked){
+                displayContext(event.currentTarget);
+            }
+        });
+        row.addEventListener('click', (event) => {
+            const row = event.currentTarget;
+            if (row.classList.contains("table-active")){
+                for (const r of rows) { r.classList.remove("table-active"); }
+                newFileContext.value = "";
+                newFolderContext.value = "";
+                clicked = false;
+            } else {
+                for (const r of rows) { r.classList.remove("table-active"); }
+                row.classList.add("table-active");
+                clicked = true;
+                displayContext(row);
+                const path = row.getAttribute("data-path");
+                newFileContext.value = path;
+                newFolderContext.value = path;
+            }
+        });
+    }
+    
+    function displayContext(row){
+        const icon = getIcon(row.getAttribute("data-type"));
+        const path = row.getAttribute("data-path");
+        contextDisplay.innerHTML = path + " " + icon;
+    }
+    
+    function getIcon(type){
+        if (type === "file"){
+            return '<svg class="bi"><use xlink:href="#file-earmark-text"/></svg>';
+        } else {
+            return '<svg class="bi"><use xlink:href="#folder"/></svg>';
+        }
+    }
+
+</script>
 
 <script>
     const fileSelector = document.getElementById('depositFile');

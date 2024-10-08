@@ -1,0 +1,35 @@
+﻿@using DigitalPreservation.Utils
+@model DigitalPreservation.Common.Model.Transit.MovingDirectory
+
+@{
+    var depth = 0;
+}
+@if (Model.LocalPath.HasText())
+{
+    depth = Model.LocalPath.Split('/').Length;
+    <tr class="deposit-row" data-path="@Model.LocalPath" data-type="directory">
+        <td style="padding-left: @(1.3 * depth)rem">
+            <svg class="bi"><use xlink:href="#folder"/></svg> @Model.GetSlug()
+        </td>
+        <td>@Model.Name</td>
+        <td></td>
+        <td></td>
+        <td></td>
+    </tr>
+}
+@foreach (var dir in Model.Directories)
+{
+    @await Html.PartialAsync("_RenderDirectoryAsTableRows", dir)
+}
+@foreach (var file in Model.Files)
+{
+    <tr class="deposit-row" data-path="@file.LocalPath" data-type="file">
+        <td style="padding-left: @(1.3 * (depth + 1))rem">
+            <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @file.GetSlug()
+        </td>
+        <td>@file.Name</td>
+        <td>@file.Digest?[..6]</td>
+        <td>@StringUtils.FormatFileSize(file.Size, withSpace:true, fallbackIfNull:" - ")</td>
+        <td>@file.ContentType</td>
+    </tr>
+} 
