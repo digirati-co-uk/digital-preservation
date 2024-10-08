@@ -15,4 +15,6 @@ public class NewDepositModel
     
     // The request has come for a particular location; it MAY have a slug 
     public bool FromBrowseContext { get; set; }
+
+    public bool UseObjectTemplate { get; set; } = true;
 }

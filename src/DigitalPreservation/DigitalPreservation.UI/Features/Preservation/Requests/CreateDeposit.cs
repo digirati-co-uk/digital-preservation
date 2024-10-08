@@ -9,11 +9,13 @@ namespace DigitalPreservation.UI.Features.Preservation.Requests;
 public class CreateDeposit(
     string? archivalGroupPathUnderRoot,
     string? archivalGroupProposedName,
-    string? submissionText): IRequest<Result<Deposit?>>
+    string? submissionText,
+    bool useObjectsTemplate): IRequest<Result<Deposit?>>
 {
     public string? ArchivalGroupPathUnderRoot { get; } = archivalGroupPathUnderRoot;
     public string? ArchivalGroupProposedName { get; } = archivalGroupProposedName;
     public string? SubmissionText { get; } = submissionText;
+    public bool UseObjectsTemplate { get; } = useObjectsTemplate;
 }
 
 public class CreateDepositHandler(
@@ -25,6 +27,7 @@ public class CreateDepositHandler(
             request.ArchivalGroupPathUnderRoot.GetRepositoryPath(),
             request.ArchivalGroupProposedName,
             request.SubmissionText,
+            request.UseObjectsTemplate,
             cancellationToken);
         return result;
     }

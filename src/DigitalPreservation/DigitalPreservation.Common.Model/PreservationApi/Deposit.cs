@@ -54,7 +54,11 @@ public class Deposit : Resource
     [JsonPropertyOrder(270)]
     [JsonPropertyName("versionExported")]
     public string? VersionExported { get; set; }
-
+    
+    [JsonPropertyOrder(500)]
+    [JsonPropertyName("useObjectTemplate")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? UseObjectTemplate { get; set; }
     
     public const string BasePathElement = "deposits";
 

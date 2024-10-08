@@ -4,6 +4,6 @@ namespace Storage.Repository.Common;
 
 public interface IStorage
 {
-    Task<Result<Uri>> GetWorkingFilesLocation(string idPart, string? callerIdentity = null);
+    Task<Result<Uri>> GetWorkingFilesLocation(string idPart, bool useObjectTemplate, string? callerIdentity = null);
     Task<ConnectivityCheckResult> CanSeeStorage(string source);
 }

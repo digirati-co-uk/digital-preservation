@@ -47,7 +47,8 @@ public class CreateDepositHandler(
             var mintedId = identityService.MintIdentity(nameof(Deposit));
             // it only becomes Active if it's FOR an archival group; look for that in Update
             var callerIdentity = "dlipdev";  // TODO: actual user or app caller identity!
-            var filesLocation = await storage.GetWorkingFilesLocation(mintedId, callerIdentity);
+            var filesLocation = await storage.GetWorkingFilesLocation(
+                mintedId, request.Deposit.UseObjectTemplate ?? false, callerIdentity);
             if (filesLocation.Failure)
             {
                 return Result.Fail<Deposit?>(filesLocation.ErrorCode!, filesLocation.ErrorMessage);

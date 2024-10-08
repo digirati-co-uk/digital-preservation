@@ -29,7 +29,6 @@ public class CreateFolderHandler(IAmazonS3 s3Client) : IRequestHandler<CreateFol
         
         // TODO: Edit METS; use request.Name
 
-        PutObjectResponse? response = null;
         var s3Uri = new AmazonS3Uri(request.S3Root);
         var fullKey = StringUtils.BuildPath(false, s3Uri.Key, request.Parent, request.NewFolderSlug);
         if (!fullKey.EndsWith("/"))
@@ -42,9 +41,10 @@ public class CreateFolderHandler(IAmazonS3 s3Client) : IRequestHandler<CreateFol
             BucketName = s3Uri.Bucket,
             Key = fullKey
         };
+        pReq.Metadata.Add(S3Helpers.OriginalNameMetadataKey, request.Name);
         try
         {
-            response = await s3Client.PutObjectAsync(pReq, cancellationToken);
+            var response = await s3Client.PutObjectAsync(pReq, cancellationToken);
             if (response.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
             {
                 var dir = new WorkingDirectory { LocalPath = fullKey.RemoveStart(s3Uri.Key)! };

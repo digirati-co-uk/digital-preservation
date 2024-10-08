@@ -3,7 +3,7 @@
 @using DigitalPreservation.Utils
 @model DepositModel
 @{
-ViewData["Title"] = "Deposit " + Model.Deposit?.Id.GetSlug() ?? Model.Id;
+ViewData["Title"] = "Deposit " + Model.Deposit?.Id?.GetSlug() ?? Model.Id;
 ViewData["section"] = "deposits";
 }
 

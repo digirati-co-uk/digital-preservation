@@ -28,7 +28,7 @@
             <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @file.GetSlug()
         </td>
         <td>@file.Name</td>
-        <td>@file.Digest?[..6]</td>
+        <td>@file.Digest?[..8]</td>
         <td>@StringUtils.FormatFileSize(file.Size, withSpace:true, fallbackIfNull:" - ")</td>
         <td>@file.ContentType</td>
     </tr>

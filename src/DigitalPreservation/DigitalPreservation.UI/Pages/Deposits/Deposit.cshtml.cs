@@ -29,7 +29,9 @@ public class DepositModel(IMediator mediator) : PageModel
         if (getDepositResult.Success)
         {
             Deposit = getDepositResult.Value!;
-            var readS3Result = await mediator.Send(new ReadS3(Deposit.Files!));
+            // TODO: This fetchMetadata: true is temporary, we will read from METS-like
+            // But need to work out where, and what to do on partial deposits for existing AGs
+            var readS3Result = await mediator.Send(new ReadS3(Deposit.Files!, true));
             if (readS3Result.Success)
             {
                 Files = readS3Result.Value!;

@@ -20,13 +20,15 @@ internal class PreservationApiClient(
         string? archivalGroupRepositoryPath,
         string? archivalGroupProposedName,
         string? submissionText,
+        bool useObjectTemplate,
         CancellationToken cancellationToken = default)
     {
         var deposit = new Deposit
         {
             ArchivalGroup = archivalGroupRepositoryPath.HasText() ? new Uri(preservationHttpClient.BaseAddress!, archivalGroupRepositoryPath) : null,
             ArchivalGroupName = archivalGroupProposedName,
-            SubmissionText = submissionText
+            SubmissionText = submissionText,
+            UseObjectTemplate = useObjectTemplate
         };
         try
         {

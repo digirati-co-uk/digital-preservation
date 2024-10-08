@@ -39,6 +39,7 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<Up
             ChecksumAlgorithm = ChecksumAlgorithm.SHA256,
             InputStream = request.File.OpenReadStream()
         };
+        req.Metadata.Add(S3Helpers.OriginalNameMetadataKey, request.DepositFileName);
         try
         {
             response = await s3Client.PutObjectAsync(req, cancellationToken);
@@ -50,7 +51,8 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<Up
                     LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
                     ContentType = request.ContentType,
                     Digest = request.Checksum,
-                    Size = response.ContentLength
+                    Size = response.ContentLength,
+                    Name = request.DepositFileName
                 };
                 return Result.Ok(file);
             }
@@ -72,7 +74,5 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<Up
                         $"AWS returned status code {s3E.StatusCode} when trying to create {req.GetS3Uri()}.");
             }
         }
-        return Result.Fail<WorkingFile>(ErrorCodes.UnknownError, $"Could not upload file to {s3Uri}.");
-        
     }
 }

@@ -1,8 +1,10 @@
 using System.Net;
+using System.Text.Json;
 using Amazon.S3;
 using Amazon.S3.Model;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -15,7 +17,7 @@ public class Storage(
 {
     private readonly AwsStorageOptions options = options.Value;
 
-    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, string? callerIdentity = null)
+    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, bool useObjectTemplate, string? callerIdentity = null)
     {
         // This will be able to yield different locations in different buckets for different callers
         // e.g., Goobi
@@ -32,6 +34,25 @@ public class Storage(
         var pResp = await s3Client.PutObjectAsync(pReq);
         if (pResp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
         {
+            if (useObjectTemplate)
+            {
+                var pReqObjects = new PutObjectRequest
+                {
+                    BucketName = options.DefaultWorkingBucket,
+                    Key = key + "objects/"
+                };
+                await s3Client.PutObjectAsync(pReqObjects);
+                var wd = new WorkingDirectory { LocalPath = string.Empty, Name = "METSLIKE" };
+                var pReqMetsLike = new PutObjectRequest
+                {
+                    BucketName = options.DefaultWorkingBucket,
+                    Key = key + "__METSlike.json",
+                    ContentType = "application/json",
+                    ContentBody = JsonSerializer.Serialize(wd),
+                    ChecksumAlgorithm = ChecksumAlgorithm.SHA256
+                };
+                await s3Client.PutObjectAsync(pReqMetsLike);
+            }
             return Result.OkNotNull(pReq.GetS3Uri());
         }
         return Result.FailNotNull<Uri>(ErrorCodes.UnknownError, $"AWS returned status code {pResp.HttpStatusCode} when trying to create {pReq.GetS3Uri()}.");

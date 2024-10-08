@@ -29,7 +29,8 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             var result = await mediator.Send(new CreateDeposit(
                 newDepositModel.ArchivalGroupPathUnderRoot,
                 newDepositModel.ArchivalGroupProposedName,
-                newDepositModel.SubmissionText));
+                newDepositModel.SubmissionText,
+                newDepositModel.UseObjectTemplate));
             if (result.Success)
             {
                 TempData["CreateDepositSuccess"] = "Created new deposit";
