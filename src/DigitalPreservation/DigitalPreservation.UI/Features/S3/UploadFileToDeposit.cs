@@ -11,7 +11,7 @@ using Storage.Repository.Common;
 
 namespace DigitalPreservation.UI.Features.S3;
 
-public class UploadFileToDeposit(Uri s3Root, string? parent, string slug, IFormFile file, string checksum, string depositFileName, string contentType) : IRequest<Result<MovingFile?>>
+public class UploadFileToDeposit(Uri s3Root, string? parent, string slug, IFormFile file, string checksum, string depositFileName, string contentType) : IRequest<Result<WorkingFile?>>
 {
     public Uri S3Root { get; } = s3Root;
     public string? Parent { get; } = parent;
@@ -22,9 +22,9 @@ public class UploadFileToDeposit(Uri s3Root, string? parent, string slug, IFormF
     public string ContentType { get; } = contentType;
 }
 
-public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<UploadFileToDeposit, Result<MovingFile?>>
+public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<UploadFileToDeposit, Result<WorkingFile?>>
 {
-    public async Task<Result<MovingFile?>> Handle(UploadFileToDeposit request, CancellationToken cancellationToken)
+    public async Task<Result<WorkingFile?>> Handle(UploadFileToDeposit request, CancellationToken cancellationToken)
     {
         // TODO: Record in METS, use DepositFileName, Checksum
 
@@ -45,7 +45,7 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<Up
             if(response is { ChecksumSHA256: not null }
                && AwsChecksum.FromBase64ToHex(response.ChecksumSHA256) == request.Checksum)
             {
-                var file = new MovingFile
+                var file = new WorkingFile
                 {
                     LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
                     ContentType = request.ContentType,
@@ -60,17 +60,17 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<Up
             switch (s3E.StatusCode)
             {
                 case HttpStatusCode.Conflict:
-                    return Result.Fail<MovingFile?>(ErrorCodes.Conflict, "Conflicting resource at " + fullKey);
+                    return Result.Fail<WorkingFile?>(ErrorCodes.Conflict, "Conflicting resource at " + fullKey);
                 case HttpStatusCode.Unauthorized:
-                    return Result.Fail<MovingFile?>(ErrorCodes.Unauthorized, "Unauthorized for " + fullKey);
+                    return Result.Fail<WorkingFile?>(ErrorCodes.Unauthorized, "Unauthorized for " + fullKey);
                 case HttpStatusCode.BadRequest:
-                    return Result.Fail<MovingFile?>(ErrorCodes.BadRequest, "Bad Request");
+                    return Result.Fail<WorkingFile?>(ErrorCodes.BadRequest, "Bad Request");
                 default:
-                    return Result.Fail<MovingFile>(ErrorCodes.UnknownError,
+                    return Result.Fail<WorkingFile>(ErrorCodes.UnknownError,
                         $"AWS returned status code {s3E.StatusCode} when trying to create {req.GetS3Uri()}.");
             }
         }
-        return Result.Fail<MovingFile>(ErrorCodes.UnknownError, $"Could not upload file to {s3Uri}.");
+        return Result.Fail<WorkingFile>(ErrorCodes.UnknownError, $"Could not upload file to {s3Uri}.");
         
     }
 }

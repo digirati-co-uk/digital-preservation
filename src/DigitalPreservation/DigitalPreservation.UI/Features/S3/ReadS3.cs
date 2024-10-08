@@ -9,14 +9,14 @@ using MediatR;
 
 namespace DigitalPreservation.UI.Features.S3;
 
-public class ReadS3(Uri s3Uri) : IRequest<Result<MovingDirectory?>>
+public class ReadS3(Uri s3Uri) : IRequest<Result<WorkingDirectory?>>
 {
     public Uri S3Uri { get; set; } = s3Uri;
 }
 
-public class ReadS3Handler(IAmazonS3 s3Client) : IRequestHandler<ReadS3, Result<MovingDirectory?>>
+public class ReadS3Handler(IAmazonS3 s3Client) : IRequestHandler<ReadS3, Result<WorkingDirectory?>>
 {
-    public async Task<Result<MovingDirectory?>> Handle(ReadS3 request, CancellationToken cancellationToken)
+    public async Task<Result<WorkingDirectory?>> Handle(ReadS3 request, CancellationToken cancellationToken)
     {
         try
         {
@@ -37,7 +37,7 @@ public class ReadS3Handler(IAmazonS3 s3Client) : IRequestHandler<ReadS3, Result<
                 s3Objects.AddRange(resp.S3Objects);
             }
 
-            var top = new MovingDirectory { LocalPath = String.Empty };
+            var top = new WorkingDirectory { LocalPath = String.Empty };
 
             // Create the directories
             foreach (var s3Object in s3Objects.OrderBy(o => o.Key.Replace('/', '~')))
@@ -56,7 +56,7 @@ public class ReadS3Handler(IAmazonS3 s3Client) : IRequestHandler<ReadS3, Result<
                 {
                     // a file
                     var dir = top.FindDirectory(path.GetParent(), true);
-                    dir.Files.Add(new MovingFile
+                    dir.Files.Add(new WorkingFile
                     {
                         LocalPath = path,
                         ContentType = "?",
@@ -66,12 +66,12 @@ public class ReadS3Handler(IAmazonS3 s3Client) : IRequestHandler<ReadS3, Result<
                 }
             }
 
-            return Result.Ok<MovingDirectory?>(top);
+            return Result.Ok<WorkingDirectory?>(top);
 
         }
         catch (Exception e)
         {
-            return Result.Fail<MovingDirectory?>(ErrorCodes.UnknownError, e.Message);
+            return Result.Fail<WorkingDirectory?>(ErrorCodes.UnknownError, e.Message);
         }
     }
 }

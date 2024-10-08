@@ -2,7 +2,7 @@
 
 namespace DigitalPreservation.Common.Model.Transit;
 
-public class MovingFile : MovingBase
+public class WorkingFile : WorkingBase
 {
     [JsonPropertyName("contentType")]
     [JsonPropertyOrder(14)]

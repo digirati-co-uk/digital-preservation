@@ -3,17 +3,17 @@ using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
-public class MovingDirectory : MovingBase
+public class WorkingDirectory : WorkingBase
 {
     [JsonPropertyName("files")]
     [JsonPropertyOrder(5)]
-    public List<MovingFile> Files { get; set; } = [];
+    public List<WorkingFile> Files { get; set; } = [];
     
     [JsonPropertyName("directories")]
     [JsonPropertyOrder(6)]
-    public List<MovingDirectory> Directories { get; set; } = [];
+    public List<WorkingDirectory> Directories { get; set; } = [];
 
-    public MovingDirectory FindDirectory(string? path, bool create = false)
+    public WorkingDirectory FindDirectory(string? path, bool create = false)
     {
         if (path.IsNullOrWhiteSpace() || path == "/")
         {
@@ -29,7 +29,7 @@ public class MovingDirectory : MovingBase
                 var potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetSlug() == part);
                 if (potentialDirectory == null)
                 {
-                    potentialDirectory = new MovingDirectory { LocalPath = string.Join('/', parts.Take(index + 1)) };
+                    potentialDirectory = new WorkingDirectory { LocalPath = string.Join('/', parts.Take(index + 1)) };
                     directory.Directories.Add(potentialDirectory);
                 }
                 directory = potentialDirectory;

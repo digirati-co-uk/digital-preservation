@@ -2,7 +2,7 @@
 
 namespace DigitalPreservation.Common.Model.Transit;
 
-public abstract class MovingBase
+public abstract class WorkingBase
 {
     [JsonPropertyName("localPath")]
     [JsonPropertyOrder(1)]

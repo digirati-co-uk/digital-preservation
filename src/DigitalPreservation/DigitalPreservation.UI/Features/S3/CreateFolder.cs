@@ -11,7 +11,7 @@ using Storage.Repository.Common;
 
 namespace DigitalPreservation.UI.Features.S3;
 
-public class CreateFolder(Uri s3Root, string name, string newFolderSlug, string? parent) : IRequest<Result<MovingDirectory?>>
+public class CreateFolder(Uri s3Root, string name, string newFolderSlug, string? parent) : IRequest<Result<WorkingDirectory?>>
 {
     public Uri S3Root { get; } = s3Root;
     public string Name { get; } = name;
@@ -20,9 +20,9 @@ public class CreateFolder(Uri s3Root, string name, string newFolderSlug, string?
 }
 
 
-public class CreateFolderHandler(IAmazonS3 s3Client) : IRequestHandler<CreateFolder, Result<MovingDirectory?>>
+public class CreateFolderHandler(IAmazonS3 s3Client) : IRequestHandler<CreateFolder, Result<WorkingDirectory?>>
 {
-    public async Task<Result<MovingDirectory?>> Handle(CreateFolder request, CancellationToken cancellationToken)
+    public async Task<Result<WorkingDirectory?>> Handle(CreateFolder request, CancellationToken cancellationToken)
     {
         // Should this have IStorage rather than IAmazonS3? Probably not, because it's independent of the preservation api
         // It's a client putting things in S3 by itself.
@@ -47,7 +47,7 @@ public class CreateFolderHandler(IAmazonS3 s3Client) : IRequestHandler<CreateFol
             response = await s3Client.PutObjectAsync(pReq, cancellationToken);
             if (response.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
             {
-                var dir = new MovingDirectory { LocalPath = fullKey.RemoveStart(s3Uri.Key)! };
+                var dir = new WorkingDirectory { LocalPath = fullKey.RemoveStart(s3Uri.Key)! };
                 return Result.Ok(dir);
             }
         }
@@ -56,17 +56,17 @@ public class CreateFolderHandler(IAmazonS3 s3Client) : IRequestHandler<CreateFol
             switch (s3E.StatusCode)
             {
                 case HttpStatusCode.Conflict:
-                    return Result.Fail<MovingDirectory?>(ErrorCodes.Conflict, "Conflicting resource at " + fullKey);
+                    return Result.Fail<WorkingDirectory?>(ErrorCodes.Conflict, "Conflicting resource at " + fullKey);
                 case HttpStatusCode.Unauthorized:
-                    return Result.Fail<MovingDirectory?>(ErrorCodes.Unauthorized, "Unauthorized for " + fullKey);
+                    return Result.Fail<WorkingDirectory?>(ErrorCodes.Unauthorized, "Unauthorized for " + fullKey);
                 case HttpStatusCode.BadRequest:
-                    return Result.Fail<MovingDirectory?>(ErrorCodes.BadRequest, "Bad Request");
+                    return Result.Fail<WorkingDirectory?>(ErrorCodes.BadRequest, "Bad Request");
                 default:
-                    return Result.Fail<MovingDirectory>(ErrorCodes.UnknownError,
+                    return Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
                         $"AWS returned status code {s3E.StatusCode} when trying to create {pReq.GetS3Uri()}.");
             }
         }
-        return Result.Fail<MovingDirectory>(ErrorCodes.UnknownError,
+        return Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
             $"Could not create Directory at {s3Uri}.");
     }
 }

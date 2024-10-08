@@ -14,7 +14,7 @@ public class DepositModel(IMediator mediator) : PageModel
     public required string Id { get; set; }
     
     public Deposit? Deposit { get; set; }
-    public MovingDirectory? Files { get; set; }
+    public WorkingDirectory? Files { get; set; }
     
     public async Task OnGet([FromRoute] string id)
     {
