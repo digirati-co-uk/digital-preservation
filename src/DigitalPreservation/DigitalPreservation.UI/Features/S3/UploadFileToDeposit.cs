@@ -42,8 +42,8 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<Up
         try
         {
             response = await s3Client.PutObjectAsync(req, cancellationToken);
-            if(response is { ChecksumSHA256: not null }
-               && AwsChecksum.FromBase64ToHex(response.ChecksumSHA256) == request.Checksum)
+            var respChecksum = AwsChecksum.FromBase64ToHex(response.ChecksumSHA256);
+            if(response is { ChecksumSHA256: not null } && respChecksum == request.Checksum)
             {
                 var file = new WorkingFile
                 {
@@ -54,6 +54,8 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<Up
                 };
                 return Result.Ok(file);
             }
+
+            return Result.Fail<WorkingFile>(ErrorCodes.BadRequest, $"Checksum on server did not match submitted checksum: server-calculated: {respChecksum}, submitted: {request.Checksum}");
         }
         catch (AmazonS3Exception s3E)
         {

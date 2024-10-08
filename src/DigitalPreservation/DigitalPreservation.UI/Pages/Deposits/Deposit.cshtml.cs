@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.S3;
+using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -51,11 +52,16 @@ public class DepositModel(IMediator mediator) : PageModel
     public async Task<IActionResult> OnPostCreateFolder(
         [FromRoute] string id, 
         [FromForm] string newFolderName,
-        [FromForm] string? newFolderContext)
+        [FromForm] string? newFolderContext,
+        [FromForm] bool contextIsFile)
     {
         if (await BindDeposit(id))
         {
             var s3Root = Deposit!.Files;
+            if (contextIsFile && newFolderContext.HasText())
+            {
+                newFolderContext = newFolderContext.GetParent();
+            }
             var parentDirectory = Files!.FindDirectory(newFolderContext);
             var slug = PreservedResource.MakeValidSlug(newFolderName);
             if (parentDirectory.Directories.Any(d => d.GetSlug() == slug) ||
@@ -80,23 +86,28 @@ public class DepositModel(IMediator mediator) : PageModel
     
     public async Task<IActionResult> OnPostUploadFile(
         [FromRoute] string id,
-        [FromForm] List<IFormFile> files,
+        [FromForm] List<IFormFile> depositFile,
         [FromForm] string checksum,
         [FromForm] string depositFileName,
         [FromForm] string contentType,
-        [FromForm] string? newFileContext)
+        [FromForm] string? newFileContext,
+        [FromForm] bool contextIsFile)
     {
         // This is a PROVISIONAL implementation and will be replaced by an upload widget
         // that can upload multiple, stream large files etc.
         // https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-8.0
         if (await BindDeposit(id))
         {
-            if (files.Count == 0)
+            if (contextIsFile && newFileContext.HasText())
+            {
+                newFileContext = newFileContext.GetParent();
+            }
+            if (depositFile.Count == 0)
             {
                 TempData["Error"] = "No file uploaded";
                 return Page();
             }
-            if (files.Count > 1)
+            if (depositFile.Count > 1)
             {
                 TempData["Error"] = "More than one file uploaded";
                 return Page();
@@ -115,7 +126,7 @@ public class DepositModel(IMediator mediator) : PageModel
                 s3Root!,
                 newFileContext,
                 slug,
-                files[0],
+                depositFile[0],
                 checksum,
                 depositFileName,
                 contentType));
