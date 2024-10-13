@@ -11,11 +11,14 @@ ViewData["section"] = "deposits";
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <p id="tableRowContext"></p>
+        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="collapse" data-bs-target="#collapseAgDetails">
+            <svg class="bi"><use xlink:href="#three-dots"/></svg><span class="ms-2">Toggle details</span>
+        </button>
         <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newFolderModal">
-            <svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New Folder</span>
+            <svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New folder</span>
         </button>
         <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#uploadFileModal">
-            <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload File</span>
+            <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span>
         </button>
     </div>
 </div>
@@ -54,61 +57,81 @@ ViewData["section"] = "deposits";
     <!-- THESE ARE MODALS!!! doh -->
     <!-- Top bar buttons - upload file, create folder -->
     
-    <div class="container">
+    <div class="container-fluid">
         <div class="row align-items-start">
             <div class="col">
 
+                <form class="collapse show" id="collapseAgDetails">
+                    <div class="form-floating mb-3">
+                        @* If this already exists, then this form element changes to a hyperlink, with a Change button *@
+                        <input type="text" class="form-control" id="agUri" value="@Model.Deposit.ArchivalGroup" placeholder="(URI not set)">
+                        <label for="agUri">Archival Group</label>
+                    </div>
+                    <div class="form-floating mb-3">
+                        @* If this already exists, then this form element changes to read only display *@
+                        <input type="text" class="form-control" id="agName" value="@Model.Deposit.ArchivalGroupName" placeholder="(Name of Archival Group)">
+                        <label for="agName">Archival Group Name</label>
+                    </div>
+                    <div class="form-floating mb-3">
+                        <textarea class="form-control" id="submissionText" placeholder="A note for this particular deposit">@Model.Deposit.SubmissionText</textarea>
+                        <label for="submissionText">Deposit Note</label>
+                    </div>
+                </form>
+                
+                
+
+
                 @* *@
                 @* <div class="border border-primary rounded mb-4 p-3" id="depositFileExplorer"> *@
-                    @if (Model.Files is not null)
-                    {
-                        <div class="table-responsive small">
-                            <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-files">
-                                <thead>
-                                <tr>
-                                    <th scope="col">Path</th>
-                                    <th scope="col">Name</th>
-                                    <th scope="col">Hash</th>
-                                    <th scope="col">Size</th>
-                                    <th scope="col">Type</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                    @await Html.PartialAsync("_RenderDirectoryAsTableRows", Model.Files)
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-                    else
-                    {
-                        <p>No files have been uploaded yet.</p>
-                        
-                    }
+                @if (Model.Files is not null)
+                {
+                    <div class="table-responsive small">
+                        <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
+                            <thead>
+                            <tr>
+                                <th scope="col">Path</th>
+                                <th scope="col">Name</th>
+                                <th scope="col">Hash</th>
+                                <th scope="col">Size</th>
+                                <th scope="col">Type</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @await Html.PartialAsync("_RenderDirectoryAsTableRows", Model.Files)
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p>No files have been uploaded yet.</p>
+
+                }
                 @* </div> *@
-                
+
             </div>
-            <div class="col-3">
-                <dl>
+            <div class="col-2">
+                <dl arial-label="deposit-history">
                     <dt>Created</dt>
-                    <dd>@Model.Deposit.Created.GetDateDisplay()</dd>
+                    <dd aria-label="created">@Model.Deposit.Created.GetDateDisplay()</dd>
                     <dt>Created by</dt>
-                    <dd><agent-link uri="@Model.Deposit.CreatedBy"></agent-link></dd>
+                    <dd aria-label="created-by"><agent-link uri="@Model.Deposit.CreatedBy"></agent-link></dd>
                     <dt>Last modified</dt>
-                    <dd>@Model.Deposit.LastModified.GetDateDisplay()</dd>
+                    <dd aria-label="last-modified">@Model.Deposit.LastModified.GetDateDisplay()</dd>
                     <dt>Last modified by</dt>
-                    <dd><agent-link uri="@Model.Deposit.LastModifiedBy"></agent-link></dd>
+                    <dd aria-label="last-modified-by"><agent-link uri="@Model.Deposit.LastModifiedBy"></agent-link></dd>
                     <dt>Preserved</dt>
-                    <dd>@Model.Deposit.Preserved.GetDateDisplay("-")</dd>
+                    <dd aria-label="preserved">@Model.Deposit.Preserved.GetDateDisplay("-")</dd>
                     <dt>Preserved by</dt>
-                    <dd><agent-link uri="@Model.Deposit.PreservedBy"></agent-link></dd>
+                    <dd aria-label="preserved-by"><agent-link uri="@Model.Deposit.PreservedBy"></agent-link></dd>
                     <dt>Version preserved</dt>
-                    <dd>@(Model.Deposit.VersionPreserved ?? "-")</dd>
+                    <dd aria-label="version-preserved">@(Model.Deposit.VersionPreserved ?? "-")</dd>
                     <dt>Exported</dt>
-                    <dd>@Model.Deposit.Exported.GetDateDisplay("-")</dd>
+                    <dd aria-label="exported">@Model.Deposit.Exported.GetDateDisplay("-")</dd>
                     <dt>Exported by</dt>
-                    <dd><agent-link uri="@Model.Deposit.ExportedBy"></agent-link></dd>
+                    <dd aria-label="exported-by"><agent-link uri="@Model.Deposit.ExportedBy"></agent-link></dd>
                     <dt>Version exported</dt>
-                    <dd>@(Model.Deposit.VersionExported ?? "-")</dd>
+                    <dd aria-label="version-exported">@(Model.Deposit.VersionExported ?? "-")</dd>
                 </dl>
             </div>
         </div>

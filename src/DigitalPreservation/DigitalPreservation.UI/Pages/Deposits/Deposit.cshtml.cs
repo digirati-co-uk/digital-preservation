@@ -116,7 +116,7 @@ public class DepositModel(IMediator mediator) : PageModel
             }
             var s3Root = Deposit!.Files;
             var parentDirectory = Files!.FindDirectory(newFileContext);
-            var slug = PreservedResource.MakeValidSlug(depositFileName);
+            var slug = PreservedResource.MakeValidSlug(depositFile[0].FileName);
             if (parentDirectory.Directories.Any(d => d.GetSlug() == slug) ||
                 parentDirectory.Files.Any(f => f.GetSlug() == slug))
             {

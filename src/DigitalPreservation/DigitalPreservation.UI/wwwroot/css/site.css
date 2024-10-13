@@ -173,3 +173,16 @@ table.plain-link-table a {
     padding-right:1rem;
     padding-top:0.8rem;
 }
+
+.deposit-table.table-hover {
+    > tbody > tr:hover > * {
+        background-color: cadetblue;
+        color: white;
+    }
+}
+
+tr.deposit-row.table-active td {
+    background-color: cadetblue;
+    color: white;
+    font-weight: bold;
+}
