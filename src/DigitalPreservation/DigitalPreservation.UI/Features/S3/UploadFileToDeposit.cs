@@ -22,7 +22,7 @@ public class UploadFileToDeposit(Uri s3Root, string? parent, string slug, IFormF
     public string ContentType { get; } = contentType;
 }
 
-public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<UploadFileToDeposit, Result<WorkingFile?>>
+public class UploadFileToDepositHandler(IAmazonS3 s3Client, IStorage storage) : IRequestHandler<UploadFileToDeposit, Result<WorkingFile?>>
 {
     public async Task<Result<WorkingFile?>> Handle(UploadFileToDeposit request, CancellationToken cancellationToken)
     {
@@ -54,7 +54,11 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client) : IRequestHandler<Up
                     Size = response.ContentLength,
                     Name = request.DepositFileName
                 };
-                return Result.Ok(file);
+                var saveResult = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, file, cancellationToken);
+                if (saveResult.Success)
+                {
+                    return Result.Ok(file);
+                }
             }
 
             return Result.Fail<WorkingFile>(ErrorCodes.BadRequest, $"Checksum on server did not match submitted checksum: server-calculated: {respChecksum}, submitted: {request.Checksum}");

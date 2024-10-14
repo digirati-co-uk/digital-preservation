@@ -20,14 +20,14 @@ public class CreateFolder(Uri s3Root, string name, string newFolderSlug, string?
 }
 
 
-public class CreateFolderHandler(IAmazonS3 s3Client) : IRequestHandler<CreateFolder, Result<WorkingDirectory?>>
+public class CreateFolderHandler(IAmazonS3 s3Client, IStorage storage) : IRequestHandler<CreateFolder, Result<WorkingDirectory?>>
 {
     public async Task<Result<WorkingDirectory?>> Handle(CreateFolder request, CancellationToken cancellationToken)
     {
         // Should this have IStorage rather than IAmazonS3? Probably not, because it's independent of the preservation api
         // It's a client putting things in S3 by itself.
         
-        // TODO: Edit METS; use request.Name
+        // TODO: Should all of this be behind IStorage?
 
         var s3Uri = new AmazonS3Uri(request.S3Root);
         var fullKey = StringUtils.BuildPath(false, s3Uri.Key, request.Parent, request.NewFolderSlug);
@@ -45,11 +45,13 @@ public class CreateFolderHandler(IAmazonS3 s3Client) : IRequestHandler<CreateFol
         try
         {
             var response = await s3Client.PutObjectAsync(pReq, cancellationToken);
-            if (response.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
-            {
-                var dir = new WorkingDirectory { LocalPath = fullKey.RemoveStart(s3Uri.Key)! };
-                return Result.Ok(dir);
-            }
+            if (response.HttpStatusCode is not (HttpStatusCode.Created or HttpStatusCode.OK))
+                return Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
+                    $"Could not create Directory at {s3Uri}. AWS response was '{response.HttpStatusCode}'.");
+            
+            var dir = new WorkingDirectory { LocalPath = fullKey.RemoveStart(s3Uri.Key)! };
+            var newRoot = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, dir, cancellationToken);
+            return Result.Ok(dir);
         }
         catch (AmazonS3Exception s3E)
         {
@@ -66,7 +68,5 @@ public class CreateFolderHandler(IAmazonS3 s3Client) : IRequestHandler<CreateFol
                         $"AWS returned status code {s3E.StatusCode} when trying to create {pReq.GetS3Uri()}.");
             }
         }
-        return Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
-            $"Could not create Directory at {s3Uri}.");
     }
 }

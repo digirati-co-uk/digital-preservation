@@ -222,6 +222,11 @@ ViewData["section"] = "deposits";
     
     let clicked = false;
     for (const row of rows) {
+        const path = row.getAttribute("data-path");
+        if (!(path === "objects" || path.startsWith("objects/")))
+        {
+            continue;
+        }
         row.addEventListener('mouseover', (event) => {
             if (!clicked){
                 displayContext(event.currentTarget);
