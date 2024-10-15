@@ -17,21 +17,25 @@ public class DepositModel(IMediator mediator) : PageModel
     public Deposit? Deposit { get; set; }
     public WorkingDirectory? Files { get; set; }
     
-    public async Task OnGet([FromRoute] string id)
+    public async Task OnGet(
+        [FromRoute] string id,
+        [FromQuery] bool readFromStorage = false,
+        [FromQuery] bool writeToStorage = false)
     {
-        await BindDeposit(id);
+        await BindDeposit(id, readFromStorage, writeToStorage);
     }
-
-    private async Task<bool> BindDeposit(string id)
+    
+    private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
     {
         Id = id;
         var getDepositResult = await mediator.Send(new GetDeposit(id));
         if (getDepositResult.Success)
         {
             Deposit = getDepositResult.Value!;
-            // TODO: This fetchMetadata: true is temporary, we will read from METS-like
-            // But need to work out where, and what to do on partial deposits for existing AGs
-            var readS3Result = await mediator.Send(new ReadS3(Deposit.Files!, true));
+            // There is a METSlike for the deposit contents, AND a METS for the AG (if exists).
+            // The metslike for deposit contents does not get saved to Fedora (but does it get saved to the DB)
+            var readS3Result = await mediator.Send(
+                new GetWorkingDirectory(Deposit.Files!, readFromStorage, writeToStorage)); 
             if (readS3Result.Success)
             {
                 Files = readS3Result.Value!;
@@ -65,6 +69,11 @@ public class DepositModel(IMediator mediator) : PageModel
                 newFolderContext = newFolderContext.GetParent();
             }
             var parentDirectory = Files!.FindDirectory(newFolderContext);
+            if (parentDirectory == null)
+            {
+                TempData["Error"] = $"Folder path {newFolderContext} could not be found.";
+                return Page();
+            }
             var slug = PreservedResource.MakeValidSlug(newFolderName);
             if (parentDirectory.Directories.Any(d => d.GetSlug() == slug) ||
                 parentDirectory.Files.Any(f => f.GetSlug() == slug))
@@ -116,6 +125,17 @@ public class DepositModel(IMediator mediator) : PageModel
             }
             var s3Root = Deposit!.Files;
             var parentDirectory = Files!.FindDirectory(newFileContext);
+            if (parentDirectory == null)
+            {
+                TempData["Error"] = $"Folder path {newFileContext} could not be found.";
+                return Page();
+            }
+            if (!(parentDirectory.LocalPath == "objects" || parentDirectory.LocalPath.StartsWith("objects/")))
+            {
+                TempData["Error"] = "Uploaded files must go in or below the objects folder.";
+                return Page();
+            }
+
             var slug = PreservedResource.MakeValidSlug(depositFile[0].FileName);
             if (parentDirectory.Directories.Any(d => d.GetSlug() == slug) ||
                 parentDirectory.Files.Any(f => f.GetSlug() == slug))

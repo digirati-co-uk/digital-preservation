@@ -76,6 +76,11 @@ public class Result
 
         return Ok();
     }
+
+    public static Result<T> Generify<T>(Result result)
+    {
+        return new Result<T>(default, result.Success, result.ErrorCode, result.ErrorMessage);
+    }
 }
 
 

@@ -1,5 +1,4 @@
-﻿using System.Net;
-using Amazon.S3;
+﻿using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
@@ -26,11 +25,8 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client, IStorage storage) : 
 {
     public async Task<Result<WorkingFile?>> Handle(UploadFileToDeposit request, CancellationToken cancellationToken)
     {
-        // TODO: Record in METS, use DepositFileName, Checksum
-
         var s3Uri = new AmazonS3Uri(request.S3Root);
         var fullKey = StringUtils.BuildPath(false, s3Uri.Key, request.Parent, request.Slug);
-        PutObjectResponse? response = null;
         var req = new PutObjectRequest
         {
             BucketName = s3Uri.Bucket,
@@ -42,7 +38,7 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client, IStorage storage) : 
         req.Metadata.Add(S3Helpers.OriginalNameMetadataKey, request.DepositFileName);
         try
         {
-            response = await s3Client.PutObjectAsync(req, cancellationToken);
+            var response = await s3Client.PutObjectAsync(req, cancellationToken);
             var respChecksum = AwsChecksum.FromBase64ToHex(response.ChecksumSHA256);
             if(response is { ChecksumSHA256: not null } && respChecksum == request.Checksum)
             {
@@ -59,24 +55,14 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client, IStorage storage) : 
                 {
                     return Result.Ok(file);
                 }
+                return Result.Generify<WorkingFile?>(saveResult);
             }
-
             return Result.Fail<WorkingFile>(ErrorCodes.BadRequest, $"Checksum on server did not match submitted checksum: server-calculated: {respChecksum}, submitted: {request.Checksum}");
         }
         catch (AmazonS3Exception s3E)
         {
-            switch (s3E.StatusCode)
-            {
-                case HttpStatusCode.Conflict:
-                    return Result.Fail<WorkingFile?>(ErrorCodes.Conflict, "Conflicting resource at " + fullKey);
-                case HttpStatusCode.Unauthorized:
-                    return Result.Fail<WorkingFile?>(ErrorCodes.Unauthorized, "Unauthorized for " + fullKey);
-                case HttpStatusCode.BadRequest:
-                    return Result.Fail<WorkingFile?>(ErrorCodes.BadRequest, "Bad Request");
-                default:
-                    return Result.Fail<WorkingFile>(ErrorCodes.UnknownError,
-                        $"AWS returned status code {s3E.StatusCode} when trying to create {req.GetS3Uri()}.");
-            }
+            var exResult = storage.ResultFailFromS3Exception(s3E, "Unable to upload file", req.GetS3Uri());
+            return Result.Generify<WorkingFile?>(exResult);
         }
     }
 }

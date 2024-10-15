@@ -49,24 +49,22 @@ public class CreateFolderHandler(IAmazonS3 s3Client, IStorage storage) : IReques
                 return Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
                     $"Could not create Directory at {s3Uri}. AWS response was '{response.HttpStatusCode}'.");
             
-            var dir = new WorkingDirectory { LocalPath = fullKey.RemoveStart(s3Uri.Key)! };
-            var newRoot = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, dir, cancellationToken);
-            return Result.Ok(dir);
+            var dir = new WorkingDirectory
+            {
+                LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
+                Name = request.Name
+            };
+            var newRootResult = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, dir, cancellationToken);
+            if (newRootResult.Success)
+            {
+                return Result.Ok(dir);
+            }
+            return Result.Generify<WorkingDirectory?>(newRootResult);
         }
         catch (AmazonS3Exception s3E)
         {
-            switch (s3E.StatusCode)
-            {
-                case HttpStatusCode.Conflict:
-                    return Result.Fail<WorkingDirectory?>(ErrorCodes.Conflict, "Conflicting resource at " + fullKey);
-                case HttpStatusCode.Unauthorized:
-                    return Result.Fail<WorkingDirectory?>(ErrorCodes.Unauthorized, "Unauthorized for " + fullKey);
-                case HttpStatusCode.BadRequest:
-                    return Result.Fail<WorkingDirectory?>(ErrorCodes.BadRequest, "Bad Request");
-                default:
-                    return Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
-                        $"AWS returned status code {s3E.StatusCode} when trying to create {pReq.GetS3Uri()}.");
-            }
+            var exResult = storage.ResultFailFromS3Exception(s3E, "Could not create folder", pReq.GetS3Uri());
+            return Result.Generify<WorkingDirectory?>(exResult);
         }
     }
 }
