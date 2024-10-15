@@ -34,6 +34,8 @@ try
         .AddUIHealthChecks()
         .AddRazorPages();
 
+    builder.Services.AddControllers();
+
     var app = builder.Build();
     app
         .UseMiddleware<CorrelationIdMiddleware>()
@@ -53,6 +55,7 @@ try
         .UseRouting()
         .UseAuthorization();
     app.MapRazorPages();
+    app.MapControllers();
     app.UseHealthChecks("/health");
     app.Run();
 }
