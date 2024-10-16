@@ -78,6 +78,7 @@ public class Storage(
                 Modified = DateTime.UtcNow
             });
         }
+        OrderAlphanumerically(wd);
         var pReqMetsLike = new PutObjectRequest
         {
             BucketName = bucket,
@@ -283,6 +284,7 @@ public class Storage(
                 var wd = await JsonSerializer.DeserializeAsync<WorkingDirectory>(
                     resp.ResponseStream,
                     cancellationToken: cancellationToken);
+                // OrderAlphanumerically(wd!); Should never have to do this, always saved after calling this
                 return Result.Ok(wd);
             }
             var failResult =
@@ -374,11 +376,14 @@ public class Storage(
                 }
             }
 
+            OrderAlphanumerically(top);
+            
             if (writeToStorage)
             {
                 var writeResult = await WriteMetsLike(location.Bucket, location.Key + IStorage.MetsLike, top, cancellationToken);
                 return writeResult.Success ? Result.Ok(top) : Result.Generify<WorkingDirectory?>(writeResult);
             }
+            
             return Result.Ok(top);
 
         }
@@ -387,9 +392,22 @@ public class Storage(
             return Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError, e.Message);
         }
     }
-    
-    
-    
+
+    private void OrderAlphanumerically(WorkingDirectory wd)
+    {
+        wd.Files.Sort(WorkingBaseComparer);
+        wd.Directories.Sort(WorkingBaseComparer);
+        foreach (var childWd in wd.Directories)
+        {
+            OrderAlphanumerically(childWd);
+        }
+    }
+
+    private int WorkingBaseComparer(WorkingBase x, WorkingBase y)
+    {
+        return string.Compare(x.LocalPath, y.LocalPath, StringComparison.InvariantCulture);
+    }
+
     public async Task<ConnectivityCheckResult> CanSeeStorage(string source)
     {
         var result = new ConnectivityCheckResult { Name = source, Success = false };

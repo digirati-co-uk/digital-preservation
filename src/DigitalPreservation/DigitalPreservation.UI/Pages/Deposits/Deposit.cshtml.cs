@@ -1,9 +1,11 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Text.Json;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.S3;
 using DigitalPreservation.Utils;
+using LateApexEarlySpeed.Xunit.Assertion.Json;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -229,6 +231,80 @@ public class DepositModel(IMediator mediator) : PageModel
         }
 
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostValidateStorage([FromRoute] string id)
+    {
+        var getDepositResult = await mediator.Send(new GetDeposit(id));
+        if (getDepositResult.Success)
+        {
+            var readS3Result = await mediator.Send(new GetWorkingDirectory(
+                getDepositResult.Value!.Files!, true, false));
+            var readMetsResult = await mediator.Send(new GetWorkingDirectory(
+                getDepositResult.Value!.Files!, false, false));
+
+            var s3Json = JsonSerializer.Serialize(RemoveRootMetadata(readS3Result.Value));
+            var metsJson = JsonSerializer.Serialize(RemoveRootMetadata(readMetsResult.Value));
+            try
+            {
+                JsonAssertion.Equivalent(s3Json, metsJson);
+                TempData["Valid"] = "Storage validation succeeded. The METS file reflects S3 content.";
+            }
+            catch (Exception e)
+            {
+                TempData["Error"] = "Storage validation Failed. " + e.Message;
+            }
+            return Redirect($"/deposits/{id}");
+        }
+        TempData["Error"] = "Could not GET deposit " + id;
+        return Redirect($"/deposits/{id}");
+    }
+
+    private WorkingDirectory? RemoveRootMetadata(WorkingDirectory wd)
+    {
+        wd.Modified = DateTime.MinValue;
+        foreach (var workingFile in wd?.Files ?? [])
+        {
+            workingFile.Digest = null;
+            workingFile.Modified = DateTime.MinValue;
+            workingFile.Size = 0;
+        }
+
+        return wd;
+    }
+
+
+    public async Task<IActionResult> OnPostDeleteDeposit([FromRoute] string id)
+    {
+        throw new NotImplementedException();
+    }
+    
+    public async Task<IActionResult> OnPostUpdateProperties(
+        [FromRoute] string id,
+        [FromForm] Uri? agUri,
+        [FromForm] string? agName,
+        [FromForm] string? submissionText)
+    {
+        var getDepositResult = await mediator.Send(new GetDeposit(id));
+        if (getDepositResult.Success)
+        {
+            var deposit = getDepositResult.Value;
+            deposit!.SubmissionText = submissionText;
+            deposit.ArchivalGroup = agUri;
+            deposit.ArchivalGroupName = agName;
+            var saveDepositResult = await mediator.Send(new UpdateDeposit(deposit));
+            if (saveDepositResult.Success)
+            {
+                TempData["Updated"] = "Deposit successfully updated";
+                return Redirect($"/deposits/{id}");
+            }
+            TempData["Error"] = saveDepositResult.CodeAndMessage();
+        }
+        else
+        {
+            TempData["Error"] = getDepositResult.CodeAndMessage();
+        }
+        return Redirect($"/deposits/{id}");
     }
 }
 

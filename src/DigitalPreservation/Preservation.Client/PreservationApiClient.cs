@@ -16,6 +16,38 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
+    public async Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(deposit.Id!.AbsolutePath, UriKind.Relative); 
+        try
+        {
+            HttpResponseMessage response = await preservationHttpClient.PatchAsJsonAsync(uri, deposit, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var patchedDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
+                if (patchedDeposit is not null)
+                {
+                    return Result.Ok(patchedDeposit);
+                }
+                return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
+            }
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.Unauthorized:
+                    return Result.Fail<Deposit>(ErrorCodes.Unauthorized, "Unauthorized for patching a deposit.");
+                case HttpStatusCode.BadRequest:
+                    return Result.Fail<Deposit>(ErrorCodes.BadRequest, "Bad Request");
+                default:
+                    return Result.Fail<Deposit>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<Result<Deposit?>> CreateDeposit(
         string? archivalGroupRepositoryPath,
         string? archivalGroupProposedName,

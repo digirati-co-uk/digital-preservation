@@ -3,7 +3,7 @@
 @using DigitalPreservation.Utils
 @model DepositModel
 @{
-ViewData["Title"] = "Deposit " + Model.Deposit?.Id?.GetSlug() ?? Model.Id;
+ViewData["Title"] = "Deposit " + (Model.Deposit?.ArchivalGroupName ?? Model.Deposit?.ArchivalGroup?.ToString() ?? Model.Deposit?.Id?.GetSlug() ?? Model.Id);
 ViewData["section"] = "deposits";
 }
 
@@ -21,7 +21,7 @@ ViewData["section"] = "deposits";
             <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span>
         </button>
         <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#deleteItemModal">
-            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
+            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete selected</span>
         </button>
     </div>
 </div>
@@ -35,8 +35,23 @@ ViewData["section"] = "deposits";
     }
     @if (TempData["Deleted"] != null)
     {
-    <div class="alert alert-success" role="alert">
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
         <p>@Html.Raw(TempData["Deleted"])</p>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    }
+    @if (TempData["Updated"] != null)
+    {
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <p>@Html.Raw(TempData["Updated"])</p>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    }
+    @if (TempData["Valid"] != null)
+    {
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <p>@Html.Raw(TempData["Valid"])</p>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     }
  </div>
@@ -70,20 +85,31 @@ ViewData["section"] = "deposits";
         <div class="row align-items-start">
             <div class="col">
 
-                <form class="collapse show" id="collapseAgDetails">
+                <form method="post" asp-page-handler="UpdateProperties" class="collapse show" id="collapseAgDetails">
                     <div class="form-floating mb-3">
                         @* If this already exists, then this form element changes to a hyperlink, with a Change button *@
-                        <input type="text" class="form-control" id="agUri" value="@Model.Deposit.ArchivalGroup" placeholder="(URI not set)">
+                        <input type="text" class="form-control" id="agUri" name="agUri" value="@Model.Deposit.ArchivalGroup" placeholder="(URI not set)">
                         <label for="agUri">Archival Group</label>
                     </div>
                     <div class="form-floating mb-3">
                         @* If this already exists, then this form element changes to read only display *@
-                        <input type="text" class="form-control" id="agName" value="@Model.Deposit.ArchivalGroupName" placeholder="(Name of Archival Group)">
+                        <input type="text" class="form-control" id="agName" name="agName" value="@Model.Deposit.ArchivalGroupName" placeholder="(Name of Archival Group)">
                         <label for="agName">Archival Group Name</label>
                     </div>
                     <div class="form-floating mb-3">
-                        <textarea class="form-control" id="submissionText" placeholder="A note for this particular deposit">@Model.Deposit.SubmissionText</textarea>
+                        <textarea class="form-control" id="submissionText" name="submissionText" placeholder="A note for this particular deposit">@Model.Deposit.SubmissionText</textarea>
                         <label for="submissionText">Deposit Note</label>
+                    </div>
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-sm btn-primary me-2">
+                            <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
+                        </button>
+                        <button type="submit" asp-page-handler="ValidateStorage" class="btn btn-sm btn-primary me-2" id="validateDeposit">
+                            <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Validate storage</span>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
+                        </button>
                     </div>
                 </form>
                 
@@ -247,6 +273,37 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
+<div class="modal fade" id="deleteDepositModal" tabindex="-1" aria-labelledby="deleteDepositModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <form method="post" asp-page-handler="DeleteDeposit">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="deleteDepositModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <div id="deleteDepositHelp" class="form-text">Clicking Delete below will delete this Deposit completely.</div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="confirmDepositDelete">
+                            <label class="form-check-label" for="confirmDepositDelete">
+                                Tick here to confirm delete
+                            </label>
+                            <div class="form-text">(It has no effect on an already-preserved Archival Group.)</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-danger" id="deleteDepositButton" disabled="disabled"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span></button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
 <script>
     const contextDisplay = document.getElementById("tableRowContext");
     const rows = document.getElementsByClassName("deposit-row");
@@ -259,6 +316,16 @@ ViewData["section"] = "deposits";
     const deleteContextIsFile = document.getElementById("deleteContextIsFile");
     const deleteItemHelp = document.getElementById("deleteItemHelp");
     const deleteButton = document.getElementById("deleteButton");
+    const deleteDepositButton = document.getElementById("deleteDepositButton");
+    const confirmDepositDelete = document.getElementById("confirmDepositDelete");
+    
+    confirmDepositDelete.addEventListener("change", () => {
+        if (confirmDepositDelete.checked){
+            deleteDepositButton.removeAttribute("disabled");
+        } else {
+            deleteDepositButton.disabled = "disabled";
+        }
+    });
     
     let clicked = false;
     for (const row of rows) {

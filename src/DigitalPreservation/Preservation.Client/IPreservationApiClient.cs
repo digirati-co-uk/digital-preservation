@@ -33,4 +33,5 @@ public interface IPreservationApiClient
     Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default);
     Task<ConnectivityCheckResult?> CanTalkToS3(CancellationToken cancellationToken);
     Task<ConnectivityCheckResult?> CanSeeThatStorageCanTalkToS3(CancellationToken cancellationToken);
+    Task<Result<Deposit?>> UpdateDeposit(Deposit requestDeposit, CancellationToken cancellationToken);
 }

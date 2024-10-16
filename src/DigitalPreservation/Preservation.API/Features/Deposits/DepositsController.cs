@@ -32,6 +32,18 @@ public class DepositsController(IMediator mediator) : Controller
         return this.StatusResponseFromResult(result);
     }
     
+        
+    [HttpPatch("{id}", Name = "PatchDeposit")]
+    [ProducesResponseType<List<Deposit>>(200, "application/json")]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> PatchDeposit([FromRoute] string id, [FromBody] Deposit deposit)
+    {
+        var result = await mediator.Send(new PatchDeposit(deposit));
+        return this.StatusResponseFromResult(result);
+    }
+    
+    
     [HttpPost(Name = "CreateDeposit")]
     [ProducesResponseType<List<Deposit>>(200, "application/json")]
     [ProducesResponseType(404)]

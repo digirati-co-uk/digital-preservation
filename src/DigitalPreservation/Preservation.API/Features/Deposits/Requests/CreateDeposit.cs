@@ -16,7 +16,7 @@ public class CreateDeposit(Deposit deposit) : IRequest<Result<Deposit?>>
 }
 
 public class CreateDepositHandler(
-    ILogger<GetDepositHandler> logger,
+    ILogger<CreateDepositHandler> logger,
     PreservationContext dbContext,
     ResourceMutator resourceMutator,
     IIdentityService identityService,
