@@ -235,14 +235,37 @@ public class Storage(
         return saveResult;
     }
 
-    public Task<Result<WorkingDirectory>> DeleteFromMetsLike(AmazonS3Uri location, string metsLikeFilename, WorkingDirectory directoryToDelete, CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteFromMetsLike(AmazonS3Uri location, string metsLikeFilename, string path, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
-    }
-
-    public Task<Result<WorkingDirectory>> DeleteFromMetsLike(AmazonS3Uri location, string metsLikeFilename, WorkingFile fileToDelete, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
+        var wdResult = await ReadMetsLike(location, metsLikeFilename, cancellationToken);
+        if (wdResult.Success)
+        {
+            bool somethingWasRemoved = false;
+            var root = wdResult.Value!;
+            var dir = root.FindDirectory(path, false);
+            if (dir != null)
+            {
+                // dir is the directory to be deleted
+                var parentOfDir = root.FindDirectory(path.GetParent(), false);
+                somethingWasRemoved = parentOfDir!.Directories.Remove(dir);
+            }
+            else
+            {
+                var parentOfFile = root.FindDirectory(path.GetParent(), false);
+                if (parentOfFile != null)
+                {
+                    var file = parentOfFile.Files.Single(f => f.LocalPath == path);
+                    somethingWasRemoved = parentOfFile.Files.Remove(file);
+                }
+            }
+            if (somethingWasRemoved)
+            {
+                var saveResult = await SaveMetsLike(location, metsLikeFilename, root, cancellationToken);
+                return saveResult;
+            }
+            return Result.Fail(ErrorCodes.NotFound, "Could not delete path from METS: " + path);
+        }
+        return wdResult;
     }
 
     public async Task<Result<WorkingDirectory?>> ReadMetsLike(AmazonS3Uri location, string metsLikeFilename, CancellationToken cancellationToken)

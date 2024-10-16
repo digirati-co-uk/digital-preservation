@@ -20,6 +20,9 @@ ViewData["section"] = "deposits";
         <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#uploadFileModal">
             <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span>
         </button>
+        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#deleteItemModal">
+            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
+        </button>
     </div>
 </div>
 
@@ -29,6 +32,12 @@ ViewData["section"] = "deposits";
         <div class="alert alert-danger" role="alert">
             <p>@Html.Raw(TempData["Error"])</p>
         </div>
+    }
+    @if (TempData["Deleted"] != null)
+    {
+    <div class="alert alert-success" role="alert">
+        <p>@Html.Raw(TempData["Deleted"])</p>
+    </div>
     }
  </div>
 
@@ -183,6 +192,7 @@ ViewData["section"] = "deposits";
 </div>
 
 
+
 <div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -211,6 +221,32 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
+<div class="modal fade" id="deleteItemModal" tabindex="-1" aria-labelledby="deleteItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <form method="post" asp-page-handler="DeleteItem">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="deleteItemModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <div id="deleteItemHelp" class="form-text">(nothing selected)</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" id="deleteContext" name="deleteContext">
+                    <input type="hidden" id="deleteContextIsFile" name="deleteContextIsFile">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary" id="deleteButton" disabled="disabled"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span></button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
 <script>
     const contextDisplay = document.getElementById("tableRowContext");
     const rows = document.getElementsByClassName("deposit-row");
@@ -219,6 +255,10 @@ ViewData["section"] = "deposits";
     const newFolderContextIsFile = document.getElementById("newFolderContextIsFile");
     const newFileContext = document.getElementById("newFileContext");
     const newFileContextIsFile = document.getElementById("newFileContextIsFile");
+    const deleteContext = document.getElementById("deleteContext");
+    const deleteContextIsFile = document.getElementById("deleteContextIsFile");
+    const deleteItemHelp = document.getElementById("deleteItemHelp");
+    const deleteButton = document.getElementById("deleteButton");
     
     let clicked = false;
     for (const row of rows) {
@@ -238,7 +278,10 @@ ViewData["section"] = "deposits";
                 for (const r of rows) { r.classList.remove("table-active"); }
                 newFileContext.value = "";
                 newFolderContext.value = "";
+                deleteContext.value = "";
                 clicked = false;
+                deleteItemHelp.innerHTML = "(nothing selected)";
+                deleteButton.disabled = "disabled";
             } else {
                 for (const r of rows) { r.classList.remove("table-active"); }
                 row.classList.add("table-active");
@@ -250,6 +293,10 @@ ViewData["section"] = "deposits";
                 newFolderContext.value = path;
                 newFolderContextIsFile.value = isFile;
                 newFileContextIsFile.value = isFile;
+                deleteContext.value = path;
+                deleteContextIsFile.value = isFile;
+                deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;
+                deleteButton.removeAttribute("disabled");
             }
         });
     }

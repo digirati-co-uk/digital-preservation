@@ -34,8 +34,7 @@ public interface IStorage
     
     Task<Result<WorkingDirectory>> AddToMetsLike(AmazonS3Uri location, string metsLikeFilename, WorkingDirectory directoryToAdd, CancellationToken cancellationToken);
     Task<Result<WorkingDirectory>> AddToMetsLike(AmazonS3Uri location, string metsLikeFilename, WorkingFile fileToAdd, CancellationToken cancellationToken);
-    Task<Result<WorkingDirectory>> DeleteFromMetsLike(AmazonS3Uri location, string metsLikeFilename, WorkingDirectory directoryToDelete, CancellationToken cancellationToken);
-    Task<Result<WorkingDirectory>> DeleteFromMetsLike(AmazonS3Uri location, string metsLikeFilename, WorkingFile fileToDelete, CancellationToken cancellationToken);
+    Task<Result> DeleteFromMetsLike(AmazonS3Uri location, string metsLikeFilename, string path, CancellationToken cancellationToken);
 
     Result ResultFailFromS3Exception(AmazonS3Exception s3E, string message, Uri s3Uri);
     Result ResultFailFromAwsStatusCode(HttpStatusCode respHttpStatusCode, string message, Uri s3Uri);

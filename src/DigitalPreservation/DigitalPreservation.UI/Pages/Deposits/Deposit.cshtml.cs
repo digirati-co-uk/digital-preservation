@@ -55,6 +55,73 @@ public class DepositModel(IMediator mediator) : PageModel
         return true;
     }
 
+    public async Task<IActionResult> OnPostDeleteItem(
+        [FromRoute] string id,
+        [FromForm] string deleteContext,
+        [FromForm] bool deleteContextIsFile)
+    {
+        if (await BindDeposit(id))
+        {
+            var deleteDirectoryContext = deleteContext;
+            if (deleteContextIsFile)
+            {
+                deleteDirectoryContext = deleteDirectoryContext.GetParent();
+            }
+            var deleteDirectory = Files!.FindDirectory(deleteDirectoryContext);
+            if (deleteDirectory == null)
+            {
+                TempData["Error"] = $"Directory {deleteDirectoryContext} not found.";
+                return Redirect($"/deposits/{id}");
+            }
+            if (deleteContextIsFile)
+            {
+                var fileToDelete = deleteDirectory.Files.SingleOrDefault(f => f.LocalPath == deleteContext);
+                if (fileToDelete == null)
+                {
+                    TempData["Error"] = $"File {deleteContext} not found.";
+                    return Redirect($"/deposits/{id}");
+                }
+                if(!fileToDelete.LocalPath.Contains('/'))
+                {
+                    TempData["Error"] = "You cannot delete files in the root.";
+                    return Redirect($"/deposits/{id}");
+                }
+                var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath));
+                if (deleteFileResult.Success)
+                {
+                    TempData["Deleted"] = "File " + fileToDelete.LocalPath + " DELETED.";
+                }
+                else
+                {
+                    TempData["Error"] = deleteFileResult.CodeAndMessage();
+                }
+                return Redirect($"/deposits/{id}");
+            }
+            // want to delete a directory
+            if(deleteDirectory.LocalPath == "objects")
+            {
+                TempData["Error"] = "You cannot delete the objects directory.";
+                return Redirect($"/deposits/{id}");
+            }
+            if (deleteDirectory.Files.Count > 0)
+            {
+                TempData["Error"] = "You cannot delete a folder that has files in it; delete the files first.";
+                return Redirect($"/deposits/{id}");
+            }
+            var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath));
+            if (deleteDirectoryResult.Success)
+            {
+                TempData["Deleted"] = "Folder " + deleteDirectory.LocalPath + " DELETED.";
+            }
+            else
+            {
+                TempData["Error"] = deleteDirectoryResult.CodeAndMessage();
+            }
+            return Redirect($"/deposits/{id}");
+        }
+        return Page();
+    }
+
     public async Task<IActionResult> OnPostCreateFolder(
         [FromRoute] string id, 
         [FromForm] string newFolderName,
