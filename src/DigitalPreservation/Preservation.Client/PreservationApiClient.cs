@@ -48,6 +48,32 @@ internal class PreservationApiClient(
         }
     }
 
+    public async Task<Result> DeleteDeposit(string id, CancellationToken cancellationToken)
+    {        
+        try
+        {
+            var relPath = $"/deposits/{id}";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var response = await preservationHttpClient.DeleteAsync(uri, cancellationToken);
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.NoContent:
+                    return Result.Ok();
+                case HttpStatusCode.NotFound:
+                    return Result.Fail(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.Unauthorized:
+                    return Result.Fail(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
+                default:
+                    return Result.Fail(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<Result<Deposit?>> CreateDeposit(
         string? archivalGroupRepositoryPath,
         string? archivalGroupProposedName,

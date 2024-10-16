@@ -18,6 +18,8 @@ public interface IPreservationApiClient
     Task<Result<Deposit?>> CreateDeposit(string? archivalGroupRepositoryPath, string? archivalGroupProposedName, string? submissionText, bool useObjectTemplate, CancellationToken cancellationToken);
     Task<Result<List<Deposit>>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default);
+    Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken);
+    Task<Result> DeleteDeposit(string id, CancellationToken cancellationToken);
     
     
     
@@ -33,5 +35,4 @@ public interface IPreservationApiClient
     Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default);
     Task<ConnectivityCheckResult?> CanTalkToS3(CancellationToken cancellationToken);
     Task<ConnectivityCheckResult?> CanSeeThatStorageCanTalkToS3(CancellationToken cancellationToken);
-    Task<Result<Deposit?>> UpdateDeposit(Deposit requestDeposit, CancellationToken cancellationToken);
 }

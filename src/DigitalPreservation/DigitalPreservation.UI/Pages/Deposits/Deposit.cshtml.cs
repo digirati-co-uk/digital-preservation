@@ -276,7 +276,11 @@ public class DepositModel(IMediator mediator) : PageModel
 
     public async Task<IActionResult> OnPostDeleteDeposit([FromRoute] string id)
     {
-        throw new NotImplementedException();
+        var result = await mediator.Send(new DeleteDeposit(id));
+        if (result.Success)
+        {
+            
+        }
     }
     
     public async Task<IActionResult> OnPostUpdateProperties(

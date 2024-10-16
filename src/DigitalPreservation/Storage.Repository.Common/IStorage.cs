@@ -38,6 +38,13 @@ public interface IStorage
 
     Result ResultFailFromS3Exception(AmazonS3Exception s3E, string message, Uri s3Uri);
     Result ResultFailFromAwsStatusCode(HttpStatusCode respHttpStatusCode, string message, Uri s3Uri);
+    
+    /// <summary>
+    /// Remove all the files in this location, and the location itself!
+    /// </summary>
+    /// <param name="storageLocation"></param>
+    /// <returns></returns>
+    Task<Result<BulkDeleteResult>> EmptyStorageLocation(Uri storageLocation, CancellationToken cancellationToken);
 
     static string MetsLike => "__METSlike.json";
 }

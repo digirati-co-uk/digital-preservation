@@ -13,21 +13,32 @@ public static class ControllerX
         {
             return controller.Ok(result.Value);
         }
-        
-        if (result.ErrorCode.IsNullOrWhiteSpace())
+        return GetActionResult(controller, result.ErrorCode, result.ErrorMessage);
+    }
+
+    public static ActionResult StatusResponseFromResult(this Controller controller, Result result)
+    {
+        if (result.Success && result.ErrorCode.IsNullOrWhiteSpace())
+        {
+            return controller.Ok();
+        }
+        return GetActionResult(controller, result.ErrorCode, result.ErrorMessage);
+    }
+    
+    private static ActionResult GetActionResult(Controller controller, string? errorCode, string? errorMessage)
+    {
+        if (errorCode.IsNullOrWhiteSpace())
         {
             throw new InvalidOperationException("Can't return an error StatusCodeResult without a code");
         }
 
-        return result.ErrorCode switch
+        return errorCode switch
         {
             ErrorCodes.NotFound => controller.NotFound(),
             ErrorCodes.Conflict => controller.Conflict(),
             ErrorCodes.Unauthorized => controller.Unauthorized(),
             ErrorCodes.BadRequest => controller.BadRequest(),
-            _ => controller.Problem(statusCode: 500, detail: result.ErrorMessage, title: result.ErrorCode)
+            _ => controller.Problem(statusCode: 500, detail: errorMessage, title: errorCode)
         };
     }
-
-
 }

@@ -44,6 +44,17 @@ public class DepositsController(IMediator mediator) : Controller
     }
     
     
+    [HttpDelete("{id}", Name = "DeleteDeposit")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> DeleteDeposit([FromRoute] string id)
+    {
+        var result = await mediator.Send(new DeleteDeposit(id));
+        return this.StatusResponseFromResult(result);
+    }
+    
+    
     [HttpPost(Name = "CreateDeposit")]
     [ProducesResponseType<List<Deposit>>(200, "application/json")]
     [ProducesResponseType(404)]

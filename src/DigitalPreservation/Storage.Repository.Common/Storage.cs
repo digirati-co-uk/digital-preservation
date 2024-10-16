@@ -306,21 +306,7 @@ public class Storage(
     {
         try
         {
-            var listReq = new ListObjectsV2Request
-            {
-                BucketName = location.Bucket,
-                Prefix = location.Key
-            };
-            List<S3Object> s3Objects = [];
-            var resp = await s3Client.ListObjectsV2Async(listReq, cancellationToken);
-            s3Objects.AddRange(resp.S3Objects);
-            while (resp.IsTruncated)
-            {
-                listReq.ContinuationToken = resp.NextContinuationToken;
-                resp = await s3Client.ListObjectsV2Async(listReq, cancellationToken);
-                s3Objects.AddRange(resp.S3Objects);
-            }
-
+            var s3Objects = await ListAllS3Objects(location, cancellationToken);
             var top = RootDirectory();
 
             // Create the directories
@@ -393,6 +379,26 @@ public class Storage(
         }
     }
 
+    private async Task<List<S3Object>> ListAllS3Objects(AmazonS3Uri location, CancellationToken cancellationToken)
+    {
+        var listReq = new ListObjectsV2Request
+        {
+            BucketName = location.Bucket,
+            Prefix = location.Key
+        };
+        List<S3Object> s3Objects = [];
+        var resp = await s3Client.ListObjectsV2Async(listReq, cancellationToken);
+        s3Objects.AddRange(resp.S3Objects);
+        while (resp.IsTruncated)
+        {
+            listReq.ContinuationToken = resp.NextContinuationToken;
+            resp = await s3Client.ListObjectsV2Async(listReq, cancellationToken);
+            s3Objects.AddRange(resp.S3Objects);
+        }
+
+        return s3Objects;
+    }
+
     private void OrderAlphanumerically(WorkingDirectory wd)
     {
         wd.Files.Sort(WorkingBaseComparer);
@@ -460,6 +466,47 @@ public class Storage(
         return result;
     }
 
-    
-    
+
+    public async Task<Result<BulkDeleteResult>> EmptyStorageLocation(Uri storageLocation, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("About to delete contents of {storageLocation}", storageLocation);
+        // TODO: MUST Validate bucket and key of root here -
+        //  only a permitted bucket, and only a deposits/ path.
+        var s3Uri = new AmazonS3Uri(storageLocation);
+        var allObjects = await ListAllS3Objects(s3Uri, cancellationToken);
+
+        logger.LogInformation("{locationCount} objects in location {storageLocation}", allObjects.Count, storageLocation);
+        int count = 0;
+        int deleted = 0;
+        while (count < allObjects.Count)
+        {
+            var batch = allObjects.Skip(count).Take(500).ToList();
+            count += batch.Count;
+            // note DeleteObjects not DeleteObject
+            var dor = new DeleteObjectsRequest
+            {
+                BucketName = s3Uri.Bucket
+            };
+            foreach (var s3Obj in batch)
+            {
+                dor.AddKey(s3Obj.Key);
+            }
+            logger.LogInformation("Deleting batch of {batchCount} from {storageLocation}", batch.Count, storageLocation);
+            var response = await s3Client.DeleteObjectsAsync(dor, cancellationToken);
+            logger.LogInformation("AWS reports {deleteCount} objects deleted from {storageLocation}", response.DeletedObjects.Count, storageLocation);
+            deleted += response.DeletedObjects.Count;
+        }
+        logger.LogInformation("Deletion summary for location {storageLocation}", storageLocation);
+        logger.LogInformation("Objects to delete: {locationCount}", allObjects.Count);
+        logger.LogInformation("Objects processed: {count}", count);
+        logger.LogInformation("Objects deleted: {deleted}", deleted);
+        var bulkDelete = new BulkDeleteResult
+        {
+            Location = storageLocation,
+            ObjectsToDelete = allObjects.Count,
+            ObjectsAttempted = count,
+            ObjectsDeleted = deleted
+        };
+        return Result.OkNotNull(bulkDelete);
+    }
 }
