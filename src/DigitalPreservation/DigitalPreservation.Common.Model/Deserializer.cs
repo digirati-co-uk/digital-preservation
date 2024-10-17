@@ -31,8 +31,7 @@ public class Deserializer
             case "Binary":
                 return rootElement.Deserialize<Binary>();
             case "ArchivalGroup":
-                // return rootElement.Deserialize<ArchivalGroup>();
-                return null;
+                return rootElement.Deserialize<ArchivalGroup>();
             default:
                 return null;
         }

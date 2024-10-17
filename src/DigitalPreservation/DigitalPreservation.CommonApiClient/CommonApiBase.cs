@@ -16,9 +16,24 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
 {
     public async Task<Result<PreservedResource?>> GetResource(string path)
     {
+        return await GetResourceInternal(path, null);
+    }
+
+    public async Task<Result<ArchivalGroup?>> GetArchivalGroup(string path, string? version)
+    {
+        var result = await GetResourceInternal(path, version);
+        return Result.Cast<PreservedResource?, ArchivalGroup?>(result);
+    }
+    
+    private async Task<Result<PreservedResource?>> GetResourceInternal(string path, string? version)
+    {        
         // path MUST be the full /repository... path, which we just pass through as-is
         try
         {
+            if(!string.IsNullOrWhiteSpace(version))
+            {
+                path += "?version=" + version;
+            }
             var uri = new Uri(path, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await httpClient.SendAsync(req);
@@ -48,8 +63,9 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             logger.LogError(e, e.Message);
             return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, e.Message);
         }
+        
     }
-    
+
     
     
     public async Task<Result<Container?>> CreateContainer(string path, string? name = null)

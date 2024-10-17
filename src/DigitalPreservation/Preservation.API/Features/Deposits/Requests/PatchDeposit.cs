@@ -29,7 +29,11 @@ public class PatchDepositHandler(
         {
             var entity = await dbContext.Deposits.SingleAsync(
                 d => d.MintedId == request.Deposit.Id!.GetSlug(), cancellationToken: cancellationToken);
-            
+
+            if (entity.Status == DepositStates.Exporting)
+            {
+                return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is being exported");
+            }
             // there are only some patchable fields
             // come back and see what others are patchable as we go
             entity.SubmissionText = request.Deposit.SubmissionText;

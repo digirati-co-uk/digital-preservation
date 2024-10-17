@@ -16,7 +16,7 @@ public class Deposit : Resource
 
     [JsonPropertyOrder(130)]
     [JsonPropertyName("status")]
-    public string Status { get; set; } = "new";
+    public string Status { get; set; } = DepositStates.New;
     
     [JsonPropertyOrder(140)]
     [JsonPropertyName("submissionText")]
@@ -62,4 +62,10 @@ public class Deposit : Resource
     
     public const string BasePathElement = "deposits";
 
+}
+
+public static class DepositStates
+{
+    public const string New = "new";
+    public const string Exporting = "exporting";
 }

@@ -1,0 +1,82 @@
+﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Common.Model.PreservationApi;
+
+namespace DigitalPreservation.Common.Model.Import;
+
+public class ImportJob : Resource
+{
+    public override string Type { get; set; } = nameof(ImportJob);
+    
+    /// <summary>
+    /// The Deposit that was used to generate this job, and to which it will be sent if executed.
+    /// </summary>
+    [JsonPropertyName("deposit")]
+    [JsonPropertyOrder(500)]
+    public required Uri Deposit { get; set; }
+    
+    /// <summary>
+    /// The object in the repository that the job is to be performed on. This object doesn't necessarily exist yet -
+    /// this job might be creating it. The value must match the ArchivalGroup of the deposit, so it's technically
+    /// redundant, but must be included so that the intent is explicit and self-contained.
+    /// </summary>
+    [JsonPropertyName("archivalGroup")]
+    [JsonPropertyOrder(510)]
+    public required Uri ArchivalGroup { get; set; }
+    
+    /// <summary>
+    /// For a new archivalGroup, the dc:title (name) to give the object in the repository.
+    /// </summary>
+    [JsonPropertyName("archivalGroupName")]
+    [JsonPropertyOrder(520)]
+    public string? ArchivalGroupName { get; set; }
+    
+    /// <summary>
+    /// Always provided when you ask the API to generate an ImportJob as a diff and the ArchivalGroup already exists.
+    /// May be null for a new object
+    /// </summary>
+    [JsonPropertyOrder(12)]
+    public PreservationVersion? SourceVersion { get; set; }  // TODO - name of this thing
+    
+    /// <summary>
+    /// A list of Container objects to be created within the Archival Group. The id property gives the URI of the
+    /// container to be created, whose path must be "within" the Digital Object and must only use characters from the
+    /// permitted set. The name property of the container may be any UTF-8 characters, and can be used to preserve an
+    /// original directory name.
+    /// </summary>
+    [JsonPropertyOrder(13)]
+    public Container[]? ContainersToAdd { get; set; }
+    
+    /// <summary>
+    /// A list of Binary objects to be created within the Archival Group from keys in S3. The id property gives the URI
+    /// of the binary to be created, whose path must be "within" the Digital Object and must only use characters from
+    /// the permitted set. The name property of the Binary may be any UTF-8 characters, and can be used to preserve an
+    /// original file name. The location must be an S3 key within the Deposit. The digest is only required if the SHA256
+    /// cannot be obtained by the API from METS file information or from S3 metadata. All API-generated jobs will
+    /// include this field. 
+    /// </summary>
+    [JsonPropertyOrder(14)]
+    public Binary[]? BinariesToAdd { get; set; }
+    
+    /// <summary>
+    /// A list of containers to remove. id is the only required property. The Containers must either be already empty,
+    /// or only contain Binaries mentioned in the binariesToDelete property of the same ImportJob.
+    /// </summary>
+    [JsonPropertyOrder(15)]
+    public Container[]? ContainersToDelete { get; set; }
+    
+    /// <summary>
+    /// A list of binaries to remove. id is the only required property.
+    /// </summary>
+    [JsonPropertyOrder(16)]
+    public Binary[]? BinariesToDelete { get; set; }
+    
+    /// <summary>
+    /// A list of Binary objects to be updated within the Digital object from keys in S3. The id property gives the URI
+    /// of the binary to be patched, which must already exist. The name property of the Binary may be any UTF-8
+    /// characters, and can be used to preserve an original file name. This may be different from the originally
+    /// supplied name. The location must be an S3 key within the Deposit. The digest is only required if the SHA256
+    /// cannot be obtained by the API from METS file information or from S3 metadata.
+    /// </summary>
+    [JsonPropertyOrder(17)]
+    public Binary[]? BinariesToPatch { get; set; }
+}

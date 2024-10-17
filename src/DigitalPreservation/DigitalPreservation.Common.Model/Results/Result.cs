@@ -81,6 +81,12 @@ public class Result
     {
         return new Result<T>(default, result.Success, result.ErrorCode, result.ErrorMessage);
     }
+
+    public static Result<TOut?> Cast<TIn, TOut>(Result<TIn?> resultIn) where TOut : class?
+    {
+        var value = resultIn as TOut;
+        return new Result<TOut?>(value, resultIn.Success, resultIn.ErrorCode, resultIn.ErrorMessage);
+    }
 }
 
 
