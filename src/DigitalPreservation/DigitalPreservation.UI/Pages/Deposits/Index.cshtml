@@ -17,6 +17,22 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
+<div>
+    @if (TempData["Error"] != null)
+    {
+    <div class="alert alert-danger" role="alert">
+        <p>@Html.Raw(TempData["Error"])</p>
+    </div>
+    }
+    @if (TempData["Deleted"] != null)
+    {
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <p>@Html.Raw(TempData["Deleted"])</p>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    }
+</div>
+
 
 <div class="table-responsive small">
     <table class="table table-striped table-sm plain-link-table" aria-label="table-deposits-index">

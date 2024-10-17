@@ -435,3 +435,11 @@ ViewData["section"] = "deposits";
   
 
 </script>
+
+@if (TempData["Context"] != null)
+{
+    <script>
+        const contextRow = document.querySelectorAll('[data-path="@TempData["Context"]"]');
+        contextRow[0].click();
+    </script>
+}

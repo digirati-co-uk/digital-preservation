@@ -40,11 +40,13 @@ public class Storage(
             var root = RootDirectory();
             if (useObjectTemplate)
             {
-                await s3Client.PutObjectAsync(new PutObjectRequest
+                var por = new PutObjectRequest
                 {
                     BucketName = options.DefaultWorkingBucket,
                     Key = key + "objects/"
-                });
+                };
+                por.Metadata.Add(S3Helpers.OriginalNameMetadataKey, "objects");
+                await s3Client.PutObjectAsync(por);
                 root.Directories.Add(new WorkingDirectory
                 {
                     LocalPath = "objects",
@@ -87,6 +89,7 @@ public class Storage(
             ContentBody = JsonSerializer.Serialize(wd),
             ChecksumAlgorithm = ChecksumAlgorithm.SHA256
         };
+        pReqMetsLike.Metadata.Add(S3Helpers.OriginalNameMetadataKey, key.GetSlug());
         try
         {
             var resp = await s3Client.PutObjectAsync(pReqMetsLike, cancellationToken);
@@ -189,6 +192,7 @@ public class Storage(
                 var root = currentResult.Value!;
                 var newDir = root.FindDirectory(directoryToAdd.LocalPath, true);
                 newDir!.Name = directoryToAdd.Name; // should have been created along path
+                newDir.Modified = directoryToAdd.Modified;
                 var saveResult = await SaveMetsLike(location, metsLikeFilename, root, cancellationToken);
                 return saveResult.Success ? Result.OkNotNull(root) : Result.Generify<WorkingDirectory>(saveResult);
             }
@@ -317,6 +321,9 @@ public class Storage(
                     continue; // we don't want the deposit root itself, we already have that in top
                 }
 
+                // TODO: If there's any way we can avoid this, by returning the properties we
+                // are interested in just from the ListObjects request, then we should do that.
+                // But I don't think we can avoid it.
                 var gomReq = new GetObjectMetadataRequest
                 {
                     BucketName = location.Bucket,
@@ -330,7 +337,7 @@ public class Storage(
                 if (path.EndsWith('/'))
                 {
                     var dir = top.FindDirectory(path, true);
-                    dir!.Modified = s3Object.LastModified; // will have been created
+                    dir!.Modified = s3Object.LastModified.ToUniversalTime(); // will have been created
                     if (metadata == null) continue;
                     if (metadata.Keys.Contains(S3Helpers.OriginalNameMetadataResponseKey))
                     {
@@ -346,7 +353,7 @@ public class Storage(
                         LocalPath = path,
                         ContentType = "?",
                         Size = s3Object.Size,
-                        Modified = s3Object.LastModified
+                        Modified = s3Object.LastModified.ToUniversalTime()
                     };
                     // need to get these from METS-like
                     wf.ContentType = metadataResponse.Headers.ContentType;

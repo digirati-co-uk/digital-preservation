@@ -156,6 +156,7 @@ public class DepositModel(IMediator mediator) : PageModel
             if (createFolderResult.Success)
             {
                 TempData["Created"] = "Folder " + slug + " created.";
+                TempData["Context"] = newFolderContext + "/" + slug;
                 return Redirect($"/deposits/{id}");
             }
 
@@ -169,7 +170,7 @@ public class DepositModel(IMediator mediator) : PageModel
         [FromForm] List<IFormFile> depositFile,
         [FromForm] string checksum,
         [FromForm] string depositFileName,
-        [FromForm] string contentType,
+        [FromForm] string depositFileContentType,
         [FromForm] string? newFileContext,
         [FromForm] bool contextIsFile)
     {
@@ -220,10 +221,11 @@ public class DepositModel(IMediator mediator) : PageModel
                 depositFile[0],
                 checksum,
                 depositFileName,
-                contentType));
+                depositFileContentType));
             if (uploadFileResult.Success)
             {
                 TempData["Uploaded"] = "File " + slug + " uploaded.";
+                TempData["Context"] = newFileContext;
                 return Redirect($"/deposits/{id}");
             }
 
@@ -273,6 +275,12 @@ public class DepositModel(IMediator mediator) : PageModel
     private WorkingDirectory? RemoveRootMetadata(WorkingDirectory wd)
     {
         wd.Modified = DateTime.MinValue;
+        // Also do not compare the object directory
+        var objects = wd.Directories.SingleOrDefault(d => d.LocalPath == "objects");
+        if (objects != null)
+        {
+            objects.Modified = DateTime.MinValue;
+        }
         foreach (var workingFile in wd?.Files ?? [])
         {
             workingFile.Digest = null;

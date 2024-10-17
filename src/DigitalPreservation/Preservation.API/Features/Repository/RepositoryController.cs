@@ -24,7 +24,7 @@ public class RepositoryController(IMediator mediator) : Controller
     
     
     [HttpPut(Name = "CreateContainer")]
-    [ProducesResponseType<Container>(200, "application/json")]
+    [ProducesResponseType<Container>(201, "application/json")]
     [ProducesResponseType(401)]
     [ProducesResponseType(409)]
     [ProducesResponseType(400)]
@@ -36,7 +36,8 @@ public class RepositoryController(IMediator mediator) : Controller
             name = container.Name;
         }
         var result = await mediator.Send(new CreateContainer(Request.Path, name));
-        return this.StatusResponseFromResult(result);
+        var createdLocation = result.Success ? result.Value!.Id : null;
+        return this.StatusResponseFromResult(result, 201, createdLocation);
     }
     
     

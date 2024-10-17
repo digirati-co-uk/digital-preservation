@@ -49,10 +49,18 @@ public class CreateFolderHandler(IAmazonS3 s3Client, IStorage storage) : IReques
                 return Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
                     $"Could not create Directory at {s3Uri}. AWS response was '{response.HttpStatusCode}'.");
             
+            // See note on file upload - need to find what lastmodified was set
+            var headReq = new GetObjectMetadataRequest
+            {
+                BucketName = s3Uri.Bucket,
+                Key = fullKey
+            };
+            var headResponse = await s3Client.GetObjectMetadataAsync(headReq, cancellationToken);
             var dir = new WorkingDirectory
             {
                 LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
-                Name = request.Name
+                Name = request.Name,
+                Modified = headResponse.LastModified.ToUniversalTime()
             };
             var newRootResult = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, dir, cancellationToken);
             if (newRootResult.Success)

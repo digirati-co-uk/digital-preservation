@@ -1,4 +1,5 @@
-﻿using Amazon.S3;
+﻿using System.Net;
+using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
@@ -42,13 +43,27 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client, IStorage storage) : 
             var respChecksum = AwsChecksum.FromBase64ToHex(response.ChecksumSHA256);
             if(response is { ChecksumSHA256: not null } && respChecksum == request.Checksum)
             {
+                // we need the Modified date that S3 set when it saved this file, which I don't think we can get 
+                // without a further HEAD request:
+                var headReq = new GetObjectMetadataRequest
+                {
+                    BucketName = s3Uri.Bucket,
+                    Key = fullKey,
+                    ChecksumMode = ChecksumMode.ENABLED
+                };
+                var headResponse = await s3Client.GetObjectMetadataAsync(headReq, cancellationToken);
+                if (headResponse.ChecksumSHA256 != response.ChecksumSHA256)
+                {
+                    throw new Exception("HEAD checksum does not match PUT checksum");
+                }
                 var file = new WorkingFile
                 {
                     LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
                     ContentType = request.ContentType,
                     Digest = request.Checksum,
-                    Size = response.ContentLength,
-                    Name = request.DepositFileName
+                    Size = request.File.Length,
+                    Name = request.DepositFileName,
+                    Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
                 };
                 var saveResult = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, file, cancellationToken);
                 if (saveResult.Success)
