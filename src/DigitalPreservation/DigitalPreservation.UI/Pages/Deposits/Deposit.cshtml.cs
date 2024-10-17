@@ -243,6 +243,16 @@ public class DepositModel(IMediator mediator) : PageModel
             var readMetsResult = await mediator.Send(new GetWorkingDirectory(
                 getDepositResult.Value!.Files!, false, false));
 
+            if (readS3Result.Value == null)
+            {
+                TempData["Error"] = "Could not read S3 storage.";
+                return Redirect($"/deposits/{id}");
+            }
+            if (readMetsResult.Value == null)
+            {
+                TempData["Error"] = "Could not read METSlilke file.";
+                return Redirect($"/deposits/{id}");
+            }
             var s3Json = JsonSerializer.Serialize(RemoveRootMetadata(readS3Result.Value));
             var metsJson = JsonSerializer.Serialize(RemoveRootMetadata(readMetsResult.Value));
             try
@@ -279,8 +289,17 @@ public class DepositModel(IMediator mediator) : PageModel
         var result = await mediator.Send(new DeleteDeposit(id));
         if (result.Success)
         {
-            
+            TempData["Deleted"] = $"Deposit {id} successfully deleted.";
+            return Redirect($"/deposits");
         }
+        TempData["Error"] = result.CodeAndMessage();
+        var getDepositResult = await mediator.Send(new GetDeposit(id));
+        if (getDepositResult.Success)
+        {
+            // We can redirect to the deposits page
+            return Redirect($"/deposits/{id}");
+        }
+        return Redirect($"/deposits");
     }
     
     public async Task<IActionResult> OnPostUpdateProperties(
