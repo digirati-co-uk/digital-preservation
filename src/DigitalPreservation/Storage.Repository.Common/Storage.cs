@@ -4,6 +4,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
@@ -515,5 +516,43 @@ public class Storage(
             ObjectsDeleted = deleted
         };
         return Result.OkNotNull(bulkDelete);
+    }
+
+    public async Task<Result<ImportSource>> GetImportSource(
+        Uri sourceUri,
+        bool relyOnMetsLike,
+        CancellationToken cancellationToken)
+    { 
+        var s3Uri = new AmazonS3Uri(sourceUri);
+        WorkingDirectory workingDirectory;
+        Result<WorkingDirectory?>? readResult;
+        if (relyOnMetsLike)
+        {
+            readResult = await ReadMetsLike(s3Uri, IStorage.MetsLike, cancellationToken);
+        }
+        else
+        {
+            readResult = await GenerateMetsLike(s3Uri, false, cancellationToken);
+        }
+        
+        if (readResult is { Success: true, Value: not null })
+        {
+            workingDirectory = readResult.Value;
+        }
+        else
+        {
+            return Result.ConvertFailNotNull<WorkingDirectory?, ImportSource>(readResult);
+        }
+        
+        // TODO: Here is where we would read METS files (not just our own metsLike) and
+        // look for name (label), checksum and contentType information, and embellish the WorkingDirectory
+
+        var importSource = new ImportSource
+        {
+            Root = workingDirectory,
+            Source = sourceUri
+        };
+        
+        return Result.OkNotNull(importSource);
     }
 }

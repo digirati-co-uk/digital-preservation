@@ -46,4 +46,34 @@ public class WorkingDirectory : WorkingBase
 
         return directory;
     }
+    
+    
+    public Container ToContainer(Uri repositoryUri, Uri origin)
+    {
+        var container = new Container
+        {
+            Name = Name,
+            Id = repositoryUri,
+            Origin = origin
+        };
+        foreach (var wd in Directories)
+        {
+            var slug = wd.GetSlug();
+            container.Containers.Add(wd.ToContainer(repositoryUri.AppendSlug(slug), origin.AppendSlug(slug)));
+        }
+        foreach (var wf in Files)
+        {
+            var slug = wf.GetSlug();
+            container.Binaries.Add(new Binary
+            {
+                Id = repositoryUri.AppendSlug(slug),
+                Name = wf.Name,
+                ContentType = wf.ContentType,
+                Digest = wf.Digest,
+                Size = wf.Size ?? 0,
+                Origin = origin.AppendSlug(slug)
+            });
+        }
+        return container;
+    }
 }

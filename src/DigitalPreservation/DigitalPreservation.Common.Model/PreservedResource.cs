@@ -61,6 +61,7 @@ public abstract class PreservedResource : Resource
         return $"{StringIcon} {Name ?? GetSlug() ?? GetType().Name}";
     }
 
+    [JsonIgnore]
     public abstract string StringIcon { get; }
 
     public static string MakeValidSlug(string unsafeName)

@@ -23,6 +23,9 @@ public static class ResultX
             case ErrorCodes.Conflict:
                 pd.Status = 409;
                 break;
+            case ErrorCodes.Unprocessable:
+                pd.Status = 422;
+                break;
             default:
                 pd.Status = 500;
                 break;

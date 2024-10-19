@@ -2,6 +2,7 @@
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Utils;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
@@ -27,14 +28,20 @@ public class GetDiffImportJobHandler(
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, "Deposit doesn't have Archival Group specified.");
         }
         
-        // Is this right... 
-        var agResult = await storageApi.GetArchivalGroup(request.Deposit.ArchivalGroup.AbsolutePath, null);
-        if (agResult.Success || agResult.ErrorCode == ErrorCodes.NotFound)
+        var importJobResult = await storageApi.GetImportJob(
+            request.Deposit.ArchivalGroup.GetPathUnderRoot()!,
+            request.Deposit.Files!);
+
+        if (importJobResult is { Success: true, Value: not null })
         {
-            var ag = agResult.Value; // OK to be null
+            var importJob = importJobResult.Value;
+            if (!importJob.IsUpdate && request.Deposit.ArchivalGroupName.HasText())
+            {
+                importJob.ArchivalGroupName = request.Deposit.ArchivalGroupName;
+            }
+            importJob.Deposit = request.Deposit.Id;
+            resourceMutator.MutateImportJob(importJob);
         }
-
-        throw new NotImplementedException();
-
+        return importJobResult;
     }
 }

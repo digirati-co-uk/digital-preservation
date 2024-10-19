@@ -1,4 +1,5 @@
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using Storage.Repository.Common;
 
@@ -22,6 +23,7 @@ public interface IStorageApiClient
     Task<Result<ArchivalGroup?>> GetArchivalGroup(string path, string? version);
     
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
+    Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri);
 
     /// <summary>
     /// Basic ping to check Storage API is alive. 

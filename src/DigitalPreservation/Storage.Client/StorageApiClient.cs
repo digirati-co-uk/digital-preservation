@@ -1,9 +1,11 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Utils;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -21,6 +23,46 @@ internal class StorageApiClient(
     ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger), IStorageApiClient
 {
     private readonly HttpClient storageHttpClient = httpClient;
+
+    public async Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri)
+    {       
+        var reqPath = $"import/{archivalGroupPathUnderRoot}?source={sourceUri}";
+        var uri = new Uri(reqPath, UriKind.Relative);
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await storageHttpClient.SendAsync(req);
+            if (response.IsSuccessStatusCode)
+            {
+                var importJob = await response.Content.ReadFromJsonAsync<ImportJob>();
+                if(importJob != null)
+                {
+                    return Result.OkNotNull(importJob);
+                }
+                return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+            var message = problemDetails?.Detail ?? problemDetails?.Title;
+
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.NotFound:
+                    return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, message ?? "No resource at " + uri);
+                case HttpStatusCode.Unauthorized:
+                    return Result.FailNotNull<ImportJob>(ErrorCodes.Unauthorized, message ?? "Unauthorized for " + uri);
+                case HttpStatusCode.UnprocessableContent:
+                    return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message ?? "Probably missing checksum");
+                default:
+                    return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, message ?? "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
 
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {

@@ -18,5 +18,6 @@ public class Binary : PreservedResource
     [JsonPropertyOrder(320)]
     public string? Digest { get; set; }
 
+    [JsonIgnore]
     public override string StringIcon => "🗎";
 }

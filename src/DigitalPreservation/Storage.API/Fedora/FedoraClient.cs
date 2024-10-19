@@ -25,7 +25,7 @@ internal class FedoraClient(
         var typeRes = await GetResourceType(pathUnderFedoraRoot, transaction);
         if (!typeRes.Success)
         {
-            return Result.Fail<PreservedResource?>(typeRes.ErrorCode ?? ErrorCodes.UnknownError, typeRes.ErrorMessage);
+            return Result.ConvertFail<string?, PreservedResource?>(typeRes);
         }
         
         if (typeRes.Value == nameof(ArchivalGroup))
@@ -35,7 +35,7 @@ internal class FedoraClient(
             {
                 return Result.Ok(agResult.Value as PreservedResource);
             }
-            return Result.Fail<PreservedResource?>(agResult.ErrorCode ?? ErrorCodes.UnknownError, agResult.ErrorMessage);
+            return Result.ConvertFail<ArchivalGroup?, PreservedResource>(agResult);
         }
         
         var storageMap = await FindParentStorageMap(uri);
@@ -244,7 +244,7 @@ internal class FedoraClient(
         return $"{archivalGroupUri}?version={version}";
     }
     
-    public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default)
+    public async Task<Result<Container?>> ContainerCanBeCreatedAtPath(string pathUnderFedoraRoot, Transaction? transaction = null)
     {
         // Does the slug only contain valid chars? ✓
         var slug = pathUnderFedoraRoot.GetSlug();
@@ -275,7 +275,17 @@ internal class FedoraClient(
             }
             parentPath = parentPath.GetParent();
         }
-        
+        return Result.Ok<Container?>(null);
+    }
+    
+    
+    public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        var validateResult = await ContainerCanBeCreatedAtPath(pathUnderFedoraRoot, transaction);
+        if (validateResult.Failure)
+        {
+            return validateResult;
+        }
         // All tests passed
         var container = await CreateContainerInternal(false, pathUnderFedoraRoot, name, transaction);
         return Result.Ok(container);

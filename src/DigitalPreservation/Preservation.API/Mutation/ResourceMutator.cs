@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
@@ -36,13 +37,17 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         return storageResource;
     }
 
-
     private void MutateBaseUris(PreservedResource resource)
+    {
+        MutateBaseUris((Resource)resource);
+        resource.PartOf = MutateStorageApiUri(resource.PartOf);
+    }
+
+    private void MutateBaseUris(Resource resource)
     {
         resource.Id = MutateStorageApiUri(resource.Id);
         resource.CreatedBy = MutateStorageApiUri(resource.CreatedBy);
         resource.LastModifiedBy = MutateStorageApiUri(resource.LastModifiedBy);
-        resource.PartOf = MutateStorageApiUri(resource.PartOf);
     }
 
     private Uri? MutateStorageApiUri(Uri? uri)
@@ -89,6 +94,32 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
     public List<Deposit> MutateDeposits(IEnumerable<DepositEntity> deposits)
     {
         return deposits.Select(MutateDeposit).ToList();
+    }
+
+    public void MutateImportJob(ImportJob importJob)
+    {
+        MutateBaseUris(importJob);
+        importJob.ArchivalGroup = MutateStorageApiUri(importJob.ArchivalGroup)!;
+        foreach (var container in importJob.ContainersToAdd)
+        {
+            MutateStorageResource(container);
+        }
+        foreach (var container in importJob.ContainersToDelete)
+        {
+            MutateStorageResource(container);
+        }
+        foreach (var binary in importJob.BinariesToAdd)
+        {
+            MutateStorageResource(binary);
+        }
+        foreach (var binary in importJob.BinariesToDelete)
+        {
+            MutateStorageResource(binary);
+        }
+        foreach (var binary in importJob.BinariesToPatch)
+        {
+            MutateStorageResource(binary);
+        }
     }
 }
 

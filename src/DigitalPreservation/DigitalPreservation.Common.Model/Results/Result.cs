@@ -87,6 +87,15 @@ public class Result
         var value = resultIn as TOut;
         return new Result<TOut?>(value, resultIn.Success, resultIn.ErrorCode, resultIn.ErrorMessage);
     }
+
+    public static Result<TOut?> ConvertFail<TIn, TOut>(Result<TIn?> resultIn) where TOut : class?
+    {
+        return Fail<TOut?>(resultIn.ErrorCode ?? ErrorCodes.UnknownError, resultIn.ErrorMessage);
+    }
+    public static Result<TOut> ConvertFailNotNull<TIn, TOut>(Result<TIn?> resultIn) where TOut : class?
+    {
+        return FailNotNull<TOut>(resultIn.ErrorCode ?? ErrorCodes.UnknownError, resultIn.ErrorMessage);
+    }
 }
 
 

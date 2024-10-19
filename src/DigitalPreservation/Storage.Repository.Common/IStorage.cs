@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using Amazon.S3;
 using Amazon.S3.Util;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 
@@ -38,13 +39,23 @@ public interface IStorage
 
     Result ResultFailFromS3Exception(AmazonS3Exception s3E, string message, Uri s3Uri);
     Result ResultFailFromAwsStatusCode(HttpStatusCode respHttpStatusCode, string message, Uri s3Uri);
-    
+
     /// <summary>
     /// Remove all the files in this location, and the location itself!
     /// </summary>
     /// <param name="storageLocation"></param>
+    /// <param name="cancellationToken"></param>
     /// <returns></returns>
     Task<Result<BulkDeleteResult>> EmptyStorageLocation(Uri storageLocation, CancellationToken cancellationToken);
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="sourceUri"></param>
+    /// <param name="relyOnMetsLike">If true, won't even look at S3 for checksums, contentType etc and will use the __METSlike.json</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    Task<Result<ImportSource>> GetImportSource(Uri sourceUri, bool relyOnMetsLike, CancellationToken cancellationToken);
 
     static string MetsLike => "__METSlike.json";
 }

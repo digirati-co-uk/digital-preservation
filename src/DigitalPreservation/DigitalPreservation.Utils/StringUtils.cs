@@ -92,6 +92,18 @@ public static class StringUtils
         return path;
     }
 
+    /// <summary>
+    /// This should only be used for simple URIs, no query strings, colon separators etc
+    /// </summary>
+    /// <param name="uri"></param>
+    /// <param name="slug"></param>
+    /// <returns></returns>
+    public static Uri AppendSlug(this Uri uri, string slug)
+    {
+        var newUriString = uri.ToString().TrimEnd('/') + '/' + slug.TrimStart('/');
+        return new Uri(newUriString);
+    }
+
     public static Uri? GetParentUri(this Uri uri)
     {
         if (uri.AbsolutePath == "/")
