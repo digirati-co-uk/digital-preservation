@@ -544,8 +544,8 @@ public class Storage(
             return Result.ConvertFailNotNull<WorkingDirectory?, ImportSource>(readResult);
         }
         
-        // TODO: Here is where we would read METS files (not just our own metsLike) and
-        // look for name (label), checksum and contentType information, and embellish the WorkingDirectory
+        // We don't embellish from METS here.
+        // That's a separate function performed only by the Preservation API.
 
         var importSource = new ImportSource
         {
@@ -554,5 +554,13 @@ public class Storage(
         };
         
         return Result.OkNotNull(importSource);
+    }
+
+    public async Task<Result> EmbellishImportJob(ImportJob importJob)
+    {
+        // TODO: Here is where we would read METS files (not just our own metsLike) and
+        // look for name (label), checksum and contentType information, and embellish the WorkingDirectory
+
+        return Result.Ok();
     }
 }

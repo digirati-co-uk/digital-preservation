@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Storage;
 
 namespace DigitalPreservation.Common.Model.Import;
@@ -14,6 +13,7 @@ public class ImportJob : Resource
     /// </summary>
     [JsonPropertyName("deposit")]
     [JsonPropertyOrder(500)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Uri? Deposit { get; set; }
     
     /// <summary>
@@ -97,8 +97,18 @@ public class ImportJob : Resource
     [JsonPropertyOrder(650)]
     public List<Binary> BinariesToPatch { get; set; } = [];
     
+    // TODO: (not for demo) - change name (dc:title) of containers and binaries
+    /// <summary>
+    /// This cannot change the slug (path) but can change the name - i.e., the dc:title
+    /// </summary>
+    [JsonPropertyOrder(750)]
+    public List<Container> ContainerssToRename { get; set; } = [];
     
+    /// <summary>
+    /// This cannot change the slug (path) but can change the name - i.e., the dc:title
+    /// </summary>
+    [JsonPropertyOrder(760)]
+    public List<Binary> BinariesToRename { get; set; } = [];
     
-    // TODO: ImportJob bas BinariesToRename, ContainersToRename - assign a different `name` (and `contentType`?) in a fedora patch op.
     // (metadata to change?) more general. NOT for Oct demo.
 }

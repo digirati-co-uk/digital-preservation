@@ -10,6 +10,10 @@ namespace Storage.API.Features.Import.Requests;
 
 // TODO: I think this IRequest is used by storage and preservation?
 // embellish from METS is something only preservation API should know about but we don't want to make 2 import jobs..
+
+// No - Storage API reads everything from the source but does not embellish from METS.
+// This class is storage API only.
+// But Preservation API does the embellishing.
 public class GetImportJob(
     ArchivalGroup? archivalGroup, 
     Uri sourceUri, 

@@ -8,6 +8,7 @@ namespace Preservation.API.Data;
 public class PreservationContext : DbContext
 {
     public DbSet<Deposit> Deposits { get; set; }
+    public DbSet<ImportJob> ImportJobs { get; set; }
     
     public PreservationContext(DbContextOptions<PreservationContext> options) : base(options)
     {

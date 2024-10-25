@@ -4,9 +4,9 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
 using MediatR;
-using Preservation.API.Data;
 using Preservation.API.Mutation;
 using Storage.Client;
+using Storage.Repository.Common;
 
 namespace Preservation.API.Features.ImportJobs.Requests;
 
@@ -17,8 +17,8 @@ public class GetDiffImportJob(Deposit deposit) : IRequest<Result<ImportJob>>
 
 public class GetDiffImportJobHandler(
     ILogger<GetDiffImportJobHandler> logger,
+    IStorage storage,
     IStorageApiClient storageApi,
-    PreservationContext dbContext,
     ResourceMutator resourceMutator) : IRequestHandler<GetDiffImportJob, Result<ImportJob>>
 {
     public async Task<Result<ImportJob>> Handle(GetDiffImportJob request, CancellationToken cancellationToken)
@@ -31,16 +31,23 @@ public class GetDiffImportJobHandler(
         var importJobResult = await storageApi.GetImportJob(
             request.Deposit.ArchivalGroup.GetPathUnderRoot()!,
             request.Deposit.Files!);
+        
 
         if (importJobResult is { Success: true, Value: not null })
         {
-            var importJob = importJobResult.Value;
-            if (!importJob.IsUpdate && request.Deposit.ArchivalGroupName.HasText())
+            var storageImportJob = importJobResult.Value;
+            if (!storageImportJob.IsUpdate && request.Deposit.ArchivalGroupName.HasText())
             {
-                importJob.ArchivalGroupName = request.Deposit.ArchivalGroupName;
+                storageImportJob.ArchivalGroupName = request.Deposit.ArchivalGroupName;
             }
-            importJob.Deposit = request.Deposit.Id;
-            resourceMutator.MutateImportJob(importJob);
+            storageImportJob.Deposit = request.Deposit.Id;
+            
+            var embellishResult = await storage.EmbellishImportJob(storageImportJob);
+            if (embellishResult.Success)
+            {
+                // We don't put this in the DB here - only when we execute it.
+                resourceMutator.MutateImportJob(storageImportJob);
+            }
         }
         return importJobResult;
     }

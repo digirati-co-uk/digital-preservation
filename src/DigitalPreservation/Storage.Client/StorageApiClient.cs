@@ -63,6 +63,42 @@ internal class StorageApiClient(
         }
     }
 
+    public async Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri)
+    {        
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, storageApiImportJobResultUri);
+            var response = await storageHttpClient.SendAsync(req);
+            if (response.IsSuccessStatusCode)
+            {
+                var importJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>();
+                if(importJobResult != null)
+                {
+                    return Result.OkNotNull(importJobResult);
+                }
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+            var message = problemDetails?.Detail ?? problemDetails?.Title;
+
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.NotFound:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, message ?? "No resource at " + storageApiImportJobResultUri);
+                case HttpStatusCode.Unauthorized:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, message ?? "Unauthorized for " + storageApiImportJobResultUri);
+                // others?
+                default:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, message ?? "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
 
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {
