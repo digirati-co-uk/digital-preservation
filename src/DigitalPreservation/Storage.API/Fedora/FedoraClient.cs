@@ -1,10 +1,12 @@
 using System.Net;
 using System.Text.Json;
+using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using Storage.API.Fedora.Http;
 using Storage.API.Fedora.Model;
 using Storage.API.Fedora.Vocab;
@@ -14,11 +16,15 @@ namespace Storage.API.Fedora;
 
 internal class FedoraClient(
     HttpClient httpClient,
+    IStorage storage,
     ILogger<FedoraClient> logger,
+    IOptions<FedoraOptions> fedoraOptions,
     Converters converters,
     IMemoryCache cache,
     IStorageMapper storageMapper) : IFedoraClient
 {
+    public readonly bool RequireChecksum = fedoraOptions.Value.RequireDigestOnBinary;
+    
     public async Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
@@ -108,6 +114,7 @@ internal class FedoraClient(
         var isBinary = typeof(T) == typeof(Binary);
         var reqUri = isBinary ? uri.MetadataUri() : uri;
         var request = MakeHttpRequestMessage(reqUri, HttpMethod.Get)
+            .InTransaction(transaction)
             .ForJsonLd(); 
         var response = await httpClient.SendAsync(request);
 
@@ -171,7 +178,28 @@ internal class FedoraClient(
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
         return await GetResourceType(uri, transaction);
     }
-    
+
+    public async Task<Result<ArchivalGroup?>> GetValidatedArchivalGroupForImportJob(string pathUnderFedoraRoot, Transaction? transaction = null)
+    {
+        var info = await GetResourceType(pathUnderFedoraRoot, transaction);
+        if (info is { Success: true, Value: nameof(ArchivalGroup) })
+        {
+            var ag = await GetPopulatedArchivalGroup(pathUnderFedoraRoot, null, transaction);
+            return ag;
+        }
+        if (info.ErrorCode == ErrorCodes.NotFound)
+        {
+            var validateResult = await ContainerCanBeCreatedAtPath(pathUnderFedoraRoot, transaction);
+            if (validateResult.Failure)
+            {
+                return Result.Cast<Container?, ArchivalGroup?>(validateResult);
+            }
+            return Result.Ok<ArchivalGroup>(null);
+        }
+        return Result.Fail<ArchivalGroup?>(info.ErrorCode ?? ErrorCodes.UnknownError,
+            $"Cannot create Archival Group {pathUnderFedoraRoot} - {info.ErrorMessage}");
+    }
+
     /// <summary>
     /// Walk up the Uri of a resource until we get to an ArchivalGroup or to the Fedora root
     /// </summary>
@@ -337,6 +365,134 @@ internal class FedoraClient(
         return asArchivalGroup ? converters.MakeArchivalGroup(containerResponse) : converters.MakeContainer(containerResponse);
     }
 
+    public async Task<Result<Binary?>> PutBinary(Binary binary, Transaction transaction, CancellationToken cancellationToken = default)
+    {        
+        // verify that parent is a container first?
+        await EnsureChecksum(binary, false);
+        var req = await MakeBinaryPut(binary, transaction);
+        var response = await httpClient.SendAsync(req, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Gone)
+        {
+            // https://github.com/fcrepo/fcrepo/pull/2044
+            // see also https://github.com/whikloj/fcrepo4-tests/blob/fcrepo-6/archival_group_tests.py#L149-L190
+            // 410 indicates that this URI has a tombstone sitting at it; it has previously been DELETEd.
+            // But we want to reinstate a binary.
+
+            // Log or record somehow that this has happened?
+            var retryReq = (await MakeBinaryPut(binary, transaction))
+                .OverwriteTombstone();
+            response = await httpClient.SendAsync(retryReq, cancellationToken);
+        }
+        response.EnsureSuccessStatusCode();
+        var metadataUri = req.RequestUri!.MetadataUri();
+        
+        var newReq = MakeHttpRequestMessage(metadataUri, HttpMethod.Get)
+            .InTransaction(transaction)
+            .ForJsonLd();
+        var newResponse = await httpClient.SendAsync(newReq, cancellationToken);
+
+        var binaryResponse = await MakeFedoraResponse<BinaryMetadataResponse>(newResponse);
+        if (binaryResponse!.Title == null)
+        {
+            // The binary resource does not have a dc:title property yet
+            var patchReq = MakeHttpRequestMessage(metadataUri, HttpMethod.Patch)
+                .InTransaction(transaction);
+            patchReq.AsInsertTitlePatch(binary.Name!);
+            var patchResponse = await httpClient.SendAsync(patchReq, cancellationToken);
+            patchResponse.EnsureSuccessStatusCode();
+            // now ask again:
+            var retryMetadataReq = MakeHttpRequestMessage(metadataUri, HttpMethod.Get)
+               .InTransaction(transaction)
+               .ForJsonLd();
+            var afterPatchResponse = await httpClient.SendAsync(retryMetadataReq, cancellationToken);
+            binaryResponse = await MakeFedoraResponse<BinaryMetadataResponse>(afterPatchResponse);
+        }
+        var madeBinary = converters.MakeBinary(binaryResponse!);
+        if (madeBinary.Digest != binary.Digest)
+        {
+            return Result.Fail<Binary?>(ErrorCodes.UnknownError, "Fedora-generated checksum doesn't match ours.");
+        }
+        return Result.Ok(madeBinary);
+    }
+    
+    
+    private async Task<Result> EnsureChecksum(Binary binary, bool validate)
+    {
+        bool isMissing = string.IsNullOrWhiteSpace(binary.Digest);
+        if (isMissing || validate)
+        {
+            if (isMissing && RequireChecksum)
+            {
+                return Result.Fail($"Missing digest on incoming Binary {binary.Id}");
+            }
+
+            var expectedDigestResult = await storage.GetExpectedDigest(binary.Origin, binary.Digest);
+            if (expectedDigestResult.Success)
+            {
+                binary.Digest = expectedDigestResult.Value;
+                return Result.Ok();
+            }
+            return Result.Fail(expectedDigestResult.ErrorCode!, expectedDigestResult.ErrorMessage);
+        }
+        return Result.Ok();
+    }
+
+    private async Task<HttpRequestMessage> MakeBinaryPut(Binary binary, Transaction transaction)
+    {
+        var fedoraLocation = converters.GetFedoraUri(binary.Id.GetPathUnderRoot());
+        var req = MakeHttpRequestMessage(fedoraLocation, HttpMethod.Put)
+            .InTransaction(transaction)
+            .WithDigest(binary.Digest, "sha-256"); // move algorithm choice to constant
+
+        // TODO: Need something better than this for large files.
+        // How would we transfer a 10GB file for example?
+        // Also this is grossly inefficient, we've already read the stream to look at the checksum.
+        // We should keep the byte array... but then what if it's huge?
+
+        // This should instead reference the file in S3, for Fedora to fetch
+        // https://fedora-project.slack.com/archives/C8B5TSR4J/p1710164226000799
+        // ^ not possible rn - but can use a signed HTTP url to fetch! (TODO)
+        var byteArray = await storage.GetBytes(binary.Origin!);
+        req.Content = new ByteArrayContent(byteArray)
+            .WithContentType(binary.ContentType);
+        
+        // Still set the content disposition to give the file within Fedora an ebucore:filename triple:
+        req.Content.WithContentDisposition(binary.Name);
+        return req;
+    }
+
+    public async Task<Result<PreservedResource>> Delete(PreservedResource resource, Transaction transaction, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var fedoraLocation = converters.GetFedoraUri(resource.Id.GetPathUnderRoot());
+            var req = MakeHttpRequestMessage(fedoraLocation, HttpMethod.Delete)
+                .InTransaction(transaction);
+
+            var response = await httpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return Result.OkNotNull(resource);
+            }
+            return response.StatusCode switch
+            {
+                HttpStatusCode.NotFound => Result.FailNotNull<PreservedResource>(ErrorCodes.NotFound, "Not found"),
+                HttpStatusCode.Unauthorized => Result.FailNotNull<PreservedResource>(ErrorCodes.Unauthorized, "Unauthorized"),
+                _ => Result.FailNotNull<PreservedResource>(ErrorCodes.UnknownError, "Status from repository was " + response.StatusCode)
+            };
+        }
+        catch (Exception e)
+        {
+            return Result.FailNotNull<PreservedResource>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string name, Transaction transaction, CancellationToken cancellationToken = default)
+    {
+        var ag = await CreateContainerInternal(true, pathUnderFedoraRoot, name, transaction) as ArchivalGroup;
+        return Result.Ok(ag);
+    }
+
     private async Task<Container?> GetPopulatedContainer(Uri uri, bool isArchivalGroup, bool recurse, Transaction? transaction = null)
     {
         // TODO: This is not using transaction - should it?
@@ -424,6 +580,12 @@ internal class FedoraClient(
         var requestMessage = new HttpRequestMessage(method, uri);
         requestMessage.Headers.Accept.Clear();
         return requestMessage;
+    }   
+    
+    private HttpRequestMessage MakeHttpRequestMessage(string path, HttpMethod method)
+    {
+        var uri = new Uri(path, UriKind.Relative);
+        return MakeHttpRequestMessage(uri, method);
     }
     
     private List<string> GetIdsFromContainsProperty(JsonElement element)
@@ -539,5 +701,108 @@ internal class FedoraClient(
             }
             fedoraVersions[i].OcflVersion = ocflVersions[i].OcflVersion;
         }
+    }
+
+
+    public async Task<Transaction> BeginTransaction()
+    {
+        var req = MakeHttpRequestMessage("./fcr:tx", HttpMethod.Post); // note URI construction because of the colon
+        var response = await httpClient.SendAsync(req);
+        response.EnsureSuccessStatusCode();
+        var tx = new Transaction
+        {
+            Location = response.Headers.Location!
+        };
+        if (response.Headers.TryGetValues("Atomic-Expires", out IEnumerable<string>? values))
+        {
+            // This header is not being returned in the version we're using
+            tx.Expires = DateTime.Parse(values.First());
+        } 
+        else
+        {
+            // ... so we'll need to obtain it like this, I think
+            await KeepTransactionAlive(tx);
+        }
+        return tx;
+    }
+
+    public async Task CheckTransaction(Transaction tx)
+    {
+        HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Get);
+        var response = await httpClient.SendAsync(req);
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.NoContent:
+                tx.Expired = false;
+                break;
+            case HttpStatusCode.NotFound:
+                // error?
+                break;
+            case HttpStatusCode.Gone:
+                tx.Expired = true;
+                break;
+            default:
+                // error?
+                break;
+        }
+    }
+
+    public async Task KeepTransactionAlive(Transaction tx)
+    {
+        HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Post);
+        var response = await httpClient.SendAsync(req);
+        response.EnsureSuccessStatusCode();
+
+        if (response.Headers.TryGetValues("Atomic-Expires", out var values))
+        {
+            tx.Expires = DateTime.Parse(values.First());
+        }
+    }
+
+    public async Task CommitTransaction(Transaction tx)
+    {
+        HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Put);
+        var response = await httpClient.SendAsync(req);
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.NoContent:
+                tx.Committed = true;
+                break;
+            case HttpStatusCode.NotFound:
+                // error?
+                break;
+            case HttpStatusCode.Conflict:
+                tx.Committed = false;
+                break;
+            case HttpStatusCode.Gone:
+                tx.Expired = true;
+                break;
+            default:
+                // error?
+                break;
+        }
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RollbackTransaction(Transaction tx)
+    {
+        HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Delete);
+        var response = await httpClient.SendAsync(req);
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.NoContent:
+                tx.RolledBack = true;
+                break;
+            case HttpStatusCode.NotFound:
+                // error?
+                break;
+            case HttpStatusCode.Gone:
+                tx.Expired = true;
+                break;
+            default:
+                // error?
+                break;
+        }
+        response.EnsureSuccessStatusCode();
     }
 }

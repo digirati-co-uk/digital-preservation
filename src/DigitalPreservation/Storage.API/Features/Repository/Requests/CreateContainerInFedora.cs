@@ -15,6 +15,7 @@ public class CreateContainerInFedoraHandler(IFedoraClient fedoraClient) : IReque
 {
     public async Task<Result<Container?>> Handle(CreateContainerInFedora request, CancellationToken cancellationToken)
     {
+        // TODO: Set caller identity in Fedora
         return await fedoraClient.CreateContainer(request.PathUnderFedoraRoot, request.Name, cancellationToken: cancellationToken);
     }
 }

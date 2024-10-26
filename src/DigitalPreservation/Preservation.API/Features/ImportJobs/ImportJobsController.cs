@@ -35,7 +35,7 @@ public class ImportJobsController(IMediator mediator) : Controller
     public async Task<IActionResult> ExecuteImportJob([FromRoute] string id, [FromBody] ImportJob importJob,
         CancellationToken cancellationToken)
     {
-        var depositResult = await mediator.Send(new GetDeposit(id));
+        var depositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
         if (depositResult.Failure)
         {
             return this.StatusResponseFromResult(depositResult);
@@ -50,7 +50,8 @@ public class ImportJobsController(IMediator mediator) : Controller
             var diffImportJobResult = await mediator.Send(new GetDiffImportJob(deposit), cancellationToken);
             importJob = diffImportJobResult.Value!;
         }
-        
+
+        importJob.Deposit = deposit.Id;
         var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob), cancellationToken);
         if (executeImportJobResult.Success)
         {

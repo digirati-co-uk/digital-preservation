@@ -16,6 +16,7 @@ public class Converters
     private readonly string agentRoot;
     private readonly Uri agentRootUri;
     private readonly string transientRoot;
+    private readonly string importRoot;
 
     // We could register the vocab with Fedora and alias the type
     // But this will always work without having to do anything special to Fedora.
@@ -34,11 +35,24 @@ public class Converters
         agentRoot = converterOptions.Value.AgentRoot.ToString();
         agentRootUri = new Uri(agentRoot);
         transientRoot = converterOptions.Value.TransientRoot.ToString();
+        importRoot = converterOptions.Value.ImportRoot.ToString();
     }
     
     public ArchivalGroup MakeArchivalGroup(FedoraJsonLdResponse fedoraJsonLdResponse)
     {
-        throw new NotImplementedException();
+        var archivalGroup = new ArchivalGroup();
+        PopulateBaseFields(archivalGroup, fedoraJsonLdResponse);
+        return archivalGroup;
+    }
+    
+    public Binary MakeBinary(BinaryMetadataResponse binaryMetadataResponse)
+    {
+        var binary = new Binary();
+        PopulateBaseFields(binary, binaryMetadataResponse);
+        binary.ContentType = binaryMetadataResponse.ContentType;
+        binary.Size = Convert.ToInt64(binaryMetadataResponse.Size);
+        binary.Digest = binaryMetadataResponse.Digest;
+        return binary;
     }
     
     public Container MakeContainer(FedoraJsonLdResponse fedoraJsonLdResponse)
@@ -70,10 +84,6 @@ public class Converters
     }
 
 
-    public Binary MakeBinary(BinaryMetadataResponse binaryMetadataResponse)
-    {
-        throw new NotImplementedException();
-    }
     
     private void PopulateBaseFields(PreservedResource resource, FedoraJsonLdResponse fedoraJsonLdResponse)
     {
@@ -131,5 +141,10 @@ public class Converters
     public Uri GetTransientResourceId()
     {
         return new Uri(transientRoot + Guid.NewGuid());
+    }
+
+    public Uri GetStorageImportJobResultId(string archivalGroupPathUnderRoot, string transaction)
+    {
+        return new Uri($"{importRoot}{archivalGroupPathUnderRoot}?transaction={transaction}");
     }
 }

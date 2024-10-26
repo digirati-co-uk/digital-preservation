@@ -93,6 +93,47 @@ internal static class RequestX
         return httpContent;
     }
     
+    
+    public static HttpRequestMessage WithDigest(this HttpRequestMessage requestMessage, string? digest, string algorithm)
+    {
+        if (!string.IsNullOrWhiteSpace(digest))
+        {
+            requestMessage.Headers.Add("digest", $"{algorithm}={digest}");
+        }
+        return requestMessage;
+    }
+    
+    public static HttpContent WithContentDisposition(this HttpContent httpContent, string? contentDisposition)
+    {
+        if (!string.IsNullOrWhiteSpace(contentDisposition))
+        {
+            httpContent.Headers.Add("Content-Disposition", $"attachment; filename=\"{contentDisposition}\""); 
+        }
+        return httpContent;
+    }
+    
+    
+    public static HttpRequestMessage AsInsertTitlePatch(this HttpRequestMessage requestMessage, string title)
+    {
+        var sparql = $$"""
+                       PREFIX dc: <http://purl.org/dc/elements/1.1/>
+                       INSERT {   
+                        <> dc:title "{{title}}" .
+                       }
+                       WHERE { }
+                       """;
+
+        requestMessage.Content = new StringContent(sparql)
+            .WithContentType("application/sparql-update");
+        return requestMessage;
+    }
+    
+    public static HttpRequestMessage OverwriteTombstone(this HttpRequestMessage requestMessage)
+    {
+        requestMessage.Headers.Add("Overwrite-Tombstone", "true");
+        return requestMessage;
+    }
+    
     /// <summary>
     /// This should really obtain the rel=describedBy link via a HEAD request
     /// But in the interests of efficienct, we'll be a little less RESTful and

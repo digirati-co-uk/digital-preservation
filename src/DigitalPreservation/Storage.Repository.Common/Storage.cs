@@ -563,4 +563,46 @@ public class Storage(
 
         return Result.Ok();
     }
+
+    public async Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest)
+    {     
+        var s3Uri = new AmazonS3Uri(binaryOrigin);
+        // Get the SHA256 algorithm from AWS directly rather than compute it here
+        // If the S3 file does not already have the SHA-256 in metadata, then it's an error
+        var expected = await AwsChecksum.GetHexChecksumAsync(s3Client, s3Uri.Bucket, s3Uri.Key);
+        if (string.IsNullOrWhiteSpace(expected))
+        {
+            return Result.Fail<string>(ErrorCodes.BadRequest, $"S3 Key at {s3Uri} does not have SHA256 Checksum in its attributes");
+        }
+
+        // This would be an efficient way of doing this - but with this naive implementation
+        // we're going to read the object twice
+        // var s3Stream = await s3Client!.GetObjectStreamAsync(s3Uri.Bucket, s3Uri.Key, null);
+        // expected = Checksum.Sha256FromStream(s3Stream);
+        // could get a byte array here and then pass it along eventually to MakeBinaryPutOrPost
+        // for now just read it twice.
+        // Later we'll get the sha256 checksum from metadata
+        // Or the MD5 from eTag?
+        // BEWARE that multipart uploads will not have the MD5 as the eTag.
+                    
+        // validation
+        if (!string.IsNullOrWhiteSpace(binaryDigest) && binaryDigest != expected)
+        {
+            return Result.Fail<string>(ErrorCodes.BadRequest, $"S3 Key at {s3Uri} does not match provided checksum");
+        }
+        return Result.Ok(expected);
+    }
+
+    public async Task<byte[]> GetBytes(Uri binaryOrigin)
+    {
+        var s3Uri = new AmazonS3Uri(binaryOrigin);
+        var s3Req = new GetObjectRequest
+        {
+            BucketName = s3Uri.Bucket, Key = s3Uri.Key
+        };
+        var ms = new MemoryStream();
+        var s3Resp = await s3Client!.GetObjectAsync(s3Req);
+        await s3Resp.ResponseStream.CopyToAsync(ms);
+        return ms.ToArray();
+    }
 }

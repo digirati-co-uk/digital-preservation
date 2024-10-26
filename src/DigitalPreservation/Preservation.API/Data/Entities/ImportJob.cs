@@ -4,7 +4,7 @@ using DigitalPreservation.Common.Model.Import;
 namespace Preservation.API.Data.Entities;
 
 /// <summary>
-/// As an entity in the db we don't have a separate import job and importjobresult
+/// As an entity in the db, we don't have a separate ImportJob and ImportJobResult
 /// </summary>
 public class ImportJob
 {
@@ -13,13 +13,15 @@ public class ImportJob
     /// </summary>
     public required string Id { get; set; }
     
-    public required Uri StorageImportJobId { get; set; }
+    public required Uri StorageImportJobResultId { get; set; }
     
-    public string? DepositId { get; set; }
+    public required Uri Deposit { get; set; }
     
     public required Uri ArchivalGroup { get; set; }
     
     public string Status { get; set; } = ImportJobStates.Waiting;
+    
+    public required DateTime LastUpdated { get; set; }
     
     /// <summary>
     /// When the job was submitted to API
@@ -42,7 +44,14 @@ public class ImportJob
     /// </summary>
     public required string ImportJobJson { get; set; }
     
+    public string? LatestStorageApiResultJson { get; set; }
+    
     // This populates the RESULT
+    
+    /// <summary>
+    /// The version of the DigitalObject the job is to be applied to
+    /// </summary>
+    public string? SourceVersion { get; set; }
     
     /// <summary>
     /// The version of the DigitalObject this job caused to be produced

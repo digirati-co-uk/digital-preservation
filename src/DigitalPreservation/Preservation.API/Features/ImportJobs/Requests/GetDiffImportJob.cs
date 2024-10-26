@@ -46,7 +46,7 @@ public class GetDiffImportJobHandler(
             if (embellishResult.Success)
             {
                 // We don't put this in the DB here - only when we execute it.
-                resourceMutator.MutateImportJob(storageImportJob);
+                resourceMutator.MutateStorageImportJob(storageImportJob);
             }
         }
         return importJobResult;

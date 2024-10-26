@@ -98,6 +98,43 @@ internal class StorageApiClient(
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
+ 
+    public async Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob? requestImportJob, CancellationToken cancellationToken = default)
+    {
+        if (requestImportJob == null)
+        {
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, "Unable to parse storage import job from request body.");
+        }
+        try
+        {
+            var response = await storageHttpClient.PostAsJsonAsync("import", requestImportJob, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var importJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
+                if(importJobResult != null)
+                {
+                    return Result.OkNotNull(importJobResult);
+                }
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
+            var message = problemDetails?.Detail ?? problemDetails?.Title;
+
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.Unauthorized:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, message ?? "Unable to post ");
+                // others?
+                default:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, message ?? "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
 
 
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)

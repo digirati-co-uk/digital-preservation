@@ -32,6 +32,22 @@ public interface IFedoraClient
     Task<Result<string?>> GetResourceType(string? pathUnderFedoraRoot, Transaction? transaction = null);
     Task<Result<Container?>> ContainerCanBeCreatedAtPath(string pathUnderFedoraRoot, Transaction? transaction = null);
     Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string name, Transaction transaction, CancellationToken cancellationToken = default);
 
+    Task<Result<Binary?>> PutBinary(Binary binary, Transaction transaction, CancellationToken cancellationToken = default);
+    
     Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(string pathUnderFedoraRoot, string? version = null, Transaction? transaction = null);
+
+    Task<Result<ArchivalGroup?>> GetValidatedArchivalGroupForImportJob(string pathUnderFedoraRoot, Transaction? transaction = null);
+    
+    Task<Result<PreservedResource>> Delete(PreservedResource resource, Transaction transaction, CancellationToken cancellationToken = default);
+    
+    
+    
+    // Transactions
+    Task<Transaction> BeginTransaction();
+    Task CheckTransaction(Transaction tx);
+    Task KeepTransactionAlive(Transaction tx);
+    Task CommitTransaction(Transaction tx);
+    Task RollbackTransaction(Transaction tx);
 }

@@ -59,11 +59,19 @@ public class ImportJobResult : Resource
     [JsonPropertyOrder(610)]
     public DateTime? DateFinished { get; set; }
     
+    
+    /// <summary>
+    /// The version of the DigitalObject applied to - known at the start of processing
+    /// </summary>
+    [JsonPropertyName("sourceVersion")]
+    [JsonPropertyOrder(651)]
+    public string? SourceVersion { get; set; }
+    
     /// <summary>
     /// The version of the DigitalObject this job caused to be produced. Not known until the job has finished processing
     /// </summary>
     [JsonPropertyName("newVersion")]
-    [JsonPropertyOrder(650)]
+    [JsonPropertyOrder(652)]
     public string? NewVersion { get; set; }
     
     /// <summary>
@@ -79,49 +87,49 @@ public class ImportJobResult : Resource
     /// </summary>
     [JsonPropertyName("containersAdded")]
     [JsonPropertyOrder(719)]
-    public Container[] ContainersAdded { get; set; } = [];
+    public List<Container> ContainersAdded { get; set; } = [];
     
     /// <summary>
     /// Populated once the job has finished successfully.
     /// </summary>
     [JsonPropertyName("binariesAdded")]
     [JsonPropertyOrder(720)]
-    public Binary[] BinariesAdded { get; set; } = [];
+    public List<Binary> BinariesAdded { get; set; } = [];
     
     /// <summary>
     /// Populated once the job has finished successfully.
     /// </summary>
     [JsonPropertyOrder(721)]
     [JsonPropertyName("containersDeleted")]
-    public Container[] ContainersDeleted { get; set; } = [];
+    public List<Container> ContainersDeleted { get; set; } = [];
     
     /// <summary>
     /// Populated once the job has finished successfully.
     /// </summary>
     [JsonPropertyOrder(722)]
     [JsonPropertyName("binariesDeleted")]
-    public Binary[] BinariesDeleted { get; set; } = [];
+    public List<Binary> BinariesDeleted { get; set; } = [];
     
     /// <summary>
     /// Populated once the job has finished successfully.
     /// </summary>
     [JsonPropertyOrder(723)]
     [JsonPropertyName("binariesPatched")]
-    public Binary[] BinariesPatched { get; set; } = [];
+    public List<Binary> BinariesPatched { get; set; } = [];
     
     /// <summary>
     /// Populated once the job has finished successfully.
     /// </summary>
     [JsonPropertyOrder(724)]
     [JsonPropertyName("binariesRenamed")]
-    public Binary[] BinariesRenamed { get; set; } = [];
+    public List<Binary> BinariesRenamed { get; set; } = [];
     
     /// <summary>
     /// Populated once the job has finished successfully.
     /// </summary>
     [JsonPropertyOrder(725)]
     [JsonPropertyName("containersRenamed")]
-    public Container[] ContainersRenamed { get; set; } = [];
+    public List<Container> ContainersRenamed { get; set; } = [];
 }
 
 public class Error

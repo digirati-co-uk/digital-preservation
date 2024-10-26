@@ -24,6 +24,7 @@ public interface IStorageApiClient
     
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
     Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri);
+    Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob requestImportJob, CancellationToken cancellationToken = default);
     Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri);
 
     /// <summary>

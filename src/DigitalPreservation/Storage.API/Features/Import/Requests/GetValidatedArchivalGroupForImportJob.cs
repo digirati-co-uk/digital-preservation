@@ -16,22 +16,7 @@ public class GetValidatedArchivalGroupForImportJobHandler(IFedoraClient fedoraCl
 {
     public async Task<Result<ArchivalGroup?>> Handle(GetValidatedArchivalGroupForImportJob request, CancellationToken cancellationToken)
     {
-        var info = await fedoraClient.GetResourceType(request.PathUnderFedoraRoot, request.Transaction);
-        if (info is { Success: true, Value: nameof(ArchivalGroup) })
-        {
-            var ag = await fedoraClient.GetPopulatedArchivalGroup(request.PathUnderFedoraRoot, null, request.Transaction);
-            return ag;
-        }
-        if (info.ErrorCode == ErrorCodes.NotFound)
-        {
-            var validateResult = await fedoraClient.ContainerCanBeCreatedAtPath(request.PathUnderFedoraRoot, request.Transaction);
-            if (validateResult.Failure)
-            {
-                return Result.Cast<Container?, ArchivalGroup?>(validateResult);
-            }
-            return Result.Ok<ArchivalGroup>(null);
-        }
-        return Result.Fail<ArchivalGroup?>(info.ErrorCode ?? ErrorCodes.UnknownError,
-            $"Cannot create Archival Group {request.PathUnderFedoraRoot} - {info.ErrorMessage}");
+        var result = await fedoraClient.GetValidatedArchivalGroupForImportJob(request.PathUnderFedoraRoot, request.Transaction);
+        return result;
     }
 }

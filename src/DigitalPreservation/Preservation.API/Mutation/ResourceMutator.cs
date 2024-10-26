@@ -20,7 +20,7 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
     {
         if (storageResource == null) return null;
         
-        MutateBaseUris(storageResource);
+        MutateStorageBaseUris(storageResource);
 
         if (storageResource is Container container)
         {
@@ -36,19 +36,56 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         
         return storageResource;
     }
-
-    private void MutateBaseUris(PreservedResource resource)
+    
+    internal PreservedResource? MutatePreservationResource(PreservedResource? preservationResource)
     {
-        MutateBaseUris((Resource)resource);
+        if (preservationResource == null) return null;
+        
+        MutatePreservationBaseUris(preservationResource);
+
+        if (preservationResource is Container container)
+        {
+            foreach (var childContainer in container.Containers)
+            {
+                MutatePreservationResource(childContainer);    
+            }
+            foreach (var childBinary in container.Binaries)
+            {
+                MutatePreservationResource(childBinary);    
+            }
+        }
+        
+        return preservationResource;
+    }
+
+    private void MutateStorageBaseUris(PreservedResource resource)
+    {
+        MutateStorageBaseUris((Resource)resource);
         resource.PartOf = MutateStorageApiUri(resource.PartOf);
     }
 
-    private void MutateBaseUris(Resource resource)
+    private void MutateStorageBaseUris(Resource resource)
     {
         resource.Id = MutateStorageApiUri(resource.Id);
         resource.CreatedBy = MutateStorageApiUri(resource.CreatedBy);
         resource.LastModifiedBy = MutateStorageApiUri(resource.LastModifiedBy);
     }
+    
+    
+    
+    private void MutatePreservationBaseUris(PreservedResource resource)
+    {
+        MutatePreservationBaseUris((Resource)resource);
+        resource.PartOf = MutatePreservationApiUri(resource.PartOf);
+    }
+
+    private void MutatePreservationBaseUris(Resource resource)
+    {
+        resource.Id = MutatePreservationApiUri(resource.Id);
+        resource.CreatedBy = MutatePreservationApiUri(resource.CreatedBy);
+        resource.LastModifiedBy = MutatePreservationApiUri(resource.LastModifiedBy);
+    }
+    
 
     private Uri? MutateStorageApiUri(Uri? uri)
     {
@@ -58,6 +95,17 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         if(uri == null) return null;
         
         return new Uri(preservationHost + uri.ToString().RemoveStart(storageHost));
+    }
+    
+    
+    private Uri? MutatePreservationApiUri(Uri? uri)
+    {
+        // Discuss whether it's actually worth doing it this way:
+        // https://stackoverflow.com/questions/479799/replace-host-in-uri
+        
+        if(uri == null) return null;
+        
+        return new Uri(storageHost + uri.ToString().RemoveStart(preservationHost));
     }
 
     public Deposit MutateDeposit(DepositEntity entity)
@@ -96,27 +144,81 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         return deposits.Select(MutateDeposit).ToList();
     }
 
-    public void MutateImportJob(ImportJob importJob)
+    public void MutateStorageImportJob(ImportJob storageImportJob)
     {
-        MutateBaseUris(importJob);
-        importJob.ArchivalGroup = MutateStorageApiUri(importJob.ArchivalGroup)!;
-        foreach (var container in importJob.ContainersToAdd)
+        MutateStorageBaseUris(storageImportJob);
+        storageImportJob.ArchivalGroup = MutateStorageApiUri(storageImportJob.ArchivalGroup)!;
+        foreach (var container in storageImportJob.ContainersToAdd)
         {
             MutateStorageResource(container);
         }
-        foreach (var container in importJob.ContainersToDelete)
+        foreach (var container in storageImportJob.ContainersToDelete)
         {
             MutateStorageResource(container);
         }
-        foreach (var binary in importJob.BinariesToAdd)
+        foreach (var binary in storageImportJob.BinariesToAdd)
         {
             MutateStorageResource(binary);
         }
-        foreach (var binary in importJob.BinariesToDelete)
+        foreach (var binary in storageImportJob.BinariesToDelete)
         {
             MutateStorageResource(binary);
         }
-        foreach (var binary in importJob.BinariesToPatch)
+        foreach (var binary in storageImportJob.BinariesToPatch)
+        {
+            MutateStorageResource(binary);
+        }
+    }
+
+    public void MutatePreservationImportJob(ImportJob preservationImportJob)
+    {
+        MutatePreservationBaseUris(preservationImportJob);
+        preservationImportJob.ArchivalGroup = MutatePreservationApiUri(preservationImportJob.ArchivalGroup)!;
+        foreach (var container in preservationImportJob.ContainersToAdd)
+        {
+            MutatePreservationResource(container);
+        }
+        foreach (var container in preservationImportJob.ContainersToDelete)
+        {
+            MutatePreservationResource(container);
+        }
+        foreach (var binary in preservationImportJob.BinariesToAdd)
+        {
+            MutatePreservationResource(binary);
+        }
+        foreach (var binary in preservationImportJob.BinariesToDelete)
+        {
+            MutatePreservationResource(binary);
+        }
+        foreach (var binary in preservationImportJob.BinariesToPatch)
+        {
+            MutatePreservationResource(binary);
+        }
+    }
+
+    public void MutateStorageImportJobResult(ImportJobResult preservationImportJobResult, Uri deposit, string mintedId)
+    {
+        MutatePreservationBaseUris(preservationImportJobResult);
+        preservationImportJobResult.Id = new Uri($"{deposit}/results/{mintedId}");
+        preservationImportJobResult.Deposit = deposit;
+        preservationImportJobResult.ArchivalGroup = MutatePreservationApiUri(preservationImportJobResult.ArchivalGroup)!;
+        foreach (var container in preservationImportJobResult.ContainersAdded)
+        {
+            MutateStorageResource(container);
+        }
+        foreach (var container in preservationImportJobResult.ContainersDeleted)
+        {
+            MutateStorageResource(container);
+        }
+        foreach (var binary in preservationImportJobResult.BinariesAdded)
+        {
+            MutateStorageResource(binary);
+        }
+        foreach (var binary in preservationImportJobResult.BinariesDeleted)
+        {
+            MutateStorageResource(binary);
+        }
+        foreach (var binary in preservationImportJobResult.BinariesPatched)
         {
             MutateStorageResource(binary);
         }

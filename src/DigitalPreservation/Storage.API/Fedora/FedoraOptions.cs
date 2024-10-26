@@ -23,4 +23,7 @@ public class FedoraOptions
     /// Timeout, in MS, for requests made to storage client 
     /// </summary>
     public double TimeoutMs { get; set; } = 15000;
+
+    // This feels like a storage API setting not a Fedora setting, but it's used by Fedora client...
+    public bool RequireDigestOnBinary { get; set; } = true;
 }
