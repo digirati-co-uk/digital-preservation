@@ -8,6 +8,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
 using MediatR;
 using Storage.Repository.Common;
+using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.UI.Features.S3;
 
@@ -76,8 +77,9 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client, IStorage storage) : 
         }
         catch (AmazonS3Exception s3E)
         {
-            var exResult = storage.ResultFailFromS3Exception(s3E, "Unable to upload file", req.GetS3Uri());
-            return Result.Generify<WorkingFile?>(exResult);
+            var exResult = ResultHelpers.FailFromS3Exception<WorkingFile>(s3E, "Unable to upload file", req.GetS3Uri());
+            return exResult;
+            // return Result.Generify<WorkingFile?>(exResult);
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
@@ -152,6 +153,68 @@ internal class PreservationApiClient(
         {
             logger.LogError(e, e.Message);
             return Result.FailNotNull<List<Deposit>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<List<ImportJobResult>>> GetImportJobResultsForDeposit(string depositId, CancellationToken cancellationToken)
+    {        
+        try
+        {
+            var uri = new Uri($"/deposits/{depositId}/importJobs/results", UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.OK:
+                    var jobResults = await response.Content.ReadFromJsonAsync<List<ImportJobResult>>(cancellationToken: cancellationToken);
+                    if (jobResults is not null)
+                    {
+                        return Result.OkNotNull(jobResults);
+                    }
+                    return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.NotFound:
+                    return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.Unauthorized:
+                    return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
+                default:
+                    return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<ImportJobResult>> GetImportJobResult(string depositId, string importJobResultId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = new Uri($"/deposits/{depositId}/importJobs/results/{importJobResultId}", UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.OK:
+                    var jobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
+                    if (jobResult is not null)
+                    {
+                        return Result.OkNotNull(jobResult);
+                    }
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.NotFound:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.Unauthorized:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
+                default:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

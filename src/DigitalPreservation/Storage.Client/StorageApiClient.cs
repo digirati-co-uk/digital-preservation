@@ -26,7 +26,7 @@ internal class StorageApiClient(
 
     public async Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri)
     {       
-        var reqPath = $"import/{archivalGroupPathUnderRoot}?source={sourceUri}";
+        var reqPath = $"import/diff/{archivalGroupPathUnderRoot}?source={sourceUri}";
         var uri = new Uri(reqPath, UriKind.Relative);
         try
         {

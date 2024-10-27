@@ -112,7 +112,7 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
     {            
         var deposit = new Deposit
         {
-            Id = new Uri($"{preservationHost}/{Deposit.BasePathElement}/{entity.MintedId}"),
+            Id = GetDepositUri(entity.MintedId),
             ArchivalGroup = entity.ArchivalGroupPathUnderRoot.HasText()
                 ? new Uri($"{preservationHost}/{PreservedResource.BasePathElement}/{entity.ArchivalGroupPathUnderRoot}")
                 : null,
@@ -137,6 +137,11 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
             VersionPreserved = entity.VersionPreserved
         };
         return deposit;
+    }
+
+    private Uri GetDepositUri(string depositId)
+    {
+        return new Uri($"{preservationHost}/{Deposit.BasePathElement}/{depositId}");
     }
 
     public List<Deposit> MutateDeposits(IEnumerable<DepositEntity> deposits)
@@ -168,6 +173,14 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         {
             MutateStorageResource(binary);
         }
+        foreach (var container in storageImportJob.ContainerssToRename)
+        {
+            MutateStorageResource(container);
+        }
+        foreach (var binary in storageImportJob.BinariesToRename)
+        {
+            MutateStorageResource(binary);
+        }
     }
 
     public void MutatePreservationImportJob(ImportJob preservationImportJob)
@@ -194,12 +207,25 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         {
             MutatePreservationResource(binary);
         }
+        foreach (var container in preservationImportJob.ContainerssToRename)
+        {
+            MutatePreservationResource(container);
+        }
+        foreach (var binary in preservationImportJob.BinariesToRename)
+        {
+            MutatePreservationResource(binary);
+        }
     }
 
-    public void MutateStorageImportJobResult(ImportJobResult preservationImportJobResult, Uri deposit, string mintedId)
+    public void MutateStorageImportJobResult(ImportJobResult preservationImportJobResult, string depositId, string resultId)
+    {
+        MutateStorageImportJobResult(preservationImportJobResult, GetDepositUri(depositId), resultId);
+    }
+
+    public void MutateStorageImportJobResult(ImportJobResult preservationImportJobResult, Uri deposit, string resultId)
     {
         MutatePreservationBaseUris(preservationImportJobResult);
-        preservationImportJobResult.Id = new Uri($"{deposit}/results/{mintedId}");
+        preservationImportJobResult.Id = new Uri($"{deposit}/results/{resultId}");
         preservationImportJobResult.Deposit = deposit;
         preservationImportJobResult.ArchivalGroup = MutatePreservationApiUri(preservationImportJobResult.ArchivalGroup)!;
         foreach (var container in preservationImportJobResult.ContainersAdded)
@@ -219,6 +245,14 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
             MutateStorageResource(binary);
         }
         foreach (var binary in preservationImportJobResult.BinariesPatched)
+        {
+            MutateStorageResource(binary);
+        }
+        foreach (var container in preservationImportJobResult.ContainersRenamed)
+        {
+            MutateStorageResource(container);
+        }
+        foreach (var binary in preservationImportJobResult.BinariesRenamed)
         {
             MutateStorageResource(binary);
         }

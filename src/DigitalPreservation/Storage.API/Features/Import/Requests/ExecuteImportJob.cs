@@ -1,26 +1,26 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Diagnostics;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
-using DigitalPreservation.Utils;
 using MediatR;
 using Storage.API.Fedora;
-using Storage.API.Fedora.Model;
 
 namespace Storage.API.Features.Import.Requests;
 
-public class ExecuteImportJob(ImportJob importJob) : IRequest<Result<ImportJobResult>>
+public class ExecuteImportJob(string jobIdentifier, ImportJob importJob, ImportJobResult initialImportJobResult) : IRequest<Result<ImportJobResult>>
 {
+    public string JobIdentifier { get; } = jobIdentifier;
     public ImportJob ImportJob { get; } = importJob;
+    public ImportJobResult InitialImportJobResult { get; } = initialImportJobResult;
 }
 
 public class ExecuteImportJobHandler(
+    IImportJobResultStore importJobResultStore,
     ILogger<ExecuteImportJobHandler> logger,
-    IFedoraClient fedoraClient,
-    Converters converters) : IRequestHandler<ExecuteImportJob, Result<ImportJobResult>>
+    IFedoraClient fedoraClient) : IRequestHandler<ExecuteImportJob, Result<ImportJobResult>>
 {
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
-        var callerIdentity = "dlipdev";
         var importJob = request.ImportJob;
         
         var start = DateTime.UtcNow;
@@ -34,6 +34,7 @@ public class ExecuteImportJobHandler(
         }
 
         var archivalGroup = validationResult.Value;
+        string? sourceVersion = null;
         if (!importJob.IsUpdate)
         {
             if(archivalGroup != null)
@@ -60,23 +61,29 @@ public class ExecuteImportJobHandler(
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "No archival group was returned from creation");
             }
         }
+        else
+        {
+            if(archivalGroup == null)
+            {
+                await fedoraClient.RollbackTransaction(transaction);
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "Not an update but no Archival Group at " + archivalGroupPathUnderRoot);
+            }
+            sourceVersion = archivalGroup.Version!.OcflVersion;
+        }
         
         // We need to keep the transaction alive throughout this process
         // will need to time operations and call fedora.KeepTransactionAlive
 
-        var importJobResult = new ImportJobResult
-        {
-            Id = converters.GetStorageImportJobResultId(archivalGroupPathUnderRoot, transaction.Location.GetSlug()!),
-            Status = ImportJobStates.Running,
-            ArchivalGroup = importJob.ArchivalGroup,
-            DateBegun = start,
-            Created = start,
-            CreatedBy = converters.GetAgentUri(callerIdentity),
-            LastModified = start,
-            LastModifiedBy = converters.GetAgentUri(callerIdentity),
-            ImportJob = importJob.Id!, // NB this may be the Preservation API's import job ID - which is OK
-            OriginalImportJob = importJob.Id!, // what's the purpose of these when there's always a RESULT... are they the same?
-        };
+        var importJobResult = request.InitialImportJobResult;
+        importJobResult.Status = ImportJobStates.Running;
+        importJobResult.SourceVersion = sourceVersion;
+        importJobResult.DateBegun = start;
+        importJobResult.LastModified = start;
+        
+        await importJobResultStore.SaveImportJobResult(request.JobIdentifier, importJobResult, cancellationToken);
+
+        var timer = new Stopwatch();
+        timer.Start();
         
         try
         {
@@ -93,6 +100,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraContainerResult.CodeAndMessage());
                 }
+                await KeepTransactionAlive();
             }
 
             // what about deletions of containers? conflict?
@@ -111,6 +119,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraPutBinaryResult.CodeAndMessage());
                 }
+                await KeepTransactionAlive();
             }
 
             // patch files
@@ -130,6 +139,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraPatchBinaryResult.CodeAndMessage());
                 }
+                await KeepTransactionAlive();
             }
 
             // delete files
@@ -146,6 +156,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraDeleteResult.CodeAndMessage());
                 }
+                await KeepTransactionAlive();
             }
 
 
@@ -166,6 +177,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraDeleteResult.CodeAndMessage());
                 }
+                await KeepTransactionAlive();
             }
         }
         catch(Exception ex)
@@ -177,6 +189,7 @@ public class ExecuteImportJobHandler(
 
         await fedoraClient.CommitTransaction(transaction);
         importJobResult.DateFinished = DateTime.UtcNow;
+        importJobResult.Status = ImportJobStates.Completed;
         return Result.OkNotNull(importJobResult);
 
         
@@ -187,6 +200,19 @@ public class ExecuteImportJobHandler(
             importJobResult.DateFinished = DateTime.UtcNow;
             importJobResult.Status = ImportJobStates.CompletedWithErrors;
             return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
+        }
+
+        async Task KeepTransactionAlive()
+        {
+            // Fedora's default transaction timeout is 3 minutes
+            // We will poke the transaction after 60s - but if a single operation takes > 2m it will still time out.
+            if (timer.ElapsedMilliseconds > 60000)
+            {
+                logger.LogInformation("Keeping transaction alive after {elapsedMilliseconds} ms", timer.ElapsedMilliseconds);
+                await fedoraClient.KeepTransactionAlive(transaction);
+                timer.Restart();
+            }
+            // We could save the current state of the Result here...
         }
     }
 }

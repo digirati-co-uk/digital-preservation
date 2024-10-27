@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation.Requests;
@@ -18,6 +19,8 @@ public class DepositModel(IMediator mediator) : PageModel
     
     public Deposit? Deposit { get; set; }
     public WorkingDirectory? Files { get; set; }
+    
+    public List<ImportJobResult> ImportJobResults { get; set; } = [];
     
     public async Task OnGet(
         [FromRoute] string id,
@@ -45,6 +48,16 @@ public class DepositModel(IMediator mediator) : PageModel
             else
             {
                 TempData["Error"] = readS3Result.CodeAndMessage();
+                return false;
+            }
+            var importJobsResult = await mediator.Send(new GetImportJobResults(id));
+            if (importJobsResult.Success)
+            {
+                ImportJobResults = importJobsResult.Value!;
+            }
+            else
+            {
+                TempData["Error"] = importJobsResult.CodeAndMessage();
                 return false;
             }
         }

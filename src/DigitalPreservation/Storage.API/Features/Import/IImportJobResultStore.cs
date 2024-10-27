@@ -1,0 +1,12 @@
+﻿using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.Results;
+
+namespace Storage.API.Features.Import;
+
+public interface IImportJobResultStore
+{
+    public Task<Result<ImportJob?>> GetImportJob(string jobIdentifier, CancellationToken cancellationToken);
+    public Task<Result<ImportJobResult?>> GetImportJobResult(string jobIdentifier, CancellationToken cancellationToken);
+    public Task<Result> SaveImportJob(string jobIdentifier, ImportJob importJob, CancellationToken cancellationToken);
+    public Task<Result> SaveImportJobResult(string jobIdentifier, ImportJobResult importJobResult, CancellationToken cancellationToken);
+}

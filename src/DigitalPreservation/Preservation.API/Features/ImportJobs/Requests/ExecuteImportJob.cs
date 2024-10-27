@@ -2,6 +2,7 @@
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Utils;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
@@ -32,6 +33,8 @@ public class ExecuteImportJobHandler(
         if (storageImportJobResultResult is { Success: true, Value: not null })
         {
             var storageImportJobResult = storageImportJobResultResult.Value;
+            var preservationImportJobResult = Duplicate(storageImportJobResult);
+            resourceMutator.MutateStorageImportJobResult(preservationImportJobResult, request.ImportJob.Deposit!, mintedId);
             var entity = new ImportJobEntity
             {
                 StorageImportJobResultId = storageImportJobResult.Id!,
@@ -39,18 +42,16 @@ public class ExecuteImportJobHandler(
                 ArchivalGroup = request.ImportJob.ArchivalGroup,
                 ImportJobJson = JsonSerializer.Serialize(request.ImportJob),
                 Status = storageImportJobResult.Status,
-                Deposit = request.ImportJob.Deposit!,
+                Deposit = request.ImportJob.Deposit!.GetSlug()!,
                 LastUpdated = now,
                 DateSubmitted = now,
                 SourceVersion = storageImportJobResult.SourceVersion,
-                LatestStorageApiResultJson = JsonSerializer.Serialize(storageImportJobResult)
+                LatestStorageApiResultJson = JsonSerializer.Serialize(storageImportJobResult),
+                LatestPreservationApiResultJson = JsonSerializer.Serialize(preservationImportJobResult)
             };
             dbContext.ImportJobs.Add(entity);
             await dbContext.SaveChangesAsync(cancellationToken);
-            var preservationImportJobResult = storageImportJobResult;
-            // we don't need to use this again here but this is not the right way to do it;
-            // this mutator should return a new object?
-            resourceMutator.MutateStorageImportJobResult(preservationImportJobResult, request.ImportJob.Deposit!, mintedId);
+            
             return Result.OkNotNull(preservationImportJobResult);
         }
 
@@ -62,5 +63,10 @@ public class ExecuteImportJobHandler(
     {
         var serialized = JsonSerializer.Serialize(importJob);
         return JsonSerializer.Deserialize<ImportJob>(serialized)!;
+    }
+    private static ImportJobResult Duplicate(ImportJobResult importJobResult)
+    {
+        var serialized = JsonSerializer.Serialize(importJobResult);
+        return JsonSerializer.Deserialize<ImportJobResult>(serialized)!;
     }
 }

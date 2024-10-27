@@ -8,6 +8,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
 using MediatR;
 using Storage.Repository.Common;
+using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.UI.Features.S3;
 
@@ -71,8 +72,9 @@ public class CreateFolderHandler(IAmazonS3 s3Client, IStorage storage) : IReques
         }
         catch (AmazonS3Exception s3E)
         {
-            var exResult = storage.ResultFailFromS3Exception(s3E, "Could not create folder", pReq.GetS3Uri());
-            return Result.Generify<WorkingDirectory?>(exResult);
+            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not create folder", pReq.GetS3Uri());
+            return exResult;
+            // return Result.Generify<WorkingDirectory?>(exResult);
         }
     }
 }

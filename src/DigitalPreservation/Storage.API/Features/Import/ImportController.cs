@@ -19,7 +19,7 @@ public class ImportController(
     /// <param name="source">S3 URI containing items to create diff from (e.g. s3://uol-expts-staging-01/ocfl-example)</param>
     /// <param name="cancellationToken"></param>
     /// <returns>Import job JSON payload</returns>
-    [HttpGet("{*archivalGroupPathUnderRoot}", Name = "ImportJob")]
+    [HttpGet("diff/{*archivalGroupPathUnderRoot}", Name = "DiffImportJob")]
     [Produces<ImportJob>]
     [Produces("application/json")]
     public async Task<IActionResult> GetImportJob(
@@ -59,20 +59,20 @@ public class ImportController(
     public async Task<IActionResult> ExecuteImportJob([FromBody] ImportJob importJob, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Executing import job {path}", importJob.ArchivalGroup);
-        // TODO - not synchronously...
-        var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob), cancellationToken);
-        return this.StatusResponseFromResult(executeImportJobResult, 201, executeImportJobResult.Value?.Id);
+        var queueImportJobResult = await mediator.Send(new QueueImportJob(importJob), cancellationToken);
+        return this.StatusResponseFromResult(queueImportJobResult, 201, queueImportJobResult.Value?.Id);
     }
 
-    [HttpGet("{*archivalGroupPathUnderRoot}", Name = "ImportJob")]
+    [HttpGet("results/{jobIdentifier}/{*archivalGroupPathUnderRoot}", Name = "ImportJobResult")]
     [Produces<ImportJobResult>]
     [Produces("application/json")]
     public async Task<IActionResult> GetImportJobResult(
+        [FromRoute] string jobIdentifier,
         [FromRoute] string archivalGroupPathUnderRoot,
-        [FromQuery] string transaction,
         CancellationToken cancellationToken = default)
     {
-        // check up on the running job...
+        var currentJobStatusResult = await mediator.Send(new GetImportJobResult(jobIdentifier, archivalGroupPathUnderRoot), cancellationToken);
+        return this.StatusResponseFromResult(currentJobStatusResult);
     }
 
 }

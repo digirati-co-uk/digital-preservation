@@ -15,7 +15,7 @@ public class ImportJob
     
     public required Uri StorageImportJobResultId { get; set; }
     
-    public required Uri Deposit { get; set; }
+    public required string Deposit { get; set; }
     
     public required Uri ArchivalGroup { get; set; }
     
@@ -44,7 +44,12 @@ public class ImportJob
     /// </summary>
     public required string ImportJobJson { get; set; }
     
-    public string? LatestStorageApiResultJson { get; set; }
+    public required string LatestStorageApiResultJson { get; set; }
+    
+    /// <summary>
+    /// If the job has completed then we simply return this to callers
+    /// </summary>
+    public required string LatestPreservationApiResultJson { get; set; }
     
     // This populates the RESULT
     
@@ -59,13 +64,13 @@ public class ImportJob
     public string? NewVersion { get; set; }
     
     public string? Errors { get; set; }
-    public string? ContainersAdded { get; set; }
-    public string? BinariesAdded { get; set; }
-    public string? ContainersDeleted { get; set; }
-    public string? BinariesDeleted { get; set; }
-    public string? BinariesPatched { get; set; }
-    
-    
-    public string? ContainersRenamed { get; set; }
-    public string? BinariesRenamed { get; set; }
+    // public string? ContainersAdded { get; set; }
+    // public string? BinariesAdded { get; set; }
+    // public string? ContainersDeleted { get; set; }
+    // public string? BinariesDeleted { get; set; }
+    // public string? BinariesPatched { get; set; }
+    //
+    //
+    // public string? ContainersRenamed { get; set; }
+    // public string? BinariesRenamed { get; set; }
 }

@@ -10,7 +10,7 @@ using Preservation.API.Features.ImportJobs.Requests;
 namespace Preservation.API.Features.ImportJobs;
 
 
-[Route("deposits/{id}/[controller]")]
+[Route("deposits/{depositId}/[controller]")]
 [ApiController]
 public class ImportJobsController(IMediator mediator) : Controller
 {    
@@ -18,9 +18,9 @@ public class ImportJobsController(IMediator mediator) : Controller
     [ProducesResponseType<ImportJob>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> GetDiffImportJob([FromRoute] string id)
+    public async Task<IActionResult> GetDiffImportJob([FromRoute] string depositId)
     {
-        var depositResult = await mediator.Send(new GetDeposit(id));
+        var depositResult = await mediator.Send(new GetDeposit(depositId));
         if (depositResult.Failure)
         {
             return this.StatusResponseFromResult(depositResult);
@@ -32,10 +32,10 @@ public class ImportJobsController(IMediator mediator) : Controller
         return this.StatusResponseFromResult(result);
     }
 
-    public async Task<IActionResult> ExecuteImportJob([FromRoute] string id, [FromBody] ImportJob importJob,
+    public async Task<IActionResult> ExecuteImportJob([FromRoute] string depositId, [FromBody] ImportJob importJob,
         CancellationToken cancellationToken)
     {
-        var depositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
+        var depositResult = await mediator.Send(new GetDeposit(depositId), cancellationToken);
         if (depositResult.Failure)
         {
             return this.StatusResponseFromResult(depositResult);
@@ -56,23 +56,34 @@ public class ImportJobsController(IMediator mediator) : Controller
         if (executeImportJobResult.Success)
         {
             var importJobResult = executeImportJobResult.Value!;
-            return CreatedAtAction(nameof(GetImportJobResult), new { id, importJobId = importJobResult.Id!.GetSlug() }, importJobResult);
+            return CreatedAtAction(nameof(GetImportJobResult), new { id = depositId, importJobId = importJobResult.Id!.GetSlug() }, importJobResult);
         }
         return this.StatusResponseFromResult(executeImportJobResult);
     }
+    
+    [HttpGet("results", Name = "GetImportJobResults")]
+    [ProducesResponseType<List<ImportJobResult>>(200, "application/json")]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> GetImportJobResult([FromRoute] string depositId)
+    {
+        var result = await mediator.Send(new GetImportJobResultsForDeposit(depositId));
+        return this.StatusResponseFromResult(result);
+    }
+
 
     /// <summary>
     /// Get the status of an existing ImportJobResult - the result of executing an ImportJob
     /// </summary>
-    /// <param name="id">Deposit id import job is for</param>
+    /// <param name="depositId">Deposit depositId import job is for</param>
     /// <param name="importJobId">Unique import job identifier</param>
     /// <param name="cancellationToken"></param>
     /// <returns>Status of ImportJobResult</returns>
     [HttpGet("results/{importJobId}")]
-    public async Task<IActionResult> GetImportJobResult([FromRoute] string id, [FromRoute] string importJobId,
+    public async Task<IActionResult> GetImportJobResult([FromRoute] string depositId, [FromRoute] string importJobId,
         CancellationToken cancellationToken)
     {
-        var importJobResultResult = await mediator.Send(new GetImportJobResult(id), cancellationToken);
+        var importJobResultResult = await mediator.Send(new GetImportJobResult(depositId, importJobId), cancellationToken);
         return this.StatusResponseFromResult(importJobResultResult);
     }
     

@@ -1,9 +1,11 @@
-﻿using DigitalPreservation.Common.Model.PreservationApi;
+﻿using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
+using Preservation.API.Features.ImportJobs.Requests;
 
 namespace Preservation.API.Features.Deposits;
 
@@ -73,6 +75,7 @@ public class DepositsController(IMediator mediator) : Controller
         }
         return this.StatusResponseFromResult(result, 201, createdLocation);
     }
+    
     
 
 

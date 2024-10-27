@@ -63,7 +63,7 @@ public class Storage(
             }
             return Result.OkNotNull(pReq.GetS3Uri());
         }
-        var failResult = ResultFailFromAwsStatusCode(pResp.HttpStatusCode, "Could not create deposit file location.", pReq.GetS3Uri());
+        var failResult = ResultHelpers.FailFromAwsStatusCode<Uri>(pResp.HttpStatusCode, "Could not create deposit file location.", pReq.GetS3Uri());
         return Result.Generify<Uri>(failResult);
     }
 
@@ -98,47 +98,47 @@ public class Storage(
             {
                 return Result.Ok();
             }
-            return ResultFailFromAwsStatusCode(resp.HttpStatusCode, "Unable to write METSlike.json", pReqMetsLike.GetS3Uri());
+            return ResultHelpers.FailFromAwsStatusCode<WorkingDirectory>(resp.HttpStatusCode, "Unable to write METSlike.json", pReqMetsLike.GetS3Uri());
         }
         catch (AmazonS3Exception s3E)
         {
-            return ResultFailFromS3Exception(s3E, "Unable to write METSlike.json", pReqMetsLike.GetS3Uri());
+            return ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Unable to write METSlike.json", pReqMetsLike.GetS3Uri());
         }
     }
 
-    public Result ResultFailFromS3Exception(AmazonS3Exception s3E, string message, Uri s3Uri)
-    {
-        return s3E.StatusCode switch
-        {
-            HttpStatusCode.NotFound => Result.Fail<WorkingDirectory?>(ErrorCodes.NotFound,
-                $"{message} - Not Found for {s3Uri}; {s3E.Message}"),
-            HttpStatusCode.Conflict => Result.Fail<WorkingDirectory?>(ErrorCodes.Conflict,
-                $"{message} - Conflicting resource at {s3Uri}; {s3E.Message}"),
-            HttpStatusCode.Unauthorized => Result.Fail<WorkingDirectory?>(ErrorCodes.Unauthorized,
-                $"{message} - Unauthorized for {s3Uri}; {s3E.Message}"),
-            HttpStatusCode.BadRequest => Result.Fail<WorkingDirectory?>(ErrorCodes.BadRequest,
-                $"{message} - Bad Request for {s3Uri}; {s3E.Message}"),
-            _ => Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
-                $"{message} - AWS returned status code {s3E.StatusCode} for {s3Uri} with message {s3E.Message}.")
-        };
-    }
-
-    public Result ResultFailFromAwsStatusCode(HttpStatusCode respHttpStatusCode, string message, Uri s3Uri)
-    {
-        return respHttpStatusCode switch
-        {
-            HttpStatusCode.NotFound => Result.Fail<WorkingDirectory?>(ErrorCodes.NotFound,
-                $"{message} - Not Found for {s3Uri}"),
-            HttpStatusCode.Conflict => Result.Fail<WorkingDirectory?>(ErrorCodes.Conflict,
-                $"{message} - Conflicting resource at {s3Uri}."),
-            HttpStatusCode.Unauthorized => Result.Fail<WorkingDirectory?>(ErrorCodes.Unauthorized,
-                $"{message} - Unauthorized for {s3Uri}."),
-            HttpStatusCode.BadRequest => Result.Fail<WorkingDirectory?>(ErrorCodes.BadRequest,
-                $"{message} - Bad Request for {s3Uri}."),
-            _ => Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
-                $"{message} - AWS returned status code {respHttpStatusCode} for {s3Uri}.")
-        };
-    }
+    // public Result ResultFailFromS3Exception(AmazonS3Exception s3E, string message, Uri s3Uri)
+    // {
+    //     return s3E.StatusCode switch
+    //     {
+    //         HttpStatusCode.NotFound => Result.Fail<WorkingDirectory?>(ErrorCodes.NotFound,
+    //             $"{message} - Not Found for {s3Uri}; {s3E.Message}"),
+    //         HttpStatusCode.Conflict => Result.Fail<WorkingDirectory?>(ErrorCodes.Conflict,
+    //             $"{message} - Conflicting resource at {s3Uri}; {s3E.Message}"),
+    //         HttpStatusCode.Unauthorized => Result.Fail<WorkingDirectory?>(ErrorCodes.Unauthorized,
+    //             $"{message} - Unauthorized for {s3Uri}; {s3E.Message}"),
+    //         HttpStatusCode.BadRequest => Result.Fail<WorkingDirectory?>(ErrorCodes.BadRequest,
+    //             $"{message} - Bad Request for {s3Uri}; {s3E.Message}"),
+    //         _ => Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
+    //             $"{message} - AWS returned status code {s3E.StatusCode} for {s3Uri} with message {s3E.Message}.")
+    //     };
+    // }
+    //
+    // public Result ResultFailFromAwsStatusCode(HttpStatusCode respHttpStatusCode, string message, Uri s3Uri)
+    // {
+    //     return respHttpStatusCode switch
+    //     {
+    //         HttpStatusCode.NotFound => Result.Fail<WorkingDirectory?>(ErrorCodes.NotFound,
+    //             $"{message} - Not Found for {s3Uri}"),
+    //         HttpStatusCode.Conflict => Result.Fail<WorkingDirectory?>(ErrorCodes.Conflict,
+    //             $"{message} - Conflicting resource at {s3Uri}."),
+    //         HttpStatusCode.Unauthorized => Result.Fail<WorkingDirectory?>(ErrorCodes.Unauthorized,
+    //             $"{message} - Unauthorized for {s3Uri}."),
+    //         HttpStatusCode.BadRequest => Result.Fail<WorkingDirectory?>(ErrorCodes.BadRequest,
+    //             $"{message} - Bad Request for {s3Uri}."),
+    //         _ => Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
+    //             $"{message} - AWS returned status code {respHttpStatusCode} for {s3Uri}.")
+    //     };
+    // }
     
 
     private static WorkingDirectory RootDirectory()
@@ -201,7 +201,7 @@ public class Storage(
         }
         catch (AmazonS3Exception s3E)
         {
-            var exResult = ResultFailFromS3Exception(s3E, "Could not add directory to METS", location.ToUri());
+            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add directory to METS", location.ToUri());
             return Result.Generify<WorkingDirectory>(exResult);
         }
     }
@@ -227,7 +227,7 @@ public class Storage(
         }
         catch (AmazonS3Exception s3E)
         {
-            var exResult = ResultFailFromS3Exception(s3E, "Could not add file to METS", location.ToUri());
+            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add file to METS", location.ToUri());
             return Result.Generify<WorkingDirectory>(exResult);
         }
     }
@@ -292,14 +292,16 @@ public class Storage(
                 // OrderAlphanumerically(wd!); Should never have to do this, always saved after calling this
                 return Result.Ok(wd);
             }
-            var failResult =
-                ResultFailFromAwsStatusCode(resp.HttpStatusCode, "Could not read METS location", gor.GetS3Uri());
-            return Result.Generify<WorkingDirectory?>(failResult);
+            var failResult = ResultHelpers.FailFromAwsStatusCode<WorkingDirectory>(
+                resp.HttpStatusCode, "Could not read METS location", gor.GetS3Uri());
+            return failResult;
+            //return Result.Generify<WorkingDirectory?>(failResult);
         }
         catch (AmazonS3Exception s3E)
         {
-            var exResult = ResultFailFromS3Exception(s3E, "Could not read METS location", gor.GetS3Uri());
-            return Result.Generify<WorkingDirectory?>(exResult);
+            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not read METS location", gor.GetS3Uri());
+            return exResult;
+            //return Result.Generify<WorkingDirectory?>(exResult);
         }
         catch (Exception e)
         {

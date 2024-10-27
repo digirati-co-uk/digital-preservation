@@ -143,8 +143,8 @@ public class Converters
         return new Uri(transientRoot + Guid.NewGuid());
     }
 
-    public Uri GetStorageImportJobResultId(string archivalGroupPathUnderRoot, string transaction)
+    public Uri GetStorageImportJobResultId(string archivalGroupPathUnderRoot, string jobIdentifier)
     {
-        return new Uri($"{importRoot}{archivalGroupPathUnderRoot}?transaction={transaction}");
+        return new Uri($"{importRoot}results/{jobIdentifier}/{archivalGroupPathUnderRoot}");
     }
 }

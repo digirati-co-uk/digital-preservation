@@ -1,0 +1,48 @@
+﻿@page "/deposits/{depositId}/importjobs/{importJobId}"
+@using DigitalPreservation.Common.Model.Import
+@model ImportJobModel
+@{
+ViewData["Title"] = "Job " + Model.ImportJobId;
+ViewData["section"] = "deposits";
+}
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">@ViewData["Title"]</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-sm btn-outline-primary me-2">
+            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Something</span>
+        </button>
+    </div>
+</div>
+
+<div>
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>@Html.Raw(TempData["Error"])</p>
+        </div>
+    }
+    @if (TempData["Deleted"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <p>@Html.Raw(TempData["Deleted"])</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+</div>
+
+<!-- NOW PRINT IT ALL OUT! -->
+@if (Model.ImportJobId == "diff")
+{
+    <!-- UI here - or redirect? --> 
+}
+else if (Model.ImportJobId == "custom")
+{
+    <!-- UI here - or redirect? --> 
+}
+else 
+{
+    @Model.ImportJobResult.BinariesAdded
+
+    <etc></etc>
+}

@@ -58,29 +58,6 @@ ViewData["section"] = "deposits";
 
 @if(Model.Deposit != null)
 {
-    // This is eventually a METS model
-    // Create a pseudo METS as soon as we have a file?
-    // On first upload
-    // Also put first file in /objects to establish the separation, create a stub METS file (JSON) with the sha256
-    
-    // Show the files location so that people can go and upload stuff themselves
-    
-    // Get a recursive listing from S3 - This is where we introduce files/folders not containers/binaries?
-    
-    // File upload form; contextualised to selection in browse
-    
-    // Display/set AG name and path, not editable if already preserved
-    // submission note
-    
-    // Display all the other properties, last edited etc
-    // collapsible side panel?
-    
-    
-    
-    
-    <!-- THESE ARE MODALS!!! doh -->
-    <!-- Top bar buttons - upload file, create folder -->
-    
     <div class="container-fluid">
         <div class="row align-items-start">
             <div class="col">
@@ -140,11 +117,64 @@ ViewData["section"] = "deposits";
                 else
                 {
                     <p>No files have been uploaded yet.</p>
-
                 }
-                @* </div> *@
+                
+                <hr/>
+                
+                
+                <h3>Import Jobs</h3>
+                
+                <div class="mb-3">
+                    <a class="btn btn-sm btn-primary me-2" role="button" href="./importjobs/diff">
+                        <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
+                    </a>
+                    <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">
+                        <svg class="bi"><use xlink:href="#file-diff"/></svg><span class="ms-2">Create custom import job</span>
+                    </a>
+                </div>
+                
+                @if (Model.ImportJobResults.Count == 0)
+                {
+                    <p>There are no submitted import jobs for this Deposit.</p>
+                }
+                else
+                {
+                    <div class="table-responsive small">
+                        <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
+                            <thead>
+                            <tr>
+                                <th scope="col">Status</th>
+                                <th scope="col">Who</th>
+                                <th scope="col">Begun</th>
+                                <th scope="col">Finished</th>
+                                <th scope="col">From</th>
+                                <th scope="col">To</th>
+                                <th scope="col">Errors</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var result in Model.ImportJobResults)
+                            {
+                                <tr>
+                                    <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
+                                    <td>@result.CreatedBy?.GetSlug()</td>
+                                    <td>@result.DateBegun.GetDateDisplay()</td>
+                                    <td>@result.DateFinished.GetDateDisplay()</td>
+                                    <td>@result.SourceVersion</td>
+                                    <td>@result.NewVersion</td>
+                                    <td class="text-danger">@result.Errors?.Select(e => e.Message + "<br/>")</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                
 
             </div>
+            
+            @* START OF SIDE INFO PANEL *@
+            
             <div class="col-2">
                 <dl arial-label="deposit-history">
                     <dt>Created</dt>

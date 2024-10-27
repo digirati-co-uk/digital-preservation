@@ -5,6 +5,7 @@ using Amazon.S3.Util;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Storage.Repository.Common;
+using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.UI.Features.S3;
 
@@ -33,11 +34,11 @@ public class DeleteObjectHandler(IAmazonS3 s3Client, IStorage storage) : IReques
                 var removeFromMetsResult = await storage.DeleteFromMetsLike(s3Uri, IStorage.MetsLike, request.Path, cancellationToken);
                 return removeFromMetsResult;
             }
-            return storage.ResultFailFromAwsStatusCode(response.HttpStatusCode, "Could not delete object.", dor.GetS3Uri());
+            return ResultHelpers.FailFromAwsStatusCode<object>(response.HttpStatusCode, "Could not delete object.", dor.GetS3Uri());
         }
         catch (AmazonS3Exception s3E)
         {
-            return storage.ResultFailFromS3Exception(s3E, "Could not delete object", dor.GetS3Uri());
+            return ResultHelpers.FailFromS3Exception<object>(s3E, "Could not delete object", dor.GetS3Uri());
         }
     }
 }

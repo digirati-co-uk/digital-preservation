@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using Storage.Repository.Common;
@@ -20,6 +21,8 @@ public interface IPreservationApiClient
     Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken);
     Task<Result> DeleteDeposit(string id, CancellationToken cancellationToken);
+    Task<Result<List<ImportJobResult>>> GetImportJobResultsForDeposit(string depositId, CancellationToken cancellationToken);
+    Task<Result<ImportJobResult>> GetImportJobResult(string depositId, string importJobResultId, CancellationToken cancellationToken);
     
     
     
