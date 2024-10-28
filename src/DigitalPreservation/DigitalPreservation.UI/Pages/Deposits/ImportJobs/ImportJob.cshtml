@@ -110,7 +110,7 @@ ViewData["section"] = "deposits";
                     <dt class="col-sm-3">Deposit</dt>
                     <dd class="col-sm-9"><a href="/deposits/@jobResult.Deposit!.GetSlug()">@jobResult.Deposit!.GetSlug()</a></dd>
                     <dt class="col-sm-3">Archival Group</dt>
-                    <dd class="col-sm-9"><a href="/repository/@jobResult.ArchivalGroup.GetPathUnderRoot()">@jobResult.ArchivalGroup.GetPathUnderRoot()</a></dd>
+                    <dd class="col-sm-9"><a href="/browse/@jobResult.ArchivalGroup.GetPathUnderRoot()">@jobResult.ArchivalGroup.GetPathUnderRoot()</a></dd>
 
                     <dt class="col-sm-3">Date Begun</dt>
                     <dd class="col-sm-9">@jobResult.DateBegun.GetDateDisplay()</dd>
@@ -138,7 +138,7 @@ ViewData["section"] = "deposits";
                         <ul>
                             @foreach (var container in jobResult.ContainersAdded)
                             {
-                                <li><a href="/repository/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                                <li><a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
                             }
                         </ul>
                     </dd>
@@ -147,7 +147,7 @@ ViewData["section"] = "deposits";
                         <ul>
                             @foreach (var binary in jobResult.BinariesAdded)
                             {
-                                <li><a href="/repository/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                                <li><a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
                             }
                         </ul>
                     </dd>
@@ -156,7 +156,7 @@ ViewData["section"] = "deposits";
                         <ul>
                             @foreach (var binary in jobResult.BinariesPatched)
                             {
-                                <li><a href="/repository/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                                <li><a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
                             }
                         </ul>
                     </dd>
@@ -183,7 +183,7 @@ ViewData["section"] = "deposits";
                         <ul>
                             @foreach (var container in jobResult.ContainersRenamed)
                             {
-                            <li><a href="/repository/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                            <li><a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
                             }
                         </ul>
                     </dd>
@@ -192,7 +192,7 @@ ViewData["section"] = "deposits";
                         <ul>
                             @foreach (var binary in jobResult.BinariesRenamed)
                             {
-                            <li><a href="/repository/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                            <li><a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
                             }
                         </ul>
                     </dd>

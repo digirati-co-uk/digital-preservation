@@ -60,6 +60,7 @@ public class ImportController(
     {
         logger.LogInformation("Executing import job {path}", importJob.ArchivalGroup);
         var queueImportJobResult = await mediator.Send(new QueueImportJob(importJob), cancellationToken);
+        logger.LogInformation("Returned from QueueImportJob");
         return this.StatusResponseFromResult(queueImportJobResult, 201, queueImportJobResult.Value?.Id);
     }
 

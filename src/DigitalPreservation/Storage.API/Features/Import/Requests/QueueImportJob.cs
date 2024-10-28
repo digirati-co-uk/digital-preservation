@@ -46,7 +46,7 @@ public class QueueImportJobHandler(
         {
             Id = converters.GetStorageImportJobResultId(importJob.ArchivalGroup.GetPathUnderRoot()!, jobIdentifier),
             Status = ImportJobStates.Waiting,
-            ArchivalGroup = importJob.ArchivalGroup,
+            ArchivalGroup = importJob.ArchivalGroup!,
             SourceVersion = null, // set in executor
             DateBegun = null,     // set in executor
             Created = now,

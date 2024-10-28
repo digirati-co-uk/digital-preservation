@@ -132,12 +132,6 @@ public class ImportJobResult : Resource
     [JsonPropertyOrder(725)]
     [JsonPropertyName("containersRenamed")]
     public List<Container> ContainersRenamed { get; set; } = [];
-
-    public string? GetShortId()
-    {
-        // TODO: This is leakage of knowledge about the URL structure
-        return Id?.AbsolutePath.Split('/')[2];
-    }
 }
 
 public class Error

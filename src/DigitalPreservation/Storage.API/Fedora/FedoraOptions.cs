@@ -26,4 +26,11 @@ public class FedoraOptions
 
     // This feels like a storage API setting not a Fedora setting, but it's used by Fedora client...
     public bool RequireDigestOnBinary { get; set; } = true;
+    
+    /// <summary>
+    /// Fedora's repository bucket (not the deposits)
+    /// </summary>
+    public required string Bucket { get; set; }
+
+    public required string OcflS3Prefix { get; set; } = String.Empty;
 }

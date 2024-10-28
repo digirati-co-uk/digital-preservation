@@ -9,5 +9,5 @@ public interface IStorageMapper
 
     Task<Inventory?> GetInventory(Uri archivalGroupUri);
 
-    Uri GetArchivalGroupOrigin(Uri archivalGroupUri); // (was string?)
+    string? GetArchivalGroupOrigin(Uri archivalGroupUri);
 }

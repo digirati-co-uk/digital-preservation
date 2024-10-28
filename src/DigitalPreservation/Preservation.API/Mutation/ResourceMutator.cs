@@ -11,7 +11,9 @@ namespace Preservation.API.Mutation;
 /// Changes PreservedResource URIs from Storage API to Preservation API
 /// </summary>
 /// <param name="options"></param>
-public class ResourceMutator(IOptions<MutatorOptions> options)
+public class ResourceMutator(
+    ILogger<ResourceMutator> logger,
+    IOptions<MutatorOptions> options)
 {
     private readonly string storageHost = options.Value.Storage;
     private readonly string preservationHost = options.Value.Preservation;
@@ -93,8 +95,13 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         // https://stackoverflow.com/questions/479799/replace-host-in-uri
         
         if(uri == null) return null;
-        
-        return new Uri(preservationHost + uri.ToString().RemoveStart(storageHost));
+        var uriS = uri.ToString();
+        if (uriS.StartsWith(storageHost))
+        {
+            return new Uri(preservationHost + uriS.RemoveStart(storageHost));
+        }
+
+        return uri;
     }
     
     
@@ -104,8 +111,13 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         // https://stackoverflow.com/questions/479799/replace-host-in-uri
         
         if(uri == null) return null;
-        
-        return new Uri(storageHost + uri.ToString().RemoveStart(preservationHost));
+        var uriS = uri.ToString();
+        if (uriS.StartsWith(preservationHost))
+        {
+            return new Uri(storageHost + uriS.RemoveStart(preservationHost));
+        }
+
+        return uri;
     }
 
     public Deposit MutateDeposit(DepositEntity entity)
@@ -217,42 +229,42 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         }
     }
 
-    public void MutateStorageImportJobResult(ImportJobResult preservationImportJobResult, string depositId, string resultId)
+    public void MutateStorageImportJobResult(ImportJobResult storageImportJobResult, string depositId, string resultId)
     {
-        MutateStorageImportJobResult(preservationImportJobResult, GetDepositUri(depositId), resultId);
+        MutateStorageImportJobResult(storageImportJobResult, GetDepositUri(depositId), resultId);
     }
 
-    public void MutateStorageImportJobResult(ImportJobResult preservationImportJobResult, Uri deposit, string resultId)
+    public void MutateStorageImportJobResult(ImportJobResult storageImportJobResult, Uri deposit, string resultId)
     {
-        MutatePreservationBaseUris(preservationImportJobResult);
-        preservationImportJobResult.Id = new Uri($"{deposit}/results/{resultId}");
-        preservationImportJobResult.Deposit = deposit;
-        preservationImportJobResult.ArchivalGroup = MutatePreservationApiUri(preservationImportJobResult.ArchivalGroup)!;
-        foreach (var container in preservationImportJobResult.ContainersAdded)
+        MutateStorageBaseUris(storageImportJobResult);
+        storageImportJobResult.Id = new Uri($"{deposit}/importjobs/results/{resultId}");
+        storageImportJobResult.Deposit = deposit;
+        storageImportJobResult.ArchivalGroup = MutateStorageApiUri(storageImportJobResult.ArchivalGroup)!;
+        foreach (var container in storageImportJobResult.ContainersAdded)
         {
             MutateStorageResource(container);
         }
-        foreach (var container in preservationImportJobResult.ContainersDeleted)
+        foreach (var container in storageImportJobResult.ContainersDeleted)
         {
             MutateStorageResource(container);
         }
-        foreach (var binary in preservationImportJobResult.BinariesAdded)
+        foreach (var binary in storageImportJobResult.BinariesAdded)
         {
             MutateStorageResource(binary);
         }
-        foreach (var binary in preservationImportJobResult.BinariesDeleted)
+        foreach (var binary in storageImportJobResult.BinariesDeleted)
         {
             MutateStorageResource(binary);
         }
-        foreach (var binary in preservationImportJobResult.BinariesPatched)
+        foreach (var binary in storageImportJobResult.BinariesPatched)
         {
             MutateStorageResource(binary);
         }
-        foreach (var container in preservationImportJobResult.ContainersRenamed)
+        foreach (var container in storageImportJobResult.ContainersRenamed)
         {
             MutateStorageResource(container);
         }
-        foreach (var binary in preservationImportJobResult.BinariesRenamed)
+        foreach (var binary in storageImportJobResult.BinariesRenamed)
         {
             MutateStorageResource(binary);
         }

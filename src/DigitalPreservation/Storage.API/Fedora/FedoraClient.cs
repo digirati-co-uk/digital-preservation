@@ -98,7 +98,7 @@ internal class FedoraClient(
             return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"{uri} does not match {archivalGroup.Id}");
         }
 
-        archivalGroup.Origin = storageMapper.GetArchivalGroupOrigin(archivalGroup.Id);
+        archivalGroup.Origin = new Uri(storageMapper.GetArchivalGroupOrigin(archivalGroup.Id)!);
         archivalGroup.Versions = versions;
         archivalGroup.StorageMap = storageMap;
         archivalGroup.Version = versions.Single(v => v.OcflVersion == storageMap.Version.OcflVersion);

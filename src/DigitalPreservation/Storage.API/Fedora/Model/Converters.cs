@@ -147,4 +147,18 @@ public class Converters
     {
         return new Uri($"{importRoot}results/{jobIdentifier}/{archivalGroupPathUnderRoot}");
     }
+
+    public string? GetResourcePathPart(Uri fedoraOrStorageUri)
+    {
+        var s = fedoraOrStorageUri.ToString();
+        if (s.StartsWith(fedoraRoot))
+        {
+            return s.RemoveStart(fedoraRoot)!;
+        }
+        if (s.StartsWith(repositoryRoot))
+        {
+            return s.RemoveStart(repositoryRoot)!;
+        }
+        return null;
+    }
 }

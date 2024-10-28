@@ -156,7 +156,7 @@ ViewData["section"] = "deposits";
                             @foreach (var result in Model.ImportJobResults)
                             {
                                 <tr>
-                                    <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.GetShortId()}")">@result.Status</a></td>
+                                    <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
                                     <td>@result.CreatedBy?.GetSlug()</td>
                                     <td>@result.DateBegun.GetDateDisplay()</td>
                                     <td>@result.DateFinished.GetDateDisplay()</td>
