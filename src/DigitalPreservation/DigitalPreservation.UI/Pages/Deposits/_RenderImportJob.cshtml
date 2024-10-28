@@ -1,0 +1,102 @@
+﻿@using DigitalPreservation.Common.Model
+@using DigitalPreservation.Utils
+@model DigitalPreservation.Common.Model.Import.ImportJob
+
+
+<dl class="row job-table" aria-label="Import Job">
+
+    <dt class="col-sm-3">Deposit</dt>
+    <dd class="col-sm-9"><a href="/deposits/@Model.Deposit!.GetSlug()">@Model.Deposit!.GetSlug()</a></dd>
+    <dt class="col-sm-3">Archival Group</dt>
+    <dd class="col-sm-9">
+        @if (Model.IsUpdate)
+        {
+            <a href="/repository/@Model.ArchivalGroup.GetPathUnderRoot()">@Model.ArchivalGroup.GetPathUnderRoot()</a>
+        }
+        else
+        {
+            <span><svg class="bi"><use xlink:href="#file-arrow-up"/></svg></span> @Model.ArchivalGroup.GetPathUnderRoot()
+        }
+    </dd>
+    <dt class="col-sm-3">Archival Group Name</dt>
+    <dd class="col-sm-9">@Model.ArchivalGroupName</dd>
+
+    <dt class="col-sm-3">Source Version</dt>
+    <dd class="col-sm-9">@(Model.SourceVersion?.OcflVersion ?? "(none)")</dd>
+    
+    <dt class="col-sm-3">Containers to Add</dt>
+    <dd class="col-sm-9">
+        <ul class="list-unstyled">
+            @foreach (var container in Model.ContainersToAdd)
+            {
+                <li>
+                    <svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()
+                </li>
+            }
+        </ul>
+    </dd>
+    <dt class="col-sm-3">Binaries to Add</dt>
+    <dd class="col-sm-9">
+        <ul class="list-unstyled">
+            @foreach (var binary in Model.BinariesToAdd)
+            {
+                <li>
+                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()
+                </li>
+            }
+        </ul>
+    </dd>
+    <dt class="col-sm-3">Binaries to Patch</dt>
+    <dd class="col-sm-9">
+        <ul class="list-unstyled">
+            @foreach (var binary in Model.BinariesToPatch)
+            {
+                <li>
+                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()
+                </li>
+            }
+        </ul>
+    </dd>
+    <dt class="col-sm-3">Containers to Delete</dt>
+    <dd class="col-sm-9">
+        <ul class="list-unstyled">
+            @foreach (var container in Model.ContainersToDelete)
+            {
+                <li>
+                    <svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()
+                </li>
+            }
+        </ul>
+    </dd>
+    <dt class="col-sm-3">Binaries to Delete</dt>
+    <dd class="col-sm-9">
+        <ul class="list-unstyled">
+            @foreach (var binary in Model.BinariesToDelete)
+            {
+                <li>
+                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()
+                </li>
+            }
+        </ul>
+    </dd>
+    <dt class="col-sm-3">Containers to Rename</dt>
+    <dd class="col-sm-9">
+        <ul class="list-unstyled">
+            @foreach (var container in Model.ContainersToRename)
+            {
+                <li>
+                    <svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()
+                </li>
+            }
+        </ul>
+    </dd>
+    <dt class="col-sm-3">Binaries to Rename</dt>
+    <dd class="col-sm-9">
+        <ul class="list-unstyled">
+            @foreach (var binary in Model.BinariesToRename)
+            {
+                <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()
+            }
+        </ul>
+    </dd>
+</dl>

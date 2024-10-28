@@ -14,7 +14,7 @@ namespace Storage.API.Features.Import.Requests;
 // No - Storage API reads everything from the source but does not embellish from METS.
 // This class is storage API only.
 // But Preservation API does the embellishing.
-public class GetImportJob(
+public class GetDiffImportJob(
     ArchivalGroup? archivalGroup, 
     Uri sourceUri, 
     string archivalGroupPathUnderRoot, 
@@ -30,9 +30,9 @@ public class GetImportJob(
     public bool RelyOnMetsLike { get; } = relyOnMetsLike;
 }
 
-public class GetImportJobHandler(IStorage storage, Converters converters) : IRequestHandler<GetImportJob, Result<ImportJob>>
+public class GetDiffImportJobHandler(IStorage storage, Converters converters) : IRequestHandler<GetDiffImportJob, Result<ImportJob>>
 {
-    public async Task<Result<ImportJob>> Handle(GetImportJob request, CancellationToken cancellationToken)
+    public async Task<Result<ImportJob>> Handle(GetDiffImportJob request, CancellationToken cancellationToken)
     {
         var importSourceResult = await storage.GetImportSource(
             request.SourceUri, 
@@ -48,7 +48,7 @@ public class GetImportJobHandler(IStorage storage, Converters converters) : IReq
         var now = DateTime.UtcNow;
         var importJob = new ImportJob
         {
-            Id = converters.GetTransientResourceId(),
+            Id = converters.GetTransientResourceId("diff"),
             ArchivalGroup = converters.RepositoryUriFromPathUnderRoot(request.ArchivalGroupPathUnderRoot),
             Created = now,
             CreatedBy = converters.GetAgentUri(callerIdentity),

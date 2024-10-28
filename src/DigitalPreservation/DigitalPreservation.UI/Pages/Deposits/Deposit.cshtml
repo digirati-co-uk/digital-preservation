@@ -125,7 +125,7 @@ ViewData["section"] = "deposits";
                 <h3>Import Jobs</h3>
                 
                 <div class="mb-3">
-                    <a class="btn btn-sm btn-primary me-2" role="button" href="./importjobs/diff">
+                    <a class="btn btn-sm btn-primary me-2" role="button" href="/deposits/@Model.Id/importjobs/diff">
                         <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
                     </a>
                     <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">
@@ -156,7 +156,7 @@ ViewData["section"] = "deposits";
                             @foreach (var result in Model.ImportJobResults)
                             {
                                 <tr>
-                                    <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
+                                    <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.GetShortId()}")">@result.Status</a></td>
                                     <td>@result.CreatedBy?.GetSlug()</td>
                                     <td>@result.DateBegun.GetDateDisplay()</td>
                                     <td>@result.DateFinished.GetDateDisplay()</td>

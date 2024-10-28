@@ -173,7 +173,7 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         {
             MutateStorageResource(binary);
         }
-        foreach (var container in storageImportJob.ContainerssToRename)
+        foreach (var container in storageImportJob.ContainersToRename)
         {
             MutateStorageResource(container);
         }
@@ -207,7 +207,7 @@ public class ResourceMutator(IOptions<MutatorOptions> options)
         {
             MutatePreservationResource(binary);
         }
-        foreach (var container in preservationImportJob.ContainerssToRename)
+        foreach (var container in preservationImportJob.ContainersToRename)
         {
             MutatePreservationResource(container);
         }

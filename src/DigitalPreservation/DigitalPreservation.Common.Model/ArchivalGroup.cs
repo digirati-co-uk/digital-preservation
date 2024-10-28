@@ -5,14 +5,16 @@ namespace DigitalPreservation.Common.Model;
 
 public class ArchivalGroup : Container
 {
+    [JsonPropertyOrder(2)]
+    [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(ArchivalGroup);
     
     [JsonPropertyName("version")]
-    [JsonPropertyOrder(2)]
+    [JsonPropertyOrder(10)]
     public ObjectVersion? Version { get; set; }
 
     [JsonPropertyName("versions")]
-    [JsonPropertyOrder(3)]
+    [JsonPropertyOrder(20)]
     public ObjectVersion[]? Versions { get; set; }
 
     [JsonPropertyName("storageMap")]

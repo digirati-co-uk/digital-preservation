@@ -218,6 +218,73 @@ internal class PreservationApiClient(
         }
     }
 
+    public async Task<Result<ImportJob>> GetDiffImportJob(string depositId, CancellationToken cancellationToken)
+    { 
+        try
+        {
+            var relPath = $"/deposits/{depositId}/importjobs/diff";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.OK:
+                    var diffImportJob = await response.Content.ReadFromJsonAsync<ImportJob>(cancellationToken: cancellationToken);
+                    if (diffImportJob is not null)
+                    {
+                        return Result.OkNotNull(diffImportJob);
+                    }
+                    return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.NotFound:
+                    return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.Unauthorized:
+                    return Result.FailNotNull<ImportJob>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
+                default:
+                    return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var importJob = new ImportJob
+            {
+                Id = new Uri(preservationHttpClient.BaseAddress + $"/deposits/{depositId}/importjobs/diff")
+            };
+            var relPath = $"/deposits/{depositId}/importjobs";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var response = await preservationHttpClient.PostAsJsonAsync(uri, importJob, cancellationToken);
+            switch (response.StatusCode)
+            {
+                case HttpStatusCode.OK:
+                    var diffImportJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
+                    if (diffImportJobResult is not null)
+                    {
+                        return Result.OkNotNull(diffImportJobResult);
+                    }
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.NotFound:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
+                case HttpStatusCode.Unauthorized:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
+                default:
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default)
     {        
         try

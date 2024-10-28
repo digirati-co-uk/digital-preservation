@@ -102,14 +102,13 @@ public class ImportJobsController(IMediator mediator) : Controller
         if(importJob.Id!.ToString().EndsWith(path + "/diff"))
         {
             // We may want to be more flexible that this, e.g., allowing the DigitalObject to be set as part of the immediate diff execution
-            if(    importJob.Deposit == null 
-               && importJob.ArchivalGroup == null
-               && importJob.ArchivalGroupName == null
-               && importJob.ContainersToAdd.Count == 0
+            if(   importJob.ContainersToAdd.Count == 0
                && importJob.ContainersToDelete.Count == 0
                && importJob.BinariesToAdd.Count == 0
                && importJob.BinariesToDelete.Count == 0
-               && importJob.BinariesToPatch.Count == 0)
+               && importJob.BinariesToPatch.Count == 0
+               && importJob.ContainersToRename.Count == 0
+               && importJob.BinariesToRename.Count == 0)
             {
                 return true;
             }

@@ -27,9 +27,11 @@ public class GetDiffImportJobHandler(
         {
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, "Deposit doesn't have Archival Group specified.");
         }
+
+        var agPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot()!;
         
         var importJobResult = await storageApi.GetImportJob(
-            request.Deposit.ArchivalGroup.GetPathUnderRoot()!,
+            agPathUnderRoot,
             request.Deposit.Files!);
         
 
@@ -48,6 +50,10 @@ public class GetDiffImportJobHandler(
                 // We don't put this in the DB here - only when we execute it.
                 resourceMutator.MutateStorageImportJob(storageImportJob);
             }
+
+            var notForImport = $"{agPathUnderRoot}/{IStorage.MetsLike}";
+            int removed = storageImportJob.BinariesToAdd.RemoveAll(b => b.GetPathUnderRoot() == notForImport);
+            logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
         }
         return importJobResult;
     }

@@ -1,9 +1,6 @@
-﻿using MediatR;
-
-namespace Storage.API.Features.Import;
+﻿namespace Storage.API.Features.Import;
 
 public class ImportJobExecutorService(
-    IMediator mediator,
     IServiceScopeFactory serviceScopeFactory,
     IImportJobQueue importJobQueue,
     ILogger<ImportJobExecutorService> logger) : BackgroundService

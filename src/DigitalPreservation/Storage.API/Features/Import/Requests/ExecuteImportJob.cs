@@ -22,14 +22,18 @@ public class ExecuteImportJobHandler(
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
         var importJob = request.ImportJob;
+        var archivalGroupPathUnderRoot = importJob.ArchivalGroup.GetPathUnderRoot()!;
+        logger.LogInformation("Executing Import Job");
         
         var start = DateTime.UtcNow;
         
         var transaction = await fedoraClient.BeginTransaction();
-        var archivalGroupPathUnderRoot = importJob.ArchivalGroup.GetPathUnderRoot()!;
+        logger.LogInformation("Fedora transaction begun: " + transaction.Location);
         var validationResult = await fedoraClient.GetValidatedArchivalGroupForImportJob(archivalGroupPathUnderRoot, transaction);
         if (validationResult.Failure)
         {
+            await fedoraClient.RollbackTransaction(transaction);
+            logger.LogError("Failed to retrieve Archival Group for " + archivalGroupPathUnderRoot);
             return Result.ConvertFailNotNull<ArchivalGroup?, ImportJobResult>(validationResult);
         }
 
@@ -40,12 +44,14 @@ public class ExecuteImportJobHandler(
             if(archivalGroup != null)
             {
                 await fedoraClient.RollbackTransaction(transaction);
+                logger.LogError("Archival Group is not null for new Import: " + archivalGroupPathUnderRoot);
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "An Archival Group has recently been created at " + archivalGroupPathUnderRoot);
             }
 
             if (string.IsNullOrWhiteSpace(importJob.ArchivalGroupName))
             {
                 await fedoraClient.RollbackTransaction(transaction);
+                logger.LogError("Archival Group does not have a name: " + archivalGroupPathUnderRoot);
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, "No name supplied for this archival group");
             }
 
@@ -58,6 +64,7 @@ public class ExecuteImportJobHandler(
             if (archivalGroupResult.Failure || archivalGroupResult.Value is null)
             {
                 await fedoraClient.RollbackTransaction(transaction);
+                logger.LogError("Failed to create archival group: " + archivalGroupPathUnderRoot);
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "No archival group was returned from creation");
             }
         }
@@ -66,9 +73,11 @@ public class ExecuteImportJobHandler(
             if(archivalGroup == null)
             {
                 await fedoraClient.RollbackTransaction(transaction);
+                logger.LogError("Archival Group was null for update: " + archivalGroupPathUnderRoot);
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "Not an update but no Archival Group at " + archivalGroupPathUnderRoot);
             }
             sourceVersion = archivalGroup.Version!.OcflVersion;
+            logger.LogInformation("Archival Group version: " + sourceVersion);
         }
         
         // We need to keep the transaction alive throughout this process
@@ -80,17 +89,20 @@ public class ExecuteImportJobHandler(
         importJobResult.DateBegun = start;
         importJobResult.LastModified = start;
         
+        logger.LogInformation("Saving running ImportJobResult");
         await importJobResultStore.SaveImportJobResult(request.JobIdentifier, importJobResult, cancellationToken);
 
         var timer = new Stopwatch();
         timer.Start();
         
+        logger.LogInformation("Now looping through import job tasks");
         try
         {
-            foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id))
+            logger.LogInformation("{count} containers to add", importJob.ContainersToAdd.Count);
+            foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id!.ToString()))
             {
                 logger.LogInformation("Creating container {id}", container.Id);
-                var fedoraContainerResult = await fedoraClient.CreateContainer(container.Id.GetPathUnderRoot()!, container.Name, transaction, cancellationToken: cancellationToken);
+                var fedoraContainerResult = await fedoraClient.CreateContainerWithinArchivalGroup(container.Id.GetPathUnderRoot()!, container.Name, transaction, cancellationToken: cancellationToken);
                 if (fedoraContainerResult.Success)
                 {
                     logger.LogInformation("Container created at {location}", fedoraContainerResult.Value!.Id);
@@ -106,6 +118,7 @@ public class ExecuteImportJobHandler(
             // what about deletions of containers? conflict?
 
             // create files
+            logger.LogInformation("{count} binaries to add", importJob.BinariesToAdd.Count);
             foreach (var binary in importJob.BinariesToAdd)
             {
                 logger.LogInformation("Adding binary {id}", binary.Id);
@@ -126,6 +139,7 @@ public class ExecuteImportJobHandler(
             // This is EXACTLY the same as Add / PUT.
             // We will need to accomodate some RDF updates - but nothing that can't be carried on BinaryFile
             // nothing _arbitrary_
+            logger.LogInformation("{count} binaries to patch", importJob.BinariesToPatch.Count);
             foreach (var binary in importJob.BinariesToPatch)
             {
                 logger.LogInformation("Patching file {id}", binary.Id);
@@ -143,6 +157,7 @@ public class ExecuteImportJobHandler(
             }
 
             // delete files
+            logger.LogInformation("{count} binaries to delete", importJob.BinariesToDelete.Count);
             foreach (var binary in importJob.BinariesToDelete)
             {
                 logger.LogInformation("Deleting file {id}", binary.Id);
@@ -164,7 +179,8 @@ public class ExecuteImportJobHandler(
             // Should we verify that the container is empty first?
             // Do we want to allow deletion of non-empty containers? It wouldn't come from a diff importJob
             // but might come from other importJob use.
-            foreach (var container in importJob.ContainersToDelete)
+            logger.LogInformation("{count} containers to delete", importJob.ContainersToDelete.Count);
+            foreach (var container in importJob.ContainersToDelete.OrderByDescending(c => c.Id!.ToString()))
             {
                 logger.LogInformation("Deleting container {id}", container.Id);
                 var fedoraDeleteResult = await fedoraClient.Delete(container, transaction, cancellationToken);
@@ -187,6 +203,7 @@ public class ExecuteImportJobHandler(
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, ex.Message);
         }
 
+        logger.LogInformation("Commiting Fedora transaction " + transaction.Location);
         await fedoraClient.CommitTransaction(transaction);
         importJobResult.DateFinished = DateTime.UtcNow;
         importJobResult.Status = ImportJobStates.Completed;
@@ -195,6 +212,7 @@ public class ExecuteImportJobHandler(
         
         async Task<Result<ImportJobResult>> FailEarly(string? errorMessage)
         {
+            logger.LogError("Failing Import Job Early: {errorMessage}", errorMessage);
             await fedoraClient.RollbackTransaction(transaction);
             importJobResult.Errors = [new Error { Message = errorMessage ?? "" }];
             importJobResult.DateFinished = DateTime.UtcNow;

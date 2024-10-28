@@ -5,6 +5,8 @@ namespace DigitalPreservation.Common.Model;
 
 public class Container : PreservedResource
 {
+    [JsonPropertyOrder(2)]
+    [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(Container);
 
     [JsonPropertyName("containers")]

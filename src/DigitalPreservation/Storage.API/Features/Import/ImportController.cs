@@ -41,7 +41,7 @@ public class ImportController(
         // So now evaluate the source:
         var sourceUri = new Uri(Uri.UnescapeDataString(source));
         var importJobResult = await mediator.Send(
-            new GetImportJob(
+            new GetDiffImportJob(
                 archivalGroupResult.Value, 
                 sourceUri, 
                 archivalGroupPathUnderRoot, 

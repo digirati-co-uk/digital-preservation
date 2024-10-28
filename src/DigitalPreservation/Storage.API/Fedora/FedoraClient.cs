@@ -189,7 +189,7 @@ internal class FedoraClient(
         }
         if (info.ErrorCode == ErrorCodes.NotFound)
         {
-            var validateResult = await ContainerCanBeCreatedAtPath(pathUnderFedoraRoot, transaction);
+            var validateResult = await ContainerCanBeCreatedAtPath(pathUnderFedoraRoot, false, transaction);
             if (validateResult.Failure)
             {
                 return Result.Cast<Container?, ArchivalGroup?>(validateResult);
@@ -272,7 +272,7 @@ internal class FedoraClient(
         return $"{archivalGroupUri}?version={version}";
     }
     
-    public async Task<Result<Container?>> ContainerCanBeCreatedAtPath(string pathUnderFedoraRoot, Transaction? transaction = null)
+    private async Task<Result<Container?>> ContainerCanBeCreatedAtPath(string pathUnderFedoraRoot, bool isWithinArchivalGroup, Transaction? transaction = null)
     {
         // Does the slug only contain valid chars? ✓
         var slug = pathUnderFedoraRoot.GetSlug();
@@ -291,8 +291,19 @@ internal class FedoraClient(
         }
         
         // Is there a Container at the parent of this path - yes ✓
-        // Is the parent Container an Archival Group or part of an Archival Group? no ✓
+        // Is the parent Container an Archival Group or part of an Archival Group? no ✓ 
         string? parentPath = pathUnderFedoraRoot.GetParent();
+        if (isWithinArchivalGroup)
+        {
+            var parent = await GetResourceType(parentPath, transaction);
+            if (parent is { Success: true, Value: nameof(ArchivalGroup) } || parent.Value == nameof(Container))
+            {
+                // We only need to check the immediate parent if we are creating containers within an archival group
+                return Result.Ok<Container?>(null);
+            }
+            return Result.Fail<Container?>(ErrorCodes.Conflict,
+                $"Parent of {pathUnderFedoraRoot} must be a Container or Archival Group, {parentPath} is a {parent.Value}.");
+        }
         while (parentPath != null)
         {
             var parent = await GetResourceType(parentPath, transaction);
@@ -305,11 +316,22 @@ internal class FedoraClient(
         }
         return Result.Ok<Container?>(null);
     }
-    
-    
-    public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default)
+
+    public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name,
+        Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
-        var validateResult = await ContainerCanBeCreatedAtPath(pathUnderFedoraRoot, transaction);
+        return await CreateContainerWithChecks(pathUnderFedoraRoot, name, false, transaction, cancellationToken);
+    }
+
+    public async Task<Result<Container?>> CreateContainerWithinArchivalGroup(string pathUnderFedoraRoot, string? name, Transaction? transaction = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await CreateContainerWithChecks(pathUnderFedoraRoot, name, true, transaction, cancellationToken);
+    }
+    
+    private async Task<Result<Container?>> CreateContainerWithChecks(string pathUnderFedoraRoot, string? name, bool isWithinArchivalGroup, Transaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        var validateResult = await ContainerCanBeCreatedAtPath(pathUnderFedoraRoot, isWithinArchivalGroup, transaction);
         if (validateResult.Failure)
         {
             return validateResult;
@@ -318,6 +340,7 @@ internal class FedoraClient(
         var container = await CreateContainerInternal(false, pathUnderFedoraRoot, name, transaction);
         return Result.Ok(container);
     }
+
 
     private async Task<Container?> CreateContainerInternal(
         bool asArchivalGroup,
@@ -367,6 +390,8 @@ internal class FedoraClient(
 
     public async Task<Result<Binary?>> PutBinary(Binary binary, Transaction transaction, CancellationToken cancellationToken = default)
     {        
+        // TODO: Can we PUT the resource and set it's dc:title in the same PUT request?
+        // At the moment we have to make a separate update to the metadata endpoint.
         // verify that parent is a container first?
         await EnsureChecksum(binary, false);
         var req = await MakeBinaryPut(binary, transaction);

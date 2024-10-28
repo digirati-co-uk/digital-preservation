@@ -1,8 +1,12 @@
 ﻿@page "/deposits/{depositId}/importjobs/{importJobId}"
+@using System.Text.Json
+@using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Import
+@using DigitalPreservation.UI.Features
+@using DigitalPreservation.Utils
+@using Microsoft.AspNetCore.Mvc.TagHelpers
 @model ImportJobModel
 @{
-ViewData["Title"] = "Job " + Model.ImportJobId;
 ViewData["section"] = "deposits";
 }
 
@@ -31,18 +35,170 @@ ViewData["section"] = "deposits";
     }
 </div>
 
-<!-- NOW PRINT IT ALL OUT! -->
-@if (Model.ImportJobId == "diff")
-{
-    <!-- UI here - or redirect? --> 
-}
-else if (Model.ImportJobId == "custom")
-{
-    <!-- UI here - or redirect? --> 
-}
-else 
-{
-    @Model.ImportJobResult.BinariesAdded
+<div class="container-fluid">
+    <div class="row align-items-start">
+        <div class="col">
+            @if (Model.ImportJobId == "diff")
+            {
+                @await Html.PartialAsync("_RenderImportJob", Model.ImportJob)
+                
+                
+                <form method="post" asp-page-handler="ExecuteDiffDirect">
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-sm btn-primary me-2" id="runImport">
+                            <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>
+                        </button>
+                    </div>
+                </form>
+                
+                <hr/>
+                
+                <p>You can modify the diff manually</p>
+                <p>UI to follow</p>
+                <form>
+                    <div class="form-floating mb-3">
+                        <textarea class="form-control" id="importJobJson" name="importJobJson">@JsonSerializer.Serialize(Model.ImportJob)</textarea>
+                        <label for="importJobJson">Raw Import Job</label>
+                    </div>
+                    <div class="mb-3">
+                        <button type="submit" asp-page-handler="ExecuteModifiedDiff" class="btn btn-sm btn-primary me-2" disabled>
+                            <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run modified import</span>
+                        </button>
+                    </div>
+                </form>
+            }
+            else if (Model.ImportJobId == "custom")
+            {
+                <!-- UI here - or redirect? --> 
+            }
+            else
+            {
+                var jobResult = Model.ImportJobResult!;
+                
+                <dl class="row job-table" aria-label="Import Job Result Summary">
+                    <dt class="col-sm-3">Status</dt>
+                    @switch (jobResult.Status)
+                    {
+                        case ImportJobStates.Waiting:
+                            <dd class="col-sm-9 text-bg-warning">@jobResult.Status</dd>
+                            break;
+                        case ImportJobStates.Running:
+                            <dd class="col-sm-9 text-bg-primary">@jobResult.Status</dd>
+                            break;
+                        case ImportJobStates.Completed:
+                            <dd class="col-sm-9">@jobResult.Status</dd>
+                            break;
+                        case ImportJobStates.CompletedWithErrors:
+                            <dd class="col-sm-9 text-bg-danger">@jobResult.Status</dd>
+                            break;
+                        default:
+                            <dd class="col-sm-9 text-bg-danger">(unknown status: @jobResult.Status)</dd>
+                            break;
+                    }
+                    @if (jobResult.Errors is { Length: > 0 })
+                    {
+                        <dt class="col-sm-3">Errors</dt>
+                        <dd class="col-sm-9">
+                            @foreach (var error in jobResult.Errors)
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    <p>@error</p>
+                                </div>
+                            }
+                        </dd>
+                    }
+                    <dt class="col-sm-3">Deposit</dt>
+                    <dd class="col-sm-9"><a href="/deposits/@jobResult.Deposit!.GetSlug()">@jobResult.Deposit!.GetSlug()</a></dd>
+                    <dt class="col-sm-3">Archival Group</dt>
+                    <dd class="col-sm-9"><a href="/repository/@jobResult.ArchivalGroup.GetPathUnderRoot()">@jobResult.ArchivalGroup.GetPathUnderRoot()</a></dd>
 
-    <etc></etc>
-}
+                    <dt class="col-sm-3">Date Begun</dt>
+                    <dd class="col-sm-9">@jobResult.DateBegun.GetDateDisplay()</dd>
+                    <dt class="col-sm-3">Date Finished</dt>
+                    <dd class="col-sm-9">@jobResult.DateFinished.GetDateDisplay()</dd>
+                    
+                    <dt class="col-sm-3">Source Version</dt>
+                    <dd class="col-sm-9">@(jobResult.SourceVersion ?? "(none)")</dd>
+                    <dt class="col-sm-3">New Version</dt>
+                    <dd class="col-sm-9">@(jobResult.NewVersion ?? "...")</dd>
+                    
+                    <dt class="col-sm-3">Created</dt>
+                    <dd class="col-sm-9">@jobResult.Created.GetDateDisplay()</dd>
+                    <dt class="col-sm-3">Created By</dt>
+                    <dd class="col-sm-9">@jobResult.CreatedBy?.GetSlug()</dd>
+
+                    <dt class="col-sm-3">Import Job</dt>
+                    <dd class="col-sm-9">@jobResult.ImportJob</dd>
+                    <dt class="col-sm-3">Original Import Job</dt>
+                    <dd class="col-sm-9">@jobResult.OriginalImportJob</dd>
+
+
+                    <dt class="col-sm-3">Containers Added</dt>
+                    <dd class="col-sm-9">
+                        <ul>
+                            @foreach (var container in jobResult.ContainersAdded)
+                            {
+                                <li><a href="/repository/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                            }
+                        </ul>
+                    </dd>
+                    <dt class="col-sm-3">Binaries Added</dt>
+                    <dd class="col-sm-9">
+                        <ul>
+                            @foreach (var binary in jobResult.BinariesAdded)
+                            {
+                                <li><a href="/repository/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                            }
+                        </ul>
+                    </dd>
+                    <dt class="col-sm-3">Binaries Patched</dt>
+                    <dd class="col-sm-9">
+                        <ul>
+                            @foreach (var binary in jobResult.BinariesPatched)
+                            {
+                                <li><a href="/repository/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                            }
+                        </ul>
+                    </dd>
+                    <dt class="col-sm-3">Containers Deleted</dt>
+                    <dd class="col-sm-9">
+                        <ul>
+                            @foreach (var container in jobResult.ContainersDeleted)
+                            {
+                                <li>@container.Id.GetPathUnderRoot()</li>
+                            }
+                        </ul>
+                    </dd>
+                    <dt class="col-sm-3">Binaries Deleted</dt>
+                    <dd class="col-sm-9">
+                        <ul>
+                            @foreach (var binary in jobResult.BinariesDeleted)
+                            {
+                                <li>@binary.Id.GetPathUnderRoot()</li>
+                            }
+                        </ul>
+                    </dd>
+                    <dt class="col-sm-3">Containers Renamed</dt>
+                    <dd class="col-sm-9">
+                        <ul>
+                            @foreach (var container in jobResult.ContainersRenamed)
+                            {
+                            <li><a href="/repository/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                            }
+                        </ul>
+                    </dd>
+                    <dt class="col-sm-3">Binaries Renamed</dt>
+                    <dd class="col-sm-9">
+                        <ul>
+                            @foreach (var binary in jobResult.BinariesRenamed)
+                            {
+                            <li><a href="/repository/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                            }
+                        </ul>
+                    </dd>
+                    
+                </dl>
+            }
+        </div>
+    </div>
+</div>

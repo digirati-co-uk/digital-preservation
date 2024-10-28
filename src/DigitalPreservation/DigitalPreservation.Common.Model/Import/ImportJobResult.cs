@@ -4,6 +4,8 @@ namespace DigitalPreservation.Common.Model.Import;
 
 public class ImportJobResult : Resource
 {
+    [JsonPropertyOrder(2)]
+    [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(ImportJobResult);
     
     /// <summary>
@@ -130,6 +132,12 @@ public class ImportJobResult : Resource
     [JsonPropertyOrder(725)]
     [JsonPropertyName("containersRenamed")]
     public List<Container> ContainersRenamed { get; set; } = [];
+
+    public string? GetShortId()
+    {
+        // TODO: This is leakage of knowledge about the URL structure
+        return Id?.AbsolutePath.Split('/')[2];
+    }
 }
 
 public class Error

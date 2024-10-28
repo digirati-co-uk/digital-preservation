@@ -5,6 +5,8 @@ namespace DigitalPreservation.Common.Model.Import;
 
 public class ImportJob : Resource
 {
+    [JsonPropertyOrder(2)]
+    [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(ImportJob);
     
     /// <summary>
@@ -23,7 +25,7 @@ public class ImportJob : Resource
     /// </summary>
     [JsonPropertyName("archivalGroup")]
     [JsonPropertyOrder(510)]
-    public required Uri ArchivalGroup { get; set; }
+    public Uri? ArchivalGroup { get; set; }
     
     /// <summary>
     /// For a new archivalGroup, the dc:title (name) to give the object in the repository.
@@ -45,7 +47,7 @@ public class ImportJob : Resource
     /// </summary>
     [JsonPropertyName("source")]
     [JsonPropertyOrder(530)]
-    public required Uri Source { get; set; }
+    public Uri? Source { get; set; }
     
     /// <summary>
     /// Always provided when you ask the API to generate an ImportJob as a diff and the ArchivalGroup already exists.
@@ -102,7 +104,7 @@ public class ImportJob : Resource
     /// This cannot change the slug (path) but can change the name - i.e., the dc:title
     /// </summary>
     [JsonPropertyOrder(750)]
-    public List<Container> ContainerssToRename { get; set; } = [];
+    public List<Container> ContainersToRename { get; set; } = [];
     
     /// <summary>
     /// This cannot change the slug (path) but can change the name - i.e., the dc:title

@@ -4,6 +4,8 @@ namespace DigitalPreservation.Common.Model;
 
 public class Binary : PreservedResource
 {
+    [JsonPropertyOrder(2)]
+    [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(Binary); 
     
     [JsonPropertyName("contentType")]

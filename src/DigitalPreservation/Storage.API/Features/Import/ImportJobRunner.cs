@@ -25,6 +25,7 @@ public class ImportJobRunner(
                 return;
             }
             logger.LogError("Unable to execute Import Job Result: " + executeResult.CodeAndMessage());
+            return;
         }
         logger.LogError("Unable to load Import Job: " + importJob.CodeAndMessage());
     }

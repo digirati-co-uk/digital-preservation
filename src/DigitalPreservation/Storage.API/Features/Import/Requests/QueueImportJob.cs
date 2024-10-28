@@ -13,6 +13,7 @@ public class QueueImportJob(ImportJob importJob) : IRequest<Result<ImportJobResu
 }
 
 public class QueueImportJobHandler(
+    ILogger<QueueImportJobHandler> logger,
     Converters converters,
     IIdentityService identityService,
     IImportJobResultStore importJobResultStore,
@@ -20,7 +21,7 @@ public class QueueImportJobHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(QueueImportJob request, CancellationToken cancellationToken)
     {
-        var jobIdentifier = DateTime.Now.ToString("s") + "--" + identityService.MintIdentity(nameof(ImportJobResult));
+        var jobIdentifier = DateTime.Now.ToString("s").Replace(":", "") + "--" + identityService.MintIdentity(nameof(ImportJobResult));
         var saveJobResult = await importJobResultStore.SaveImportJob(jobIdentifier, request.ImportJob, cancellationToken);
         if (saveJobResult.Success)
         {
@@ -28,6 +29,7 @@ public class QueueImportJobHandler(
             var saveResultResult =  await importJobResultStore.SaveImportJobResult(jobIdentifier, waitingResult, cancellationToken);
             if (saveResultResult.Success)
             {
+                logger.LogInformation($"About to queue import job request " + jobIdentifier);
                 await importJobQueue.QueueRequest(jobIdentifier, cancellationToken);
                 return Result.OkNotNull(waitingResult);
             }

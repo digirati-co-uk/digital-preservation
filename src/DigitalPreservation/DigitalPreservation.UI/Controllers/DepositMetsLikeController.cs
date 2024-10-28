@@ -9,6 +9,12 @@ namespace DigitalPreservation.UI.Controllers;
 [Route("deposits/{id}/metslike")]
 public class DepositMetsLikeController(IMediator mediator) : Controller
 {
+    /// <summary>
+    /// I think only for debugging and diagnostics
+    /// </summary>
+    /// <param name="id"></param>
+    /// <param name="readS3"></param>
+    /// <returns></returns>
     [HttpGet]
     [Produces("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK)]

@@ -19,14 +19,14 @@ public class ImportJobResultStore(
     private readonly AwsStorageOptions options = options.Value;
     private readonly string jobResultsPrefix = "importjobresults/";
     
-    public async Task<Result> SaveImportJob(string jobIdentifier, ImportJob importJobResult, CancellationToken cancellationToken = default)
+    public async Task<Result> SaveImportJob(string jobIdentifier, ImportJob importJob, CancellationToken cancellationToken = default)
     {
-        return await Save(jobIdentifier, "-job", importJobResult, cancellationToken);
+        return await Save(jobIdentifier, "-job", JsonSerializer.Serialize(importJob), cancellationToken);
     }
 
     public async Task<Result> SaveImportJobResult(string jobIdentifier, ImportJobResult importJobResult, CancellationToken cancellationToken = default)
     {
-        return await Save(jobIdentifier, "-result", importJobResult, cancellationToken);
+        return await Save(jobIdentifier, "-result", JsonSerializer.Serialize(importJobResult), cancellationToken);
     }
     
     public async Task<Result<ImportJob?>> GetImportJob(string jobIdentifier, CancellationToken cancellationToken)
@@ -40,15 +40,14 @@ public class ImportJobResultStore(
     }
 
 
-    private async Task<Result> Save(string jobIdentifier, string suffix, Resource resource,
-        CancellationToken cancellationToken = default)
+    private async Task<Result> Save(string jobIdentifier, string suffix, string body, CancellationToken cancellationToken = default)
     {        
         var putReq = new PutObjectRequest
         {
             BucketName = options.DefaultWorkingBucket,
             Key = $"{jobResultsPrefix}{jobIdentifier}-{suffix}",
             ContentType = "application/json",
-            ContentBody = JsonSerializer.Serialize(resource),
+            ContentBody = body,
             ChecksumAlgorithm = ChecksumAlgorithm.SHA256 // might as well
         };
         try

@@ -4,6 +4,8 @@ namespace DigitalPreservation.Common.Model.PreservationApi;
 
 public class Deposit : Resource
 {
+    [JsonPropertyOrder(2)]
+    [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(Deposit); 
     
     [JsonPropertyOrder(110)]

@@ -5,7 +5,7 @@ namespace Storage.API.Features.Import;
 
 public interface IImportJobQueue
 {
-    ValueTask QueueRequest(string transaction, CancellationToken cancellationToken);
+    ValueTask QueueRequest(string jobIdentifier, CancellationToken cancellationToken);
     ValueTask<string> DequeueRequest(CancellationToken cancellationToken);
 }
 
@@ -27,8 +27,8 @@ public class InProcessImportJobQueue : IImportJobQueue
         queue = Channel.CreateBounded<string>(options);
     }
     
-    public ValueTask QueueRequest(string transaction, CancellationToken cancellationToken)
-        => queue.Writer.WriteAsync(transaction, cancellationToken);
+    public ValueTask QueueRequest(string jobIdentifier, CancellationToken cancellationToken)
+        => queue.Writer.WriteAsync(jobIdentifier, cancellationToken);
 
     public ValueTask<string> DequeueRequest(CancellationToken cancellationToken)
         => queue.Reader.ReadAsync(cancellationToken);
