@@ -44,28 +44,6 @@ public class DigitalPreservationAppFactory<TStartup> : WebApplicationFactory<TSt
         this.configureTestServices = configure;
         return this;
     }
-
-    // protected override void ConfigureWebHost(IWebHostBuilder builder)
-    // {
-    //     var projectDir = Directory.GetCurrentDirectory();
-    //     var configPath = Path.Combine(projectDir, "appsettings.Testing.json");
-    //
-    //     builder
-    //         .ConfigureAppConfiguration((context, conf) =>
-    //         {
-    //             conf.AddJsonFile(configPath, optional: true);
-    //             conf.AddInMemoryCollection(configuration);
-    //         })
-    //         .ConfigureServices(services =>
-    //         {
-    //             configureTestServices?.Invoke(services);
-    //         })
-    //         .UseEnvironment("Testing")
-    //         .UseDefaultServiceProvider((_, options) =>
-    //         {
-    //             options.ValidateScopes = true;
-    //         });
-    // }
     
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -92,7 +70,7 @@ public class DigitalPreservationAppFactory<TStartup> : WebApplicationFactory<TSt
     protected override IHost CreateHost(IHostBuilder builder)
     {
         var projectDir = Directory.GetCurrentDirectory();
-        var configPath = Path.Combine(projectDir, "appsettings.Development.json");
+        var configPath = Path.Combine(projectDir, "appsettings.Testing.json");
         
         builder.ConfigureHostConfiguration(config =>
         {
