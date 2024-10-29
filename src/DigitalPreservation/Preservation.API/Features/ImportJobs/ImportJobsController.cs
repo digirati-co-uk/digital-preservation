@@ -53,12 +53,7 @@ public class ImportJobsController(IMediator mediator) : Controller
 
         importJob.Deposit = deposit.Id;
         var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob), cancellationToken);
-        if (executeImportJobResult.Success)
-        {
-            var importJobResult = executeImportJobResult.Value!;
-            return CreatedAtAction(nameof(GetImportJobResult), new { id = depositId, importJobId = importJobResult.Id!.GetSlug() }, importJobResult);
-        }
-        return this.StatusResponseFromResult(executeImportJobResult);
+        return this.StatusResponseFromResult(executeImportJobResult, 201, executeImportJobResult.Value?.Id);
     }
     
     [HttpGet("results", Name = "GetImportJobResults")]

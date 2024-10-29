@@ -23,7 +23,10 @@ public class Container : PreservedResource
     public List<Binary> Binaries { get; set; } = [];
 
     [JsonIgnore]
-    public override string StringIcon => "📁";
+    public override string StringIcon => Icon;
+    
+    [JsonIgnore]
+    public static string Icon => "📁";
 
     public (List<Container>, List<Binary>) Flatten()
     {

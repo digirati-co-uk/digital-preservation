@@ -6,4 +6,8 @@ public static class DateX
     {
         return !dt.HasValue ? fallback : dt?.ToLocalTime().ToString("s").Replace("T", " ");
     }
+    public static string? GetDateDisplay(this DateTime dt, string? fallback = null)
+    {
+        return dt.ToLocalTime().ToString("s").Replace("T", " ");
+    }
 }

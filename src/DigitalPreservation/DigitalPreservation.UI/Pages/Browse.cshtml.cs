@@ -9,8 +9,7 @@ namespace DigitalPreservation.UI.Pages;
 
 public class BrowseModel(IMediator mediator) : PageModel
 {
-    // Assumes Resource is always a container for now
-    public Container? Resource { get; set; }
+    public PreservedResource? Resource { get; set; }
     public string? PathUnderRoot { get; set; }
     
     public async Task OnGet(string? pathUnderRoot)
@@ -19,8 +18,21 @@ public class BrowseModel(IMediator mediator) : PageModel
         var result = await mediator.Send(new GetResource(resourcePath));
         if (result.Success)
         {
-            Resource = result.Value as Container;
+            Resource = result.Value;
             PathUnderRoot = pathUnderRoot;
+            var name = Resource!.Name ?? Resource!.Id!.GetSlug();
+            switch (Resource!.Type)
+            {
+                case nameof(ArchivalGroup):
+                    ViewData["Title"] = $"📦 {name}";
+                    break;
+                case nameof(Container):
+                    ViewData["Title"] = $"📁 {name}";
+                    break;
+                case nameof(Binary):
+                    ViewData["Title"] = $"🗎 {name}";
+                    break;
+            }
         }
     }
     public async Task<IActionResult> OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle)

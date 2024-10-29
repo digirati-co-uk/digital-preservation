@@ -24,6 +24,7 @@ internal class FedoraClient(
     IStorageMapper storageMapper) : IFedoraClient
 {
     public readonly bool RequireChecksum = fedoraOptions.Value.RequireDigestOnBinary;
+    public readonly string FedoraBucket = fedoraOptions.Value.Bucket;
     
     public async Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
@@ -98,7 +99,7 @@ internal class FedoraClient(
             return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"{uri} does not match {archivalGroup.Id}");
         }
 
-        archivalGroup.Origin = new Uri(storageMapper.GetArchivalGroupOrigin(archivalGroup.Id)!);
+        archivalGroup.Origin = storageMapper.GetArchivalGroupOrigin(archivalGroup.Id)!.S3UriInBucket(FedoraBucket);
         archivalGroup.Versions = versions;
         archivalGroup.StorageMap = storageMap;
         archivalGroup.Version = versions.Single(v => v.OcflVersion == storageMap.Version.OcflVersion);
@@ -214,12 +215,12 @@ internal class FedoraClient(
 
         var testUris = new List<Uri>();
         
-        var parentUri = resourceUri.GetParentUri();
+        var parentUri = resourceUri.GetParentUri(trimTrailingSlash: true);
         while (parentUri != null && !converters.IsFedoraRoot(parentUri))
         {
             // We know the root is not an Archival Group, we can skip testing it.
             testUris.Add(parentUri);
-            parentUri = parentUri.GetParentUri();
+            parentUri = parentUri.GetParentUri(trimTrailingSlash: true);
         }
         
         if(testUris.Count == 0)

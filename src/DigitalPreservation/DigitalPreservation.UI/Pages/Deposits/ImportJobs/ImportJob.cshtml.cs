@@ -53,7 +53,7 @@ public class ImportJobModel(IMediator mediator) : PageModel
         if (result.Success)
         {
             var importJobResult = result.Value;
-            return Redirect($"/deposits/{depositId}/importjobs/results/{importJobResult!.Id!.GetSlug()}");
+            return Redirect($"/deposits/{depositId}/importjobs/{importJobResult!.Id!.GetSlug()}");
         }
         
         TempData["Error"] = result.CodeAndMessage();

@@ -22,5 +22,8 @@ public class ArchivalGroup : Container
     public StorageMap? StorageMap { get; set; }
     
     [JsonIgnore]
-    public override string StringIcon => "📦";
+    public override string StringIcon => Icon;
+    
+    [JsonIgnore]
+    public static string Icon => "📦";
 }

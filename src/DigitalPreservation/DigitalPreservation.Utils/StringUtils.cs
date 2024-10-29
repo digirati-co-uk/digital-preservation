@@ -104,17 +104,29 @@ public static class StringUtils
         return new Uri(newUriString);
     }
 
-    public static Uri? GetParentUri(this Uri uri)
+    public static Uri? GetParentUri(this Uri uri, bool trimTrailingSlash = false)
     {
         if (uri.AbsolutePath == "/")
         {
             return null;
         }
+
+        Uri newUri;
         if (uri.AbsolutePath.EndsWith('/'))
         {
-            return new Uri(uri, "..");
+            newUri = new Uri(uri, "..");
         }
-        return new Uri(uri, ".");
+        else
+        {
+            newUri = new Uri(uri, ".");
+        }
+
+        if (trimTrailingSlash)
+        {
+            return new Uri(newUri.ToString().TrimEnd('/'));
+        }
+
+        return newUri;
     }
     
     

@@ -264,6 +264,7 @@ internal class PreservationApiClient(
             switch (response.StatusCode)
             {
                 case HttpStatusCode.OK:
+                case HttpStatusCode.Created:
                     var diffImportJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
                     if (diffImportJobResult is not null)
                     {

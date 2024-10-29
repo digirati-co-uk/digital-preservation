@@ -21,5 +21,8 @@ public class Binary : PreservedResource
     public string? Digest { get; set; }
 
     [JsonIgnore]
-    public override string StringIcon => "🗎";
+    public override string StringIcon => Icon;
+    
+    [JsonIgnore]
+    public static string Icon => "🗎";
 }
