@@ -20,7 +20,7 @@ public abstract class PreservedResource : Resource
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Uri? Origin { get; set; }
 
-    private string? GetSlug()
+    public string? GetSlug()
     {
         return Id != null ? Id.Segments[^1].Trim('/') : null;
     }

@@ -25,5 +25,5 @@ public class ArchivalGroup : Container
     public override string StringIcon => Icon;
     
     [JsonIgnore]
-    public static string Icon => "📦";
+    public new static string Icon => "📦";
 }

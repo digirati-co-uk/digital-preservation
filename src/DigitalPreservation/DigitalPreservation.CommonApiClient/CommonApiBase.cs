@@ -22,6 +22,10 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
     public async Task<Result<ArchivalGroup?>> GetArchivalGroup(string path, string? version)
     {
         var result = await GetResourceInternal(path, version);
+        if (result.Success)
+        {
+            return Result.Ok<ArchivalGroup?>(result.Value as ArchivalGroup);
+        }
         return Result.Cast<PreservedResource?, ArchivalGroup?>(result);
     }
     

@@ -18,7 +18,7 @@ namespace Storage.Client;
 /// Marked internal to avoid consumers depending on this implementation, which will allow us to alter how it's
 /// implemented in the future to use, e.g. Refit client instead
 /// </remarks>
-internal class StorageApiClient(
+public class StorageApiClient(
     HttpClient httpClient, 
     ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger), IStorageApiClient
 {
