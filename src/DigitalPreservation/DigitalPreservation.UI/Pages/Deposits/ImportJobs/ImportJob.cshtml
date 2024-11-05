@@ -80,25 +80,25 @@ ViewData["section"] = "deposits";
                     @switch (jobResult.Status)
                     {
                         case ImportJobStates.Waiting:
-                            <dd class="col-sm-9 text-bg-warning"><svg class="bi"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
+                            <dd class="col-sm-9 text-bg-warning" aria-label="status"><svg class="bi"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
                             break;
                         case ImportJobStates.Running:
-                            <dd class="col-sm-9 text-bg-primary"><svg class="bi"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
+                            <dd class="col-sm-9 text-bg-primary" aria-label="status"><svg class="bi"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
                             break;
                         case ImportJobStates.Completed:
-                            <dd class="col-sm-9">@jobResult.Status</dd>
+                            <dd class="col-sm-9" aria-label="status">@jobResult.Status</dd>
                             break;
                         case ImportJobStates.CompletedWithErrors:
-                            <dd class="col-sm-9 text-bg-danger">@jobResult.Status</dd>
+                            <dd class="col-sm-9 text-bg-danger" aria-label="status">@jobResult.Status</dd>
                             break;
                         default:
-                            <dd class="col-sm-9 text-bg-danger">(unknown status: @jobResult.Status)</dd>
+                            <dd class="col-sm-9 text-bg-danger" aria-label="status">(unknown status: @jobResult.Status)</dd>
                             break;
                     }
                     @if (jobResult.Errors is { Length: > 0 })
                     {
                         <dt class="col-sm-3">Errors</dt>
-                        <dd class="col-sm-9">
+                        <dd class="col-sm-9" aria-label="errors">
                             @foreach (var error in jobResult.Errors)
                             {
                                 <div class="alert alert-danger" role="alert">
@@ -108,33 +108,33 @@ ViewData["section"] = "deposits";
                         </dd>
                     }
                     <dt class="col-sm-3">Deposit</dt>
-                    <dd class="col-sm-9"><a href="/deposits/@jobResult.Deposit!.GetSlug()">@jobResult.Deposit!.GetSlug()</a></dd>
+                    <dd class="col-sm-9" aria-label="deposit"><a href="/deposits/@jobResult.Deposit!.GetSlug()">@jobResult.Deposit!.GetSlug()</a></dd>
                     <dt class="col-sm-3">Archival Group</dt>
-                    <dd class="col-sm-9"><a href="/browse/@jobResult.ArchivalGroup.GetPathUnderRoot()">@jobResult.ArchivalGroup.GetPathUnderRoot()</a></dd>
+                    <dd class="col-sm-9" aria-label="archival group"><a href="/browse/@jobResult.ArchivalGroup.GetPathUnderRoot()">@jobResult.ArchivalGroup.GetPathUnderRoot()</a></dd>
 
                     <dt class="col-sm-3">Date Begun</dt>
-                    <dd class="col-sm-9">@jobResult.DateBegun.GetDateDisplay()</dd>
+                    <dd class="col-sm-9" aria-label="date begun">@jobResult.DateBegun.GetDateDisplay()</dd>
                     <dt class="col-sm-3">Date Finished</dt>
-                    <dd class="col-sm-9">@jobResult.DateFinished.GetDateDisplay()</dd>
+                    <dd class="col-sm-9" aria-label="date finished">@jobResult.DateFinished.GetDateDisplay()</dd>
                     
                     <dt class="col-sm-3">Source Version</dt>
-                    <dd class="col-sm-9">@(jobResult.SourceVersion ?? "(none)")</dd>
+                    <dd class="col-sm-9" aria-label="source version">@(jobResult.SourceVersion ?? "(none)")</dd>
                     <dt class="col-sm-3">New Version</dt>
-                    <dd class="col-sm-9">@(jobResult.NewVersion ?? "...")</dd>
+                    <dd class="col-sm-9" aria-label="new version">@(jobResult.NewVersion ?? "...")</dd>
                     
                     <dt class="col-sm-3">Created</dt>
-                    <dd class="col-sm-9">@jobResult.Created.GetDateDisplay()</dd>
+                    <dd class="col-sm-9" aria-label="created">@jobResult.Created.GetDateDisplay()</dd>
                     <dt class="col-sm-3">Created By</dt>
-                    <dd class="col-sm-9">@jobResult.CreatedBy?.GetSlug()</dd>
+                    <dd class="col-sm-9" aria-label="created by">@jobResult.CreatedBy?.GetSlug()</dd>
 
                     <dt class="col-sm-3">Import Job</dt>
-                    <dd class="col-sm-9">@jobResult.ImportJob</dd>
+                    <dd class="col-sm-9" aria-label="import job">@jobResult.ImportJob</dd>
                     <dt class="col-sm-3">Original Import Job</dt>
-                    <dd class="col-sm-9">@jobResult.OriginalImportJob</dd>
+                    <dd class="col-sm-9" aria-label="original import job">@jobResult.OriginalImportJob</dd>
 
 
                     <dt class="col-sm-3">Containers Added</dt>
-                    <dd class="col-sm-9">
+                    <dd class="col-sm-9" aria-label="containers added">
                         <ul class="list-unstyled">
                             @foreach (var container in jobResult.ContainersAdded)
                             {
@@ -143,7 +143,7 @@ ViewData["section"] = "deposits";
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Binaries Added</dt>
-                    <dd class="col-sm-9">
+                    <dd class="col-sm-9" aria-label="binaries added">
                         <ul class="list-unstyled">
                             @foreach (var binary in jobResult.BinariesAdded)
                             {
@@ -152,7 +152,7 @@ ViewData["section"] = "deposits";
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Binaries Patched</dt>
-                    <dd class="col-sm-9">
+                    <dd class="col-sm-9" aria-label="binaries patched">
                         <ul>
                             @foreach (var binary in jobResult.BinariesPatched)
                             {
@@ -161,7 +161,7 @@ ViewData["section"] = "deposits";
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Containers Deleted</dt>
-                    <dd class="col-sm-9">
+                    <dd class="col-sm-9" aria-label="containers deleted">
                         <ul>
                             @foreach (var container in jobResult.ContainersDeleted)
                             {
@@ -170,7 +170,7 @@ ViewData["section"] = "deposits";
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Binaries Deleted</dt>
-                    <dd class="col-sm-9">
+                    <dd class="col-sm-9" aria-label="binaries deleted">
                         <ul>
                             @foreach (var binary in jobResult.BinariesDeleted)
                             {
@@ -179,7 +179,7 @@ ViewData["section"] = "deposits";
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Containers Renamed</dt>
-                    <dd class="col-sm-9">
+                    <dd class="col-sm-9" aria-label="containers renamed">
                         <ul>
                             @foreach (var container in jobResult.ContainersRenamed)
                             {
@@ -188,7 +188,7 @@ ViewData["section"] = "deposits";
                         </ul>
                     </dd>
                     <dt class="col-sm-3">Binaries Renamed</dt>
-                    <dd class="col-sm-9">
+                    <dd class="col-sm-9" aria-label="binaries renamed">
                         <ul>
                             @foreach (var binary in jobResult.BinariesRenamed)
                             {
