@@ -9,21 +9,21 @@ ViewData["section"] = "deposits";
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">@ViewData["Title"]</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <p id="tableRowContext"></p>
-        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="collapse" data-bs-target="#collapseAgDetails">
-            <svg class="bi"><use xlink:href="#three-dots"/></svg><span class="ms-2">Toggle details</span>
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newFolderModal">
-            <svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New folder</span>
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#uploadFileModal">
-            <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span>
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#deleteItemModal">
-            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete selected</span>
-        </button>
-    </div>
+    @* <div class="btn-toolbar mb-2 mb-md-0"> *@
+    @*     <p id="tableRowContext"></p> *@
+    @*     <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="collapse" data-bs-target="#collapseAgDetails"> *@
+    @*         <svg class="bi"><use xlink:href="#three-dots"/></svg><span class="ms-2">Toggle details</span> *@
+    @*     </button> *@
+    @*     <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newFolderModal"> *@
+    @*         <svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New folder</span> *@
+    @*     </button> *@
+    @*     <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#uploadFileModal"> *@
+    @*         <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span> *@
+    @*     </button> *@
+    @*     <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#deleteItemModal"> *@
+    @*         <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete selected</span> *@
+    @*     </button> *@
+    @* </div> *@
 </div>
 
 <div>
@@ -101,11 +101,13 @@ ViewData["section"] = "deposits";
                         <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
                             <thead>
                             <tr>
+                                <th scope="col" class="dep-actions"></th>
                                 <th scope="col">Path</th>
                                 <th scope="col">Name</th>
                                 <th scope="col">Hash</th>
                                 <th scope="col">Size</th>
                                 <th scope="col">Type</th>
+                                <th scope="col" class="dep-actions"></th>
                             </tr>
                             </thead>
                             <tbody>
@@ -139,6 +141,7 @@ ViewData["section"] = "deposits";
                 }
                 else
                 {
+                    
                     <div class="table-responsive small">
                         <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
                             <thead>
@@ -335,7 +338,7 @@ ViewData["section"] = "deposits";
 </div>
 
 <script>
-    const contextDisplay = document.getElementById("tableRowContext");
+    //const contextDisplay = document.getElementById("tableRowContext");
     const rows = document.getElementsByClassName("deposit-row");
 
     const newFolderContext = document.getElementById("newFolderContext");
@@ -364,40 +367,47 @@ ViewData["section"] = "deposits";
         {
             continue;
         }
+        /*
         row.addEventListener('mouseover', (event) => {
             if (!clicked){
                 displayContext(event.currentTarget);
             }
         });
+        */
         row.addEventListener('click', (event) => {
             const row = event.currentTarget;
+
+            const path = row.getAttribute("data-path");
+            const isFile = row.getAttribute("data-type") === "file";
+            newFileContext.value = path;
+            newFolderContext.value = path;
+            newFolderContextIsFile.value = isFile;
+            newFileContextIsFile.value = isFile;
+            deleteContext.value = path;
+            deleteContextIsFile.value = isFile;
+            deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;
+            deleteButton.removeAttribute("disabled");
+            
             if (row.classList.contains("table-active")){
                 for (const r of rows) { r.classList.remove("table-active"); }
+                clicked = false;
+                /*
                 newFileContext.value = "";
                 newFolderContext.value = "";
                 deleteContext.value = "";
-                clicked = false;
                 deleteItemHelp.innerHTML = "(nothing selected)";
                 deleteButton.disabled = "disabled";
+                */
             } else {
                 for (const r of rows) { r.classList.remove("table-active"); }
                 row.classList.add("table-active");
                 clicked = true;
-                displayContext(row);
-                const path = row.getAttribute("data-path");
-                const isFile = row.getAttribute("data-type") === "file";
-                newFileContext.value = path;
-                newFolderContext.value = path;
-                newFolderContextIsFile.value = isFile;
-                newFileContextIsFile.value = isFile;
-                deleteContext.value = path;
-                deleteContextIsFile.value = isFile;
-                deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;
-                deleteButton.removeAttribute("disabled");
+                // displayContext(row);
             }
         });
     }
     
+    /*
     function displayContext(row){
         const icon = getIcon(row.getAttribute("data-type"));
         const path = row.getAttribute("data-path");
@@ -411,6 +421,7 @@ ViewData["section"] = "deposits";
             return '<svg class="bi"><use xlink:href="#folder"/></svg>';
         }
     }
+    */
 
 </script>
 

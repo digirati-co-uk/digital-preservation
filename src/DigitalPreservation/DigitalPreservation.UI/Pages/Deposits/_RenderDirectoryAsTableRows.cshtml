@@ -8,6 +8,14 @@
 {
     depth = Model.LocalPath.Split('/').Length;
     <tr class="deposit-row" data-path="@Model.LocalPath" data-type="directory">
+        <td class="dep-actions">
+            <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+                <svg class="bi"><use xlink:href="#folder-plus"/></svg>
+            </a>
+            <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#uploadFileModal">
+                <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg>
+            </a>
+        </td>
         <td style="padding-left: @(1.3 * depth)rem">
             <svg class="bi"><use xlink:href="#folder"/></svg> <span aria-label="slug">@Model.GetSlug()</span>
         </td>
@@ -15,6 +23,14 @@
         <td></td>
         <td></td>
         <td></td>
+        <td class="dep-actions">
+            @if (Model.LocalPath != "objects")
+            {
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#deleteItemModal">
+                    <svg class="bi"><use xlink:href="#trash"/></svg>
+                </a>
+            }
+        </td>
     </tr>
 }
 @foreach (var dir in Model.Directories)
@@ -24,12 +40,22 @@
 @foreach (var file in Model.Files)
 {
     <tr class="deposit-row" data-path="@file.LocalPath" data-type="file">
+        <td class="dep-actions">
+        </td>
         <td style="padding-left: @(1.3 * (depth + 1))rem">
             <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> <span aria-label="slug">@file.GetSlug()</span>
         </td>
         <td aria-label="name">@file.Name</td>
         <td aria-label="hash">@file.Digest?[..8]</td>
-        <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace:true, fallbackIfNull:" - ")</td>
+        <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
         <td aria-label="content-type">@file.ContentType</td>
+        <td class="dep-actions">
+            @if (file.LocalPath != "__METSlike.json")
+            {
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#deleteItemModal">
+                    <svg class="bi"><use xlink:href="#trash"/></svg>
+                </a>
+            }
+        </td>
     </tr>
 } 

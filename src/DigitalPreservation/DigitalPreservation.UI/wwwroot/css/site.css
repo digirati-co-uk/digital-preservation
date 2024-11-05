@@ -176,20 +176,29 @@ table.plain-link-table a {
 
 .deposit-table.table-hover {
     > tbody > tr:hover > * {
-        background-color: cadetblue;
-        color: white;
+        border-bottom: 1px solid black;
+        color: darkblue;
     }
 }
 
 tr.deposit-row.table-active td {
-    background-color: cadetblue;
-    color: white;
+    color: darkblue;
     font-weight: bold;
 }
+
 
 dl.job-table dt, dl.job-table dd {
     margin-bottom: 0;
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid lightgray;
+}
+
+.deposit-row a {
+    padding-right: 1rem;
+}
+
+td.dep-actions, th.dep-actions {
+    width:0.1%;
+    white-space: nowrap;
 }
