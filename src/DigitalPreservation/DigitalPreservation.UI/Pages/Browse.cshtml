@@ -332,18 +332,30 @@
 </div>
 
 @section Scripts{
-  
-<script>
+
+    <script>
     
     const containerTitleInput = document.getElementById('containerTitle');
     const containerSlugInput = document.getElementById('containerSlug');
     const depositNameInput = document.getElementById('archivalGroupProposedName');
     const depositSlugInput = document.getElementById('archivalGroupSlug');
     const depositSlugDisplay = document.getElementById('slugDisplay');
+    const submissionTextInput = document.getElementById('submissionText');
     const touchStatus = {
         containerSlugTouched: false,
         depositSlugTouched: false
     };
+    
+    document.getElementById("newContainerModal").addEventListener("show.bs.modal", () => {
+        containerTitleInput.value = "";
+        containerSlugInput.value = "";
+    });
+    document.getElementById("newDepositModal").addEventListener("show.bs.modal", () => {
+        depositNameInput.value = "";
+        depositSlugInput.value = "";
+        submissionTextInput.value = "";
+        depositSlugDisplay.innerHTML = "";
+    });
     
     addNameInputListener(depositNameInput, depositSlugInput, 'depositSlugTouched', depositSlugDisplay);
     addSlugInputListener(depositSlugInput, 'depositSlugTouched', depositSlugDisplay);
@@ -407,5 +419,5 @@
 
 
 </script>
-  
+
 }
