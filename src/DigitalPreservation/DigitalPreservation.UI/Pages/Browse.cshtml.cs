@@ -11,7 +11,8 @@ public class BrowseModel(IMediator mediator) : PageModel
 {
     public PreservedResource? Resource { get; set; }
     public string? PathUnderRoot { get; set; }
-    
+    public string? ArchivalGroupPath { get; set; }
+
     public async Task OnGet(string? pathUnderRoot)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
@@ -25,6 +26,7 @@ public class BrowseModel(IMediator mediator) : PageModel
             {
                 case nameof(ArchivalGroup):
                     ViewData["Title"] = $"📦 {name}";
+                    ArchivalGroupPath = PathUnderRoot;
                     break;
                 case nameof(Container):
                     ViewData["Title"] = $"📁 {name}";
@@ -32,6 +34,14 @@ public class BrowseModel(IMediator mediator) : PageModel
                 case nameof(Binary):
                     ViewData["Title"] = $"🗎 {name}";
                     break;
+                case "RepositoryRoot":
+                    ViewData["Title"] = $"Browse Repository";
+                    break;
+            }
+
+            if (Resource.PartOf != null)
+            {
+                ArchivalGroupPath = Resource.PartOf.GetPathUnderRoot();
             }
         }
     }

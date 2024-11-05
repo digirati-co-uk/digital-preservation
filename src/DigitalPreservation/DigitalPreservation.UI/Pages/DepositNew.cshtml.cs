@@ -70,6 +70,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         }
         
         var archivalGroupRepositoryPath = newDepositModel.ArchivalGroupPathUnderRoot.GetRepositoryPath()!;
+        var browsePath = "/browse/" + newDepositModel.ArchivalGroupPathUnderRoot;
         var depositsForArchivalGroupResult = await mediator.Send(new GetDeposits(new DepositQuery{ArchivalGroupPath = archivalGroupRepositoryPath}));
         if (depositsForArchivalGroupResult.Success)
         {
@@ -104,8 +105,8 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             // User intends to make a NEW deposit
             if (existingResourceResult.ErrorCode != ErrorCodes.NotFound || existingResourceResult.Value != null) // this is belt and braces really
             {
-                TempData["CreateDepositFail"] = "There is already an archival group at " + archivalGroupRepositoryPath + ".<br/>" +
-                                                "<a href=\"" + archivalGroupRepositoryPath + "\">" + archivalGroupRepositoryPath + "</a></br>" +
+                TempData["CreateDepositFail"] = "There is already an archival group at " + newDepositModel.ArchivalGroupPathUnderRoot + ".<br/>" +
+                                                "<a href=\"" + browsePath + "\">" + newDepositModel.ArchivalGroupPathUnderRoot + "</a></br>" +
                                                 "You can visit it to create a new Deposit (and optionally Export).";
                 return false;
             }

@@ -31,7 +31,7 @@ class Program
             return;
         }
 
-        var httpClient = new HttpClient();
+        var httpClient = new HttpClient(); 
         httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
         var credentials = $"{dlcsUser}:{dlcsPassword}";
         var authHeader = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(credentials));

@@ -32,9 +32,21 @@
                 <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em" /> IIIF
             </a>
         }
-        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
-            <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
-        </button>
+        @if (Model.ArchivalGroupPath.HasText())
+        {
+            <form method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
+                <button type="submit" class="btn btn-sm btn-outline-primary me-2">
+                    <input type="hidden" name="archivalGroupPath" value="@Model.ArchivalGroupPath" />
+                    <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
+                </button>
+            </form>
+        }
+        else
+        {
+            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
+                <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
+            </button>
+        }
     </div>
 </div>
 
@@ -223,11 +235,7 @@
                                 {
                                     <a href="/deposits?archivalGroup=@container.GetPathUnderRoot()"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
                                 }
-                            </td> <!-- for AGs in this list only; -->
-                            <!--
-                            if container.type is AG, show the link to DEPOSITS for the AG (browse path as normal)
-                            Always shown whether there is an existing deposit or not
-                            -->
+                            </td>
                         </tr>
                     }
 
@@ -266,14 +274,14 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="containerSlug" class="form-label">Folder path name</label>
-                        <input type="text" class="form-control" id="containerSlug" name="containerSlug" aria-describedby="containerSlugHelp">
-                        <div id="containerSlugHelp" class="form-text">The path of the folder as appears in URLs - no special characters</div>
-                    </div>
-                    <div class="mb-3">
                         <label for="containerTitle" class="form-label">Folder title</label>
                         <input type="text" class="form-control" id="containerTitle" name="containerTitle" aria-describedby="containerTitleHelp">
                         <div id="containerTitleHelp" class="form-text">A friendly name for the folder, may contain any characters</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="containerSlug" class="form-label">Folder path name</label>
+                        <input type="text" class="form-control" id="containerSlug" name="containerSlug" aria-describedby="containerSlugHelp">
+                        <div id="containerSlugHelp" class="form-text">The path of the folder as appears in URLs - no special characters</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -323,40 +331,81 @@
     </div>
 </div>
 
+@section Scripts{
+  
 <script>
     
-    const nameInput = document.getElementById('archivalGroupProposedName');
-    const slugInput = document.getElementById('archivalGroupSlug');
-    const slugDisplay = document.getElementById('slugDisplay');
-    const chars = "abcdefghijklmnopqrstuvwxyz0123456789.-_".split('');
-    let touched = false;
+    const containerTitleInput = document.getElementById('containerTitle');
+    const containerSlugInput = document.getElementById('containerSlug');
+    const depositNameInput = document.getElementById('archivalGroupProposedName');
+    const depositSlugInput = document.getElementById('archivalGroupSlug');
+    const depositSlugDisplay = document.getElementById('slugDisplay');
+    const touchStatus = {
+        containerSlugTouched: false,
+        depositSlugTouched: false
+    };
     
-    nameInput.addEventListener('input', (event) => {
-        if (!touched){
-            slugInput.value = '';
-            const low = nameInput.value.toLowerCase();
-            for (const c of low) {
-                if (chars.includes(c)){
-                    slugInput.value += c;
+    addNameInputListener(depositNameInput, depositSlugInput, 'depositSlugTouched', depositSlugDisplay);
+    addSlugInputListener(depositSlugInput, 'depositSlugTouched', depositSlugDisplay);
+
+    addNameInputListener(containerTitleInput, containerSlugInput, 'containerSlugTouched');
+    addSlugInputListener(containerSlugInput, 'containerSlugTouched');
+    
+    function addNameInputListener(nameInput, slugInput, touchedKey, slugDisplay)
+    {
+        nameInput.addEventListener('input', (event) => {
+            if (!touchStatus[touchedKey]){
+                slugInput.value = '';
+                const low = nameInput.value.toLowerCase();
+                for (const c of low) {
+                    if (permittedSlugChars.includes(c)){
+                        slugInput.value += c;
+                    }
+                    if (c === ' '){
+                        slugInput.value += '-';
+                    }
                 }
-                if (c === ' '){
-                    slugInput.value += '-';
+                if (slugDisplay){
+                    slugDisplay.innerHTML = slugInput.value;
                 }
             }
-            slugDisplay.innerHTML = slugInput.value;
-        }        
-    });
-    document.getElementById('archivalGroupSlug').addEventListener('beforeinput', (event) => {
-        touched = true; // no longer update this from the name box
-        console.log(event.data);
-        if (event.data && !chars.includes(event.data)){
-            event.preventDefault();            
+        });
+    }
+    
+    function addSlugInputListener(slugInput, touchedKey, slugDisplay){
+        slugInput.addEventListener('beforeinput', (event) => {
+            touchStatus[touchedKey] = true; // no longer update this from the name box
+            console.log(event.data);
+            // Here - is event.data a char, or a paste (string)?
+            if (event.data){
+                if (("" + event.data).length === 1){         
+                    // a char was typed (or pasted)      
+                    if (!permittedSlugChars.includes(event.data)){
+                        event.preventDefault();
+                    }
+                }
+                if (event.data.length > 1){
+                    // a string was pasted
+                    for (const c of event.data) {
+                        if (!permittedSlugChars.includes(c)){
+                            alert("The path element " + event.data + " contains an invalid character:\n\n" + c + "\n\nPermitted characters are:\n\n" + permittedSlugString);
+                            event.preventDefault();
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+        if (slugDisplay){
+            slugInput.addEventListener('input', () => {
+                slugDisplay.innerHTML = slugInput.value;
+            });
         }
-    });
-    document.getElementById('archivalGroupSlug').addEventListener('input', () => {
-        slugDisplay.innerHTML = slugInput.value;
-    });
+    }
+    
 
 
 
 </script>
+  
+}

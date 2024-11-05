@@ -79,6 +79,7 @@ public class GetImportJobResultHandler(
             {
                 var deposit = dbContext.Deposits.Single(d => d.MintedId == request.DepositId);
                 deposit.Status = DepositStates.Preserved;
+                deposit.Active = false; // even if completedWithErrors, I think. Should not be a regular occurrence.
                 deposit.Preserved = storageApiImportJobResult.DateFinished;
                 deposit.PreservedBy = storageApiImportJobResult.CreatedBy!.GetSlug()!;
                 deposit.LastModified = deposit.Preserved!.Value;

@@ -11,4 +11,8 @@ public static class ImportJobStates
     {
         return status is Completed or CompletedWithErrors;
     }
+    public static bool IsSuccess(string status)
+    {
+        return status is Completed;
+    }
 }
