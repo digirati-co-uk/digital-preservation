@@ -119,15 +119,23 @@ ViewData["active"] = Model.Deposit?.Active;
                 
                 
                 <h3>Import Jobs</h3>
-                
+
                 <div class="mb-3">
+                @if (Model.Deposit.Active)
+                {
                     <a class="btn btn-sm btn-primary me-2" role="button" href="/deposits/@Model.Id/importjobs/diff">
                         <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
                     </a>
                     <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">
                         <svg class="bi"><use xlink:href="#file-diff"/></svg><span class="ms-2">Create custom import job</span>
                     </a>
+                }
+                else
+                {
+                    <p>No jobs can be run as this deposit is no longer active.</p>
+                }
                 </div>
+                    
                 
                 @if (Model.ImportJobResults.Count == 0)
                 {
