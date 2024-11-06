@@ -2,6 +2,10 @@
 
 public class DepositQuery : QueryBase
 {
+    public const string LastModified = "LastModified";
+    public const string Created = "Created";
+    public const string Preserved = "Preserved";
+    public const string Exported = "Exported";
     public string? ArchivalGroupPath { get; set; }
     public Uri? PreservedBy { get; set; }
     public DateTime? PreservedAfter { get; set; }
@@ -10,7 +14,7 @@ public class DepositQuery : QueryBase
     public DateTime? ExportedAfter { get; set; }
     public DateTime? ExportedBefore { get; set; }
     public string? Status { get; set; }
-    public bool Active { get; set; }
+    public bool? ShowAll { get; set; }
 
     public override bool NoTerms()
     {
@@ -23,6 +27,6 @@ public class DepositQuery : QueryBase
                ExportedAfter is null &&
                ExportedBefore is null &&
                Status is null &&
-               Active == false;
+               ShowAll is null or false;
     }
 }

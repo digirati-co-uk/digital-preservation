@@ -48,9 +48,9 @@ public class QueryBuilder
         {
             queryString.Add(nameof(query.Status), query.Status);
         }
-        if (query.Active)
+        if (query.ShowAll is true)
         {
-            queryString.Add(nameof(query.Active), "true");
+            queryString.Add(nameof(query.ShowAll), "true");
         }
         
         return queryString.ToString() ?? string.Empty;

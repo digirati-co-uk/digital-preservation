@@ -1,16 +1,76 @@
 ﻿@page "/deposits"
 @using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
+@using Microsoft.AspNetCore.WebUtilities
 @model IndexModel
-@{
-ViewData["Title"] = "Deposits";
-ViewData["section"] = "deposits";
-}
 
+@functions {
+    private string MutateQuery(string? orderBy, bool? ascending, bool showAll)
+    {
+        var queryDictionary = QueryHelpers.ParseQuery(Request.QueryString.Value);
+        if (orderBy.HasText())
+        {
+            var obKey = queryDictionary.Keys.SingleOrDefault(k => k.ToLowerInvariant() == "orderby");
+            if (obKey != null)
+            {
+                queryDictionary[obKey] = orderBy;
+            }
+            else
+            {
+                queryDictionary["orderby"] = orderBy;
+            }
+        }
+
+        if (ascending is true)
+        {
+            queryDictionary["ascending"] = "true";
+        }
+        else
+        {
+            queryDictionary.Remove("ascending");
+        }
+
+        if (showAll)
+        {
+            queryDictionary["showAll"] = "true";
+        }
+        else
+        {
+            var saKey = queryDictionary.Keys.SingleOrDefault(k => k.ToLowerInvariant() == "showall");
+            if (saKey.HasText())
+            {
+                queryDictionary.Remove(saKey);
+            }
+        }
+
+        return QueryHelpers.AddQueryString($"deposits", queryDictionary);
+    }
+}
+@{
+    ViewData["Title"] = "Deposits";
+    ViewData["section"] = "deposits";
+
+    var ascending = Model.Query.Ascending ?? false;
+    var showAll = Model.Query.ShowAll is true;
+    var marker = ascending ? "▾" : "▴";
+}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
+        <a class="btn btn-sm btn-outline-primary me-2" href="@MutateQuery(null, ascending, !showAll)">
+            <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">    
+                @if (showAll)
+                {
+                    <text>Show active only</text>
+                }
+                else
+                {
+                    <text>Show all deposits</text>
+                }
+                </span>
+        </a>
         <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
             <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
         </button>
@@ -33,22 +93,111 @@ ViewData["section"] = "deposits";
     }
 </div>
 
-
 <div class="table-responsive small">
     <table class="table table-striped table-sm plain-link-table" aria-label="table-deposits-index">
         <thead>
         <tr>
             <th scope="col">Id</th>
-            <th scope="col">Archival Group</th>
-            <th scope="col">Status</th>
-            <th scope="col">Last Modified</th>
-            <th scope="col">By</th>
-            <th scope="col">Created</th>
-            <th scope="col">By</th>
-            <th scope="col">Preserved</th>
-            <th scope="col">By</th>
-            <th scope="col">Exported</th>
-            <th scope="col">By</th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.ArchivalGroupPath).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("archivalGroupPath", !ascending, showAll)">Archival Group @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("archivalGroupPath", false, showAll)">Archival Group ▾</a>
+                }
+            </th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.Status).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("status", !ascending, showAll)">Status @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("status", false, showAll)">Status ▾</a>
+                }
+            </th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.LastModified).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("lastModified", !ascending, showAll)">Last Modified @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("lastModified", false, showAll)">Last Modified ▾</a>
+                }
+            </th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.LastModifiedBy).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("lastModifiedBy", !ascending, showAll)">By @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("lastModifiedBy", false, showAll)">By ▾</a>
+                }
+            </th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.Created).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("created", !ascending, showAll)">Created @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("created", false, showAll)">Created ▾</a>
+                }
+            </th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.CreatedBy).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("createdBy", !ascending, showAll)">By @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("createdBy", false, showAll)">By ▾</a>
+                }
+            </th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.Preserved).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("preserved", !ascending, showAll)">Preserved @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("preserved", false, showAll)">Preserved ▾</a>
+                }
+            </th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.PreservedBy).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("preservedBy", !ascending, showAll)">By @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("preservedBy", false, showAll)">By ▾</a>
+                }
+            </th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.Exported).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("exported", !ascending, showAll)">Exported @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("exported", false, showAll)">Exported ▾</a>
+                }
+            </th>
+            <th scope="col">
+                @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.ExportedBy).ToLowerInvariant())
+                {
+                    <a class="text-bg-light" href="@MutateQuery("exportedBy", !ascending, showAll)">By @marker</a>
+                }
+                else
+                {
+                    <a href="@MutateQuery("exportedBy", false, showAll)">By ▾</a>
+                }
+            </th>
         </tr>
         </thead>
         <tbody>
