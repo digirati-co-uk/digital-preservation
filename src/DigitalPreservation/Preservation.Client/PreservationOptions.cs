@@ -1,6 +1,6 @@
 ﻿namespace Preservation.Client;
 
-internal class PreservationOptions
+public class PreservationOptions
 {
     public const string Preservation = "Preservation";
     

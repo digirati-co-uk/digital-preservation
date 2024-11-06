@@ -27,8 +27,19 @@ public class PatchDepositHandler(
         }
         try
         {
+            var mintedId = request.Deposit.Id!.GetSlug();
             var entity = await dbContext.Deposits.SingleAsync(
-                d => d.MintedId == request.Deposit.Id!.GetSlug(), cancellationToken: cancellationToken);
+                d => d.MintedId == mintedId, cancellationToken: cancellationToken);
+            
+            var archivalGroupPathUnderRoot = request.Deposit.ArchivalGroup?.GetPathUnderRoot();
+            if (archivalGroupPathUnderRoot != null)
+            {
+                if (dbContext.Deposits.Any(d => d.Active && d.ArchivalGroupPathUnderRoot == archivalGroupPathUnderRoot && d.MintedId != mintedId))
+                {
+                    return Result.FailNotNull<Deposit>(ErrorCodes.Conflict,
+                        "An Active Deposit already exists for this archivalGroup (" + archivalGroupPathUnderRoot + ")");
+                }
+            }
 
             if (entity.Status == DepositStates.Exporting)
             {
@@ -37,7 +48,7 @@ public class PatchDepositHandler(
             // there are only some patchable fields
             // come back and see what others are patchable as we go
             entity.SubmissionText = request.Deposit.SubmissionText;
-            entity.ArchivalGroupPathUnderRoot = request.Deposit.ArchivalGroup?.GetPathUnderRoot();
+            entity.ArchivalGroupPathUnderRoot = archivalGroupPathUnderRoot;
             entity.ArchivalGroupName = request.Deposit.ArchivalGroupName;
             
             var callerIdentity = "dlipdev";  // TODO: actual user or app caller identity!

@@ -10,11 +10,22 @@ using LateApexEarlySpeed.Xunit.Assertion.Json;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
+using Preservation.Client;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
-public class DepositModel(IMediator mediator) : PageModel
+public class DepositModel : PageModel
 {
+    private readonly IMediator mediator;
+    private readonly IOptions<PreservationOptions> options;
+
+    public DepositModel(IMediator mediator, IOptions<PreservationOptions> options)
+    {
+        this.mediator = mediator;
+        this.options = options;
+    }
+
     public required string Id { get; set; }
     
     public Deposit? Deposit { get; set; }
@@ -325,7 +336,7 @@ public class DepositModel(IMediator mediator) : PageModel
     
     public async Task<IActionResult> OnPostUpdateProperties(
         [FromRoute] string id,
-        [FromForm] Uri? agUri,
+        [FromForm] string? agPathUnderRoot,
         [FromForm] string? agName,
         [FromForm] string? submissionText)
     {
@@ -334,7 +345,8 @@ public class DepositModel(IMediator mediator) : PageModel
         {
             var deposit = getDepositResult.Value;
             deposit!.SubmissionText = submissionText;
-            deposit.ArchivalGroup = agUri;
+            // feels like this URI should not be constructed here
+            deposit.ArchivalGroup = new Uri($"{options.Value.Root}{PreservedResource.BasePathElement}/{agPathUnderRoot}");
             deposit.ArchivalGroupName = agName;
             var saveDepositResult = await mediator.Send(new UpdateDeposit(deposit));
             if (saveDepositResult.Success)

@@ -1,29 +1,30 @@
 ﻿@page "/deposits/{id}"
+@using DigitalPreservation.Common.Model
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @model DepositModel
 @{
 ViewData["Title"] = "Deposit " + (Model.Deposit?.ArchivalGroupName ?? Model.Deposit?.ArchivalGroup?.ToString() ?? Model.Deposit?.Id?.GetSlug() ?? Model.Id);
 ViewData["section"] = "deposits";
+ViewData["active"] = Model.Deposit?.Active;
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">@ViewData["Title"]</h1>
-    @* <div class="btn-toolbar mb-2 mb-md-0"> *@
-    @*     <p id="tableRowContext"></p> *@
-    @*     <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="collapse" data-bs-target="#collapseAgDetails"> *@
-    @*         <svg class="bi"><use xlink:href="#three-dots"/></svg><span class="ms-2">Toggle details</span> *@
-    @*     </button> *@
-    @*     <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newFolderModal"> *@
-    @*         <svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New folder</span> *@
-    @*     </button> *@
-    @*     <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#uploadFileModal"> *@
-    @*         <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span> *@
-    @*     </button> *@
-    @*     <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#deleteItemModal"> *@
-    @*         <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete selected</span> *@
-    @*     </button> *@
-    @* </div> *@
+
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
+            <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
+        </button>
+        <form method="post">
+            <button type="submit" asp-page-handler="ValidateStorage" class="btn btn-sm btn-outline-primary me-2">
+                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Validate storage</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
+            </button>
+        </form>
+    </div>
 </div>
 
 <div>
@@ -63,10 +64,11 @@ ViewData["section"] = "deposits";
             <div class="col">
 
                 <form method="post" asp-page-handler="UpdateProperties" class="collapse show" id="collapseAgDetails">
+                    <fieldset style="display: contents" @(Model.Deposit.Active ? "" : " disabled=disabled")>
                     <div class="form-floating mb-3">
                         @* If this already exists, then this form element changes to a hyperlink, with a Change button *@
-                        <input type="text" class="form-control" id="agUri" name="agUri" value="@Model.Deposit.ArchivalGroup" placeholder="(URI not set)">
-                        <label for="agUri">Archival Group</label>
+                        <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
+                        <label for="agPathUnderRoot">Archival Group</label>
                     </div>
                     <div class="form-floating mb-3">
                         @* If this already exists, then this form element changes to read only display *@
@@ -78,16 +80,8 @@ ViewData["section"] = "deposits";
                         <label for="submissionText">Deposit Note</label>
                     </div>
                     <div class="mb-3">
-                        <button type="submit" class="btn btn-sm btn-primary me-2">
-                            <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
-                        </button>
-                        <button type="submit" asp-page-handler="ValidateStorage" class="btn btn-sm btn-primary me-2" id="validateDeposit">
-                            <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Validate storage</span>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
-                            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
-                        </button>
                     </div>
+                    </fieldset>
                 </form>
                 
                 
