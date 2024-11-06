@@ -13,7 +13,7 @@ ViewData["active"] = Model.Deposit?.Active;
     <h1 class="h2">@ViewData["Title"]</h1>
 
     <div class="btn-toolbar mb-2 mb-md-0">
-        <button type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
+        <button @(Model.Deposit.Active ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-disabled btn-sm btn-outline-primary me-2">
             <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
         </button>
         <form method="post">
