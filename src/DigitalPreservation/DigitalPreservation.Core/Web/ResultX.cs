@@ -32,7 +32,7 @@ public static class ResultX
         }
 
         pd.Detail = result.ErrorMessage;
-        pd.Title = title;
+        pd.Title = title ?? "Status " + pd.Status;
         return pd;
     }
     

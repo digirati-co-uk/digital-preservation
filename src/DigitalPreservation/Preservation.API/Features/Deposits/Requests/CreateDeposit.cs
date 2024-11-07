@@ -45,7 +45,6 @@ public class CreateDepositHandler(
             }
 
             var mintedId = identityService.MintIdentity(nameof(Deposit));
-            // it only becomes Active if it's FOR an archival group; look for that in Update
             var callerIdentity = "dlipdev";  // TODO: actual user or app caller identity!
             var filesLocation = await storage.GetWorkingFilesLocation(
                 mintedId, request.Deposit.UseObjectTemplate ?? false, callerIdentity);
@@ -61,8 +60,10 @@ public class CreateDepositHandler(
                 LastModified = now,
                 LastModifiedBy = callerIdentity,
                 ArchivalGroupPathUnderRoot = archivalGroupPathUnderRoot,
-                Status = "new",
-                Active = archivalGroupPathUnderRoot != null, // see note above
+                Status = DepositStates.New,
+                // Initially we only become Active if it's FOR an archival group.
+                // But changing this to always active for a new Deposit
+                Active = true, // archivalGroupPathUnderRoot != null, 
                 SubmissionText = request.Deposit.SubmissionText,
                 Files = filesLocation.Value, 
                 ArchivalGroupName = request.Deposit.ArchivalGroupName

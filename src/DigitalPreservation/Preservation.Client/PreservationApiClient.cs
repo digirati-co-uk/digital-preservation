@@ -5,7 +5,9 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
+using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -17,6 +19,7 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
+    
     public async Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken)
     {
         var uri = new Uri(deposit.Id!.AbsolutePath, UriKind.Relative); 
@@ -32,15 +35,7 @@ internal class PreservationApiClient(
                 }
                 return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
             }
-            switch (response.StatusCode)
-            {
-                case HttpStatusCode.Unauthorized:
-                    return Result.Fail<Deposit>(ErrorCodes.Unauthorized, "Unauthorized for patching a deposit.");
-                case HttpStatusCode.BadRequest:
-                    return Result.Fail<Deposit>(ErrorCodes.BadRequest, "Bad Request");
-                default:
-                    return Result.Fail<Deposit>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
-            }
+            return await response.ToFailResult<Deposit>();
         }
         catch (Exception e)
         {
@@ -56,17 +51,11 @@ internal class PreservationApiClient(
             var relPath = $"/deposits/{id}";
             var uri = new Uri(relPath, UriKind.Relative);
             var response = await preservationHttpClient.DeleteAsync(uri, cancellationToken);
-            switch (response.StatusCode)
+            if (response.IsSuccessStatusCode)
             {
-                case HttpStatusCode.NoContent:
-                    return Result.Ok();
-                case HttpStatusCode.NotFound:
-                    return Result.Fail(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.Fail(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
-                default:
-                    return Result.Fail(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+                return Result.Ok();
             }
+            return await response.ToFailResult();
         }
         catch (Exception e)
         {
@@ -102,15 +91,7 @@ internal class PreservationApiClient(
                 }
                 return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
             }
-            switch (response.StatusCode)
-            {
-                case HttpStatusCode.Unauthorized:
-                    return Result.Fail<Deposit>(ErrorCodes.Unauthorized, "Unauthorized for creating new deposits");
-                case HttpStatusCode.BadRequest:
-                    return Result.Fail<Deposit>(ErrorCodes.BadRequest, "Bad Request");
-                default:
-                    return Result.Fail<Deposit>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
-            }
+            return await response.ToFailResult<Deposit>();
         }
         catch (Exception e)
         {
@@ -132,22 +113,16 @@ internal class PreservationApiClient(
             var uri = new Uri(relPath, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            switch (response.StatusCode)
+            if (response.IsSuccessStatusCode)
             {
-                case HttpStatusCode.OK:
-                    var deposits = await response.Content.ReadFromJsonAsync<List<Deposit>>(cancellationToken: cancellationToken);
-                    if (deposits is not null)
-                    {
-                        return Result.OkNotNull(deposits);
-                    }
-                    return Result.FailNotNull<List<Deposit>>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.NotFound:
-                    return Result.FailNotNull<List<Deposit>>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.FailNotNull<List<Deposit>>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
-                default:
-                    return Result.FailNotNull<List<Deposit>>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+                var deposits = await response.Content.ReadFromJsonAsync<List<Deposit>>(cancellationToken: cancellationToken);
+                if (deposits is not null)
+                {
+                    return Result.OkNotNull(deposits);
+                }
+                return Result.FailNotNull<List<Deposit>>(ErrorCodes.NotFound, "No resource at " + uri);
             }
+            return await response.ToFailNotNullResult<List<Deposit>>();
         }
         catch (Exception e)
         {
@@ -163,22 +138,16 @@ internal class PreservationApiClient(
             var uri = new Uri($"/deposits/{depositId}/importJobs/results", UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            switch (response.StatusCode)
+            if (response.IsSuccessStatusCode)
             {
-                case HttpStatusCode.OK:
-                    var jobResults = await response.Content.ReadFromJsonAsync<List<ImportJobResult>>(cancellationToken: cancellationToken);
-                    if (jobResults is not null)
-                    {
-                        return Result.OkNotNull(jobResults);
-                    }
-                    return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.NotFound:
-                    return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
-                default:
-                    return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+                var jobResults = await response.Content.ReadFromJsonAsync<List<ImportJobResult>>(cancellationToken: cancellationToken);
+                if (jobResults is not null)
+                {
+                    return Result.OkNotNull(jobResults);
+                }
+                return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.NotFound, "No resource at " + uri);
             }
+            return await response.ToFailNotNullResult<List<ImportJobResult>>();
         }
         catch (Exception e)
         {
@@ -194,22 +163,16 @@ internal class PreservationApiClient(
             var uri = new Uri($"/deposits/{depositId}/importJobs/results/{importJobResultId}", UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            switch (response.StatusCode)
+            if (response.IsSuccessStatusCode)
             {
-                case HttpStatusCode.OK:
-                    var jobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
-                    if (jobResult is not null)
-                    {
-                        return Result.OkNotNull(jobResult);
-                    }
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.NotFound:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
-                default:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+                var jobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
+                if (jobResult is not null)
+                {
+                    return Result.OkNotNull(jobResult);
+                }
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
             }
+            return await response.ToFailNotNullResult<ImportJobResult>();
         }
         catch (Exception e)
         {
@@ -226,22 +189,16 @@ internal class PreservationApiClient(
             var uri = new Uri(relPath, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            switch (response.StatusCode)
+            if (response.IsSuccessStatusCode)
             {
-                case HttpStatusCode.OK:
-                    var diffImportJob = await response.Content.ReadFromJsonAsync<ImportJob>(cancellationToken: cancellationToken);
-                    if (diffImportJob is not null)
-                    {
-                        return Result.OkNotNull(diffImportJob);
-                    }
-                    return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.NotFound:
-                    return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.FailNotNull<ImportJob>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
-                default:
-                    return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+                var diffImportJob = await response.Content.ReadFromJsonAsync<ImportJob>(cancellationToken: cancellationToken);
+                if (diffImportJob is not null)
+                {
+                    return Result.OkNotNull(diffImportJob);
+                }
+                return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, "No resource at " + uri);
             }
+            return await response.ToFailNotNullResult<ImportJob>();
         }
         catch (Exception e)
         {
@@ -261,23 +218,16 @@ internal class PreservationApiClient(
             var relPath = $"/deposits/{depositId}/importjobs";
             var uri = new Uri(relPath, UriKind.Relative);
             var response = await preservationHttpClient.PostAsJsonAsync(uri, importJob, cancellationToken);
-            switch (response.StatusCode)
+            if (response.IsSuccessStatusCode)
             {
-                case HttpStatusCode.OK:
-                case HttpStatusCode.Created:
-                    var diffImportJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
-                    if (diffImportJobResult is not null)
-                    {
-                        return Result.OkNotNull(diffImportJobResult);
-                    }
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.NotFound:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
-                default:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+                var diffImportJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
+                if (diffImportJobResult is not null)
+                {
+                    return Result.OkNotNull(diffImportJobResult);
+                }
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
             }
+            return await response.ToFailNotNullResult<ImportJobResult>();
         }
         catch (Exception e)
         {
@@ -294,22 +244,16 @@ internal class PreservationApiClient(
             var uri = new Uri(relPath, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            switch (response.StatusCode)
+            if (response.IsSuccessStatusCode)
             {
-                case HttpStatusCode.OK:
-                    var deposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
-                    if (deposit is not null)
-                    {
-                        return Result.Ok(deposit);
-                    }
-                    return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.NotFound:
-                    return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.Fail<Deposit>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
-                default:
-                    return Result.Fail<Deposit>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
+                var deposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
+                if (deposit is not null)
+                {
+                    return Result.Ok(deposit);
+                }
+                return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);
             }
+            return await response.ToFailResult<Deposit>();
         }
         catch (Exception e)
         {

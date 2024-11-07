@@ -25,7 +25,7 @@ public static class ControllerX
                     return controller.Ok(result.Value);
             }
         }
-        return GetActionResult(controller, result);
+        return GetProblemObjectResult(result);
     }
 
     public static ActionResult StatusResponseFromResult(this Controller controller, Result result, int successStatusCode = 200)
@@ -39,24 +39,19 @@ public static class ControllerX
                 _ => controller.Ok()
             };
         }
-        return GetActionResult(controller, result);
+        return GetProblemObjectResult(result);
     }
-    
-    private static ActionResult GetActionResult(Controller controller, Result result)
-    {
-        if (result.ErrorCode.IsNullOrWhiteSpace())
-        {
-            throw new InvalidOperationException("Can't return an error StatusCodeResult without a code");
-        }
 
-        return result.ErrorCode switch
+    public static ActionResult GetProblemObjectResult(Result result)
+    {
+        var pd = result.ToProblemDetails();
+        var objectResult = new ObjectResult(pd)
         {
-            ErrorCodes.NotFound => controller.NotFound(),
-            ErrorCodes.Conflict => controller.Conflict(),
-            ErrorCodes.Unauthorized => controller.Unauthorized(),
-            ErrorCodes.BadRequest => controller.BadRequest(result.ToProblemDetails()),
-            ErrorCodes.Unprocessable => controller.UnprocessableEntity(result.ToProblemDetails()),
-            _ => controller.Problem(statusCode: 500, detail: result.ErrorMessage, title: result.ErrorCode)
+            StatusCode = pd.Status
         };
+        return objectResult;
     }
+
+    
+    
 }

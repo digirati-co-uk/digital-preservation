@@ -1,5 +1,7 @@
-﻿using DigitalPreservation.Common.Model.Import;
+﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using MediatR;
@@ -26,7 +28,7 @@ public class ImportJobsController(IMediator mediator) : Controller
             return this.StatusResponseFromResult(depositResult);
         }
         var validationResult = ValidateDeposit(depositResult.Value!);
-        if (validationResult != null) return validationResult;
+        if (validationResult != null) return this.StatusResponseFromResult(validationResult);
         
         var result = await mediator.Send(new GetDiffImportJob(depositResult.Value!));
         return this.StatusResponseFromResult(result);
@@ -43,7 +45,7 @@ public class ImportJobsController(IMediator mediator) : Controller
 
         var deposit = depositResult.Value!;
         var validationResult = ValidateDeposit(deposit);
-        if (validationResult != null) return validationResult;
+        if (validationResult != null) return this.StatusResponseFromResult(validationResult);
         
         if (IsPostedDiffReference(importJob, Request.Path))
         {
@@ -83,10 +85,16 @@ public class ImportJobsController(IMediator mediator) : Controller
     }
     
     
-    private IActionResult? ValidateDeposit(Deposit existingDeposit)
+    private Result? ValidateDeposit(Deposit existingDeposit)
     {
-        if (existingDeposit.Status == DepositStates.Exporting) return BadRequest("Deposit is being exported");
-        if (existingDeposit.ArchivalGroup == null) return BadRequest("Deposit requires Archival Group");
+        if (existingDeposit.Status == DepositStates.Exporting)
+        {
+            return Result.Fail(ErrorCodes.BadRequest, "Deposit is being exported");
+        }
+        if (existingDeposit.ArchivalGroup == null)
+        {
+            return Result.Fail(ErrorCodes.BadRequest, "Deposit requires Archival Group");
+        }
         return null;
     }
     

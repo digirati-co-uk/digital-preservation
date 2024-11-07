@@ -54,7 +54,7 @@
 
     var ascending = Model.Query.Ascending ?? false;
     var showAll = Model.Query.ShowAll is true;
-    var marker = ascending ? "▾" : "▴";
+    var marker = ascending ? "▴" : "▾";
 }
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">@ViewData["Title"]</h1>
@@ -105,7 +105,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("archivalGroupPath", false, showAll)">Archival Group ▾</a>
+                    <a href="@MutateQuery("archivalGroupPath", false, showAll)">Archival Group</a>
                 }
             </th>
             <th scope="col" arial-label="status">
@@ -115,7 +115,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("status", false, showAll)">Status ▾</a>
+                    <a href="@MutateQuery("status", false, showAll)">Status</a>
                 }
             </th>
             <th scope="col" arial-label="last modified">
@@ -125,7 +125,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("lastModified", false, showAll)">Last Modified ▾</a>
+                    <a href="@MutateQuery("lastModified", false, showAll)">Last Modified</a>
                 }
             </th>
             <th scope="col" arial-label="last modified by">
@@ -135,7 +135,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("lastModifiedBy", false, showAll)">By ▾</a>
+                    <a href="@MutateQuery("lastModifiedBy", false, showAll)">By</a>
                 }
             </th>
             <th scope="col" arial-label="created">
@@ -145,7 +145,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("created", false, showAll)">Created ▾</a>
+                    <a href="@MutateQuery("created", false, showAll)">Created</a>
                 }
             </th>
             <th scope="col" arial-label="created by">
@@ -155,7 +155,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("createdBy", false, showAll)">By ▾</a>
+                    <a href="@MutateQuery("createdBy", false, showAll)">By</a>
                 }
             </th>
             <th scope="col" arial-label="preserved">
@@ -165,7 +165,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("preserved", false, showAll)">Preserved ▾</a>
+                    <a href="@MutateQuery("preserved", false, showAll)">Preserved</a>
                 }
             </th>
             <th scope="col" arial-label="preserved by">
@@ -175,7 +175,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("preservedBy", false, showAll)">By ▾</a>
+                    <a href="@MutateQuery("preservedBy", false, showAll)">By</a>
                 }
             </th>
             <th scope="col" arial-label="exported">
@@ -185,7 +185,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("exported", false, showAll)">Exported ▾</a>
+                    <a href="@MutateQuery("exported", false, showAll)">Exported</a>
                 }
             </th>
             <th scope="col" arial-label="exported by">
@@ -195,7 +195,7 @@
                 }
                 else
                 {
-                    <a href="@MutateQuery("exportedBy", false, showAll)">By ▾</a>
+                    <a href="@MutateQuery("exportedBy", false, showAll)">By</a>
                 }
             </th>
         </tr>

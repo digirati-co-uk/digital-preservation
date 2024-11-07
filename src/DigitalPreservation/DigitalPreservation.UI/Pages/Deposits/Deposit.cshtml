@@ -121,7 +121,7 @@ ViewData["active"] = Model.Deposit?.Active;
                 <h3>Import Jobs</h3>
 
                 <div class="mb-3">
-                @if (Model.Deposit.Active)
+                @if (Model.Deposit.Active && Model.Deposit.ArchivalGroup != null)
                 {
                     <a class="btn btn-sm btn-primary me-2" role="button" href="/deposits/@Model.Id/importjobs/diff">
                         <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
@@ -132,7 +132,15 @@ ViewData["active"] = Model.Deposit?.Active;
                 }
                 else
                 {
-                    <p>No jobs can be run as this deposit is no longer active.</p>
+                    @if (Model.Deposit.ArchivalGroup == null)
+                    {
+                        <p aria-label="import job message">No jobs can be run as this deposit does not have an archival group specified.</p>
+                    }
+                    else
+                    {
+                        <p aria-label="import job message">No jobs can be run as this deposit is no longer active.</p>
+                        
+                    }
                 }
                 </div>
                     

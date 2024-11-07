@@ -29,8 +29,8 @@ public class DepositMetsLikeController(IMediator mediator) : Controller
             {
                 return Json(readS3Result.Value);
             }
-            return new ObjectResult(readS3Result.ToProblemDetails());
+            return ControllerX.GetProblemObjectResult(readS3Result);
         }
-        return new ObjectResult(getDepositResult.ToProblemDetails());
+        return ControllerX.GetProblemObjectResult(getDepositResult);
     }
 }
