@@ -41,7 +41,7 @@ public class GetDepositsHandler(
                 if (q.ArchivalGroupPath.HasText())
                 {
                     predicate = predicate.And(x =>
-                        x.ArchivalGroupPathUnderRoot == q.ArchivalGroupPath.GetPathUnderRoot());
+                        x.ArchivalGroupPathUnderRoot == q.ArchivalGroupPath.GetPathUnderRoot(false));
                 }
 
                 if (q.CreatedAfter.HasValue)

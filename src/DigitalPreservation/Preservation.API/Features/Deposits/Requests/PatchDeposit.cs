@@ -6,6 +6,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
+using Storage.Client;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
@@ -17,6 +18,7 @@ public class PatchDeposit(Deposit deposit) : IRequest<Result<Deposit>>
 public class PatchDepositHandler(
     ILogger<PatchDepositHandler> logger,
     PreservationContext dbContext,
+    IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator) : IRequestHandler<PatchDeposit, Result<Deposit>>
 {
     public async Task<Result<Deposit>> Handle(PatchDeposit request, CancellationToken cancellationToken)
@@ -28,27 +30,25 @@ public class PatchDepositHandler(
         try
         {
             var mintedId = request.Deposit.Id!.GetSlug();
+            
+            var (archivalGroupExists, validateAgResult) = await ArchivalGroupRequestValidator
+                .ValidateArchivalGroup(dbContext, storageApiClient, request.Deposit, mintedId);
+            if (validateAgResult.Failure)
+            {
+                return Result.FailNotNull<Deposit>(validateAgResult.ErrorCode!, validateAgResult.ErrorMessage);
+            }
+            
             var entity = await dbContext.Deposits.SingleAsync(
                 d => d.MintedId == mintedId, cancellationToken: cancellationToken);
-            
-            var archivalGroupPathUnderRoot = request.Deposit.ArchivalGroup?.GetPathUnderRoot();
-            if (archivalGroupPathUnderRoot != null)
-            {
-                if (dbContext.Deposits.Any(d => d.Active && d.ArchivalGroupPathUnderRoot == archivalGroupPathUnderRoot && d.MintedId != mintedId))
-                {
-                    return Result.FailNotNull<Deposit>(ErrorCodes.Conflict,
-                        "An Active Deposit already exists for this archivalGroup (" + archivalGroupPathUnderRoot + ")");
-                }
-            }
 
             if (entity.Status == DepositStates.Exporting)
             {
                 return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is being exported");
             }
+            
             // there are only some patchable fields
-            // come back and see what others are patchable as we go
             entity.SubmissionText = request.Deposit.SubmissionText;
-            entity.ArchivalGroupPathUnderRoot = archivalGroupPathUnderRoot;
+            entity.ArchivalGroupPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot(true);
             entity.ArchivalGroupName = request.Deposit.ArchivalGroupName;
             
             var callerIdentity = "dlipdev";  // TODO: actual user or app caller identity!
@@ -58,8 +58,12 @@ public class PatchDepositHandler(
 
             // Now recover:
             var storedEntity = dbContext.Deposits.Single(d => d.MintedId == entity.MintedId);
-            var createdDeposit = resourceMutator.MutateDeposit(storedEntity);
-            return Result.OkNotNull(createdDeposit);
+            var patchedDeposit = resourceMutator.MutateDeposit(storedEntity);
+            if (archivalGroupExists is true)
+            {
+                patchedDeposit.ArchivalGroupExists = true;
+            }
+            return Result.OkNotNull(patchedDeposit);
         }
         catch (Exception e)
         {

@@ -2,6 +2,8 @@
 using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core.Web;
+using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 
@@ -51,21 +53,41 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
                 }
                 return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-
-            switch (response.StatusCode)
-            {
-                case HttpStatusCode.NotFound:
-                    return Result.Fail<PreservedResource?>(ErrorCodes.NotFound, "No resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.Fail<PreservedResource?>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
-                default:
-                    return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
-            }
+            return await response.ToFailResult<PreservedResource>();
         }
         catch (Exception e)
         {
             logger.LogError(e, e.Message);
             return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<string?>> GetResourceType(string path)
+    {     
+        // path MUST be the full /repository... path, which we just pass through as-is
+        try
+        {
+            var uri = new Uri(path, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Head, uri);
+            var response = await httpClient.SendAsync(req);
+            if (response.IsSuccessStatusCode)
+            {
+                if (response.Headers.TryGetValues(HttpHeaders.XPreservationResourceType, out var values))
+                {
+                    var resourceType = values.FirstOrDefault();
+                    if (resourceType != null)
+                    {
+                        return Result.Ok(resourceType);
+                    }
+                }
+            }
+            var errorCode = ProblemDetailsX.GetErrorCode((int?)response.StatusCode);
+            return Result.Fail<string?>(errorCode, "Resource Type could not be retrieved.");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<string?>(ErrorCodes.UnknownError, e.Message);
         }
         
     }
@@ -98,19 +120,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
                 }
                 return Result.Fail<Container?>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-
-            switch (response.StatusCode)
-            {
-                case HttpStatusCode.Conflict:
-                    return Result.Fail<Container?>(ErrorCodes.Conflict, "Conflicting resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.Fail<Container?>(ErrorCodes.Unauthorized, "Unauthorized for " + uri);
-                case HttpStatusCode.BadRequest:
-                    return Result.Fail<Container?>(ErrorCodes.BadRequest, "Bad Request");
-                default:
-                    return Result.Fail<Container?>(ErrorCodes.UnknownError, "Status " + response.StatusCode);
-            }
-            
+            return await response.ToFailResult<Container>();
         }
         catch (Exception e)
         {

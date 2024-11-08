@@ -15,6 +15,12 @@ public interface IStorageApiClient
     Task<Result<PreservedResource?>> GetResource(string path);
     
     /// <summary>
+    /// A low-cost way to determine the type of a resource, or whether a resource exists at the path.
+    /// </summary>
+    /// <param name="path">The full path including the /repository/ initial path element</param>
+    /// <returns></returns>
+    Task<Result<string?>> GetResourceType(string path);
+    /// <summary>
     /// 
     /// </summary>
     /// <param name="path">The full path including the /repository/ initial path element</param>

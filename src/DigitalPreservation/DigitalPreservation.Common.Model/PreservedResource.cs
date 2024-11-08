@@ -1,5 +1,7 @@
-﻿using System.Text;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using System.Text.Json.Serialization;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model;
 
@@ -27,6 +29,22 @@ public abstract class PreservedResource : Resource
 
     public const string BasePathElement = "repository";
 
+    /// <summary>
+    /// Use with care - this is just looking at strings, it can't tell whether the
+    /// paths actually exist
+    /// </summary>
+    /// <param name="path"></param>
+    /// <returns></returns>
+    public static bool ValidPath([NotNullWhen(true)] string? path)
+    {
+        if (path.IsNullOrWhiteSpace())
+        {
+            return false;
+        }
+        var parts = path.Split('/');
+        return parts.All(ValidSlug);
+    }
+    
     public static bool ValidSlug(string slug)
     {
         var len = slug.Length;

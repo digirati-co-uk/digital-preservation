@@ -186,6 +186,40 @@
                     
                 </td>
             </tr>
+            <tr>
+                <th scope="row">Deposits</th>
+                <td>
+                    <table class="table">
+                        <thead>
+                        <tr>
+                            <th>Deposit</th>
+                            <th>Created</th>
+                            <th>By</th>
+                            <th>Preserved</th>
+                            <th>By</th>
+                            <th>Version</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var deposit in Model.Deposits)
+                        {
+                            
+                            var slug = deposit.Id!.GetSlug();
+                            var path = "/deposits/" + slug;
+                            <tr>
+                                <td><a href="@path">@slug</a></td>
+                                <td>@deposit.Preserved.GetDateDisplay()</td>
+                                <td>@deposit.PreservedBy?.GetSlug()</td>
+                                <td>@deposit.Created.GetDateDisplay()</td>
+                                <td>@deposit.CreatedBy?.GetSlug()</td>
+                                <td>@deposit.VersionPreserved</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    
+                </td>
+            </tr>
         </table>
 
         
@@ -233,7 +267,7 @@
                             <td aria-label="td-deposits">
                                 @if (container.Type == nameof(ArchivalGroup))
                                 {
-                                    <a href="/deposits?archivalGroup=@container.GetPathUnderRoot()"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
+                                    <a href="/deposits?archivalGroupPath=@container.GetPathUnderRoot()"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
                                 }
                             </td>
                         </tr>

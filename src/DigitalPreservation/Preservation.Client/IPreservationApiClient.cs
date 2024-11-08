@@ -15,6 +15,13 @@ public interface IPreservationApiClient
     /// <returns></returns>
     Task<Result<PreservedResource?>> GetResource(string path);
     
+    /// <summary>
+    /// A low-cost way to determine the type of a resource, or whether a resource exists at the path.
+    /// </summary>
+    /// <param name="path">The full path including the /repository/ initial path element</param>
+    /// <returns></returns>
+    Task<Result<string?>> GetResourceType(string path);
+    
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
     Task<Result<Deposit?>> CreateDeposit(string? archivalGroupRepositoryPath, string? archivalGroupProposedName, string? submissionText, bool useObjectTemplate, CancellationToken cancellationToken);
     Task<Result<List<Deposit>>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default);

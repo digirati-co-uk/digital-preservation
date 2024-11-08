@@ -26,6 +26,8 @@ public class DepositModel : PageModel
         this.options = options;
     }
 
+    public bool Bound { get; set; }
+
     public required string Id { get; set; }
     
     public Deposit? Deposit { get; set; }
@@ -38,7 +40,7 @@ public class DepositModel : PageModel
         [FromQuery] bool readFromStorage = false,
         [FromQuery] bool writeToStorage = false)
     {
-        await BindDeposit(id, readFromStorage, writeToStorage);
+        Bound = await BindDeposit(id, readFromStorage, writeToStorage);
     }
     
     private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
@@ -361,6 +363,16 @@ public class DepositModel : PageModel
             TempData["Error"] = getDepositResult.CodeAndMessage();
         }
         return Redirect($"/deposits/{id}");
+    }
+
+    public bool HasValidFiles()
+    {
+        var objects = Files?.Directories.SingleOrDefault(d => d.GetSlug() == "objects");
+        if (objects == null)
+        {
+            return false;
+        }
+        return objects.DescendantFileCount() > 0;
     }
 }
 

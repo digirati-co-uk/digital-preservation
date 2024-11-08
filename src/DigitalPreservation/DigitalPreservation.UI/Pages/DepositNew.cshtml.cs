@@ -49,28 +49,33 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             newDepositModel.ArchivalGroupPathUnderRoot ??= StringUtils.BuildPath(false,
                 newDepositModel.ParentPathUnderRoot, newDepositModel.ArchivalGroupSlug);
         }
-
-        if (newDepositModel.ArchivalGroupPathUnderRoot.IsNullOrWhiteSpace())
+        var pathUnderRoot = newDepositModel.ArchivalGroupPathUnderRoot;
+        if (pathUnderRoot.IsNullOrWhiteSpace())
         {
             // nothing to validate, as an intended AG has not been specified
             return true;
         }
 
-        var agSlug = newDepositModel.ArchivalGroupPathUnderRoot.GetSlug();
+        var agSlug = pathUnderRoot.GetSlug();
         if(!PreservedResource.ValidSlug(agSlug))
         {
-            TempData["CreateDepositFail"] = "Not a valid path name: " + agSlug;
+            TempData["CreateDepositFail"] = $"Not a valid path name: {agSlug}";
             return false;
         }
-        var parentPath = newDepositModel.ArchivalGroupPathUnderRoot.GetParent();
+        var parentPath = pathUnderRoot.GetParent();
         if (parentPath.IsNullOrWhiteSpace())
         {
             TempData["CreateDepositFail"] = "You can't create a deposit for an Archival Group at the repository root.";
             return false;
         }
+        if (!PreservedResource.ValidPath(pathUnderRoot))
+        {
+            TempData["CreateDepositFail"] = $"Path {pathUnderRoot} is invalid";
+            return false;
+        }
         
-        var archivalGroupRepositoryPath = newDepositModel.ArchivalGroupPathUnderRoot.GetRepositoryPath()!;
-        var browsePath = "/browse/" + newDepositModel.ArchivalGroupPathUnderRoot;
+        var archivalGroupRepositoryPath = pathUnderRoot.GetRepositoryPath()!;
+        var browsePath = "/browse/" + pathUnderRoot;
         var depositsForArchivalGroupResult = await mediator.Send(new GetDeposits(new DepositQuery{ArchivalGroupPath = archivalGroupRepositoryPath}));
         if (depositsForArchivalGroupResult.Success)
         {
@@ -105,8 +110,8 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             // User intends to make a NEW deposit
             if (existingResourceResult.ErrorCode != ErrorCodes.NotFound || existingResourceResult.Value != null) // this is belt and braces really
             {
-                TempData["CreateDepositFail"] = "There is already an archival group at " + newDepositModel.ArchivalGroupPathUnderRoot + ".<br/>" +
-                                                "<a href=\"" + browsePath + "\">" + newDepositModel.ArchivalGroupPathUnderRoot + "</a></br>" +
+                TempData["CreateDepositFail"] = "There is already an archival group at " + pathUnderRoot + ".<br/>" +
+                                                "<a href=\"" + browsePath + "\">" + pathUnderRoot + "</a></br>" +
                                                 "You can visit it to create a new Deposit (and optionally Export).";
                 return false;
             }

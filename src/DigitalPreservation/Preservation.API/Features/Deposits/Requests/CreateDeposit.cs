@@ -5,6 +5,7 @@ using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
+using Storage.Client;
 using Storage.Repository.Common;
 using DepositEntity = Preservation.API.Data.Entities.Deposit; 
 
@@ -20,28 +21,23 @@ public class CreateDepositHandler(
     PreservationContext dbContext,
     ResourceMutator resourceMutator,
     IIdentityService identityService,
+    IStorageApiClient storageApiClient,
     IStorage storage) : IRequestHandler<CreateDeposit, Result<Deposit?>>
 {
     public async Task<Result<Deposit?>> Handle(CreateDeposit request, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
-        string? archivalGroupPathUnderRoot = null;
         if (request.Deposit is null)
         {
             return Result.Fail<Deposit?>(ErrorCodes.BadRequest, "No Deposit provided");
         }
-
         try
         {
-            if (request.Deposit.ArchivalGroup != null)
+            var (archivalGroupExists, validateAgResult) = await ArchivalGroupRequestValidator
+                .ValidateArchivalGroup(dbContext, storageApiClient, request.Deposit);
+            if (validateAgResult.Failure)
             {
-                // validate - we do this in UI but this is an API call
-                archivalGroupPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot();
-                if (dbContext.Deposits.Any(d => d.Active && d.ArchivalGroupPathUnderRoot == archivalGroupPathUnderRoot))
-                {
-                    return Result.Fail<Deposit?>(ErrorCodes.Conflict,
-                        "An Active Deposit already exists for this archivalGroup (" + archivalGroupPathUnderRoot + ")");
-                }
+                return validateAgResult;
             }
 
             var mintedId = identityService.MintIdentity(nameof(Deposit));
@@ -59,7 +55,7 @@ public class CreateDepositHandler(
                 CreatedBy = callerIdentity,
                 LastModified = now,
                 LastModifiedBy = callerIdentity,
-                ArchivalGroupPathUnderRoot = archivalGroupPathUnderRoot,
+                ArchivalGroupPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot(true),
                 Status = DepositStates.New,
                 // Initially we only become Active if it's FOR an archival group.
                 // But changing this to always active for a new Deposit
@@ -74,6 +70,10 @@ public class CreateDepositHandler(
             // Now recover:
             var storedEntity = dbContext.Deposits.Single(d => d.MintedId == mintedId);
             var createdDeposit = resourceMutator.MutateDeposit(storedEntity);
+            if (archivalGroupExists is true)
+            {
+                createdDeposit.ArchivalGroupExists = true;
+            }
             return Result.Ok(createdDeposit);
         }
         catch (Exception e)

@@ -12,6 +12,10 @@ public class Deposit : Resource
     [JsonPropertyName("archivalGroup")] // aka digitalObject
     public Uri? ArchivalGroup { get; set; }
     
+    [JsonPropertyOrder(115)]
+    [JsonPropertyName("archivalGroupExists")]
+    public bool ArchivalGroupExists { get; set; }
+    
     [JsonPropertyOrder(120)]
     [JsonPropertyName("files")] 
     public Uri? Files { get; set; }

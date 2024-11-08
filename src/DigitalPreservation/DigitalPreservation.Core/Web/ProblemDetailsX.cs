@@ -26,25 +26,25 @@ public static class ProblemDetailsX
     
     public static Result<T> ToFailNotNullResult<T>(this ProblemDetails problemDetails)
     {
-        var errorCode = GetErrorCode(problemDetails);
+        var errorCode = GetErrorCode(problemDetails.Status);
         return Result.FailNotNull<T>(errorCode, problemDetails.Detail);
     }
     
     public static Result<T?> ToFailResult<T>(this ProblemDetails problemDetails)
     {
-        var errorCode = GetErrorCode(problemDetails);
+        var errorCode = GetErrorCode(problemDetails.Status);
         return Result.Fail<T>(errorCode, problemDetails.Detail);
     }
 
     public static Result ToFailResult(this ProblemDetails problemDetails)
     {
-        var errorCode = GetErrorCode(problemDetails);
+        var errorCode = GetErrorCode(problemDetails.Status);
         return Result.Fail(errorCode, problemDetails.Detail);
     }
     
-    private static string GetErrorCode(ProblemDetails problemDetails)
+    public static string GetErrorCode(int? statusCode)
     {
-        string errorCode = problemDetails.Status switch
+        string errorCode = statusCode switch
         {
             404 => ErrorCodes.NotFound,
             401 or 403 => ErrorCodes.Unauthorized,
@@ -53,7 +53,6 @@ public static class ProblemDetailsX
             422 => ErrorCodes.Unprocessable,
             _ => ErrorCodes.UnknownError
         };
-
         return errorCode;
     }
 }

@@ -76,4 +76,14 @@ public class WorkingDirectory : WorkingBase
         }
         return container;
     }
+
+    public int DescendantFileCount(int counter = 0)
+    {
+        counter+= Files.Count;
+        foreach (var directory in Directories)
+        {
+            counter += directory.DescendantFileCount(counter);
+        }
+        return counter;
+    }
 }

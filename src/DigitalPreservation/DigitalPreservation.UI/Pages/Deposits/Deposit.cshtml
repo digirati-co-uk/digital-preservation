@@ -13,17 +13,20 @@ ViewData["active"] = Model.Deposit?.Active;
     <h1 class="h2">@ViewData["Title"]</h1>
 
     <div class="btn-toolbar mb-2 mb-md-0">
-        <button @(Model.Deposit.Active ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-disabled btn-sm btn-outline-primary me-2">
-            <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
-        </button>
-        <form method="post">
-            <button type="submit" asp-page-handler="ValidateStorage" class="btn btn-sm btn-outline-primary me-2">
-                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Validate storage</span>
+        @if (Model.Bound)
+        {
+            <button @(Model.Deposit!.Active ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-disabled btn-sm btn-outline-primary me-2">
+                <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
             </button>
-            <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
-                <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
-            </button>
-        </form>
+            <form method="post">
+                <button type="submit" asp-page-handler="ValidateStorage" class="btn btn-sm btn-outline-primary me-2">
+                    <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Validate storage</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                    <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
+                </button>
+            </form>
+        }
     </div>
 </div>
 
@@ -65,22 +68,37 @@ ViewData["active"] = Model.Deposit?.Active;
 
                 <form method="post" asp-page-handler="UpdateProperties" class="collapse show" id="collapseAgDetails">
                     <fieldset style="display: contents" @(Model.Deposit.Active ? "" : " disabled=disabled")>
-                    <div class="form-floating mb-3">
-                        @* If this already exists, then this form element changes to a hyperlink, with a Change button *@
-                        <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
-                        <label for="agPathUnderRoot">Archival Group</label>
-                    </div>
-                    <div class="form-floating mb-3">
-                        @* If this already exists, then this form element changes to read only display *@
-                        <input type="text" class="form-control" id="agName" name="agName" value="@Model.Deposit.ArchivalGroupName" placeholder="(Name of Archival Group)">
-                        <label for="agName">Archival Group Name</label>
-                    </div>
-                    <div class="form-floating mb-3">
-                        <textarea class="form-control" id="submissionText" name="submissionText" placeholder="A note for this particular deposit">@Model.Deposit.SubmissionText</textarea>
-                        <label for="submissionText">Deposit Note</label>
-                    </div>
-                    <div class="mb-3">
-                    </div>
+
+                        @if (Model.Deposit.ArchivalGroupExists)
+                        {
+                            <p>Archival group: <a href="/browse/@Model.Deposit.ArchivalGroup.GetPathUnderRoot()">@Model.Deposit.ArchivalGroup.GetPathUnderRoot()</a>
+                            
+                            <a href="#agEdit" class="ms-3 btn btn-sm btn-outline-primary" role="button" data-bs-toggle="collapse"  aria-expanded="false" aria-controls="agEdit">
+                                Edit
+                            </a></p>
+                            <div class="form-floating mb-3 collapse" id="agEdit">
+                                <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
+                                <label for="agPathUnderRoot">Archival Group</label>
+                            </div> 
+                        }
+                        else
+                        {
+                            <div class="form-floating mb-3">
+                                <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
+                                <label for="agPathUnderRoot">Archival Group</label>
+                            </div>
+                        }
+                        <div class="form-floating mb-3">
+                            @* If this already exists, then this form element changes to read only display *@
+                            <input type="text" class="form-control" id="agName" name="agName" value="@Model.Deposit.ArchivalGroupName" placeholder="(Name of Archival Group)">
+                            <label for="agName">Archival Group Name</label>
+                        </div>
+                        <div class="form-floating mb-3">
+                            <textarea class="form-control" id="submissionText" name="submissionText" placeholder="A note for this particular deposit">@Model.Deposit.SubmissionText</textarea>
+                            <label for="submissionText">Deposit Note</label>
+                        </div>
+                        <div class="mb-3">
+                        </div>
                     </fieldset>
                 </form>
                 
@@ -121,27 +139,28 @@ ViewData["active"] = Model.Deposit?.Active;
                 <h3>Import Jobs</h3>
 
                 <div class="mb-3">
-                @if (Model.Deposit.Active && Model.Deposit.ArchivalGroup != null)
-                {
-                    <a class="btn btn-sm btn-primary me-2" role="button" href="/deposits/@Model.Id/importjobs/diff">
-                        <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
-                    </a>
-                    <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">
-                        <svg class="bi"><use xlink:href="#file-diff"/></svg><span class="ms-2">Create custom import job</span>
-                    </a>
-                }
-                else
-                {
+
                     @if (Model.Deposit.ArchivalGroup == null)
                     {
                         <p aria-label="import job message">No jobs can be run as this deposit does not have an archival group specified.</p>
                     }
-                    else
+                    else if (!Model.Deposit.Active)
                     {
                         <p aria-label="import job message">No jobs can be run as this deposit is no longer active.</p>
-                        
                     }
-                }
+                    else if (!Model.Deposit.ArchivalGroupExists && !Model.HasValidFiles())
+                    {
+                        <p aria-label="import job message">No jobs can be run as there are no valid files in the Deposit.</p>
+                    }
+                    else
+                    {
+                        <a class="btn btn-sm btn-primary me-2" role="button" href="/deposits/@Model.Id/importjobs/diff">
+                            <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
+                        </a>
+                        <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">
+                            <svg class="bi"><use xlink:href="#file-diff"/></svg><span class="ms-2">Create custom import job</span>
+                        </a>
+                    }
                 </div>
                     
                 
@@ -348,7 +367,6 @@ ViewData["active"] = Model.Deposit?.Active;
 </div>
 
 <script>
-    //const contextDisplay = document.getElementById("tableRowContext");
     const rows = document.getElementsByClassName("deposit-row");
 
     const newFolderContext = document.getElementById("newFolderContext");
@@ -361,6 +379,12 @@ ViewData["active"] = Model.Deposit?.Active;
     const deleteButton = document.getElementById("deleteButton");
     const deleteDepositButton = document.getElementById("deleteDepositButton");
     const confirmDepositDelete = document.getElementById("confirmDepositDelete");
+
+
+    document.getElementById("deleteDepositModal").addEventListener("show.bs.modal", () => {
+        confirmDepositDelete.checked = false;
+        deleteDepositButton.disabled = "disabled";
+    });
     
     confirmDepositDelete.addEventListener("change", () => {
         if (confirmDepositDelete.checked){
@@ -377,13 +401,6 @@ ViewData["active"] = Model.Deposit?.Active;
         {
             continue;
         }
-        /*
-        row.addEventListener('mouseover', (event) => {
-            if (!clicked){
-                displayContext(event.currentTarget);
-            }
-        });
-        */
         row.addEventListener('click', (event) => {
             const row = event.currentTarget;
 
@@ -401,37 +418,13 @@ ViewData["active"] = Model.Deposit?.Active;
             if (row.classList.contains("table-active")){
                 for (const r of rows) { r.classList.remove("table-active"); }
                 clicked = false;
-                /*
-                newFileContext.value = "";
-                newFolderContext.value = "";
-                deleteContext.value = "";
-                deleteItemHelp.innerHTML = "(nothing selected)";
-                deleteButton.disabled = "disabled";
-                */
             } else {
                 for (const r of rows) { r.classList.remove("table-active"); }
                 row.classList.add("table-active");
                 clicked = true;
-                // displayContext(row);
             }
         });
     }
-    
-    /*
-    function displayContext(row){
-        const icon = getIcon(row.getAttribute("data-type"));
-        const path = row.getAttribute("data-path");
-        contextDisplay.innerHTML = path + " " + icon;
-    }
-    
-    function getIcon(type){
-        if (type === "file"){
-            return '<svg class="bi"><use xlink:href="#file-earmark-text"/></svg>';
-        } else {
-            return '<svg class="bi"><use xlink:href="#folder"/></svg>';
-        }
-    }
-    */
 
 </script>
 

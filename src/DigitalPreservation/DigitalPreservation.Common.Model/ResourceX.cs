@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Utils;
+﻿using System.Net;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model;
 
@@ -10,19 +11,23 @@ public static class ResourceX
         return uri.GetPathUnderRoot();
     }
 
-    public static string? GetPathUnderRoot(this Uri? uri)
+    public static string? GetPathUnderRoot(this Uri? uri, bool decode = false)
     {
         if(uri == null) return null;
-        return GetPathUnderRoot(uri.AbsolutePath);
+        return GetPathUnderRoot(uri.AbsolutePath, decode);
     }
 
-    public static string? GetPathUnderRoot(this string absolutePath)
+    public static string? GetPathUnderRoot(this string absolutePath, bool decode = false)
     {
         var pathUnderRoot = absolutePath
             .RemoveStart("/")
             .RemoveStart(PreservedResource.BasePathElement)
             .RemoveStart("/");
-        
+
+        if (decode)
+        {
+            pathUnderRoot = WebUtility.UrlDecode(pathUnderRoot);
+        }
         return pathUnderRoot;
     }
 

@@ -1,4 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.Repository.Requests;
 using DigitalPreservation.Utils;
 using MediatR;
@@ -12,6 +14,9 @@ public class BrowseModel(IMediator mediator) : PageModel
     public PreservedResource? Resource { get; set; }
     public string? PathUnderRoot { get; set; }
     public string? ArchivalGroupPath { get; set; }
+    
+    // When we are on an archival group
+    public List<Deposit> Deposits { get; set; } = [];
 
     public async Task OnGet(string? pathUnderRoot)
     {
@@ -27,6 +32,17 @@ public class BrowseModel(IMediator mediator) : PageModel
                 case nameof(ArchivalGroup):
                     ViewData["Title"] = $"📦 {name}";
                     ArchivalGroupPath = PathUnderRoot;
+                    var query = new DepositQuery
+                    {
+                        ArchivalGroupPath = PathUnderRoot,
+                        OrderBy = DepositQuery.Created,
+                        ShowAll = true
+                    };
+                    var depositsResult = await mediator.Send(new GetDeposits(query));
+                    if (depositsResult.Success)
+                    {
+                        Deposits = depositsResult.Value ?? [];
+                    }
                     break;
                 case nameof(Container):
                     ViewData["Title"] = $"📁 {name}";

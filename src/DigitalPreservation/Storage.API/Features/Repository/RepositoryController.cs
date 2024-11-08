@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Core.Web;
+using DigitalPreservation.Core.Web.Headers;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Storage.API.Features.Repository.Requests;
@@ -20,6 +21,25 @@ public class RepositoryController(IMediator mediator) : Controller
     {
         var result = await mediator.Send(new GetResourceFromFedora(path));
         return this.StatusResponseFromResult(result);
+    }
+    
+    
+    [HttpHead(Name = "HeadResource")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult?> HeadResource([FromRoute] string? path)
+    {
+        var result = await mediator.Send(new GetResourceTypeFromFedora(path));
+        if (result.Success)
+        {
+            Response.Headers[HttpHeaders.XPreservationResourceType] = result.Value;
+        }
+        else
+        {
+            Response.StatusCode = result.ToProblemDetails().Status ?? 500;
+        }
+        return new EmptyResult();
     }
     
     
