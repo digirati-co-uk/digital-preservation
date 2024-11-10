@@ -40,32 +40,39 @@ ViewData["section"] = "deposits";
         <div class="col">
             @if (Model.ImportJobId == "diff")
             {
-                @await Html.PartialAsync("_RenderImportJob", Model.ImportJob)
+                if (Model.ImportJob == null)
+                {
+                    <p>No import job to show.</p>
+                }
+                else
+                {
+                    @await Html.PartialAsync("_RenderImportJob", Model.ImportJob)
                 
                 
-                <form method="post" asp-page-handler="ExecuteDiffDirect">
-                    <div class="mb-3">
-                        <button type="submit" class="btn btn-sm btn-primary me-2" id="runImport">
-                            <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>
-                        </button>
-                    </div>
-                </form>
+                    <form method="post" asp-page-handler="ExecuteDiffDirect">
+                        <div class="mb-3">
+                            <button type="submit" class="btn btn-sm btn-primary me-2" id="runImport">
+                                <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>
+                            </button>
+                        </div>
+                    </form>
                 
-                <hr/>
+                    <hr/>
                 
-                <p>You can modify the diff manually</p>
-                <p>UI to follow</p>
-                <form>
-                    <div class="form-floating mb-3">
-                        <textarea class="form-control" id="importJobJson" name="importJobJson">@JsonSerializer.Serialize(Model.ImportJob)</textarea>
-                        <label for="importJobJson">Raw Import Job</label>
-                    </div>
-                    <div class="mb-3">
-                        <button type="submit" asp-page-handler="ExecuteModifiedDiff" class="btn btn-sm btn-primary me-2" disabled>
-                            <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run modified import</span>
-                        </button>
-                    </div>
-                </form>
+                    <p>You can modify the diff manually</p>
+                    <p>UI to follow</p>
+                    <form>
+                        <div class="form-floating mb-3">
+                            <textarea class="form-control" id="importJobJson" name="importJobJson">@JsonSerializer.Serialize(Model.ImportJob)</textarea>
+                            <label for="importJobJson">Raw Import Job</label>
+                        </div>
+                        <div class="mb-3">
+                            <button type="submit" asp-page-handler="ExecuteModifiedDiff" class="btn btn-sm btn-primary me-2" disabled>
+                                <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run modified import</span>
+                            </button>
+                        </div>
+                    </form>
+                }
             }
             else if (Model.ImportJobId == "custom")
             {

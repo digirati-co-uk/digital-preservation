@@ -310,8 +310,9 @@ internal class FedoraClient(
             var parent = await GetResourceType(parentPath, transaction);
             if (parent is not { Success: true, Value: nameof(Container) }) // i.e., not ArchivalGroup or Binary or whatever
             {
+                var typeMessage = parent.Value.HasText() ? "is a " + parent.Value : "does not exist.";
                 return Result.Fail<Container?>(ErrorCodes.Conflict,
-                    $"Ancestors of {pathUnderFedoraRoot} must all be Containers, {parentPath} is a {parent.Value}.");
+                    $"Ancestors of '{pathUnderFedoraRoot}' must all be Containers, '{parentPath}' {typeMessage}.");
             }
             parentPath = parentPath.GetParent();
         }

@@ -208,10 +208,10 @@
                             var path = "/deposits/" + slug;
                             <tr>
                                 <td><a href="@path">@slug</a></td>
-                                <td>@deposit.Preserved.GetDateDisplay()</td>
-                                <td>@deposit.PreservedBy?.GetSlug()</td>
                                 <td>@deposit.Created.GetDateDisplay()</td>
                                 <td>@deposit.CreatedBy?.GetSlug()</td>
+                                <td>@deposit.Preserved.GetDateDisplay()</td>
+                                <td>@deposit.PreservedBy?.GetSlug()</td>
                                 <td>@deposit.VersionPreserved</td>
                             </tr>
                         }

@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
+using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -41,20 +42,7 @@ public class StorageApiClient(
                 }
                 return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-            var message = problemDetails?.Detail ?? problemDetails?.Title;
-
-            switch (response.StatusCode)
-            {
-                case HttpStatusCode.NotFound:
-                    return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, message ?? "No resource at " + uri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.FailNotNull<ImportJob>(ErrorCodes.Unauthorized, message ?? "Unauthorized for " + uri);
-                case HttpStatusCode.UnprocessableContent:
-                    return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message ?? "Probably missing checksum");
-                default:
-                    return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, message ?? "Status " + response.StatusCode);
-            }
+            return await response.ToFailNotNullResult<ImportJob>();
         }
         catch (Exception e)
         {
@@ -78,19 +66,7 @@ public class StorageApiClient(
                 }
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-            var message = problemDetails?.Detail ?? problemDetails?.Title;
-
-            switch (response.StatusCode)
-            {
-                case HttpStatusCode.NotFound:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, message ?? "No resource at " + storageApiImportJobResultUri);
-                case HttpStatusCode.Unauthorized:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, message ?? "Unauthorized for " + storageApiImportJobResultUri);
-                // others?
-                default:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, message ?? "Status " + response.StatusCode);
-            }
+            return await response.ToFailNotNullResult<ImportJobResult>();
         }
         catch (Exception e)
         {
@@ -117,17 +93,7 @@ public class StorageApiClient(
                 }
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
-            var message = problemDetails?.Detail ?? problemDetails?.Title;
-
-            switch (response.StatusCode)
-            {
-                case HttpStatusCode.Unauthorized:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, message ?? "Unable to post ");
-                // others?
-                default:
-                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, message ?? "Status " + response.StatusCode);
-            }
+            return await response.ToFailNotNullResult<ImportJobResult>();
         }
         catch (Exception e)
         {
