@@ -25,10 +25,10 @@
         }
         @if (Model.Resource is ArchivalGroup)
         {
-            <a class="btn btn-sm btn-outline-primary me-2" href="/browse/@Model.Resource.PartOf.GetPathUnderRoot()">
+            <a class="btn btn-sm btn-outline-primary me-2 disabled">
                 📦 Versions
             </a>
-            <a class="btn btn-sm btn-outline-primary me-2" href="/browse/@Model.Resource.PartOf.GetPathUnderRoot()">
+            <a class="btn btn-sm btn-outline-primary me-2 disabled">
                 <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em" /> IIIF
             </a>
         }

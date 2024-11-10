@@ -200,7 +200,10 @@ public class ExecuteImportJobHandler(
         {
             logger.LogError(ex, "Caught error in importJob, rolling back transaction");
             await fedoraClient.RollbackTransaction(transaction);
-            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, ex.Message);
+            importJobResult.DateFinished = DateTime.UtcNow;
+            importJobResult.Status = ImportJobStates.CompletedWithErrors;
+            importJobResult.Errors = [new Error { Message = ex.Message }];
+            return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
         }
 
         logger.LogInformation("Commiting Fedora transaction " + transaction.Location);

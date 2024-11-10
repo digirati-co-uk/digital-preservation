@@ -278,7 +278,7 @@ public class DepositModel : PageModel
             }
             if (readMetsResult.Value == null)
             {
-                TempData["Error"] = "Could not read METSlilke file.";
+                TempData["Error"] = "Could not read METSlike file.";
                 return Redirect($"/deposits/{id}");
             }
             var s3Json = JsonSerializer.Serialize(RemoveRootMetadata(readS3Result.Value));
