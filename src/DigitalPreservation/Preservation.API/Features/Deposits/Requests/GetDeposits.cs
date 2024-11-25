@@ -46,12 +46,12 @@ public class GetDepositsHandler(
 
                 if (q.CreatedAfter.HasValue)
                 {
-                    predicate = predicate.And(x => x.Created >= q.CreatedAfter);
+                    predicate = predicate.And(x => x.Created >= q.CreatedAfter.Value.ToUniversalTime());
                 }
 
                 if (q.CreatedBefore.HasValue)
                 {
-                    predicate = predicate.And(x => x.Created < q.CreatedBefore);
+                    predicate = predicate.And(x => x.Created < q.CreatedBefore.Value.ToUniversalTime());
                 }
 
                 if (q.CreatedBy != null)
@@ -61,12 +61,12 @@ public class GetDepositsHandler(
 
                 if (q.LastModifiedAfter.HasValue)
                 {
-                    predicate = predicate.And(x => x.LastModified >= q.LastModifiedAfter);
+                    predicate = predicate.And(x => x.LastModified >= q.LastModifiedAfter.Value.ToUniversalTime());
                 }
 
                 if (q.LastModifiedBefore.HasValue)
                 {
-                    predicate = predicate.And(x => x.LastModified < q.LastModifiedBefore);
+                    predicate = predicate.And(x => x.LastModified < q.LastModifiedBefore.Value.ToUniversalTime());
                 }
 
                 if (q.LastModifiedBy != null)
@@ -76,12 +76,12 @@ public class GetDepositsHandler(
 
                 if (q.PreservedAfter.HasValue)
                 {
-                    predicate = predicate.And(x => x.Preserved >= q.PreservedAfter);
+                    predicate = predicate.And(x => x.Preserved >= q.PreservedAfter.Value.ToUniversalTime());
                 }
 
                 if (q.PreservedBefore.HasValue)
                 {
-                    predicate = predicate.And(x => x.Preserved < q.PreservedBefore);
+                    predicate = predicate.And(x => x.Preserved < q.PreservedBefore.Value.ToUniversalTime());
                 }
 
                 if (q.PreservedBy != null)
@@ -91,12 +91,12 @@ public class GetDepositsHandler(
 
                 if (q.ExportedAfter.HasValue)
                 {
-                    predicate = predicate.And(x => x.Exported >= q.ExportedAfter);
+                    predicate = predicate.And(x => x.Exported >= q.ExportedAfter.Value.ToUniversalTime());
                 }
 
                 if (q.ExportedBefore.HasValue)
                 {
-                    predicate = predicate.And(x => x.Exported < q.ExportedBefore);
+                    predicate = predicate.And(x => x.Exported < q.ExportedBefore.Value.ToUniversalTime());
                 }
 
                 if (q.ExportedBy != null)
