@@ -212,15 +212,15 @@
             var agDisplay = " - ";
             if (deposit.ArchivalGroupName.HasText())
             {
-                agDisplay = deposit.ArchivalGroupName;
+                agDisplay = $"<span aria-label=\"ag-name\">{deposit.ArchivalGroupName}</span>";
                 if (agPath != null)
                 {
-                    agDisplay += "<br/><small>" + agPath + "</small>";
+                    agDisplay += "<br/><small><span aria-label=\"ag-path\">" + agPath + "</span></small>";
                 }
             }
             else if (agPath != null)
             {
-                agDisplay = agPath;
+                agDisplay = $"<span aria-label=\"ag-path\">{agPath}</span>";
             }
 
             <tr aria-label="row-@(counter++)">
