@@ -8,5 +8,6 @@ public interface IImportJobResultStore
     public Task<Result<ImportJob?>> GetImportJob(string jobIdentifier, CancellationToken cancellationToken);
     public Task<Result<ImportJobResult?>> GetImportJobResult(string jobIdentifier, CancellationToken cancellationToken);
     public Task<Result> SaveImportJob(string jobIdentifier, ImportJob importJob, CancellationToken cancellationToken);
-    public Task<Result> SaveImportJobResult(string jobIdentifier, ImportJobResult importJobResult, CancellationToken cancellationToken);
+    public Task<Result> SaveImportJobResult(string jobIdentifier, ImportJobResult importJobResult, bool active, CancellationToken cancellationToken);
+    public Task<Result<List<string>>> GetActiveJobsForArchivalGroup(Uri? importJobArchivalGroup, CancellationToken cancellationToken);
 }

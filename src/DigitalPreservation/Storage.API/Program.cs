@@ -2,8 +2,9 @@ using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Serilog;
+using Storage.API.Data;
 using Storage.API.Features.Import;
-using Storage.API.Features.Import.S3;
+using Storage.API.Features.Import.Data;
 using Storage.API.Fedora;
 using Storage.API.Infrastructure;
 using Storage.API.Ocfl;
@@ -38,9 +39,10 @@ try
         .AddFedoraClient(builder.Configuration, "Storage-API")
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
-        .AddSingleton<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
+        .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
         .AddStorageHealthChecks()
         .AddCorrelationIdHeaderPropagation()
+        .AddStorageContext(builder.Configuration)
         .AddControllers();
 
     builder.Services
@@ -53,7 +55,8 @@ try
         .UseMiddleware<CorrelationIdMiddleware>()
         .UseSerilogRequestLogging()
         .UseRouting()
-        .UseForwardedHeaders();
+        .UseForwardedHeaders()
+        .TryRunMigrations(builder.Configuration, app.Logger);
     
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Storage: Hello World!");

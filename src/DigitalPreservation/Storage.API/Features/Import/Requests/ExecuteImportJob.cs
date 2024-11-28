@@ -90,7 +90,7 @@ public class ExecuteImportJobHandler(
         importJobResult.LastModified = start;
         
         logger.LogInformation("Saving running ImportJobResult");
-        await importJobResultStore.SaveImportJobResult(request.JobIdentifier, importJobResult, cancellationToken);
+        await importJobResultStore.SaveImportJobResult(request.JobIdentifier, importJobResult, true, cancellationToken);
 
         var timer = new Stopwatch();
         timer.Start();

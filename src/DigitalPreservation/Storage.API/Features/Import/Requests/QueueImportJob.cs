@@ -21,15 +21,26 @@ public class QueueImportJobHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(QueueImportJob request, CancellationToken cancellationToken)
     {
-        var jobIdentifier = DateTime.Now.ToString("s").Replace(":", "") + "--" + identityService.MintIdentity(nameof(ImportJobResult));
+        var activeImportJobs = await importJobResultStore.GetActiveJobsForArchivalGroup(request.ImportJob.ArchivalGroup, cancellationToken);
+        if (activeImportJobs.Success && activeImportJobs.Value!.Count > 0)
+        {
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, 
+                $"There is already an active import job ({activeImportJobs.Value[0]}) for Archival Group {request.ImportJob.ArchivalGroup}");
+        }
+        if (activeImportJobs.Failure)
+        {
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, 
+                $"Could not check for active import jobs for Archival Group {request.ImportJob.ArchivalGroup}");
+        }
+        var jobIdentifier = identityService.MintIdentity(nameof(ImportJobResult));
         var saveJobResult = await importJobResultStore.SaveImportJob(jobIdentifier, request.ImportJob, cancellationToken);
         if (saveJobResult.Success)
         {
             var waitingResult = CreateWaitingResult(jobIdentifier, request.ImportJob);
-            var saveResultResult =  await importJobResultStore.SaveImportJobResult(jobIdentifier, waitingResult, cancellationToken);
+            var saveResultResult =  await importJobResultStore.SaveImportJobResult(jobIdentifier, waitingResult, true, cancellationToken);
             if (saveResultResult.Success)
             {
-                logger.LogInformation($"About to queue import job request " + jobIdentifier);
+                logger.LogInformation($"About to queue import job request {jobIdentifier}");
                 await importJobQueue.QueueRequest(jobIdentifier, cancellationToken);
                 return Result.OkNotNull(waitingResult);
             }

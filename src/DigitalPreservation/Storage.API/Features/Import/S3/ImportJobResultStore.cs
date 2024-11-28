@@ -11,6 +11,7 @@ using Storage.Repository.Common.S3;
 
 namespace Storage.API.Features.Import.S3;
 
+[Obsolete("For Removal, use DB instead")]
 public class ImportJobResultStore(
     IAmazonS3 s3Client,
     IOptions<AwsStorageOptions> options,
@@ -19,16 +20,22 @@ public class ImportJobResultStore(
     private readonly AwsStorageOptions options = options.Value;
     private readonly string jobResultsPrefix = "importjobresults/";
     
+    public Task<Result<List<string>>> GetActiveJobsForArchivalGroup(Uri? importJobArchivalGroup, CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+    
     public async Task<Result> SaveImportJob(string jobIdentifier, ImportJob importJob, CancellationToken cancellationToken = default)
     {
         return await Save(jobIdentifier, "-job", JsonSerializer.Serialize(importJob), cancellationToken);
     }
 
-    public async Task<Result> SaveImportJobResult(string jobIdentifier, ImportJobResult importJobResult, CancellationToken cancellationToken = default)
+    public async Task<Result> SaveImportJobResult(string jobIdentifier, ImportJobResult importJobResult, bool active, CancellationToken cancellationToken = default)
     {
         return await Save(jobIdentifier, "-result", JsonSerializer.Serialize(importJobResult), cancellationToken);
     }
-    
+
+
     public async Task<Result<ImportJob?>> GetImportJob(string jobIdentifier, CancellationToken cancellationToken)
     {
         return await Load<ImportJob>(jobIdentifier, "-job", cancellationToken);
