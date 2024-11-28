@@ -19,6 +19,23 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         // list deposits
     }
 
+    public async Task<IActionResult> OnPostCreateForArchivalGroup(string archivalGroupPath)
+    {
+        var resourcePath = $"{PreservedResource.BasePathElement}/{archivalGroupPath}";
+        var result = await mediator.Send(new GetResource(resourcePath));
+        if (result.Success)
+        {
+            var model = new NewDepositModel
+            {
+                ArchivalGroupPathUnderRoot = archivalGroupPath,
+                ArchivalGroupProposedName = result.Value!.Name!
+            };
+            return await OnPostCreate(model);
+        }
+        TempData["CreateDepositFail"] = result.CodeAndMessage();
+        return Page();
+    }
+
     public async Task<IActionResult> OnPostCreate(NewDepositModel newDepositModel)
     {
         NewDeposit = newDepositModel;
@@ -140,6 +157,10 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             return true;
         }
 
+        if (existingResourceResult.Value is ArchivalGroup && existingResourceResult.ErrorCode.IsNullOrWhiteSpace())
+        {
+            return true;
+        }
         if (existingResourceResult is { Value: ArchivalGroup, ErrorCode: not null })
         {
             return true;

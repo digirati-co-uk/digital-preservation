@@ -27,7 +27,7 @@ public class ImportJobsController(IMediator mediator) : Controller
         {
             return this.StatusResponseFromResult(depositResult);
         }
-        var validationResult = ValidateDeposit(depositResult.Value!);
+        var validationResult = await ValidateDeposit(depositResult.Value!, 0);
         if (validationResult != null) return this.StatusResponseFromResult(validationResult);
         
         var result = await mediator.Send(new GetDiffImportJob(depositResult.Value!));
@@ -44,7 +44,7 @@ public class ImportJobsController(IMediator mediator) : Controller
         }
 
         var deposit = depositResult.Value!;
-        var validationResult = ValidateDeposit(deposit);
+        var validationResult = await ValidateDeposit(deposit, 1);
         if (validationResult != null) return this.StatusResponseFromResult(validationResult);
         
         if (IsPostedDiffReference(importJob, Request.Path))
@@ -85,7 +85,7 @@ public class ImportJobsController(IMediator mediator) : Controller
     }
     
     
-    private Result? ValidateDeposit(Deposit existingDeposit)
+    private async Task<Result?> ValidateDeposit(Deposit existingDeposit, int maxCompleted)
     {
         if (existingDeposit.Status == DepositStates.Exporting)
         {
@@ -94,6 +94,17 @@ public class ImportJobsController(IMediator mediator) : Controller
         if (existingDeposit.ArchivalGroup == null)
         {
             return Result.Fail(ErrorCodes.BadRequest, "Deposit requires Archival Group");
+        }
+
+        var existingImportJobResultsResult = await mediator.Send(new GetImportJobResultsForDeposit(existingDeposit.Id!.GetSlug()!));
+        if (existingImportJobResultsResult.Failure || existingImportJobResultsResult.Value == null)
+        {
+            return Result.Fail(ErrorCodes.UnknownError, "Could not look for existing import jobs");
+        }
+        var notErrors = existingImportJobResultsResult.Value.Count(ijr => ijr.Status != ImportJobStates.CompletedWithErrors);
+        if (notErrors > maxCompleted)
+        {
+            return Result.Fail(ErrorCodes.Conflict, "There are existing import jobs for this deposit");
         }
         return null;
     }
