@@ -298,6 +298,25 @@
 
 <p><small>Created by: <agent-link uri="@Model.Resource.CreatedBy"></agent-link> | Last modified by: <agent-link uri="@Model.Resource.LastModifiedBy"></agent-link></small></p>
 
+
+@if (Model.Resource is Container { Containers.Count: 0, Binaries.Count: 0, PartOf:null, Type:nameof(Container) })
+{
+    <div class="container">
+        <form asp-page-handler="DeleteContainerOutsideArchivalGroup" method="post">
+            <div class="mb-3">
+                <button type="button" class="btn btn-sm btn-outline-danger me-2">
+                    <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Container</span>
+                </button>
+            </div>
+            <div class="mb-3 form-check">
+                <input type="checkbox" name="purge" value="true" class="form-check-input" id="purgeCheck" checked>
+                <label class="form-check-label" for="purgeCheck">Purge (allow re-use of URL)</label>
+            </div>
+        </form>
+    </div>
+}
+
+
 <!-- Modal -->
 <div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
     <div class="modal-dialog">

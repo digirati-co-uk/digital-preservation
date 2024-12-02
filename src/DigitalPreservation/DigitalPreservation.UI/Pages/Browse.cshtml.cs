@@ -61,6 +61,14 @@ public class BrowseModel(IMediator mediator) : PageModel
             }
         }
     }
+
+    public async Task<IActionResult> OnPostDeleteContainerOutsideArchivalGroup(string? pathUnderRoot, bool purgeCheck)
+    {
+        throw new NotImplementedException();
+        //var result = await mediator.Send(new DeleteContainer(pathUnderRoot, purgeCheck));
+        
+    }
+    
     public async Task<IActionResult> OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle)
     {
         if (containerSlug.IsNullOrWhiteSpace())

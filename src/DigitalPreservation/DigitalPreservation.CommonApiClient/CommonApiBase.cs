@@ -128,4 +128,21 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             return Result.Fail<Container?>(ErrorCodes.UnknownError, e.Message);
         }
     }
+    
+    public async Task<Result> DeleteContainer(string path, bool purge, CancellationToken cancellationToken)
+    {
+        // Make this work the same way that Fedora does; surface the tombstone through the two APIs
+        // https://wiki.lyrasis.org/display/FEDORA6x/Delete+vs+Purge
+        try
+        {
+            var uri = new Uri(path, UriKind.Relative);
+            var response = await httpClient.DeleteAsync(uri, cancellationToken);
+            return Result.Ok(); // Add a new Gone status? And a Purged status.
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail(ErrorCodes.UnknownError, e.Message);
+        }
+    }
 }

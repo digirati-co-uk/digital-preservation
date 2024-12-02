@@ -32,6 +32,7 @@ public interface IPreservationApiClient
     Task<Result<ImportJobResult>> GetImportJobResult(string depositId, string importJobResultId, CancellationToken cancellationToken);
     Task<Result<ImportJob>> GetDiffImportJob(string depositId, CancellationToken cancellationToken);
     Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, CancellationToken cancellationToken);
+    Task<Result> DeleteContainer(string path, bool requestPurge, CancellationToken cancellationToken);
     
     
     
