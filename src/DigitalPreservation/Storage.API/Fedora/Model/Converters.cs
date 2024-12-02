@@ -132,6 +132,28 @@ public class Converters
         return new Uri(fedoraOptions.Root, pathUnderFedoraRoot);
     }
 
+    public string GetFedoraDbId(string? pathUnderFedoraRoot)
+    {
+        if (pathUnderFedoraRoot.HasText())
+        {
+            return "info:fedora/" + pathUnderFedoraRoot;
+        }
+
+        return "info:fedora";
+    }    
+    
+    public Uri RepositoryUriFromDbId(string dbId)
+    {
+        return new Uri(repositoryRoot + dbId.RemoveStart("info:fedora/"));
+    }
+
+    public string GetFedoraDbId(Uri fedoraUri)
+    {
+        var fedoraUriString = fedoraUri.ToString();
+        var trimmed = fedoraUriString == fedoraRoot ? string.Empty : fedoraUriString.RemoveStart(fedoraRoot);
+        return GetFedoraDbId(trimmed);
+    }
+    
     public bool IsFedoraRoot(Uri uri)
     {
         return uri == fedoraRootUri || uri == fedoraRootUriWithoutSlash;

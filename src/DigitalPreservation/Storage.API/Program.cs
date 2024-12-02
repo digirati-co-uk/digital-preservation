@@ -37,6 +37,7 @@ try
         .AddMemoryCache()
         .AddOcfl(builder.Configuration)
         .AddFedoraClient(builder.Configuration, "Storage-API")
+        .AddFedoraDB(builder.Configuration, "Fedora")
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
         .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
@@ -44,6 +45,7 @@ try
         .AddCorrelationIdHeaderPropagation()
         .AddStorageContext(builder.Configuration)
         .AddControllers();
+    
 
     builder.Services
         .AddHostedService<ImportJobExecutorService>()

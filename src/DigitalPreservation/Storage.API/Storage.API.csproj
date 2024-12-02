@@ -11,6 +11,7 @@
       <PackageReference Include="AWSSDK.S3" Version="3.7.402.11" />
       <PackageReference Include="AWSSDK.SecurityToken" Version="3.7.400.20" />
       <PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.400.21" />
+      <PackageReference Include="Dapper" Version="2.1.35" />
       <PackageReference Include="EFCore.NamingConventions" Version="8.0.3" />
       <PackageReference Include="MediatR" Version="12.4.1" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8">

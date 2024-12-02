@@ -40,4 +40,15 @@ public static class ServiceCollectionX
 
         return serviceCollection;
     }
+
+
+    public static IServiceCollection AddFedoraDB(this IServiceCollection serviceCollection,
+        IConfiguration configuration, string connectionStringKey)
+    {
+        serviceCollection.AddSingleton<FedoraDB>(provider => new FedoraDB(
+            provider.GetRequiredService<Converters>(),
+            configuration.GetConnectionString(connectionStringKey),
+            provider.GetRequiredService<ILogger<FedoraDB>>()));
+        return serviceCollection;
+    }
 }

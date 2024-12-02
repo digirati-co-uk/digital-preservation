@@ -21,7 +21,8 @@ internal class FedoraClient(
     IOptions<FedoraOptions> fedoraOptions,
     Converters converters,
     IMemoryCache cache,
-    IStorageMapper storageMapper) : IFedoraClient
+    IStorageMapper storageMapper,
+    FedoraDB fedoraDB) : IFedoraClient
 {
     public readonly bool RequireChecksum = fedoraOptions.Value.RequireDigestOnBinary;
     public readonly string FedoraBucket = fedoraOptions.Value.Bucket;
@@ -60,7 +61,12 @@ internal class FedoraClient(
         else if (typeRes.Value == nameof(Container))
         {
             // this is also true for archival group so test this last
-            var container = await GetPopulatedContainer(uri, false, false, transaction);
+            var container = await GetPopulatedContainer(
+                uri, 
+                isArchivalGroup: false, 
+                recurse: false, 
+                canUseDb: storageMap == null,
+                transaction);
             if (storageMap != null && container != null)
             {
                 PopulateOrigins(storageMap, container);
@@ -90,7 +96,7 @@ internal class FedoraClient(
         var storageMap = await GetCacheableStorageMap(uri, version, true);
         MergeVersions(versions, storageMap.AllVersions);
 
-        if(await GetPopulatedContainer(uri, true, true, transaction) is not ArchivalGroup archivalGroup)
+        if(await GetPopulatedContainer(uri, true, true, false, transaction) is not ArchivalGroup archivalGroup)
         {
             return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"{uri} is not an Archival Group");
         }
@@ -520,13 +526,25 @@ internal class FedoraClient(
         return Result.Ok(ag);
     }
 
-    private async Task<Container?> GetPopulatedContainer(Uri uri, bool isArchivalGroup, bool recurse, Transaction? transaction = null)
+    private async Task<Container?> GetPopulatedContainer(Uri uri, bool isArchivalGroup, bool recurse, bool canUseDb, Transaction? transaction = null)
     {
+        // temporarily use recurse as a flag to use DB.
+        Container? dbContainer = null;
+        if (canUseDb && fedoraDB.Available)
+        {
+            dbContainer = await fedoraDB.GetPopulatedContainer(uri);
+            if (dbContainer is { Containers.Count: < 20, Binaries.Count: < 20 })
+            {
+                // Has few enough child items that WithContainedDescriptions is OK to use
+                dbContainer = null;
+            }
+        }
         // TODO: This is not using transaction - should it?
-        var request = MakeHttpRequestMessage(uri, HttpMethod.Get)
-            .ForJsonLd()
-            .WithContainedDescriptions();
-        
+        var request = MakeHttpRequestMessage(uri, HttpMethod.Get).ForJsonLd();
+        if (dbContainer == null)
+        {
+            request.WithContainedDescriptions();
+        }
         var response = await httpClient.SendAsync(request);
         bool hasArchivalGroupHeader = response.HasArchivalGroupTypeHeader();
         if (isArchivalGroup && !hasArchivalGroupHeader)
@@ -566,10 +584,23 @@ internal class FedoraClient(
             throw new InvalidOperationException("First resource in @graph should be the asked-for URI");
         }
             
-        // Make a map of the IDs
-        Dictionary<string, JsonElement> dict = containerAndContained.ToDictionary(x => x.GetProperty("@id").GetString()!);
         var fedoraObject = containerAndContained[0].Deserialize<FedoraJsonLdResponse>();
         var topContainer = isArchivalGroup ? converters.MakeArchivalGroup(fedoraObject!) : converters.MakeContainer(fedoraObject!);
+        if (dbContainer != null)
+        {
+            if (isArchivalGroup)
+            {
+                // This should never happen, just a guard against bugs above
+                throw new InvalidOperationException("Should not create AG from database!");
+            }
+
+            topContainer.Containers = dbContainer.Containers;
+            topContainer.Binaries = dbContainer.Binaries;
+            return topContainer;
+        }
+        
+        // Make a map of the IDs
+        Dictionary<string, JsonElement> dict = containerAndContained.ToDictionary(x => x.GetProperty("@id").GetString()!);
 
         // Get the contains property which may be a single value or an array
         var idsFromContainmentPredicate = GetIdsFromContainsProperty(containerAndContained[0]);
@@ -583,7 +614,7 @@ internal class FedoraClient(
                 Container? container;
                 if (recurse)
                 {
-                    container = await GetPopulatedContainer(fedoraContainer.Id, false, true, transaction);
+                    container = await GetPopulatedContainer(fedoraContainer.Id, false, true, canUseDb, transaction);
                 }
                 else
                 {
