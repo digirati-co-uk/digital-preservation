@@ -135,9 +135,13 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
         // https://wiki.lyrasis.org/display/FEDORA6x/Delete+vs+Purge
         try
         {
-            var uri = new Uri(path, UriKind.Relative);
+            var uri = new Uri($"{path}?purge={purge}", UriKind.Relative);
             var response = await httpClient.DeleteAsync(uri, cancellationToken);
-            return Result.Ok(); // Add a new Gone status? And a Purged status.
+            if (response.IsSuccessStatusCode)
+            {
+                return Result.Ok();
+            }
+            return await response.ToFailResult();
         }
         catch (Exception e)
         {

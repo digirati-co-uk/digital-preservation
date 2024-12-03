@@ -158,4 +158,15 @@ internal static class RequestX
     {
         return new Uri($"{resourceUri}/fcr:versions");
     }
+    
+    
+    /// <summary>
+    /// Same comments as above
+    /// </summary>
+    /// <param name="resourceUri"></param>
+    /// <returns></returns>
+    public static Uri TombstoneUri(this Uri resourceUri)
+    {
+        return new Uri($"{resourceUri}/fcr:tombstone");
+    }
 }

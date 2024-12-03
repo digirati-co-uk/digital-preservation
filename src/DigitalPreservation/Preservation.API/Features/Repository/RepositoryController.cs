@@ -59,7 +59,15 @@ public class RepositoryController(IMediator mediator) : Controller
         var createdLocation = result.Success ? result.Value!.Id : null;
         return this.StatusResponseFromResult(result, 201, createdLocation);
     }
-    
-    
-    
+
+    [HttpDelete(Name = "DeleteContainer")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(401)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(410)]
+    public async Task<ActionResult> DeleteContainer([FromRoute] string path, [FromQuery] bool purge)
+    {
+        var result = await mediator.Send(new DeleteContainer(Request.Path, purge));
+        return this.StatusResponseFromResult(result, 204);
+    }
 }

@@ -1,4 +1,6 @@
-﻿namespace Storage.API.Fedora.Vocab;
+﻿using System.Net;
+
+namespace Storage.API.Fedora.Vocab;
 
 public static class ResponseX
 {
@@ -14,6 +16,11 @@ public static class ResponseX
     public static bool HasBinaryTypeHeader(this HttpResponseMessage response)
     {
         return response.HasLinkTypeHeader(RepositoryTypes.NonRDFSource);
+    }
+
+    public static bool IsTombstone(this HttpResponseMessage response)
+    {
+        return response.StatusCode == HttpStatusCode.Gone;
     }
 
     private static bool HasLinkTypeHeader(this HttpResponseMessage response, string typeId)

@@ -40,4 +40,5 @@ public interface IStorageApiClient
     /// <returns>true if alive, else false</returns>
     Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default);
     Task<ConnectivityCheckResult?> CanSeeS3(CancellationToken cancellationToken = default);
+    Task<Result> DeleteContainer(string path, bool requestPurge, CancellationToken cancellationToken);
 }

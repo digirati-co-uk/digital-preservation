@@ -64,16 +64,21 @@ public class BrowseModel(IMediator mediator) : PageModel
 
     public async Task<IActionResult> OnPostDeleteContainerOutsideArchivalGroup(string? pathUnderRoot, bool purgeCheck)
     {
-        throw new NotImplementedException();
-        //var result = await mediator.Send(new DeleteContainer(pathUnderRoot, purgeCheck));
-        
+        var result = await mediator.Send(new DeleteContainer(pathUnderRoot, purgeCheck));
+        if (result.Success)
+        {
+            TempData["ContainerSuccess"] = $"Container {pathUnderRoot} deleted successfully";
+            return Redirect(Request.Path.ToString().GetParent()!);
+        }
+        TempData["ContainerError"] = $"Container {pathUnderRoot} could not be deleted: {result.CodeAndMessage()}";
+        return Redirect(Request.Path);
     }
     
     public async Task<IActionResult> OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle)
     {
         if (containerSlug.IsNullOrWhiteSpace())
         {
-            TempData["CreateContainerError"] = "Missing container name";
+            TempData["ContainerError"] = "Missing container name";
             return Redirect(Request.Path);
         }
         
@@ -83,16 +88,16 @@ public class BrowseModel(IMediator mediator) : PageModel
             var result = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle));
             if(result is { Success: true, Value: not null })
             {
-                TempData["ContainerCreated"] = "Created Container " + result.Value;
+                TempData["ContainerSuccess"] = "Created Container " + result.Value;
             }
             else
             {
-                TempData["CreateContainerError"] = "Failed to create Container: " + result.CodeAndMessage();
+                TempData["ContainerError"] = "Failed to create Container: " + result.CodeAndMessage();
             }
             return Redirect(Request.Path);
         }
 
-        TempData["CreateContainerError"] = "Invalid container file path - only a-z, 0-9 and .-_ are allowed.";
+        TempData["ContainerError"] = "Invalid container file path - only a-z, 0-9 and .-_ are allowed.";
         return Redirect(Request.Path);
     }
 

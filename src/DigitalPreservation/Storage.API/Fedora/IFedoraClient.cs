@@ -43,7 +43,8 @@ public interface IFedoraClient
     
     Task<Result<PreservedResource>> Delete(PreservedResource resource, Transaction transaction, CancellationToken cancellationToken = default);
     
-    
+    Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, bool purge, CancellationToken cancellationToken);
+
     
     // Transactions
     Task<Transaction> BeginTransaction();

@@ -101,17 +101,17 @@
 }
 
 <div>
-    @if (TempData["CreateContainerError"] != null)
+    @if (TempData["ContainerError"] != null)
     {
         <div class="alert alert-danger" role="alert">
-            <p>@TempData["CreateContainerError"]</p>
+            <p>@TempData["ContainerError"]</p>
         </div>
     }
 
-    @if (TempData["ContainerCreated"] != null)
+    @if (TempData["ContainerSuccess"] != null)
     {
         <div class="alert alert-success" role="alert">
-            <p>@TempData["ContainerCreated"]</p>
+            <p>@TempData["ContainerSuccess"]</p>
         </div>
     }
     

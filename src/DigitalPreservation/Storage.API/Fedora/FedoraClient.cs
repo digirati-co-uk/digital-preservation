@@ -1,6 +1,6 @@
 using System.Net;
+using System.Security.AccessControl;
 using System.Text.Json;
-using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Storage;
@@ -170,6 +170,11 @@ internal class FedoraClient(
             {
                 return Result.Ok(typeName);
             }
+        }
+
+        if (headResponse.IsTombstone())
+        {
+            return Result.Ok(RepositoryTypes.Tombstone);
         }
 
         return headResponse.StatusCode switch
@@ -494,6 +499,16 @@ internal class FedoraClient(
         return req;
     }
 
+    /// <summary>
+    /// For deleting resources within AGs
+    /// It still works outside AGs but will leave tombstones behind (correctly)
+    ///
+    /// The DeleteContainerOutsideOfArchivalGroup is used for additionally specifying a purge
+    /// </summary>
+    /// <param name="resource"></param>
+    /// <param name="transaction"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     public async Task<Result<PreservedResource>> Delete(PreservedResource resource, Transaction transaction, CancellationToken cancellationToken = default)
     {
         try
@@ -518,6 +533,39 @@ internal class FedoraClient(
         {
             return Result.FailNotNull<PreservedResource>(ErrorCodes.UnknownError, e.Message);
         }
+    }
+
+    public async Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, bool purge,
+        CancellationToken cancellationToken)
+    {
+        // GetResource can return a tombstone...
+        try
+        {
+            var fedoraLocation = converters.GetFedoraUri(pathUnderFedoraRoot);
+            var response = await httpClient.DeleteAsync(fedoraLocation, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                if (purge)
+                {
+                    var typeAtLocation = await GetResourceType(fedoraLocation);
+                    if (typeAtLocation.Value == RepositoryTypes.Tombstone)
+                    {
+                        var delTombstoneResponse =
+                            await httpClient.DeleteAsync(fedoraLocation.TombstoneUri(), cancellationToken);
+                        if (delTombstoneResponse.IsSuccessStatusCode)
+                        {
+                            return Result.Ok();
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail(ErrorCodes.UnknownError, ex.Message);
+        }
+
+        return Result.Fail(ErrorCodes.UnknownError);
     }
 
     public async Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string name, Transaction transaction, CancellationToken cancellationToken = default)
