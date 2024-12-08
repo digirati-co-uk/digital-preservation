@@ -11,6 +11,13 @@
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
+
+        @if (Model.Resource is Container { Containers.Count: 0, Binaries.Count: 0, PartOf: null, Type: nameof(Container) })
+        {
+            <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteContainerModal">
+                <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Container</span>
+            </button>
+        }
         @if (Model.Resource.PartOf == null && Model.Resource is not ArchivalGroup)
         {
             <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newContainerModal">
@@ -29,14 +36,14 @@
                 📦 Versions
             </a>
             <a class="btn btn-sm btn-outline-primary me-2 disabled">
-                <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em" /> IIIF
+                <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
             </a>
         }
         @if (Model.ArchivalGroupPath.HasText())
         {
             <form method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
                 <button type="submit" class="btn btn-sm btn-outline-primary me-2">
-                    <input type="hidden" name="archivalGroupPath" value="@Model.ArchivalGroupPath" />
+                    <input type="hidden" name="archivalGroupPath" value="@Model.ArchivalGroupPath"/>
                     <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
                 </button>
             </form>
@@ -301,18 +308,29 @@
 
 @if (Model.Resource is Container { Containers.Count: 0, Binaries.Count: 0, PartOf:null, Type:nameof(Container) })
 {
-    <div class="container">
-        <form asp-page-handler="DeleteContainerOutsideArchivalGroup" method="post">
-            <div class="mb-3">
-                <button type="button" class="btn btn-sm btn-outline-danger me-2">
-                    <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Container</span>
-                </button>
+    <!-- Modal -->
+    <div class="modal fade" id="deleteContainerModal" tabindex="-1" aria-labelledby="deleteContainerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" asp-page-handler="DeleteContainerOutsideArchivalGroup">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="deleteContainerModalLabel"> Delete/Purge Container</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" name="purge" value="true" class="form-check-input" id="purgeCheck" checked aria-describedby="purgeHelp">
+                            <label class="form-check-label" for="purgeCheck">Purge (allow re-use of URL)</label>
+                            <div id="purgeHelp" class="form-text">Purging the container will allow a resource to be created later at the same URL. If this box is unchecked, the URL is left reserved, and a resource cannot be created here later.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Delete</button>
+                    </div>
+                </form>
             </div>
-            <div class="mb-3 form-check">
-                <input type="checkbox" name="purge" value="true" class="form-check-input" id="purgeCheck" checked>
-                <label class="form-check-label" for="purgeCheck">Purge (allow re-use of URL)</label>
-            </div>
-        </form>
+        </div>
     </div>
 }
 
