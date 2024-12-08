@@ -1,4 +1,12 @@
-﻿using System.Net.Http.Json;
+﻿using System.Net;
+using System.Net.Http.Json;
+using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.CommonApiClient;
+using DigitalPreservation.Core.Web;
+using DigitalPreservation.Utils;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -11,15 +19,95 @@ namespace Storage.Client;
 /// Marked internal to avoid consumers depending on this implementation, which will allow us to alter how it's
 /// implemented in the future to use, e.g. Refit client instead
 /// </remarks>
-internal class StorageApiClient(
+public class StorageApiClient(
     HttpClient httpClient, 
-    ILogger<StorageApiClient> logger) : IStorageApiClient
+    ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger), IStorageApiClient
 {
+    private readonly HttpClient storageHttpClient = httpClient;
+
+    public async Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri)
+    {       
+        var reqPath = $"import/diff/{archivalGroupPathUnderRoot}?source={sourceUri}";
+        var uri = new Uri(reqPath, UriKind.Relative);
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await storageHttpClient.SendAsync(req);
+            if (response.IsSuccessStatusCode)
+            {
+                var importJob = await response.Content.ReadFromJsonAsync<ImportJob>();
+                if(importJob != null)
+                {
+                    return Result.OkNotNull(importJob);
+                }
+                return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            return await response.ToFailNotNullResult<ImportJob>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri)
+    {        
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, storageApiImportJobResultUri);
+            var response = await storageHttpClient.SendAsync(req);
+            if (response.IsSuccessStatusCode)
+            {
+                var importJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>();
+                if(importJobResult != null)
+                {
+                    return Result.OkNotNull(importJobResult);
+                }
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            return await response.ToFailNotNullResult<ImportJobResult>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+ 
+    public async Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob? requestImportJob, CancellationToken cancellationToken = default)
+    {
+        if (requestImportJob == null)
+        {
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, "Unable to parse storage import job from request body.");
+        }
+        try
+        {
+            var response = await storageHttpClient.PostAsJsonAsync("import", requestImportJob, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var importJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
+                if(importJobResult != null)
+                {
+                    return Result.OkNotNull(importJobResult);
+                }
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            return await response.ToFailNotNullResult<ImportJobResult>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {
         try
         {
-            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/fedora", cancellationToken);
+            var res = await storageHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/fedora", cancellationToken);
             return res;
         }
         catch (Exception ex)
@@ -36,7 +124,7 @@ internal class StorageApiClient(
     {
         try
         {
-            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storagecheck", cancellationToken);
+            var res = await storageHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storagecheck", cancellationToken);
             return res;
         }
         catch (Exception ex)

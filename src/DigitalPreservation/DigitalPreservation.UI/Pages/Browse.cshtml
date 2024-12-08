@@ -1,0 +1,495 @@
+﻿@page "{*pathUnderRoot}"
+@using DigitalPreservation.Common.Model
+@using DigitalPreservation.UI.Features
+@using DigitalPreservation.Utils
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@model BrowseModel
+@{
+    ViewData["section"] = "browse";
+}
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">@ViewData["Title"]</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+
+        @if (Model.Resource is Container { Containers.Count: 0, Binaries.Count: 0, PartOf: null, Type: nameof(Container) })
+        {
+            <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteContainerModal">
+                <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Container</span>
+            </button>
+        }
+        @if (Model.Resource.PartOf == null && Model.Resource is not ArchivalGroup)
+        {
+            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newContainerModal">
+                📁 New Folder
+            </button>
+        }
+        @if (Model.Resource.PartOf != null)
+        {
+            <a class="btn btn-sm btn-primary me-2" href="/browse/@Model.Resource.PartOf.GetPathUnderRoot()">
+                📦 Go to Archival Group
+            </a>
+        }
+        @if (Model.Resource is ArchivalGroup)
+        {
+            <a class="btn btn-sm btn-outline-primary me-2 disabled">
+                📦 Versions
+            </a>
+            <a class="btn btn-sm btn-outline-primary me-2 disabled">
+                <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
+            </a>
+        }
+        @if (Model.ArchivalGroupPath.HasText())
+        {
+            <form method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
+                <button type="submit" class="btn btn-sm btn-outline-primary me-2">
+                    <input type="hidden" name="archivalGroupPath" value="@Model.ArchivalGroupPath"/>
+                    <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
+                </button>
+            </form>
+        }
+        else
+        {
+            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
+                <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
+            </button>
+        }
+    </div>
+</div>
+
+@{
+    var navParts = Model.PathUnderRoot?.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    if (navParts is { Length: > 1 })
+    {
+        <nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
+            <ol class="breadcrumb" style="margin-bottom: 0">
+            @{
+                var agUnderRoot = Model.Resource.PartOf?.GetPathUnderRoot();
+                var currentPath = string.Empty;
+                var commonStyle = "d-inline-flex mb-3 px-2 py-1 fw-normal small";
+                foreach (var part in navParts)
+                {
+                    currentPath += currentPath.HasText() ? $"/{part}" : part;
+                    if (currentPath == Model.PathUnderRoot!)
+                    {
+                        if (Model.Resource is ArchivalGroup)
+                        {
+                            <li class="breadcrumb-item"><span class="@commonStyle bg-primary border border-primary rounded-2 text-white">@currentPath.GetSlug()</span></li>
+                        }
+                        else if (agUnderRoot != null && currentPath.StartsWith(agUnderRoot))
+                        {
+                            <li class="breadcrumb-item"><span class="@commonStyle bg-primary-subtle border border-primary-subtle rounded-2">@currentPath.GetSlug()</span></li>
+                        }
+                        else
+                        {
+                            <li class="breadcrumb-item"><span class="@commonStyle">@currentPath.GetSlug()</span></li>
+                        }
+                    }
+                    else
+                    {
+                        if (currentPath == agUnderRoot)
+                        {
+                            <li class="breadcrumb-item"><a class="@commonStyle bg-primary border border-primary rounded-2 text-white" href="/browse/@currentPath">@currentPath.GetSlug()</a></li>
+                        }
+                        else if (agUnderRoot != null && currentPath.StartsWith(agUnderRoot))
+                        {
+                            <li class="breadcrumb-item"><a class="@commonStyle bg-primary-subtle border border-primary-subtle rounded-2" href="/browse/@currentPath">@currentPath.GetSlug()</a></li>
+                        }
+                        else
+                        {
+                            <li class="breadcrumb-item"><a class="@commonStyle" href="/browse/@currentPath">@currentPath.GetSlug()</a></li>
+                        }
+                    }
+                }
+            }
+            </ol>
+        </nav>
+    }
+}
+
+<div>
+    @if (TempData["ContainerError"] != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>@TempData["ContainerError"]</p>
+        </div>
+    }
+
+    @if (TempData["ContainerSuccess"] != null)
+    {
+        <div class="alert alert-success" role="alert">
+            <p>@TempData["ContainerSuccess"]</p>
+        </div>
+    }
+    
+    @{
+        var modelBinary = Model.Resource as Binary;
+        var modelContainer = Model.Resource as Container;
+    }
+    
+    @if (modelBinary != null)
+    {
+        <p>A binary woah</p>
+    }
+    
+    @if (Model.Resource is ArchivalGroup ag)
+    {
+        <table class="table small">
+            <tr>
+                <th scope="row">Created</th>
+                <td>@ag.Created.GetDateDisplay()</td>
+            </tr>
+            <tr>
+                <th scope="row">Created by</th>
+                <td>@ag.CreatedBy?.GetSlug()</td>
+            </tr>
+            <tr>
+                <th scope="row">Last modified</th>
+                <td>@ag.LastModified.GetDateDisplay()</td>
+            </tr>
+            <tr>
+                <th scope="row">Last modified by</th>
+                <td>@ag.LastModifiedBy?.GetSlug()</td>
+            </tr>
+            <tr>
+                <th scope="row">Versions</th>
+                <td>
+                    <table class="table">
+                        <thead>
+                        <tr>
+                            <th>Version</th>
+                            <th>Date</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var version in ag.Versions!.OrderByDescending(v => v.MementoDateTime))
+                        {
+                        <tr @if (version.Equals(ag.Version))
+                            {
+                            <text> class="table-info" </text>
+                            }
+                            else if (version.Equals(ag.StorageMap.HeadVersion))
+                            {
+                            <text> class="table-primary" </text>
+                            }
+                        >
+                            <td><a href="/ocfl/@(ViewBag.Path)?version=@version.OcflVersion">@version.OcflVersion</a></td>
+                            <td><a href="/ocfl/@(ViewBag.Path)?version=@version.OcflVersion">@version.MementoDateTime.GetDateDisplay()</a></td>
+                            <td>
+                                @if (version.Equals(ag.StorageMap?.Version))
+                                {
+                                <text><strong>Currently viewing</strong></text>
+                                }
+                                @if (version.Equals(ag.StorageMap?.HeadVersion))
+                                {
+                                <text> Latest (head) version</text>
+                                }
+                            </td>
+                        </tr>
+                        }
+                        </tbody>
+                    </table>
+                    
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">Deposits</th>
+                <td>
+                    <table class="table">
+                        <thead>
+                        <tr>
+                            <th>Deposit</th>
+                            <th>Created</th>
+                            <th>By</th>
+                            <th>Preserved</th>
+                            <th>By</th>
+                            <th>Version</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var deposit in Model.Deposits)
+                        {
+                            
+                            var slug = deposit.Id!.GetSlug();
+                            var path = "/deposits/" + slug;
+                            <tr>
+                                <td><a href="@path">@slug</a></td>
+                                <td>@deposit.Created.GetDateDisplay()</td>
+                                <td>@deposit.CreatedBy?.GetSlug()</td>
+                                <td>@deposit.Preserved.GetDateDisplay()</td>
+                                <td>@deposit.PreservedBy?.GetSlug()</td>
+                                <td>@deposit.VersionPreserved</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    
+                </td>
+            </tr>
+        </table>
+
+        
+        
+    }
+
+    @if (modelContainer != null)
+    {
+        <div class="table-responsive small">
+            <table class="table table-striped table-sm plain-link-table" aria-label="table-resources">
+                <thead>
+                <tr>
+                    <th scope="col"> </th>
+                    <th scope="col">Path</th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Last Modified</th>
+                    <th scope="col">By</th>
+                    <th scope="col">Created</th>
+                    <th scope="col">By</th>
+                    <th scope="col"><svg class="bi"><use xlink:href="#box-seam"/></svg></th>
+                </tr>
+                </thead>
+                <tbody>
+                @{
+                    int counter = 1;
+
+                    foreach (var container in modelContainer.Containers)
+                    {
+                        string path = "/browse/" + container.GetPathUnderRoot();
+                        <tr aria-label="row-@(counter++)">
+                            @if (container.Type == nameof(ArchivalGroup))
+                            {
+                                <td aria-label="td-icon"><a href="@path">@ArchivalGroup.Icon</a></td>
+                            }
+                            else
+                            {
+                                <td aria-label="td-icon"><a href="@path">@container.StringIcon</a></td>
+                            }
+                            <td aria-label="td-path"><a href="@path">@container.Id?.GetSlug()</a></td>
+                            <td aria-label="td-title"><a href="@path">@container.Name</a></td>
+                            <td aria-label="td-last-modified"><a href="@path">@container.LastModified.GetDateDisplay()</a></td>
+                            <td aria-label="td-last-modified-by"><a href="@path">@container.LastModifiedBy?.GetSlug()</a></td>
+                            <td aria-label="td-created"><a href="@path">@container.Created.GetDateDisplay()</a></td>
+                            <td aria-label="td-created-by"><a href="@path">@container.CreatedBy?.GetSlug()</a></td>
+                            <td aria-label="td-deposits">
+                                @if (container.Type == nameof(ArchivalGroup))
+                                {
+                                    <a href="/deposits?archivalGroupPath=@container.GetPathUnderRoot()"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
+                                }
+                            </td>
+                        </tr>
+                    }
+
+
+                    @foreach (var binary in modelContainer.Binaries)
+                    {
+                        string path = "/browse/" + binary.GetPathUnderRoot();
+                        <tr aria-label="row-@(counter++)">
+                            <td aria-label="td-icon"><a href="@path">@binary.StringIcon</a></td>
+                            <td aria-label="td-path"><a href="@path">@binary.Id?.GetSlug()</a></td>
+                            <td aria-label="td-title"><a href="@path">@binary.Name</a></td>
+                            <td aria-label="td-last-modified"><a href="@path">@binary.LastModified.GetDateDisplay()</a></td>
+                            <td aria-label="td-last-modified-by"><a href="@path">@binary.LastModifiedBy?.GetSlug()</a></td>
+                            <td aria-label="td-created"><a href="@path">@binary.Created.GetDateDisplay()</a></td>
+                            <td aria-label="td-created-by"><a href="@path">@binary.CreatedBy?.GetSlug()</a></td>
+                            <td aria-label="td-deposits"></td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+
+</div>
+
+<p><small>Created by: <agent-link uri="@Model.Resource.CreatedBy"></agent-link> | Last modified by: <agent-link uri="@Model.Resource.LastModifiedBy"></agent-link></small></p>
+
+
+@if (Model.Resource is Container { Containers.Count: 0, Binaries.Count: 0, PartOf:null, Type:nameof(Container) })
+{
+    <!-- Modal -->
+    <div class="modal fade" id="deleteContainerModal" tabindex="-1" aria-labelledby="deleteContainerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" asp-page-handler="DeleteContainerOutsideArchivalGroup">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="deleteContainerModalLabel"> Delete/Purge Container</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" name="purge" value="true" class="form-check-input" id="purgeCheck" checked aria-describedby="purgeHelp">
+                            <label class="form-check-label" for="purgeCheck">Purge (allow re-use of URL)</label>
+                            <div id="purgeHelp" class="form-text">Purging the container will allow a resource to be created later at the same URL. If this box is unchecked, the URL is left reserved, and a resource cannot be created here later.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Delete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+
+<!-- Modal -->
+<div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="newContainerModalLabel"> 📁 New Folder</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="containerTitle" class="form-label">Folder title</label>
+                        <input type="text" class="form-control" id="containerTitle" name="containerTitle" aria-describedby="containerTitleHelp">
+                        <div id="containerTitleHelp" class="form-text">A friendly name for the folder, may contain any characters</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="containerSlug" class="form-label">Folder path name</label>
+                        <input type="text" class="form-control" id="containerSlug" name="containerSlug" aria-describedby="containerSlugHelp">
+                        <div id="containerSlugHelp" class="form-text">The path of the folder as appears in URLs - no special characters</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">📁 Create New Folder</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page="DepositNew" asp-page-handler="Create">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="archivalGroupProposedName" class="form-label">Name of object (optional)</label>
+                        <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp">
+                        <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="archivalGroupSlug" class="form-label">Path of Archival Group (optional)</label>
+                        <input type="text" class="form-control" id="archivalGroupSlug" name="NewDepositModel.ArchivalGroupSlug" aria-describedby="archivalGroupSlugHelp">
+                        <code>@(Model.PathUnderRoot)/<span id="slugDisplay">...</span></code><br/>
+                        <div id="archivalGroupSlugHelp" class="form-text">The deposit will <em>eventually</em> create an Archival Group with this path.<br/>
+                            This may be set or changed later.<br/></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="submissionText" class="form-label">Note (optional)</label>
+                        <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
+                        <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" name="NewDepositModel.FromBrowseContext" value="true" />
+                    <input type="hidden" name="NewDepositModel.ParentPathUnderRoot" value="@(Model.PathUnderRoot)" />
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts{
+
+    <script>
+    
+    const containerTitleInput = document.getElementById('containerTitle');
+    const containerSlugInput = document.getElementById('containerSlug');
+    const depositNameInput = document.getElementById('archivalGroupProposedName');
+    const depositSlugInput = document.getElementById('archivalGroupSlug');
+    const depositSlugDisplay = document.getElementById('slugDisplay');
+    const submissionTextInput = document.getElementById('submissionText');
+    const touchStatus = {
+        containerSlugTouched: false,
+        depositSlugTouched: false
+    };
+    
+    document.getElementById("newContainerModal").addEventListener("show.bs.modal", () => {
+        containerTitleInput.value = "";
+        containerSlugInput.value = "";
+    });
+    document.getElementById("newDepositModal").addEventListener("show.bs.modal", () => {
+        depositNameInput.value = "";
+        depositSlugInput.value = "";
+        submissionTextInput.value = "";
+        depositSlugDisplay.innerHTML = "";
+    });
+    
+    addNameInputListener(depositNameInput, depositSlugInput, 'depositSlugTouched', depositSlugDisplay);
+    addSlugInputListener(depositSlugInput, 'depositSlugTouched', depositSlugDisplay);
+
+    addNameInputListener(containerTitleInput, containerSlugInput, 'containerSlugTouched');
+    addSlugInputListener(containerSlugInput, 'containerSlugTouched');
+    
+    function addNameInputListener(nameInput, slugInput, touchedKey, slugDisplay)
+    {
+        nameInput.addEventListener('input', (event) => {
+            if (!touchStatus[touchedKey]){
+                slugInput.value = '';
+                const low = nameInput.value.toLowerCase();
+                for (const c of low) {
+                    if (permittedSlugChars.includes(c)){
+                        slugInput.value += c;
+                    }
+                    if (c === ' '){
+                        slugInput.value += '-';
+                    }
+                }
+                if (slugDisplay){
+                    slugDisplay.innerHTML = slugInput.value;
+                }
+            }
+        });
+    }
+    
+    function addSlugInputListener(slugInput, touchedKey, slugDisplay){
+        slugInput.addEventListener('beforeinput', (event) => {
+            touchStatus[touchedKey] = true; // no longer update this from the name box
+            console.log(event.data);
+            // Here - is event.data a char, or a paste (string)?
+            if (event.data){
+                if (("" + event.data).length === 1){         
+                    // a char was typed (or pasted)      
+                    if (!permittedSlugChars.includes(event.data)){
+                        event.preventDefault();
+                    }
+                }
+                if (event.data.length > 1){
+                    // a string was pasted
+                    for (const c of event.data) {
+                        if (!permittedSlugChars.includes(c)){
+                            alert("The path element " + event.data + " contains an invalid character:\n\n" + c + "\n\nPermitted characters are:\n\n" + permittedSlugString);
+                            event.preventDefault();
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+        if (slugDisplay){
+            slugInput.addEventListener('input', () => {
+                slugDisplay.innerHTML = slugInput.value;
+            });
+        }
+    }
+    
+
+
+
+</script>
+
+}

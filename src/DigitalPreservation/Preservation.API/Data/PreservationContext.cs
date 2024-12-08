@@ -8,6 +8,7 @@ namespace Preservation.API.Data;
 public class PreservationContext : DbContext
 {
     public DbSet<Deposit> Deposits { get; set; }
+    public DbSet<ImportJob> ImportJobs { get; set; }
     
     public PreservationContext(DbContextOptions<PreservationContext> options) : base(options)
     {
@@ -18,7 +19,7 @@ public class PreservationContext : DbContext
         modelBuilder.Entity<Deposit>(builder =>
         {
             builder
-                .Property(su => su.CreatedOn)
+                .Property(su => su.Created)
                 .HasDefaultValueSql("now()");
         });
     }

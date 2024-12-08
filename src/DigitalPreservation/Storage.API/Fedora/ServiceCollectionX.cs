@@ -3,6 +3,7 @@ using DigitalPreservation.Core.Guard;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Handlers;
 using Microsoft.Extensions.Options;
+using Storage.API.Fedora.Model;
 
 namespace Storage.API.Fedora;
 
@@ -19,7 +20,9 @@ public static class ServiceCollectionX
         IConfiguration configuration, string componentName)
     {
         serviceCollection.Configure<FedoraOptions>(configuration.GetSection(FedoraOptions.Fedora));
+        serviceCollection.Configure<ConverterOptions>(configuration.GetSection(ConverterOptions.Converter));
         serviceCollection
+            .AddSingleton<Converters>()
             .AddTransient<TimingHandler>()
             .AddHttpClient<IFedoraClient, FedoraClient>((provider, client) =>
             {
@@ -35,6 +38,17 @@ public static class ServiceCollectionX
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authHeader);
             }).AddHttpMessageHandler<TimingHandler>();
 
+        return serviceCollection;
+    }
+
+
+    public static IServiceCollection AddFedoraDB(this IServiceCollection serviceCollection,
+        IConfiguration configuration, string connectionStringKey)
+    {
+        serviceCollection.AddSingleton<FedoraDB>(provider => new FedoraDB(
+            provider.GetRequiredService<Converters>(),
+            configuration.GetConnectionString(connectionStringKey),
+            provider.GetRequiredService<ILogger<FedoraDB>>()));
         return serviceCollection;
     }
 }

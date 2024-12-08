@@ -1,0 +1,36 @@
+﻿<div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" asp-page="/DepositNew" asp-page-handler="Create">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="archivalGroupProposedName" class="form-label">Name of object (optional)</label>
+                        <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp">
+                        <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="submissionText" class="form-label">Note (optional)</label>
+                        <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
+                        <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" name="NewDepositModel.FromBrowseContext" value="false" />
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById("newDepositModal").addEventListener("show.bs.modal", () => {
+        document.getElementById("archivalGroupProposedName").value = "";
+        document.getElementById("submissionText").value = "";
+    });
+</script>

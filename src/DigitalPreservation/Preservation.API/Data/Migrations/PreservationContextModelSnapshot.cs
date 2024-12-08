@@ -31,21 +31,157 @@ namespace Preservation.API.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean")
+                        .HasColumnName("active");
+
+                    b.Property<string>("ArchivalGroupName")
+                        .HasColumnType("text")
+                        .HasColumnName("archival_group_name");
+
+                    b.Property<string>("ArchivalGroupPathUnderRoot")
+                        .HasColumnType("text")
+                        .HasColumnName("archival_group_path_under_root");
+
+                    b.Property<DateTime>("Created")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created")
+                        .HasDefaultValueSql("now()");
+
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("created_by");
 
-                    b.Property<DateTime>("CreatedOn")
-                        .ValueGeneratedOnAdd()
+                    b.Property<DateTime?>("Exported")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_on")
-                        .HasDefaultValueSql("now()");
+                        .HasColumnName("exported");
+
+                    b.Property<string>("ExportedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("exported_by");
+
+                    b.Property<string>("Files")
+                        .HasColumnType("text")
+                        .HasColumnName("files");
+
+                    b.Property<DateTime>("LastModified")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_modified");
+
+                    b.Property<string>("LastModifiedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("last_modified_by");
+
+                    b.Property<string>("MintedId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("minted_id");
+
+                    b.Property<DateTime?>("Preserved")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("preserved");
+
+                    b.Property<string>("PreservedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("preserved_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<string>("SubmissionText")
+                        .HasColumnType("text")
+                        .HasColumnName("submission_text");
+
+                    b.Property<string>("VersionExported")
+                        .HasColumnType("text")
+                        .HasColumnName("version_exported");
+
+                    b.Property<string>("VersionPreserved")
+                        .HasColumnType("text")
+                        .HasColumnName("version_preserved");
 
                     b.HasKey("Id")
                         .HasName("pk_deposits");
 
                     b.ToTable("deposits", (string)null);
+                });
+
+            modelBuilder.Entity("Preservation.API.Data.Entities.ImportJob", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ArchivalGroup")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("archival_group");
+
+                    b.Property<DateTime?>("DateBegun")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("date_begun");
+
+                    b.Property<DateTime?>("DateFinished")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("date_finished");
+
+                    b.Property<DateTime?>("DateSubmitted")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("date_submitted");
+
+                    b.Property<string>("Deposit")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("deposit");
+
+                    b.Property<string>("Errors")
+                        .HasColumnType("text")
+                        .HasColumnName("errors");
+
+                    b.Property<string>("ImportJobJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("import_job_json");
+
+                    b.Property<DateTime>("LastUpdated")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated");
+
+                    b.Property<string>("LatestPreservationApiResultJson")
+                        .HasColumnType("text")
+                        .HasColumnName("latest_preservation_api_result_json");
+
+                    b.Property<string>("LatestStorageApiResultJson")
+                        .HasColumnType("text")
+                        .HasColumnName("latest_storage_api_result_json");
+
+                    b.Property<string>("NewVersion")
+                        .HasColumnType("text")
+                        .HasColumnName("new_version");
+
+                    b.Property<string>("SourceVersion")
+                        .HasColumnType("text")
+                        .HasColumnName("source_version");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StorageImportJobResultId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("storage_import_job_result_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_import_jobs");
+
+                    b.ToTable("import_jobs", (string)null);
                 });
 #pragma warning restore 612, 618
         }

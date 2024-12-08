@@ -355,3 +355,5 @@ MigrationBackup/
 .idea
 
 .env
+
+fedora.bat

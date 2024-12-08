@@ -1,7 +1,9 @@
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Preservation.API.Data;
 using Preservation.API.Infrastructure;
+using Preservation.API.Mutation;
 using Serilog;
 using Storage.Client;
 using Storage.Repository.Common;
@@ -32,6 +34,8 @@ try
         })
         .AddStorageAwsAccess(builder.Configuration)
         .AddStorageClient(builder.Configuration, "Preservation-API")
+        .AddResourceMutator(builder.Configuration)
+        .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddPreservationContext(builder.Configuration)

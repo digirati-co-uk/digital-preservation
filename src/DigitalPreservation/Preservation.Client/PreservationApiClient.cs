@@ -1,17 +1,272 @@
-﻿using System.Net.Http.Json;
+﻿using System.Net;
+using System.Net.Http.Json;
+using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.CommonApiClient;
+using DigitalPreservation.Core.Web;
+using DigitalPreservation.Utils;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualBasic;
 using Storage.Repository.Common;
 
 namespace Preservation.Client;
 
-internal class PreservationApiClient(HttpClient httpClient, ILogger<PreservationApiClient> logger) : IPreservationApiClient
+internal class PreservationApiClient(
+    HttpClient httpClient,
+    ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
+    private readonly HttpClient preservationHttpClient = httpClient;
+
+    
+    public async Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(deposit.Id!.AbsolutePath, UriKind.Relative); 
+        try
+        {
+            HttpResponseMessage response = await preservationHttpClient.PatchAsJsonAsync(uri, deposit, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var patchedDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
+                if (patchedDeposit is not null)
+                {
+                    return Result.Ok(patchedDeposit);
+                }
+                return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
+            }
+            return await response.ToFailResult<Deposit>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result> DeleteDeposit(string id, CancellationToken cancellationToken)
+    {        
+        try
+        {
+            var relPath = $"/deposits/{id}";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var response = await preservationHttpClient.DeleteAsync(uri, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return Result.Ok();
+            }
+            return await response.ToFailResult();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<Deposit?>> CreateDeposit(
+        string? archivalGroupRepositoryPath,
+        string? archivalGroupProposedName,
+        string? submissionText,
+        bool useObjectTemplate,
+        CancellationToken cancellationToken = default)
+    {
+        var deposit = new Deposit
+        {
+            ArchivalGroup = archivalGroupRepositoryPath.HasText() ? new Uri(preservationHttpClient.BaseAddress!, archivalGroupRepositoryPath) : null,
+            ArchivalGroupName = archivalGroupProposedName,
+            SubmissionText = submissionText,
+            UseObjectTemplate = useObjectTemplate
+        };
+        try
+        {
+            var uri = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
+            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(uri, deposit, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var createdDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
+                if (createdDeposit is not null)
+                {
+                    return Result.Ok(createdDeposit);
+                }
+                return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
+            }
+            return await response.ToFailResult<Deposit>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<List<Deposit>>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
+    {        
+        try
+        {
+            var relPath = "/deposits";
+            var queryString = QueryBuilder.MakeQueryString(query);
+            if (queryString.HasText())
+            {
+                relPath += $"?{queryString}";   
+            }
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var deposits = await response.Content.ReadFromJsonAsync<List<Deposit>>(cancellationToken: cancellationToken);
+                if (deposits is not null)
+                {
+                    return Result.OkNotNull(deposits);
+                }
+                return Result.FailNotNull<List<Deposit>>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<List<Deposit>>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<List<Deposit>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<List<ImportJobResult>>> GetImportJobResultsForDeposit(string depositId, CancellationToken cancellationToken)
+    {        
+        try
+        {
+            var uri = new Uri($"/deposits/{depositId}/importJobs/results", UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var jobResults = await response.Content.ReadFromJsonAsync<List<ImportJobResult>>(cancellationToken: cancellationToken);
+                if (jobResults is not null)
+                {
+                    return Result.OkNotNull(jobResults);
+                }
+                return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<List<ImportJobResult>>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<ImportJobResult>> GetImportJobResult(string depositId, string importJobResultId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = new Uri($"/deposits/{depositId}/importJobs/results/{importJobResultId}", UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var jobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
+                if (jobResult is not null)
+                {
+                    return Result.OkNotNull(jobResult);
+                }
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<ImportJobResult>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<ImportJob>> GetDiffImportJob(string depositId, CancellationToken cancellationToken)
+    { 
+        try
+        {
+            var relPath = $"/deposits/{depositId}/importjobs/diff";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var diffImportJob = await response.Content.ReadFromJsonAsync<ImportJob>(cancellationToken: cancellationToken);
+                if (diffImportJob is not null)
+                {
+                    return Result.OkNotNull(diffImportJob);
+                }
+                return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<ImportJob>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var importJob = new ImportJob
+            {
+                Id = new Uri(preservationHttpClient.BaseAddress + $"/deposits/{depositId}/importjobs/diff")
+            };
+            var relPath = $"/deposits/{depositId}/importjobs";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var response = await preservationHttpClient.PostAsJsonAsync(uri, importJob, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var diffImportJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
+                if (diffImportJobResult is not null)
+                {
+                    return Result.OkNotNull(diffImportJobResult);
+                }
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<ImportJobResult>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default)
+    {        
+        try
+        {
+            var relPath = $"/deposits/{id}";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var deposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
+                if (deposit is not null)
+                {
+                    return Result.Ok(deposit);
+                }
+                return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailResult<Deposit>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {
         try
         {
-            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage", cancellationToken);
+            var res = await preservationHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage", cancellationToken);
             return res;
         }
         catch (Exception ex)
@@ -30,7 +285,7 @@ internal class PreservationApiClient(HttpClient httpClient, ILogger<Preservation
     {
         try
         {
-            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-s3", cancellationToken);
+            var res = await preservationHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-s3", cancellationToken);
             return res;
         }
         catch (Exception ex)
@@ -49,7 +304,7 @@ internal class PreservationApiClient(HttpClient httpClient, ILogger<Preservation
     {
         try
         {
-            var res = await httpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-storage-s3", cancellationToken);
+            var res = await preservationHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-storage-s3", cancellationToken);
             return res;
         }
         catch (Exception ex)

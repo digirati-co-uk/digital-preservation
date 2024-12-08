@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Test.Helpers;
 
@@ -42,26 +44,39 @@ public class DigitalPreservationAppFactory<TStartup> : WebApplicationFactory<TSt
         this.configureTestServices = configure;
         return this;
     }
-
+    
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        var projectDir = Directory.GetCurrentDirectory();
-        var configPath = Path.Combine(projectDir, "appsettings.Testing.json");
-
         builder
-            .ConfigureAppConfiguration((context, conf) =>
+            .ConfigureTestServices(services =>
             {
-                conf.AddJsonFile(configPath, optional: true);
-                conf.AddInMemoryCollection(configuration);
+                if (configureTestServices != null)
+                {
+                    configureTestServices(services);
+                }
+                
+                // if (localStack != null)
+                // {
+                //     ConfigureAWSServices(services);
+                // }
             })
-            .ConfigureServices(services =>
-            {
-                configureTestServices?.Invoke(services);
-            })
-            .UseEnvironment("Testing")
+            .UseEnvironment("Development")
             .UseDefaultServiceProvider((_, options) =>
             {
                 options.ValidateScopes = true;
             });
+    }
+
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var projectDir = Directory.GetCurrentDirectory();
+        var configPath = Path.Combine(projectDir, "appsettings.Testing.json");
+        
+        builder.ConfigureHostConfiguration(config =>
+        {
+            config.AddInMemoryCollection(configuration);
+            config.AddJsonFile(configPath);
+        });
+        return base.CreateHost(builder);
     }
 }

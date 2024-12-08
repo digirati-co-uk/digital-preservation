@@ -23,4 +23,14 @@ public class FedoraOptions
     /// Timeout, in MS, for requests made to storage client 
     /// </summary>
     public double TimeoutMs { get; set; } = 15000;
+
+    // This feels like a storage API setting not a Fedora setting, but it's used by Fedora client...
+    public bool RequireDigestOnBinary { get; set; } = true;
+    
+    /// <summary>
+    /// Fedora's repository bucket (not the deposits)
+    /// </summary>
+    public required string Bucket { get; set; }
+
+    public required string OcflS3Prefix { get; set; } = String.Empty;
 }
