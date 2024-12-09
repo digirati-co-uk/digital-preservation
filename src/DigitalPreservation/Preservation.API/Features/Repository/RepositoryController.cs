@@ -33,7 +33,14 @@ public class RepositoryController(IMediator mediator) : Controller
         var result = await mediator.Send(new GetResourceType(path));
         if (result.Success)
         {
-            Response.Headers[HttpHeaders.XPreservationResourceType] = result.Value;
+            if (result.Value == nameof(ErrorCodes.Tombstone))
+            {
+                Response.StatusCode = 410;
+            }
+            else
+            {
+                Response.Headers[HttpHeaders.XPreservationResourceType] = result.Value;
+            }
         }
         else
         {

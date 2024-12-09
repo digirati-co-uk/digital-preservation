@@ -81,6 +81,11 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
                     }
                 }
             }
+
+            if (response.StatusCode == HttpStatusCode.Gone)
+            {
+                return Result.Fail<string?>(ErrorCodes.Tombstone, "Resource has been replaced by a Tombstone.");
+            }
             var errorCode = ProblemDetailsX.GetErrorCode((int?)response.StatusCode);
             return Result.Fail<string?>(errorCode, "Resource Type could not be retrieved.");
         }
