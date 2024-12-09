@@ -62,7 +62,7 @@ public class BrowseModel(IMediator mediator) : PageModel
         }
     }
 
-    public async Task<IActionResult> OnPostDeleteContainerOutsideArchivalGroup(string? pathUnderRoot, bool purgeCheck)
+    public async Task<IActionResult> OnPostDeleteContainerOutsideArchivalGroup([FromRoute] string? pathUnderRoot, [FromForm] bool purgeCheck)
     {
         var result = await mediator.Send(new DeleteContainer(pathUnderRoot, purgeCheck));
         if (result.Success)

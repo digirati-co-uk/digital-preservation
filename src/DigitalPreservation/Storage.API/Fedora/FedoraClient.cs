@@ -538,7 +538,9 @@ internal class FedoraClient(
     public async Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, bool purge,
         CancellationToken cancellationToken)
     {
-        // GetResource can return a tombstone...
+        // GetResource can return a tombstone... - check that
+        // Now get the resource and make sure it's an EMPTY container OUTSIDE of an AG
+         
         try
         {
             var fedoraLocation = converters.GetFedoraUri(pathUnderFedoraRoot);

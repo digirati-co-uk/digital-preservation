@@ -44,6 +44,8 @@ For local development `docker-compose.local.yml` can be used to run any dependen
 docker compose -f docker-compose.local.yml  up
 ```
 
+You also need to read Fedora's PostgreSQL database through the bastion host; this should use port 5435
+
 ## Migrations
 
 Migrations can be added by running the following:
