@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Core.Web.Headers;
+﻿using DigitalPreservation.Core.Configuration;
+using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
@@ -50,6 +51,7 @@ try
     // Add services to the container.
     builder.Services
         .AddHttpContextAccessor()
+        .ConfigureForwardedHeaders()
         .AddPreservationClient(builder.Configuration, "DigitalPreservation UI")
         .AddMediatR(cfg =>
         {
@@ -80,7 +82,8 @@ try
         .UseHttpsRedirection()
         .UseStaticFiles()
         .UseRouting()
-        .UseAuthorization();
+        .UseAuthorization()
+        .UseForwardedHeaders();
     app.MapRazorPages();
     app.MapControllers();
     app.UseHealthChecks("/health");
