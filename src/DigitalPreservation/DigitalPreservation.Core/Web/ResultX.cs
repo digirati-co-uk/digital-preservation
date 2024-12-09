@@ -26,6 +26,9 @@ public static class ResultX
             case ErrorCodes.Unprocessable:
                 pd.Status = 422;
                 break;
+            case ErrorCodes.Tombstone:
+                pd.Status = 410;
+                break;
             default:
                 pd.Status = 500;
                 break;

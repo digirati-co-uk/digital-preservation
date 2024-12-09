@@ -35,6 +35,12 @@ internal class FedoraClient(
         {
             return Result.ConvertFail<string?, PreservedResource?>(typeRes);
         }
+
+        if (typeRes.Value == nameof(RepositoryTypes.Tombstone))
+        {
+            return Result.Fail<PreservedResource?>(ErrorCodes.Tombstone, 
+                $"The resource at {pathUnderFedoraRoot} has been replaced by a Tombstone");
+        }
         
         if (typeRes.Value == nameof(ArchivalGroup))
         {
@@ -295,6 +301,11 @@ internal class FedoraClient(
         
         // Is there already something at this path? - no ✓
         var existing = await GetResourceType(pathUnderFedoraRoot, transaction);
+        if (existing.ErrorCode == ErrorCodes.Tombstone)
+        {
+            return Result.Fail<Container?>(ErrorCodes.Tombstone,
+                $"Tombstone exists at {pathUnderFedoraRoot} ({existing.Value})");
+        }
         if (existing.ErrorCode != ErrorCodes.NotFound)
         {
             // This is the ONLY acceptable state
@@ -540,25 +551,46 @@ internal class FedoraClient(
     {
         // GetResource can return a tombstone... - check that
         // Now get the resource and make sure it's an EMPTY container OUTSIDE of an AG
-         
+        var resType = await GetResourceType(pathUnderFedoraRoot);
+        if (resType.Failure)
+        {
+            return Result.Fail(resType.ErrorCode ?? ErrorCodes.UnknownError, resType.ErrorMessage);
+        }
+
+        var fedoraLocation = converters.GetFedoraUri(pathUnderFedoraRoot);
+        if (resType.Value == nameof(RepositoryTypes.Tombstone))
+        {
+            // already a tombstone
+            if (purge)
+            {
+                return await PurgeTombstone(cancellationToken, fedoraLocation);
+            }
+            return Result.Fail(ErrorCodes.Tombstone, "Already a tombstone but purge flag not set");
+        }
+        // Not yet a tombstone
+
+        if (resType.Value != nameof(Container))
+        {
+            return Result.Fail(ErrorCodes.BadRequest, "Attempted to delete a resource that is not a Container");
+        }
+        
+        // OK, so it's a Container - but now we need to validate that it's a deletable container
+        var container = await GetPopulatedContainer(fedoraLocation, false, false, false);
+        if (container == null || container.PartOf != null || container.Containers.Count > 0 || container.Binaries.Count > 0)
+        {
+            return Result.Fail(ErrorCodes.BadRequest, "This is not a deleteable container");
+        }
+        
+        // It's OK to attempt to delete (and optionally purge) this Container
         try
         {
-            var fedoraLocation = converters.GetFedoraUri(pathUnderFedoraRoot);
+            // delete the resource
             var response = await httpClient.DeleteAsync(fedoraLocation, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 if (purge)
                 {
-                    var typeAtLocation = await GetResourceType(fedoraLocation);
-                    if (typeAtLocation.Value == RepositoryTypes.Tombstone)
-                    {
-                        var delTombstoneResponse =
-                            await httpClient.DeleteAsync(fedoraLocation.TombstoneUri(), cancellationToken);
-                        if (delTombstoneResponse.IsSuccessStatusCode)
-                        {
-                            return Result.Ok();
-                        }
-                    }
+                    return await PurgeTombstone(cancellationToken, fedoraLocation);
                 }
             }
         }
@@ -568,6 +600,24 @@ internal class FedoraClient(
         }
 
         return Result.Fail(ErrorCodes.UnknownError);
+    }
+
+    private async Task<Result> PurgeTombstone(CancellationToken cancellationToken, Uri fedoraLocation)
+    {
+        var typeAtLocation = await GetResourceType(fedoraLocation);
+        if (typeAtLocation.Value == RepositoryTypes.Tombstone)
+        {
+            var delTombstoneResponse =
+                await httpClient.DeleteAsync(fedoraLocation.TombstoneUri(), cancellationToken);
+            if (delTombstoneResponse.IsSuccessStatusCode)
+            {
+                return Result.Ok();
+            }
+
+            return Result.Fail(ErrorCodes.UnknownError, "Failed to purge tombstone: " + delTombstoneResponse.StatusCode);
+        }
+
+        return Result.Fail(ErrorCodes.UnknownError, "Attempted to purge something that is not a tombstone");
     }
 
     public async Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string name, Transaction transaction, CancellationToken cancellationToken = default)

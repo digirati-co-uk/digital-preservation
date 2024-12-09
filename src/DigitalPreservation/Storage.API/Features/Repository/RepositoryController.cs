@@ -4,6 +4,7 @@ using DigitalPreservation.Core.Web.Headers;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Storage.API.Features.Repository.Requests;
+using Storage.API.Fedora.Vocab;
 
 namespace Storage.API.Features.Repository;
 
@@ -33,7 +34,14 @@ public class RepositoryController(IMediator mediator) : Controller
         var result = await mediator.Send(new GetResourceTypeFromFedora(path));
         if (result.Success)
         {
-            Response.Headers[HttpHeaders.XPreservationResourceType] = result.Value;
+            if (result.Value == nameof(RepositoryTypes.Tombstone))
+            {
+                Response.StatusCode = 410;
+            }
+            else
+            {
+                Response.Headers[HttpHeaders.XPreservationResourceType] = result.Value;
+            }
         }
         else
         {

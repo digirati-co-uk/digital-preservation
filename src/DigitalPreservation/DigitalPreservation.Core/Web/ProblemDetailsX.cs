@@ -51,6 +51,7 @@ public static class ProblemDetailsX
             400 => ErrorCodes.BadRequest,
             409 => ErrorCodes.Conflict,
             422 => ErrorCodes.Unprocessable,
+            410 => ErrorCodes.Tombstone,
             _ => ErrorCodes.UnknownError
         };
         return errorCode;

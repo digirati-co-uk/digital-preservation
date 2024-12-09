@@ -61,18 +61,6 @@ public class BrowseModel(IMediator mediator) : PageModel
             }
         }
     }
-
-    public async Task<IActionResult> OnPostDeleteContainerOutsideArchivalGroup([FromRoute] string? pathUnderRoot, [FromForm] bool purgeCheck)
-    {
-        var result = await mediator.Send(new DeleteContainer(pathUnderRoot, purgeCheck));
-        if (result.Success)
-        {
-            TempData["ContainerSuccess"] = $"Container {pathUnderRoot} deleted successfully";
-            return Redirect(Request.Path.ToString().GetParent()!);
-        }
-        TempData["ContainerError"] = $"Container {pathUnderRoot} could not be deleted: {result.CodeAndMessage()}";
-        return Redirect(Request.Path);
-    }
     
     public async Task<IActionResult> OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle)
     {
