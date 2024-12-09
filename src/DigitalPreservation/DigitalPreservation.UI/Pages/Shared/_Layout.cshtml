@@ -1,4 +1,6 @@
-﻿<!doctype html>
+﻿@using Microsoft.Identity.Web
+
+<!doctype html>
 <html lang="en" data-bs-theme="auto">
 <head>
     <script src="~/js/color-modes.js" asp-append-version="true"></script>
@@ -70,7 +72,13 @@
     <div id="navbarSearch" class="navbar-search w-100 collapse.show"> @* collapse *@
         <input class="form-control w-100 rounded-0 border-0" type="text" placeholder="Search" aria-label="Search">
     </div>
-    <a class="px-2 py-2" href="/"><img src="/img/uol-logo.svg" style="height:90%" alt="University of Leeds logo" /></a>
+    @if (User.Identity!.IsAuthenticated)
+    {
+        <span  class="px-2" style="float:right; width:200px"> @User.Claims.FirstOrDefault(x => x.Type == "name")?.Value </span>
+    }
+
+    <span class="px-2 py-2" href="/"><img src="/img/uol-logo.svg" style="height:90%" alt="University of Leeds logo"></span>
+    
 </header>
 
 <div class="container-fluid">
@@ -128,7 +136,15 @@
                             <dlip-nav-link href="/status" label="Settings" icon-id="gear" active-icon-id="gear-fill" section="status" active-section="@ViewData["section"]"></dlip-nav-link>
                         </li>
                         <li class="nav-item">
-                            <dlip-nav-link href="/sign-out" label="Sign out" icon-id="door-closed" active-icon-id="door-closed" section="signout" active-section="@ViewData["section"]"></dlip-nav-link>
+                            
+                        @if (User.Identity!.IsAuthenticated)
+                        {
+                            <dlip-nav-link href="/Account/SignedOut"  tooltip="For this user and all apps for this browsers " label="Sign out" icon-id="door-closed" active-icon-id="door-closed" section="signout"></dlip-nav-link>
+                        }
+                        else
+                        {
+                            <dlip-nav-link href="/signin-oidc" label="Sign In" icon-id="door-open" active-icon-id="door-open" section="signout" active-section="@ViewData["section"]" ></dlip-nav-link>
+                        }
                         </li>
                     </ul>
                 </div>

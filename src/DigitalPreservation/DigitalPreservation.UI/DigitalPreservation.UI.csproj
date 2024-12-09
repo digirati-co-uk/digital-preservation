@@ -12,6 +12,9 @@
       <PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.400.21" />
       <PackageReference Include="LateApexEarlySpeed.Xunit.Assertion.Json" Version="1.0.6" />
       <PackageReference Include="MediatR" Version="12.4.1" />
+      <PackageReference Include="Microsoft.Identity.Web" Version="3.4.0" />
+      <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.4.0" />
+      <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.7" />
       <PackageReference Include="Serilog.AspNetCore" Version="8.0.2" />
       <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.1.1" />
     </ItemGroup>
