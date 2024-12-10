@@ -40,6 +40,30 @@ internal static class RequestX
         return requestMessage;
     }
     
+    public static HttpRequestMessage WithCreatedBy(this HttpRequestMessage requestMessage, string createdBy)
+    {
+        // can only set this in the body, so a binary can't be done this way, must be patched afterwards (grr)
+        if(requestMessage.Content == null && !string.IsNullOrWhiteSpace(createdBy)) 
+        {
+            var turtle = MediaTypeHeaderValue.Parse("text/turtle");
+            requestMessage.Content = new StringContent($"PREFIX fedora: <http://fedora.info/definitions/v4/repository#> <> fedora:createdBy \"{createdBy}\"; fedora:lastModifiedBy \"{createdBy}\";", turtle);
+        }
+        return requestMessage;
+    }
+
+    
+    public static HttpRequestMessage WithLastModifiedBy(this HttpRequestMessage requestMessage, string lastModifiedBy)
+    {
+        // can only set this in the body, so a binary can't be done this way, must be patched afterwards (grr)
+        if(requestMessage.Content == null && !string.IsNullOrWhiteSpace(lastModifiedBy)) 
+        {
+            var turtle = MediaTypeHeaderValue.Parse("text/turtle");
+            requestMessage.Content = new StringContent($"PREFIX fedora: <http://fedora.info/definitions/v4/repository#> <> fedora:lastModifiedBy \"{lastModifiedBy}\";", turtle);
+        }
+        return requestMessage;
+    }
+
+    
     public static HttpRequestMessage WithSlug(this HttpRequestMessage requestMessage, string slug) 
     {
         requestMessage.Headers.Add("slug", slug);
