@@ -53,6 +53,11 @@ try
             options.Filters.Add(new AuthorizeFilter(policy));
         }).AddMicrosoftIdentityUI();
     }
+    else
+    {
+        builder.Services.AddRazorPages();
+    }
+
 
     // Add services to the container.
     builder.Services
@@ -66,8 +71,8 @@ try
         })
         .AddStorageAwsAccess(builder.Configuration)
         .AddCorrelationIdHeaderPropagation()
-        .AddUIHealthChecks()
-        .AddRazorPages();
+        .AddUIHealthChecks();
+       
 
     builder.Services.AddControllers();
 
@@ -97,7 +102,6 @@ try
     if (useAuthFeatureFlag)
     {
         app.UseAuthentication();
-        app.UseAuthorization();
     }
 
     app.Run();
