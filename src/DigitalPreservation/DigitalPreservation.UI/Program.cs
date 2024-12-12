@@ -19,8 +19,6 @@ Log.Information("Application starting..");
 
 try
 {
-
-
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog((hostContext, loggerConfiguration)
         => loggerConfiguration
@@ -29,24 +27,37 @@ try
             .Enrich.WithCorrelationId());
 
 
+    //Auth enabled flag
+    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
+
     // <ms_docref_add_msal>
     IEnumerable<string>? initialScopes = builder.Configuration["DownstreamApi:Scopes"]?.Split(' ');
 
     //Add Authentication
-    builder.Services.AddMicrosoftIdentityWebAppAuthentication(builder.Configuration, "AzureAd")
-        .EnableTokenAcquisitionToCallDownstreamApi(initialScopes)
-        //.AddDownstreamApi("DownstreamApi", builder.Configuration.GetSection("DownstreamApi"))
-        .AddInMemoryTokenCaches();
-
-
-    // <ms_docref_add_default_controller_for_sign-in-out>
-    builder.Services.AddRazorPages().AddMvcOptions(options =>
+    if (useAuthFeatureFlag)
     {
-        var policy = new AuthorizationPolicyBuilder()
-            .RequireAuthenticatedUser()
-            .Build();
-        options.Filters.Add(new AuthorizeFilter(policy));
-    }).AddMicrosoftIdentityUI();
+
+        builder.Services.AddMicrosoftIdentityWebAppAuthentication(builder.Configuration, "AzureAd")
+            .EnableTokenAcquisitionToCallDownstreamApi(initialScopes)
+            //.AddDownstreamApi("DownstreamApi", builder.Configuration.GetSection("DownstreamApi"))
+            .AddInMemoryTokenCaches();
+
+
+
+        // <ms_docref_add_default_controller_for_sign-in-out>
+        builder.Services.AddRazorPages().AddMvcOptions(options =>
+        {
+            var policy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+            options.Filters.Add(new AuthorizeFilter(policy));
+        }).AddMicrosoftIdentityUI();
+    }
+    else
+    {
+        builder.Services.AddRazorPages();
+    }
+
 
     // Add services to the container.
     builder.Services
@@ -60,8 +71,8 @@ try
         })
         .AddStorageAwsAccess(builder.Configuration)
         .AddCorrelationIdHeaderPropagation()
-        .AddUIHealthChecks()
-        .AddRazorPages();
+        .AddUIHealthChecks();
+       
 
     builder.Services.AddControllers();
 
@@ -88,9 +99,11 @@ try
     app.MapControllers();
     app.UseHealthChecks("/health");
     //Authentication
-    app.UseAuthentication();
-    app.UseAuthorization();
-   
+    if (useAuthFeatureFlag)
+    {
+        app.UseAuthentication();
+    }
+
     app.Run();
 }
 catch (Exception ex)
