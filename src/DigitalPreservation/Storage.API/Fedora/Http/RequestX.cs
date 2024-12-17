@@ -32,21 +32,20 @@ internal static class RequestX
     
     public static HttpRequestMessage WithName(this HttpRequestMessage requestMessage, string? name)
     {
-        if(requestMessage.Content == null && !string.IsNullOrWhiteSpace(name)) 
+        if(!string.IsNullOrWhiteSpace(name)) 
         {
-            var turtle = MediaTypeHeaderValue.Parse("text/turtle");
-            requestMessage.Content = new StringContent($"PREFIX dc: <http://purl.org/dc/elements/1.1/>  <> dc:title \"{name}\"", turtle);
+            requestMessage.AppendRdf("dc", RepositoryTypes.DublinCoreElementsNamespace, $"<> dc:title \"{name}\"");
         }
         return requestMessage;
     }
     
     public static HttpRequestMessage WithCreatedBy(this HttpRequestMessage requestMessage, string createdBy)
     {
-        // can only set this in the body, so a binary can't be done this way, must be patched afterwards (grr)
-        if(requestMessage.Content == null && !string.IsNullOrWhiteSpace(createdBy)) 
+        // can only set this in the body, so a binary can't be done this way
+        if(!string.IsNullOrWhiteSpace(createdBy)) 
         {
-            var turtle = MediaTypeHeaderValue.Parse("text/turtle");
-            requestMessage.Content = new StringContent($"PREFIX fedora: <http://fedora.info/definitions/v4/repository#> <> fedora:createdBy \"{createdBy}\"; fedora:lastModifiedBy \"{createdBy}\";", turtle);
+            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:createdBy \"{createdBy}\"");
+            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:lastModifiedBy \"{createdBy}\""); 
         }
         return requestMessage;
     }
@@ -54,11 +53,10 @@ internal static class RequestX
     
     public static HttpRequestMessage WithLastModifiedBy(this HttpRequestMessage requestMessage, string lastModifiedBy)
     {
-        // can only set this in the body, so a binary can't be done this way, must be patched afterwards (grr)
-        if(requestMessage.Content == null && !string.IsNullOrWhiteSpace(lastModifiedBy)) 
+        // can only set this in the body, so a binary can't be done this way
+        if(!string.IsNullOrWhiteSpace(lastModifiedBy)) 
         {
-            var turtle = MediaTypeHeaderValue.Parse("text/turtle");
-            requestMessage.Content = new StringContent($"PREFIX fedora: <http://fedora.info/definitions/v4/repository#> <> fedora:lastModifiedBy \"{lastModifiedBy}\";", turtle);
+            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:lastModifiedBy \"{lastModifiedBy}\""); 
         }
         return requestMessage;
     }

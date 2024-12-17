@@ -2,6 +2,7 @@
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Utils;
 using MediatR;
 using Storage.API.Fedora;
 
@@ -22,6 +23,7 @@ public class ExecuteImportJobHandler(
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
         var importJob = request.ImportJob;
+        var callerIdentity = importJob.CreatedBy!.GetSlug()!;
         var archivalGroupPathUnderRoot = importJob.ArchivalGroup.GetPathUnderRoot()!;
         logger.LogInformation("Executing Import Job");
         
@@ -57,6 +59,7 @@ public class ExecuteImportJobHandler(
 
             var archivalGroupResult = await fedoraClient.CreateArchivalGroup(
                 archivalGroupPathUnderRoot,
+                callerIdentity,
                 importJob.ArchivalGroupName,
                 transaction,
                 cancellationToken);
@@ -102,7 +105,10 @@ public class ExecuteImportJobHandler(
             foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id!.ToString()))
             {
                 logger.LogInformation("Creating container {id}", container.Id);
-                var fedoraContainerResult = await fedoraClient.CreateContainerWithinArchivalGroup(container.Id.GetPathUnderRoot()!, container.Name, transaction, cancellationToken: cancellationToken);
+                var fedoraContainerResult = await fedoraClient.CreateContainerWithinArchivalGroup(
+                    container.Id.GetPathUnderRoot()!,
+                    callerIdentity,
+                    container.Name, transaction, cancellationToken: cancellationToken);
                 if (fedoraContainerResult.Success)
                 {
                     logger.LogInformation("Container created at {location}", fedoraContainerResult.Value!.Id);
@@ -122,7 +128,10 @@ public class ExecuteImportJobHandler(
             foreach (var binary in importJob.BinariesToAdd)
             {
                 logger.LogInformation("Adding binary {id}", binary.Id);
-                var fedoraPutBinaryResult = await fedoraClient.PutBinary(binary, transaction, cancellationToken);
+                var fedoraPutBinaryResult = await fedoraClient.PutBinary(
+                    binary,
+                    callerIdentity,
+                    transaction, cancellationToken);
                 if (fedoraPutBinaryResult.Success)
                 {
                     logger.LogInformation("Binary created at {location}", fedoraPutBinaryResult.Value!.Id);
@@ -143,7 +152,11 @@ public class ExecuteImportJobHandler(
             foreach (var binary in importJob.BinariesToPatch)
             {
                 logger.LogInformation("Patching file {id}", binary.Id);
-                var fedoraPatchBinaryResult = await fedoraClient.PutBinary(binary, transaction, cancellationToken);
+                var fedoraPatchBinaryResult = await fedoraClient.PutBinary(
+                    binary,
+                    callerIdentity,
+                    transaction,
+                    cancellationToken);
                 if (fedoraPatchBinaryResult.Success)
                 {
                     logger.LogInformation("Binary patched at {location}", fedoraPatchBinaryResult.Value!.Id);
@@ -161,7 +174,11 @@ public class ExecuteImportJobHandler(
             foreach (var binary in importJob.BinariesToDelete)
             {
                 logger.LogInformation("Deleting file {id}", binary.Id);
-                var fedoraDeleteResult = await fedoraClient.Delete(binary, transaction, cancellationToken);
+                var fedoraDeleteResult = await fedoraClient.Delete(
+                    binary,
+                    callerIdentity,
+                    transaction,
+                    cancellationToken);
                 if (fedoraDeleteResult.Success)
                 {
                     logger.LogInformation("Binary deleted at {location}", fedoraDeleteResult.Value!.Id);
@@ -183,7 +200,11 @@ public class ExecuteImportJobHandler(
             foreach (var container in importJob.ContainersToDelete.OrderByDescending(c => c.Id!.ToString()))
             {
                 logger.LogInformation("Deleting container {id}", container.Id);
-                var fedoraDeleteResult = await fedoraClient.Delete(container, transaction, cancellationToken);
+                var fedoraDeleteResult = await fedoraClient.Delete(
+                    container,
+                    callerIdentity,
+                    transaction,
+                    cancellationToken);
                 if (fedoraDeleteResult.Success)
                 {
                     logger.LogInformation("Container deleted at {location}", fedoraDeleteResult.Value!.Id);

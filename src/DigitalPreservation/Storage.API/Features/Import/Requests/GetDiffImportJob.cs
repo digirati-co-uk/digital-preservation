@@ -1,6 +1,8 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Security.Claims;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
 using MediatR;
 using Storage.API.Fedora.Model;
@@ -44,7 +46,7 @@ public class GetDiffImportJobHandler(IStorage storage, Converters converters) : 
         }
         var source = importSourceResult.Value!;
 
-        var callerIdentity = "dlipdev";
+        var callerIdentity = ClaimsPrincipal.Current.GetCallerIdentity();
         var now = DateTime.UtcNow;
         var importJob = new ImportJob
         {

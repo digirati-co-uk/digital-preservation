@@ -31,19 +31,19 @@ public interface IFedoraClient
 
     Task<Result<string?>> GetResourceType(string? pathUnderFedoraRoot, Transaction? transaction = null);
     // Task<Result<Container?>> ContainerCanBeCreatedAtPath(string pathUnderFedoraRoot, Transaction? transaction = null);
-    Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default);
-    Task<Result<Container?>> CreateContainerWithinArchivalGroup(string pathUnderFedoraRoot, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default);
-    Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string name, Transaction transaction, CancellationToken cancellationToken = default);
+    Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string callerIdentity, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<Result<Container?>> CreateContainerWithinArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, string? name, Transaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, string name, Transaction transaction, CancellationToken cancellationToken = default);
 
-    Task<Result<Binary?>> PutBinary(Binary binary, Transaction transaction, CancellationToken cancellationToken = default);
+    Task<Result<Binary?>> PutBinary(Binary binary, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default);
     
     Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(string pathUnderFedoraRoot, string? version = null, Transaction? transaction = null);
 
     Task<Result<ArchivalGroup?>> GetValidatedArchivalGroupForImportJob(string pathUnderFedoraRoot, Transaction? transaction = null);
     
-    Task<Result<PreservedResource>> Delete(PreservedResource resource, Transaction transaction, CancellationToken cancellationToken = default);
+    Task<Result<PreservedResource>> Delete(PreservedResource resource, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default);
     
-    Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, bool purge, CancellationToken cancellationToken);
+    Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, bool purge, CancellationToken cancellationToken);
 
     
     // Transactions

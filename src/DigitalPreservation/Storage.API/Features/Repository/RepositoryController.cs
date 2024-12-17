@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
 using MediatR;
@@ -63,7 +64,7 @@ public class RepositoryController(IMediator mediator) : Controller
         {
             name = container.Name;
         }
-        var result = await mediator.Send(new CreateContainerInFedora(path, name));
+        var result = await mediator.Send(new CreateContainerInFedora(path, User.GetCallerIdentity(), name));
         var createdLocation = result.Success ? result.Value!.Id : null;
         return this.StatusResponseFromResult(result, 201, createdLocation);
     }
@@ -76,7 +77,7 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType(410)]
     public async Task<ActionResult> DeleteContainer([FromRoute] string path, [FromQuery] bool purge)
     {
-        var result = await mediator.Send(new DeleteContainerFromFedora(path, purge));
+        var result = await mediator.Send(new DeleteContainerFromFedora(path, User.GetCallerIdentity(), purge));
         return this.StatusResponseFromResult(result, 204);
     }
 }
