@@ -12,10 +12,11 @@ public static class ClaimsPrincipalX
             {
                 return string.Empty;
             }
-            throw new UnauthorizedAccessException("ClaimsPrincipal is null");
+            // Comment this out for testing
+            // throw new UnauthorizedAccessException("ClaimsPrincipal is null");
         }
         
         // Our fake implementation, for now
-        return "dev_" + DateTime.Now.ToString("dddd").ToLowerInvariant();
+        return "dev4_" + DateTime.Now.ToString("dddd").ToLowerInvariant();
     }
 }

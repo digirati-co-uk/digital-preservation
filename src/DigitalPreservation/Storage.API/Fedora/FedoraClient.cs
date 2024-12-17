@@ -395,7 +395,7 @@ internal class FedoraClient(
             var patchReq = MakeHttpRequestMessage(response.Headers.Location!, HttpMethod.Patch)
                 .InTransaction(transaction);
             // We give the AG this _additional_ type so that we can see that it's an AG when we get bulk child members back from .WithContainedDescriptions
-            patchReq.AsInsertTypePatch("<http://purl.org/dc/dcmitype/Collection>");
+            patchReq.AsInsertTypePatch("<http://purl.org/dc/dcmitype/Collection>", callerIdentity);
             var patchResponse = await httpClient.SendAsync(patchReq);
             patchResponse.EnsureSuccessStatusCode();
         }
@@ -411,6 +411,24 @@ internal class FedoraClient(
             return null;
         }
         return asArchivalGroup ? converters.MakeArchivalGroup(containerResponse) : converters.MakeContainer(containerResponse);
+    }
+
+    public async Task<Result> UpdateContainerMetadata(string pathUnderFedoraRoot, string? name, string callerIdentity,
+        Transaction transaction,  CancellationToken cancellationToken = default)
+    {
+        var existing = await GetResourceType(pathUnderFedoraRoot, transaction);
+        if (existing.Failure || existing.Value is not (nameof(Container) or nameof(ArchivalGroup)))
+        {
+            return Result.Fail(ErrorCodes.BadRequest, $"Resource at {pathUnderFedoraRoot} is not a Container or ArchivalGroup");
+        }
+        var fedoraUri = converters.GetFedoraUri(pathUnderFedoraRoot);
+        var req = MakeHttpRequestMessage(fedoraUri, HttpMethod.Patch)
+            .InTransaction(transaction)
+            .WithContainerMetadataUpdate(name, callerIdentity);
+
+        var response = await httpClient.SendAsync(req, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return Result.Ok();
     }
 
     public async Task<Result<Binary?>> PutBinary(Binary binary, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default)
@@ -447,7 +465,8 @@ internal class FedoraClient(
             // The binary resource does not have a dc:title property yet
             var patchReq = MakeHttpRequestMessage(metadataUri, HttpMethod.Patch)
                 .InTransaction(transaction);
-            patchReq.AsInsertTitlePatch(binary.Name!);
+            var isCreation = binaryResponse.CreatedBy == fedoraOptions.Value.AdminUser;
+            patchReq.AsInsertTitlePatch(binary.Name!, callerIdentity, isCreation);
             var patchResponse = await httpClient.SendAsync(patchReq, cancellationToken);
             patchResponse.EnsureSuccessStatusCode();
             // now ask again:

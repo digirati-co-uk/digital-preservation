@@ -216,6 +216,19 @@ public class ExecuteImportJobHandler(
                 }
                 await KeepTransactionAlive();
             }
+            if (importJob.IsUpdate)
+            {
+                var result = await fedoraClient.UpdateContainerMetadata(
+                    archivalGroupPathUnderRoot,
+                    importJob.ArchivalGroupName,
+                    callerIdentity,
+                    transaction,
+                    cancellationToken);
+                if (result.Failure)
+                {
+                    return await FailEarly("Unable to update ArchivalGroup metadata: " + result.ErrorMessage);
+                }
+            }
         }
         catch(Exception ex)
         {
