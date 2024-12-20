@@ -75,4 +75,6 @@ public static class DepositStates
     public const string New = "new";
     public const string Exporting = "exporting";
     public const string Preserved = "preserved";
+
+    public static readonly string[] All = [New, Exporting, Preserved];
 }

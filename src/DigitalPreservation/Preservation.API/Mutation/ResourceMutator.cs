@@ -120,6 +120,15 @@ public class ResourceMutator(
         return uri;
     }
 
+    public Uri? GetAgentUri(string? agentName)
+    {
+        if (agentName.HasText())
+        {
+            return new Uri($"{preservationHost}/{Agent.BasePathElement}/{agentName}");
+        }
+        return null;
+    }
+    
     public Deposit MutateDeposit(DepositEntity entity)
     {            
         var deposit = new Deposit
@@ -134,17 +143,13 @@ public class ResourceMutator(
             Status = entity.Status,
             SubmissionText = entity.SubmissionText,
             Created = entity.Created,
-            CreatedBy = new Uri($"{preservationHost}/{Agent.BasePathElement}/{entity.CreatedBy}"),
+            CreatedBy = GetAgentUri(entity.CreatedBy),
             LastModified = entity.LastModified,
-            LastModifiedBy = new Uri($"{preservationHost}/{Agent.BasePathElement}/{entity.LastModifiedBy}"),
+            LastModifiedBy = GetAgentUri(entity.LastModifiedBy),
             Preserved = entity.Preserved,
-            PreservedBy = entity.PreservedBy.HasText()
-                ? new Uri($"{preservationHost}/{Agent.BasePathElement}/{entity.PreservedBy}")
-                : null,
+            PreservedBy = GetAgentUri(entity.PreservedBy),
             Exported = entity.Exported,
-            ExportedBy = entity.ExportedBy.HasText()
-                ? new Uri($"{preservationHost}/{Agent.BasePathElement}/{entity.ExportedBy}")
-                : null,
+            ExportedBy = GetAgentUri(entity.ExportedBy),
             VersionExported = entity.VersionExported,
             VersionPreserved = entity.VersionPreserved
         };

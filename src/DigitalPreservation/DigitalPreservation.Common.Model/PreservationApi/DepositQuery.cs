@@ -7,14 +7,15 @@ public class DepositQuery : QueryBase
     public const string Preserved = "Preserved";
     public const string Exported = "Exported";
     public string? ArchivalGroupPath { get; set; }
-    public Uri? PreservedBy { get; set; }
+    public string? PreservedBy { get; set; }
     public DateTime? PreservedAfter { get; set; }
     public DateTime? PreservedBefore { get; set; }
-    public Uri? ExportedBy { get; set; }
+    public string? ExportedBy { get; set; }
     public DateTime? ExportedAfter { get; set; }
     public DateTime? ExportedBefore { get; set; }
     public string? Status { get; set; }
     public bool? ShowAll { get; set; }
+    public bool? ShowForm { get; set; }
 
     public override bool NoTerms()
     {
