@@ -1,5 +1,7 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.Repository.Requests;
 using DigitalPreservation.Utils;
@@ -17,6 +19,7 @@ public class BrowseModel(IMediator mediator) : PageModel
     
     // When we are on an archival group
     public List<Deposit> Deposits { get; set; } = [];
+    public Dictionary<string, List<ImportJobResult>> ImportJobResultsForNewDeposits { get; set; } = new();
 
     public async Task OnGet(string? pathUnderRoot)
     {
@@ -42,6 +45,7 @@ public class BrowseModel(IMediator mediator) : PageModel
                     if (depositsResult.Success)
                     {
                         Deposits = depositsResult.Value ?? [];
+                        await GetJobsForActiveDeposits();
                     }
                     break;
                 case nameof(Container):
@@ -61,7 +65,22 @@ public class BrowseModel(IMediator mediator) : PageModel
             }
         }
     }
-    
+
+    private async Task GetJobsForActiveDeposits()
+    {
+        foreach (var deposit in Deposits)
+        {
+            if (deposit.Status == DepositStates.New)
+            {
+                var result = await DepositJobResultFetcher.GetImportJobResults(deposit.Id!.GetSlug()!, mediator);
+                if (result is { Success: true, Value: not null })
+                {
+                    ImportJobResultsForNewDeposits[deposit.Id!.GetSlug()!] = result.Value;
+                }
+            }
+        }
+    }
+
     public async Task<IActionResult> OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle)
     {
         if (containerSlug.IsNullOrWhiteSpace())

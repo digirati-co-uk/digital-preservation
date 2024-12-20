@@ -1,5 +1,6 @@
 ﻿@page "{*pathUnderRoot}"
 @using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.Import
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @using Microsoft.AspNetCore.Mvc.TagHelpers
@@ -217,7 +218,22 @@
                                 <td><a href="@path">@slug</a></td>
                                 <td>@deposit.Created.GetDateDisplay()</td>
                                 <td>@deposit.CreatedBy?.GetSlug()</td>
-                                <td>@deposit.Preserved.GetDateDisplay()</td>
+                                <td>
+                                    @deposit.Preserved.GetDateDisplay()
+                                    @{
+                                        if (Model.ImportJobResultsForNewDeposits.TryGetValue(deposit.Id!.GetSlug()!, out var resultList))
+                                        {
+                                            foreach (var importJobResult in resultList)
+                                            {
+                                                if (importJobResult.Status != ImportJobStates.Completed)
+                                                {
+                                                    <small class="text-warning bg-dark">Import job not complete: @importJobResult.Status</small>
+                                                    <br/>
+                                                }
+                                            }
+                                        }
+                                    }    
+                                </td>
                                 <td>@deposit.PreservedBy?.GetSlug()</td>
                                 <td>@deposit.VersionPreserved</td>
                             </tr>
