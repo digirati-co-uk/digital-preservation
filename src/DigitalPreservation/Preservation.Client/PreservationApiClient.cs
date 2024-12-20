@@ -19,7 +19,30 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
-    
+    public async Task<Result<List<Uri>>> GetAllAgents(CancellationToken cancellationToken)
+    {        
+        try
+        {
+            var uri = new Uri("/agents", UriKind.Relative);
+            var response = await preservationHttpClient.GetAsync(uri, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var agents = await response.Content.ReadFromJsonAsync<List<Uri>>(cancellationToken: cancellationToken);
+                if (agents is not null)
+                {
+                    return Result.OkNotNull(agents);
+                }
+                return Result.FailNotNull<List<Uri>>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<List<Uri>>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<List<Uri>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken)
     {
         var uri = new Uri(deposit.Id!.AbsolutePath, UriKind.Relative); 
@@ -261,6 +284,8 @@ internal class PreservationApiClient(
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
+    
+    
 
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {

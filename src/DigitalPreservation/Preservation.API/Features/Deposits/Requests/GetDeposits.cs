@@ -56,7 +56,7 @@ public class GetDepositsHandler(
 
                 if (q.CreatedBy != null)
                 {
-                    predicate = predicate.And(x => x.CreatedBy == q.CreatedBy.ToString().GetSlug());
+                    predicate = predicate.And(x => x.CreatedBy == q.CreatedBy);
                 }
 
                 if (q.LastModifiedAfter.HasValue)
@@ -71,7 +71,7 @@ public class GetDepositsHandler(
 
                 if (q.LastModifiedBy != null)
                 {
-                    predicate = predicate.And(x => x.LastModifiedBy == q.LastModifiedBy.ToString().GetSlug());
+                    predicate = predicate.And(x => x.LastModifiedBy == q.LastModifiedBy);
                 }
 
                 if (q.PreservedAfter.HasValue)
@@ -86,7 +86,7 @@ public class GetDepositsHandler(
 
                 if (q.PreservedBy != null)
                 {
-                    predicate = predicate.And(x => x.PreservedBy == q.PreservedBy.ToString().GetSlug());
+                    predicate = predicate.And(x => x.PreservedBy == q.PreservedBy);
                 }
 
                 if (q.ExportedAfter.HasValue)
@@ -101,7 +101,7 @@ public class GetDepositsHandler(
 
                 if (q.ExportedBy != null)
                 {
-                    predicate = predicate.And(x => x.ExportedBy == q.ExportedBy.ToString().GetSlug());
+                    predicate = predicate.And(x => x.ExportedBy == q.ExportedBy);
                 }
 
                 if (q.ShowAll is true)

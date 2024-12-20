@@ -196,4 +196,9 @@ public static class StringUtils
         double num = Math.Round(bytes / Math.Pow(1024, place), 1);
         return (Math.Sign(sizeInBytes.Value) * num) + spacer +  FileSizeSuffixes[place];
     }
+
+    public static string AsShortInputDate(this DateTime? date)
+    {
+        return date.HasValue ? date.Value.ToString("yyyy-MM-dd") : string.Empty;
+    }
 }

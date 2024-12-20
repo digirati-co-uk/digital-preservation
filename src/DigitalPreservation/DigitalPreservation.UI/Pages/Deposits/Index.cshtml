@@ -6,75 +6,151 @@
 @using Microsoft.AspNetCore.WebUtilities
 @model IndexModel
 
-@functions {
-    private string MutateQuery(string? orderBy, bool? ascending, bool showAll)
-    {
-        var queryDictionary = QueryHelpers.ParseQuery(Request.QueryString.Value);
-        if (orderBy.HasText())
-        {
-            var obKey = queryDictionary.Keys.SingleOrDefault(k => k.ToLowerInvariant() == "orderby");
-            if (obKey != null)
-            {
-                queryDictionary[obKey] = orderBy;
-            }
-            else
-            {
-                queryDictionary["orderby"] = orderBy;
-            }
-        }
-
-        if (ascending is true)
-        {
-            queryDictionary["ascending"] = "true";
-        }
-        else
-        {
-            queryDictionary.Remove("ascending");
-        }
-
-        if (showAll)
-        {
-            queryDictionary["showAll"] = "true";
-        }
-        else
-        {
-            var saKey = queryDictionary.Keys.SingleOrDefault(k => k.ToLowerInvariant() == "showall");
-            if (saKey.HasText())
-            {
-                queryDictionary.Remove(saKey);
-            }
-        }
-
-        return QueryHelpers.AddQueryString($"deposits", queryDictionary);
-    }
-}
 @{
     ViewData["Title"] = "Deposits";
     ViewData["section"] = "deposits";
 
     var ascending = Model.Query.Ascending ?? false;
     var showAll = Model.Query.ShowAll is true;
+    var showForm = Model.Query.ShowForm is true;
     var marker = ascending ? "▴" : "▾";
 }
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <a class="btn btn-sm btn-outline-primary me-2" href="@MutateQuery(null, ascending, !showAll)">
-            <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">    
-                @if (showAll)
-                {
-                    <text>Show active only</text>
-                }
-                else
-                {
-                    <text>Show all deposits</text>
-                }
-                </span>
-        </a>
+        
+        <div class="form-check form-switch me-3 mt-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="showFormToggle"
+                   @(showForm ? " checked" : "")
+                   data-target="@Model.MutateQuery(null, ascending, showAll, !showForm)">
+            <label class="form-check-label small" for="showFormToggle">Show advanced search</label>
+        </div>
+
+        <div class="form-check form-switch me-3 mt-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="activeOrAllDepositsToggle"
+                   @(showAll ? "" : " checked")
+                   data-target="@Model.MutateQuery(null, ascending, !showAll, showForm)">
+            <label class="form-check-label small" for="activeOrAllDepositsToggle">Show active only</label>
+        </div>
+
         <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
             <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
         </button>
     </div>
+</div>
+
+<div id="depositSearchForm" class="collapse @(showForm ? "show" : "") pb-4">
+
+    <div class="container">
+        <form method="get" action="/deposits">
+            <input type="hidden" id="showAllHidden" name="showAll" value="@showAll.ToString().ToLowerInvariant()" />
+            <input type="hidden" id="showFormHidden" name="showForm" value="@showForm.ToString().ToLowerInvariant()" />
+            <div class="row mb-3">
+                <div class="col col-8">
+                    <label for="archivalGroupPathInput" class="form-label">Archival group path or slug</label>
+                    <input id="archivalGroupPathInput" name="archivalGroupPath" type="text" class="form-control" value="@Model.Query.ArchivalGroupPath">
+                </div>
+                <div class="col col-4">
+                    <label id="statusSelectLabel" for="statusSelect" class="form-label">Status</label>
+                    <select id="statusSelect" class="form-select" name="status" aria-labelledby="statusSelectLabel">
+                        <!option value="" @(Model.Query.Status.HasText() ? "" : " selected")>(any)</!option>
+                        @foreach (var status in Model.Statuses)
+                        {
+                            <!option value="@status" @(Model.Query.Status == status ? " selected" : "")>@status</!option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col">
+                    <label id="createdBySelectLabel" for="createdBySelect" class="form-label">Created by</label>
+                    <select id="createdBySelect" class="form-select" name="createdBy" aria-labelledby="createdBySelectLabel">
+                        <!option value="" @(Model.Query.CreatedBy.HasText() ? "" : " selected")>(any)</!option>
+                        @foreach (var agent in Model.Agents)
+                        {
+                            <!option value="@agent" @(Model.Query.CreatedBy == agent ? " selected" : "")>@agent</!option>
+                        }
+                    </select>
+                </div>
+                <div class="col">
+                    <label for="createdAfterInput" class="form-label">Created after</label>
+                    <input id="createdAfterInput" name="createdAfter" type="date" class="form-control" value="@Model.Query.CreatedAfter.AsShortInputDate()">
+                </div>
+                <div class="col">
+                    <label for="createdBeforeInput" class="form-label">Created before</label>
+                    <input id="createdBeforeInput" name="createdBefore" type="date" class="form-control" value="@Model.Query.CreatedBefore.AsShortInputDate()">
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col">
+                    <label id="lastModifiedBySelectLabel" for="lastModifiedBySelect" class="form-label">Last modified by</label>
+                    <select id="lastModifiedBySelect" class="form-select" name="lastModifiedBy" aria-labelledby="lastModifiedBySelectLabel">
+                        <!option value="" @(Model.Query.LastModifiedBy.HasText() ? "" : " selected")>(any)</!option>
+                        @foreach (var agent in Model.Agents)
+                        {
+                            <!option value="@agent" @(Model.Query.LastModifiedBy == agent ? " selected" : "")>@agent</!option>
+                        }
+                    </select>
+                </div>
+                <div class="col">
+                    <label for="lastModifiedAfterInput" class="form-label">Last modified after</label>
+                    <input id="lastModifiedAfterInput" name="lastModifiedAfter" type="date" class="form-control" value="@Model.Query.LastModifiedAfter.AsShortInputDate()">
+                </div>
+                <div class="col">
+                    <label for="lastModifiedBeforeInput" class="form-label">Last modified before</label>
+                    <input id="lastModifiedBeforeInput" name="lastModifiedBefore" type="date" class="form-control" value="@Model.Query.LastModifiedBefore.AsShortInputDate()">
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col">
+                    <label id="preservedBySelectLabel" for="preservedBySelect" class="form-label">Preserved by</label>
+                    <select id="preservedBySelect" class="form-select" name="preservedBy" aria-labelledby="preservedBySelectLabel">
+                        <!option value="" @(Model.Query.PreservedBy.HasText() ? "" : " selected")>(any)</!option>
+                        @foreach (var agent in Model.Agents)
+                        {
+                            <!option value="@agent" @(Model.Query.PreservedBy == agent ? " selected" : "")>@agent</!option>
+                        }
+                    </select>
+                </div>
+                <div class="col">
+                    <label for="preservedAfterInput" class="form-label">Preserved after</label>
+                    <input id="preservedAfterInput" name="preservedAfter" type="date" class="form-control" value="@Model.Query.PreservedAfter.AsShortInputDate()">
+                </div>
+                <div class="col">
+                    <label for="preservedBeforeInput" class="form-label">Preserved before</label>
+                    <input id="preservedBeforeInput" name="preservedBefore" type="date" class="form-control" value="@Model.Query.PreservedBefore.AsShortInputDate()">
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col">
+                    <label id="exportedBySelectLabel" for="exportedBySelect" class="form-label">Exported by</label>
+                    <select id="exportedBySelect" class="form-select" name="exportedBy" aria-labelledby="exportedBySelectLabel">
+                        <!option value="" @(Model.Query.ExportedBy.HasText() ? "" : " selected")>(any)</!option>
+                        @foreach (var agent in Model.Agents)
+                        {
+                            <!option value="@agent" @(Model.Query.ExportedBy == agent ? " selected" : "")>@agent</!option>
+                        }
+                    </select>
+                </div>
+                <div class="col">
+                    <label for="exportedAfterInput" class="form-label">Exported after</label>
+                    <input id="exportedAfterInput" name="exportedAfter" type="date" class="form-control" value="@Model.Query.ExportedAfter.AsShortInputDate()">
+                </div>
+                <div class="col">
+                    <label for="exportedBeforeInput" class="form-label">Exported before</label>
+                    <input id="exportedBeforeInput" name="exportedBefore" type="date" class="form-control" value="@Model.Query.ExportedBefore.AsShortInputDate()">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
+                    <input type="submit" class="btn btn-primary" value="Submit"/>
+                </div>
+            </div>
+        </form>
+
+
+    </div>
+
 </div>
 
 <div>
@@ -101,101 +177,101 @@
             <th scope="col" arial-label="archival group">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.ArchivalGroupPath).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("archivalGroupPath", !ascending, showAll)">Archival Group @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("archivalGroupPath", !ascending, showAll, showForm)">Archival Group @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("archivalGroupPath", false, showAll)">Archival Group</a>
+                    <a href="@Model.MutateQuery("archivalGroupPath", false, showAll, showForm)">Archival Group</a>
                 }
             </th>
             <th scope="col" arial-label="status">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.Status).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("status", !ascending, showAll)">Status @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("status", !ascending, showAll, showForm)">Status @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("status", false, showAll)">Status</a>
+                    <a href="@Model.MutateQuery("status", false, showAll, showForm)">Status</a>
                 }
             </th>
             <th scope="col" arial-label="last modified">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.LastModified).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("lastModified", !ascending, showAll)">Last Modified @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("lastModified", !ascending, showAll, showForm)">Last Modified @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("lastModified", false, showAll)">Last Modified</a>
+                    <a href="@Model.MutateQuery("lastModified", false, showAll, showForm)">Last Modified</a>
                 }
             </th>
             <th scope="col" arial-label="last modified by">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.LastModifiedBy).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("lastModifiedBy", !ascending, showAll)">By @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("lastModifiedBy", !ascending, showAll, showForm)">By @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("lastModifiedBy", false, showAll)">By</a>
+                    <a href="@Model.MutateQuery("lastModifiedBy", false, showAll, showForm)">By</a>
                 }
             </th>
             <th scope="col" arial-label="created">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.Created).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("created", !ascending, showAll)">Created @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("created", !ascending, showAll, showForm)">Created @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("created", false, showAll)">Created</a>
+                    <a href="@Model.MutateQuery("created", false, showAll, showForm)">Created</a>
                 }
             </th>
             <th scope="col" arial-label="created by">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.CreatedBy).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("createdBy", !ascending, showAll)">By @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("createdBy", !ascending, showAll, showForm)">By @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("createdBy", false, showAll)">By</a>
+                    <a href="@Model.MutateQuery("createdBy", false, showAll, showForm)">By</a>
                 }
             </th>
             <th scope="col" arial-label="preserved">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.Preserved).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("preserved", !ascending, showAll)">Preserved @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("preserved", !ascending, showAll, showForm)">Preserved @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("preserved", false, showAll)">Preserved</a>
+                    <a href="@Model.MutateQuery("preserved", false, showAll, showForm)">Preserved</a>
                 }
             </th>
             <th scope="col" arial-label="preserved by">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.PreservedBy).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("preservedBy", !ascending, showAll)">By @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("preservedBy", !ascending, showAll, showForm)">By @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("preservedBy", false, showAll)">By</a>
+                    <a href="@Model.MutateQuery("preservedBy", false, showAll, showForm)">By</a>
                 }
             </th>
             <th scope="col" arial-label="exported">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.Exported).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("exported", !ascending, showAll)">Exported @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("exported", !ascending, showAll, showForm)">Exported @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("exported", false, showAll)">Exported</a>
+                    <a href="@Model.MutateQuery("exported", false, showAll, showForm)">Exported</a>
                 }
             </th>
             <th scope="col" arial-label="exported by">
                 @if (Model.Query.OrderBy?.ToLowerInvariant() == nameof(DepositQuery.ExportedBy).ToLowerInvariant())
                 {
-                    <a class="text-bg-light" href="@MutateQuery("exportedBy", !ascending, showAll)">By @marker</a>
+                    <a class="text-bg-light" href="@Model.MutateQuery("exportedBy", !ascending, showAll, showForm)">By @marker</a>
                 }
                 else
                 {
-                    <a href="@MutateQuery("exportedBy", false, showAll)">By</a>
+                    <a href="@Model.MutateQuery("exportedBy", false, showAll, showForm)">By</a>
                 }
             </th>
         </tr>
@@ -253,3 +329,20 @@
 
 
 <partial name="Shared/_NewDepositForm"/>
+
+@section Scripts{
+    
+    <script>
+        const showAllToggle = document.getElementById("activeOrAllDepositsToggle");
+        showAllToggle.addEventListener('change', () => {
+            location.href = showAllToggle.getAttribute("data-target");
+        });   
+        
+        const showFormToggle = document.getElementById("showFormToggle");
+        showFormToggle.addEventListener('change', () => {
+            location.href = showFormToggle.getAttribute("data-target");
+        });
+
+    </script>
+    
+}

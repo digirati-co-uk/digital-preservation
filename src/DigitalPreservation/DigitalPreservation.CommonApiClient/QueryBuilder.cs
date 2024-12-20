@@ -17,7 +17,7 @@ public class QueryBuilder
         
         if (query.PreservedBy != null)
         {  
-            queryString.Add(nameof(query.PreservedBy), query.PreservedBy.ToString());
+            queryString.Add(nameof(query.PreservedBy), query.PreservedBy);
         }
         if (query.PreservedAfter.HasValue)
         {  
@@ -29,7 +29,7 @@ public class QueryBuilder
         }
         if (query.ExportedBy != null)
         {  
-            queryString.Add(nameof(query.ExportedBy), query.ExportedBy.ToString());
+            queryString.Add(nameof(query.ExportedBy), query.ExportedBy);
         }
         if (query.ExportedAfter.HasValue)
         {  
@@ -52,6 +52,10 @@ public class QueryBuilder
         {
             queryString.Add(nameof(query.ShowAll), "true");
         }
+        if (query.ShowForm is true)
+        {
+            queryString.Add(nameof(query.ShowForm), "true");
+        }
         
         return queryString.ToString() ?? string.Empty;
     }
@@ -63,7 +67,7 @@ public class QueryBuilder
 
         if (queryBase.CreatedBy != null)
         {  
-            queryString.Add(nameof(queryBase.CreatedBy), queryBase.CreatedBy.ToString());
+            queryString.Add(nameof(queryBase.CreatedBy), queryBase.CreatedBy);
         }
         if (queryBase.CreatedAfter.HasValue)
         {  
@@ -75,7 +79,7 @@ public class QueryBuilder
         }
         if (queryBase.LastModifiedBy != null)
         {  
-            queryString.Add(nameof(queryBase.LastModifiedBy), queryBase.LastModifiedBy.ToString());
+            queryString.Add(nameof(queryBase.LastModifiedBy), queryBase.LastModifiedBy);
         }
         if (queryBase.LastModifiedAfter.HasValue)
         {  
