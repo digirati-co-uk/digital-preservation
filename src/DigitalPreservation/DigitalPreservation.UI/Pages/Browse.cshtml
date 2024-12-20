@@ -34,21 +34,11 @@
                 <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
             </a>
         }
-        @if (Model.ArchivalGroupPath.HasText())
-        {
-            <form method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
-                <button type="submit" class="btn btn-sm btn-outline-primary me-2">
-                    <input type="hidden" name="archivalGroupPath" value="@Model.ArchivalGroupPath"/>
-                    <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
-                </button>
-            </form>
-        }
-        else
-        {
-            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
-                <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
-            </button>
-        }
+        
+        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
+            <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
+        </button>
+
         @if (Model.Resource is Container { Containers.Count: 0, Binaries.Count: 0, PartOf: null, Type: nameof(Container) })
         {
             <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteContainerModal">
@@ -385,37 +375,91 @@
 <div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" asp-page="DepositNew" asp-page-handler="Create">
-                <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="archivalGroupProposedName" class="form-label">Name of object (optional)</label>
-                        <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp">
-                        <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later.</div>
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span></h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            @if (Model.ArchivalGroupPath.HasText())
+            {
+                <form method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <p>Creating a new Deposit for existing Archival Group @Model.ArchivalGroupPath</p>
+                        </div>
+                        
+                        What type of deposit?
+                        
+                        these both create the same type of deposit but the second will not populate the 
+                        Empty (Absent files will be removed)
+                        Empty (Add only)
+                        Export (will create an export job, may take a while for a large deposit)
+                        
+                        To what extent will this be different when the METS file is ALWAYS exported?
+                        Maybe that makes the difference, maybe should go straight to METS
+                        
+                        1. Replace the __METSlike.json with a REAL mets file (but keep it for file building? No, need to hang things off it)
+                        
+                        Look at the old mets parsing code, you'll need that
+                        
+                        Extension methods on XML?
+                        Simple to read and write. But compatible with Goobi definitely.
+                        
                     </div>
-                    <div class="mb-3">
-                        <label for="archivalGroupSlug" class="form-label">Path of Archival Group (optional)</label>
-                        <input type="text" class="form-control" id="archivalGroupSlug" name="NewDepositModel.ArchivalGroupSlug" aria-describedby="archivalGroupSlugHelp">
-                        <code>@(Model.PathUnderRoot)/<span id="slugDisplay">...</span></code><br/>
-                        <div id="archivalGroupSlugHelp" class="form-text">The deposit will <em>eventually</em> create an Archival Group with this path.<br/>
-                            This may be set or changed later.<br/></div>
+
+
+                    <div class="modal-body">
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" name="purge" value="true" class="form-check-input" id="purgeCheck" checked aria-describedby="purgeHelp">
+                            <label class="form-check-label" for="purgeCheck">Purge (allow re-use of URL)</label>
+                            <div id="purgeHelp" class="form-text">Purging the container will allow a resource to be created later at the same URL. If this box is unchecked, the URL is left reserved, and a resource cannot be created here later.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="submissionText" class="form-label">Note (optional)</label>
+                            <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
+                            <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="submissionText" class="form-label">Note (optional)</label>
-                        <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
-                        <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+
+
+                    <div class="modal-footer">
+                        <input type="hidden" name="archivalGroupPath" value="@Model.ArchivalGroupPath"/>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <input type="hidden" name="NewDepositModel.FromBrowseContext" value="true" />
-                    <input type="hidden" name="NewDepositModel.ParentPathUnderRoot" value="@(Model.PathUnderRoot)" />
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
-                </div>
-            </form>
+                </form>
+            }
+            else
+            {
+                <form method="post" asp-page="DepositNew" asp-page-handler="Create">
+
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="archivalGroupProposedName" class="form-label">Name of object (optional)</label>
+                            <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp">
+                            <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="archivalGroupSlug" class="form-label">Path of Archival Group (optional)</label>
+                            <input type="text" class="form-control" id="archivalGroupSlug" name="NewDepositModel.ArchivalGroupSlug" aria-describedby="archivalGroupSlugHelp">
+                            <code>@(Model.PathUnderRoot)/<span id="slugDisplay">...</span></code><br/>
+                            <div id="archivalGroupSlugHelp" class="form-text">The deposit will <em>eventually</em> create an Archival Group with this path.<br/>
+                                This may be set or changed later.<br/></div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="submissionText" class="form-label">Note (optional)</label>
+                            <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
+                            <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <input type="hidden" name="NewDepositModel.FromBrowseContext" value="true"/>
+                        <input type="hidden" name="NewDepositModel.ParentPathUnderRoot" value="@(Model.PathUnderRoot)"/>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Create New Deposit</span></button>
+                    </div>
+                </form>
+            }
         </div>
     </div>
 </div>
