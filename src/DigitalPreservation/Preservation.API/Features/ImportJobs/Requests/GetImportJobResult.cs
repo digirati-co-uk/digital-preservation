@@ -22,8 +22,7 @@ public class GetImportJobResultHandler(
     ILogger<GetImportJobResultHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApi,
-    ResourceMutator resourceMutator,
-    IStorage storage) : IRequestHandler<GetImportJobResult, Result<ImportJobResult>>
+    ResourceMutator resourceMutator) : IRequestHandler<GetImportJobResult, Result<ImportJobResult>>
 {
     public async Task<Result<ImportJobResult>> Handle(GetImportJobResult request, CancellationToken cancellationToken)
     {

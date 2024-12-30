@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.S3;
 using DigitalPreservation.Utils;
@@ -63,14 +64,15 @@ public class DepositModel : PageModel
                 TempData["Error"] = readS3Result.CodeAndMessage();
                 return false;
             }
-            var importJobsResult = await mediator.Send(new GetImportJobResults(id));
-            if (importJobsResult.Success)
+
+            var fetchResultsResult = await DepositJobResultFetcher.GetImportJobResults(id, mediator);
+            if (fetchResultsResult.Success)
             {
-                ImportJobResults = importJobsResult.Value!;
+                ImportJobResults = fetchResultsResult.Value!;
             }
             else
             {
-                TempData["Error"] = importJobsResult.CodeAndMessage();
+                TempData["Error"] = fetchResultsResult.CodeAndMessage();
                 return false;
             }
         }
