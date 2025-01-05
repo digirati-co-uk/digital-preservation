@@ -1,0 +1,37 @@
+﻿<premis:object version="3.0"
+               xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd"
+               xsi:type="premis:file">
+    <premis:objectIdentifier>
+        <premis:objectIdentifierType>local</premis:objectIdentifierType>
+        <premis:objectIdentifierValue>b29356350_0001.jp2</premis:objectIdentifierValue>
+    </premis:objectIdentifier>
+    <premis:objectIdentifier>
+        <premis:objectIdentifierType>uuid</premis:objectIdentifierType>
+        <premis:objectIdentifierValue>8f36b42a-99b6-40f7-b749-a62e3c297faa</premis:objectIdentifierValue>
+    </premis:objectIdentifier>
+    <premis:significantProperties>
+        <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+        <premis:significantPropertiesValue>4325</premis:significantPropertiesValue>
+    </premis:significantProperties>
+    <premis:significantProperties>
+        <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+        <premis:significantPropertiesValue>2513</premis:significantPropertiesValue>
+    </premis:significantProperties>
+    <premis:objectCharacteristics>
+        <premis:compositionLevel />
+        <premis:fixity>
+            <premis:messageDigestAlgorithm>sha256</premis:messageDigestAlgorithm>
+            <premis:messageDigest>6eb6c17cd93e392fed8e1cb4d9de5617b8a9b4de</premis:messageDigest>
+        </premis:fixity>
+        <premis:size>1348420</premis:size>
+        <premis:format>
+            <premis:formatDesignation>
+                <premis:formatName>JP2 (JPEG 2000 part 1)</premis:formatName>
+            </premis:formatDesignation>
+            <premis:formatRegistry>
+                <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                <premis:formatRegistryKey>x-fmt/392</premis:formatRegistryKey>
+            </premis:formatRegistry>
+        </premis:format>
+    </premis:objectCharacteristics>
+</premis:object>
