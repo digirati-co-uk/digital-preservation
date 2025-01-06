@@ -19,7 +19,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         // list deposits
     }
 
-    public async Task<IActionResult> OnPostCreateForArchivalGroup(string archivalGroupPath)
+    public async Task<IActionResult> OnPostCreateForArchivalGroup(string archivalGroupPath, bool export, string? submissionText)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{archivalGroupPath}";
         var result = await mediator.Send(new GetResource(resourcePath));
@@ -28,7 +28,8 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             var model = new NewDepositModel
             {
                 ArchivalGroupPathUnderRoot = archivalGroupPath,
-                ArchivalGroupProposedName = result.Value!.Name!
+                ArchivalGroupProposedName = result.Value!.Name!,
+                SubmissionText = submissionText
             };
             return await OnPostCreate(model);
         }

@@ -3,6 +3,8 @@ using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Serilog;
 using Storage.API.Data;
+using Storage.API.Features.Export;
+using Storage.API.Features.Export.Data;
 using Storage.API.Features.Import;
 using Storage.API.Features.Import.Data;
 using Storage.API.Fedora;
@@ -41,16 +43,23 @@ try
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
         .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
+        .AddScoped<IExportResultStore, ExportResultStore>() // only for Storage API; happens after above for shared S3
         .AddStorageHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddStorageContext(builder.Configuration)
         .AddControllers();
     
 
+    // Storage API's in-process queues. These will become separate services later.
     builder.Services
         .AddHostedService<ImportJobExecutorService>()
         .AddScoped<ImportJobRunner>()
         .AddSingleton<IImportJobQueue, InProcessImportJobQueue>();
+    builder.Services
+        .AddHostedService<ExportExecutorService>()
+        .AddScoped<ExportRunner>()
+        .AddSingleton<IExportQueue, InProcessExportQueue>();
+    
     
     var app = builder.Build();
     app

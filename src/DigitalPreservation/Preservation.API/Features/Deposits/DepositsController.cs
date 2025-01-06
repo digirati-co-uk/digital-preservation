@@ -76,6 +76,23 @@ public class DepositsController(IMediator mediator) : Controller
         return this.StatusResponseFromResult(result, 201, createdLocation);
     }
     
+    [HttpPost("export", Name = "Export")]
+    [ProducesResponseType<List<Deposit>>(201, "application/json")]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    [ProducesResponseType(400)]
+    public async Task<IActionResult> ExportArchivalGroup([FromBody] Deposit deposit)
+    {
+        var result = await mediator.Send(new ExportArchivalGroup(deposit));
+        Uri? createdLocation = null;
+        if (result.Success)
+        {
+            createdLocation = new Uri($"/deposits/{result.Value!.Id!.GetSlug()}", UriKind.Relative);
+        }
+        return this.StatusResponseFromResult(result, 201, createdLocation);
+    }
+    
+    
     
 
 

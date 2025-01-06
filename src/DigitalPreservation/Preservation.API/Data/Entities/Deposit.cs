@@ -44,4 +44,9 @@ public class Deposit
     public string? ExportedBy { get; set; }
     public string? VersionExported { get; set; }
     public Uri? Files { get; set; }
+    
+    /// <summary>
+    ///  The Storage API URI of the Export Result
+    /// </summary>
+    public Uri? ExportResultUri { get; set; }
 }

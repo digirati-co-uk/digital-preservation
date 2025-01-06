@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
@@ -99,6 +100,39 @@ public class StorageApiClient(
         {
             logger.LogError(e, e.Message);
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<Export>> ExportArchivalGroup(
+        Uri archivalGroup, 
+        Uri exportLocation,
+        string versionToExport,
+        CancellationToken cancellationToken = default)
+    {
+        var export = new Export
+        {
+            ArchivalGroup = archivalGroup,
+            Destination = exportLocation,
+            SourceVersion = versionToExport
+        };
+        try
+        {
+            var response = await storageHttpClient.PostAsJsonAsync("export", export, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var exportResult = await response.Content.ReadFromJsonAsync<Export>(cancellationToken: cancellationToken);
+                if(exportResult != null)
+                {
+                    return Result.OkNotNull(exportResult);
+                }
+                return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            return await response.ToFailNotNullResult<Export>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<Export>(ErrorCodes.UnknownError, e.Message);
         }
     }
 
