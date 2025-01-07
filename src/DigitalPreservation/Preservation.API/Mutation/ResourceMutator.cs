@@ -150,6 +150,7 @@ public class ResourceMutator(
             PreservedBy = GetAgentUri(entity.PreservedBy),
             Exported = entity.Exported,
             ExportedBy = GetAgentUri(entity.ExportedBy),
+            // ExportResult = entity.ExportResultUri, // don't do this, just rely on the Status value.
             VersionExported = entity.VersionExported,
             VersionPreserved = entity.VersionPreserved
         };

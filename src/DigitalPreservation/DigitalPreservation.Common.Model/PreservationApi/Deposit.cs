@@ -65,7 +65,7 @@ public class Deposit : Resource
     [JsonPropertyName("useObjectTemplate")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? UseObjectTemplate { get; set; }
-    
+
     public const string BasePathElement = "deposits";
 
 }

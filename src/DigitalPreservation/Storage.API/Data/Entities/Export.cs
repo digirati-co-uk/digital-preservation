@@ -1,6 +1,6 @@
 ﻿namespace Storage.API.Data.Entities;
 
-public class ExportResult
+public class Export
 {
     public required string Id { get; set; }
     

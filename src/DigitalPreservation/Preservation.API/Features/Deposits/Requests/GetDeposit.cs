@@ -28,6 +28,29 @@ public class GetDepositHandler(
             var entity = await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == request.Id, cancellationToken);
             if (entity != null)
             {
+                if (entity.Status == DepositStates.Exporting)
+                {
+                    // TODO: later can have a background process to update exporting deposits
+                    // but for now we'll update on demand
+
+                    if (entity.ExportResultUri is null)
+                    {
+                        return Result.Fail<Deposit?>(ErrorCodes.UnknownError, $"Deposit {request.Id} is in Exporting state but has no ExportResultUri");
+                    }
+                    var exportResult = await storageApiClient.GetExport(entity.ExportResultUri);
+                    if (exportResult is { Success: true, Value: not null })
+                    {
+                        if (exportResult.Value.DateFinished.HasValue)
+                        {
+                            entity.Status = DepositStates.New;
+                            await dbContext.SaveChangesAsync(cancellationToken);
+                        }
+                    }
+                    else
+                    {
+                        return Result.Fail<Deposit?>(ErrorCodes.UnknownError, $"Could not update exporting status of Deposit {request.Id}");
+                    }
+                }
                 
                 var deposit = resourceMutator.MutateDeposit(entity);
                 var (archivalGroupExists, validateAgResult) = await ArchivalGroupRequestValidator
@@ -41,6 +64,7 @@ public class GetDepositHandler(
                 {
                     deposit.ArchivalGroupExists = true;
                 }
+
                 return Result.Ok(deposit);
             }
             return Result.Fail<Deposit?>(ErrorCodes.NotFound, $"Deposit {request.Id} not found");

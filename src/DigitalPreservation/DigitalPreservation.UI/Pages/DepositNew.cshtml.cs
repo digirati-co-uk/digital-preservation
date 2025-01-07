@@ -29,7 +29,8 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             {
                 ArchivalGroupPathUnderRoot = archivalGroupPath,
                 ArchivalGroupProposedName = result.Value!.Name!,
-                SubmissionText = submissionText
+                SubmissionText = submissionText,
+                Export = export
             };
             return await OnPostCreate(model);
         }
@@ -48,7 +49,10 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                 newDepositModel.ArchivalGroupPathUnderRoot,
                 newDepositModel.ArchivalGroupProposedName,
                 newDepositModel.SubmissionText,
-                newDepositModel.UseObjectTemplate));
+                newDepositModel.UseObjectTemplate,
+                newDepositModel.Export,
+                exportVersion: null // always do this from UI; only supports exporting HEAD
+                ));
             if (result.Success)
             {
                 TempData["CreateDepositSuccess"] = "Created new deposit";

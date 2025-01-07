@@ -1,5 +1,4 @@
-﻿using System.Net;
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -7,7 +6,6 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -92,19 +90,30 @@ internal class PreservationApiClient(
         string? archivalGroupProposedName,
         string? submissionText,
         bool useObjectTemplate,
+        bool export,
+        string? exportVersion,
         CancellationToken cancellationToken = default)
     {
+        Uri postTarget;
         var deposit = new Deposit
         {
             ArchivalGroup = archivalGroupRepositoryPath.HasText() ? new Uri(preservationHttpClient.BaseAddress!, archivalGroupRepositoryPath) : null,
             ArchivalGroupName = archivalGroupProposedName,
-            SubmissionText = submissionText,
-            UseObjectTemplate = useObjectTemplate
+            SubmissionText = submissionText
         };
+        if (export)
+        {
+            postTarget = new Uri($"/{Deposit.BasePathElement}/export", UriKind.Relative);
+            deposit.VersionExported = exportVersion;
+        }
+        else
+        {
+            postTarget = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
+            deposit.UseObjectTemplate = useObjectTemplate;
+        }
         try
         {
-            var uri = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
-            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(uri, deposit, cancellationToken);
+            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(postTarget, deposit, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var createdDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
@@ -122,6 +131,8 @@ internal class PreservationApiClient(
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
+    
+    
 
     public async Task<Result<List<Deposit>>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
     {        
@@ -284,8 +295,8 @@ internal class PreservationApiClient(
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
-    
-    
+
+
 
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {

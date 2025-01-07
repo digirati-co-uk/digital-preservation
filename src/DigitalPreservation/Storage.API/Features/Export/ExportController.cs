@@ -16,24 +16,25 @@ public class ExportController(
     [HttpPost(Name = "Export")]
     [Produces<ExportResource>]
     [Produces("application/json")]
-    public async Task<IActionResult> ExecuteExport(
+    public async Task<IActionResult> ExportQueue(
         [FromBody] ExportResource export, 
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Executing export for {path}", export.ArchivalGroup.GetPathUnderRoot());
+        logger.LogInformation("Queuing export for {path}", export.ArchivalGroup.GetPathUnderRoot());
         var queueExportResult = await mediator.Send(new QueueExport(export), cancellationToken);
         logger.LogInformation("Returned from QueueExport");
-        return this.StatusResponseFromResult(queueExportResult, 201, queueExportResult.Value);
+        var createdLocation = queueExportResult.Success ? queueExportResult.Value!.Id : null;
+        return this.StatusResponseFromResult(queueExportResult, 201, createdLocation);
     }
 
-    [HttpGet("{exportIdentifier}", Name = "ExportResult")]
+    [HttpGet("{identifier}", Name = "Export")]
     [Produces<ExportResource>]
     [Produces("application/json")]
     public async Task<IActionResult> GetExportResult(
-        [FromRoute] string exportIdentifier,
+        [FromRoute] string identifier,
         CancellationToken cancellationToken = default)
     {
-        var currentStatusResult = await mediator.Send(new GetExportResult(exportIdentifier), cancellationToken);
+        var currentStatusResult = await mediator.Send(new GetExportResult(identifier), cancellationToken);
         return this.StatusResponseFromResult(currentStatusResult);
     }
 }

@@ -67,7 +67,7 @@ public class DepositsController(IMediator mediator) : Controller
     [ProducesResponseType(400)]
     public async Task<IActionResult> CreateDeposit([FromBody] Deposit deposit)
     {
-        var result = await mediator.Send(new CreateDeposit(deposit));
+        var result = await mediator.Send(new CreateDeposit(deposit, false));
         Uri? createdLocation = null;
         if (result.Success)
         {
@@ -83,7 +83,7 @@ public class DepositsController(IMediator mediator) : Controller
     [ProducesResponseType(400)]
     public async Task<IActionResult> ExportArchivalGroup([FromBody] Deposit deposit)
     {
-        var result = await mediator.Send(new ExportArchivalGroup(deposit));
+        var result = await mediator.Send(new CreateDeposit(deposit, true));
         Uri? createdLocation = null;
         if (result.Success)
         {

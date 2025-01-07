@@ -41,7 +41,7 @@ public class ExportResultStore(
         try
         {
             await dbContext.ExportResults.AddAsync(
-                new API.Data.Entities.ExportResult
+                new API.Data.Entities.Export
                 {
                     Id = identifier, 
                     ArchivalGroup = export.ArchivalGroup,

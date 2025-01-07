@@ -7,7 +7,7 @@ public class StorageContext : DbContext
 {
     public DbSet<ImportJob> ImportJobs { get; set; }
     
-    public DbSet<ExportResult> ExportResults { get; set; }
+    public DbSet<Export> ExportResults { get; set; }
     
     public StorageContext(DbContextOptions<StorageContext> options) : base(options)
     {

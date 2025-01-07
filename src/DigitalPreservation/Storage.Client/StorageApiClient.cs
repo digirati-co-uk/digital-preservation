@@ -135,6 +135,31 @@ public class StorageApiClient(
             return Result.FailNotNull<Export>(ErrorCodes.UnknownError, e.Message);
         }
     }
+    
+
+    public async Task<Result<Export>> GetExport(Uri entityExportResultUri)
+    {     
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, entityExportResultUri);
+            var response = await storageHttpClient.SendAsync(req);
+            if (response.IsSuccessStatusCode)
+            {
+                var export = await response.Content.ReadFromJsonAsync<Export>();
+                if(export != null)
+                {
+                    return Result.OkNotNull(export);
+                }
+                return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            return await response.ToFailNotNullResult<Export>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<Export>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
 
 
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)

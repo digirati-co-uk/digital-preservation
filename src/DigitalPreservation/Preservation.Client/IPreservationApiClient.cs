@@ -23,7 +23,14 @@ public interface IPreservationApiClient
     Task<Result<string?>> GetResourceType(string path);
     
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
-    Task<Result<Deposit?>> CreateDeposit(string? archivalGroupRepositoryPath, string? archivalGroupProposedName, string? submissionText, bool useObjectTemplate, CancellationToken cancellationToken);
+    Task<Result<Deposit?>> CreateDeposit(
+        string? archivalGroupRepositoryPath, 
+        string? archivalGroupProposedName, 
+        string? submissionText, 
+        bool useObjectTemplate, 
+        bool export,
+        string? exportVersion,
+        CancellationToken cancellationToken);
     Task<Result<List<Deposit>>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken);
@@ -34,8 +41,6 @@ public interface IPreservationApiClient
     Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, CancellationToken cancellationToken);
     Task<Result> DeleteContainer(string path, bool requestPurge, CancellationToken cancellationToken);
     Task<Result<List<Uri>>> GetAllAgents(CancellationToken cancellationToken);
-    
-    
     
     
     
