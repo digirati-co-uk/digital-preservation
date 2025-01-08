@@ -26,7 +26,7 @@ public class QueueExportHandler(
         if (runningExports.Success && runningExports.Value!.Count > 0)
         {
             return Result.FailNotNull<ExportResource>(ErrorCodes.Conflict, 
-                $"There is an unfinished export ({runningExports.Value[0]}) for Archival Group {request.Export.ArchivalGroup}");
+                $"There is an unfinished export ({runningExports.Value[0]}) for Archival Group {request.Export.ArchivalGroup.GetPathUnderRoot()}");
         }
         if (runningExports.Failure)
         {

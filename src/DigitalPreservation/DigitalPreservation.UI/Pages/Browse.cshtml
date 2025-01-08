@@ -13,7 +13,7 @@
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
 
-        @if (Model.Resource.PartOf == null && Model.Resource is not ArchivalGroup)
+        @if (Model.Resource!.PartOf == null && Model.Resource is not ArchivalGroup)
         {
             <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newContainerModal">
                 📁 New Folder
@@ -160,7 +160,7 @@
                             {
                             <text> class="table-info" </text>
                             }
-                            else if (version.Equals(ag.StorageMap.HeadVersion))
+                            else if (version.Equals(ag.StorageMap!.HeadVersion))
                             {
                             <text> class="table-primary" </text>
                             }
@@ -384,17 +384,17 @@
                 <form method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
                     <div class="modal-body">
                         <div class="mb-3">
-                            <p>Creating a new Deposit for an existing Archival Group @Model.ArchivalGroupPath</p>
+                            <p>Creating a new Deposit for an existing Archival Group<br/>
+                            <code>@Model.ArchivalGroupPath</code></p>
                         </div>
                         <div class="mb-3 form-check">
-                            <input type="checkbox" name="export" value="false" class="form-check-input" id="exportCheck" checked aria-describedby="exportHelp">
+                            <input type="checkbox" name="export" value="true" class="form-check-input" id="exportCheck" aria-describedby="exportHelp">
                             <label class="form-check-label" for="exportCheck">Export to S3</label>
                             <div id="exportHelp" class="form-text">
-                                The content of the preserved object will be copied to the S3 working location.<br/>
-                                This is useful when verifying differences between versions but is not required for making updates.<br/>
+                                The content of the preserved object will be copied to the S3 working location. This is useful when verifying differences between versions but is not required for making updates.<br/>
                                 Exporting a large ArchivalGroup may take some time.
                             </div>                  
-                            <div class="mb-3">
+                            <div class="mb-3 mt-3">
                                 <label for="submissionText" class="form-label">Note (optional)</label>
                                 <input type="text" class="form-control" id="submissionText" name="submissionText" aria-describedby="submissionTextHelp">
                                 <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>

@@ -205,7 +205,7 @@ public class GoobiMetsParsing
         premisFile.Should().NotBeNull();
         
         // partial exploration
-        premisFile.ObjectIdentifier[0].ObjectIdentifierType.Value.Should().Be("local");
+        premisFile!.ObjectIdentifier[0].ObjectIdentifierType.Value.Should().Be("local");
         premisFile.ObjectIdentifier[0].ObjectIdentifierValue.Should().Be("b29356350_0001.jp2");
 
         premisFile.SignificantProperties.Should().HaveCount(2);

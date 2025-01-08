@@ -13,7 +13,7 @@ public class ExportController(
     IMediator mediator,
     ILogger<ExportController> logger) : Controller
 {
-    [HttpPost(Name = "Export")]
+    [HttpPost(Name = "QueueExport")]
     [Produces<ExportResource>]
     [Produces("application/json")]
     public async Task<IActionResult> ExportQueue(
@@ -27,7 +27,7 @@ public class ExportController(
         return this.StatusResponseFromResult(queueExportResult, 201, createdLocation);
     }
 
-    [HttpGet("{identifier}", Name = "Export")]
+    [HttpGet("{identifier}", Name = "GetExport")]
     [Produces<ExportResource>]
     [Produces("application/json")]
     public async Task<IActionResult> GetExportResult(

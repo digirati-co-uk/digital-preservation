@@ -12,7 +12,6 @@ namespace Preservation.API.Mutation;
 /// </summary>
 /// <param name="options"></param>
 public class ResourceMutator(
-    ILogger<ResourceMutator> logger,
     IOptions<MutatorOptions> options)
 {
     private readonly string storageHost = options.Value.Storage;

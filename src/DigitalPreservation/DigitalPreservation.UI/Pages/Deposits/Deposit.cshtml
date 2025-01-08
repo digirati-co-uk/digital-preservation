@@ -1,8 +1,16 @@
 ﻿@page "/deposits/{id}"
 @using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @model DepositModel
+
+@functions {
+    private bool CanBeWorkedOn()
+    {
+        return Model.Deposit is { Active: true } && Model.Deposit.Status != DepositStates.Exporting;
+    }
+}
 @{
 ViewData["Title"] = "Deposit " + (Model.Deposit?.ArchivalGroupName ?? Model.Deposit?.ArchivalGroup?.ToString() ?? Model.Deposit?.Id?.GetSlug() ?? Model.Id);
 ViewData["section"] = "deposits";
@@ -67,7 +75,7 @@ ViewData["active"] = Model.Deposit?.Active;
             <div class="col">
 
                 <form method="post" asp-page-handler="UpdateProperties" class="collapse show" id="collapseAgDetails">
-                    <fieldset style="display: contents" @(Model.Deposit.Active ? "" : " disabled=disabled")>
+                    <fieldset style="display: contents" @(CanBeWorkedOn() ? "" : " disabled=disabled")>
 
                         @if (Model.Deposit.ArchivalGroupExists)
                         {
@@ -103,35 +111,41 @@ ViewData["active"] = Model.Deposit?.Active;
                 </form>
                 
                 
-
-
-                @* *@
-                @* <div class="border border-primary rounded mb-4 p-3" id="depositFileExplorer"> *@
-                @if (Model.Files is not null)
+                @if (Model.Deposit.Status != DepositStates.Exporting)
+                {                
+                    @if (Model.Files is not null)
+                    {
+                        <div class="table-responsive small">
+                            <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
+                                <thead>
+                                <tr>
+                                    <th scope="col" class="dep-actions"></th>
+                                    <th scope="col">Path</th>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">Hash</th>
+                                    <th scope="col">Size</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col" class="dep-actions"></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @await Html.PartialAsync("_RenderDirectoryAsTableRows", Model.Files)
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p>No files have been uploaded yet.</p>
+                    }
+                }
+                @if (Model.Deposit.Status == DepositStates.Exporting)
                 {
-                    <div class="table-responsive small">
-                        <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
-                            <thead>
-                            <tr>
-                                <th scope="col" class="dep-actions"></th>
-                                <th scope="col">Path</th>
-                                <th scope="col">Name</th>
-                                <th scope="col">Hash</th>
-                                <th scope="col">Size</th>
-                                <th scope="col">Type</th>
-                                <th scope="col" class="dep-actions"></th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @await Html.PartialAsync("_RenderDirectoryAsTableRows", Model.Files)
-                            </tbody>
-                        </table>
+                    <div class="alert alert-danger" role="alert">
+                        <p>The server is currently exporting files into this Deposit.</p>
                     </div>
                 }
-                else
-                {
-                    <p>No files have been uploaded yet.</p>
-                }
+
                 
                 <hr/>
                 
@@ -151,6 +165,10 @@ ViewData["active"] = Model.Deposit?.Active;
                     else if (!Model.Deposit.ArchivalGroupExists && !Model.HasValidFiles())
                     {
                         <p aria-label="import job message">No jobs can be run as there are no valid files in the Deposit.</p>
+                    }
+                    else if (Model.Deposit.Status == DepositStates.Exporting)
+                    {
+                        <p aria-label="import job message">No jobs can be run as the Deposit status is currently 'Exporting'.</p>
                     }
                     else
                     {

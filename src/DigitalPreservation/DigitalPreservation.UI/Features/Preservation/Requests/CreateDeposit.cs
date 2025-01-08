@@ -23,9 +23,7 @@ public class CreateDeposit(
     public string? ExportVersion { get; } = exportVersion;
 }
 
-public class CreateDepositHandler(
-    IOptions<PreservationOptions> options,
-    IPreservationApiClient preservationApiClient) : IRequestHandler<CreateDeposit, Result<Deposit?>>
+public class CreateDepositHandler(IPreservationApiClient preservationApiClient) : IRequestHandler<CreateDeposit, Result<Deposit?>>
 {
     public async Task<Result<Deposit?>> Handle(CreateDeposit request, CancellationToken cancellationToken)
     {

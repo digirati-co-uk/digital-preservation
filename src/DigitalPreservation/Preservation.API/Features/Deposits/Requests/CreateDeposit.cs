@@ -50,7 +50,7 @@ public class CreateDepositHandler(
             if (request.Export)
             {
                 var archivalGroupResult = await storageApiClient.GetArchivalGroup(
-                    request.Deposit.ArchivalGroup.GetPathUnderRoot()!, request.Deposit.VersionExported);
+                    request.Deposit.ArchivalGroup!.AbsolutePath, request.Deposit.VersionExported);
                 if (archivalGroupResult.Failure || archivalGroupResult.Value is null)
                 {
                     return Result.Fail<Deposit?>(archivalGroupResult.ErrorCode!, archivalGroupResult.ErrorMessage);
@@ -71,7 +71,7 @@ public class CreateDepositHandler(
             if (request.Export)
             {
                 var exportResultResult = await storageApiClient.ExportArchivalGroup(
-                    request.Deposit.ArchivalGroup!,
+                    archivalGroupForExport!.Id!,
                     filesLocation.Value!,
                     archivalGroupForExport!.Version!.OcflVersion!,
                     cancellationToken);

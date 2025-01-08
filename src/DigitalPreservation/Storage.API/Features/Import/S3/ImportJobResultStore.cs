@@ -14,8 +14,7 @@ namespace Storage.API.Features.Import.S3;
 [Obsolete("For Removal, use DB instead")]
 public class ImportJobResultStore(
     IAmazonS3 s3Client,
-    IOptions<AwsStorageOptions> options,
-    ILogger<ImportJobResultStore> logger) : IImportJobResultStore
+    IOptions<AwsStorageOptions> options) : IImportJobResultStore
 {
     private readonly AwsStorageOptions options = options.Value;
     private readonly string jobResultsPrefix = "importjobresults/";

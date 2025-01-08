@@ -6,7 +6,7 @@ using Preservation.Client;
 
 namespace DigitalPreservation.UI.Features.Repository.Requests;
 
-public class DeleteContainer(string? pathUnderRoot, bool purge) : IRequest<Result>
+public class DeleteContainer(string pathUnderRoot, bool purge) : IRequest<Result>
 {
     public string PathUnderRoot { get; } = pathUnderRoot;
     public bool Purge { get; } = purge;

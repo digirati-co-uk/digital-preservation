@@ -27,6 +27,7 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client, IStorage storage) : 
 {
     public async Task<Result<WorkingFile?>> Handle(UploadFileToDeposit request, CancellationToken cancellationToken)
     {
+        // TODO: This needs to prevent overlapping calls (repeated requests for the same object, or two uploads trying to update METS)
         var s3Uri = new AmazonS3Uri(request.S3Root);
         var fullKey = StringUtils.BuildPath(false, s3Uri.Key, request.Parent, request.Slug);
         var req = new PutObjectRequest

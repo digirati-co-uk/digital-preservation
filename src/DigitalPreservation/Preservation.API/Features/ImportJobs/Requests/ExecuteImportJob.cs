@@ -17,7 +17,6 @@ public class ExecuteImportJob(ImportJob importJob) : IRequest<Result<ImportJobRe
 }
 
 public class ExecuteImportJobHandler(
-    ILogger<ExecuteImportJobHandler> logger,
     IStorageApiClient storageApi,
     PreservationContext dbContext,
     IIdentityService identityService,
@@ -39,7 +38,7 @@ public class ExecuteImportJobHandler(
             {
                 StorageImportJobResultId = storageImportJobResult.Id!,
                 Id = mintedId,
-                ArchivalGroup = request.ImportJob.ArchivalGroup,
+                ArchivalGroup = request.ImportJob.ArchivalGroup!,
                 ImportJobJson = JsonSerializer.Serialize(request.ImportJob),
                 Status = storageImportJobResult.Status,
                 Deposit = request.ImportJob.Deposit!.GetSlug()!,

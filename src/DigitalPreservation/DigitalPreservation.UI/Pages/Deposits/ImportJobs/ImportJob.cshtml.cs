@@ -60,7 +60,7 @@ public class ImportJobModel(IMediator mediator) : PageModel
         return Redirect($"/deposits/{depositId}/importjobs/diff");
     }
 
-    public string ImportJobId { get; set; }
+    public string? ImportJobId { get; set; }
 
     public ImportJob? ImportJob { get; set; }
     

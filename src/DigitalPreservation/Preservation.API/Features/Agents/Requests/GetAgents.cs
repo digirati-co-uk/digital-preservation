@@ -9,7 +9,6 @@ namespace Preservation.API.Features.Agents.Requests;
 public class GetAgents : IRequest<Result<List<Uri>>>;
 
 public class GetAgentsHandler(
-    ILogger<GetAgentsHandler> logger,
     PreservationContext dbContext,
     ResourceMutator resourceMutator) : IRequestHandler<GetAgents, Result<List<Uri>>>
 {

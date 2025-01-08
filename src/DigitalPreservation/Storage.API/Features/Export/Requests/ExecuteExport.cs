@@ -17,6 +17,7 @@ public class ExecuteExport(string identifier, ExportResource export) : IRequest<
 }
 
 public class ExecuteExportHandler(
+    IStorage storage,
     IStorageMapper storageMapper,
     IAmazonS3 s3Client,
     IExportResultStore exportResultStore,
@@ -65,6 +66,9 @@ public class ExecuteExportHandler(
                     });
                 }
             }
+
+            var newWd = await storage.GenerateMetsLike(destination, true, cancellationToken);
+            // TODO: validate that newWd.Value matches what we expected from storageMap.Files
             export.DateFinished = DateTime.UtcNow;
         }
         catch (Exception ex)

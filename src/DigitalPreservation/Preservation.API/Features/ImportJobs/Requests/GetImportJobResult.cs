@@ -19,7 +19,6 @@ public class GetImportJobResult(string depositId, string importJobId) : IRequest
 }
 
 public class GetImportJobResultHandler(
-    ILogger<GetImportJobResultHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApi,
     ResourceMutator resourceMutator) : IRequestHandler<GetImportJobResult, Result<ImportJobResult>>
