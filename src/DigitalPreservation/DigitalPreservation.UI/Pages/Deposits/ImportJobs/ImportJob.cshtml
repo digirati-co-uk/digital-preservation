@@ -46,16 +46,47 @@ ViewData["section"] = "deposits";
                 }
                 else
                 {
-                    @await Html.PartialAsync("_RenderImportJob", Model.ImportJob)
-                
-                
-                    <form method="post" asp-page-handler="ExecuteDiffDirect">
-                        <div class="mb-3">
-                            <button type="submit" class="btn btn-sm btn-primary me-2" id="runImport">
-                                <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>
-                            </button>
+                    if (Model.ItemsWithInvalidSlugs.Any())
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <p>This import job contains one or more items with invalid slugs:</p>
+                            <ul>
+                                @foreach (var res in Model.ItemsWithInvalidSlugs)
+                                {
+                                    <li>@res.StringIcon @res.GetPathUnderRoot()</li>
+                                }
+                            </ul>
                         </div>
-                    </form>
+                    }
+                    if (Model.AddedBinariesWithInvalidContentTypes.Any())
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <p>This import job contains one or more items with an unidentified content type:</p>
+                            <ul>
+                                @foreach (var res in Model.AddedBinariesWithInvalidContentTypes)
+                                {
+                                    <li>@res.StringIcon @res.GetPathUnderRoot()</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    
+                    @await Html.PartialAsync("_RenderImportJob", Model.ImportJob)
+
+                    if (Model.ItemsWithInvalidSlugs.Any() || Model.AddedBinariesWithInvalidContentTypes.Any())
+                    {
+                        <p>This import job is invalid.</p>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page-handler="ExecuteDiffDirect">
+                            <div class="mb-3">
+                                <button type="submit" class="btn btn-sm btn-primary me-2" id="runImport">
+                                    <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>
+                                </button>
+                            </div>
+                        </form>
+                    }
                 
                     <hr/>
                 

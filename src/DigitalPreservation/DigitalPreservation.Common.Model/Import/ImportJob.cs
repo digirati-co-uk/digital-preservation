@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using DigitalPreservation.Common.Model.Storage;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Import;
 
@@ -113,4 +114,27 @@ public class ImportJob : Resource
     public List<Binary> BinariesToRename { get; set; } = [];
     
     // (metadata to change?) more general. NOT for Oct demo.
+
+    public List<PreservedResource> ItemsWithInvalidSlugs()
+    {
+        var items = new List<PreservedResource>();
+        items.AddRange(ContainersToAdd.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(ContainersToRename.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(ContainersToDelete.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(BinariesToAdd.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(BinariesToPatch.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(BinariesToRename.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(BinariesToDelete.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        return items;
+    }
+
+    public List<Binary> AddedBinariesWithInvalidContentTypes()
+    {
+        var binaries = new List<Binary>();
+        binaries.AddRange(BinariesToAdd.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
+        binaries.AddRange(BinariesToPatch.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
+        // may be not required here
+        // binaries.AddRange(BinariesToRename.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
+        return binaries;
+    }
 }
