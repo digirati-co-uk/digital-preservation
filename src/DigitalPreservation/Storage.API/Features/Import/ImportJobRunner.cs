@@ -22,6 +22,8 @@ public class ImportJobRunner(
             if (executeResult.Success)
             {
                 var jobResult = executeResult.Value!;
+                // The job itself may have failed at this point, but the result is still a success
+                await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, cancellationToken);
                 // what version are we now on?
                 var agResult = await mediator.Send(new GetResourceFromFedora(jobResult.ArchivalGroup.GetPathUnderRoot()), cancellationToken);
                 if (agResult.Success)

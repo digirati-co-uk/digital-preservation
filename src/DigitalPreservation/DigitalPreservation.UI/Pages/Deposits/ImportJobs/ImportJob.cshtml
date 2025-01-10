@@ -109,7 +109,7 @@ ViewData["section"] = "deposits";
                             @foreach (var error in jobResult.Errors)
                             {
                                 <div class="alert alert-danger" role="alert">
-                                    <p>@error</p>
+                                    <p>@error.Message</p>
                                 </div>
                             }
                         </dd>

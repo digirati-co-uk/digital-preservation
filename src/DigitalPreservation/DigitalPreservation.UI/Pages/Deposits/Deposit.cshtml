@@ -212,7 +212,16 @@ ViewData["active"] = Model.Deposit?.Active;
                                     <td>@result.DateFinished.GetDateDisplay()</td>
                                     <td>@result.SourceVersion</td>
                                     <td>@result.NewVersion</td>
-                                    <td class="text-danger">@result.Errors?.Select(e => e.Message + "<br/>")</td>
+                                    <td class="text-danger">
+                                        @{
+                                            if (result.Errors != null && result.Errors.Any())
+                                            {
+                                                foreach (var line in result.Errors.Select(e => e.Message))
+                                                {
+                                                    <p>@line</p>
+                                                }
+                                            }
+                                        }</td>
                                 </tr>
                             }
                             </tbody>
