@@ -318,7 +318,7 @@
     <div class="modal fade" id="deleteContainerModal" tabindex="-1" aria-labelledby="deleteContainerModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="post" action="/deletecontainer">
+                <form class="single-submit" method="post" action="/deletecontainer">
                     <input type="hidden" name="pathUnderRoot" value="@Model.PathUnderRoot" />
                     <div class="modal-header">
                         <h1 class="modal-title fs-5" id="deleteContainerModalLabel"> Delete/Purge Container</h1>
@@ -346,7 +346,7 @@
 <div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post">
+            <form class="single-submit" method="post">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="newContainerModalLabel"> 📁 New Folder</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -381,7 +381,7 @@
             </div>
             @if (Model.ArchivalGroupPath.HasText())
             {
-                <form method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
+                <form class="single-submit" method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
                     <div class="modal-body">
                         <div class="mb-3">
                             <p>Creating a new Deposit for an existing Archival Group<br/>
@@ -445,7 +445,7 @@
             }
             else
             {
-                <form method="post" asp-page="DepositNew" asp-page-handler="Create">
+                <form class="single-submit" method="post" asp-page="DepositNew" asp-page-handler="Create">
 
                     <div class="modal-body">
                         <div class="mb-3">

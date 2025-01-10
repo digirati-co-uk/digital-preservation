@@ -26,7 +26,7 @@ ViewData["active"] = Model.Deposit?.Active;
             <button @(Model.Deposit!.Active ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
                 <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
             </button>
-            <form method="post">
+            <form class="single-submit" method="post">
                 <button type="submit" asp-page-handler="ValidateStorage" class="btn btn-sm btn-outline-primary me-2">
                     <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Validate storage</span>
                 </button>
@@ -74,7 +74,7 @@ ViewData["active"] = Model.Deposit?.Active;
         <div class="row align-items-start">
             <div class="col">
 
-                <form method="post" asp-page-handler="UpdateProperties" class="collapse show" id="collapseAgDetails">
+                <form method="post" asp-page-handler="UpdateProperties" class="single-submit collapse show" id="collapseAgDetails">
                     <fieldset style="display: contents" @(CanBeWorkedOn() ? "" : " disabled=disabled")>
 
                         @if (Model.Deposit.ArchivalGroupExists)
@@ -268,7 +268,7 @@ ViewData["active"] = Model.Deposit?.Active;
     <div class="modal-dialog">
         <div class="modal-content">
 
-            <form method="post" enctype="multipart/form-data" asp-page-handler="UploadFile">
+            <form class="single-submit" method="post" enctype="multipart/form-data" asp-page-handler="UploadFile">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="uploadFileModalLabel"><svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -312,7 +312,7 @@ ViewData["active"] = Model.Deposit?.Active;
     <div class="modal-dialog">
         <div class="modal-content">
             
-            <form method="post" asp-page-handler="CreateFolder">
+            <form class="single-submit" method="post" asp-page-handler="CreateFolder">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="newFolderModalLabel"><svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New Folder</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -340,7 +340,7 @@ ViewData["active"] = Model.Deposit?.Active;
     <div class="modal-dialog">
         <div class="modal-content">
 
-            <form method="post" asp-page-handler="DeleteItem">
+            <form class="single-submit" method="post" asp-page-handler="DeleteItem">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="deleteItemModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -366,7 +366,7 @@ ViewData["active"] = Model.Deposit?.Active;
     <div class="modal-dialog">
         <div class="modal-content">
 
-            <form method="post" asp-page-handler="DeleteDeposit">
+            <form class="single-submit" method="post" asp-page-handler="DeleteDeposit">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="deleteDepositModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
