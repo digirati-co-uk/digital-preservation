@@ -376,5 +376,25 @@ public class DepositModel : PageModel
         }
         return objects.DescendantFileCount() > 0;
     }
+
+    public string? GetDisplayTitle()
+    {
+        if (Deposit == null)
+        {
+            return Id;
+        }
+
+        if (Deposit.ArchivalGroupName.HasText())
+        {
+            return Deposit.ArchivalGroupName;
+        }
+
+        if (Deposit.ArchivalGroup != null)
+        {
+            return Deposit.ArchivalGroup.GetPathUnderRoot()!;
+        }
+
+        return Deposit.Id?.GetSlug();
+    }
 }
 

@@ -12,13 +12,13 @@
     }
 }
 @{
-ViewData["Title"] = "Deposit " + (Model.Deposit?.ArchivalGroupName ?? Model.Deposit?.ArchivalGroup?.ToString() ?? Model.Deposit?.Id?.GetSlug() ?? Model.Id);
+ViewData["Title"] = Model.GetDisplayTitle();
 ViewData["section"] = "deposits";
 ViewData["active"] = Model.Deposit?.Active;
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">@ViewData["Title"]</h1>
+    <h1 class="h2 text-truncate" title="@ViewData["Title"]"><svg class="bi mb-1" style="width:1.5rem;height: 1.5rem;"><use xlink:href="#box-seam"/></svg> @ViewData["Title"]</h1>
 
     <div class="btn-toolbar mb-2 mb-md-0">
         @if (Model.Bound)
