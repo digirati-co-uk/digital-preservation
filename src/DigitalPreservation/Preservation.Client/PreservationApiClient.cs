@@ -134,7 +134,7 @@ internal class PreservationApiClient(
     
     
 
-    public async Task<Result<List<Deposit>>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
+    public async Task<Result<DepositQueryPage>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
     {        
         try
         {
@@ -149,19 +149,19 @@ internal class PreservationApiClient(
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
-                var deposits = await response.Content.ReadFromJsonAsync<List<Deposit>>(cancellationToken: cancellationToken);
+                var deposits = await response.Content.ReadFromJsonAsync<DepositQueryPage>(cancellationToken: cancellationToken);
                 if (deposits is not null)
                 {
                     return Result.OkNotNull(deposits);
                 }
-                return Result.FailNotNull<List<Deposit>>(ErrorCodes.NotFound, "No resource at " + uri);
+                return Result.FailNotNull<DepositQueryPage>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<List<Deposit>>();
+            return await response.ToFailNotNullResult<DepositQueryPage>();
         }
         catch (Exception e)
         {
             logger.LogError(e, e.Message);
-            return Result.FailNotNull<List<Deposit>>(ErrorCodes.UnknownError, e.Message);
+            return Result.FailNotNull<DepositQueryPage>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

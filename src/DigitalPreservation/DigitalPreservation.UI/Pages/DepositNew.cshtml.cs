@@ -107,9 +107,10 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                 return false;
             }
 
-            if (depositsForArchivalGroupResult.Value is { Count: > 0 })
+            var deposits = depositsForArchivalGroupResult.Value!.Deposits;
+            if (deposits is { Count: > 0 })
             {
-                var activeDeposit = depositsForArchivalGroupResult.Value.FirstOrDefault(d => d.Active); // should be SingleOrDefault
+                var activeDeposit = deposits.FirstOrDefault(d => d.Active); // should be SingleOrDefault
                 if (activeDeposit is { Active: true })
                 {
                     var depositPath = "/deposits/" + activeDeposit.Id!.GetSlug();

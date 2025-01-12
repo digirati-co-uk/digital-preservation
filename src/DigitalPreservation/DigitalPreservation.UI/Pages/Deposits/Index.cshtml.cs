@@ -14,6 +14,7 @@ public class IndexModel(IMediator mediator) : PageModel
     public List<Deposit> Deposits { get; set; } = [];
     
     public DepositQuery Query { get; set; } = new DepositQuery();
+    public DepositQueryPage? QueryPage { get; set; }
 
     public List<string> Agents { get; set; } = [];
     public string[] Statuses { get; set; } = DepositStates.All;
@@ -37,7 +38,8 @@ public class IndexModel(IMediator mediator) : PageModel
         {
             Query = query;
         }
-        Deposits = result.Value!;
+        QueryPage = result.Value!;
+        Deposits = QueryPage.Deposits;
         
         var agentResult = await mediator.Send(new GetAllAgents());
         Agents = agentResult.Value!.Select(uri => uri.GetSlug()).OrderBy(s => s).ToList()!;

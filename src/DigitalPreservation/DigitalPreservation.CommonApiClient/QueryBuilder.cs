@@ -97,6 +97,14 @@ public class QueryBuilder
         {
             queryString.Add(nameof(queryBase.Ascending), "true");
         }
+        if (queryBase.Page is > 1)
+        {
+            queryString.Add(nameof(queryBase.Page), queryBase.Page.ToString());
+        }
+        if (queryBase.PageSize is > 1)
+        {
+            queryString.Add(nameof(queryBase.PageSize), queryBase.PageSize.ToString());
+        }
         
         // Returns "key1=value1&key2=value2", all URL-encoded
         return queryString;
