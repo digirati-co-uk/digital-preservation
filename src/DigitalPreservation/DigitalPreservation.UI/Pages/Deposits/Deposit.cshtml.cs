@@ -344,13 +344,36 @@ public class DepositModel : PageModel
         [FromForm] string? agName,
         [FromForm] string? submissionText)
     {
+        if (agPathUnderRoot.HasText())
+        {
+            if (agPathUnderRoot.StartsWith("http"))
+            {
+                var pathUrl = new Uri(agPathUnderRoot);
+                agPathUnderRoot = pathUrl.AbsolutePath.ToLowerInvariant();
+                if (agPathUnderRoot.StartsWith("/browse/"))
+                {
+                    agPathUnderRoot = agPathUnderRoot.Substring("/browse/".Length);
+                }
+                if (agPathUnderRoot.StartsWith("/repository/"))
+                {
+                    agPathUnderRoot = agPathUnderRoot.Substring("/repository/".Length);
+                }
+                if (agPathUnderRoot.StartsWith("/"))
+                {
+                    agPathUnderRoot = agPathUnderRoot.Substring(1);
+                }
+            }
+        }
         var getDepositResult = await mediator.Send(new GetDeposit(id));
         if (getDepositResult.Success)
         {
             var deposit = getDepositResult.Value;
             deposit!.SubmissionText = submissionText;
             // feels like this URI should not be constructed here
-            deposit.ArchivalGroup = new Uri($"{options.Value.Root}{PreservedResource.BasePathElement}/{agPathUnderRoot}");
+            if (agPathUnderRoot.HasText())
+            {
+                deposit.ArchivalGroup = new Uri($"{options.Value.Root}{PreservedResource.BasePathElement}/{agPathUnderRoot}");
+            }
             deposit.ArchivalGroupName = agName;
             var saveDepositResult = await mediator.Send(new UpdateDeposit(deposit));
             if (saveDepositResult.Success)

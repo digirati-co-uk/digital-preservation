@@ -3,6 +3,7 @@
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
+@using Microsoft.AspNetCore.Http.Extensions
 @model DepositModel
 
 @functions {
@@ -91,9 +92,14 @@ ViewData["active"] = Model.Deposit?.Active;
                         }
                         else
                         {
-                            <div class="form-floating mb-3">
-                                <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
-                                <label for="agPathUnderRoot">Archival Group</label>
+                            <div class="input-group mb-3">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
+                                    <label for="agPathUnderRoot">Archival Group</label>
+                                </div>
+                                <button class="btn btn-outline-secondary" type="button" id="btnAgPathHelp" data-bs-toggle="modal" data-bs-target="#archivalGroupPathModal">
+                                    <svg class="bi"><use xlink:href="#question-circle"/></svg>
+                                </button>
                             </div>
                         }
                         <div class="form-floating mb-3">
@@ -358,6 +364,43 @@ ViewData["active"] = Model.Deposit?.Active;
                 </div>
             </form>
 
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="archivalGroupPathModal" tabindex="-1" aria-labelledby="archivalGroupPathModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="archivalGroupPathModalLabel"><svg class="bi"><use xlink:href="#question-circle"/></svg><span class="ms-2">Archival Group Path</span></h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    @{
+                        var agRoot = Url.PageLink("/browse", null, new { PathUnderRoot = string.Empty })!.ToLowerInvariant();
+                    }
+                    @if (Model.Deposit!.ArchivalGroupExists)
+                    {
+                        <p>The path is the intended URI of the Archival Group, minus the initial <code>@agRoot</code> part.</p>
+                    }
+                    else
+                    {
+                        <p>The deposit will <em>eventually</em> create an Archival Group with this path, when imported for the first time.</p>
+                        <p>The path is the intended URI of the Archival Group, minus the initial <code>@agRoot</code> part.</p>
+                        <p>
+                            For example, if you want to create an Archival Group at
+                            <code>@(agRoot)/digitised/manuscript/codex123</code>, 
+                            then the value of this field should be <code>digitised/manuscript/codex123</code>.
+                        </p>
+                        <p>You can paste in full URLs or paths and the form will tidy them up.</p>
+                        <p>This field may be set or changed later.</p>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>
