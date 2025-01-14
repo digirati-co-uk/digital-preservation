@@ -31,8 +31,16 @@ public class ImportJobRunner(
                     if (agResult.Value is ArchivalGroup ag)
                     {
                         jobResult.NewVersion = ag.Version!.OcflVersion;
-                        await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, cancellationToken);
-                        logger.LogInformation("Saving Import Job Result: " + executeResult.Value!.Id);
+                        logger.LogInformation("Import Job new version is " + jobResult.NewVersion + " for " + jobResult.Id);
+                        var finalUpdateResult = await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, cancellationToken);
+                        if (finalUpdateResult.Success)
+                        {
+                            logger.LogInformation("Saved Import Job Result: " + jobResult.Id);
+                        }
+                        else
+                        {
+                            logger.LogError("Failed to update final import job: " + jobResult.Id + ", " + finalUpdateResult.CodeAndMessage());
+                        }
                         // At this point we could broadcast a message
                         return;
                     }
