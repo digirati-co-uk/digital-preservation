@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.UI.Features.Preservation.Requests;
+using DigitalPreservation.UI.ViewComponents;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -13,11 +14,12 @@ public class IndexModel(IMediator mediator) : PageModel
 {
     public List<Deposit> Deposits { get; set; } = [];
     
-    public DepositQuery Query { get; set; } = new DepositQuery();
+    public DepositQuery Query { get; set; } = new() { PageSize = PagerViewComponent.DefaultPageSize };
     public DepositQueryPage? QueryPage { get; set; }
 
     public List<string> Agents { get; set; } = [];
     public string[] Statuses { get; set; } = DepositStates.All;
+    public PagerValues? PagerValues { get; set; }
 
     public async Task<IActionResult> OnGet([FromQuery] DepositQuery? query)
     {
@@ -33,13 +35,22 @@ public class IndexModel(IMediator mediator) : PageModel
             );
             return Redirect(mutated);
         }
-        var result = await mediator.Send(new GetDeposits(query));
+
         if (query != null)
         {
             Query = query;
         }
+
+        if (Query.PageSize is not > 0)
+        {
+            Query.PageSize = PagerViewComponent.DefaultPageSize;
+        }
+        
+        var result = await mediator.Send(new GetDeposits(Query));
         QueryPage = result.Value!;
         Deposits = QueryPage.Deposits;
+
+        PagerValues = new PagerValues(Request.QueryString, QueryPage.Total, QueryPage.PageSize);
         
         var agentResult = await mediator.Send(new GetAllAgents());
         Agents = agentResult.Value!.Select(uri => uri.GetSlug()).OrderBy(s => s).ToList()!;
@@ -95,16 +106,8 @@ public class IndexModel(IMediator mediator) : PageModel
                 queryDictionary.Remove(sfKey);
             }
         }
-        var emptyKeys = queryDictionary.Keys.Where(
-            k => queryDictionary[k] == StringValues.Empty || queryDictionary[k].ToString().IsNullOrWhiteSpace());
-        foreach (var key in emptyKeys)
-        {
-            queryDictionary.Remove(key);
-        }
+        queryDictionary.RemoveEmptyKeys();
         return QueryHelpers.AddQueryString($"deposits", queryDictionary);
     }
-
-
-
 
 }

@@ -25,4 +25,8 @@
       <ProjectReference Include="..\Storage.Repository.Common\Storage.Repository.Common.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <AdditionalFiles Include="Views\Shared\Components\Pager\Default.cshtml" />
+    </ItemGroup>
+
 </Project>
