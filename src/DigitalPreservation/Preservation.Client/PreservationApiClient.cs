@@ -1,5 +1,4 @@
-﻿using System.Net;
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -7,15 +6,15 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Identity.Web;
 using Storage.Repository.Common;
 
 namespace Preservation.Client;
 
 internal class PreservationApiClient(
     HttpClient httpClient,
-    ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
+    ILogger<PreservationApiClient> logger, ITokenAcquisition tokenAcquisition, ITokenScope? tokenScope) : CommonApiBase(httpClient, logger, tokenAcquisition, tokenScope), IPreservationApiClient
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 

@@ -1,4 +1,4 @@
-namespace DigitalPreservation.Core.Web.Headers;
+﻿namespace DigitalPreservation.Core.Web.Headers;
 
 /// <summary>
 /// Middleware to ensure there is a CorrelationId (x-correlation-id) value in response.
@@ -10,6 +10,7 @@ public class CorrelationIdMiddleware(RequestDelegate next)
 
     public async Task InvokeAsync(HttpContext context)
     {
+        
         var headerValue = context.TryGetHeaderValue(CorrelationHeaderKey, false) ?? Guid.NewGuid().ToString();
 
         // add the correlation id to the http response header
