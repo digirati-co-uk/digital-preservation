@@ -2,10 +2,12 @@
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Repository.Requests;
 
 namespace Preservation.API.Features.Repository;
+
 
 [Route(PreservedResource.BasePathElement + "/{*path}")]
 [ApiController]

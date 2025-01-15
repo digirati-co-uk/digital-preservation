@@ -1,12 +1,9 @@
-﻿using System.Net;
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
-using DigitalPreservation.Utils;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -21,7 +18,7 @@ namespace Storage.Client;
 /// </remarks>
 public class StorageApiClient(
     HttpClient httpClient, 
-    ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger), IStorageApiClient
+    ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger, null, null ), IStorageApiClient
 {
     private readonly HttpClient storageHttpClient = httpClient;
 
