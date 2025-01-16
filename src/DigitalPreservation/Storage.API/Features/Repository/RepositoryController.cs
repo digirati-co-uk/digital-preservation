@@ -21,6 +21,7 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType(401)]
     public async Task<IActionResult> Browse([FromRoute] string? path)
     {
+       
         var result = await mediator.Send(new GetResourceFromFedora(path));
         return this.StatusResponseFromResult(result);
     }

@@ -8,6 +8,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
+    </ItemGroup>
+
+    <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Common.Model\DigitalPreservation.Common.Model.csproj" />
     </ItemGroup>
 
