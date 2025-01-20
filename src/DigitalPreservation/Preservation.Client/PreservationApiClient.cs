@@ -17,6 +17,13 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
+    
+    public async Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot)
+    {
+        var reqPath = $"validation/archivalgroup/{archivalGroupPathUnderRoot}";
+        return await TestArchivalGroupPathInternal(reqPath);
+    }
+    
     public async Task<Result<List<Uri>>> GetAllAgents(CancellationToken cancellationToken)
     {        
         try

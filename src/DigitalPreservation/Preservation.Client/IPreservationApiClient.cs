@@ -42,6 +42,7 @@ public interface IPreservationApiClient
     Task<Result> DeleteContainer(string path, bool requestPurge, CancellationToken cancellationToken);
     Task<Result<List<Uri>>> GetAllAgents(CancellationToken cancellationToken);
     
+    Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
     
     
     // Healthchecks and housekeeping

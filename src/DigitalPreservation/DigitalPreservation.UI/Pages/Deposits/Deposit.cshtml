@@ -92,6 +92,10 @@ ViewData["active"] = Model.Deposit?.Active;
                         }
                         else
                         {
+                            @if (Model.ArchivalGroupTestWarning.HasText())
+                            {
+                                <div><small class="text-danger">@Model.ArchivalGroupTestWarning</small></div>
+                            }
                             <div class="input-group mb-3">
                                 <div class="form-floating">
                                     <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">

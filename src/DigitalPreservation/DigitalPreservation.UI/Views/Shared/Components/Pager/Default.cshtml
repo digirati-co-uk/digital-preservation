@@ -34,4 +34,9 @@
             <li class="page-item"><a class="page-link" href="@Model.Next.Href">Next</a></li>
         }
     </ul>
+    <p class="text-center small">
+        Page <span aria-label="Page number">@Model.CurrentPage</span>
+        of <span aria-label="Total pages">@Model.TotalPages</span>
+        (<span aria-label="Total items">@Model.TotalItems</span> items in total)
+    </p>
 </nav>

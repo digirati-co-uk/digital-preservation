@@ -154,4 +154,29 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
         }
     }
+    
+    public async Task<Result<ArchivalGroup?>> TestArchivalGroupPathInternal(string reqPath)
+    {
+        var uri = new Uri(reqPath, UriKind.Relative);
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await httpClient.SendAsync(req);
+            if (response.IsSuccessStatusCode)
+            {
+                var ag = await response.Content.ReadFromJsonAsync<ArchivalGroup>();
+                if(ag != null)
+                {
+                    return Result.Ok(ag);
+                }
+                return Result.Fail<ArchivalGroup>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            return await response.ToFailResult<ArchivalGroup>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<ArchivalGroup>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
 }

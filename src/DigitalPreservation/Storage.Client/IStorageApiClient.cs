@@ -44,4 +44,6 @@ public interface IStorageApiClient
     Task<ConnectivityCheckResult?> CanSeeS3(CancellationToken cancellationToken = default);
     Task<Result> DeleteContainer(string path, bool requestPurge, CancellationToken cancellationToken);
     Task<Result<Export>> GetExport(Uri entityExportResultUri);
+
+    Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
 }

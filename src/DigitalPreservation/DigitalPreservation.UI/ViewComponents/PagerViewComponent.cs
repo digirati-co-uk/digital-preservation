@@ -13,7 +13,7 @@ public class PagerViewComponent : ViewComponent
 
     public Task<IViewComponentResult> InvokeAsync(PagerValues values)
     {
-        if (values.Total < values.Size)
+        if (values.HideForSinglePage && values.Total < values.Size)
         {
             // Nothing to page
             return Task.FromResult<IViewComponentResult>(Content(String.Empty));
@@ -23,9 +23,15 @@ public class PagerViewComponent : ViewComponent
         if (HttpContext.Items[nameof(PagerViewComponent)] is not PagerModel model)
         {
             var path = Request.Path;
-            model = new PagerModel { Links = [] };
             int pages = values.Total / values.Size;
             if (values.Total % values.Size > 0) pages++;
+            model = new PagerModel
+            {
+                Links = [],
+                TotalItems = values.Total,
+                TotalPages = pages,
+                CurrentPage = values.Index
+            };
             // we don't want to loop through the pages - there could be 100,000 of them
             // instead we want the first few, then an ellipsis,
             // then the current "window", then another ellipsis, then the end
@@ -162,6 +168,8 @@ public class PagerModel
     public List<Link> Links { get; set; } = [];
     public Link? Previous { get; set; }
     public Link? Next { get; set; }
+    public int TotalItems { get; set; }
+    public int CurrentPage { get; set; }
 }
 
 public record Link
@@ -177,9 +185,10 @@ public class PagerValues
     public PagerValues(){}
 
     // new version where there is an existing query string
-    public PagerValues(QueryString queryString, int total, int pageSize)
+    public PagerValues(QueryString queryString, int total, int pageSize, bool hideForSinglePage = true)
     {
         Total = total;
+        HideForSinglePage = hideForSinglePage;
         QueryStringDict = QueryHelpers.ParseQuery(queryString.ToString());
         Index = 1;
         if (QueryStringDict.TryGetValue("page", out var page))
@@ -222,6 +231,7 @@ public class PagerValues
     public bool Descending { get; set; }
     public int Window { get; set; }
     public int Ends { get; set; }
+    public bool HideForSinglePage { get; set; }
     
     public Dictionary<string, StringValues>? QueryStringDict;
 }

@@ -33,6 +33,7 @@ public class DepositModel : PageModel
     
     public Deposit? Deposit { get; set; }
     public WorkingDirectory? Files { get; set; }
+    public string? ArchivalGroupTestWarning { get; set; }
     
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
     
@@ -51,6 +52,14 @@ public class DepositModel : PageModel
         if (getDepositResult.Success)
         {
             Deposit = getDepositResult.Value!;
+            if (!Deposit.ArchivalGroupExists && Deposit.ArchivalGroup != null && Deposit.ArchivalGroup.GetPathUnderRoot().HasText())
+            {
+                var testArchivalGroupResult = await mediator.Send(new TestArchivalGroupPath(Deposit.ArchivalGroup.GetPathUnderRoot()!));
+                if (testArchivalGroupResult.Failure)
+                {
+                    ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
+                }
+            }
             // There is a METSlike for the deposit contents, AND a METS for the AG (if exists).
             // The metslike for deposit contents does not get saved to Fedora (but does it get saved to the DB)
             var readS3Result = await mediator.Send(

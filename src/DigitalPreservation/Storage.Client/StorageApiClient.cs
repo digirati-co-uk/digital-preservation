@@ -26,6 +26,12 @@ public class StorageApiClient(
 {
     private readonly HttpClient storageHttpClient = httpClient;
 
+    public async Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot)
+    {
+        var reqPath = $"import/test-path/{archivalGroupPathUnderRoot}";
+        return await TestArchivalGroupPathInternal(reqPath);
+    }
+    
     public async Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri)
     {       
         var reqPath = $"import/diff/{archivalGroupPathUnderRoot}?source={sourceUri}";
