@@ -5,6 +5,8 @@ namespace DigitalPreservation.Common.Model.Transit;
 
 public class WorkingDirectory : WorkingBase
 {
+    public const string DefaultRootName = "__ROOT";
+    
     [JsonPropertyName("files")]
     [JsonPropertyOrder(5)]
     public List<WorkingFile> Files { get; set; } = [];

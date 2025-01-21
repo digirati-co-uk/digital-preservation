@@ -146,7 +146,7 @@ public class Storage(
         return new WorkingDirectory
         {
             LocalPath = string.Empty,
-            Name = "__ROOT",
+            Name = WorkingDirectory.DefaultRootName,
             Modified = DateTime.UtcNow
         };
     }

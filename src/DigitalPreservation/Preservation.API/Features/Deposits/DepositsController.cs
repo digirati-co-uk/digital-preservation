@@ -43,7 +43,14 @@ public class DepositsController(IMediator mediator) : Controller
     [ProducesResponseType(400)]
     public async Task<IActionResult> PatchDeposit([FromRoute] string id, [FromBody] Deposit deposit)
     {
-        var result = await mediator.Send(new PatchDeposit(deposit));
+        var result = await mediator.Send(new GetDeposit(id));
+        if (result is { Success: true, Value: not null })
+        {
+            var existingDeposit = result.Value;
+            deposit.Id = existingDeposit.Id;
+            var patchResult = await mediator.Send(new PatchDeposit(deposit));
+            return this.StatusResponseFromResult(patchResult);
+        }
         return this.StatusResponseFromResult(result);
     }
     

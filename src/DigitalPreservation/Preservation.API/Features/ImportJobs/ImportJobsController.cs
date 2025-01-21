@@ -33,7 +33,12 @@ public class ImportJobsController(IMediator mediator) : Controller
         var result = await mediator.Send(new GetDiffImportJob(depositResult.Value!));
         return this.StatusResponseFromResult(result);
     }
-
+   
+    [HttpPost(Name = "ExecuteImportJob")]
+    [ProducesResponseType<ImportJobResult>(200, "application/json")]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    [ProducesResponseType(409)]
     public async Task<IActionResult> ExecuteImportJob([FromRoute] string depositId, [FromBody] ImportJob importJob,
         CancellationToken cancellationToken)
     {

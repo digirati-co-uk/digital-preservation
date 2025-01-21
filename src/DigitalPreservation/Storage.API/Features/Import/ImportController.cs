@@ -75,7 +75,8 @@ public class ImportController(
                 archivalGroupPathUnderRoot, 
                 archivalGroupName: null,
                 errorIfMissingChecksum: true, 
-                relyOnMetsLike: true), cancellationToken);
+                relyOnMetsLike: false), // <== storage API will regenerate METSLike
+            cancellationToken);
         
         return this.StatusResponseFromResult(importJobResult);
     }

@@ -29,6 +29,7 @@ public class PatchDepositHandler(
         }
         try
         {
+            
             var mintedId = request.Deposit.Id!.GetSlug();
             
             var (archivalGroupExists, validateAgResult) = await ArchivalGroupRequestValidator

@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
 using MediatR;
 using Storage.API.Fedora.Model;
@@ -43,7 +44,12 @@ public class GetDiffImportJobHandler(IStorage storage, Converters converters) : 
             return Result.FailNotNull<ImportJob>(importSourceResult.ErrorCode!, importSourceResult.ErrorMessage);
         }
         var source = importSourceResult.Value!;
-
+        var agName = request.ArchivalGroupName ?? request.ArchivalGroup?.Name ?? source.Name;
+        if (agName.IsNullOrWhiteSpace() || agName == WorkingDirectory.DefaultRootName)
+        {
+            // We don't mind no name, but we don't want it to be the default name.
+            agName = null;
+        }
         var callerIdentity = "dlipdev";
         var now = DateTime.UtcNow;
         var importJob = new ImportJob
@@ -55,7 +61,7 @@ public class GetDiffImportJobHandler(IStorage storage, Converters converters) : 
             LastModified = now,
             LastModifiedBy = converters.GetAgentUri(callerIdentity),
             Source = request.SourceUri,
-            ArchivalGroupName = request.ArchivalGroupName ?? request.ArchivalGroup?.Name ?? source.Name
+            ArchivalGroupName = agName
         };     
         
         var importContainer = source.AsContainer(importJob.ArchivalGroup);
