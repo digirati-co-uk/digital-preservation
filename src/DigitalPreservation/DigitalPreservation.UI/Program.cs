@@ -2,6 +2,7 @@
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
@@ -29,45 +30,39 @@ try
             .Enrich.WithCorrelationId());
 
 
-    //Auth enabled flag
-    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
-    
-    //Add Authentication
-    if (useAuthFeatureFlag)
+    IEnumerable<string>? initialScopes = new List<string>();
+    builder.Configuration.GetSection("DownstreamApi:Scopes").Bind(initialScopes);
+
+    builder.Services
+        .AddMicrosoftIdentityWebAppAuthentication(builder.Configuration, "AzureAd")
+        .EnableTokenAcquisitionToCallDownstreamApi()
+        .AddInMemoryTokenCaches();
+
+    builder.Services.AddAuthentication()
+        .AddMicrosoftIdentityWebApp(builder.Configuration, "AzureAd", Microsoft.Identity.Web.Constants.AzureAd,
+            null)
+        .EnableTokenAcquisitionToCallDownstreamApi(initialScopes)
+        .AddSessionTokenCaches();
+
+    // <ms_docref_add_default_controller_for_sign-in-out>
+    builder.Services.AddRazorPages().AddMvcOptions(options =>
     {
+        var policy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+        options.Filters.Add(new AuthorizeFilter(policy));
+        options.Filters.Add(typeof(SessionTimeoutAsyncPageFilter));
+    }).AddMicrosoftIdentityUI();
 
-        IEnumerable<string>? initialScopes = new List<string>();
-        builder.Configuration.GetSection("DownstreamApi:Scopes").Bind(initialScopes);
+    // Add session timeout page filter
+    builder.Services.AddSingleton<SessionTimeoutAsyncPageFilter>();
+    builder.Services.AddSession();
 
-        builder.Services
-            .AddMicrosoftIdentityWebAppAuthentication(builder.Configuration, "AzureAd")
-            .EnableTokenAcquisitionToCallDownstreamApi()
-            .AddInMemoryTokenCaches();
-
-        builder.Services.AddAuthentication()
-            .AddMicrosoftIdentityWebApp(builder.Configuration, "AzureAd", Microsoft.Identity.Web.Constants.AzureAd,
-                null)
-            .EnableTokenAcquisitionToCallDownstreamApi(initialScopes)
-            .AddSessionTokenCaches();
-
-        // <ms_docref_add_default_controller_for_sign-in-out>
-        builder.Services.AddRazorPages().AddMvcOptions(options =>
-        {
-            var policy = new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
-                .Build();
-            options.Filters.Add(new AuthorizeFilter(policy));
-        }).AddMicrosoftIdentityUI();
-    }
-    else
-    {
-        builder.Services.AddRazorPages();
-    }
 
     //Add TokenScope
-    builder.Services.AddSingleton<ITokenScope>(x => 
+    builder.Services.AddSingleton<ITokenScope>(x =>
         new TokenScope(builder.Configuration.GetSection("AzureAd:ScopeUri").Value));
-  
+
 
     // Add services to the container.
     builder.Services
@@ -82,7 +77,7 @@ try
         .AddStorageAwsAccess(builder.Configuration)
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks();
-       
+
 
     builder.Services.AddControllers();
 
@@ -105,17 +100,14 @@ try
         .UseRouting()
         .UseAuthorization()
         .UseForwardedHeaders();
+    app.UseSession();
     app.MapRazorPages();
     app.MapControllers();
     app.UseHealthChecks("/health");
-    app.UseSession();
-    //Authentication
-    if (useAuthFeatureFlag)
-    {
-        app.UseAuthentication();
-    }
+    app.UseAuthentication();
 
-   
+
+
 
     app.Run();
 }

@@ -28,14 +28,11 @@ try
             .Enrich.WithCorrelationId());
 
     //Auth 
-    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
-    if (useAuthFeatureFlag)
-    {
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
             .EnableTokenAcquisitionToCallDownstreamApi()
             .AddInMemoryTokenCaches(); 
-    }
+    
     
     builder.Services
         .ConfigureForwardedHeaders()
@@ -54,11 +51,7 @@ try
         .AddPreservationContext(builder.Configuration)
         .AddControllers(config =>
         {
-            //Auth All Controllers
-            if (useAuthFeatureFlag)
-            {
-               config.Filters.Add(new AuthorizeFilter());
-            }
+            config.Filters.Add(new AuthorizeFilter());
         });
 
    
@@ -72,11 +65,11 @@ try
         .UseForwardedHeaders()
         .TryRunMigrations(builder.Configuration, app.Logger);
     
-    if (useAuthFeatureFlag)
-    {
-        app.UseAuthentication();
-        app.UseAuthorization();
-    }
+    //Auth
+    app.UseCors("AllowAll");
+    app.UseAuthentication();
+    app.UseAuthorization();
+    
 
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Preservation: Hello World!");
