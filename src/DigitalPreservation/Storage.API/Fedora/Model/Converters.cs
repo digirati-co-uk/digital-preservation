@@ -94,7 +94,7 @@ public class Converters
     private void PopulateBaseFields(PreservedResource resource, FedoraJsonLdResponse fedoraJsonLdResponse)
     {
         resource.Id = ConvertToRepositoryUri(fedoraJsonLdResponse.Id);
-        resource.Name = fedoraJsonLdResponse.Title;
+        resource.Name = fedoraJsonLdResponse.Title ?? resource.Id.GetSlug();
         resource.Created = fedoraJsonLdResponse.Created;
         resource.CreatedBy = ConvertToAgentUri(fedoraJsonLdResponse.CreatedBy);
         resource.LastModified = fedoraJsonLdResponse.LastModified;

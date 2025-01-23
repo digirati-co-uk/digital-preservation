@@ -25,6 +25,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.XmlGen\DigitalPreservation.XmlGen.csproj" />
+      <ProjectReference Include="..\Storage.Repository.Common\Storage.Repository.Common.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -5,16 +5,18 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using MediatR;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Features.ImportJobs.Requests;
+using Preservation.API.Mutation;
 
 namespace Preservation.API.Features.ImportJobs;
 
 
 [Route("deposits/{depositId}/[controller]")]
 [ApiController]
-public class ImportJobsController(IMediator mediator) : Controller
+public class ImportJobsController(IMediator mediator, ResourceMutator resourceMutator) : Controller
 {    
     [HttpGet("diff", Name = "GetDiffImportJob")]
     [ProducesResponseType<ImportJob>(200, "application/json")]
@@ -31,6 +33,22 @@ public class ImportJobsController(IMediator mediator) : Controller
         if (validationResult != null) return this.StatusResponseFromResult(validationResult);
         
         var result = await mediator.Send(new GetDiffImportJob(depositResult.Value!));
+        if (result is { Success: true, Value: not null })
+        {
+            // Set the originally requested diff URL
+            var presUri = resourceMutator.PreservationUri;
+            var hostWithPort = presUri.Host;
+            if (presUri.Port != 80)
+            {
+                hostWithPort = presUri.Host + ":" + presUri.Port;
+            }
+            var diffRoute = Url.RouteUrl("GetDiffImportJob", 
+                new { depositId }, presUri.Scheme, hostWithPort);
+            if (diffRoute.HasText())
+            {
+                result.Value.OriginalId = new Uri(diffRoute.ToLowerInvariant());
+            }
+        }
         return this.StatusResponseFromResult(result);
     }
    

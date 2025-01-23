@@ -27,14 +27,20 @@ public class ExecuteImportJobHandler(
         
         var start = DateTime.UtcNow;
         
+        var importJobResult = request.InitialImportJobResult;
+        importJobResult.Status = ImportJobStates.Running;
+        importJobResult.DateBegun = start;
+        importJobResult.LastModified = start;
+        
+        var timer = new Stopwatch();
+        timer.Start();
+        
         var transaction = await fedoraClient.BeginTransaction();
         logger.LogInformation("Fedora transaction begun: " + transaction.Location);
         var validationResult = await fedoraClient.GetValidatedArchivalGroupForImportJob(archivalGroupPathUnderRoot, transaction);
         if (validationResult.Failure)
         {
-            await fedoraClient.RollbackTransaction(transaction);
-            logger.LogError("Failed to retrieve Archival Group for " + archivalGroupPathUnderRoot);
-            return Result.ConvertFailNotNull<ArchivalGroup?, ImportJobResult>(validationResult);
+            return await FailEarly("Failed to retrieve Archival Group for " + archivalGroupPathUnderRoot, validationResult.ErrorCode);
         }
 
         var archivalGroup = validationResult.Value;
@@ -43,16 +49,12 @@ public class ExecuteImportJobHandler(
         {
             if(archivalGroup != null)
             {
-                await fedoraClient.RollbackTransaction(transaction);
-                logger.LogError("Archival Group is not null for new Import: " + archivalGroupPathUnderRoot);
-                return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "An Archival Group has recently been created at " + archivalGroupPathUnderRoot);
+                return await FailEarly("Archival Group is not null for new Import: " + archivalGroupPathUnderRoot, ErrorCodes.Conflict);
             }
 
             if (string.IsNullOrWhiteSpace(importJob.ArchivalGroupName))
             {
-                await fedoraClient.RollbackTransaction(transaction);
-                logger.LogError("Archival Group does not have a name: " + archivalGroupPathUnderRoot);
-                return Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, "No name supplied for this archival group");
+                return await FailEarly("Archival Group does not have a name: " + archivalGroupPathUnderRoot, ErrorCodes.BadRequest);
             }
 
             var archivalGroupResult = await fedoraClient.CreateArchivalGroup(
@@ -63,37 +65,24 @@ public class ExecuteImportJobHandler(
 
             if (archivalGroupResult.Failure || archivalGroupResult.Value is null)
             {
-                await fedoraClient.RollbackTransaction(transaction);
-                logger.LogError("Failed to create archival group: " + archivalGroupPathUnderRoot);
-                return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "No archival group was returned from creation");
+                return await FailEarly("Failed to create archival group: " + archivalGroupPathUnderRoot);
             }
         }
         else
         {
             if(archivalGroup == null)
             {
-                await fedoraClient.RollbackTransaction(transaction);
-                logger.LogError("Archival Group was null for update: " + archivalGroupPathUnderRoot);
-                return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "Not an update but no Archival Group at " + archivalGroupPathUnderRoot);
+                return await FailEarly("Archival Group was null for update: " + archivalGroupPathUnderRoot);
             }
             sourceVersion = archivalGroup.Version!.OcflVersion;
             logger.LogInformation("Archival Group version: " + sourceVersion);
         }
         
-        // We need to keep the transaction alive throughout this process
-        // will need to time operations and call fedora.KeepTransactionAlive
-
-        var importJobResult = request.InitialImportJobResult;
-        importJobResult.Status = ImportJobStates.Running;
         importJobResult.SourceVersion = sourceVersion;
-        importJobResult.DateBegun = start;
-        importJobResult.LastModified = start;
         
-        logger.LogInformation("Saving running ImportJobResult");
+        logger.LogInformation("Saving running ImportJobResult before processing binaries and containers");
         await importJobResultStore.SaveImportJobResult(request.JobIdentifier, importJobResult, true, cancellationToken);
 
-        var timer = new Stopwatch();
-        timer.Start();
         
         logger.LogInformation("Now looping through import job tasks");
         try
@@ -213,9 +202,9 @@ public class ExecuteImportJobHandler(
         return Result.OkNotNull(importJobResult);
 
         
-        async Task<Result<ImportJobResult>> FailEarly(string? errorMessage)
+        async Task<Result<ImportJobResult>> FailEarly(string? errorMessage, string? errorCode = ErrorCodes.UnknownError)
         {
-            logger.LogError("Failing Import Job Early: {errorMessage}", errorMessage);
+            logger.LogError("Failing Import Job Early: {errorCode} - {errorMessage}", errorCode, errorMessage);
             await fedoraClient.RollbackTransaction(transaction);
             importJobResult.Errors = [new Error { Message = errorMessage ?? "" }];
             importJobResult.DateFinished = DateTime.UtcNow;

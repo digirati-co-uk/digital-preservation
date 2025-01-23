@@ -69,6 +69,7 @@ public class Storage(
 
     private async Task<Result> WriteMetsLike(string bucket, string key, WorkingDirectory wd, CancellationToken cancellationToken = default)
     {
+        wd.Modified = DateTime.UtcNow;
         // make sure the key itself is in the WorkingDirectory
         var metsLikeInWorkingDirectory = wd.Files.SingleOrDefault(f => f.LocalPath == key.GetSlug());
         if (metsLikeInWorkingDirectory == null)
@@ -106,42 +107,8 @@ public class Storage(
         }
     }
 
-    // public Result ResultFailFromS3Exception(AmazonS3Exception s3E, string message, Uri s3Uri)
-    // {
-    //     return s3E.StatusCode switch
-    //     {
-    //         HttpStatusCode.NotFound => Result.Fail<WorkingDirectory?>(ErrorCodes.NotFound,
-    //             $"{message} - Not Found for {s3Uri}; {s3E.Message}"),
-    //         HttpStatusCode.Conflict => Result.Fail<WorkingDirectory?>(ErrorCodes.Conflict,
-    //             $"{message} - Conflicting resource at {s3Uri}; {s3E.Message}"),
-    //         HttpStatusCode.Unauthorized => Result.Fail<WorkingDirectory?>(ErrorCodes.Unauthorized,
-    //             $"{message} - Unauthorized for {s3Uri}; {s3E.Message}"),
-    //         HttpStatusCode.BadRequest => Result.Fail<WorkingDirectory?>(ErrorCodes.BadRequest,
-    //             $"{message} - Bad Request for {s3Uri}; {s3E.Message}"),
-    //         _ => Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
-    //             $"{message} - AWS returned status code {s3E.StatusCode} for {s3Uri} with message {s3E.Message}.")
-    //     };
-    // }
-    //
-    // public Result ResultFailFromAwsStatusCode(HttpStatusCode respHttpStatusCode, string message, Uri s3Uri)
-    // {
-    //     return respHttpStatusCode switch
-    //     {
-    //         HttpStatusCode.NotFound => Result.Fail<WorkingDirectory?>(ErrorCodes.NotFound,
-    //             $"{message} - Not Found for {s3Uri}"),
-    //         HttpStatusCode.Conflict => Result.Fail<WorkingDirectory?>(ErrorCodes.Conflict,
-    //             $"{message} - Conflicting resource at {s3Uri}."),
-    //         HttpStatusCode.Unauthorized => Result.Fail<WorkingDirectory?>(ErrorCodes.Unauthorized,
-    //             $"{message} - Unauthorized for {s3Uri}."),
-    //         HttpStatusCode.BadRequest => Result.Fail<WorkingDirectory?>(ErrorCodes.BadRequest,
-    //             $"{message} - Bad Request for {s3Uri}."),
-    //         _ => Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError,
-    //             $"{message} - AWS returned status code {respHttpStatusCode} for {s3Uri}.")
-    //     };
-    // }
-    
-
-    private static WorkingDirectory RootDirectory()
+  
+    public static WorkingDirectory RootDirectory()
     {
         return new WorkingDirectory
         {
@@ -556,14 +523,6 @@ public class Storage(
         };
         
         return Result.OkNotNull(importSource);
-    }
-
-    public async Task<Result> EmbellishImportJob(ImportJob importJob)
-    {
-        // TODO: Here is where we would read METS files (not just our own metsLike) and
-        // look for name (label), checksum and contentType information, and embellish the WorkingDirectory
-
-        return Result.Ok();
     }
 
     public async Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest)

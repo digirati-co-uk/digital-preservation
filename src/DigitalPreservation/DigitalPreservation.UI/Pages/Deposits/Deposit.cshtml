@@ -120,6 +120,14 @@ ViewData["active"] = Model.Deposit?.Active;
                     </fieldset>
                 </form>
                 
+                <div>
+                    <form class="single-submit" method="post">
+                        <button type="submit" asp-page-handler="RebuildMetsLike" class="btn btn-sm btn-outline-primary me-2" id="rebuildMets">
+                            <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Refresh storage</span>
+                        </button>
+                        <label for="rebuildMets">Deposit structure built @(Model.Files?.Modified.GetDateDisplay() ?? " - ")</label>
+                    </form>
+                </div>
                 
                 @if (Model.Deposit.Status != DepositStates.Exporting)
                 {                

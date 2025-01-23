@@ -16,7 +16,10 @@ public class ResourceMutator(
 {
     private readonly string storageHost = options.Value.Storage;
     private readonly string preservationHost = options.Value.Preservation;
-    
+
+    public Uri StorageUri { get; } = new(options.Value.Storage);
+    public Uri PreservationUri { get; } = new(options.Value.Preservation);
+
     internal PreservedResource? MutateStorageResource(PreservedResource? storageResource)
     {
         if (storageResource == null) return null;
@@ -233,6 +236,7 @@ public class ResourceMutator(
             MutatePreservationResource(binary);
         }
     }
+
 
     public void MutateStorageImportJobResult(ImportJobResult storageImportJobResult, string depositId, string resultId)
     {

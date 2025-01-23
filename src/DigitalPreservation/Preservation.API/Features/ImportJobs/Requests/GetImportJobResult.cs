@@ -71,6 +71,12 @@ public class GetImportJobResultHandler(
             entity.NewVersion = storageApiImportJobResult.NewVersion;
             entity.SourceVersion = storageApiImportJobResult.SourceVersion;
             entity.LatestStorageApiResultJson = JsonSerializer.Serialize(storageApiImportJobResult);
+
+            var originalImportJob = JsonSerializer.Deserialize<ImportJob>(entity.ImportJobJson);
+            if (originalImportJob != null)
+            {
+                preservationApiImportJobResult.OriginalImportJob = originalImportJob.OriginalId;
+            }
             entity.LatestPreservationApiResultJson = JsonSerializer.Serialize(preservationApiImportJobResult);
 
             if (isComplete && !wasComplete)

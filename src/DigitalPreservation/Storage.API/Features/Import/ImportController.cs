@@ -73,9 +73,7 @@ public class ImportController(
                 archivalGroupResult.Value, 
                 sourceUri, 
                 archivalGroupPathUnderRoot, 
-                archivalGroupName: null,
-                errorIfMissingChecksum: true, 
-                relyOnMetsLike: false), // <== storage API will regenerate METSLike
+                archivalGroupName: null),
             cancellationToken);
         
         return this.StatusResponseFromResult(importJobResult);

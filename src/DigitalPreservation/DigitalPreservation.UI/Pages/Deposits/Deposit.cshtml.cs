@@ -272,6 +272,28 @@ public class DepositModel : PageModel
         return Page();
     }
 
+    public async Task<IActionResult> OnPostRebuildMetsLike([FromRoute] string id)
+    {
+        var getDepositResult = await mediator.Send(new GetDeposit(id));
+        if (getDepositResult.Success)
+        {
+            var readS3Result = await mediator.Send(new GetWorkingDirectory(
+                getDepositResult.Value!.Files!, true, true));
+            
+            if (readS3Result.Value == null)
+            {
+                TempData["Error"] = "Could not read S3 storage.";
+                return Redirect($"/deposits/{id}");
+            }
+            
+            TempData["Valid"] = "View of storage has been updated from S3";
+            return Redirect($"/deposits/{id}");
+        }
+
+        TempData["Error"] = "Could not GET deposit " + id;
+        return Redirect($"/deposits/{id}");
+    }
+
     public async Task<IActionResult> OnPostValidateStorage([FromRoute] string id)
     {
         var getDepositResult = await mediator.Send(new GetDeposit(id));

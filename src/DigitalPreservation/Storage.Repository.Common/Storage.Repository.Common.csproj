@@ -14,6 +14,10 @@
       <PackageReference Include="MediatR" Version="12.4.1" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="MimeTypes" Version="2.5.2">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
     </ItemGroup>
 
     <ItemGroup>

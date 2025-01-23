@@ -1,4 +1,5 @@
 using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Preservation.API.Data;
@@ -7,6 +8,7 @@ using Preservation.API.Mutation;
 using Serilog;
 using Storage.Client;
 using Storage.Repository.Common;
+using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
@@ -36,6 +38,7 @@ try
         .AddStorageClient(builder.Configuration, "Preservation-API")
         .AddResourceMutator(builder.Configuration)
         .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
+        .AddSingleton<IMetsParser, MetsParser>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddPreservationContext(builder.Configuration)

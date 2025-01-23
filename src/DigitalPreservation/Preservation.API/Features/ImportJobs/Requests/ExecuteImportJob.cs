@@ -34,6 +34,7 @@ public class ExecuteImportJobHandler(
             var storageImportJobResult = storageImportJobResultResult.Value;
             var preservationImportJobResult = Duplicate(storageImportJobResult);
             resourceMutator.MutateStorageImportJobResult(preservationImportJobResult, request.ImportJob.Deposit!, mintedId);
+            preservationImportJobResult.OriginalImportJob = request.ImportJob.OriginalId;
             var entity = new ImportJobEntity
             {
                 StorageImportJobResultId = storageImportJobResult.Id!,

@@ -9,26 +9,19 @@ using Storage.Repository.Common;
 
 namespace Storage.API.Features.Import.Requests;
 
-// TODO: I think this IRequest is used by storage and preservation?
-// embellish from METS is something only preservation API should know about but we don't want to make 2 import jobs..
-
-// No - Storage API reads everything from the source but does not embellish from METS.
+// Storage API reads everything from the source but does not embellish from METS.
 // This class is storage API only.
-// But Preservation API does the embellishing.
+// Preservation API does the embellishing.
 public class GetDiffImportJob(
     ArchivalGroup? archivalGroup, 
     Uri sourceUri, 
     string archivalGroupPathUnderRoot, 
-    string? archivalGroupName, 
-    bool errorIfMissingChecksum, 
-    bool relyOnMetsLike) : IRequest<Result<ImportJob>>
+    string? archivalGroupName) : IRequest<Result<ImportJob>>
 {
     public ArchivalGroup? ArchivalGroup { get; } = archivalGroup;
     public Uri SourceUri { get; } = sourceUri;
     public string ArchivalGroupPathUnderRoot { get; } = archivalGroupPathUnderRoot;
     public string? ArchivalGroupName { get; } = archivalGroupName;
-    public bool ErrorIfMissingChecksum { get; } = errorIfMissingChecksum;
-    public bool RelyOnMetsLike { get; } = relyOnMetsLike;
 }
 
 public class GetDiffImportJobHandler(IStorage storage, Converters converters) : IRequestHandler<GetDiffImportJob, Result<ImportJob>>
@@ -37,7 +30,7 @@ public class GetDiffImportJobHandler(IStorage storage, Converters converters) : 
     {
         var importSourceResult = await storage.GetImportSource(
             request.SourceUri, 
-            request.RelyOnMetsLike,
+            false,
             cancellationToken);
         if (importSourceResult.Failure)
         {
@@ -67,18 +60,6 @@ public class GetDiffImportJobHandler(IStorage storage, Converters converters) : 
         var importContainer = source.AsContainer(importJob.ArchivalGroup);
         var (sourceContainers, sourceBinaries) = importContainer.Flatten();
 
-        if (request.ErrorIfMissingChecksum)
-        {
-            var missingTheirChecksum = sourceBinaries
-                .Where(b => b.Digest.IsNullOrWhiteSpace())
-                .Where(b => b.Id!.GetSlug() != IStorage.MetsLike)
-                .ToList();
-            if (missingTheirChecksum.Count > 0)
-            {
-                var first = missingTheirChecksum.First().Id!.GetSlug();
-                return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, $"{missingTheirChecksum.Count} file(s) do not have a checksum, including {first}");
-            }
-        }
         if (request.ArchivalGroup == null)
         {
             // This is a new object

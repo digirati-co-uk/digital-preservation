@@ -10,6 +10,10 @@ public class ImportJob : Resource
     [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(ImportJob);
     
+    [JsonPropertyOrder(3)]
+    [JsonPropertyName("originalId")]
+    public Uri? OriginalId { get; set; }
+    
     /// <summary>
     /// The Deposit that was used to generate this job, and to which it will be sent if executed.
     /// Only applicable when the ImportJob is returned by the Preservation API, not Storage

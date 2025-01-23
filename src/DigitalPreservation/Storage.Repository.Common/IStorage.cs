@@ -58,7 +58,6 @@ public interface IStorage
     Task<Result<ImportSource>> GetImportSource(Uri sourceUri, bool relyOnMetsLike, CancellationToken cancellationToken);
 
     static string MetsLike => "__METSlike.json";
-    Task<Result> EmbellishImportJob(ImportJob importJob);
     Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest);
     Task<byte[]> GetBytes(Uri binaryOrigin);
 }
