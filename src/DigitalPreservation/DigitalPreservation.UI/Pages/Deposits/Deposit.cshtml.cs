@@ -67,6 +67,20 @@ public class DepositModel : PageModel
             if (readS3Result.Success)
             {
                 Files = readS3Result.Value!;
+                if (Files.Modified < Deposit.LastModified)
+                {
+                    var updatedS3Result = await mediator.Send(
+                        new GetWorkingDirectory(Deposit.Files!, true, true));
+                    if (updatedS3Result.Success)
+                    {
+                        Files = updatedS3Result.Value!;
+                        TempData["Updated"] = "View of Deposit files updated.";
+                    }
+                    else
+                    {
+                        TempData["Error"] = "Unable to update METSLike - " + updatedS3Result.ErrorMessage;
+                    }
+                }
             }
             else
             {

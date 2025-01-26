@@ -96,7 +96,7 @@ public class GetDiffImportJobHandler(IStorage storage, Converters converters) : 
             var existingBinary = allExistingBinaries.Single(eb => eb.Id == sourceBinary.Id);
             if (string.IsNullOrEmpty(existingBinary.Digest) || string.IsNullOrEmpty(sourceBinary.Digest))
             {
-                throw new Exception("Missing digest in diff operation for " + existingBinary.Id);
+                throw new Exception("Missing digest on existing binary in diff operation for " + existingBinary.Id);
             }
 
             if (existingBinary.Digest != sourceBinary.Digest)

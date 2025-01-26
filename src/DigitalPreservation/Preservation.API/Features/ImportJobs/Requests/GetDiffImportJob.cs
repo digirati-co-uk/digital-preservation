@@ -91,6 +91,7 @@ public class GetDiffImportJobHandler(
                 }
                 binary.Digest = metsPhysicalFile.Digest;
                 binary.Name = metsPhysicalFile.Name;
+                binary.ContentType = metsPhysicalFile.ContentType; // need to set this
             }
             
             var missingTheirChecksum = sourceBinaries

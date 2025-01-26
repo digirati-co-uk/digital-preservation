@@ -104,6 +104,14 @@ public class ImportJob : Resource
     [JsonPropertyOrder(650)]
     public List<Binary> BinariesToPatch { get; set; } = [];
     
+    
+    
+    
+    
+    
+    
+    
+    
     // TODO: (not for demo) - change name (dc:title) of containers and binaries
     /// <summary>
     /// This cannot change the slug (path) but can change the name - i.e., the dc:title

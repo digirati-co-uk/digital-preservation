@@ -501,7 +501,7 @@ public class Storage(
         }
         else
         {
-            readResult = await GenerateMetsLike(s3Uri, false, cancellationToken);
+            readResult = await GenerateMetsLike(s3Uri, true, cancellationToken);
         }
         
         if (readResult is { Success: true, Value: not null })
