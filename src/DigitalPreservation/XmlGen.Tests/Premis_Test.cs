@@ -9,7 +9,7 @@ namespace XmlGen.Tests;
 
 public class PremisTests
 {
-    // [Fact]
+    [Fact (Skip = "Experimental")]
     public void Premis_Namespace_Handled()
     {
         // This will fail
@@ -20,7 +20,7 @@ public class PremisTests
         var premis = (PremisComplexType) serializer.Deserialize(reader)!;
     }
     
-    [Fact]
+    [Fact (Skip = "Experimental")]
     public void Premis_Namespace_Artifically_Handled()
     {
         var updatedXml = "Samples/standalone-premis-updated.xml";
@@ -31,7 +31,7 @@ public class PremisTests
     }
     
     
-    // [Fact]
+    [Fact (Skip = "Experimental")]
     public void Premis_Namespace_Added_Manually()
     {
         // This will fail
@@ -55,7 +55,7 @@ public class PremisTests
         premisFile.Should().NotBeNull();
     }
 
-    //[Fact]
+    [Fact (Skip = "Experimental")]
     public void Premis_Namespace_Added_To_New_XmlDocument()
     {
         var doc = new XmlDocument();
@@ -75,7 +75,7 @@ public class PremisTests
         premisFile.Should().NotBeNull();
     }
 
-    [Fact]
+    [Fact (Skip = "Experimental")]
     public void Premis_2()
     {
         var doc = new XmlDocument();

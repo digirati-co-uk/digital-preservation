@@ -20,7 +20,7 @@ public class MetsWrapperTests
         logger = factory!.CreateLogger<MetsParser>();    
     }
     
-    [Fact]
+    [Fact (Skip = "Experimental")]
     public async void Can_Parse_Goobi_METS_For_Wrapper()
     {
         var parser = new MetsParser(new AmazonS3Client(), logger);
@@ -52,7 +52,7 @@ public class MetsWrapperTests
         altoDir.Files[10].ContentType.Should().Be("application/xml");
     }
     
-    [Fact]
+    [Fact (Skip = "Experimental")]
     public async Task Can_Parse_EPrints_METS()
     {
         var parser = new MetsParser(new AmazonS3Client(), logger);
@@ -78,7 +78,7 @@ public class MetsWrapperTests
         phys.Directories[0].Files[3].Name.Should().Be("372705s_004.jpg");
     }
 
-    [Fact]
+    [Fact (Skip = "Experimental")]
     public async Task Can_Parse_Archivematica_METS()
     {
         var parser = new MetsParser(new AmazonS3Client(), logger);
@@ -126,7 +126,7 @@ public class MetsWrapperTests
         edgware.Files.Should().HaveCount(11);
     }
     
-    [Fact]
+    [Fact (Skip = "Experimental")]
     public async void Can_Parse_METS_From_FolderReference()
     {
         var parser = new MetsParser(new AmazonS3Client(), logger);

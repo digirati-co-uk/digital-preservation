@@ -235,6 +235,7 @@ public class MetsManager(
             var (mets, file) = result.Value;
             
             // Add workingFile to METS
+            // 
             
             await WriteMets(file, mets);
             return Result.Ok();
