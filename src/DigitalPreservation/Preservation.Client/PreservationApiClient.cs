@@ -112,6 +112,7 @@ internal class PreservationApiClient(
         {
             postTarget = new Uri($"/{Deposit.BasePathElement}/export", UriKind.Relative);
             deposit.VersionExported = exportVersion;
+            deposit.UseObjectTemplate = useObjectTemplate; // TODO: for consideration, probably never happen after dev
         }
         else
         {

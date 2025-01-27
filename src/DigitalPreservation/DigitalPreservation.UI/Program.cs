@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Core.Configuration;
+﻿using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
@@ -10,6 +11,7 @@ using Serilog;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 using Microsoft.Identity.Web.UI;
+using Storage.Repository.Common.Mets;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -70,6 +72,8 @@ try
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
         })
         .AddStorageAwsAccess(builder.Configuration)
+        .AddSingleton<IMetsParser, MetsParser>()
+        .AddSingleton<IMetsManager, MetsManager>()
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks();
        

@@ -39,6 +39,8 @@ public class MetsParser(
                 // and in the flat list
                 mets.Files.Add(mets.Self);
             }
+
+            mets.XDocument = xMets;
         }
         return Result.OkNotNull(mets);
     }

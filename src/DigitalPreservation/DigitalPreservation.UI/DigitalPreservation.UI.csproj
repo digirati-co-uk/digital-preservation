@@ -29,4 +29,10 @@
       <AdditionalFiles Include="Views\Shared\Components\Pager\Default.cshtml" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Reference Include="Storage.Repository.Common">
+        <HintPath>..\XmlGen.Tests\bin\Debug\net8.0\Storage.Repository.Common.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
 </Project>

@@ -72,7 +72,7 @@ public class MetsManager(
 
         foreach (var binary in container.Binaries)
         {
-            var localPath = binary.Id!.ToString().RemoveStart(archivalGroup.Id!.ToString());
+            var localPath = binary.Id!.ToString().RemoveStart(archivalGroup.Id!.ToString()).RemoveStart("/");
             var fileId = "FILE_" + localPath;
             var admId = "ADM_" + localPath;
             var techMdId = "TECH_" + localPath;
@@ -337,7 +337,7 @@ public class MetsManager(
         return mets;
     }
     const string PremisFixityWrapper = """
-                                       <premis:object xmlns:premis="http://www.loc.gov/premis/v3" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd" version="3.0">
+                                       <premis:object xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:premis="http://www.loc.gov/premis/v3" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd" version="3.0">
                                            <premis:objectCharacteristics>
                                                <premis:fixity>
                                                    <premis:messageDigestAlgorithm>sha256</premis:messageDigestAlgorithm>

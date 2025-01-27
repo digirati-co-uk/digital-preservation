@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Transit;
+﻿using System.Xml.Linq;
+using DigitalPreservation.Common.Model.Transit;
 
 namespace DigitalPreservation.Common.Model.Mets;
 
@@ -20,4 +21,5 @@ public class MetsFileWrapper
 
     // A list of all the files mentioned, with their names and hashes (digests)
     public List<WorkingFile> Files { get; set; } = [];
+    public XDocument? XDocument { get; set; }
 }
