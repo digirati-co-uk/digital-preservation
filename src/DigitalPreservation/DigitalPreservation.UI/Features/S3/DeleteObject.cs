@@ -2,6 +2,7 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Storage.Repository.Common;
@@ -15,7 +16,10 @@ public class DeleteObject(Uri s3Root, string path) : IRequest<Result>
     public string Path { get; } = path;
 }
 
-public class DeleteObjectHandler(IAmazonS3 s3Client, IStorage storage) : IRequestHandler<DeleteObject, Result>
+public class DeleteObjectHandler(
+    IAmazonS3 s3Client,
+    IStorage storage,
+    IMetsManager metsManager) : IRequestHandler<DeleteObject, Result>
 {
     public async Task<Result> Handle(DeleteObject request, CancellationToken cancellationToken)
     {
@@ -32,6 +36,10 @@ public class DeleteObjectHandler(IAmazonS3 s3Client, IStorage storage) : IReques
             if (response.HttpStatusCode == HttpStatusCode.NoContent)
             {
                 var removeFromMetsResult = await storage.DeleteFromMetsLike(s3Uri, IStorage.MetsLike, request.Path, cancellationToken);
+                if (removeFromMetsResult.Success)
+                {
+                    await metsManager.HandleDeleteObject(s3Uri.ToUri(), request.Path);
+                }
                 return removeFromMetsResult;
             }
             return ResultHelpers.FailFromAwsStatusCode<object>(response.HttpStatusCode, "Could not delete object.", dor.GetS3Uri());

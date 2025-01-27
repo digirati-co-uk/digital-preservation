@@ -16,6 +16,13 @@ public static class XElementX
         return (ModsDefinition?)serializer.Deserialize(xmlNodeReader);
     }
     
+    
+    const string PremisWrapperXml = @"<premis:premis version=""3.0""
+               xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance""
+               xmlns:premis=""http://www.loc.gov/premis/v3""
+               xsi:schemaLocation=""http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd""
+></premis:premis>";
+    
     /// <summary>
     /// The XML data might be a premis:premis, or a premis:object
     /// </summary>
@@ -30,13 +37,8 @@ public static class XElementX
         XmlNode nodeToRead;
         if (rawPremisXml.Name != "premis:premis")
         {
-            const string xml = @"<premis:premis version=""3.0""
-               xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance""
-               xmlns:premis=""http://www.loc.gov/premis/v3""
-               xsi:schemaLocation=""http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd""
-></premis:premis>";
             var premisDoc = new XmlDocument();
-            premisDoc.LoadXml(xml);
+            premisDoc.LoadXml(PremisWrapperXml);
             rawPremisXml.RemoveAttribute("version");
             rawPremisXml.RemoveAttribute("xsi:schemaLocation");
             var importNode = premisDoc.ImportNode(rawPremisXml, true);

@@ -3,6 +3,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
@@ -21,7 +22,10 @@ public class CreateFolder(Uri s3Root, string name, string newFolderSlug, string?
 }
 
 
-public class CreateFolderHandler(IAmazonS3 s3Client, IStorage storage) : IRequestHandler<CreateFolder, Result<WorkingDirectory?>>
+public class CreateFolderHandler(
+    IAmazonS3 s3Client,
+    IStorage storage,
+    IMetsManager metsManager) : IRequestHandler<CreateFolder, Result<WorkingDirectory?>>
 {
     public async Task<Result<WorkingDirectory?>> Handle(CreateFolder request, CancellationToken cancellationToken)
     {
@@ -66,6 +70,7 @@ public class CreateFolderHandler(IAmazonS3 s3Client, IStorage storage) : IReques
             var newRootResult = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, dir, cancellationToken);
             if (newRootResult.Success)
             {
+                await metsManager.HandleCreateFolder(s3Uri.ToUri(), dir);
                 return Result.Ok(dir);
             }
             return Result.Generify<WorkingDirectory?>(newRootResult);

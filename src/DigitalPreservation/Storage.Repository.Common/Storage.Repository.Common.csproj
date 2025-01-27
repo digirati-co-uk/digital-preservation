@@ -22,6 +22,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Common.Model\DigitalPreservation.Common.Model.csproj" />
+      <ProjectReference Include="..\DigitalPreservation.XmlGen\DigitalPreservation.XmlGen.csproj" />
     </ItemGroup>
 
 </Project>

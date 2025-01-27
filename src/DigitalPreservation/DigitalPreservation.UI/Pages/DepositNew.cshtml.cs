@@ -30,7 +30,8 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                 ArchivalGroupPathUnderRoot = archivalGroupPath,
                 ArchivalGroupProposedName = result.Value!.Name!,
                 SubmissionText = submissionText,
-                Export = export
+                Export = export,
+                UseObjectTemplate = true // TODO - this will cause a METS to be created if one can't be found
             };
             return await OnPostCreate(model);
         }

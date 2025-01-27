@@ -32,32 +32,6 @@ public class StorageApiClient(
         return await TestArchivalGroupPathInternal(reqPath);
     }
     
-    public async Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri)
-    {       
-        var reqPath = $"import/diff/{archivalGroupPathUnderRoot}?source={sourceUri}";
-        var uri = new Uri(reqPath, UriKind.Relative);
-        try
-        {
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await storageHttpClient.SendAsync(req);
-            if (response.IsSuccessStatusCode)
-            {
-                var importJob = await response.Content.ReadFromJsonAsync<ImportJob>();
-                if(importJob != null)
-                {
-                    return Result.OkNotNull(importJob);
-                }
-                return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, "Resource could not be parsed.");
-            }
-            return await response.ToFailNotNullResult<ImportJob>();
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, e.Message);
-        }
-    }
-
     public async Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri)
     {        
         try

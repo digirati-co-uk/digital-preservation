@@ -3,11 +3,13 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
 using MediatR;
 using Storage.Repository.Common;
+using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.UI.Features.S3;
@@ -23,7 +25,10 @@ public class UploadFileToDeposit(Uri s3Root, string? parent, string slug, IFormF
     public string ContentType { get; } = contentType;
 }
 
-public class UploadFileToDepositHandler(IAmazonS3 s3Client, IStorage storage) : IRequestHandler<UploadFileToDeposit, Result<WorkingFile?>>
+public class UploadFileToDepositHandler(
+    IAmazonS3 s3Client,
+    IStorage storage,
+    IMetsManager metsManager) : IRequestHandler<UploadFileToDeposit, Result<WorkingFile?>>
 {
     public async Task<Result<WorkingFile?>> Handle(UploadFileToDeposit request, CancellationToken cancellationToken)
     {
@@ -70,6 +75,8 @@ public class UploadFileToDepositHandler(IAmazonS3 s3Client, IStorage storage) : 
                 var saveResult = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, file, cancellationToken);
                 if (saveResult.Success)
                 {
+                    // TODO - result this up... 
+                    await metsManager.HandleSingleFileUpload(s3Uri.ToUri(), file);
                     return Result.Ok(file);
                 }
                 return Result.Generify<WorkingFile?>(saveResult);

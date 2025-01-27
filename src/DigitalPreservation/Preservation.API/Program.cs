@@ -39,6 +39,7 @@ try
         .AddResourceMutator(builder.Configuration)
         .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
         .AddSingleton<IMetsParser, MetsParser>()
+        .AddSingleton<IMetsManager, MetsManager>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddPreservationContext(builder.Configuration)

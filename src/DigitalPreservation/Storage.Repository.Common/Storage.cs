@@ -489,20 +489,11 @@ public class Storage(
 
     public async Task<Result<ImportSource>> GetImportSource(
         Uri sourceUri,
-        bool relyOnMetsLike,
         CancellationToken cancellationToken)
     { 
         var s3Uri = new AmazonS3Uri(sourceUri);
         WorkingDirectory workingDirectory;
-        Result<WorkingDirectory?>? readResult;
-        if (relyOnMetsLike)
-        {
-            readResult = await ReadMetsLike(s3Uri, IStorage.MetsLike, cancellationToken);
-        }
-        else
-        {
-            readResult = await GenerateMetsLike(s3Uri, true, cancellationToken);
-        }
+        var readResult = await GenerateMetsLike(s3Uri, true, cancellationToken);
         
         if (readResult is { Success: true, Value: not null })
         {

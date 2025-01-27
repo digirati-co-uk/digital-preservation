@@ -168,41 +168,7 @@ public class ResourceMutator(
     {
         return deposits.Select(MutateDeposit).ToList();
     }
-
-    public void MutateStorageImportJob(ImportJob storageImportJob)
-    {
-        MutateStorageBaseUris(storageImportJob);
-        storageImportJob.ArchivalGroup = MutateStorageApiUri(storageImportJob.ArchivalGroup)!;
-        foreach (var container in storageImportJob.ContainersToAdd)
-        {
-            MutateStorageResource(container);
-        }
-        foreach (var container in storageImportJob.ContainersToDelete)
-        {
-            MutateStorageResource(container);
-        }
-        foreach (var binary in storageImportJob.BinariesToAdd)
-        {
-            MutateStorageResource(binary);
-        }
-        foreach (var binary in storageImportJob.BinariesToDelete)
-        {
-            MutateStorageResource(binary);
-        }
-        foreach (var binary in storageImportJob.BinariesToPatch)
-        {
-            MutateStorageResource(binary);
-        }
-        foreach (var container in storageImportJob.ContainersToRename)
-        {
-            MutateStorageResource(container);
-        }
-        foreach (var binary in storageImportJob.BinariesToRename)
-        {
-            MutateStorageResource(binary);
-        }
-    }
-
+    
     public void MutatePreservationImportJob(ImportJob preservationImportJob)
     {
         MutatePreservationBaseUris(preservationImportJob);

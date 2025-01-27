@@ -55,7 +55,7 @@ public interface IStorage
     /// <param name="relyOnMetsLike">If true, won't even look at S3 for checksums, contentType etc and will use the __METSlike.json</param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task<Result<ImportSource>> GetImportSource(Uri sourceUri, bool relyOnMetsLike, CancellationToken cancellationToken);
+    Task<Result<ImportSource>> GetImportSource(Uri sourceUri, CancellationToken cancellationToken);
 
     static string MetsLike => "__METSlike.json";
     Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest);

@@ -30,7 +30,7 @@ public interface IStorageApiClient
     Task<Result<ArchivalGroup?>> GetArchivalGroup(string path, string? version);
     
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
-    Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri);
+    
     Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob requestImportJob, CancellationToken cancellationToken = default);
     Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri);
     Task<Result<Export>> ExportArchivalGroup(Uri archivalGroup, Uri exportLocation, string versionToExport, CancellationToken cancellationToken = default);

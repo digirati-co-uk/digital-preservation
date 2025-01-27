@@ -17,28 +17,8 @@ public class MetsParser(
 {
     public async Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation)
     {
-        // If metsLocation ends with .xml, it's assumed to be the METS file itself.
-        // If not, it's assumed to be its containing directory / key.
-        // No other possibilities are supported.
-        Uri root;
-        Uri? file = null;
-        if (metsLocation.AbsoluteUri.ToLowerInvariant().EndsWith(".xml"))
-        {
-            file = metsLocation;
-            root = new Uri(metsLocation.AbsoluteUri.GetParent() + "/");
-        }
-        else
-        {
-            if (metsLocation.AbsoluteUri.EndsWith("/"))
-            {
-                root = metsLocation;
-            }
-            else
-            {
-                root = new Uri(metsLocation.AbsoluteUri + "/");
-            }
-        }
         // might be a file path or an S3 URI
+        var (root, file) = MetsUtils.GetRootAndFile(metsLocation);
         var mets = new MetsFileWrapper
         {
             Root = root,
@@ -63,6 +43,8 @@ public class MetsParser(
         return Result.OkNotNull(mets);
     }
 
+
+
     private async Task<WorkingFile?> FindMetsFileAsync(Uri root, Uri? file)
     {
         // This "find the METS file" logic is VERY basic and doesn't even look at the file.
@@ -79,7 +61,7 @@ public class MetsParser(
                 }
                 
                 // Need to find the METS
-                var firstXmlFile = dir.EnumerateFiles().FirstOrDefault(f => f.Name.ToLowerInvariant().EndsWith(".xml"));
+                var firstXmlFile = dir.EnumerateFiles().FirstOrDefault(f => MetsUtils.IsMetsFile(f.Name));
                 if (firstXmlFile != null)
                 {
                     return GetWorkingFileFromFileInfo(firstXmlFile);
@@ -168,9 +150,11 @@ public class MetsParser(
         public void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
         {
             var modsTitle = xMets.Descendants(XNames.mods + "title").FirstOrDefault()?.Value;
-            if (!string.IsNullOrWhiteSpace(modsTitle))
+            var modsName = xMets.Descendants(XNames.mods + "name").FirstOrDefault()?.Value;
+            string? name = modsTitle ?? modsName;
+            if (!string.IsNullOrWhiteSpace(name))
             {
-                mets.Name = modsTitle;
+                mets.Name = name;
             }
             // TODO - where else to look for title?
 
