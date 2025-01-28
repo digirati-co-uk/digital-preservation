@@ -1,12 +1,11 @@
 ﻿using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
-using Microsoft.Identity.Web;
+
 using HttpHeaders = DigitalPreservation.Core.Web.Headers.HttpHeaders;
 
 namespace DigitalPreservation.CommonApiClient;
@@ -16,41 +15,8 @@ namespace DigitalPreservation.CommonApiClient;
 /// </summary>
 /// <param name="httpClient"></param>
 /// <param name="logger"></param>
-/// <param name="tokenAcquisition">Optional tokenAcquisition from MSIL</param>
-/// <param name="tokenScope">Optional Token Scope</param>
-public abstract class CommonApiBase(HttpClient httpClient, ILogger logger, ITokenAcquisition? tokenAcquisition, ITokenScope? tokenScope)
+public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
 {
-
-    private async Task<string?> GetBearToken()
-    {
-        try
-        {
-            if (tokenAcquisition is null || tokenScope  is null)
-                return null;
-
-            var scopes = tokenScope?.ScopeUri?.Split(" ") ?? [];
-            var accessToken = await tokenAcquisition.GetAccessTokenForUserAsync(scopes);
-            return accessToken;
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, $"CommonApiBase failed to get user bearer token:  + {e.Message} ");
-            return null;
-
-        }
-        
-    }
-
-
-    private async Task SetBearerToken(HttpRequestMessage request)
-    {
-        var token = await GetBearToken();
-
-        if (token != null)
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-    }
 
     public async Task<Result<PreservedResource?>> GetResource(string path)
     {
@@ -78,7 +44,6 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger, IToke
             }
             var uri = new Uri(path, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            await SetBearerToken(req);
 
             var response = await httpClient.SendAsync(req);
             var stream = await response.Content.ReadAsStreamAsync();

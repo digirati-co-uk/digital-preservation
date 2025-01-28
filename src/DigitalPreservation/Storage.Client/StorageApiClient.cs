@@ -18,7 +18,7 @@ namespace Storage.Client;
 /// </remarks>
 public class StorageApiClient(
     HttpClient httpClient, 
-    ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger, null, null ), IStorageApiClient
+    ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger), IStorageApiClient
 {
     private readonly HttpClient storageHttpClient = httpClient;
 

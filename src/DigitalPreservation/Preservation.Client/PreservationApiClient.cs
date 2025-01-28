@@ -7,14 +7,13 @@ using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
-using Microsoft.Identity.Web;
 using Storage.Repository.Common;
 
 namespace Preservation.Client;
 
 internal class PreservationApiClient(
     HttpClient httpClient,
-    ILogger<PreservationApiClient> logger, ITokenAcquisition tokenAcquisition, ITokenScope? tokenScope) : CommonApiBase(httpClient, logger, tokenAcquisition, tokenScope), IPreservationApiClient
+    ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
