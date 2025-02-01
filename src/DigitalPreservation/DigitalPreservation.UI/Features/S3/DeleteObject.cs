@@ -10,10 +10,11 @@ using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.UI.Features.S3;
 
-public class DeleteObject(Uri s3Root, string path) : IRequest<Result>
+public class DeleteObject(Uri s3Root, string path, string metsETag) : IRequest<Result>
 {
     public Uri S3Root { get; } = s3Root;
     public string Path { get; } = path;
+    public string MetsETag { get; } = metsETag;
 }
 
 public class DeleteObjectHandler(
@@ -38,7 +39,7 @@ public class DeleteObjectHandler(
                 var removeFromMetsResult = await storage.DeleteFromMetsLike(s3Uri, IStorage.MetsLike, request.Path, cancellationToken);
                 if (removeFromMetsResult.Success)
                 {
-                    await metsManager.HandleDeleteObject(s3Uri.ToUri(), request.Path);
+                    await metsManager.HandleDeleteObject(s3Uri.ToUri(), request.Path, request.MetsETag);
                 }
                 return removeFromMetsResult;
             }

@@ -26,7 +26,7 @@ public class MetsManager(
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
         var (file, mets) = GetStandardMets(metsLocation, agNameFromDeposit);
-        var writeResult = await WriteMets(file, mets);
+        var writeResult = await WriteMets(new FullMets{ Mets = mets, Uri = file });
         if (writeResult.Success)
         {
             return await metsParser.GetMetsFileWrapper(file);
@@ -40,7 +40,7 @@ public class MetsManager(
         
         AddResourceToMets(mets, archivalGroup, mets.StructMap[0].Div, archivalGroup);
         
-        var writeResult = await WriteMets(file, mets);
+        var writeResult = await WriteMets(new FullMets{ Mets = mets, Uri = file });
         if (writeResult.Success)
         {
             return await metsParser.GetMetsFileWrapper(file);
@@ -51,7 +51,7 @@ public class MetsManager(
 
     /// <summary>
     /// This builds up the METS file from repository resources, not working files
-    /// This will ikely never be used in production
+    /// This will likely never be used in production
     /// </summary>
     /// <param name="mets"></param>
     /// <param name="archivalGroup"></param>
@@ -132,7 +132,7 @@ public class MetsManager(
 
 
     
-    private async Task<Result> WriteMets(Uri file, DigitalPreservation.XmlGen.Mets.Mets mets)
+    private async Task<Result> WriteMets(FullMets fullMets)
     {
         // TODO - re-use serializer? re-use XmlSerializerNamespaces GetNamespaces()?
         
@@ -145,18 +145,18 @@ public class MetsManager(
             Encoding = Encoding.UTF8,
             Indent = true,
         });
-        serializer.Serialize(writer, mets, GetNamespaces());
+        serializer.Serialize(writer, fullMets.Mets, GetNamespaces());
         writer.Close();
         var xml = sb.ToString();
 
-        switch (file.Scheme)
+        switch (fullMets.Uri.Scheme)
         {
             case "file":
-                await File.WriteAllTextAsync(file.LocalPath, xml);
+                await File.WriteAllTextAsync(fullMets.Uri.LocalPath, xml);
                 return Result.Ok();
             
             case "s3":
-                var awsUri = new AmazonS3Uri(file);
+                var awsUri = new AmazonS3Uri(fullMets.Uri);
                 var req = new PutObjectRequest
                 {
                     BucketName = awsUri.Bucket,
@@ -165,32 +165,45 @@ public class MetsManager(
                     ContentBody = xml,
                     ChecksumAlgorithm = ChecksumAlgorithm.SHA256
                 };
+                if (fullMets.ETag != null)
+                {
+                    req.IfMatch = fullMets.ETag;
+                }
                 var resp = await s3Client.PutObjectAsync(req);
                 if (resp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
                 {
                     return Result.Ok();
                 }
+                if (resp.HttpStatusCode is HttpStatusCode.PreconditionFailed)
+                {
+                    return Result.Fail(ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
+                }
                 return Result.Fail(ErrorCodes.BadRequest, "AWS returned HTTP Status " + resp.HttpStatusCode + " when writing METS");
             
             default:
-                return Result.Fail(ErrorCodes.BadRequest, file.Scheme + " not supported");
+                return Result.Fail(ErrorCodes.BadRequest, fullMets.Uri.Scheme + " not supported");
         }
     }
 
-    private async Task<Result<(DigitalPreservation.XmlGen.Mets.Mets, Uri)>> GetFullMets(Uri metsLocation)
+    public async Task<Result<FullMets>> GetFullMets(Uri metsLocation, string? eTagToMatch)
     {
         DigitalPreservation.XmlGen.Mets.Mets? mets = null; 
-        var (root, file) = MetsUtils.GetRootAndFile(metsLocation);
+        var (_, file) = MetsUtils.GetRootAndFile(metsLocation);
         if (file is null)
         {
-            return Result.FailNotNull<(DigitalPreservation.XmlGen.Mets.Mets, Uri)>(ErrorCodes.NotFound, "No METS file in " + metsLocation);
+            return Result.FailNotNull<FullMets>(ErrorCodes.NotFound, "No METS file in " + metsLocation);
         }
         var s3Uri = new AmazonS3Uri(file);
         var gor = new GetObjectRequest
         {
             BucketName = s3Uri.Bucket,
-            Key = s3Uri.Key
+            Key = s3Uri.Key,
         };
+        if (eTagToMatch is not null)
+        {
+            gor.EtagToMatch = eTagToMatch;
+        }
+        string? returnedETag = null;
         try
         {
             var resp = await s3Client.GetObjectAsync(gor);
@@ -200,10 +213,16 @@ public class MetsManager(
                 using var reader = XmlReader.Create(resp.ResponseStream);
                 mets = (DigitalPreservation.XmlGen.Mets.Mets)serializer.Deserialize(reader)!;
             }
+            if (resp.HttpStatusCode is HttpStatusCode.PreconditionFailed)
+            {
+                return Result.FailNotNull<FullMets>(ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
+            }
+
+            returnedETag = resp.ETag;
         }
         catch (Exception e)
         {
-            return Result.FailNotNull<(DigitalPreservation.XmlGen.Mets.Mets, Uri)>(ErrorCodes.UnknownError, e.Message);
+            return Result.FailNotNull<FullMets>(ErrorCodes.UnknownError, e.Message);
         }
 
         string? agentName = null;
@@ -214,60 +233,66 @@ public class MetsManager(
 
         if (agentName != IMetsManager.MetsCreatorAgent)
         {
-            return Result.FailNotNull<(DigitalPreservation.XmlGen.Mets.Mets, Uri)>(ErrorCodes.BadRequest, "METS file was not created by " + IMetsManager.MetsCreatorAgent);
+            return Result.FailNotNull<FullMets>(ErrorCodes.BadRequest, "METS file was not created by " + IMetsManager.MetsCreatorAgent);
         }
 
         if (mets != null)
         {
-            return Result.OkNotNull((mets, file));
+            var fullMetal = new FullMets
+            {
+                Mets = mets,
+                Uri = file,
+                ETag = returnedETag
+            };
+            return Result.OkNotNull(fullMetal);
         }
 
-        return Result.FailNotNull<(DigitalPreservation.XmlGen.Mets.Mets, Uri)>(
+        return Result.FailNotNull<FullMets>(
             ErrorCodes.UnknownError, "Unable to read METS");
     }
     
     
-    public async Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile)
+    public async Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag)
     {
-        var result = await GetFullMets(workingRoot);
+        var result = await GetFullMets(workingRoot, depositETag);
         if (result.Success)
         {
-            var (mets, file) = result.Value;
+            var fullMets = result.Value;
             
             // Add workingFile to METS
             // 
             
-            await WriteMets(file, mets);
+            await WriteMets(fullMets!);
             return Result.Ok();
         }
         return Result.Fail(result.ErrorCode ?? ErrorCodes.UnknownError, result.ErrorMessage);
     }
 
-    public async Task<Result> HandleDeleteObject(Uri workingRoot, string localPath)
+    public async Task<Result> HandleDeleteObject(Uri workingRoot, string localPath, string depositETag)
     {
-        var result = await GetFullMets(workingRoot);
+        var result = await GetFullMets(workingRoot, depositETag);
         if (result.Success)
         {
-            var (mets, file) = result.Value;
+            var fullMets = result.Value;
             
             // delete localPath from METS
             
-            await WriteMets(file, mets);
+            await WriteMets(fullMets!);
             return Result.Ok();
         }
         return Result.Fail(result.ErrorCode ?? ErrorCodes.UnknownError, result.ErrorMessage);
     }
 
-    public async Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory)
+    public async Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag)
     {
-        var result = await GetFullMets(workingRoot);
+        var result = await GetFullMets(workingRoot, depositETag);
         if (result.Success)
         {
-            var (mets, file) = result.Value;
+            var fullMets = result.Value;
             
             // create new directory in METS
             
-            await WriteMets(file, mets);
+            await WriteMets(fullMets!);
             return Result.Ok();
         }
         return Result.Fail(result.ErrorCode ?? ErrorCodes.UnknownError, result.ErrorMessage);

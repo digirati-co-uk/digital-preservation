@@ -1,5 +1,4 @@
-﻿using System.Net;
-using Amazon.S3;
+﻿using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
@@ -9,12 +8,19 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
 using MediatR;
 using Storage.Repository.Common;
-using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.UI.Features.S3;
 
-public class UploadFileToDeposit(Uri s3Root, string? parent, string slug, IFormFile file, string checksum, string depositFileName, string contentType) : IRequest<Result<WorkingFile?>>
+public class UploadFileToDeposit(
+    Uri s3Root, 
+    string? parent, 
+    string slug, 
+    IFormFile file, 
+    string checksum, 
+    string depositFileName, 
+    string contentType,
+    string metsETag) : IRequest<Result<WorkingFile?>>
 {
     public Uri S3Root { get; } = s3Root;
     public string? Parent { get; } = parent;
@@ -23,6 +29,7 @@ public class UploadFileToDeposit(Uri s3Root, string? parent, string slug, IFormF
     public string Checksum { get; } = checksum;
     public string DepositFileName { get; } = depositFileName;
     public string ContentType { get; } = contentType;
+    public string MetsETag { get; } = metsETag;
 }
 
 public class UploadFileToDepositHandler(
@@ -76,7 +83,7 @@ public class UploadFileToDepositHandler(
                 if (saveResult.Success)
                 {
                     // TODO - result this up... 
-                    await metsManager.HandleSingleFileUpload(s3Uri.ToUri(), file);
+                    await metsManager.HandleSingleFileUpload(s3Uri.ToUri(), file, request.MetsETag);
                     return Result.Ok(file);
                 }
                 return Result.Generify<WorkingFile?>(saveResult);

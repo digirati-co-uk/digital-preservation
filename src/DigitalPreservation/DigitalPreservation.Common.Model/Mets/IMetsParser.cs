@@ -8,7 +8,8 @@ public interface IMetsParser
     /// Simple model that doesn't use the XmlSerializer
     /// </summary>
     /// <param name="metsLocation"></param>
+    /// <param name="parse">Whether to actually load and parse the METS, or just obtain its file information</param>
     /// <returns></returns>
-    public Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation);
+    public Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation, bool parse = true);
     
 }

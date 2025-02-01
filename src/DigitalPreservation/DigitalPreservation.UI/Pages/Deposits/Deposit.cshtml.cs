@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
+using Storage.Repository.Common.Mets;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -33,6 +35,8 @@ public class DepositModel : PageModel
     
     public Deposit? Deposit { get; set; }
     public WorkingDirectory? Files { get; set; }
+    
+    public FullMets? FullMets { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
     
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
@@ -88,6 +92,13 @@ public class DepositModel : PageModel
                 return false;
             }
 
+            // TODO - avoid calling this twice when a file is uploaded etc
+            var fullMetsResult = await mediator.Send(new GetFullMets(Deposit.Files!, Deposit.MetsETag));
+            if (fullMetsResult is { Success: true, Value: not null })
+            {
+                FullMets = fullMetsResult.Value;
+            }
+
             var fetchResultsResult = await DepositJobResultFetcher.GetImportJobResults(id, mediator);
             if (fetchResultsResult.Success)
             {
@@ -139,7 +150,7 @@ public class DepositModel : PageModel
                     TempData["Error"] = "You cannot delete files in the root.";
                     return Redirect($"/deposits/{id}");
                 }
-                var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath));
+                var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath, Deposit.MetsETag!));
                 if (deleteFileResult.Success)
                 {
                     TempData["Deleted"] = "File " + fileToDelete.LocalPath + " DELETED.";
@@ -161,7 +172,7 @@ public class DepositModel : PageModel
                 TempData["Error"] = "You cannot delete a folder that has files in it; delete the files first.";
                 return Redirect($"/deposits/{id}");
             }
-            var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath));
+            var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath, Deposit.MetsETag!));
             if (deleteDirectoryResult.Success)
             {
                 TempData["Deleted"] = "Folder " + deleteDirectory.LocalPath + " DELETED.";
@@ -203,7 +214,7 @@ public class DepositModel : PageModel
                 return Page();
             }
 
-            var createFolderResult = await mediator.Send(new CreateFolder(s3Root!, newFolderName, slug, newFolderContext));
+            var createFolderResult = await mediator.Send(new CreateFolder(s3Root!, newFolderName, slug, newFolderContext, Deposit.MetsETag!));
             if (createFolderResult.Success)
             {
                 TempData["Created"] = "Folder " + slug + " created.";
@@ -272,7 +283,8 @@ public class DepositModel : PageModel
                 depositFile[0],
                 checksum,
                 depositFileName,
-                depositFileContentType));
+                depositFileContentType,
+                Deposit.MetsETag!));
             if (uploadFileResult.Success)
             {
                 TempData["Uploaded"] = "File " + slug + " uploaded.";

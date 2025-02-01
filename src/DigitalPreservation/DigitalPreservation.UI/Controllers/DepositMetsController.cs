@@ -1,15 +1,12 @@
-﻿using DigitalPreservation.Common.Model.Mets;
-using DigitalPreservation.Core.Web;
-using DigitalPreservation.UI.Features.Preservation.Requests;
-using MediatR;
+﻿using DigitalPreservation.Core.Web;
 using Microsoft.AspNetCore.Mvc;
+using Preservation.Client;
 
 namespace DigitalPreservation.UI.Controllers;
 
 [Route("deposits/{id}/mets")]
 public class DepositMetsController(
-    IMediator mediator,
-    IMetsParser metsParser) : Controller
+    IPreservationApiClient preservationApiClient) : Controller
 {
     /// <summary>
     /// I think only for debugging and diagnostics
@@ -17,21 +14,16 @@ public class DepositMetsController(
     /// <param name="id"></param>
     /// <returns></returns>
     [HttpGet]
-    [Produces("text/xml")]
+    [Produces("application/xml")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Get([FromRoute] string id)
     {
-        var getDepositResult = await mediator.Send(new GetDeposit(id));
-        if (getDepositResult.Success)
+        var metsResult = await preservationApiClient.GetMetsWithETag(id, CancellationToken.None);
+        if (metsResult.Success)
         {
-            var wrapper = await metsParser.GetMetsFileWrapper(getDepositResult.Value!.Files!);
-            if (wrapper is { Success: true, Value: not null, Value.XDocument: not null })
-            {
-                return Content(wrapper.Value.XDocument!.ToString(), "text/xml");
-            }
-
-            return NotFound();
+            Response.Headers.ETag = metsResult.Value.Item2;
+            return Content(metsResult.Value.Item1, "application/xml");
         }
-        return ControllerX.GetProblemObjectResult(getDepositResult);
+        return ControllerX.GetProblemObjectResult(metsResult);
     }
 }

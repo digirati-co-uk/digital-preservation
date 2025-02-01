@@ -13,12 +13,18 @@ using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.UI.Features.S3;
 
-public class CreateFolder(Uri s3Root, string name, string newFolderSlug, string? parent) : IRequest<Result<WorkingDirectory?>>
+public class CreateFolder(
+    Uri s3Root, 
+    string name, 
+    string newFolderSlug, 
+    string? parent, 
+    string metsETag) : IRequest<Result<WorkingDirectory?>>
 {
     public Uri S3Root { get; } = s3Root;
     public string Name { get; } = name;
     public string NewFolderSlug { get; } = newFolderSlug;
     public string? Parent { get; } = parent;
+    public string MetsETag { get; } = metsETag;
 }
 
 
@@ -70,7 +76,7 @@ public class CreateFolderHandler(
             var newRootResult = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, dir, cancellationToken);
             if (newRootResult.Success)
             {
-                await metsManager.HandleCreateFolder(s3Uri.ToUri(), dir);
+                await metsManager.HandleCreateFolder(s3Uri.ToUri(), dir, request.MetsETag);
                 return Result.Ok(dir);
             }
             return Result.Generify<WorkingDirectory?>(newRootResult);

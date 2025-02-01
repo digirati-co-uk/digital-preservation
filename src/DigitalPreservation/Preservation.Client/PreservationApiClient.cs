@@ -48,6 +48,7 @@ internal class PreservationApiClient(
         }
     }
 
+
     public async Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken)
     {
         var uri = new Uri(deposit.Id!.AbsolutePath, UriKind.Relative); 
@@ -304,8 +305,30 @@ internal class PreservationApiClient(
         }
     }
 
-
-
+    public async Task<Result<(string, string)>> GetMetsWithETag(string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var relPath = $"/deposits/{depositId}/mets";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var eTag = response.Headers.ETag!.Tag;
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                return Result.OkNotNull((content, eTag));
+            }
+            return await response.ToFailResult<(string, string)>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<(string, string)>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+    
+    
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {
         try

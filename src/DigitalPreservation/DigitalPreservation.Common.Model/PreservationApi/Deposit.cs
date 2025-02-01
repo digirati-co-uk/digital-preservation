@@ -65,6 +65,15 @@ public class Deposit : Resource
     [JsonPropertyName("useObjectTemplate")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? UseObjectTemplate { get; set; }
+    
+    /// <summary>
+    /// At the time the deposit is requested
+    /// As the METS is part of the deposit, some clients may update this without requesting the deposit again.
+    /// </summary>
+    [JsonPropertyOrder(600)]
+    [JsonPropertyName("metsETag")]
+    public string? MetsETag { get; set; }
+    
 
     public const string BasePathElement = "deposits";
 

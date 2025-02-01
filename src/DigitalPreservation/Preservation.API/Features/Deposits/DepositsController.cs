@@ -4,6 +4,7 @@ using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Features.ImportJobs.Requests;
 
@@ -33,6 +34,28 @@ public class DepositsController(IMediator mediator) : Controller
     {
         var result = await mediator.Send(new GetDeposit(id));
         return this.StatusResponseFromResult(result);
+    }
+    
+    
+    [HttpGet("{id}/mets", Name = "GetDepositWithMets")]
+    [ProducesResponseType<List<Deposit>>(200, "application/xml")]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> GetDepositMets([FromRoute] string id)
+    {
+        var wrapper = await mediator.Send(new GetDepositWithMets(id));
+        if (wrapper is
+            {
+                Success: true, 
+                Value: not null, 
+                Value.MetsFileWrapper: not null, 
+                Value.MetsFileWrapper.XDocument: not null
+            })
+        {
+            Response.Headers.ETag = wrapper.Value.MetsFileWrapper.ETag;
+            return Content(wrapper.Value.MetsFileWrapper.XDocument!.ToString(), "application/xml");
+        }
+        return this.StatusResponseFromResult(wrapper);
     }
     
         

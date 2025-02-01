@@ -15,7 +15,7 @@ public class MetsParser(
     IAmazonS3 s3Client,
     ILogger<MetsParser> logger) : IMetsParser
 {
-    public async Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation)
+    public async Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation, bool parse = true)
     {
         // might be a file path or an S3 URI
         var (root, file) = MetsUtils.GetRootAndFile(metsLocation);
@@ -27,8 +27,12 @@ public class MetsParser(
         };
         if(mets.Self != null)
         {
-            var xMets = await LoadXml(mets);
-            PopulateFromMets(mets, xMets);
+            var (xMets, eTag) = await ExamineXml(mets, parse);
+            mets.ETag = eTag;
+            if (parse)
+            {
+                PopulateFromMets(mets, xMets);
+            }
             if (mets.PhysicalStructure.FindFile(mets.Self.LocalPath) is null)
             {
                 // If the METS file doesn't include itself in the root
@@ -130,18 +134,28 @@ public class MetsParser(
     }
     
     
-    private async Task<XDocument> LoadXml(MetsFileWrapper mets)
+    private async Task<(XDocument?, string)> ExamineXml(MetsFileWrapper mets, bool parse)
     {
+        XDocument? xDoc = null;
         switch(mets.Root!.Scheme)
         {
             case "file":
-                return XDocument.Load(mets.Root + mets.Self!.LocalPath);
+                var fileETag = mets.Self.Digest!;
+                if (parse)
+                {
+                    xDoc = XDocument.Load(mets.Root + mets.Self!.LocalPath);
+                }
+                return (xDoc, fileETag);
 
             case "s3":
                 var s3Uri = new AmazonS3Uri(mets.Root + mets.Self!.LocalPath);
-                var s3Stream = await s3Client.GetObjectStreamAsync(s3Uri.Bucket, s3Uri.Key, null);
-                var xMets = await XDocument.LoadAsync(s3Stream, LoadOptions.None, CancellationToken.None);
-                return xMets;
+                var resp = await s3Client.GetObjectAsync(s3Uri.Bucket, s3Uri.Key);
+                var s3ETag = resp.ETag!;
+                if (parse)
+                {
+                    xDoc = await XDocument.LoadAsync(resp.ResponseStream, LoadOptions.None, CancellationToken.None);
+                }
+                return (xDoc, s3ETag);
 
             default:
                 throw new NotSupportedException(mets.Root!.Scheme + " not supported");
