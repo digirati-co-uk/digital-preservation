@@ -38,7 +38,7 @@ public class ImportJobsController(IMediator mediator, ResourceMutator resourceMu
             // Set the originally requested diff URL
             var presUri = resourceMutator.PreservationUri;
             var hostWithPort = presUri.Host;
-            if (presUri.Port != 80)
+            if (presUri.Port != 80 && presUri.Port != 443)
             {
                 hostWithPort = presUri.Host + ":" + presUri.Port;
             }
