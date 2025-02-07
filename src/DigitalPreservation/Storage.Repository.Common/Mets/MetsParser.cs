@@ -261,9 +261,10 @@ public class MetsParser(
                 bool haveUsedAdmIdAlready = false;
                 foreach (var fptr in div.Elements(XNames.MetsFptr))
                 {
-                    var admid = div.Attribute("ADMID")?.Value; // Goobi METS has the ADMID on the mets:div. But that means we can use it only once!
-                    // Going to make an assumption for now that the first encountered mets:fptr is the one that gets the ADMID - this is true for Goobi
-                    // at Wellcome. But in reality we'd need a stricter check than that.
+                    var admid = div.Attribute("ADMID")?.Value; 
+                    // Goobi METS has the ADMID on the mets:div. But that means we can use it only once!
+                    // Going to make an assumption for now that the first encountered mets:fptr is the one that gets the ADMID
+                    // - this is true for Goobi at Wellcome. But in reality we'd need a stricter check than that.
 
                     var fileId = fptr.Attribute("FILEID")!.Value;
                     var fileEl = fileSec.Descendants(XNames.MetsFile).Single(f => f.Attribute("ID")!.Value == fileId);

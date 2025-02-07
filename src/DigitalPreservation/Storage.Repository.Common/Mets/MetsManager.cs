@@ -18,8 +18,10 @@ public class MetsManager(
     IMetsParser metsParser, 
     IAmazonS3 s3Client) : IMetsManager
 {
+    private const string PhysIdPrefix = "PHYS_";
     private const string DmdPhysRoot = "DMD_PHYS_ROOT";
     private const string DmdObjects = "DMD_OBJECTS";
+    private const string ObjectsDivId = "PHYS_objects";
     private const string DirectoryType = "Directory";
     private const string ItemType = "Item";
     
@@ -59,20 +61,33 @@ public class MetsManager(
     /// <param name="container"></param>
     private void AddResourceToMets(DigitalPreservation.XmlGen.Mets.Mets mets, ArchivalGroup archivalGroup, DivType div, Container container)
     {
+        var agString = archivalGroup.Id.ToString();
         foreach (var childContainer in container.Containers)
         {
-            var childDirectoryDiv = new DivType
+            DivType? childDirectoryDiv = null;
+            if (container is ArchivalGroup && childContainer.GetSlug() == "objects")
             {
-                Type = DirectoryType,
-                Label = childContainer.Name,
-            };
-            div.Div.Add(childDirectoryDiv);
+                // The objects div should already exist from our template
+                childDirectoryDiv = mets.StructMap[0].Div.Div.Single(d => d.Id == ObjectsDivId);
+            }
+
+            if (childDirectoryDiv == null)
+            {
+                var localPath = childContainer.Id!.ToString().RemoveStart(agString).RemoveStart("/");
+                childDirectoryDiv = new DivType
+                {
+                    Type = DirectoryType,
+                    Label = childContainer.Name,
+                    Id = $"{PhysIdPrefix}{localPath}"
+                };
+                div.Div.Add(childDirectoryDiv);
+            }
             AddResourceToMets(mets, archivalGroup, childDirectoryDiv, childContainer);
         }
 
         foreach (var binary in container.Binaries)
         {
-            var localPath = binary.Id!.ToString().RemoveStart(archivalGroup.Id!.ToString()).RemoveStart("/");
+            var localPath = binary.Id!.ToString().RemoveStart(agString).RemoveStart("/");
             var fileId = "FILE_" + localPath;
             var admId = "ADM_" + localPath;
             var techMdId = "TECH_" + localPath;
@@ -84,16 +99,23 @@ public class MetsManager(
             {
                 Type = ItemType,
                 Label = binary.Name,
+                Id = $"{PhysIdPrefix}{localPath}",
                 Fptr = { new DivTypeFptr{ Fileid = fileId } }
             };
             div.Div.Add(childItemDiv);
-            mets.FileSec.FileGrp[0].File.Add(new FileType
-            {
-                Id = fileId, 
-                Admid = { admId },
-                Mimetype = binary.ContentType,
-                FLocat = { new FileTypeFLocat{ Href = localPath } }
-            });
+            mets.FileSec.FileGrp[0].File.Add(
+                new FileType
+                {
+                    Id = fileId, 
+                    Admid = { admId },
+                    Mimetype = binary.ContentType,
+                    FLocat = { 
+                        new FileTypeFLocat
+                        {
+                            Href = localPath, Loctype = FileTypeFLocatLoctype.Url
+                        } 
+                    }
+                });
             var amdSec = new AmdSecType
             {
                 Id = admId,
@@ -104,6 +126,7 @@ public class MetsManager(
                         Id = techMdId,
                         MdWrap = new MdSecTypeMdWrap
                         {
+                            Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
                             XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } }
                         }
                     }
@@ -257,10 +280,81 @@ public class MetsManager(
         var result = await GetFullMets(workingRoot, depositETag);
         if (result.Success)
         {
-            var fullMets = result.Value;
+            var fullMets = result.Value!;
             
             // Add workingFile to METS
-            // 
+            // This is where our non-opaque phys structmap IDs come into play.
+            // This may not be a good idea. But without it we need a more complex way of
+            // finding the METS parts, like the XDocument parsing in MetsParser.
+
+            var elements = workingFile.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var div = fullMets.Mets.StructMap.Single(sm => sm.Type=="PHYSICAL").Div!;
+            var testPath = string.Empty;
+            int counter = 0;
+            foreach (var element in elements)
+            {
+                counter++;
+                if (testPath.HasText())
+                {
+                    testPath += "/";
+                }
+                testPath += element;
+                var childDiv = div.Div.SingleOrDefault(d => d.Id == $"{PhysIdPrefix}{testPath}");
+                if (childDiv is null)
+                {
+                    break;
+                }
+
+                div = childDiv;
+            }
+            
+            // div might be the file itself, or a parent or grandparent directory.
+            // But for this atomic upload file handler we will not allow any Directory creation, that
+            // must have already happened in HandleCreateFolder
+            // i.e., we must already be at the last or penultimate member of elements
+            if (counter == elements.Length)
+            {
+                // we have arrived at an existing file which is being overwritten
+                if (div.Type != "Item")
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
+                }
+
+                var fileId = div.Fptr[0].Fileid;
+                var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+                var file = fileGrp.File.Single(f => f.Id == fileId);
+                if (file.FLocat[0].Href != workingFile.LocalPath)
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
+                }
+
+                var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
+                
+                // This replaces the Premis metadata, which won't be OK later when it gets richer
+                // from pipeline decorators.
+                // TODO: Instead, need to merge the premis metadata.
+                var reducedPremis = PremisFixityWrapper
+                    .Replace("{sha256}", workingFile.Digest)
+                    .Replace("{localPath}", workingFile.LocalPath);
+                var reducedPremisX = GetElement(reducedPremis);
+                amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } };
+            } 
+            else if (counter == elements.Length - 1)
+            {
+                // This must be a directory
+                if (div.Type != "Directory")
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile parent path is not a Directory");
+                }
+                
+                // create the Item, fptr, file element etc
+                
+                // (get dir creation working too then test)
+            }
+            else
+            {
+                return Result.Fail(ErrorCodes.BadRequest, "Cannot upload a file into a nonexistent directory");
+            }
             
             await WriteMets(fullMets!);
             return Result.Ok();
@@ -347,7 +441,7 @@ public class MetsManager(
                         Div = { 
                             new DivType
                             {
-                                Id = "PHYS_PATH_objects",  // do this with premis:originalName metadata for directories?
+                                Id = ObjectsDivId,  // do this with premis:originalName metadata for directories?
                                 Type = DirectoryType,
                                 Label = "objects",
                                 Dmdid = { DmdObjects },
