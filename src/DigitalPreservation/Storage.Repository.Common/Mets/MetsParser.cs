@@ -240,6 +240,11 @@ public class MetsParser(
 
         private void ProcessChildStructDivs(MetsFileWrapper mets, XDocument xMets, XElement parent, XElement fileSec, Stack<string> directoryLabels)
         {
+            // We want to create MetsFileWrapper::PhysicalStructure (WorkingDirectories and WorkingFiles).
+            // We can traverse the physical structmap, finding div type=Directory and div type=File
+            // But we have a problem - if a directory has no files in it, we don't know the path of that 
+            // directory. If it has grandchildren we can eventually populate it. But if not we will have
+            // to rely on the AMD premis:originalName as the local path.
             foreach (var div in parent.Elements(XNames.MetsDiv))
             {
                 var type = div.Attribute("TYPE")?.Value.ToLowerInvariant();
@@ -251,6 +256,27 @@ public class MetsParser(
                         throw new NotSupportedException("If a mets:div has type Directory, it must have a label");
                     }
                     directoryLabels.Push(label);
+                    var admId = div.Attribute("ADMID")?.Value;
+                    if (admId.HasText())
+                    {
+                        var amd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
+                        if (amd != null)
+                        {
+                            var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
+                            if (originalName != null)
+                            {
+                                // Only in this scenario can we create a directory
+                                var workingDirectory = mets.PhysicalStructure!.FindDirectory(originalName, true);
+                                if (workingDirectory!.Name.IsNullOrWhiteSpace())
+                                {
+                                    var nameFromPath = originalName.GetSlug();
+                                    var nameFromLabel = directoryLabels.Any() ? directoryLabels.Pop() : null;
+                                    workingDirectory.Name = nameFromLabel ?? nameFromPath;
+                                    workingDirectory.LocalPath = originalName;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // type may be Directory, we need to match them up to file paths
@@ -261,7 +287,7 @@ public class MetsParser(
                 bool haveUsedAdmIdAlready = false;
                 foreach (var fptr in div.Elements(XNames.MetsFptr))
                 {
-                    var admid = div.Attribute("ADMID")?.Value; 
+                    var admId = div.Attribute("ADMID")?.Value; 
                     // Goobi METS has the ADMID on the mets:div. But that means we can use it only once!
                     // Going to make an assumption for now that the first encountered mets:fptr is the one that gets the ADMID
                     // - this is true for Goobi at Wellcome. But in reality we'd need a stricter check than that.
@@ -270,19 +296,19 @@ public class MetsParser(
                     var fileEl = fileSec.Descendants(XNames.MetsFile).Single(f => f.Attribute("ID")!.Value == fileId);
                     var mimeType = fileEl.Attribute("MIMETYPE")?.Value;  // Archivematica does not have this, have to get it from PRONOM, even reverse lookup
                     var flocat = fileEl.Elements(XNames.MetsFLocat).Single().Attribute(XNames.XLinkHref)!.Value;
-                    if (admid == null)
+                    if (admId == null)
                     {
-                        admid = fileEl.Attribute("ADMID")!.Value; // EPRints and Archivematica METS have ADMID on the mets:file
+                        admId = fileEl.Attribute("ADMID")!.Value; // EPrints and Archivematica METS have ADMID on the mets:file
                         haveUsedAdmIdAlready = false;
                     }
                     string? digest = null;
                     if (!haveUsedAdmIdAlready)
                     {
-                        var techMd = xMets.Descendants(XNames.MetsTechMD).SingleOrDefault(t => t.Attribute("ID")!.Value == admid);
+                        var techMd = xMets.Descendants(XNames.MetsTechMD).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
                         if(techMd == null)
                         {
                             // Archivematica does it this way
-                            techMd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admid);
+                            techMd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
                         }
                         var fixity = techMd.Descendants(XNames.PremisFixity).SingleOrDefault();
                         if (fixity != null)

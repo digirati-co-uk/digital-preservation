@@ -19,8 +19,10 @@ public class MetsManager(
     IAmazonS3 s3Client) : IMetsManager
 {
     private const string PhysIdPrefix = "PHYS_";
+    private const string FileIdPrefix = "FILE_";
+    private const string AdmIdPrefix = "ADM_";
+    private const string TechIdPrefix = "TECH_";
     private const string DmdPhysRoot = "DMD_PHYS_ROOT";
-    private const string DmdObjects = "DMD_OBJECTS";
     private const string ObjectsDivId = "PHYS_objects";
     private const string DirectoryType = "Directory";
     private const string ItemType = "Item";
@@ -74,13 +76,19 @@ public class MetsManager(
             if (childDirectoryDiv == null)
             {
                 var localPath = childContainer.Id!.ToString().RemoveStart(agString).RemoveStart("/");
+                var admId = AdmIdPrefix + localPath;
+                var techId = TechIdPrefix + localPath;
                 childDirectoryDiv = new DivType
                 {
                     Type = DirectoryType,
                     Label = childContainer.Name,
-                    Id = $"{PhysIdPrefix}{localPath}"
+                    Id = $"{PhysIdPrefix}{localPath}",
+                    Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
+                var reducedPremisForObjectDir = PremisOriginalNameWrapper
+                    .Replace("{localPath}", localPath);
+                mets.AmdSec.Add(GetAmdSecType(reducedPremisForObjectDir, admId, techId));
             }
             AddResourceToMets(mets, archivalGroup, childDirectoryDiv, childContainer);
         }
@@ -88,13 +96,13 @@ public class MetsManager(
         foreach (var binary in container.Binaries)
         {
             var localPath = binary.Id!.ToString().RemoveStart(agString).RemoveStart("/");
-            var fileId = "FILE_" + localPath;
-            var admId = "ADM_" + localPath;
-            var techMdId = "TECH_" + localPath;
-            var reducedPremis = PremisFixityWrapper
-                .Replace("{sha256}", binary.Digest)
-                .Replace("{localPath}", localPath);
-            var reducedPremisX = GetElement(reducedPremis);
+            if (IsMetsFile(localPath!))
+            {
+                continue;
+            }
+            var fileId = FileIdPrefix + localPath;
+            var admId = AdmIdPrefix + localPath;
+            var techId = TechIdPrefix + localPath;
             var childItemDiv = new DivType
             {
                 Type = ItemType,
@@ -103,6 +111,9 @@ public class MetsManager(
                 Fptr = { new DivTypeFptr{ Fileid = fileId } }
             };
             div.Div.Add(childItemDiv);
+            var reducedPremis = PremisFixityWrapper
+                .Replace("{sha256}", binary.Digest)
+                .Replace("{localPath}", localPath);
             mets.FileSec.FileGrp[0].File.Add(
                 new FileType
                 {
@@ -116,25 +127,10 @@ public class MetsManager(
                         } 
                     }
                 });
-            var amdSec = new AmdSecType
-            {
-                Id = admId,
-                TechMd =
-                {
-                    new MdSecType
-                    {
-                        Id = techMdId,
-                        MdWrap = new MdSecTypeMdWrap
-                        {
-                            Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
-                            XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } }
-                        }
-                    }
-                }
-            };
-            mets.AmdSec.Add(amdSec);
+            mets.AmdSec.Add(GetAmdSecType(reducedPremis, admId, techId));
         }
     }
+
 
     private (Uri file, DigitalPreservation.XmlGen.Mets.Mets mets) GetStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -273,21 +269,30 @@ public class MetsManager(
         return Result.FailNotNull<FullMets>(
             ErrorCodes.UnknownError, "Unable to read METS");
     }
-    
-    
+
     public async Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag)
+    {
+        return await HandleSinglePut(workingRoot, workingFile, depositETag);
+    }
+    
+    public async Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag)
+    {
+        return await HandleSinglePut(workingRoot, workingDirectory, depositETag);
+    }
+
+    private async Task<Result> HandleSinglePut(Uri workingRoot, WorkingBase workingBase, string depositETag)
     {
         var result = await GetFullMets(workingRoot, depositETag);
         if (result.Success)
         {
             var fullMets = result.Value!;
             
-            // Add workingFile to METS
+            // Add workingBase to METS
             // This is where our non-opaque phys structmap IDs come into play.
-            // This may not be a good idea. But without it we need a more complex way of
+            // This may not be a good idea. But without it, we need a more complex way of
             // finding the METS parts, like the XDocument parsing in MetsParser.
 
-            var elements = workingFile.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var elements = workingBase.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
             var div = fullMets.Mets.StructMap.Single(sm => sm.Type=="PHYSICAL").Div!;
             var testPath = string.Empty;
             int counter = 0;
@@ -299,6 +304,8 @@ public class MetsManager(
                     testPath += "/";
                 }
                 testPath += element;
+                // This is navigating using our ID convention for directories
+                // If we don't want to do this, we can use the premis:originalName for the directory
                 var childDiv = div.Div.SingleOrDefault(d => d.Id == $"{PhysIdPrefix}{testPath}");
                 if (childDiv is null)
                 {
@@ -314,49 +321,135 @@ public class MetsManager(
             // i.e., we must already be at the last or penultimate member of elements
             if (counter == elements.Length)
             {
-                // we have arrived at an existing file which is being overwritten
-                if (div.Type != "Item")
+                // we have arrived at an existing file or foler which is being overwritten
+                if (workingBase is WorkingFile && div.Type != "Item")
                 {
-                    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
+                }
+                if (workingBase is WorkingDirectory && div.Type != "Directory")
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
                 }
 
-                var fileId = div.Fptr[0].Fileid;
-                var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
-                var file = fileGrp.File.Single(f => f.Id == fileId);
-                if (file.FLocat[0].Href != workingFile.LocalPath)
+                if (workingBase is WorkingFile workingFile)
                 {
-                    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
-                }
+                    if (div.Type != "Item")
+                    {
+                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
+                    }
+                    var fileId = div.Fptr[0].Fileid;
+                    var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+                    var file = fileGrp.File.Single(f => f.Id == fileId);
+                    if (file.FLocat[0].Href != workingFile.LocalPath)
+                    {
+                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
+                    }
 
-                var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
+                    var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
                 
-                // This replaces the Premis metadata, which won't be OK later when it gets richer
-                // from pipeline decorators.
-                // TODO: Instead, need to merge the premis metadata.
-                var reducedPremis = PremisFixityWrapper
-                    .Replace("{sha256}", workingFile.Digest)
-                    .Replace("{localPath}", workingFile.LocalPath);
-                var reducedPremisX = GetElement(reducedPremis);
-                amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } };
+                    // This replaces the Premis metadata, which won't be OK later when it gets richer
+                    // from pipeline decorators.
+                    // TODO: Instead, need to merge the premis metadata.
+                    var reducedPremis = PremisFixityWrapper
+                        .Replace("{sha256}", workingFile.Digest)
+                        .Replace("{localPath}", workingFile.LocalPath);
+                    var reducedPremisX = GetElement(reducedPremis);
+                    amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } };
+                }
+                else if (workingBase is WorkingDirectory workingDirectory)
+                {
+                    if(div.Type != "Directory")
+                    {
+                        return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
+                    }
+
+                    // Is there anything else that could be done here?
+                    if (workingDirectory.Name.HasText())
+                    {
+                        // and is it even done on hasText?
+                        div.Label = workingDirectory.Name;
+                    }
+                }
+                else
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
+                }
             } 
             else if (counter == elements.Length - 1)
             {
-                // This must be a directory
+                // div is a directory
                 if (div.Type != "Directory")
                 {
-                    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile parent path is not a Directory");
+                    return Result.Fail(ErrorCodes.BadRequest, "Parent path is not a Directory");
+                }
+
+                var physId = PhysIdPrefix + workingBase.LocalPath;
+                var admId = AdmIdPrefix + workingBase.LocalPath;
+                var techId = TechIdPrefix + workingBase.LocalPath;
+                
+                if (workingBase is WorkingFile workingFile)
+                {
+                    var fileId = FileIdPrefix + workingFile.LocalPath;
+                    var childItemDiv = new DivType
+                    {
+                        Type = ItemType,
+                        Label = workingFile.Name ?? workingFile.LocalPath.GetSlug(),
+                        Id = physId,
+                        Fptr = { new DivTypeFptr{ Fileid = fileId } }
+                    };
+                    div.Div.Add(childItemDiv);
+                    var reducedPremis = PremisFixityWrapper
+                        .Replace("{sha256}", workingFile.Digest)
+                        .Replace("{localPath}", workingFile.LocalPath);
+                    fullMets.Mets.FileSec.FileGrp[0].File.Add(
+                        new FileType
+                        {
+                            Id = fileId, 
+                            Admid = { admId },
+                            Mimetype = workingFile.ContentType,
+                            FLocat = { 
+                                new FileTypeFLocat
+                                {
+                                    Href = workingFile.LocalPath, Loctype = FileTypeFLocatLoctype.Url
+                                } 
+                            }
+                        });
+                    fullMets.Mets.AmdSec.Add(GetAmdSecType(reducedPremis, admId, techId));
+                }
+                else if (workingBase is WorkingDirectory workingDirectory)
+                {
+                    var childDirectoryDiv = new DivType
+                    {
+                        Type = DirectoryType,
+                        Label = workingDirectory.Name,
+                        Id = physId,
+                        Admid = { admId }
+                    };
+                    div.Div.Add(childDirectoryDiv);
+                    var reducedPremisForObjectDir = PremisOriginalNameWrapper
+                        .Replace("{localPath}", workingDirectory.LocalPath);
+                    fullMets.Mets.AmdSec.Add(GetAmdSecType(reducedPremisForObjectDir, admId, techId));
+                }
+                else
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
                 }
                 
-                // create the Item, fptr, file element etc
-                
-                // (get dir creation working too then test)
+                // Now we need to ensure the child items are in alphanumeric order by name...
+                // how do we do that? We can't sort a Collection<T> in place, and we can't 
+                // create a new Collection and assign it to Div
+                var childList = new List<DivType>(div.Div);
+                div.Div.Clear();
+                foreach (var divType in childList.OrderBy(d => d.Label))
+                {
+                    div.Div.Add(divType);
+                }
             }
             else
             {
                 return Result.Fail(ErrorCodes.BadRequest, "Cannot upload a file into a nonexistent directory");
             }
             
-            await WriteMets(fullMets!);
+            await WriteMets(fullMets);
             return Result.Ok();
         }
         return Result.Fail(result.ErrorCode ?? ErrorCodes.UnknownError, result.ErrorMessage);
@@ -377,20 +470,6 @@ public class MetsManager(
         return Result.Fail(result.ErrorCode ?? ErrorCodes.UnknownError, result.ErrorMessage);
     }
 
-    public async Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag)
-    {
-        var result = await GetFullMets(workingRoot, depositETag);
-        if (result.Success)
-        {
-            var fullMets = result.Value;
-            
-            // create new directory in METS
-            
-            await WriteMets(fullMets!);
-            return Result.Ok();
-        }
-        return Result.Fail(result.ErrorCode ?? ErrorCodes.UnknownError, result.ErrorMessage);
-    }
     
     public bool IsMetsFile(string fileName)
     {
@@ -400,6 +479,8 @@ public class MetsManager(
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()
     {
+        var reducedPremisForObjectDir = PremisOriginalNameWrapper
+            .Replace("{localPath}", "objects");
         var mets = new DigitalPreservation.XmlGen.Mets.Mets
         {
             MetsHdr = new()
@@ -419,7 +500,6 @@ public class MetsManager(
             {
                 new MdSecType { Id = DmdPhysRoot }
             },
-            AmdSec = {  },
             FileSec = new MetsTypeFileSec
             {
                 FileGrp =
@@ -444,17 +524,23 @@ public class MetsManager(
                                 Id = ObjectsDivId,  // do this with premis:originalName metadata for directories?
                                 Type = DirectoryType,
                                 Label = "objects",
-                                Dmdid = { DmdObjects },
+                                Dmdid = { "DMD_objects" },
+                                Admid = { "ADM_objects" }
                             } 
                         }
                     }
                 }
+            },
+            AmdSec =
+            {
+                GetAmdSecType(reducedPremisForObjectDir, $"{AdmIdPrefix}objects", $"{TechIdPrefix}objects")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };
         
         return mets;
     }
+    
     const string PremisFixityWrapper = """
                                        <premis:object xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:premis="http://www.loc.gov/premis/v3" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd" version="3.0">
                                            <premis:objectCharacteristics>
@@ -467,6 +553,11 @@ public class MetsManager(
                                        </premis:object>
                                        """;
     
+    const string PremisOriginalNameWrapper = """
+                                       <premis:object xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:premis="http://www.loc.gov/premis/v3" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd" version="3.0">
+                                           <premis:originalName>{localPath}</premis:originalName>
+                                       </premis:object>
+                                       """;
     private static XmlElement GetElement(string xml)
     {
         var doc = new XmlDocument();
@@ -483,5 +574,27 @@ public class MetsManager(
         ns.Add("xlink", "http://www.w3.org/1999/xlink");
         ns.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
         return ns;
+    }
+    
+    private static AmdSecType GetAmdSecType(string reducedPremisForObjectDir, string admId, string techId)
+    {
+        var reducedPremisX = GetElement(reducedPremisForObjectDir);
+        var amdSec = new AmdSecType
+        {
+            Id = admId,
+            TechMd =
+            {
+                new MdSecType
+                {
+                    Id = techId,
+                    MdWrap = new MdSecTypeMdWrap
+                    {
+                        Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
+                        XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } }
+                    }
+                }
+            }
+        };
+        return amdSec;
     }
 }
