@@ -36,7 +36,7 @@ public class DeleteObjectHandler(
             var response = await s3Client.DeleteObjectAsync(dor, cancellationToken);
             if (response.HttpStatusCode == HttpStatusCode.NoContent)
             {
-                var removeFromMetsResult = await storage.DeleteFromMetsLike(s3Uri, IStorage.MetsLike, request.Path, cancellationToken);
+                var removeFromMetsResult = await storage.DeleteFromDepositFileSystem(s3Uri, request.Path, cancellationToken);
                 if (removeFromMetsResult.Success)
                 {
                     await metsManager.HandleDeleteObject(s3Uri.ToUri(), request.Path, request.MetsETag);

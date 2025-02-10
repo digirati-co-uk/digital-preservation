@@ -20,19 +20,19 @@ public class ReadS3Handler(IStorage storage) : IRequestHandler<GetWorkingDirecto
     {
         if (request.ReadFromS3)
         {
-            var fromScratch = await storage.GenerateMetsLike(
+            var fromScratch = await storage.GenerateDepositFileSystem(
                 new AmazonS3Uri(request.S3Uri), request.WriteToStorage, cancellationToken);
             return fromScratch;
         }
-        var fromMets = await storage.ReadMetsLike(
-            new AmazonS3Uri(request.S3Uri), IStorage.MetsLike, cancellationToken);
+        var fromMets = await storage.ReadDepositFileSystem(
+            new AmazonS3Uri(request.S3Uri), cancellationToken);
         if (fromMets.Success)
         {
             return fromMets;
         }
         if (fromMets.ErrorCode == ErrorCodes.NotFound && request.WriteToStorage)
         {
-            var fromScratch = await storage.GenerateMetsLike(
+            var fromScratch = await storage.GenerateDepositFileSystem(
                 new AmazonS3Uri(request.S3Uri), true, cancellationToken);
             return fromScratch;
         }

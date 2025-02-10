@@ -98,7 +98,7 @@ public class GetDiffImportJobHandler(
 
 
 
-        var notForImport = $"{agPathUnderRoot}/{IStorage.MetsLike}";
+        var notForImport = $"{agPathUnderRoot}/{IStorage.DepositFileSystem}";
         var removed = sourceBinaries.RemoveAll(b => b.GetPathUnderRoot() == notForImport);
         logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
 
@@ -138,7 +138,7 @@ public class GetDiffImportJobHandler(
 
         var missingTheirChecksum = sourceBinaries
             .Where(b => b.Digest.IsNullOrWhiteSpace())
-            .Where(b => b.Id!.GetSlug() != IStorage.MetsLike)
+            .Where(b => b.Id!.GetSlug() != IStorage.DepositFileSystem)
             .ToList();
         if (missingTheirChecksum.Count > 0)
         {

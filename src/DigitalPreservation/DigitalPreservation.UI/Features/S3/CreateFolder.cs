@@ -73,7 +73,7 @@ public class CreateFolderHandler(
                 Name = request.Name,
                 Modified = headResponse.LastModified.ToUniversalTime()
             };
-            var newRootResult = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, dir, cancellationToken);
+            var newRootResult = await storage.AddToDepositFileSystem(s3Uri, dir, cancellationToken);
             if (newRootResult.Success)
             {
                 await metsManager.HandleCreateFolder(s3Uri.ToUri(), dir, request.MetsETag);

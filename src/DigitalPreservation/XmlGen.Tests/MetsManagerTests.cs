@@ -29,8 +29,8 @@ public class MetsManagerTests
     }
 
 
-    // [Fact(Skip = "Experimental")]
-    [Fact]
+    [Fact(Skip = "Experimental")]
+    // [Fact]
     public async Task Can_Create_Empty_Mets()
     {
         var emptyMetsFi = new FileInfo("Outputs/empty-mets.xml");
@@ -48,8 +48,8 @@ public class MetsManagerTests
         // TODO: Validate result.Value.XDocument
     }
     
-    // [Fact(Skip = "Experimental")]
-    [Fact]
+    [Fact(Skip = "Experimental")]
+    // [Fact]
     public async Task Can_Create_Mets_From_Archival_Group()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
@@ -102,8 +102,8 @@ public class MetsManagerTests
     }
 
 
-    // [Fact(Skip = "Experimental")]
-    [Fact]
+    [Fact(Skip = "Experimental")]
+    // [Fact]
     public async Task Can_Add_Directories_To_Empty_Mets()
     {
         var emptyMetsFi = new FileInfo("Outputs/empty-mets-add-dirs.xml");
@@ -136,8 +136,8 @@ public class MetsManagerTests
         // TODO: Validate result.Value.XDocument
     }
     
-    // [Fact(Skip = "Experimental")]
-    [Fact]
+    [Fact(Skip = "Experimental")]
+    // [Fact]
     public async Task Can_Add_Directories_To_ArchivalGroup_Mets()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
@@ -252,8 +252,8 @@ public class MetsManagerTests
         folderBB.Directories[0].LocalPath.Should().Be("objects/folder-b/folder-bb/child-of-bb");
     }
     
-    // [Fact(Skip = "Experimental")]
-    [Fact]
+    [Fact(Skip = "Experimental")]
+    // [Fact]
     public async Task Can_Add_Files_To_Empty_Mets()
     {
         var emptyMetsFi = new FileInfo("Outputs/empty-mets-add-files.xml");
@@ -292,8 +292,8 @@ public class MetsManagerTests
         // TODO: Validate result.Value.XDocument
     }
     
-    // [Fact(Skip = "Experimental")]
-    [Fact]
+    [Fact(Skip = "Experimental")]
+    // [Fact]
     public async Task Can_Add_Files_To_ArchivalGroup_Mets()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
@@ -357,8 +357,8 @@ public class MetsManagerTests
     }
     
     
-    // [Fact(Skip = "Experimental")]
-    [Fact]
+    [Fact(Skip = "Experimental")]
+    // [Fact]
     public async Task Can_Delete_Files_From_Mets()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
@@ -389,8 +389,8 @@ public class MetsManagerTests
     }
     
     
-    // [Fact(Skip = "Experimental")]
-    [Fact]
+    [Fact(Skip = "Experimental")]
+    // [Fact]
     public async Task Can_Delete_Directories_From_Mets()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");

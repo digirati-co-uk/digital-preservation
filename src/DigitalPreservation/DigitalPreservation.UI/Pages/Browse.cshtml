@@ -400,41 +400,6 @@
                                 <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
                             </div>
                         </div>
-                        <!--
-                        What type of deposit?
-                        
-                        these both create the same type of deposit but the second will not populate the 
-                        Empty (Absent files will be removed)
-                        Empty (Add only)
-                        Export (will create an export job, may take a while for a large deposit)
-                        
-                        To what extent will this be different when the METS file is ALWAYS exported?
-                        Maybe that makes the difference, maybe should go straight to METS
-                        
-                        1. Replace the __METSlike.json with a REAL mets file (but keep it for file building? No, need to hang things off it)
-                        
-                        Look at the old mets parsing code, you'll need that
-                        
-                        Extension methods on XML?
-                        Simple to read and write. But compatible with Goobi definitely.
-                        
-                        The model for the deposit view becomes a METS file AND a WorkingDirectory
-                        METS file represents the preservation and the WorkingDirectory represents what is on disk.
-                        
-                        In our UI we DO NOT DISTINGUISH between logical and physical structure
-                        Assignment of access conditions can be done on the physical structure
-                         
-                        But we do have to render a Goobi METS file with its logical and physical structmaps
-                        Even if we don't edit it.
-                        
-                        We do need a METS intermediary as the model, though. Which we transform to and from METS. 
-                        And we also save alongside as a simplified model. 
-                        
-                        Which can link to the pure WorkingDirectory
-                        
-                        We view the physical structmap. The logical, if present, "floats" over it.
-                        -->
-                        
                     </div>
                     <div class="modal-footer">
                         <input type="hidden" name="archivalGroupPath" value="@Model.ArchivalGroupPath"/>

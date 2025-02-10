@@ -64,8 +64,8 @@ public class DepositModel : PageModel
                     ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
                 }
             }
-            // There is a METSlike for the deposit contents, AND a METS for the AG (if exists).
-            // The metslike for deposit contents does not get saved to Fedora (but does it get saved to the DB)
+            // There is a DepositFileSystem file for the deposit contents, AND a METS for the AG (if exists).
+            // The DepositFileSystem file for deposit contents does not get saved to Fedora (but does it get saved to the DB)
             var readS3Result = await mediator.Send(
                 new GetWorkingDirectory(Deposit.Files!, readFromStorage, writeToStorage)); 
             if (readS3Result.Success)
@@ -82,7 +82,7 @@ public class DepositModel : PageModel
                     }
                     else
                     {
-                        TempData["Error"] = "Unable to update METSLike - " + updatedS3Result.ErrorMessage;
+                        TempData["Error"] = "Unable to update Deposit File System data - " + updatedS3Result.ErrorMessage;
                     }
                 }
             }
@@ -298,7 +298,7 @@ public class DepositModel : PageModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostRebuildMetsLike([FromRoute] string id)
+    public async Task<IActionResult> OnPostRebuildDepositFileSystem([FromRoute] string id)
     {
         var getDepositResult = await mediator.Send(new GetDeposit(id));
         if (getDepositResult.Success)
@@ -337,7 +337,7 @@ public class DepositModel : PageModel
             }
             if (readMetsResult.Value == null)
             {
-                TempData["Error"] = "Could not read METSlike file.";
+                TempData["Error"] = "Could not read Deposit File System File.";
                 return Redirect($"/deposits/{id}");
             }
             var s3Json = JsonSerializer.Serialize(RemoveRootMetadata(readS3Result.Value));

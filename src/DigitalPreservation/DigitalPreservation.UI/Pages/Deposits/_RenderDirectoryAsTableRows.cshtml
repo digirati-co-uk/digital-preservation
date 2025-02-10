@@ -1,4 +1,5 @@
 ﻿@using DigitalPreservation.Utils
+@using Storage.Repository.Common
 @model DigitalPreservation.Common.Model.Transit.WorkingDirectory
 
 @{
@@ -59,7 +60,7 @@
         <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
         <td aria-label="content-type">@file.ContentType</td>
         <td class="dep-actions">
-            @if (active && file.LocalPath != "__METSlike.json")
+            @if (active && file.LocalPath != IStorage.DepositFileSystem)
             {
                 <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#deleteItemModal" aria-label="delete file">
                     <svg class="bi"><use xlink:href="#trash"/></svg>

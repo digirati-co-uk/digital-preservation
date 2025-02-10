@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DigitalPreservation.UI.Controllers;
 
-[Route("deposits/{id}/metslike")]
-public class DepositMetsLikeController(IMediator mediator) : Controller
+[Route("deposits/{id}/depositFileSystem")]
+public class DepositFileSystemController(IMediator mediator) : Controller
 {
     /// <summary>
     /// I think only for debugging and diagnostics

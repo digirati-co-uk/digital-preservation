@@ -79,7 +79,7 @@ public class UploadFileToDepositHandler(
                     Name = request.DepositFileName,
                     Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
                 };
-                var saveResult = await storage.AddToMetsLike(s3Uri, IStorage.MetsLike, file, cancellationToken);
+                var saveResult = await storage.AddToDepositFileSystem(s3Uri, file, cancellationToken);
                 if (saveResult.Success)
                 {
                     // TODO - result this up... 

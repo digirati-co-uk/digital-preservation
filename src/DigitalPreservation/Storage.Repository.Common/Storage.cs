@@ -55,11 +55,11 @@ public class Storage(
                     Name = "objects"
                 });
             }
-            var metsKey = key + IStorage.MetsLike;
-            var writeMetsResult = await WriteMetsLike(options.DefaultWorkingBucket, metsKey, root);
-            if (writeMetsResult.Failure)
+            var depositFileSystemKey = key + IStorage.DepositFileSystem;
+            var writeDepositFileSystemResult = await WriteDepositFileSystem(options.DefaultWorkingBucket, depositFileSystemKey, root);
+            if (writeDepositFileSystemResult.Failure)
             {
-                return Result.Generify<Uri>(writeMetsResult);
+                return Result.Generify<Uri>(writeDepositFileSystemResult);
             }
             return Result.OkNotNull(pReq.GetS3Uri());
         }
@@ -67,12 +67,12 @@ public class Storage(
         return Result.Generify<Uri>(failResult);
     }
 
-    private async Task<Result> WriteMetsLike(string bucket, string key, WorkingDirectory wd, CancellationToken cancellationToken = default)
+    private async Task<Result> WriteDepositFileSystem(string bucket, string key, WorkingDirectory wd, CancellationToken cancellationToken = default)
     {
         wd.Modified = DateTime.UtcNow;
         // make sure the key itself is in the WorkingDirectory
-        var metsLikeInWorkingDirectory = wd.Files.SingleOrDefault(f => f.LocalPath == key.GetSlug());
-        if (metsLikeInWorkingDirectory == null)
+        var depositFileSystemInWorkingDirectory = wd.Files.SingleOrDefault(f => f.LocalPath == key.GetSlug());
+        if (depositFileSystemInWorkingDirectory == null)
         {
             wd.Files.Add(new WorkingFile
             {
@@ -83,7 +83,7 @@ public class Storage(
             });
         }
         OrderAlphanumerically(wd);
-        var pReqMetsLike = new PutObjectRequest
+        var pReqDepositFileSystem = new PutObjectRequest
         {
             BucketName = bucket,
             Key = key,
@@ -91,19 +91,19 @@ public class Storage(
             ContentBody = JsonSerializer.Serialize(wd),
             ChecksumAlgorithm = ChecksumAlgorithm.SHA256
         };
-        pReqMetsLike.Metadata.Add(S3Helpers.OriginalNameMetadataKey, key.GetSlug());
+        pReqDepositFileSystem.Metadata.Add(S3Helpers.OriginalNameMetadataKey, key.GetSlug());
         try
         {
-            var resp = await s3Client.PutObjectAsync(pReqMetsLike, cancellationToken);
+            var resp = await s3Client.PutObjectAsync(pReqDepositFileSystem, cancellationToken);
             if (resp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
             {
                 return Result.Ok();
             }
-            return ResultHelpers.FailFromAwsStatusCode<WorkingDirectory>(resp.HttpStatusCode, "Unable to write METSlike.json", pReqMetsLike.GetS3Uri());
+            return ResultHelpers.FailFromAwsStatusCode<WorkingDirectory>(resp.HttpStatusCode, "Unable to write Deposit File System File.", pReqDepositFileSystem.GetS3Uri());
         }
         catch (AmazonS3Exception s3E)
         {
-            return ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Unable to write METSlike.json", pReqMetsLike.GetS3Uri());
+            return ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Unable to write Deposit File System File.", pReqDepositFileSystem.GetS3Uri());
         }
     }
 
@@ -150,18 +150,18 @@ public class Storage(
         }
     }
 
-    public async Task<Result<WorkingDirectory>> AddToMetsLike(AmazonS3Uri location, string metsLikeFilename, WorkingDirectory directoryToAdd, CancellationToken cancellationToken = default)
+    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(AmazonS3Uri location, WorkingDirectory directoryToAdd, CancellationToken cancellationToken = default)
     {
         try
         {
-            var currentResult = await ReadMetsLike(location, metsLikeFilename, cancellationToken);
+            var currentResult = await ReadDepositFileSystem(location, cancellationToken);
             if (currentResult.Success)
             {
                 var root = currentResult.Value!;
                 var newDir = root.FindDirectory(directoryToAdd.LocalPath, true);
                 newDir!.Name = directoryToAdd.Name; // should have been created along path
                 newDir.Modified = directoryToAdd.Modified;
-                var saveResult = await SaveMetsLike(location, metsLikeFilename, root, cancellationToken);
+                var saveResult = await SaveDepositFileSystem(location, root, cancellationToken);
                 return saveResult.Success ? Result.OkNotNull(root) : Result.Generify<WorkingDirectory>(saveResult);
             }
             return Result.FailNotNull<WorkingDirectory>(currentResult.ErrorCode!, currentResult.ErrorMessage);
@@ -173,11 +173,11 @@ public class Storage(
         }
     }
 
-    public async Task<Result<WorkingDirectory>> AddToMetsLike(AmazonS3Uri location, string metsLikeFilename, WorkingFile fileToAdd, CancellationToken cancellationToken = default)
+    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(AmazonS3Uri location, WorkingFile fileToAdd, CancellationToken cancellationToken = default)
     {
         try
         {
-            var currentResult = await ReadMetsLike(location, metsLikeFilename, cancellationToken);
+            var currentResult = await ReadDepositFileSystem(location, cancellationToken);
             if (currentResult.Success)
             {
                 var root = currentResult.Value!;
@@ -187,7 +187,7 @@ public class Storage(
                     return Result.FailNotNull<WorkingDirectory>(ErrorCodes.NotFound, "Parent directory does not exist");
                 }
                 parentDir.Files.Add(fileToAdd);
-                var saveResult = await SaveMetsLike(location, metsLikeFilename, root, cancellationToken);
+                var saveResult = await SaveDepositFileSystem(location, root, cancellationToken);
                 return saveResult.Success ? Result.OkNotNull(root) : Result.Generify<WorkingDirectory>(saveResult);
             }
             return Result.FailNotNull<WorkingDirectory>(currentResult.ErrorCode!, currentResult.ErrorMessage);
@@ -200,17 +200,17 @@ public class Storage(
     }
     
     
-    private async Task<Result> SaveMetsLike(AmazonS3Uri location, string metsLikeFilename, WorkingDirectory root,
+    private async Task<Result> SaveDepositFileSystem(AmazonS3Uri location, WorkingDirectory root,
         CancellationToken cancellationToken = default)
     {
-        var key = StringUtils.BuildPath(false, location.Key, metsLikeFilename);
-        var saveResult = await WriteMetsLike(location.Bucket, key, root, cancellationToken);
+        var key = StringUtils.BuildPath(false, location.Key, IStorage.DepositFileSystem);
+        var saveResult = await WriteDepositFileSystem(location.Bucket, key, root, cancellationToken);
         return saveResult;
     }
 
-    public async Task<Result> DeleteFromMetsLike(AmazonS3Uri location, string metsLikeFilename, string path, CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteFromDepositFileSystem(AmazonS3Uri location, string path, CancellationToken cancellationToken = default)
     {
-        var wdResult = await ReadMetsLike(location, metsLikeFilename, cancellationToken);
+        var wdResult = await ReadDepositFileSystem(location, cancellationToken);
         if (wdResult.Success)
         {
             bool somethingWasRemoved = false;
@@ -233,7 +233,7 @@ public class Storage(
             }
             if (somethingWasRemoved)
             {
-                var saveResult = await SaveMetsLike(location, metsLikeFilename, root, cancellationToken);
+                var saveResult = await SaveDepositFileSystem(location, root, cancellationToken);
                 return saveResult;
             }
             return Result.Fail(ErrorCodes.NotFound, "Could not delete path from METS: " + path);
@@ -241,12 +241,12 @@ public class Storage(
         return wdResult;
     }
 
-    public async Task<Result<WorkingDirectory?>> ReadMetsLike(AmazonS3Uri location, string metsLikeFilename, CancellationToken cancellationToken)
+    public async Task<Result<WorkingDirectory?>> ReadDepositFileSystem(AmazonS3Uri location, CancellationToken cancellationToken)
     {
         var gor = new GetObjectRequest
         {
             BucketName = location.Bucket,
-            Key = StringUtils.BuildPath(false, location.Key, metsLikeFilename)
+            Key = StringUtils.BuildPath(false, location.Key, IStorage.DepositFileSystem)
         };
         try
         {
@@ -276,7 +276,7 @@ public class Storage(
         }
     }
 
-    public async Task<Result<WorkingDirectory?>> GenerateMetsLike(AmazonS3Uri location, bool writeToStorage, CancellationToken cancellationToken = default)
+    public async Task<Result<WorkingDirectory?>> GenerateDepositFileSystem(AmazonS3Uri location, bool writeToStorage, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -343,7 +343,7 @@ public class Storage(
             
             if (writeToStorage)
             {
-                var writeResult = await WriteMetsLike(location.Bucket, location.Key + IStorage.MetsLike, top, cancellationToken);
+                var writeResult = await WriteDepositFileSystem(location.Bucket, location.Key + IStorage.DepositFileSystem, top, cancellationToken);
                 return writeResult.Success ? Result.Ok(top) : Result.Generify<WorkingDirectory?>(writeResult);
             }
             
@@ -493,7 +493,7 @@ public class Storage(
     { 
         var s3Uri = new AmazonS3Uri(sourceUri);
         WorkingDirectory workingDirectory;
-        var readResult = await GenerateMetsLike(s3Uri, true, cancellationToken);
+        var readResult = await GenerateDepositFileSystem(s3Uri, true, cancellationToken);
         
         if (readResult is { Success: true, Value: not null })
         {

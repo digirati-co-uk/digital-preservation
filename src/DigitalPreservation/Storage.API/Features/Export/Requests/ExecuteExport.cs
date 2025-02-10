@@ -67,7 +67,7 @@ public class ExecuteExportHandler(
                 }
             }
 
-            var newWd = await storage.GenerateMetsLike(destination, true, cancellationToken);
+            var newWd = await storage.GenerateDepositFileSystem(destination, true, cancellationToken);
             // TODO: validate that newWd.Value matches what we expected from storageMap.Files
             export.DateFinished = DateTime.UtcNow;
         }
