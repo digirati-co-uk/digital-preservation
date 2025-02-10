@@ -11,6 +11,7 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
+using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Storage.Repository.Common.Mets;
 
@@ -212,37 +213,66 @@ public class MetsManager(
         {
             return Result.FailNotNull<FullMets>(ErrorCodes.NotFound, "No METS file in " + metsLocation);
         }
-        var s3Uri = new AmazonS3Uri(file);
-        var gor = new GetObjectRequest
-        {
-            BucketName = s3Uri.Bucket,
-            Key = s3Uri.Key,
-        };
-        if (eTagToMatch is not null)
-        {
-            gor.EtagToMatch = eTagToMatch;
-        }
         string? returnedETag = null;
-        try
-        {
-            var resp = await s3Client.GetObjectAsync(gor);
-            if (resp.HttpStatusCode == HttpStatusCode.OK)
-            {
-                var serializer = new XmlSerializer(typeof(DigitalPreservation.XmlGen.Mets.Mets));
-                using var reader = XmlReader.Create(resp.ResponseStream);
-                mets = (DigitalPreservation.XmlGen.Mets.Mets)serializer.Deserialize(reader)!;
-            }
-            if (resp.HttpStatusCode is HttpStatusCode.PreconditionFailed)
-            {
-                return Result.FailNotNull<FullMets>(ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
-            }
 
-            returnedETag = resp.ETag;
-        }
-        catch (Exception e)
+        switch (file.Scheme)
         {
-            return Result.FailNotNull<FullMets>(ErrorCodes.UnknownError, e.Message);
+            case "s3":
+                var s3Uri = new AmazonS3Uri(file);
+                var gor = new GetObjectRequest
+                {
+                    BucketName = s3Uri.Bucket,
+                    Key = s3Uri.Key,
+                };
+                if (eTagToMatch is not null)
+                {
+                    gor.EtagToMatch = eTagToMatch;
+                }
+                try
+                {
+                    var resp = await s3Client.GetObjectAsync(gor);
+                    if (resp.HttpStatusCode == HttpStatusCode.OK)
+                    {
+                        var serializer = new XmlSerializer(typeof(DigitalPreservation.XmlGen.Mets.Mets));
+                        using var reader = XmlReader.Create(resp.ResponseStream);
+                        mets = (DigitalPreservation.XmlGen.Mets.Mets)serializer.Deserialize(reader)!;
+                    }
+                    if (resp.HttpStatusCode is HttpStatusCode.PreconditionFailed)
+                    {
+                        return Result.FailNotNull<FullMets>(ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
+                    }
+                    returnedETag = resp.ETag;
+                }
+                catch (Exception e)
+                {
+                    return Result.FailNotNull<FullMets>(ErrorCodes.UnknownError, e.Message);
+                }
+                break;
+            
+            case "file":
+                var fi = new FileInfo(file.LocalPath);
+                try
+                {
+                    returnedETag = Checksum.Sha256FromFile(fi);
+                    if (eTagToMatch is not null && returnedETag != eTagToMatch)
+                    {
+                        return Result.FailNotNull<FullMets>(
+                            ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
+                    }
+                    var serializer = new XmlSerializer(typeof(DigitalPreservation.XmlGen.Mets.Mets));
+                    using var reader = XmlReader.Create(file.LocalPath);
+                    mets = (DigitalPreservation.XmlGen.Mets.Mets)serializer.Deserialize(reader)!;
+                }
+                catch (Exception e)
+                {
+                    return Result.FailNotNull<FullMets>(ErrorCodes.UnknownError, e.Message);
+                }
+                break;
+            
+            default:
+                return Result.FailNotNull<FullMets>(ErrorCodes.BadRequest, file.Scheme + " not supported");
         }
+
 
         string? agentName = null;
         if (mets?.MetsHdr?.Agent is not null && mets.MetsHdr.Agent.Count > 0)
@@ -272,15 +302,20 @@ public class MetsManager(
 
     public async Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag)
     {
-        return await HandleSinglePut(workingRoot, workingFile, depositETag);
+        return await HandleSingleChange(workingRoot, depositETag, workingFile, null);
     }
     
     public async Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag)
     {
-        return await HandleSinglePut(workingRoot, workingDirectory, depositETag);
+        return await HandleSingleChange(workingRoot, depositETag, workingDirectory, null);
     }
 
-    private async Task<Result> HandleSinglePut(Uri workingRoot, WorkingBase workingBase, string depositETag)
+    public async Task<Result> HandleDeleteObject(Uri workingRoot, string localPath, string depositETag)
+    {
+        return await HandleSingleChange(workingRoot, depositETag, null, localPath);
+    }
+    
+    private async Task<Result> HandleSingleChange(Uri workingRoot, string? depositETag, WorkingBase? workingBase, string? deletePath)
     {
         var result = await GetFullMets(workingRoot, depositETag);
         if (result.Success)
@@ -292,13 +327,14 @@ public class MetsManager(
             // This may not be a good idea. But without it, we need a more complex way of
             // finding the METS parts, like the XDocument parsing in MetsParser.
 
-            var elements = workingBase.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var operationPath = workingBase?.LocalPath ?? deletePath;
+            var elements = operationPath!.Split('/', StringSplitOptions.RemoveEmptyEntries);
             var div = fullMets.Mets.StructMap.Single(sm => sm.Type=="PHYSICAL").Div!;
+            DivType? parent = null;
             var testPath = string.Empty;
             int counter = 0;
             foreach (var element in elements)
             {
-                counter++;
                 if (testPath.HasText())
                 {
                     testPath += "/";
@@ -312,6 +348,8 @@ public class MetsManager(
                     break;
                 }
 
+                counter++;
+                parent = div;
                 div = childDiv;
             }
             
@@ -321,61 +359,103 @@ public class MetsManager(
             // i.e., we must already be at the last or penultimate member of elements
             if (counter == elements.Length)
             {
-                // we have arrived at an existing file or foler which is being overwritten
-                if (workingBase is WorkingFile && div.Type != "Item")
+                if (deletePath is not null)
                 {
-                }
-                if (workingBase is WorkingDirectory && div.Type != "Directory")
-                {
-                    return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
-                }
-
-                if (workingBase is WorkingFile workingFile)
-                {
-                    if (div.Type != "Item")
+                    if (workingBase is not null)
                     {
-                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
+                        return Result.Fail(ErrorCodes.BadRequest, "Cannot supply a WorkingBase and a deletePath.");
                     }
-                    var fileId = div.Fptr[0].Fileid;
-                    var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
-                    var file = fileGrp.File.Single(f => f.Id == fileId);
-                    if (file.FLocat[0].Href != workingFile.LocalPath)
+                    
+                    // we have arrived at an existing file or folder which is being DELETED
+                    if (div.Div.Count > 0)
                     {
-                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
+                        return Result.Fail(ErrorCodes.BadRequest, "Cannot delete a non-empty directory.");
                     }
 
-                    var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
-                
-                    // This replaces the Premis metadata, which won't be OK later when it gets richer
-                    // from pipeline decorators.
-                    // TODO: Instead, need to merge the premis metadata.
-                    var reducedPremis = PremisFixityWrapper
-                        .Replace("{sha256}", workingFile.Digest)
-                        .Replace("{localPath}", workingFile.LocalPath);
-                    var reducedPremisX = GetElement(reducedPremis);
-                    amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } };
+                    string admId;
+                    if (div.Type == "Item")
+                    {
+                        // for Files only
+                        var fileId = div.Fptr[0].Fileid;
+                        var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+                        var file = fileGrp.File.Single(f => f.Id == fileId);
+                        if (file.FLocat[0].Href != deletePath)
+                        {
+                            return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
+                        }
+
+                        admId = file.Admid[0];
+                        fileGrp.File.Remove(file);
+                    }
+                    else
+                    {
+                        admId = div.Admid[0];
+                    }
+                    
+                    // for both Files and Directories
+                    var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == admId);
+                    fullMets.Mets.AmdSec.Remove(amdSec);
+                    parent!.Div.Remove(div);
                 }
-                else if (workingBase is WorkingDirectory workingDirectory)
+                else
                 {
-                    if(div.Type != "Directory")
+                    // we have arrived at an existing file or folder which is being OVERWRITTEN
+                    if (workingBase is WorkingDirectory && div.Type != "Directory")
                     {
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
                     }
 
-                    // Is there anything else that could be done here?
-                    if (workingDirectory.Name.HasText())
+                    if (workingBase is WorkingFile workingFile)
                     {
-                        // and is it even done on hasText?
-                        div.Label = workingDirectory.Name;
+                        if (div.Type != "Item")
+                        {
+                            return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
+                        }
+                        var fileId = div.Fptr[0].Fileid;
+                        var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+                        var file = fileGrp.File.Single(f => f.Id == fileId);
+                        if (file.FLocat[0].Href != workingFile.LocalPath)
+                        {
+                            return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
+                        }
+
+                        var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
+                    
+                        // This replaces the Premis metadata, which won't be OK later when it gets richer
+                        // from pipeline decorators.
+                        // TODO: Instead, need to merge the premis metadata.
+                        var reducedPremis = PremisFixityWrapper
+                            .Replace("{sha256}", workingFile.Digest)
+                            .Replace("{localPath}", workingFile.LocalPath);
+                        var reducedPremisX = GetElement(reducedPremis);
+                        amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } };
                     }
-                }
-                else
-                {
-                    return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
+                    else if (workingBase is WorkingDirectory workingDirectory)
+                    {
+                        if(div.Type != "Directory")
+                        {
+                            return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
+                        }
+
+                        // Is there anything else that could be done here?
+                        if (workingDirectory.Name.HasText())
+                        {
+                            // and is it even done on hasText?
+                            div.Label = workingDirectory.Name;
+                        }
+                    }
+                    else
+                    {
+                        return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
+                    }                    
                 }
             } 
             else if (counter == elements.Length - 1)
             {
+                if (deletePath is not null)
+                {
+                    return Result.Fail(ErrorCodes.NotFound, "Can't find a file or folder to delete.");
+                }
                 // div is a directory
                 if (div.Type != "Directory")
                 {
@@ -439,7 +519,11 @@ public class MetsManager(
                 // create a new Collection and assign it to Div
                 var childList = new List<DivType>(div.Div);
                 div.Div.Clear();
-                foreach (var divType in childList.OrderBy(d => d.Label))
+                // We will order case-insensitive; we want to match what a typical file exporer would do.
+                // What about the original ordering? For born digital, is there such a thing?
+                // How do we know what sort order the creator of the archive applied to their view?
+                // Later we can implement something that can set order.
+                foreach (var divType in childList.OrderBy(d => d.Label.ToLowerInvariant()))
                 {
                     div.Div.Add(divType);
                 }
@@ -455,20 +539,7 @@ public class MetsManager(
         return Result.Fail(result.ErrorCode ?? ErrorCodes.UnknownError, result.ErrorMessage);
     }
 
-    public async Task<Result> HandleDeleteObject(Uri workingRoot, string localPath, string depositETag)
-    {
-        var result = await GetFullMets(workingRoot, depositETag);
-        if (result.Success)
-        {
-            var fullMets = result.Value;
-            
-            // delete localPath from METS
-            
-            await WriteMets(fullMets!);
-            return Result.Ok();
-        }
-        return Result.Fail(result.ErrorCode ?? ErrorCodes.UnknownError, result.ErrorMessage);
-    }
+
 
     
     public bool IsMetsFile(string fileName)
