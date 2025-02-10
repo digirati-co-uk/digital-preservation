@@ -83,8 +83,12 @@ public class UploadFileToDepositHandler(
                 if (saveResult.Success)
                 {
                     // TODO - result this up... 
-                    await metsManager.HandleSingleFileUpload(s3Uri.ToUri(), file, request.MetsETag);
-                    return Result.Ok(file);
+                    var result = await metsManager.HandleSingleFileUpload(s3Uri.ToUri(), file, request.MetsETag);
+                    if (result.Success)
+                    {
+                        return Result.Ok(file);
+                    }
+                    return Result.Fail<WorkingFile>(result.ErrorCode!, result.ErrorMessage);
                 }
                 return Result.Generify<WorkingFile?>(saveResult);
             }

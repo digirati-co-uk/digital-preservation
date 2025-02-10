@@ -91,7 +91,7 @@ public class MetsParser(
                     Delimiter = "/" // first "children" only                        
                 };
                 var resp = await s3Client.ListObjectsV2Async(listObjectsReq);
-                var firstXmlKey = resp.S3Objects.FirstOrDefault(s => s.Key.ToLowerInvariant().EndsWith(".xml"));
+                var firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key));
                 if (firstXmlKey != null)
                 {
                     var bucket = firstXmlKey.BucketName;

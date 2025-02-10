@@ -213,7 +213,8 @@ public class MetsManager(
         {
             return Result.FailNotNull<FullMets>(ErrorCodes.NotFound, "No METS file in " + metsLocation);
         }
-        string? returnedETag = null;
+        
+        string? returnedETag;
 
         switch (file.Scheme)
         {
