@@ -99,6 +99,9 @@ public class CreateDepositHandler(
                 request.Deposit.VersionExported,
                 agNameFromDeposit,
                 cancellationToken);
+            
+            await storage.GenerateDepositFileSystem( 
+                new AmazonS3Uri(filesLocation.Value), true, cancellationToken);
 
             var entity = new DepositEntity
             {

@@ -2,6 +2,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Moq;
 using Storage.Repository.Common.Mets;
 
 namespace XmlGen.Tests;
@@ -20,10 +21,11 @@ public class MetsWrapperTests
         logger = factory!.CreateLogger<MetsParser>();    
     }
     
-    [Fact (Skip = "Experimental")]
+    [Fact]
     public async void Can_Parse_Goobi_METS_For_Wrapper()
     {
-        var parser = new MetsParser(new AmazonS3Client(), logger);
+        var s3Client = new Mock<IAmazonS3>().Object;
+        var parser = new MetsParser(s3Client, logger);
         var goobiMetsFile = new FileInfo("Samples/goobi-wc-b29356350.xml");
         var result = await parser.GetMetsFileWrapper(new Uri(goobiMetsFile.FullName));
 
@@ -52,10 +54,11 @@ public class MetsWrapperTests
         altoDir.Files[10].ContentType.Should().Be("application/xml");
     }
     
-    [Fact (Skip = "Experimental")]
+    [Fact]
     public async Task Can_Parse_EPrints_METS()
     {
-        var parser = new MetsParser(new AmazonS3Client(), logger);
+        var s3Client = new Mock<IAmazonS3>().Object;
+        var parser = new MetsParser(s3Client, logger);
         var eprintsMets = new FileInfo("Samples/EPrints.10315.METS.xml");
         var result = await parser.GetMetsFileWrapper(new Uri(eprintsMets.FullName));
 
@@ -78,10 +81,11 @@ public class MetsWrapperTests
         phys.Directories[0].Files[3].Name.Should().Be("372705s_004.jpg");
     }
 
-    [Fact (Skip = "Experimental")]
+    [Fact]
     public async Task Can_Parse_Archivematica_METS()
     {
-        var parser = new MetsParser(new AmazonS3Client(), logger);
+        var s3Client = new Mock<IAmazonS3>().Object;
+        var parser = new MetsParser(s3Client, logger);
         var archivematicaMets = new FileInfo("Samples/archivematica-wc-METS.299eb16f-1e62-4bf6-b259-c82146153711.xml");
         var result = await parser.GetMetsFileWrapper(new Uri(archivematicaMets.FullName));
 
@@ -95,7 +99,7 @@ public class MetsWrapperTests
         result.Value.Name.Should().BeNull(); // No name in Archivematica METS
         phys.Directories.Should().HaveCount(1);
         
-        result.Value.Files.Count.Should().Be(38);
+        result.Value.Files.Count.Should().Be(38 + 1);
         result.Value.Files.Should().Contain(f => f.LocalPath == "objects/Edgware_Community_Hospital/03_05_01.tif");
         result.Value.Files.Should().Contain(f => f.LocalPath == "objects/Edgware_Community_Hospital/presentation_site_plan_A3.pdf");
         result.Value.Files.Should().Contain(f => f.LocalPath == "objects/metadata/transfers/ARTCOOB9-4840a241-d397-4554-abfe-69f1ad674126/rights.csv");
@@ -126,10 +130,11 @@ public class MetsWrapperTests
         edgware.Files.Should().HaveCount(11);
     }
     
-    [Fact (Skip = "Experimental")]
+    [Fact]
     public async void Can_Parse_METS_From_FolderReference()
     {
-        var parser = new MetsParser(new AmazonS3Client(), logger);
+        var s3Client = new Mock<IAmazonS3>().Object;
+        var parser = new MetsParser(s3Client, logger);
         var metsFolderContainer = new DirectoryInfo("Samples");
         var result = await parser.GetMetsFileWrapper(new Uri(metsFolderContainer.FullName));
 

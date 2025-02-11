@@ -15,16 +15,105 @@ public class MetsParser(
     IAmazonS3 s3Client,
     ILogger<MetsParser> logger) : IMetsParser
 {
+    public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
+    {
+        // If metsLocation ends with .xml, it's assumed to be the METS file itself.
+        // If not, it's assumed to be its containing directory / key.
+        // No other possibilities are supported.
+        Uri root;
+        Uri? file = null;
+        var slug = metsLocation.GetSlug();
+        if (slug.HasText() && slug.ToLowerInvariant().EndsWith(".xml"))
+        {
+            // If we have been explicitly given an .xml path, we assume the caller knows this is METS
+            file = metsLocation;
+            root = metsLocation.GetParentUri(trimTrailingSlash:false)!;
+        }
+        else
+        {
+            if (metsLocation.AbsoluteUri.EndsWith("/"))
+            {
+                root = metsLocation;
+            }
+            else
+            {
+                root = new Uri(metsLocation.AbsoluteUri + "/");
+            }
+        }
+
+        if (file is not null)
+        {
+            // We assume that the caller knew that metsLocation is a file
+            return Result.Ok((root, (Uri?)file));
+        }
+        
+        // we haven't found the METS file yet
+        switch (root.Scheme)
+        {
+            case "file":
+                var dir = new DirectoryInfo(root.AbsolutePath);
+            
+                // Need to find the METS. Look for "mets.xml" by preference
+                var firstXmlFile = dir.EnumerateFiles().FirstOrDefault(
+                    f => MetsUtils.IsMetsFile(f.Name, true));
+                if (firstXmlFile == null)
+                {
+                    firstXmlFile = dir.EnumerateFiles().FirstOrDefault(
+                    f => MetsUtils.IsMetsFile(f.Name, false));
+                }
+                if (firstXmlFile != null)
+                {
+                    file = new Uri(firstXmlFile.FullName);
+                }
+
+                break;
+            case "s3":
+                var rootS3Uri = new AmazonS3Uri(root);
+                var prefix = $"{rootS3Uri.Key.TrimEnd('/')}/";
+            
+                // Need to find the METS
+                var listObjectsReq = new ListObjectsV2Request
+                {
+                    BucketName = rootS3Uri.Bucket,
+                    Prefix = prefix,
+                    Delimiter = "/" // first "children" only                        
+                };
+                var resp = await s3Client.ListObjectsV2Async(listObjectsReq);
+                var firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, true));
+                if (firstXmlKey != null)
+                {
+                    firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, false));
+                }
+
+                if (firstXmlKey != null)
+                {
+                    file = new Uri($"s3://{firstXmlKey.BucketName}/{firstXmlKey.Key}");
+                }
+
+                break;
+            default:
+                throw new NotSupportedException(root.Scheme + " not supported");
+        }
+
+        return Result.Ok((root, file));
+    }
+    
     public async Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation, bool parse = true)
     {
         // might be a file path or an S3 URI
-        var (root, file) = MetsUtils.GetRootAndFile(metsLocation);
+        var fileLocResult = await GetRootAndFile(metsLocation);
+        var (root, file) = fileLocResult.Value;
         var mets = new MetsFileWrapper
         {
-            Root = root,
-            Self = await FindMetsFileAsync(root, file),
+            RootUri = root,
+            MetsUri = file,
             PhysicalStructure = Storage.RootDirectory()
         };
+
+        if (mets.MetsUri is not null)
+        {
+            mets.Self = await LoadMetsFileAsync(mets.RootUri, mets.MetsUri);
+        }
         if(mets.Self != null)
         {
             var (xMets, eTag) = await ExamineXml(mets, parse);
@@ -51,104 +140,82 @@ public class MetsParser(
 
 
 
-    private async Task<WorkingFile?> FindMetsFileAsync(Uri root, Uri? file)
+    private async Task<WorkingFile?> LoadMetsFileAsync(Uri root, Uri file)
     {
         // This "find the METS file" logic is VERY basic and doesn't even look at the file.
         // But this is just for Proof of Concept.
 
-        switch (root.Scheme)
+        switch (file.Scheme)
         {
             case "file":
-                var dir = new DirectoryInfo(root.AbsolutePath);
-                if (file is not null)
+                if (File.Exists(file.AbsolutePath))
                 {
-                    var fi = new FileInfo(file.LocalPath);
-                    return GetWorkingFileFromFileInfo(fi);
-                }
-                
-                // Need to find the METS
-                var firstXmlFile = dir.EnumerateFiles().FirstOrDefault(f => MetsUtils.IsMetsFile(f.Name));
-                if (firstXmlFile != null)
-                {
-                    return GetWorkingFileFromFileInfo(firstXmlFile);
+                    var fi = new FileInfo(file.AbsolutePath);
+                    return new WorkingFile
+                    {
+                        ContentType = "application/xml",
+                        LocalPath = fi.Name, // because mets must be in the root
+                        Name = fi.Name,
+                        Digest = Checksum.Sha256FromFile(fi)
+                    };
                 }
 
-                break;
+                return null;
+            
             case "s3":
                 var rootS3Uri = new AmazonS3Uri(root);
+                var fileS3Uri = new AmazonS3Uri(file);
                 var prefix = $"{rootS3Uri.Key.TrimEnd('/')}/";
-                if (file is not null)
+                try
                 {
-                    var fileS3Uri = new AmazonS3Uri(file);
-                    return await GetWorkingFileFromS3Location(fileS3Uri.Bucket, fileS3Uri.Key, prefix);
-                }
-                
-                // Need to find the METS
-                var listObjectsReq = new ListObjectsV2Request
-                {
-                    BucketName = rootS3Uri.Bucket,
-                    Prefix = prefix,
-                    Delimiter = "/" // first "children" only                        
-                };
-                var resp = await s3Client.ListObjectsV2Async(listObjectsReq);
-                var firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key));
-                if (firstXmlKey != null)
-                {
-                    var bucket = firstXmlKey.BucketName;
-                    var key = firstXmlKey.Key;
-                    return await GetWorkingFileFromS3Location(bucket, key, prefix);
+                    var resp = await s3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
+                    {
+                        BucketName = fileS3Uri.Bucket,
+                        Key = fileS3Uri.Key
+                    });
                 }
 
-                // 
-                break;
+                catch (AmazonS3Exception ex)
+                {
+                    if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+                        return null;
+
+                    throw;
+                }
+                
+                var s3Stream = await s3Client.GetObjectStreamAsync(fileS3Uri.Bucket, fileS3Uri.Key, null);
+                var digest = Checksum.Sha256FromStream(s3Stream);
+                var name = fileS3Uri.Key.Replace(prefix, string.Empty);
+                return new WorkingFile
+                {
+                    ContentType = "application/xml",
+                    LocalPath = name, // because mets is in root
+                    Name = name,
+                    Digest = digest
+                };
+            
             default:
                 throw new NotSupportedException(root.Scheme + " not supported");
         }
-
-        return null;
-
-        WorkingFile? GetWorkingFileFromFileInfo(FileInfo fi)
-        {
-            return new WorkingFile
-            {
-                ContentType = "application/xml",
-                LocalPath = fi.Name,
-                Name = fi.Name,
-                Digest = Checksum.Sha256FromFile(fi)
-            };
-        }
-
-        async Task<WorkingFile?> GetWorkingFileFromS3Location(string bucket, string key, string prefix)
-        {
-            var s3Stream = await s3Client.GetObjectStreamAsync(bucket, key, null);
-            var digest = Checksum.Sha256FromStream(s3Stream);
-            var name = key.Replace(prefix, string.Empty);
-            return new WorkingFile
-            {
-                ContentType = "application/xml",
-                LocalPath = name,
-                Name = name,
-                Digest = digest
-            };
-        }
+        
     }
     
     
     private async Task<(XDocument?, string)> ExamineXml(MetsFileWrapper mets, bool parse)
     {
         XDocument? xDoc = null;
-        switch(mets.Root!.Scheme)
+        switch(mets.RootUri!.Scheme)
         {
             case "file":
-                var fileETag = mets.Self.Digest!;
+                var fileETag = mets.Self!.Digest!;
                 if (parse)
                 {
-                    xDoc = XDocument.Load(mets.Root + mets.Self!.LocalPath);
+                    xDoc = XDocument.Load(mets.RootUri + mets.Self!.LocalPath);
                 }
                 return (xDoc, fileETag);
 
             case "s3":
-                var s3Uri = new AmazonS3Uri(mets.Root + mets.Self!.LocalPath);
+                var s3Uri = new AmazonS3Uri(mets.RootUri + mets.Self!.LocalPath);
                 var resp = await s3Client.GetObjectAsync(s3Uri.Bucket, s3Uri.Key);
                 var s3ETag = resp.ETag!;
                 if (parse)
@@ -158,7 +225,7 @@ public class MetsParser(
                 return (xDoc, s3ETag);
 
             default:
-                throw new NotSupportedException(mets.Root!.Scheme + " not supported");
+                throw new NotSupportedException(mets.RootUri!.Scheme + " not supported");
         }
     }
     

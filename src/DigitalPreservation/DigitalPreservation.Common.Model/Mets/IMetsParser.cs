@@ -10,6 +10,8 @@ public interface IMetsParser
     /// <param name="metsLocation"></param>
     /// <param name="parse">Whether to actually load and parse the METS, or just obtain its file information</param>
     /// <returns></returns>
-    public Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation, bool parse = true);
-    
+    Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation, bool parse = true);
+
+    Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation);
+
 }

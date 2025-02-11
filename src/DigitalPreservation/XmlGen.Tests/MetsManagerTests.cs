@@ -1,19 +1,19 @@
 ﻿using System.Text.Json;
 using Amazon.S3;
 using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Moq;
 using Storage.Repository.Common.Mets;
 
 namespace XmlGen.Tests;
 
 public class MetsManagerTests
 {
-    private IMetsManager metsManager;
-    private IMetsParser parser;
+    private readonly MetsManager metsManager;
+    private readonly MetsParser parser;
 
     public MetsManagerTests()
     {
@@ -23,14 +23,13 @@ public class MetsManagerTests
 
         var factory = serviceProvider.GetService<ILoggerFactory>();
         var parserLogger = factory!.CreateLogger<MetsParser>();
-        var s3Client = new AmazonS3Client();
+        var s3Client = new Mock<IAmazonS3>().Object;
         parser = new MetsParser(s3Client, parserLogger);
         metsManager = new MetsManager(parser, s3Client);
     }
 
 
-    [Fact(Skip = "Experimental")]
-    // [Fact]
+    [Fact]
     public async Task Can_Create_Empty_Mets()
     {
         var emptyMetsFi = new FileInfo("Outputs/empty-mets.xml");
@@ -48,8 +47,7 @@ public class MetsManagerTests
         // TODO: Validate result.Value.XDocument
     }
     
-    [Fact(Skip = "Experimental")]
-    // [Fact]
+    [Fact]
     public async Task Can_Create_Mets_From_Archival_Group()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
@@ -102,8 +100,7 @@ public class MetsManagerTests
     }
 
 
-    [Fact(Skip = "Experimental")]
-    // [Fact]
+    [Fact]
     public async Task Can_Add_Directories_To_Empty_Mets()
     {
         var emptyMetsFi = new FileInfo("Outputs/empty-mets-add-dirs.xml");
@@ -136,8 +133,7 @@ public class MetsManagerTests
         // TODO: Validate result.Value.XDocument
     }
     
-    [Fact(Skip = "Experimental")]
-    // [Fact]
+    [Fact]
     public async Task Can_Add_Directories_To_ArchivalGroup_Mets()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
@@ -252,8 +248,7 @@ public class MetsManagerTests
         folderBB.Directories[0].LocalPath.Should().Be("objects/folder-b/folder-bb/child-of-bb");
     }
     
-    [Fact(Skip = "Experimental")]
-    // [Fact]
+    [Fact]
     public async Task Can_Add_Files_To_Empty_Mets()
     {
         var emptyMetsFi = new FileInfo("Outputs/empty-mets-add-files.xml");
@@ -292,8 +287,7 @@ public class MetsManagerTests
         // TODO: Validate result.Value.XDocument
     }
     
-    [Fact(Skip = "Experimental")]
-    // [Fact]
+    [Fact]
     public async Task Can_Add_Files_To_ArchivalGroup_Mets()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
@@ -357,8 +351,7 @@ public class MetsManagerTests
     }
     
     
-    [Fact(Skip = "Experimental")]
-    // [Fact]
+    [Fact]
     public async Task Can_Delete_Files_From_Mets()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
@@ -388,9 +381,7 @@ public class MetsManagerTests
         // Need to verify that fileSec and ADMSec have been updated
     }
     
-    
-    [Fact(Skip = "Experimental")]
-    // [Fact]
+    [Fact]
     public async Task Can_Delete_Directories_From_Mets()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");

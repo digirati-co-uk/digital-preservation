@@ -30,7 +30,7 @@ public class MetsManager(
     
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
-        var (file, mets) = GetStandardMets(metsLocation, agNameFromDeposit);
+        var (file, mets) = await GetStandardMets(metsLocation, agNameFromDeposit);
         var writeResult = await WriteMets(new FullMets{ Mets = mets, Uri = file });
         if (writeResult.Success)
         {
@@ -41,7 +41,7 @@ public class MetsManager(
 
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, ArchivalGroup archivalGroup, string? agNameFromDeposit)
     {
-        var (file, mets) = GetStandardMets(metsLocation, agNameFromDeposit);
+        var (file, mets) = await GetStandardMets(metsLocation, agNameFromDeposit);
         
         AddResourceToMets(mets, archivalGroup, mets.StructMap[0].Div, archivalGroup);
         
@@ -133,10 +133,11 @@ public class MetsManager(
     }
 
 
-    private (Uri file, DigitalPreservation.XmlGen.Mets.Mets mets) GetStandardMets(Uri metsLocation, string? agNameFromDeposit)
+    private async Task<(Uri file, DigitalPreservation.XmlGen.Mets.Mets mets)> GetStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
         // might be a file path or an S3 URI
-        var (root, file) = MetsUtils.GetRootAndFile(metsLocation);
+        var fileLocResult = await metsParser.GetRootAndFile(metsLocation);
+        var (root, file) = fileLocResult.Value;
         if (file is null)
         {
             file = new Uri(root + "mets.xml");
@@ -208,7 +209,8 @@ public class MetsManager(
     public async Task<Result<FullMets>> GetFullMets(Uri metsLocation, string? eTagToMatch)
     {
         DigitalPreservation.XmlGen.Mets.Mets? mets = null; 
-        var (_, file) = MetsUtils.GetRootAndFile(metsLocation);
+        var fileLocResult = await metsParser.GetRootAndFile(metsLocation);
+        var (_, file) = fileLocResult.Value;
         if (file is null)
         {
             return Result.FailNotNull<FullMets>(ErrorCodes.NotFound, "No METS file in " + metsLocation);
