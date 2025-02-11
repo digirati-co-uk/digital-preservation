@@ -69,7 +69,7 @@ public class CreateFolderHandler(
             var headResponse = await s3Client.GetObjectMetadataAsync(headReq, cancellationToken);
             var dir = new WorkingDirectory
             {
-                LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
+                LocalPath = fullKey.RemoveStart(s3Uri.Key)!.TrimEnd('/'),
                 Name = request.Name,
                 Modified = headResponse.LastModified.ToUniversalTime()
             };
