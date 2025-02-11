@@ -64,7 +64,7 @@ public class MetsManager(
     /// <param name="container"></param>
     private void AddResourceToMets(DigitalPreservation.XmlGen.Mets.Mets mets, ArchivalGroup archivalGroup, DivType div, Container container)
     {
-        var agString = archivalGroup.Id.ToString();
+        var agString = archivalGroup.Id!.ToString();
         foreach (var childContainer in container.Containers)
         {
             DivType? childDirectoryDiv = null;
@@ -465,6 +465,11 @@ public class MetsManager(
                     return Result.Fail(ErrorCodes.BadRequest, "Parent path is not a Directory");
                 }
 
+                if (workingBase is null)
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, "No working directory or working file supplied to add.");
+                }
+
                 var physId = PhysIdPrefix + workingBase.LocalPath;
                 var admId = AdmIdPrefix + workingBase.LocalPath;
                 var techId = TechIdPrefix + workingBase.LocalPath;
@@ -522,7 +527,7 @@ public class MetsManager(
                 // create a new Collection and assign it to Div
                 var childList = new List<DivType>(div.Div);
                 div.Div.Clear();
-                // We will order case-insensitive; we want to match what a typical file exporer would do.
+                // We will order case-insensitive; we want to match what a typical file explorer would do.
                 // What about the original ordering? For born digital, is there such a thing?
                 // How do we know what sort order the creator of the archive applied to their view?
                 // Later we can implement something that can set order.

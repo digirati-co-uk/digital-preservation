@@ -117,15 +117,15 @@ public class MetsWrapperTests
         objDir.Directories.Should().Contain(d => d.LocalPath == "objects/metadata");
         var kings = objDir.FindDirectory("GJW_King_s_College_Hospital", false);
         kings.Should().NotBeNull();
-        kings.Name.Should().Be("GJW_King_s_College_Hospital"); // unaltered
+        kings!.Name.Should().Be("GJW_King_s_College_Hospital"); // unaltered
         kings.Directories.Should().HaveCount(0);
         kings.Files.Should().HaveCount(13);
         var plan = kings.FindFile("Kings_1913_plan_altered.jpg");
         plan.Should().NotBeNull();
-        plan.Name.Should().Be("Kings 1913 plan altered.jpg"); // note with spaces from LABEL
+        plan!.Name.Should().Be("Kings 1913 plan altered.jpg"); // note with spaces from LABEL
         var edgware = objDir.FindDirectory("Edgware_Community_Hospital");
         edgware.Should().NotBeNull();
-        edgware.Name.Should().Be("Edgware Community Hospital"); // with spaces
+        edgware!.Name.Should().Be("Edgware Community Hospital"); // with spaces
         edgware.Directories.Should().HaveCount(0);
         edgware.Files.Should().HaveCount(11);
     }

@@ -2,6 +2,7 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -118,7 +119,7 @@ public class MetsParser(
         {
             var (xMets, eTag) = await ExamineXml(mets, parse);
             mets.ETag = eTag;
-            if (parse)
+            if (parse && xMets is not null)
             {
                 PopulateFromMets(mets, xMets);
             }
@@ -377,7 +378,7 @@ public class MetsParser(
                             // Archivematica does it this way
                             techMd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
                         }
-                        var fixity = techMd.Descendants(XNames.PremisFixity).SingleOrDefault();
+                        var fixity = techMd!.Descendants(XNames.PremisFixity).SingleOrDefault();
                         if (fixity != null)
                         {
                             var algorithm = fixity.Element(XNames.PremisMessageDigestAlgorithm)?.Value?.ToLowerInvariant().Replace("-", "");
@@ -403,7 +404,7 @@ public class MetsParser(
                     
                     var file = new WorkingFile
                     {
-                        ContentType = mimeType,
+                        ContentType = mimeType ?? ContentTypes.NotIdentified,
                         LocalPath = flocat,
                         Digest = digest,
                         Name = label ?? parts[^1]

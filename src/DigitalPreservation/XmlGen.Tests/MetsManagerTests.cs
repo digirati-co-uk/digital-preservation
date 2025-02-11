@@ -38,7 +38,7 @@ public class MetsManagerTests
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();
 
-        result.Value.PhysicalStructure.Directories.Should().HaveCount(1);
+        result.Value!.PhysicalStructure!.Directories.Should().HaveCount(1);
         result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
         
         result.Value.PhysicalStructure.Files.Should().HaveCount(1);
@@ -62,7 +62,7 @@ public class MetsManagerTests
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();
 
-        result.Value.PhysicalStructure.Directories.Should().HaveCount(1);
+        result.Value!.PhysicalStructure!.Directories.Should().HaveCount(1);
         result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
         
         result.Value.PhysicalStructure.Files.Should().HaveCount(1);

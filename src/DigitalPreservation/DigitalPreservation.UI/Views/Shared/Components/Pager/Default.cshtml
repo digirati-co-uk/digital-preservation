@@ -22,7 +22,7 @@
             }
             else
             {
-                <li class="page-item"><a class="page-link" href="@link.Href">@((object) link.Page ?? "...")</a></li>
+                <li class="page-item"><a class="page-link" href="@link.Href">@((object?) link.Page ?? "...")</a></li>
             }
         }
         @if (Model.Next == null)
