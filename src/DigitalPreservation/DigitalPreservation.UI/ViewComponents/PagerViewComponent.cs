@@ -13,7 +13,7 @@ public class PagerViewComponent : ViewComponent
 
     public Task<IViewComponentResult> InvokeAsync(PagerValues values)
     {
-        if (values.HideForSinglePage && values.Total < values.Size)
+        if (values.HideForSinglePage && values.Total <= values.Size)
         {
             // Nothing to page
             return Task.FromResult<IViewComponentResult>(Content(String.Empty));
