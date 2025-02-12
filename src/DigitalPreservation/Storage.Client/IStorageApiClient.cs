@@ -33,7 +33,12 @@ public interface IStorageApiClient
     
     Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob requestImportJob, CancellationToken cancellationToken = default);
     Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri);
+    
+    // Asynchronously export the entire contents of archivalGroup (version=versionToExport) to exportLocation
     Task<Result<Export>> ExportArchivalGroup(Uri archivalGroup, Uri exportLocation, string versionToExport, CancellationToken cancellationToken = default);
+    
+    // Synchronously export only the METS file from archivalGroup (version=versionToExport) to exportLocation
+    Task<Result<Export>> ExportArchivalGroupMetsOnly(Uri archivalGroup, Uri exportLocation, string? versionToExport, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Basic ping to check Storage API is alive. 

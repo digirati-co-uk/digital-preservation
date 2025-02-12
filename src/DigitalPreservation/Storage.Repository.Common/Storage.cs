@@ -278,6 +278,7 @@ public class Storage(
 
     public async Task<Result<WorkingDirectory?>> GenerateDepositFileSystem(AmazonS3Uri location, bool writeToStorage, CancellationToken cancellationToken = default)
     {
+        logger.LogInformation("Generating deposit file system in " + location);
         try
         {
             var s3Objects = await ListAllS3Objects(location, cancellationToken);
@@ -352,6 +353,7 @@ public class Storage(
         }
         catch (Exception e)
         {
+            logger.LogError(e, "Exception in generating file system");
             return Result.Fail<WorkingDirectory>(ErrorCodes.UnknownError, e.Message);
         }
     }

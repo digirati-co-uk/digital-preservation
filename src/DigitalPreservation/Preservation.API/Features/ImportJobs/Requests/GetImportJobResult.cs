@@ -19,6 +19,7 @@ public class GetImportJobResult(string depositId, string importJobId) : IRequest
 }
 
 public class GetImportJobResultHandler(
+    ILogger<GetImportJobResultHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApi,
     ResourceMutator resourceMutator) : IRequestHandler<GetImportJobResult, Result<ImportJobResult>>
@@ -31,6 +32,8 @@ public class GetImportJobResultHandler(
         {
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No import job found");
         }
+        
+        logger.LogDebug("IJR-01: " + entity.Status);
 
         if (ImportJobStates.IsComplete(entity.Status))
         {
@@ -49,6 +52,7 @@ public class GetImportJobResultHandler(
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Job Complete but no LatestPreservationApiResultJson");
         }
         
+        logger.LogDebug("IJR-02: Not complete");
         // It's not complete: ask the storage API for its version, get its status
         var importJobResultResult = await storageApi.GetImportJobResult(entity.StorageImportJobResultId);
         if (importJobResultResult.Success)
@@ -59,8 +63,10 @@ public class GetImportJobResultHandler(
             
             // update the entity
             bool wasComplete = ImportJobStates.IsComplete(entity.Status);
+            logger.LogDebug("IJR-04: storageApiImportJobResult.Status=" + storageApiImportJobResult.Status);
             entity.Status = storageApiImportJobResult.Status;
             bool isComplete = ImportJobStates.IsComplete(entity.Status);
+            
             // If status is a change to Completed we could do something more
             if (storageApiImportJobResult.Errors != null && storageApiImportJobResult.Errors.Length != 0)
             {
@@ -71,16 +77,21 @@ public class GetImportJobResultHandler(
             entity.NewVersion = storageApiImportJobResult.NewVersion;
             entity.SourceVersion = storageApiImportJobResult.SourceVersion;
             entity.LatestStorageApiResultJson = JsonSerializer.Serialize(storageApiImportJobResult);
+            
+            
+            logger.LogDebug("IJR-05: storageApiImportJobResult.Status=" + storageApiImportJobResult.Status);
 
             var originalImportJob = JsonSerializer.Deserialize<ImportJob>(entity.ImportJobJson);
             if (originalImportJob != null)
             {
+                logger.LogDebug("IJR-06: originalImportJob.OriginalId=" + originalImportJob.OriginalId);
                 preservationApiImportJobResult.OriginalImportJob = originalImportJob.OriginalId;
             }
             entity.LatestPreservationApiResultJson = JsonSerializer.Serialize(preservationApiImportJobResult);
 
             if (isComplete && !wasComplete)
             {
+                logger.LogDebug("IJR-07: isComplete && !wasComplete");
                 var deposit = dbContext.Deposits.Single(d => d.MintedId == request.DepositId);
                 deposit.Status = DepositStates.Preserved;
                 deposit.Active = false; // even if completedWithErrors, I think. Should not be a regular occurrence.
@@ -91,10 +102,13 @@ public class GetImportJobResultHandler(
                 deposit.VersionPreserved = storageApiImportJobResult.NewVersion;
             }
             
+            logger.LogDebug("IJR-08: Saving changes");
             await dbContext.SaveChangesAsync(cancellationToken);
             
             return Result.OkNotNull(preservationApiImportJobResult);
         }
+
+        logger.LogDebug("IJR-03: " + importJobResultResult.CodeAndMessage());
 
         return importJobResultResult;
     }

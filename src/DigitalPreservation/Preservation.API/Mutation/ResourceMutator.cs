@@ -107,7 +107,7 @@ public class ResourceMutator(
     }
     
     
-    private Uri? MutatePreservationApiUri(Uri? uri)
+    public Uri? MutatePreservationApiUri(Uri? uri)
     {
         // Discuss whether it's actually worth doing it this way:
         // https://stackoverflow.com/questions/479799/replace-host-in-uri

@@ -76,7 +76,30 @@ public class ImportJobsController(IMediator mediator, ResourceMutator resourceMu
             importJob = diffImportJobResult.Value!;
         }
 
-        importJob.Deposit = deposit.Id;
+        Result<ImportJobResult>? checkDeposit;
+        if (importJob.Deposit is null)
+        {
+            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest,
+                "Import job must declare which Deposit it is for.");
+            return this.StatusResponseFromResult(checkDeposit);
+        }
+        if (importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
+        {
+            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest,
+                "Import job Deposit does not match the Deposit it was submitted to.");
+            return this.StatusResponseFromResult(checkDeposit);
+        }
+
+        foreach (var binary in importJob.BinariesToAdd.Union(importJob.BinariesToPatch))
+        {
+            if (!deposit.Files!.IsBaseOf(binary.Origin!))
+            {
+                checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest,
+                    $"Binary origin {binary.Origin} is not a child of deposit file location {deposit.Files}.");
+                return this.StatusResponseFromResult(checkDeposit);
+            }
+        }
+
         var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob), cancellationToken);
         return this.StatusResponseFromResult(executeImportJobResult, 201, executeImportJobResult.Value?.Id);
     }
@@ -125,7 +148,7 @@ public class ImportJobsController(IMediator mediator, ResourceMutator resourceMu
             return Result.Fail(ErrorCodes.UnknownError, "Could not look for existing import jobs");
         }
         var notErrors = existingImportJobResultsResult.Value.Count(ijr => ijr.Status != ImportJobStates.CompletedWithErrors);
-        if (notErrors > maxCompleted)
+        if (notErrors >= maxCompleted)
         {
             return Result.Fail(ErrorCodes.Conflict, "There are existing import jobs for this deposit");
         }

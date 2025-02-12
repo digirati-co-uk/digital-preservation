@@ -1,6 +1,4 @@
-﻿using Amazon.S3;
-using Amazon.S3.Model;
-using Amazon.S3.Util;
+﻿using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Mets;
@@ -29,7 +27,6 @@ public class CreateDepositHandler(
     IIdentityService identityService,
     IStorageApiClient storageApiClient,
     IStorage storage,
-    IAmazonS3 s3Client,
     IMetsManager metsManager) : IRequestHandler<CreateDeposit, Result<Deposit?>>
 {
     public async Task<Result<Deposit?>> Handle(CreateDeposit request, CancellationToken cancellationToken)
@@ -37,6 +34,7 @@ public class CreateDepositHandler(
         var now = DateTime.UtcNow;
         if (request.Deposit is null)
         {
+            logger.LogWarning("No Deposit provided to CreateDepositHandler");
             return Result.Fail<Deposit?>(ErrorCodes.BadRequest, "No Deposit provided");
         }
         try
@@ -45,51 +43,64 @@ public class CreateDepositHandler(
                 .ValidateArchivalGroup(dbContext, storageApiClient, request.Deposit);
             if (validateAgResult.Failure)
             {
+                logger.LogWarning("Validation failed for Deposit provided to CreateDepositHandler, " + validateAgResult.CodeAndMessage());
                 return validateAgResult;
             }
             
             if(request.Export && archivalGroupExists is false)
             {
+                logger.LogWarning("Archival Group does not exist, cannot export");
                 return Result.Fail<Deposit?>(ErrorCodes.BadRequest, "Archival Group does not exist, cannot export");
             }
             
             ArchivalGroup? archivalGroupForExport = null;
             if (request.Export)
             {
+                logger.LogInformation("CreateDeposit request asked for Export, fetching Archival Group " + request.Deposit.ArchivalGroup!.AbsolutePath);
                 var archivalGroupResult = await storageApiClient.GetArchivalGroup(
                     request.Deposit.ArchivalGroup!.AbsolutePath, request.Deposit.VersionExported);
                 if (archivalGroupResult.Failure || archivalGroupResult.Value is null)
                 {
+                    logger.LogError(archivalGroupResult.CodeAndMessage());
                     return Result.Fail<Deposit?>(archivalGroupResult.ErrorCode!, archivalGroupResult.ErrorMessage);
                 }
                 archivalGroupForExport = archivalGroupResult.Value;
+                
+                logger.LogInformation("Archival Group retrieved: " + archivalGroupForExport.Id);
+                // This archival group has not had its URIs mutated, it is a Storage API representation
             }
             
             var mintedId = identityService.MintIdentity(nameof(Deposit));
+            logger.LogInformation("Using deposit Id: " + mintedId);
             var callerIdentity = "dlipdev";  // TODO: actual user or app caller identity!
             var filesLocation = await storage.GetWorkingFilesLocation(
                 mintedId, request.Deposit.UseObjectTemplate ?? false, callerIdentity);
             if (filesLocation.Failure)
             {
+                logger.LogError("Unable to create GetWorkingFilesLocation for deposit " + mintedId + "; " + filesLocation.CodeAndMessage());
                 return Result.Fail<Deposit?>(filesLocation.ErrorCode!, filesLocation.ErrorMessage);
             }
 
             Uri? exportResultUri = null;
             if (request.Export)
             {
+                logger.LogInformation("CreateDeposit request asked for Export, calling storage::ExportArchivalGroup to export " + archivalGroupForExport!.Id! + ", version: " + archivalGroupForExport.Version!.OcflVersion!);
                 var exportResultResult = await storageApiClient.ExportArchivalGroup(
-                    archivalGroupForExport!.Id!,
+                    archivalGroupForExport.Id!,
                     filesLocation.Value!,
-                    archivalGroupForExport!.Version!.OcflVersion!,
+                    archivalGroupForExport.Version!.OcflVersion!,
                     cancellationToken);
                 if (exportResultResult.Failure || exportResultResult.Value is null)
                 {
+                    logger.LogError("Failed to export " +  archivalGroupForExport.Id! + ", " + exportResultResult.CodeAndMessage());
                     return Result.Fail<Deposit?>(exportResultResult.ErrorCode!, exportResultResult.ErrorMessage);
                 }
                 exportResultUri = exportResultResult.Value.Id;
+                logger.LogInformation("Obtained exportResultUri: " + exportResultUri!);
             }
 
             var agNameFromDeposit = request.Deposit.ArchivalGroupName ?? archivalGroupForExport?.Name;
+            
             var metsResult = await EnsureMets(
                 request.Deposit.UseObjectTemplate is true,
                 filesLocation.Value!, 
@@ -99,6 +110,13 @@ public class CreateDepositHandler(
                 request.Deposit.VersionExported,
                 agNameFromDeposit,
                 cancellationToken);
+
+            if (metsResult.Failure)
+            {
+                logger.LogError("Unable to ensure METS file in deposit: " + metsResult.CodeAndMessage());
+                return Result.Fail<Deposit?>(metsResult.ErrorCode!, metsResult.ErrorMessage);
+            }
+            logger.LogInformation("Result from EnsureMets is success " + metsResult.Success);
             
             await storage.GenerateDepositFileSystem( 
                 new AmazonS3Uri(filesLocation.Value), true, cancellationToken);
@@ -126,6 +144,8 @@ public class CreateDepositHandler(
                 entity.VersionExported = archivalGroupForExport!.Version!.OcflVersion;
                 entity.ExportResultUri = exportResultUri;
             }
+            
+            logger.LogInformation("Saving deposit entity to dbContext");
 
             dbContext.Deposits.Add(entity);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -163,31 +183,38 @@ public class CreateDepositHandler(
         // However _the export will still be queued (or maybe just started)_ at this point.
         // But we can assume that if exportedArchivalGroup contains a METS, then it will be exported.
 
+        logger.LogInformation("Ensuring a METS file in " + filesLocation + "; useObjectTemplate=" + useObjectTemplate);
         if (!archivalGroupExists && useObjectTemplate)
         {
             // the simplest case - but still only for useObjectTemplate=true
             // e.g., Goobi will supply a METS as its next step
+            logger.LogInformation("Archival Group does not yet exist, and useObjectTemplate=true, so create a standard METS file");
             var result = await metsManager.CreateStandardMets(filesLocation, agNameFromDeposit);
             if (result is { Success: true, Value: not null })
             {
                 return Result.Ok();
             }
+            logger.LogError("Unable to create standard METS: " + result.CodeAndMessage());
             return Result.Fail(result.ErrorCode!, result.ErrorMessage);
         }
 
         if (archivalGroupExists)
         {
+            logger.LogInformation("Archival Group " + archivalGroupUri + " exists.");
             ArchivalGroup? archivalGroup;
             // list its root at the correct version
             if (exportedArchivalGroup is null)
             {
+                logger.LogInformation("Not already retrieved, so fetch archival group " + archivalGroupUri + ", version " + ocflVersion);
                 var archivalGroupResult = await storageApiClient.GetArchivalGroup(archivalGroupUri!.AbsolutePath, ocflVersion);
                 if (archivalGroupResult is { Success: true, Value: not null, Value.Type: nameof(ArchivalGroup) })
                 {
+                    logger.LogInformation("Archival Group retrieved: " + archivalGroupResult.Value.Id);
                     archivalGroup = archivalGroupResult.Value;
                 }
                 else
                 {
+                    logger.LogError("Unable to fetch Archival Group: " + archivalGroupResult.CodeAndMessage());
                     return Result.Fail(
                         archivalGroupResult.ErrorCode ?? ErrorCodes.UnknownError,
                         archivalGroupResult.ErrorMessage ?? "Could not retrieve archival group to look for METS: " + archivalGroupUri);
@@ -199,38 +226,34 @@ public class CreateDepositHandler(
             }
 
             var metsFile = archivalGroup.Binaries.FirstOrDefault(b => metsManager.IsMetsFile(b.Id!.GetSlug()!));
+            if (metsFile is null)
+            {
+                logger.LogWarning("No METS file found in Archival Group " + archivalGroupUri + ", version " + ocflVersion);
+            }
             if (metsFile is null && useObjectTemplate)
             {
+                logger.LogWarning("Creating Standard METS file in AG " + archivalGroupUri + ", version " + ocflVersion);
                 // existing AG has no METS (even if it's exporting), but we can make one safely because it's one of our own
                 var result = await metsManager.CreateStandardMets(filesLocation, archivalGroup, agNameFromDeposit);
                 if (result is { Success: true, Value: not null })
                 {
                     return Result.Ok();
                 }
+                logger.LogError("Unable to create Standard METS file, " + result.CodeAndMessage());
                 return Result.Fail(result.ErrorCode!, result.ErrorMessage);
             }
 
             if (metsFile is not null && exportedArchivalGroup is null)
             {
-                // There is a METS file, but this isn't an export, so we need to copy it into the Deposit
-                // TODO: refactor this into IStorage interface
-                var source = new AmazonS3Uri(metsFile.Origin);
-                var dest = new AmazonS3Uri(filesLocation + metsFile.GetSlug());
-                var req = new CopyObjectRequest
-                {
-                    SourceBucket = source.Bucket,
-                    SourceKey = source.Key,
-                    DestinationBucket = dest.Bucket,
-                    DestinationKey = dest.Key,
-                    ChecksumAlgorithm = ChecksumAlgorithm.SHA256
-                };
-                var resp = await s3Client.CopyObjectAsync(req, cancellationToken);
-                var hexChecksum = AwsChecksum.FromBase64ToHex(resp.ChecksumSHA256);
-                if(resp is { ChecksumSHA256: not null } && hexChecksum == metsFile.Digest)
+                logger.LogInformation("There is a METS file, but this isn't an export, so we need to copy it into the Deposit.");
+                var storageArchivalGroupUri = resourceMutator.MutatePreservationApiUri(archivalGroupUri);
+                var exportMetsResult = await storageApiClient.ExportArchivalGroupMetsOnly(storageArchivalGroupUri!, filesLocation, ocflVersion, cancellationToken);
+                if (exportMetsResult is { Success: true, Value: not null, Value.DateFinished: not null })
                 {
                     return Result.Ok();
                 }
-                return Result.Fail(ErrorCodes.Conflict, $"Exported METS file checksum {metsFile.Digest} doesn't match AWS calculated checksum {hexChecksum}");
+                logger.LogError("Unable to copy METS file to deposit: " + exportMetsResult.CodeAndMessage());
+                return Result.Fail(exportMetsResult.ErrorCode!, exportMetsResult.ErrorMessage);
             }
         }
         // No action

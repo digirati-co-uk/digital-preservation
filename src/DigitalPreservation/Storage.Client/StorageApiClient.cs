@@ -89,6 +89,27 @@ public class StorageApiClient(
         string versionToExport,
         CancellationToken cancellationToken = default)
     {
+        var result = await ExportArchivalGroupBase("export", 
+            archivalGroup, exportLocation, versionToExport, cancellationToken);
+        return result;
+    }
+
+    public async Task<Result<Export>> ExportArchivalGroupMetsOnly(Uri archivalGroup, Uri exportLocation, string? versionToExport,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await ExportArchivalGroupBase("exportMetsOnly", 
+            archivalGroup, exportLocation, versionToExport, cancellationToken);
+        return result;
+    }
+
+
+    private async Task<Result<Export>> ExportArchivalGroupBase(
+        string pathElement,
+        Uri archivalGroup,
+        Uri exportLocation,
+        string? versionToExport,
+        CancellationToken cancellationToken = default)
+    {        
         var export = new Export
         {
             ArchivalGroup = archivalGroup,
@@ -97,7 +118,7 @@ public class StorageApiClient(
         };
         try
         {
-            var response = await storageHttpClient.PostAsJsonAsync("export", export, cancellationToken);
+            var response = await storageHttpClient.PostAsJsonAsync(pathElement, export, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var exportResult = await response.Content.ReadFromJsonAsync<Export>(cancellationToken: cancellationToken);
@@ -115,7 +136,7 @@ public class StorageApiClient(
             return Result.FailNotNull<Export>(ErrorCodes.UnknownError, e.Message);
         }
     }
-    
+
 
     public async Task<Result<Export>> GetExport(Uri entityExportResultUri)
     {     

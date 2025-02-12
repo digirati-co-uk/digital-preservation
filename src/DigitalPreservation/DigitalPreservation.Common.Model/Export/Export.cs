@@ -24,7 +24,7 @@ public class Export : Resource
     /// </summary>
     [JsonPropertyName("sourceVersion")]
     [JsonPropertyOrder(651)]
-    public required string SourceVersion { get; set; }
+    public string? SourceVersion { get; set; }
     
     /// <summary>
     /// Timestamp indicating when the API started processing the job. Will be null/missing until then.
