@@ -1,6 +1,7 @@
 ﻿using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
@@ -39,6 +40,7 @@ public class CreateDepositHandler(
         }
         try
         {
+            logger.LogInformation("Preservation API Create Deposit called: " + request.Deposit.LogSummary());
             var (archivalGroupExists, validateAgResult) = await ArchivalGroupRequestValidator
                 .ValidateArchivalGroup(dbContext, storageApiClient, request.Deposit);
             if (validateAgResult.Failure)
@@ -71,7 +73,7 @@ public class CreateDepositHandler(
             }
             
             var mintedId = identityService.MintIdentity(nameof(Deposit));
-            logger.LogInformation("Using deposit Id: " + mintedId);
+            logger.LogInformation("Identity service gave us deposit Id: " + mintedId);
             var callerIdentity = "dlipdev";  // TODO: actual user or app caller identity!
             var filesLocation = await storage.GetWorkingFilesLocation(
                 mintedId, request.Deposit.UseObjectTemplate ?? false, callerIdentity);
@@ -257,6 +259,7 @@ public class CreateDepositHandler(
             }
         }
         // No action
+        logger.LogInformation("Ensure METS concludes no METS file should be created.");
         return Result.Ok();
     }
 }

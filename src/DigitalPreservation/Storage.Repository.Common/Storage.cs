@@ -278,7 +278,7 @@ public class Storage(
 
     public async Task<Result<WorkingDirectory?>> GenerateDepositFileSystem(AmazonS3Uri location, bool writeToStorage, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Generating deposit file system in " + location);
+        logger.LogInformation("Generating deposit file system in " + location.ToUri());
         try
         {
             var s3Objects = await ListAllS3Objects(location, cancellationToken);
@@ -493,6 +493,7 @@ public class Storage(
         Uri sourceUri,
         CancellationToken cancellationToken)
     { 
+        logger.LogInformation("Getting Import Source for " + sourceUri);
         var s3Uri = new AmazonS3Uri(sourceUri);
         WorkingDirectory workingDirectory;
         var readResult = await GenerateDepositFileSystem(s3Uri, true, cancellationToken);
@@ -503,6 +504,7 @@ public class Storage(
         }
         else
         {
+            logger.LogError("Unable to get ImportSource for " + sourceUri + " - " + readResult.CodeAndMessage());
             return Result.ConvertFailNotNull<WorkingDirectory?, ImportSource>(readResult);
         }
         

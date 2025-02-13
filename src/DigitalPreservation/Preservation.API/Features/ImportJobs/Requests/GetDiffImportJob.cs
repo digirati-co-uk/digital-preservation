@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
@@ -27,14 +28,17 @@ public class GetDiffImportJobHandler(
 {
     public async Task<Result<ImportJob>> Handle(GetDiffImportJob request, CancellationToken cancellationToken)
     {
+        logger.LogInformation("GetDiffImportJob handler called for deposit " + request.Deposit.LogSummary());
         if (request.Deposit.ArchivalGroup == null)
         {
+            logger.LogWarning("Deposit " + request.Deposit.Id + "doesn't have Archival Group specified.");
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest,
                 "Deposit doesn't have Archival Group specified.");
         }
 
         if (request.Deposit.Files == null)
         {
+            logger.LogWarning("Deposit " + request.Deposit.Id + "doesn't have Deposit location (Files).");
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, "No Deposit location provided.");
         }
 
@@ -44,6 +48,7 @@ public class GetDiffImportJobHandler(
         var archivalGroupResult = await storageApi.GetArchivalGroup(request.Deposit.ArchivalGroup.AbsolutePath, null);
         if (archivalGroupResult is { Success: true, Value: not null })
         {
+            logger.LogInformation("Archival group is valid");
             existingArchivalGroup = archivalGroupResult.Value;
             resourceMutator.MutateStorageResource(existingArchivalGroup);
         }
@@ -52,12 +57,21 @@ public class GetDiffImportJobHandler(
             // why did it fail?
             if (archivalGroupResult.ErrorCode == ErrorCodes.NotFound)
             {
+                logger.LogInformation("Archival group not found, seeing if path is valid to create one");
                 // Is it still a valid path for an archival group - that we can create?
                 var testPathResult = await storageApi.TestArchivalGroupPath(agPathUnderRoot);
                 if (testPathResult.Failure)
                 {
+                    logger.LogWarning("Test path returned " + testPathResult.CodeAndMessage());
                     return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, testPathResult.CodeAndMessage());
                 }
+                logger.LogInformation("Archival group path " + agPathUnderRoot + " would be OK to create at.");
+            }
+            else
+            {
+                logger.LogWarning("Archival group invalid for other reasons: " + archivalGroupResult.CodeAndMessage());
+                // should this return here?
+                return Result.FailNotNull<ImportJob>(archivalGroupResult.ErrorCode!, archivalGroupResult.ErrorMessage);
             }
         }
 
@@ -77,14 +91,17 @@ public class GetDiffImportJobHandler(
             // We don't mind no name, but we don't want it to be the default name.
             agName = null;
         }
+        logger.LogInformation("(get import source) concluded AG name is " + agName);
 
         // Now embellish the source
         var importContainer = source.AsContainer(request.Deposit.ArchivalGroup);
         var (sourceContainers, sourceBinaries) = importContainer.Flatten();
 
+        logger.LogInformation("(get import source) embellishing from METS...");
         var metsWrapperResult = await metsParser.GetMetsFileWrapper(request.Deposit.Files);
         if (metsWrapperResult.Failure || metsWrapperResult.Value == null)
         {
+            logger.LogError("Could not parse a METS file in the deposit working area. " + metsWrapperResult.CodeAndMessage());
             return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable,
                 "Could not parse a METS file in the deposit working area.");
         }
@@ -103,8 +120,6 @@ public class GetDiffImportJobHandler(
         logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
 
 
-
-
         var agString = request.Deposit.ArchivalGroup.ToString();
         foreach (var binary in sourceBinaries)
         {
@@ -112,20 +127,23 @@ public class GetDiffImportJobHandler(
             var metsPhysicalFile = metsWrapper.Files.SingleOrDefault(f => f.LocalPath == pathRelativeToArchivalGroup);
             if (metsPhysicalFile is null)
             {
-                return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable,
-                    $"Could not find file {pathRelativeToArchivalGroup} in METS file.");
+                var message = $"Could not find file {pathRelativeToArchivalGroup} in METS file.";
+                logger.LogWarning(message);
+                return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable,message);
             }
 
             if (metsPhysicalFile.Digest.IsNullOrWhiteSpace())
             {
-                return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable,
-                    $"File {pathRelativeToArchivalGroup} has no digest in METS file.");
+                var message = $"File {pathRelativeToArchivalGroup} has no digest in METS file.";
+                logger.LogWarning(message);
+                return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
             }
 
             if (binary.Digest.HasText() && binary.Digest != metsPhysicalFile.Digest)
             {
-                return Result.FailNotNull<ImportJob>(ErrorCodes.Conflict,
-                    $"File {pathRelativeToArchivalGroup} has different digest in METS and import source.");
+                var message = $"File {pathRelativeToArchivalGroup} has different digest in METS and import source.";
+                logger.LogWarning(message);
+                return Result.FailNotNull<ImportJob>(ErrorCodes.Conflict, message);
             }
 
             binary.Digest = metsPhysicalFile.Digest;
@@ -143,8 +161,9 @@ public class GetDiffImportJobHandler(
         if (missingTheirChecksum.Count > 0)
         {
             var first = missingTheirChecksum.First().Id!.GetSlug();
-            return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable,
-                $"{missingTheirChecksum.Count} file(s) do not have a checksum, including {first}");
+            var message = $"{missingTheirChecksum.Count} file(s) do not have a checksum, including {first}";
+            logger.LogWarning(message);
+            return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
         }
 
         foreach (var container in sourceContainers)
@@ -187,6 +206,7 @@ public class GetDiffImportJobHandler(
         if (importJob.IsUpdate)
         {
             importJob.SourceVersion = existingArchivalGroup!.Version;
+            logger.LogInformation("Import Job is update, will populate Diff tasks.");
             PopulateDiffTasks(existingArchivalGroup, sourceContainers, sourceBinaries, importJob);
         }
         else
@@ -196,6 +216,7 @@ public class GetDiffImportJobHandler(
             importJob.BinariesToAdd = sourceBinaries;
         }
 
+        logger.LogInformation("Diff Import Job created: " + importJob.LogSummary());
         return Result.OkNotNull(importJob);
     }
     

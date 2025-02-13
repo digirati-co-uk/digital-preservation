@@ -22,9 +22,7 @@ public class ImportJobRunner(
             if (executeResult.Success)
             {
                 var jobResult = executeResult.Value!;
-                // The job itself may have failed at this point, but the result is still a success:
-                // We save it to the database.
-                await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, cancellationToken);
+                // The job itself may have failed at this point, but the result is still a success
                 // what version are we now on? This may be unchanged if the job itself failed
                 var agResult = await mediator.Send(new GetResourceFromFedora(jobResult.ArchivalGroup.GetPathUnderRoot()), cancellationToken);
                 if (agResult.Success)
@@ -33,22 +31,25 @@ public class ImportJobRunner(
                     {
                         jobResult.NewVersion = ag.Version!.OcflVersion;
                         logger.LogInformation("Import Job new version is " + jobResult.NewVersion + " for " + jobResult.Id);
-                        var finalUpdateResult = await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, cancellationToken);
-                        if (finalUpdateResult.Success)
-                        {
-                            logger.LogInformation("Saved Import Job Result: " + jobResult.Id);
-                        }
-                        else
-                        {
-                            logger.LogError("Failed to update final import job: " + jobResult.Id + ", " + finalUpdateResult.CodeAndMessage());
-                        }
-                        // At this point we could broadcast a message
-                        return;
                     }
-                    logger.LogError("Resource is not an Archival Group: " + agResult.Value);
-                    return;
+                    else
+                    {
+                        logger.LogError("Resource is not an Archival Group: " + agResult.Value);
+                    }
                 }
-                logger.LogError("Unable to obtain saved Archival Group (maybe because of a failed create): " + agResult.CodeAndMessage());
+                else
+                {
+                    logger.LogError("Unable to obtain saved Archival Group (maybe because of a failed create): " + agResult.CodeAndMessage());
+                }
+                var finalUpdateResult = await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, cancellationToken);
+                if (finalUpdateResult.Success)
+                {
+                    logger.LogInformation("Saved Import Job Result: " + jobResult.Id);
+                }
+                else
+                {
+                    logger.LogError("Failed to update final import job: " + jobResult.Id + ", " + finalUpdateResult.CodeAndMessage());
+                }
                 return;
             }
             logger.LogError("Unable to execute Import Job Result, and did not fail early cleanly: " + executeResult.CodeAndMessage());

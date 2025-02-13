@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
@@ -28,12 +29,14 @@ public class StorageApiClient(
 
     public async Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot)
     {
+        logger.LogInformation("Testing archivalGroupPathUnderRoot: " + archivalGroupPathUnderRoot);
         var reqPath = $"import/test-path/{archivalGroupPathUnderRoot}";
         return await TestArchivalGroupPathInternal(reqPath);
     }
     
     public async Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri)
     {        
+        logger.LogInformation("StorageAPIClient, GetImportJobResult : " + storageApiImportJobResultUri);
         try
         {
             var req = new HttpRequestMessage(HttpMethod.Get, storageApiImportJobResultUri);
@@ -58,6 +61,7 @@ public class StorageApiClient(
  
     public async Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob? requestImportJob, CancellationToken cancellationToken = default)
     {
+        logger.LogInformation("Storage API Client Executing import job: " + requestImportJob.LogSummary());
         if (requestImportJob == null)
         {
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, "Unable to parse storage import job from request body.");

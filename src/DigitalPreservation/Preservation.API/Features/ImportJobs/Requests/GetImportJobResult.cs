@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
@@ -26,14 +27,16 @@ public class GetImportJobResultHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(GetImportJobResult request, CancellationToken cancellationToken)
     {
+        logger.LogInformation("GetImportJobResult " + request.ImportJobId);
         // get the preservation one out of the DB by id
         var entity = dbContext.ImportJobs.SingleOrDefault(j => j.Id == request.ImportJobId && j.Deposit == request.DepositId);
         if (entity == null)
         {
+            logger.LogWarning("No import job found in DB for " + request.ImportJobId);
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No import job found");
         }
         
-        logger.LogDebug("IJR-01: " + entity.Status);
+        logger.LogDebug("Import Job EB status: " + entity.Status);
 
         if (ImportJobStates.IsComplete(entity.Status))
         {
@@ -42,6 +45,7 @@ public class GetImportJobResultHandler(
                 var jobResult = JsonSerializer.Deserialize<ImportJobResult>(entity.LatestPreservationApiResultJson!);
                 if (jobResult != null)
                 {
+                    logger.LogDebug("returning DB stored LatestPreservationApiResultJson: " + jobResult.LogSummary());
                     return Result.OkNotNull(jobResult);
                 }
             }
@@ -49,21 +53,25 @@ public class GetImportJobResultHandler(
             // Is this ever a valid place or is it an error?
             // We could construct an ImportJobResult from entity
             // TODO: Fail for now 
+            logger.LogWarning("Job " + request.ImportJobId + "Complete but no LatestPreservationApiResultJson");
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Job Complete but no LatestPreservationApiResultJson");
         }
         
-        logger.LogDebug("IJR-02: Not complete");
+        logger.LogDebug("ImportJobResult is Not complete");
         // It's not complete: ask the storage API for its version, get its status
         var importJobResultResult = await storageApi.GetImportJobResult(entity.StorageImportJobResultId);
         if (importJobResultResult.Success)
         {
             var storageApiImportJobResult = importJobResultResult.Value!;
+            logger.LogDebug("Received import job result from storage API " + storageApiImportJobResult.LogSummary());
             var preservationApiImportJobResult = Duplicate(storageApiImportJobResult);
             resourceMutator.MutateStorageImportJobResult(preservationApiImportJobResult, entity.Deposit, entity.Id);
+            logger.LogDebug("Mutated to Preservation API " + preservationApiImportJobResult.LogSummary());
             
+            logger.LogInformation("Updating DB record for job result in Preservation API");
             // update the entity
             bool wasComplete = ImportJobStates.IsComplete(entity.Status);
-            logger.LogDebug("IJR-04: storageApiImportJobResult.Status=" + storageApiImportJobResult.Status);
+            logger.LogDebug("storageApiImportJobResult.Status=" + storageApiImportJobResult.Status);
             entity.Status = storageApiImportJobResult.Status;
             bool isComplete = ImportJobStates.IsComplete(entity.Status);
             
@@ -77,9 +85,6 @@ public class GetImportJobResultHandler(
             entity.NewVersion = storageApiImportJobResult.NewVersion;
             entity.SourceVersion = storageApiImportJobResult.SourceVersion;
             entity.LatestStorageApiResultJson = JsonSerializer.Serialize(storageApiImportJobResult);
-            
-            
-            logger.LogDebug("IJR-05: storageApiImportJobResult.Status=" + storageApiImportJobResult.Status);
 
             var originalImportJob = JsonSerializer.Deserialize<ImportJob>(entity.ImportJobJson);
             if (originalImportJob != null)
