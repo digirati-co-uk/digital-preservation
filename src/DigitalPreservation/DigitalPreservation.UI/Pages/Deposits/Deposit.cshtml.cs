@@ -14,7 +14,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
-using Storage.Repository.Common.Mets;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -30,13 +29,41 @@ public class DepositModel : PageModel
     }
 
     public bool Bound { get; set; }
-
     public required string Id { get; set; }
-    
     public Deposit? Deposit { get; set; }
     public WorkingDirectory? Files { get; set; }
+    private MetsFileWrapper? metsFileWrapper;
+    private bool metsFileWrapperAttempted;
     
-    public FullMets? FullMets { get; set; }
+    public async Task<MetsFileWrapper?> GetMetsWrapper()
+    {
+        if (metsFileWrapper == null && metsFileWrapperAttempted == false)
+        {
+            metsFileWrapperAttempted = true;
+            var wrapperResult = await mediator.Send(new GetMetsWrapper(Deposit!.Files!));
+            if (wrapperResult is { Success: true, Value: not null })
+            {
+                metsFileWrapper = wrapperResult.Value;
+            }
+            else
+            {
+                TempData["Error"] = "Unable to update read METS - " + wrapperResult.CodeAndMessage();
+            }
+        }
+        return metsFileWrapper;
+    }
+
+    public async Task<CombinedDirectory?> GetCombinedDirectory()
+    {
+        var wrapper = await GetMetsWrapper();
+        if (wrapper is { PhysicalStructure: not null })
+        {
+            return CombinedBuilder.Build(Files!, wrapper.PhysicalStructure);
+        }
+        TempData["Error"] = "Unable to update obtain METS structure";
+        return null;
+    }
+
     public string? ArchivalGroupTestWarning { get; set; }
     
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
@@ -64,8 +91,8 @@ public class DepositModel : PageModel
                     ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
                 }
             }
-            // There is a DepositFileSystem file for the deposit contents, AND a METS for the AG (if exists).
-            // The DepositFileSystem file for deposit contents does not get saved to Fedora (but does it get saved to the DB)
+            // There is a DepositFileSystem file for the deposit contents *on disk* (S3), AND a METS for the AG (if exists).
+            // The DepositFileSystem file is hidden and does not get saved to Fedora
             var readS3Result = await mediator.Send(
                 new GetWorkingDirectory(Deposit.Files!, readFromStorage, writeToStorage)); 
             if (readS3Result.Success)
@@ -90,13 +117,6 @@ public class DepositModel : PageModel
             {
                 TempData["Error"] = readS3Result.CodeAndMessage();
                 return false;
-            }
-
-            // TODO - avoid calling this twice when a file is uploaded etc
-            var fullMetsResult = await mediator.Send(new GetFullMets(Deposit.Files!, Deposit.MetsETag));
-            if (fullMetsResult is { Success: true, Value: not null })
-            {
-                FullMets = fullMetsResult.Value;
             }
 
             var fetchResultsResult = await DepositJobResultFetcher.GetImportJobResults(id, mediator);

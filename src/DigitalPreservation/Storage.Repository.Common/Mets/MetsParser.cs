@@ -269,10 +269,10 @@ public class MetsParser(
 
             if (physicalStructMap == null)
             {
-                throw new NotSupportedException("METS file muct have a physical structmap");
+                throw new NotSupportedException("METS file must have a physical structMap");
             }
 
-            // Now walk down the structmap
+            // Now walk down the structMap
             // Each div either contains 1 (or sometimes more) mets:fptr, or it contains child DIVs.
             // If a DIV containing a mets:fptr has a LABEL (not ORDERLABEL) then that is the name of the file
             // If those DIVs have TYPE="Directory" and a LABEL, that gives us the name of the directory.
@@ -341,6 +341,8 @@ public class MetsParser(
                                     var nameFromLabel = directoryLabels.Any() ? directoryLabels.Pop() : null;
                                     workingDirectory.Name = nameFromLabel ?? nameFromPath;
                                     workingDirectory.LocalPath = originalName;
+                                    workingDirectory.AdmId = admId;
+                                    workingDirectory.PhysDivId = div.Attribute("ID")?.Value;
                                 }
                             }
                         }
@@ -407,7 +409,9 @@ public class MetsParser(
                         ContentType = mimeType ?? ContentTypes.NotIdentified,
                         LocalPath = flocat,
                         Digest = digest,
-                        Name = label ?? parts[^1]
+                        Name = label ?? parts[^1],
+                        AdmId = admId,
+                        PhysDivId = div.Attribute("ID")!.Value
                     };
                     mets.Files.Add(file);
 
@@ -427,6 +431,9 @@ public class MetsParser(
                                 var nameFromLabel = directoryLabels.Any() ? directoryLabels.Pop() : null;
                                 workingDirectory.Name = nameFromLabel ?? nameFromPath;
                                 workingDirectory.LocalPath = parentDirectory;
+                                // This directory _may_ have physId and admId, if it is actually there in the
+                                // METS structure. And if it had premis:originalName we will have already matched it.
+                                // But for third party sources, how do we match it up?
                             }
                             walkBack--;
                         }

@@ -1,0 +1,95 @@
+﻿@using DigitalPreservation.Utils
+@using Storage.Repository.Common
+@model DigitalPreservation.Common.Model.Transit.CombinedDirectory
+
+@{
+    var depth = 0;
+    var active = false;
+    var b = (bool?)ViewData["active"];
+    if (b != null && b.Value)
+    {
+        active = true;
+    }
+}
+
+<!--
+
+File is in the METS but not on disk
+File is on disk but not in METS
+File is in both
+
+"File is in neither" should never happen!
+... but could contribute to a files-to-be-deleted?
+
+-->
+@if (Model.LocalPath.HasText())
+{
+    depth = Model.LocalPath.Split('/').Length;
+    <tr class="deposit-row" data-path="@Model.LocalPath" data-type="directory">
+        <td class="dep-actions">
+            @if (active)
+            {
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#newFolderModal" aria-label="new folder">
+                    <svg class="bi"><use xlink:href="#folder-plus"/></svg>
+                </a>
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#uploadFileModal" aria-label="upload file">
+                    <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg>
+                </a>
+            }
+        </td>
+        <td style="padding-left: @(1.3 * depth)rem">
+            <svg class="bi"><use xlink:href="#folder"/></svg> <span aria-label="slug">@Model.LocalPath.GetSlug()</span>
+        </td>
+        <td aria-label="name">@Model.Name</td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td class="dep-actions">
+            @if (active && Model.LocalPath != "objects")
+            {
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#deleteItemModal" aria-label="delete folder">
+                    <svg class="bi"><use xlink:href="#trash"/></svg>
+                </a>
+            }
+        </td>
+    </tr>
+}
+@foreach (var dir in Model.Directories)
+{
+    @await Html.PartialAsync("_RenderDirectoryAsTableRows", dir)
+}
+@foreach (var file in Model.Files)
+{
+    if (file.Name == IStorage.DepositFileSystem)
+    {
+        continue; // this file is hidden
+    }
+    <tr class="deposit-row" data-path="@file.LocalPath" data-type="file">
+        <td class="dep-actions">
+        </td>
+        <td style="padding-left: @(1.3 * (depth + 1))rem">
+            <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> <span aria-label="slug">
+                @if (file.LocalPath == "mets.xml")
+                {
+                    <a href="@(Context.Request.Path + "/mets")"><strong>@file.GetSlug()</strong></a>
+                }
+                else
+                {
+                    @file.GetSlug()
+                }
+            </span>
+        </td>
+        <td aria-label="name">@file.Name</td>
+        <td aria-label="hash">@file.Digest?[..8]</td>
+        <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
+        <td aria-label="content-type">@file.ContentType</td>
+        <td class="dep-actions">
+            @if (active && file.LocalPath != IStorage.DepositFileSystem && file.LocalPath != "mets.xml")
+            {
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#deleteItemModal" aria-label="delete file">
+                    <svg class="bi"><use xlink:href="#trash"/></svg>
+                </a>
+            }
+        </td>
+    </tr>
+} 

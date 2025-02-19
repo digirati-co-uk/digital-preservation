@@ -132,24 +132,28 @@ ViewData["active"] = Model.Deposit?.Active;
                 {                
                     @if (Model.Files is not null)
                     {
-                        <div class="table-responsive small">
-                            <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
-                                <thead>
-                                <tr>
-                                    <th scope="col" class="dep-actions"></th>
-                                    <th scope="col">Path</th>
-                                    <th scope="col">Name</th>
-                                    <th scope="col">Hash</th>
-                                    <th scope="col">Size</th>
-                                    <th scope="col">Type</th>
-                                    <th scope="col" class="dep-actions"></th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                @await Html.PartialAsync("_RenderDirectoryAsTableRows", Model.Files)
-                                </tbody>
-                            </table>
-                        </div>
+                        //var combined = await Model.GetCombinedDirectory();
+                        //if (combined != null)
+                        //{
+                            <div class="table-responsive small">
+                                <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
+                                    <thead>
+                                    <tr>
+                                        <th scope="col" class="dep-actions"></th>
+                                        <th scope="col">Path</th>
+                                        <th scope="col">Name</th>
+                                        <th scope="col">Hash</th>
+                                        <th scope="col">Size</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col" class="dep-actions"></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    @await Html.PartialAsync("_RenderDirectoryAsTableRows", Model.Files)
+                                    </tbody>
+                                </table>
+                            </div>
+                        //}
                     }
                     else
                     {
