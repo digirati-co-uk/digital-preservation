@@ -132,13 +132,14 @@ ViewData["active"] = Model.Deposit?.Active;
                 {                
                     @if (Model.Files is not null)
                     {
-                        //var combined = await Model.GetCombinedDirectory();
-                        //if (combined != null)
-                        //{
+                        var combined = await Model.GetCombinedDirectory();
+                        if (combined != null)
+                        {
                             <div class="table-responsive small">
                                 <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
                                     <thead>
                                     <tr>
+                                        <th scope="col"></th>
                                         <th scope="col" class="dep-actions"></th>
                                         <th scope="col">Path</th>
                                         <th scope="col">Name</th>
@@ -149,11 +150,11 @@ ViewData["active"] = Model.Deposit?.Active;
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    @await Html.PartialAsync("_RenderDirectoryAsTableRows", Model.Files)
+                                    @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", combined)
                                     </tbody>
                                 </table>
                             </div>
-                        //}
+                        }
                     }
                     else
                     {

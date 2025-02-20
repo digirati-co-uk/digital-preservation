@@ -26,6 +26,24 @@ File is in both
 {
     depth = Model.LocalPath.Split('/').Length;
     <tr class="deposit-row" data-path="@Model.LocalPath" data-type="directory">
+        <td>
+            @if (Model is { DirectoryInDeposit: not null, DirectoryInMets: not null })
+            {
+                <span>B</span>
+            } 
+            else if (Model.DirectoryInDeposit is not null)
+            {
+                <span>D</span>
+            }
+            else if (Model.DirectoryInMets is not null)
+            {
+                <span>M</span>
+            }
+            else
+            {
+                <span>!?</span>
+            }
+        </td>
         <td class="dep-actions">
             @if (active)
             {
@@ -56,7 +74,7 @@ File is in both
 }
 @foreach (var dir in Model.Directories)
 {
-    @await Html.PartialAsync("_RenderDirectoryAsTableRows", dir)
+    @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", dir)
 }
 @foreach (var file in Model.Files)
 {
@@ -71,11 +89,11 @@ File is in both
             <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> <span aria-label="slug">
                 @if (file.LocalPath == "mets.xml")
                 {
-                    <a href="@(Context.Request.Path + "/mets")"><strong>@file.GetSlug()</strong></a>
+                    <a href="@(Context.Request.Path + "/mets")"><strong>mets.xml</strong></a>
                 }
                 else
                 {
-                    @file.GetSlug()
+                    @(file.LocalPath?.GetSlug() ?? "{!! No Slug !!} ")
                 }
             </span>
         </td>
