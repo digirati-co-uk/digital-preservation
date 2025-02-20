@@ -38,12 +38,19 @@ try
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
         });
 
-    // Auth
-    builder.Services
-        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
-        .EnableTokenAcquisitionToCallDownstreamApi()
-        .AddInMemoryTokenCaches();
+    //Auth enabled flag
+    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
+
+
+    if (useAuthFeatureFlag)
+    {
+        // Auth
+        builder.Services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
+            .EnableTokenAcquisitionToCallDownstreamApi()
+            .AddInMemoryTokenCaches();
+    }
 
 
     builder.Services
@@ -60,7 +67,10 @@ try
         .AddStorageContext(builder.Configuration)
         .AddControllers(config =>
         {
-            config.Filters.Add(new AuthorizeFilter());
+            if (useAuthFeatureFlag)
+            {
+                config.Filters.Add(new AuthorizeFilter());
+            }
         });
 
 
@@ -78,8 +88,11 @@ try
         .TryRunMigrations(builder.Configuration, app.Logger);
 
     //Auth
-    app.UseAuthentication();
-    app.UseAuthorization();
+    if (useAuthFeatureFlag)
+    {
+        app.UseAuthentication();
+        app.UseAuthorization();
+    }
 
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Storage: Hello World!");
