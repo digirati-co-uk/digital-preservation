@@ -54,7 +54,36 @@ public static class CombinedBuilder
 
         foreach (var combinedDirectory in combined.Directories)
         {
-            combinedDirectory.Directories.Add(Build(combinedDirectory.DirectoryInDeposit, combinedDirectory.DirectoryInMets));
+            // eg combinedDirectory is objects
+            // we don't yet know about its child dirs
+            // we need to build its child dirs
+            var depositDirMap = new Dictionary<string, WorkingDirectory>();
+            var metsDirMap = new Dictionary<string, WorkingDirectory>();
+            if (combinedDirectory.DirectoryInDeposit is not null)
+            {
+                foreach (var fsDirectory in combinedDirectory.DirectoryInDeposit.Directories)
+                {
+                    depositDirMap.Add(fsDirectory.LocalPath, fsDirectory);
+                }
+            }
+            if (combinedDirectory.DirectoryInMets is not null)
+            {
+                foreach (var metsDirectory in combinedDirectory.DirectoryInMets.Directories)
+                {
+                    metsDirMap.Add(metsDirectory.LocalPath, metsDirectory);
+                }
+            }
+            var keys = depositDirMap.Keys.Union(metsDirMap.Keys);
+            foreach (var key in keys.OrderBy(key => key.GetSlug()))
+            {
+                depositDirMap.TryGetValue(key, out var depositDirectory);
+                metsDirMap.TryGetValue(key, out var metsDirectory);
+                if (depositDirectory == null && metsDirectory == null)
+                {
+                    throw new Exception("Both entries are null");
+                }
+                combinedDirectory.Directories.Add(Build(depositDirectory, metsDirectory));
+            }
         }
         
         // Binaries
@@ -66,7 +95,7 @@ public static class CombinedBuilder
             {
                 if (fileSystemWorkingDirectory is not null)
                 {
-                    var fsFile = fileSystemWorkingDirectory.FindFile(metsFile.LocalPath);
+                    var fsFile = fileSystemWorkingDirectory.FindFile(metsFile.GetSlug());
                     fileList.Add(new CombinedFile(fsFile, metsFile));
                 }
                 else
@@ -82,7 +111,7 @@ public static class CombinedBuilder
             {
                 if (metsWorkingDirectory is not null)
                 {
-                    var metsFile = metsWorkingDirectory.FindFile(fsFile.LocalPath);
+                    var metsFile = metsWorkingDirectory.FindFile(fsFile.GetSlug());
                     if (metsFile is null)
                     {
                         // directories in the file system that are NOT in METS; we would not have already added this

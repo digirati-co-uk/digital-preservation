@@ -83,10 +83,29 @@ File is in both
         continue; // this file is hidden
     }
     <tr class="deposit-row" data-path="@file.LocalPath" data-type="file">
+        <td>
+            @if (file is { FileInDeposit: not null, FileInMets: not null })
+            {
+                <span>B</span>
+            }
+            else if (file.FileInDeposit is not null)
+            {
+                <span>D</span>
+            }
+            else if (file.FileInMets is not null)
+            {
+                <span>M</span>
+            }
+            else
+            {
+                <span>!?</span>
+            }
+        </td>
         <td class="dep-actions">
         </td>
         <td style="padding-left: @(1.3 * (depth + 1))rem">
-            <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> <span aria-label="slug">
+            <svg class="bi"><use xlink:href="#file-earmark-text"/></svg>
+            <span aria-label="slug">
                 @if (file.LocalPath == "mets.xml")
                 {
                     <a href="@(Context.Request.Path + "/mets")"><strong>mets.xml</strong></a>
