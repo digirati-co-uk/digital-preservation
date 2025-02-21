@@ -429,6 +429,7 @@ public class MetsManager(
                         // TODO: Instead, need to merge the premis metadata.
                         var reducedPremis = PremisFixityWrapper
                             .Replace("{sha256}", workingFile.Digest)
+                            .Replace("{size}", workingFile.Size.ToString())
                             .Replace("{localPath}", workingFile.LocalPath);
                         var reducedPremisX = GetElement(reducedPremis);
                         amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } };
@@ -627,6 +628,7 @@ public class MetsManager(
                                                    <premis:messageDigestAlgorithm>sha256</premis:messageDigestAlgorithm>
                                                    <premis:messageDigest>{sha256}</premis:messageDigest>
                                                </premis:fixity>
+                                               <premis:size>{size}</premis:size>
                                            </premis:objectCharacteristics>
                                            <premis:originalName>{localPath}</premis:originalName>
                                        </premis:object>

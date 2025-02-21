@@ -372,6 +372,7 @@ public class MetsParser(
                         haveUsedAdmIdAlready = false;
                     }
                     string? digest = null;
+                    long size = 0;
                     if (!haveUsedAdmIdAlready)
                     {
                         var techMd = xMets.Descendants(XNames.MetsTechMD).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
@@ -388,6 +389,11 @@ public class MetsParser(
                             {
                                 digest = fixity.Element(XNames.PremisMessageDigest)?.Value;
                             }
+                        }
+                        var sizeEl = techMd.Descendants(XNames.PremisSize).SingleOrDefault();
+                        if (sizeEl != null)
+                        {
+                            size = long.Parse(sizeEl.Value);
                         }
                         haveUsedAdmIdAlready = true;
                     }
@@ -409,6 +415,7 @@ public class MetsParser(
                         ContentType = mimeType ?? ContentTypes.NotIdentified,
                         LocalPath = flocat,
                         Digest = digest,
+                        Size = size,
                         Name = label ?? parts[^1],
                         AdmId = admId,
                         PhysDivId = div.Attribute("ID")!.Value

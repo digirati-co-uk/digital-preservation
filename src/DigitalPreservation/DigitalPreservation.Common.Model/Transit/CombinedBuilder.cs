@@ -11,121 +11,65 @@ public static class CombinedBuilder
         var combined = new CombinedDirectory(fileSystemWorkingDirectory, metsWorkingDirectory);
 
         // Directories
-        var directoryList = new List<CombinedDirectory>();
-        if (metsWorkingDirectory is not null)
-        {
-            // assume that normally (eg for export) the METS has more than the file system
-            foreach (var metsDirectory in metsWorkingDirectory.Directories)
-            {
-                if (fileSystemWorkingDirectory is not null)
-                {
-                    var fsDirectory = fileSystemWorkingDirectory.FindDirectory(metsDirectory.LocalPath);
-                    // fsDirectory still might be null, but that's OK
-                    directoryList.Add(new CombinedDirectory(fsDirectory, metsDirectory));
-                }
-                else
-                {
-                    directoryList.Add(new CombinedDirectory(null, metsDirectory));
-                }
-            }
-        }
-
-        if(fileSystemWorkingDirectory is not null)
+        var depositDirMap = new Dictionary<string, WorkingDirectory>();
+        var metsDirMap = new Dictionary<string, WorkingDirectory>();
+        if (fileSystemWorkingDirectory is not null)
         {
             foreach (var fsDirectory in fileSystemWorkingDirectory.Directories)
             {
-                if (metsWorkingDirectory is not null)
-                {
-                    var metsDirectory = metsWorkingDirectory.FindDirectory(fsDirectory.LocalPath);
-                    if (metsDirectory is null)
-                    {
-                        // directories in the file system that are NOT in METS; we would not have already added this
-                        directoryList.Add(new CombinedDirectory(fsDirectory, metsDirectory));
-                    }
-                }
-                else
-                {
-                    directoryList.Add(new CombinedDirectory(fsDirectory, null));
-                }
+                depositDirMap.Add(fsDirectory.LocalPath, fsDirectory);
             }
         }
-
-        combined.Directories = directoryList.OrderBy(d => d.LocalPath!.GetSlug()).ToList();
-
-        foreach (var combinedDirectory in combined.Directories)
+        if (metsWorkingDirectory is not null)
         {
-            // eg combinedDirectory is objects
-            // we don't yet know about its child dirs
-            // we need to build its child dirs
-            var depositDirMap = new Dictionary<string, WorkingDirectory>();
-            var metsDirMap = new Dictionary<string, WorkingDirectory>();
-            if (combinedDirectory.DirectoryInDeposit is not null)
+            foreach (var metsDirectory in metsWorkingDirectory.Directories)
             {
-                foreach (var fsDirectory in combinedDirectory.DirectoryInDeposit.Directories)
-                {
-                    depositDirMap.Add(fsDirectory.LocalPath, fsDirectory);
-                }
-            }
-            if (combinedDirectory.DirectoryInMets is not null)
-            {
-                foreach (var metsDirectory in combinedDirectory.DirectoryInMets.Directories)
-                {
-                    metsDirMap.Add(metsDirectory.LocalPath, metsDirectory);
-                }
-            }
-            var keys = depositDirMap.Keys.Union(metsDirMap.Keys);
-            foreach (var key in keys.OrderBy(key => key.GetSlug()))
-            {
-                depositDirMap.TryGetValue(key, out var depositDirectory);
-                metsDirMap.TryGetValue(key, out var metsDirectory);
-                if (depositDirectory == null && metsDirectory == null)
-                {
-                    throw new Exception("Both entries are null");
-                }
-                combinedDirectory.Directories.Add(Build(depositDirectory, metsDirectory));
+                metsDirMap.Add(metsDirectory.LocalPath, metsDirectory);
             }
         }
+        var dirPaths = depositDirMap.Keys.Union(metsDirMap.Keys);
+        foreach (var path in dirPaths.OrderBy(p => p.GetSlug()))
+        {
+            depositDirMap.TryGetValue(path, out var depositDirectory);
+            metsDirMap.TryGetValue(path, out var metsDirectory);
+            if (depositDirectory == null && metsDirectory == null)
+            {
+                throw new Exception("Both entries are null");
+            }
+            combined.Directories.Add(Build(depositDirectory, metsDirectory));
+        }
+        
+
         
         // Binaries
-        var fileList = new List<CombinedFile>();
-        
+        var depositFileMap = new Dictionary<string, WorkingFile>();
+        var metsFileMap = new Dictionary<string, WorkingFile>();
+        if (fileSystemWorkingDirectory is not null)
+        {
+            foreach (var fsFile in fileSystemWorkingDirectory.Files)
+            {
+                depositFileMap.Add(fsFile.LocalPath, fsFile);
+            }
+        }
         if (metsWorkingDirectory is not null)
         {
             foreach (var metsFile in metsWorkingDirectory.Files)
             {
-                if (fileSystemWorkingDirectory is not null)
-                {
-                    var fsFile = fileSystemWorkingDirectory.FindFile(metsFile.GetSlug());
-                    fileList.Add(new CombinedFile(fsFile, metsFile));
-                }
-                else
-                {
-                    fileList.Add(new CombinedFile(null, metsFile));
-                }
+                metsFileMap.Add(metsFile.LocalPath, metsFile);
             }
         }
-        
-        if(fileSystemWorkingDirectory is not null)
+        var filePaths = depositFileMap.Keys.Union(metsFileMap.Keys);
+        foreach (var path in filePaths.OrderBy(p => p.GetSlug()))
         {
-            foreach (var fsFile in fileSystemWorkingDirectory.Files)
+            depositFileMap.TryGetValue(path, out var depositFile);
+            metsFileMap.TryGetValue(path, out var metsFile);
+            if (depositFile == null && metsFile == null)
             {
-                if (metsWorkingDirectory is not null)
-                {
-                    var metsFile = metsWorkingDirectory.FindFile(fsFile.GetSlug());
-                    if (metsFile is null)
-                    {
-                        // directories in the file system that are NOT in METS; we would not have already added this
-                        fileList.Add(new CombinedFile(fsFile, metsFile));
-                    }
-                }
-                else
-                {
-                    fileList.Add(new CombinedFile(fsFile, null));
-                }
+                throw new Exception("Both entries are null");
             }
+            combined.Files.Add(new CombinedFile(depositFile, metsFile));
         }
         
-        combined.Files = fileList.OrderBy(f => f.LocalPath!.GetSlug()).ToList();
         
         // Now recurse
         return combined;

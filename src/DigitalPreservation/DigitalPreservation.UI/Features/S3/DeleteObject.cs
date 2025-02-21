@@ -10,11 +10,13 @@ using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.UI.Features.S3;
 
-public class DeleteObject(Uri s3Root, string path, string metsETag) : IRequest<Result>
+public class DeleteObject(Uri s3Root, string path, string metsETag, bool fromDeposit, bool fromMets) : IRequest<Result>
 {
     public Uri S3Root { get; } = s3Root;
     public string Path { get; } = path;
     public string MetsETag { get; } = metsETag;
+    public bool FromDeposit { get; } = fromDeposit;
+    public bool FromMets { get; } = fromMets;
 }
 
 public class DeleteObjectHandler(
