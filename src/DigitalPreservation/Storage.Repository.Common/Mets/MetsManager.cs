@@ -114,6 +114,7 @@ public class MetsManager(
             div.Div.Add(childItemDiv);
             var reducedPremis = PremisFixityWrapper
                 .Replace("{sha256}", binary.Digest)
+                .Replace("{size}", binary.Size.ToString())
                 .Replace("{localPath}", localPath);
             mets.FileSec.FileGrp[0].File.Add(
                 new FileType
@@ -488,6 +489,7 @@ public class MetsManager(
                     div.Div.Add(childItemDiv);
                     var reducedPremis = PremisFixityWrapper
                         .Replace("{sha256}", workingFile.Digest)
+                        .Replace("{size}", workingFile.Size.ToString())
                         .Replace("{localPath}", workingFile.LocalPath);
                     fullMets.Mets.FileSec.FileGrp[0].File.Add(
                         new FileType

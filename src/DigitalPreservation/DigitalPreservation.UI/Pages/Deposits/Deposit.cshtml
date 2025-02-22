@@ -14,7 +14,6 @@
 @{
 ViewData["Title"] = Model.GetDisplayTitle();
 ViewData["section"] = "deposits";
-ViewData["active"] = Model.Deposit?.Active;
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -52,7 +51,7 @@ ViewData["active"] = Model.Deposit?.Active;
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <button class="dropdown-item text-primary" type="button">
+                            <button class="dropdown-item text-primary" type="button" id="selectNonMets">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
                             </button>
                         </li>
@@ -181,7 +180,10 @@ ViewData["active"] = Model.Deposit?.Active;
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", combined)
+                                    @{
+                                        var wrapper = new CombinedDirectoryRecursionWrapper(combined, true, Model.Deposit.Active, new Counter());
+                                        @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
+                                    }
                                     </tbody>
                                 </table>
                             </div>
@@ -511,6 +513,17 @@ ViewData["active"] = Model.Deposit?.Active;
             localStorage.setItem("sidebarInfoPanel", "show");
         } else {
             localStorage.setItem("sidebarInfoPanel", "hide");
+        }
+    });
+
+    document.getElementById("selectNonMets").addEventListener("click", () => {
+        const itemSelectors = document.getElementsByClassName("item-selector");
+        for(const itemSelector of itemSelectors)
+        {
+            const row = itemSelector.closest("tr");
+            if (row.getAttribute("data-whereabouts") === "Deposit"){
+                itemSelector.checked = true;
+            }
         }
     });
     

@@ -55,19 +55,19 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets)
     {
         get
         {
-            if (fileInDeposit is not null && fileInMets is not null)
+            if (FileInDeposit is not null && FileInMets is not null)
             {
                 return Whereabouts.Both;
             }
 
-            if (fileInDeposit is not null)
+            if (FileInDeposit is not null)
             {
-                return Whereabouts.DepositOnly;
+                return Whereabouts.Deposit;
             }
 
-            if (fileInMets is not null)
+            if (FileInMets is not null)
             {
-                return Whereabouts.MetsOnly;
+                return Whereabouts.Mets;
             }
 
             return Whereabouts.Neither;

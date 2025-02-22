@@ -25,19 +25,19 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
     {
         get
         {
-            if (directoryInDeposit is not null && directoryInMets is not null)
+            if (DirectoryInDeposit is not null && DirectoryInMets is not null)
             {
                 return Whereabouts.Both;
             }
 
-            if (directoryInDeposit is not null)
+            if (DirectoryInDeposit is not null)
             {
-                return Whereabouts.DepositOnly;
+                return Whereabouts.Deposit;
             }
 
-            if (directoryInMets is not null)
+            if (DirectoryInMets is not null)
             {
-                return Whereabouts.MetsOnly;
+                return Whereabouts.Mets;
             }
 
             return Whereabouts.Neither;

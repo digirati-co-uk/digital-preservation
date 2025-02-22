@@ -3,7 +3,7 @@
 public enum Whereabouts
 {
     Both,
-    MetsOnly,
-    DepositOnly,
+    Mets,
+    Deposit,
     Neither
 }
