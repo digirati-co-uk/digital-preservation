@@ -27,12 +27,53 @@ ViewData["active"] = Model.Deposit?.Active;
                 <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
             </button>
             <form class="single-submit" method="post">
-                <button type="submit" asp-page-handler="ValidateStorage" class="btn btn-sm btn-outline-primary me-2">
-                    <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Validate storage</span>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
-                    <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
-                </button>
+
+
+                <div class="dropdown">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Actions
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
+                                <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
+                                <svg class="bi"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item text-primary" type="button" id="toggleRhs" 
+                                    data-bs-toggle="collapse" data-bs-target="#sidebarInfoPanel" aria-expanded="true" aria-controls="sidebarInfoPanel">
+                                <svg class="bi"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item text-primary" type="button">
+                                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item text-primary" type="button">
+                                <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
+                                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                                <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
             </form>
         }
     </div>
@@ -72,7 +113,7 @@ ViewData["active"] = Model.Deposit?.Active;
 {
     <div class="container-fluid">
         <div class="row align-items-start">
-            <div class="col">
+            <div id="mainPanel" class="col">
 
                 <form method="post" asp-page-handler="UpdateProperties" class="single-submit collapse show" id="collapseAgDetails">
                     <fieldset style="display: contents" @(CanBeWorkedOn() ? "" : " disabled=disabled")>
@@ -119,15 +160,6 @@ ViewData["active"] = Model.Deposit?.Active;
                     </fieldset>
                 </form>
                 
-                <div>
-                    <form class="single-submit" method="post">
-                        <button type="submit" asp-page-handler="RebuildDepositFileSystem" class="btn btn-sm btn-outline-primary me-2" id="rebuildMets">
-                            <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Refresh storage</span>
-                        </button>
-                        <label for="rebuildMets">Deposit structure built @(Model.Files?.Modified.GetDateDisplay() ?? " - ")</label>
-                    </form>
-                </div>
-                
                 @if (Model.Deposit.Status != DepositStates.Exporting)
                 {                
                     @if (Model.Files is not null)
@@ -141,8 +173,7 @@ ViewData["active"] = Model.Deposit?.Active;
                                     <tr>
                                         <th scope="col"></th>
                                         <th scope="col" class="dep-actions"></th>
-                                        <th scope="col">Path</th>
-                                        <th scope="col">Name</th>
+                                        <th scope="col">Name (and path)</th>
                                         <th scope="col">Hash</th>
                                         <th scope="col">Size</th>
                                         <th scope="col">Type</th>
@@ -154,6 +185,7 @@ ViewData["active"] = Model.Deposit?.Active;
                                     </tbody>
                                 </table>
                             </div>
+                            <p><small>Deposit structure built @(Model.Files?.Modified.GetDateDisplay() ?? " - ")</small></p>
                         }
                     }
                     else
@@ -256,7 +288,7 @@ ViewData["active"] = Model.Deposit?.Active;
             
             @* START OF SIDE INFO PANEL *@
             
-            <div class="col-2">
+            <div class="collapse show col-2" id="sidebarInfoPanel">
                 <dl arial-label="deposit-history">
                     <dt>Created</dt>
                     <dd aria-label="created">@Model.Deposit.Created.GetDateDisplay()</dd>
@@ -280,6 +312,13 @@ ViewData["active"] = Model.Deposit?.Active;
                     <dd aria-label="version-exported">@(Model.Deposit.VersionExported ?? "-")</dd>
                 </dl>
             </div>
+            
+            <script>
+                const sideState = localStorage.getItem("sidebarInfoPanel");
+                if (sideState === "hide"){
+                    document.getElementById("sidebarInfoPanel").classList.remove("show");
+                }
+            </script>
         </div>
     </div>
     
@@ -466,7 +505,15 @@ ViewData["active"] = Model.Deposit?.Active;
     const deleteDepositButton = document.getElementById("deleteDepositButton");
     const confirmDepositDelete = document.getElementById("confirmDepositDelete");
 
-
+    document.getElementById("toggleRhs").addEventListener("click", () => {
+        const sideState = localStorage.getItem("sidebarInfoPanel");
+        if (sideState === "hide"){
+            localStorage.setItem("sidebarInfoPanel", "show");
+        } else {
+            localStorage.setItem("sidebarInfoPanel", "hide");
+        }
+    });
+    
     document.getElementById("deleteDepositModal").addEventListener("show.bs.modal", () => {
         confirmDepositDelete.checked = false;
         deleteDepositButton.disabled = "disabled";

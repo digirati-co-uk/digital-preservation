@@ -2,6 +2,7 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
@@ -35,17 +36,30 @@ public class DeleteObjectHandler(
         };
         try
         {
-            var response = await s3Client.DeleteObjectAsync(dor, cancellationToken);
-            if (response.HttpStatusCode == HttpStatusCode.NoContent)
+            if (request.FromDeposit)
             {
-                var removeFromMetsResult = await storage.DeleteFromDepositFileSystem(s3Uri, request.Path, cancellationToken);
-                if (removeFromMetsResult.Success)
+                var response = await s3Client.DeleteObjectAsync(dor, cancellationToken);
+                if (response.HttpStatusCode == HttpStatusCode.NoContent)
                 {
-                    await metsManager.HandleDeleteObject(s3Uri.ToUri(), request.Path, request.MetsETag);
+                    var removeJson = await storage.DeleteFromDepositFileSystem(s3Uri, request.Path, cancellationToken);
+                    if(removeJson.Failure)
+                    {
+                        return Result.Fail(removeJson.ErrorCode ?? ErrorCodes.UnknownError, 
+                            "Could not delete object from DepositFileSystem JSON: " + removeJson.ErrorMessage);
+                    }
                 }
-                return removeFromMetsResult;
+                else
+                {
+                    return ResultHelpers.FailFromAwsStatusCode<object>(response.HttpStatusCode, "Could not delete object from S3.", dor.GetS3Uri());
+                }
+
+                if (request.FromMets)
+                {
+                    var deleteFromMetsResult = await metsManager.HandleDeleteObject(s3Uri.ToUri(), request.Path, request.MetsETag);
+                    return deleteFromMetsResult;
+                }
             }
-            return ResultHelpers.FailFromAwsStatusCode<object>(response.HttpStatusCode, "Could not delete object.", dor.GetS3Uri());
+            return Result.Ok();
         }
         catch (AmazonS3Exception s3E)
         {

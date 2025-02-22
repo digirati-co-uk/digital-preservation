@@ -170,7 +170,7 @@ public class DepositModel : PageModel
                     TempData["Error"] = "You cannot delete files in the root.";
                     return Redirect($"/deposits/{id}");
                 }
-                var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath, Deposit.MetsETag!));
+                var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath, Deposit.MetsETag!, true, true));
                 if (deleteFileResult.Success)
                 {
                     TempData["Deleted"] = "File " + fileToDelete.LocalPath + " DELETED.";
@@ -192,7 +192,7 @@ public class DepositModel : PageModel
                 TempData["Error"] = "You cannot delete a folder that has files in it; delete the files first.";
                 return Redirect($"/deposits/{id}");
             }
-            var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath, Deposit.MetsETag!));
+            var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath, Deposit.MetsETag!, true, true));
             if (deleteDirectoryResult.Success)
             {
                 TempData["Deleted"] = "Folder " + deleteDirectory.LocalPath + " DELETED.";
@@ -365,7 +365,7 @@ public class DepositModel : PageModel
             try
             {
                 JsonAssertion.Equivalent(s3Json, metsJson);
-                TempData["Valid"] = "Storage validation succeeded. The METS file reflects S3 content.";
+                TempData["Valid"] = "Storage validation succeeded. The Deposit File System file reflects S3 content.";
             }
             catch (Exception e)
             {
