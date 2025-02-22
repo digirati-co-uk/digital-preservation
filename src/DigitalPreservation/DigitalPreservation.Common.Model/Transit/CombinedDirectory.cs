@@ -20,4 +20,27 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         
         return DirectoryInDeposit.Name!.Equals(DirectoryInMets.Name!);
     }
+
+    public Whereabouts Whereabouts
+    {
+        get
+        {
+            if (directoryInDeposit is not null && directoryInMets is not null)
+            {
+                return Whereabouts.Both;
+            }
+
+            if (directoryInDeposit is not null)
+            {
+                return Whereabouts.DepositOnly;
+            }
+
+            if (directoryInMets is not null)
+            {
+                return Whereabouts.MetsOnly;
+            }
+
+            return Whereabouts.Neither;
+        }
+    }
 }

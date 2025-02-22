@@ -28,24 +28,7 @@ File is in both
     <tr class="deposit-row" data-path="@Model.LocalPath" data-type="directory">
         <td>
             <input class="form-check-input" type="checkbox" value="@Model.LocalPath">
-            <label class="form-check-label">
-                @if (Model is { DirectoryInDeposit: not null, DirectoryInMets: not null })
-                {
-                    <span>B</span>
-                }
-                else if (Model.DirectoryInDeposit is not null)
-                {
-                    <span>D</span>
-                }
-                else if (Model.DirectoryInMets is not null)
-                {
-                    <span>M</span>
-                }
-                else
-                {
-                    <span>!?</span>
-                }
-            </label>
+            <label class="form-check-label">@Model.Whereabouts</label>
         </td>
         <td class="dep-actions">
             @if (active)
@@ -87,24 +70,7 @@ File is in both
     <tr class="deposit-row" data-path="@file.LocalPath" data-type="file">
         <td>
             <input class="form-check-input" type="checkbox" value="@file.LocalPath">
-            <label class="form-check-label">
-                @if (file is { FileInDeposit: not null, FileInMets: not null })
-                {
-                    <span>B</span>
-                }
-                else if (file.FileInDeposit is not null)
-                {
-                    <span>D</span>
-                }
-                else if (file.FileInMets is not null)
-                {
-                    <span>M</span>
-                }
-                else
-                {
-                    <span>!?</span>
-                }
-            </label>
+            <label class="form-check-label">@file.Whereabouts</label>
         </td>
         <td class="dep-actions">
         </td>

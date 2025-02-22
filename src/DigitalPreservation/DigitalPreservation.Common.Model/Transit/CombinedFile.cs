@@ -51,4 +51,27 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets)
         return FileInDeposit.ContentType!.Equals(FileInMets.ContentType!);
     }
     
+    public Whereabouts Whereabouts
+    {
+        get
+        {
+            if (fileInDeposit is not null && fileInMets is not null)
+            {
+                return Whereabouts.Both;
+            }
+
+            if (fileInDeposit is not null)
+            {
+                return Whereabouts.DepositOnly;
+            }
+
+            if (fileInMets is not null)
+            {
+                return Whereabouts.MetsOnly;
+            }
+
+            return Whereabouts.Neither;
+        }
+    }
+    
 }
