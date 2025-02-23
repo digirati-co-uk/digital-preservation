@@ -1,6 +1,7 @@
 ﻿@page "/deposits/{id}"
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.PreservationApi
+@using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @model DepositModel
@@ -61,7 +62,7 @@ ViewData["section"] = "deposits";
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
+                            <button class="dropdown-item text-danger" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
                             </button>
                         </li>
@@ -237,54 +238,55 @@ ViewData["section"] = "deposits";
                     }
                 </div>
                     
-                
-                @if (Model.ImportJobResults.Count == 0)
-                {
-                    <p>There are no submitted import jobs for this Deposit.</p>
-                }
-                else
-                {
-                    
-                    <div class="table-responsive small">
-                        <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
-                            <thead>
-                            <tr>
-                                <th scope="col">Status</th>
-                                <th scope="col">Who</th>
-                                <th scope="col">Begun</th>
-                                <th scope="col">Finished</th>
-                                <th scope="col">From</th>
-                                <th scope="col">To</th>
-                                <th scope="col">Errors</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @foreach (var result in Model.ImportJobResults)
-                            {
+                @{
+                    var importJobResults = await Model.GetImportJobResults();
+                    if (importJobResults.Count == 0)
+                    {
+                        <p>There are no submitted import jobs for this Deposit.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive small">
+                            <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
+                                <thead>
                                 <tr>
-                                    <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
-                                    <td>@result.CreatedBy?.GetSlug()</td>
-                                    <td>@result.DateBegun.GetDateDisplay()</td>
-                                    <td>@result.DateFinished.GetDateDisplay()</td>
-                                    <td>@result.SourceVersion</td>
-                                    <td>@result.NewVersion</td>
-                                    <td class="text-danger">
-                                        @{
-                                            if (result.Errors != null && result.Errors.Any())
-                                            {
-                                                foreach (var line in result.Errors.Select(e => e.Message))
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Who</th>
+                                    <th scope="col">Begun</th>
+                                    <th scope="col">Finished</th>
+                                    <th scope="col">From</th>
+                                    <th scope="col">To</th>
+                                    <th scope="col">Errors</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var result in importJobResults)
+                                {
+                                    <tr>
+                                        <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
+                                        <td>@result.CreatedBy?.GetSlug()</td>
+                                        <td>@result.DateBegun.GetDateDisplay()</td>
+                                        <td>@result.DateFinished.GetDateDisplay()</td>
+                                        <td>@result.SourceVersion</td>
+                                        <td>@result.NewVersion</td>
+                                        <td class="text-danger">
+                                            @{
+                                                if (result.Errors != null && result.Errors.Any())
                                                 {
-                                                    <p>@line</p>
+                                                    foreach (var line in result.Errors.Select(e => e.Message))
+                                                    {
+                                                        <p>@line</p>
+                                                    }
                                                 }
                                             }
-                                        }</td>
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 }
-                
 
             </div>
             
@@ -326,6 +328,10 @@ ViewData["section"] = "deposits";
     
     
 }
+
+@* ################### MODAL DIALOGUES *@
+
+@* ------------------- UPLOAD FILE MODAL *@
 
 <div class="modal fade" id="uploadFileModal" tabindex="-1" aria-labelledby="uploadFileModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -370,6 +376,7 @@ ViewData["section"] = "deposits";
 </div>
 
 
+@* ------------------- NEW FOLDER MODAL *@
 
 <div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -399,23 +406,39 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
-<div class="modal fade" id="deleteItemModal" tabindex="-1" aria-labelledby="deleteItemModalLabel" aria-hidden="true">
+
+@* ------------------- DELETE SELECTION MODAL *@
+
+<div class="modal fade" id="deleteSelectionModal" tabindex="-1" aria-labelledby="deleteSelectionModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
 
-            <form class="single-submit" method="post" asp-page-handler="DeleteItem">
+            <form class="single-submit" method="post" asp-page-handler="DeleteItems">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="deleteItemModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span></h1>
+                    <h1 class="modal-title fs-5" id="deleteSelectionModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete selected items</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="deleteFrom" value="@Whereabouts.Deposit" id="deleteFromDeposit">
+                            <label class="form-check-label" for="deleteFromDeposit">
+                                Delete from Deposit only
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="deleteFrom" value="@Whereabouts.Both" id="deleteFromMetsAndDeposit">
+                            <label class="form-check-label" for="deleteFromMetsAndDeposit">
+                                Delete from METS file and Deposit
+                            </label>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <div id="deleteItemHelp" class="form-text">(nothing selected)</div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <input type="hidden" id="deleteContext" name="deleteContext">
-                    <input type="hidden" id="deleteContextIsFile" name="deleteContextIsFile">
+                    <input type="hidden" id="deleteSelectionObject" name="deleteSelectionObject">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="submit" class="btn btn-primary" id="deleteButton" disabled="disabled"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span></button>
                 </div>
@@ -424,6 +447,9 @@ ViewData["section"] = "deposits";
         </div>
     </div>
 </div>
+
+
+@* ------------------- EDIT ARCHIVAL GROUP PATH MODAL *@
 
 <div class="modal fade" id="archivalGroupPathModal" tabindex="-1" aria-labelledby="archivalGroupPathModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -462,6 +488,9 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
+
+@* ------------------- DELETE DEPOSIT MODAL *@
+
 <div class="modal fade" id="deleteDepositModal" tabindex="-1" aria-labelledby="deleteDepositModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -493,6 +522,9 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
+@* END MODALS *@
+
+
 <script>
     const rows = document.getElementsByClassName("deposit-row");
 
@@ -500,10 +532,11 @@ ViewData["section"] = "deposits";
     const newFolderContextIsFile = document.getElementById("newFolderContextIsFile");
     const newFileContext = document.getElementById("newFileContext");
     const newFileContextIsFile = document.getElementById("newFileContextIsFile");
-    const deleteContext = document.getElementById("deleteContext");
-    const deleteContextIsFile = document.getElementById("deleteContextIsFile");
     const deleteItemHelp = document.getElementById("deleteItemHelp");
+    
     const deleteButton = document.getElementById("deleteButton");
+    const deleteFromDepositRadio = document.getElementById("deleteFromDeposit");
+    const deleteFromMetsAndDepositRadio = document.getElementById("deleteFromMetsAndDeposit");
     const deleteDepositButton = document.getElementById("deleteDepositButton");
     const confirmDepositDelete = document.getElementById("confirmDepositDelete");
 
@@ -525,6 +558,52 @@ ViewData["section"] = "deposits";
                 itemSelector.checked = true;
             }
         }
+    });
+
+    deleteFromDepositRadio.addEventListener("change", () => {
+        deleteButton.removeAttribute("disabled");
+    });
+
+    deleteFromMetsAndDepositRadio.addEventListener("change", () => {
+        deleteButton.removeAttribute("disabled");
+    });
+    
+    document.getElementById("deleteSelection").addEventListener("click", () => {
+
+        deleteFromDepositRadio.checked = false;
+        deleteFromMetsAndDepositRadio.checked = false;
+        deleteButton.setAttribute("disabled", "true");
+        
+        const itemSelectors = document.getElementsByClassName("item-selector");
+        const deleteSelectionObject = { items: [] };
+        let summary = "<table>";
+        for(const itemSelector of itemSelectors)
+        {
+            if (itemSelector.checked){
+                const row = itemSelector.closest("tr");
+                const type = row.getAttribute("data-type");
+                const relativePath = row.getAttribute("data-path");
+                if (relativePath && (type === "directory" || type === "file")){
+                    const whereabouts = row.getAttribute("data-whereabouts");
+                    const item = {
+                        path: relativePath,
+                        isDir: (type === "directory"),
+                        where: whereabouts
+                    };
+                    deleteSelectionObject.items.push(item);
+                    summary += "<tr><td>";
+                    summary += whereabouts;
+                    summary += " - </td><td>";
+                    summary += item.isDir ? "🗀" : "🗎";
+                    summary += "</td><td>";
+                    summary += relativePath;
+                    summary += "</td></tr>";
+                }       
+            }
+        }
+        summary += "</table>";
+        deleteItemHelp.innerHTML = summary;
+        document.getElementById("deleteSelectionObject").value = JSON.stringify(deleteSelectionObject);
     });
     
     document.getElementById("deleteDepositModal").addEventListener("show.bs.modal", () => {
@@ -556,10 +635,10 @@ ViewData["section"] = "deposits";
             newFolderContext.value = path;
             newFolderContextIsFile.value = isFile;
             newFileContextIsFile.value = isFile;
-            deleteContext.value = path;
-            deleteContextIsFile.value = isFile;
-            deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;
-            deleteButton.removeAttribute("disabled");
+            // deleteContext.value = path;
+            // deleteContextIsFile.value = isFile;
+            // deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;
+            // deleteButton.removeAttribute("disabled");
             
             if (row.classList.contains("table-active")){
                 for (const r of rows) { r.classList.remove("table-active"); }
@@ -575,6 +654,9 @@ ViewData["section"] = "deposits";
 </script>
 
 <script>
+    
+    // script for Upload File modal id=uploadFileModal
+    
     const fileSelector = document.getElementById('depositFile');
     const checksum = document.getElementById('checksum');
     const fileName = document.getElementById('depositFileName');
@@ -623,7 +705,6 @@ ViewData["section"] = "deposits";
       return hexString;
     }
   
-
 </script>
 
 @if (TempData["Context"] != null)

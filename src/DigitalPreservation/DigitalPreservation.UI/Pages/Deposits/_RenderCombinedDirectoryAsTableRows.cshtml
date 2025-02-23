@@ -24,7 +24,7 @@ File is in both
     <tr class="deposit-row @("where-" + combinedDirectory.Whereabouts.ToString().ToLowerInvariant())" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts">
         <td>
-            @if (Model is { Editable: true, Active: true })
+            @if (Model is { Editable: true, Active: true } && combinedDirectory.LocalPath != "objects")
             {
                 <input class="form-check-input item-selector item-directory" type="checkbox" 
                        value="@combinedDirectory.LocalPath" id="@("is-" + Model.RowCounter.Count)">
@@ -72,7 +72,7 @@ File is in both
     <tr class="deposit-row @("where-" + file.Whereabouts.ToString().ToLowerInvariant())" 
         data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts">
         <td>
-            @if (Model is { Editable: true, Active: true })
+            @if (Model is { Editable: true, Active: true } && file.LocalPath != "mets.xml")
             {
                 <input class="form-check-input item-selector item-file" type="checkbox" 
                        value="@file.LocalPath" id="@("is-" + Model.RowCounter.Count)">
@@ -98,7 +98,7 @@ File is in both
         <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
         <td aria-label="content-type">@file.ContentType</td>
         <td class="dep-actions">
-            @if (Model is { Active: true, Editable: true } && file.LocalPath != IStorage.DepositFileSystem && file.LocalPath != "mets.xml")
+            @if (Model is { Active: true, Editable: true } && file.LocalPath != "mets.xml")
             {
                 <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#deleteItemModal" aria-label="delete file">
                     <svg class="bi"><use xlink:href="#trash"/></svg>

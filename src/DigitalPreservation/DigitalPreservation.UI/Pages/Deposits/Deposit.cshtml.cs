@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -65,8 +66,21 @@ public class DepositModel : PageModel
     }
 
     public string? ArchivalGroupTestWarning { get; set; }
-    
-    public List<ImportJobResult> ImportJobResults { get; set; } = [];
+
+    public async Task<List<ImportJobResult>> GetImportJobResults()
+    {
+
+        var fetchResultsResult = await DepositJobResultFetcher.GetImportJobResults(Id, mediator);
+        if (fetchResultsResult.Success)
+        {
+            var importJobResults = fetchResultsResult.Value!;
+            return importJobResults;
+        }
+
+        TempData["Error"] = fetchResultsResult.CodeAndMessage();
+        return [];
+
+    }
     
     public async Task OnGet(
         [FromRoute] string id,
@@ -118,17 +132,6 @@ public class DepositModel : PageModel
                 TempData["Error"] = readS3Result.CodeAndMessage();
                 return false;
             }
-
-            var fetchResultsResult = await DepositJobResultFetcher.GetImportJobResults(id, mediator);
-            if (fetchResultsResult.Success)
-            {
-                ImportJobResults = fetchResultsResult.Value!;
-            }
-            else
-            {
-                TempData["Error"] = fetchResultsResult.CodeAndMessage();
-                return false;
-            }
         }
         else
         {
@@ -139,70 +142,85 @@ public class DepositModel : PageModel
         return true;
     }
 
-    public async Task<IActionResult> OnPostDeleteItem(
+
+    // THIS NEED TO BECOME A LOOP
+    public async Task<IActionResult> OnPostDeleteItems(
         [FromRoute] string id,
-        [FromForm] string deleteContext,
-        [FromForm] bool deleteContextIsFile)
+        [FromForm] Whereabouts? deleteFrom,
+        [FromForm] string deleteSelectionObject) // [FromForm] DeleteSelection deleteSelectionObject
     {
-        if (await BindDeposit(id))
+        var deleteSelection = JsonSerializer.Deserialize<DeleteSelection>(deleteSelectionObject)!;
+        if (deleteFrom == null || deleteFrom == Whereabouts.Mets || deleteFrom == Whereabouts.Neither)
         {
-            var deleteDirectoryContext = deleteContext;
-            if (deleteContextIsFile)
-            {
-                deleteDirectoryContext = deleteDirectoryContext.GetParent();
-            }
-            var deleteDirectory = Files!.FindDirectory(deleteDirectoryContext);
-            if (deleteDirectory == null)
-            {
-                TempData["Error"] = $"Directory {deleteDirectoryContext} not found.";
-                return Redirect($"/deposits/{id}");
-            }
-            if (deleteContextIsFile)
-            {
-                var fileToDelete = deleteDirectory.Files.SingleOrDefault(f => f.LocalPath == deleteContext);
-                if (fileToDelete == null)
-                {
-                    TempData["Error"] = $"File {deleteContext} not found.";
-                    return Redirect($"/deposits/{id}");
-                }
-                if(!fileToDelete.LocalPath.Contains('/'))
-                {
-                    TempData["Error"] = "You cannot delete files in the root.";
-                    return Redirect($"/deposits/{id}");
-                }
-                var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath, Deposit.MetsETag!, true, true));
-                if (deleteFileResult.Success)
-                {
-                    TempData["Deleted"] = "File " + fileToDelete.LocalPath + " DELETED.";
-                }
-                else
-                {
-                    TempData["Error"] = deleteFileResult.CodeAndMessage();
-                }
-                return Redirect($"/deposits/{id}");
-            }
-            // want to delete a directory
-            if(deleteDirectory.LocalPath == "objects")
-            {
-                TempData["Error"] = "You cannot delete the objects directory.";
-                return Redirect($"/deposits/{id}");
-            }
-            if (deleteDirectory.Files.Count > 0)
-            {
-                TempData["Error"] = "You cannot delete a folder that has files in it; delete the files first.";
-                return Redirect($"/deposits/{id}");
-            }
-            var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath, Deposit.MetsETag!, true, true));
-            if (deleteDirectoryResult.Success)
-            {
-                TempData["Deleted"] = "Folder " + deleteDirectory.LocalPath + " DELETED.";
-            }
-            else
-            {
-                TempData["Error"] = deleteDirectoryResult.CodeAndMessage();
-            }
+            TempData["Error"] = "No location to delete from specified.";
             return Redirect($"/deposits/{id}");
         }
+
+        if (deleteSelection.Items.Count == 0)
+        {
+            TempData["Error"] = "No items to delete.";
+            return Redirect($"/deposits/{id}");
+        }
+
+        // if (await BindDeposit(id))
+        // {
+        //     var deleteDirectoryContext = deleteContext;
+        //     if (deleteContextIsFile)
+        //     {
+        //         deleteDirectoryContext = deleteDirectoryContext.GetParent();
+        //     }
+        //     var deleteDirectory = Files!.FindDirectory(deleteDirectoryContext);
+        //     if (deleteDirectory == null)
+        //     {
+        //         TempData["Error"] = $"Directory {deleteDirectoryContext} not found.";
+        //         return Redirect($"/deposits/{id}");
+        //     }
+        //     if (deleteContextIsFile)
+        //     {
+        //         var fileToDelete = deleteDirectory.Files.SingleOrDefault(f => f.LocalPath == deleteContext);
+        //         if (fileToDelete == null)
+        //         {
+        //             TempData["Error"] = $"File {deleteContext} not found.";
+        //             return Redirect($"/deposits/{id}");
+        //         }
+        //         if(!fileToDelete.LocalPath.Contains('/'))
+        //         {
+        //             TempData["Error"] = "You cannot delete files in the root.";
+        //             return Redirect($"/deposits/{id}");
+        //         }
+        //         var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath, Deposit.MetsETag!, true, true));
+        //         if (deleteFileResult.Success)
+        //         {
+        //             TempData["Deleted"] = "File " + fileToDelete.LocalPath + " DELETED.";
+        //         }
+        //         else
+        //         {
+        //             TempData["Error"] = deleteFileResult.CodeAndMessage();
+        //         }
+        //         return Redirect($"/deposits/{id}");
+        //     }
+        //     // want to delete a directory
+        //     if(deleteDirectory.LocalPath == "objects")
+        //     {
+        //         TempData["Error"] = "You cannot delete the objects directory.";
+        //         return Redirect($"/deposits/{id}");
+        //     }
+        //     if (deleteDirectory.Files.Count > 0)
+        //     {
+        //         TempData["Error"] = "You cannot delete a folder that has files in it; delete the files first.";
+        //         return Redirect($"/deposits/{id}");
+        //     }
+        //     var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath, Deposit.MetsETag!, true, true));
+        //     if (deleteDirectoryResult.Success)
+        //     {
+        //         TempData["Deleted"] = "Folder " + deleteDirectory.LocalPath + " DELETED.";
+        //     }
+        //     else
+        //     {
+        //         TempData["Error"] = deleteDirectoryResult.CodeAndMessage();
+        //     }
+        //     return Redirect($"/deposits/{id}");
+        // }
         return Page();
     }
 
