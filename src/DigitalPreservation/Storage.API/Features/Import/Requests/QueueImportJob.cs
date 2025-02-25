@@ -24,6 +24,7 @@ public class QueueImportJobHandler(
     {
         if (request.ImportJob.CreatedBy == null)
         {
+            logger.LogError("Import Job {} does not have a createdBy", request.ImportJob.Id?.GetSlug());
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, 
                 $"Cannot queue an importJob that lacks a createdBy: {request.ImportJob.ArchivalGroup}");
         }
@@ -56,7 +57,7 @@ public class QueueImportJobHandler(
 
     private ImportJobResult CreateWaitingResult(string jobIdentifier, ImportJob importJob)
     {
-        var callerIdentity = importJob.CreatedBy.GetSlug();
+        var callerIdentity = importJob.CreatedBy!.GetSlug()!;
         var now = DateTime.UtcNow;
         
         var importJobResult = new ImportJobResult

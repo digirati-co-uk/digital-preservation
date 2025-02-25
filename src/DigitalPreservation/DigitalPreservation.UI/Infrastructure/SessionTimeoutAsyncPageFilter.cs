@@ -2,7 +2,7 @@
 
 namespace DigitalPreservation.UI.Infrastructure;
 
-public class SessionTimeoutAsyncPageFilter : IAsyncPageFilter
+public class SessionTimeoutAsyncPageFilter(Logger<SessionTimeoutAsyncPageFilter> logger) : IAsyncPageFilter
 {
     
     public Task OnPageHandlerSelectionAsync(PageHandlerSelectedContext context) =>
@@ -23,6 +23,7 @@ public class SessionTimeoutAsyncPageFilter : IAsyncPageFilter
         }
         catch (Exception e)
         {
+            logger.LogDebug(e, "Session invalid, redirecting to RefreshLogin");
             context.HttpContext.Response.Redirect("/Account/RefreshLogin");
             return;
         }

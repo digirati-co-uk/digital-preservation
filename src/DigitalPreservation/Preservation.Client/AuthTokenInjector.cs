@@ -10,21 +10,21 @@ namespace Preservation.Client;
 /// Downstream APIs. 
 /// </summary>
 /// <param name="tokenAcquisition"></param>
-/// <param name="tokenScope1"></param>
+/// <param name="tokenScope"></param>
 /// <param name="logger"></param>
 public class AuthTokenInjector(ITokenAcquisition tokenAcquisition, ITokenScope tokenScope, ILogger<AuthTokenInjector> logger) : DelegatingHandler
 {
-    private async Task<string?> GetBearToken()
+    private async Task<string?> GetBearerToken()
     {
         try
         {
-            var scopes = tokenScope?.ScopeUri?.Split(" ") ?? [];
+            var scopes = tokenScope.ScopeUri?.Split(" ") ?? [];
             var accessToken = await tokenAcquisition.GetAccessTokenForUserAsync(scopes);
             return accessToken;
         }
         catch (Exception e)
         {
-            logger.LogError(e, $"AuthTokenInjector: Failed to to Bearer Token: {e.Message}");
+            logger.LogError(e, "Failed to obtain Bearer Token");
             return null;
         }
     }
@@ -32,7 +32,7 @@ public class AuthTokenInjector(ITokenAcquisition tokenAcquisition, ITokenScope t
 
     private async Task SetBearerToken(HttpRequestMessage httpClient)
     {
-        var token = await GetBearToken();
+        var token = await GetBearerToken();
 
         if (token != null)
         {

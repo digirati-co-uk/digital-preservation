@@ -1,6 +1,8 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Security.Claims;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -51,7 +53,7 @@ public class PatchDepositHandler(
             entity.ArchivalGroupPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot(true);
             entity.ArchivalGroupName = request.Deposit.ArchivalGroupName;
             
-            var callerIdentity = "dlipdev";  // TODO: actual user or app caller identity!
+            var callerIdentity = ClaimsPrincipal.Current.GetCallerIdentity();
             entity.LastModifiedBy = callerIdentity;
             entity.LastModified = DateTime.UtcNow;
             await dbContext.SaveChangesAsync(cancellationToken);
