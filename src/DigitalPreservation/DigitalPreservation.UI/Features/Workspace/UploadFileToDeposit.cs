@@ -10,13 +10,14 @@ using MediatR;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
-namespace DigitalPreservation.UI.Features.S3;
+namespace DigitalPreservation.UI.Features.Workspace;
 
 public class UploadFileToDeposit(
     Uri s3Root, 
     string? parent, 
     string slug, 
-    IFormFile file, 
+    Stream stream, 
+    long size, 
     string checksum, 
     string depositFileName, 
     string contentType,
@@ -25,7 +26,8 @@ public class UploadFileToDeposit(
     public Uri S3Root { get; } = s3Root;
     public string? Parent { get; } = parent;
     public string Slug { get; } = slug;
-    public IFormFile File { get; } = file;
+    public Stream Stream { get; } = stream;
+    public long Size { get; } = size;
     public string Checksum { get; } = checksum;
     public string DepositFileName { get; } = depositFileName;
     public string ContentType { get; } = contentType;
@@ -48,7 +50,7 @@ public class UploadFileToDepositHandler(
             Key = fullKey,
             ContentType = request.ContentType,
             ChecksumAlgorithm = ChecksumAlgorithm.SHA256,
-            InputStream = request.File.OpenReadStream()
+            InputStream = request.Stream
         };
         req.Metadata.Add(S3Helpers.OriginalNameMetadataKey, request.DepositFileName);
         try
@@ -75,7 +77,7 @@ public class UploadFileToDepositHandler(
                     LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
                     ContentType = request.ContentType,
                     Digest = request.Checksum,
-                    Size = request.File.Length,
+                    Size = request.Size,
                     Name = request.DepositFileName,
                     Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
                 };

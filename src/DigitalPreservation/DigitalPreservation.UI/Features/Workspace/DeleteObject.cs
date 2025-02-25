@@ -9,14 +9,14 @@ using MediatR;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
-namespace DigitalPreservation.UI.Features.S3;
+namespace DigitalPreservation.UI.Features.Workspace;
 
-public class DeleteObject(Uri s3Root, string path, string metsETag, bool fromDeposit, bool fromMets) : IRequest<Result>
+public class DeleteObject(Uri s3Root, string path, string metsETag, bool fromFileSystem, bool fromMets) : IRequest<Result>
 {
     public Uri S3Root { get; } = s3Root;
     public string Path { get; } = path;
     public string MetsETag { get; } = metsETag;
-    public bool FromDeposit { get; } = fromDeposit;
+    public bool FromFileSystem { get; } = fromFileSystem;
     public bool FromMets { get; } = fromMets;
 }
 
@@ -36,7 +36,7 @@ public class DeleteObjectHandler(
         };
         try
         {
-            if (request.FromDeposit)
+            if (request.FromFileSystem)
             {
                 var response = await s3Client.DeleteObjectAsync(dor, cancellationToken);
                 if (response.HttpStatusCode == HttpStatusCode.NoContent)

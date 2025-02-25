@@ -28,6 +28,7 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType(200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
+    [ProducesResponseType(410)]
     public async Task<IActionResult?> HeadResource([FromRoute] string path)
     {
         var result = await mediator.Send(new GetResourceType(path));

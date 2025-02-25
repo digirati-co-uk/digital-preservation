@@ -2,7 +2,7 @@
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
 
-namespace DigitalPreservation.UI.Features.Preservation.Requests;
+namespace DigitalPreservation.UI.Features.Workspace;
 
 public class GetMetsWrapper(Uri metsFileLocation) : IRequest<Result<MetsFileWrapper>>
 {

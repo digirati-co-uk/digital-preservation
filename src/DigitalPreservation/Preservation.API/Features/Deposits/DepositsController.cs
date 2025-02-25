@@ -1,12 +1,9 @@
-﻿using DigitalPreservation.Common.Model.Import;
-using DigitalPreservation.Common.Model.PreservationApi;
+﻿using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Net.Http.Headers;
 using Preservation.API.Features.Deposits.Requests;
-using Preservation.API.Features.ImportJobs.Requests;
 
 namespace Preservation.API.Features.Deposits;
 
@@ -27,7 +24,7 @@ public class DepositsController(IMediator mediator) : Controller
     
     
     [HttpGet("{id}", Name = "GetDeposit")]
-    [ProducesResponseType<List<Deposit>>(200, "application/json")]
+    [ProducesResponseType<Deposit>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     public async Task<IActionResult> GetDeposit([FromRoute] string id)
@@ -38,7 +35,7 @@ public class DepositsController(IMediator mediator) : Controller
     
     
     [HttpGet("{id}/mets", Name = "GetDepositWithMets")]
-    [ProducesResponseType<List<Deposit>>(200, "application/xml")]
+    [ProducesResponseType(200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     public async Task<IActionResult> GetDepositMets([FromRoute] string id)
@@ -60,7 +57,7 @@ public class DepositsController(IMediator mediator) : Controller
     
         
     [HttpPatch("{id}", Name = "PatchDeposit")]
-    [ProducesResponseType<List<Deposit>>(200, "application/json")]
+    [ProducesResponseType<Deposit>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     [ProducesResponseType(400)]
@@ -91,7 +88,7 @@ public class DepositsController(IMediator mediator) : Controller
     
     
     [HttpPost(Name = "CreateDeposit")]
-    [ProducesResponseType<List<Deposit>>(201, "application/json")]
+    [ProducesResponseType<Deposit>(201, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     [ProducesResponseType(400)]
@@ -107,7 +104,7 @@ public class DepositsController(IMediator mediator) : Controller
     }
     
     [HttpPost("export", Name = "Export")]
-    [ProducesResponseType<List<Deposit>>(201, "application/json")]
+    [ProducesResponseType<Deposit>(201, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     [ProducesResponseType(400)]

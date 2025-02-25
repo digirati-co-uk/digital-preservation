@@ -11,7 +11,7 @@ using MediatR;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
-namespace DigitalPreservation.UI.Features.S3;
+namespace DigitalPreservation.UI.Features.Workspace;
 
 public class CreateFolder(
     Uri s3Root, 

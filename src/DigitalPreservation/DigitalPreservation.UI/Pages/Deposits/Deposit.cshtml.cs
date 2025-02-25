@@ -7,7 +7,7 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
-using DigitalPreservation.UI.Features.S3;
+using DigitalPreservation.UI.Features.Workspace;
 using DigitalPreservation.Utils;
 using LateApexEarlySpeed.Xunit.Assertion.Json;
 using MediatR;
@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
+using Storage.Repository.Common.Requests;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -108,24 +109,15 @@ public class DepositModel : PageModel
             // There is a DepositFileSystem file for the deposit contents *on disk* (S3), AND a METS for the AG (if exists).
             // The DepositFileSystem file is hidden and does not get saved to Fedora
             var readS3Result = await mediator.Send(
-                new GetWorkingDirectory(Deposit.Files!, readFromStorage, writeToStorage)); 
+                new GetWorkingDirectory(Deposit.Files!, readFromStorage, writeToStorage, Deposit.LastModified)); 
             if (readS3Result.Success)
             {
                 Files = readS3Result.Value!;
-                if (Files.Modified < Deposit.LastModified)
-                {
-                    var updatedS3Result = await mediator.Send(
-                        new GetWorkingDirectory(Deposit.Files!, true, true));
-                    if (updatedS3Result.Success)
-                    {
-                        Files = updatedS3Result.Value!;
-                        TempData["Updated"] = "View of Deposit files updated.";
-                    }
-                    else
-                    {
-                        TempData["Error"] = "Unable to update Deposit File System data - " + updatedS3Result.ErrorMessage;
-                    }
-                }
+                // Would need to return a flag indicting this had happened
+                // if (Files.Modified > Deposit.LastModified)
+                // {
+                //     TempData["Updated"] = "View of Deposit files updated.";
+                // }
             }
             else
             {
@@ -150,7 +142,7 @@ public class DepositModel : PageModel
         [FromForm] string deleteSelectionObject) // [FromForm] DeleteSelection deleteSelectionObject
     {
         var deleteSelection = JsonSerializer.Deserialize<DeleteSelection>(deleteSelectionObject)!;
-        if (deleteFrom == null || deleteFrom == Whereabouts.Mets || deleteFrom == Whereabouts.Neither)
+        if (deleteFrom is null or Whereabouts.Mets or Whereabouts.Neither)
         {
             TempData["Error"] = "No location to delete from specified.";
             return Redirect($"/deposits/{id}");
@@ -162,65 +154,83 @@ public class DepositModel : PageModel
             return Redirect($"/deposits/{id}");
         }
 
-        // if (await BindDeposit(id))
-        // {
-        //     var deleteDirectoryContext = deleteContext;
-        //     if (deleteContextIsFile)
-        //     {
-        //         deleteDirectoryContext = deleteDirectoryContext.GetParent();
-        //     }
-        //     var deleteDirectory = Files!.FindDirectory(deleteDirectoryContext);
-        //     if (deleteDirectory == null)
-        //     {
-        //         TempData["Error"] = $"Directory {deleteDirectoryContext} not found.";
-        //         return Redirect($"/deposits/{id}");
-        //     }
-        //     if (deleteContextIsFile)
-        //     {
-        //         var fileToDelete = deleteDirectory.Files.SingleOrDefault(f => f.LocalPath == deleteContext);
-        //         if (fileToDelete == null)
-        //         {
-        //             TempData["Error"] = $"File {deleteContext} not found.";
-        //             return Redirect($"/deposits/{id}");
-        //         }
-        //         if(!fileToDelete.LocalPath.Contains('/'))
-        //         {
-        //             TempData["Error"] = "You cannot delete files in the root.";
-        //             return Redirect($"/deposits/{id}");
-        //         }
-        //         var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath, Deposit.MetsETag!, true, true));
-        //         if (deleteFileResult.Success)
-        //         {
-        //             TempData["Deleted"] = "File " + fileToDelete.LocalPath + " DELETED.";
-        //         }
-        //         else
-        //         {
-        //             TempData["Error"] = deleteFileResult.CodeAndMessage();
-        //         }
-        //         return Redirect($"/deposits/{id}");
-        //     }
-        //     // want to delete a directory
-        //     if(deleteDirectory.LocalPath == "objects")
-        //     {
-        //         TempData["Error"] = "You cannot delete the objects directory.";
-        //         return Redirect($"/deposits/{id}");
-        //     }
-        //     if (deleteDirectory.Files.Count > 0)
-        //     {
-        //         TempData["Error"] = "You cannot delete a folder that has files in it; delete the files first.";
-        //         return Redirect($"/deposits/{id}");
-        //     }
-        //     var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath, Deposit.MetsETag!, true, true));
-        //     if (deleteDirectoryResult.Success)
-        //     {
-        //         TempData["Deleted"] = "Folder " + deleteDirectory.LocalPath + " DELETED.";
-        //     }
-        //     else
-        //     {
-        //         TempData["Error"] = deleteDirectoryResult.CodeAndMessage();
-        //     }
-        //     return Redirect($"/deposits/{id}");
-        // }
+
+        if (await BindDeposit(id))
+        {
+            deleteSelection.DeleteFromDepositFiles = deleteFrom is Whereabouts.Deposit or Whereabouts.Both;
+            deleteSelection.DeleteFromMets = deleteFrom is Whereabouts.Both;
+            deleteSelection.Deposit = Deposit!.Id;
+            var deleteResult = await mediator.Send(new DeleteItems(Deposit.Files, deleteSelection));
+            if (deleteResult.Success)
+            {
+                TempData["Deleted"] = $"{deleteSelection.Items.Count} items DELETED.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            TempData["Error"] = deleteResult.CodeAndMessage();
+            return Redirect($"/deposits/{id}");
+
+            // if (await BindDeposit(id))
+            // {
+            //     var deleteDirectoryContext = deleteContext;
+            //     if (deleteContextIsFile)
+            //     {
+            //         deleteDirectoryContext = deleteDirectoryContext.GetParent();
+            //     }
+            //     var deleteDirectory = Files!.FindDirectory(deleteDirectoryContext);
+            //     if (deleteDirectory == null)
+            //     {
+            //         TempData["Error"] = $"Directory {deleteDirectoryContext} not found.";
+            //         return Redirect($"/deposits/{id}");
+            //     }
+            //     if (deleteContextIsFile)
+            //     {
+            //         var fileToDelete = deleteDirectory.Files.SingleOrDefault(f => f.LocalPath == deleteContext);
+            //         if (fileToDelete == null)
+            //         {
+            //             TempData["Error"] = $"File {deleteContext} not found.";
+            //             return Redirect($"/deposits/{id}");
+            //         }
+            //         if(!fileToDelete.LocalPath.Contains('/'))
+            //         {
+            //             TempData["Error"] = "You cannot delete files in the root.";
+            //             return Redirect($"/deposits/{id}");
+            //         }
+            //         var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath, Deposit.MetsETag!, true, true));
+            //         if (deleteFileResult.Success)
+            //         {
+            //             TempData["Deleted"] = "File " + fileToDelete.LocalPath + " DELETED.";
+            //         }
+            //         else
+            //         {
+            //             TempData["Error"] = deleteFileResult.CodeAndMessage();
+            //         }
+            //         return Redirect($"/deposits/{id}");
+            //     }
+            //     // want to delete a directory
+            //     if(deleteDirectory.LocalPath == "objects")
+            //     {
+            //         TempData["Error"] = "You cannot delete the objects directory.";
+            //         return Redirect($"/deposits/{id}");
+            //     }
+            //     if (deleteDirectory.Files.Count > 0)
+            //     {
+            //         TempData["Error"] = "You cannot delete a folder that has files in it; delete the files first.";
+            //         return Redirect($"/deposits/{id}");
+            //     }
+            //     var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath, Deposit.MetsETag!, true, true));
+            //     if (deleteDirectoryResult.Success)
+            //     {
+            //         TempData["Deleted"] = "Folder " + deleteDirectory.LocalPath + " DELETED.";
+            //     }
+            //     else
+            //     {
+            //         TempData["Error"] = deleteDirectoryResult.CodeAndMessage();
+            //     }
+            //     return Redirect($"/deposits/{id}");
+            // }
+        }
+
         return Page();
     }
 
@@ -318,7 +328,8 @@ public class DepositModel : PageModel
                 s3Root!,
                 newFileContext,
                 slug,
-                depositFile[0],
+                depositFile[0].OpenReadStream(),
+                depositFile[0].Length,
                 checksum,
                 depositFileName,
                 depositFileContentType,
