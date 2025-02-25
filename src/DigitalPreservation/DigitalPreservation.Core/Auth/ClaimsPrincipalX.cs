@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Runtime.InteropServices;
+using Microsoft.Identity.Web;
 
 namespace DigitalPreservation.Core.Auth;
 
@@ -10,7 +11,7 @@ public static class ClaimsPrincipalX
     
     
     public static string GetCallerIdentity(this ClaimsPrincipal? principal, bool allowAnonymous = false) =>
-        "not implemented";
+        principal?.GetDisplayName() ?? "dlipdev";
 
 
     public static string GetCallerIdentity(HttpContext? context) =>
