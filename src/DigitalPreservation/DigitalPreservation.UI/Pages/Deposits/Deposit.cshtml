@@ -21,7 +21,7 @@ ViewData["section"] = "deposits";
     <h1 class="h2 text-truncate" title="@ViewData["Title"]"><svg class="bi mb-1" style="width:1.5rem;height: 1.5rem;"><use xlink:href="#box-seam"/></svg> @ViewData["Title"]</h1>
 
     <div class="btn-toolbar mb-2 mb-md-0">
-        @if (Model.Bound)
+        @if (Model.Deposit is not null)
         {
             <button @(Model.Deposit!.Active ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
                 <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
@@ -162,34 +162,31 @@ ViewData["section"] = "deposits";
                 
                 @if (Model.Deposit.Status != DepositStates.Exporting)
                 {                
-                    @if (Model.Files is not null)
+                    var combined = await Model.WorkspaceManager.GetCombinedDirectory();
+                    if (combined != null)
                     {
-                        var combined = await Model.GetCombinedDirectory();
-                        if (combined != null)
-                        {
-                            <div class="table-responsive small">
-                                <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
-                                    <thead>
-                                    <tr>
-                                        <th scope="col"></th>
-                                        <th scope="col" class="dep-actions"></th>
-                                        <th scope="col">Name (and path)</th>
-                                        <th scope="col">Hash</th>
-                                        <th scope="col">Size</th>
-                                        <th scope="col">Type</th>
-                                        <th scope="col" class="dep-actions"></th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    @{
-                                        var wrapper = new CombinedDirectoryRecursionWrapper(combined, true, Model.Deposit.Active, new Counter());
-                                        @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
-                                    }
-                                    </tbody>
-                                </table>
-                            </div>
-                            <p><small>Deposit structure built @(Model.Files?.Modified.GetDateDisplay() ?? " - ")</small></p>
-                        }
+                        <div class="table-responsive small">
+                            <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
+                                <thead>
+                                <tr>
+                                    <th scope="col"></th>
+                                    <th scope="col" class="dep-actions"></th>
+                                    <th scope="col">Name (and path)</th>
+                                    <th scope="col">Hash</th>
+                                    <th scope="col">Size</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col" class="dep-actions"></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @{
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(combined, true, Model.Deposit.Active, new Counter());
+                                    @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><small>Deposit structure built @(combined.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")</small></p>
                     }
                     else
                     {
@@ -219,7 +216,7 @@ ViewData["section"] = "deposits";
                     {
                         <p aria-label="import job message">No jobs can be run as this deposit is no longer active.</p>
                     }
-                    else if (!Model.Deposit.ArchivalGroupExists && !Model.HasValidFiles())
+                    else if (!Model.Deposit.ArchivalGroupExists && !Model.WorkspaceManager.HasValidFiles)
                     {
                         <p aria-label="import job message">No jobs can be run as there are no valid files in the Deposit.</p>
                     }
