@@ -1,7 +1,7 @@
 ﻿namespace DigitalPreservation.UI.Workspace;
 
-public class CreateFolderResult
+public class SingleFileUploadResult
 {
-    public string? Created { get; set; }
+    public string? Uploaded { get; set; }
     public string? Context { get; set; }
 }

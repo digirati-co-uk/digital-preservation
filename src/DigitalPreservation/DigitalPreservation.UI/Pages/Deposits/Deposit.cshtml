@@ -175,12 +175,13 @@ ViewData["section"] = "deposits";
                                     <th scope="col">Hash</th>
                                     <th scope="col">Size</th>
                                     <th scope="col">Type</th>
-                                    <th scope="col" class="dep-actions"></th>
                                 </tr>
                                 </thead>
                                 <tbody>
                                 @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(combined, true, Model.Deposit.Active, new Counter());
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(combined, 
+                                        Model.WorkspaceManager.MetsPath, Model.WorkspaceManager.Editable,
+                                        Model.Deposit.Active, new Counter());
                                     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
                                 }
                                 </tbody>

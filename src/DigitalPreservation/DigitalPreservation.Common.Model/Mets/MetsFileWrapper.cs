@@ -32,4 +32,6 @@ public class MetsFileWrapper
     public List<WorkingFile> Files { get; set; } = [];
     public XDocument? XDocument { get; set; }
     public string? ETag { get; set; }
+    public string? Agent { get; set; }
+    public bool Editable { get; set; }
 }

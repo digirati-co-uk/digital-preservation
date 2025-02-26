@@ -48,19 +48,11 @@ File is in both
         <td></td>
         <td></td>
         <td></td>
-        <td class="dep-actions">
-            @if (Model.Active && combinedDirectory.LocalPath != "objects")
-            {
-                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#deleteItemModal" aria-label="delete folder">
-                    <svg class="bi"><use xlink:href="#trash"/></svg>
-                </a>
-            }
-        </td>
     </tr>
 }
 @foreach (var dir in combinedDirectory.Directories)
 {
-    var wrapper = new CombinedDirectoryRecursionWrapper(dir, Model.Editable, Model.Active, Model.RowCounter);
+    var wrapper = new CombinedDirectoryRecursionWrapper(dir, Model.MetsPath, Model.Editable, Model.Active, Model.RowCounter);
     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
 }
 @foreach (var file in combinedDirectory.Files)
@@ -84,26 +76,18 @@ File is in both
         <td style="padding-left: @(1.3 * (depth + 1))rem">
             <svg class="bi"><use xlink:href="#file-earmark-text"/></svg>
             <span aria-label="name" title="@file.LocalPath">
-                @if (file.LocalPath == "mets.xml")
+                @if (file.LocalPath.HasText() && file.LocalPath == Model.MetsPath)
                 {
-                    <a href="@(Context.Request.Path + "/mets")"><strong>mets.xml</strong></a>
+                    <a href="@(Context.Request.Path + "/mets")"><strong>@Model.MetsPath.GetSlug()</strong></a>
                 }
                 else
                 {
-                    @(file.Name ?? file.LocalPath ?? "{{ NO LOCALPATH }}")
+                    @(file.Name ?? file.LocalPath?.GetSlug() ?? "{{ NO LOCALPATH }}")
                 }
             </span>
         </td>
         <td aria-label="hash">@file.Digest?[..8]</td>
         <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
         <td aria-label="content-type">@file.ContentType</td>
-        <td class="dep-actions">
-            @if (Model is { Active: true, Editable: true } && file.LocalPath != "mets.xml")
-            {
-                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#deleteItemModal" aria-label="delete file">
-                    <svg class="bi"><use xlink:href="#trash"/></svg>
-                </a>
-            }
-        </td>
     </tr>
 } 

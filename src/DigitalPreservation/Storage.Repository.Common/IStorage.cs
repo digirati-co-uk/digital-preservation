@@ -32,7 +32,7 @@ public interface IStorage
     
     Task<Result<WorkingDirectory>> AddToDepositFileSystem(AmazonS3Uri location, WorkingDirectory directoryToAdd, CancellationToken cancellationToken);
     Task<Result<WorkingDirectory>> AddToDepositFileSystem(AmazonS3Uri location, WorkingFile fileToAdd, CancellationToken cancellationToken);
-    Task<Result> DeleteFromDepositFileSystem(AmazonS3Uri location, string path, CancellationToken cancellationToken);
+    Task<Result> DeleteFromDepositFileSystem(AmazonS3Uri location, string path, bool errorIfNotFound, CancellationToken cancellationToken);
 
     /// <summary>
     /// Remove all the files in this location, and the location itself!

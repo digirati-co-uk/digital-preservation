@@ -2,6 +2,7 @@
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
+using DigitalPreservation.UI.Workspace;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Rewrite;
@@ -74,6 +75,7 @@ try
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
+        .AddSingleton<WorkspaceManagerFactory>()
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks();
        

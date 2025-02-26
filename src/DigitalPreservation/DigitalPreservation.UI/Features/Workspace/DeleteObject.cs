@@ -41,7 +41,7 @@ public class DeleteObjectHandler(
                 var response = await s3Client.DeleteObjectAsync(dor, cancellationToken);
                 if (response.HttpStatusCode == HttpStatusCode.NoContent)
                 {
-                    var removeJson = await storage.DeleteFromDepositFileSystem(s3Uri, request.Path, cancellationToken);
+                    var removeJson = await storage.DeleteFromDepositFileSystem(s3Uri, request.Path, false, cancellationToken);
                     if(removeJson.Failure)
                     {
                         return Result.Fail(removeJson.ErrorCode ?? ErrorCodes.UnknownError, 

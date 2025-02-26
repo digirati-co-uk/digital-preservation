@@ -135,6 +135,7 @@ public class MetsParser(
             }
 
             mets.XDocument = xMets;
+            mets.Editable = mets.Agent == IMetsManager.MetsCreatorAgent;
         }
         return Result.OkNotNull(mets);
     }
@@ -240,7 +241,12 @@ public class MetsParser(
             {
                 mets.Name = name;
             }
-            // TODO - where else to look for title?
+
+            var agent = xMets.Descendants(XNames.mets + "agent").FirstOrDefault();
+            if (agent is not null)
+            {
+                mets.Agent = agent.Descendants(XNames.mets + "name").FirstOrDefault()?.Value;
+            }
 
             // There may be more than one, and they may or may not be qualified as physical or logical
             XElement? physicalStructMap = null;
@@ -393,7 +399,7 @@ public class MetsParser(
                         var sizeEl = techMd.Descendants(XNames.PremisSize).SingleOrDefault();
                         if (sizeEl != null)
                         {
-                            size = long.Parse(sizeEl.Value);
+                            long.TryParse(sizeEl.Value, out size);
                         }
                         haveUsedAdmIdAlready = true;
                     }
@@ -418,7 +424,7 @@ public class MetsParser(
                         Size = size,
                         Name = label ?? parts[^1],
                         AdmId = admId,
-                        PhysDivId = div.Attribute("ID")!.Value
+                        PhysDivId = div.Attribute("ID")?.Value
                     };
                     mets.Files.Add(file);
 

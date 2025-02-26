@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Text.Json;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -6,6 +7,7 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Workspace;
 using DigitalPreservation.Utils;
+using LateApexEarlySpeed.Xunit.Assertion.Json;
 using MediatR;
 using Storage.Repository.Common;
 
@@ -22,6 +24,8 @@ public class WorkspaceManager(
     public List<string> Warnings { get; } = [];
 
     public bool HasValidFiles { get; set; }
+    public string MetsPath { get; set; }
+    public bool Editable { get; set; }
 
     private async Task<WorkingDirectory?> GetFileSystemWorkingDirectory()
     {
@@ -58,7 +62,10 @@ public class WorkspaceManager(
         var result = await metsParser.GetMetsFileWrapper(deposit.Files!, true);
         if (result is { Success: true, Value: not null })
         {
-            return result.Value;
+            var metsWrapper = result.Value;
+            MetsPath = metsWrapper.Self?.LocalPath ?? MetsPath;
+            Editable = metsWrapper.Editable;
+            return metsWrapper;
         }
         Warnings.Add("Could not obtain METS file wrapper");
         return null;
@@ -125,6 +132,20 @@ public class WorkspaceManager(
 
         var goodResult = new DeleteItemsResult();
 
+        
+        
+        // Interim
+        // var deleteResult = await mediator.Send(new DeleteItems(Deposit.Files, deleteSelection));
+        // if (deleteResult.Success)
+        // {
+        //     TempData["Deleted"] = $"{deleteSelection.Items.Count} items DELETED.";
+        //     return Redirect($"/deposits/{id}");
+        // }
+        //
+        // TempData["Error"] = deleteResult.CodeAndMessage();
+        // return Redirect($"/deposits/{id}");
+        
+        
         // This loop is editing the METS one at a time, needs to be more sensible
         foreach (var item in deleteSelection.Items)
         {
@@ -199,25 +220,114 @@ public class WorkspaceManager(
                         deleteFileResult.ErrorCode!,
                         $"DeleteItems failed after {goodResult.DeletedItems.Count} with: {deleteFileResult.ErrorMessage}.");
                 }
-                
             }
         }
 
-        return Result.FailNotNull<DeleteItemsResult>(ErrorCodes.Unprocessable, "NOT FINISHED YET");
+        return Result.OkNotNull(goodResult);
+    }
 
-        
-        
-        // Interim
-        // var deleteResult = await mediator.Send(new DeleteItems(Deposit.Files, deleteSelection));
-        // if (deleteResult.Success)
-        // {
-        //     TempData["Deleted"] = $"{deleteSelection.Items.Count} items DELETED.";
-        //     return Redirect($"/deposits/{id}");
-        // }
-        //
-        // TempData["Error"] = deleteResult.CodeAndMessage();
-        // return Redirect($"/deposits/{id}");
+    public async Task<Result<SingleFileUploadResult>> UploadSingleSmallFile(
+        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context)
+    {
 
+        var combined = await GetCombinedDirectory();
+        var parentDirectory = combined!.FindDirectory(context);
+        if (parentDirectory == null)
+        {
+            return Result.FailNotNull<SingleFileUploadResult>(
+                ErrorCodes.BadRequest, $"Folder path {parentDirectory} could not be found.");
+        }
 
+        if (!(parentDirectory.LocalPath == "objects" || parentDirectory.LocalPath!.StartsWith("objects/")))
+        {
+            return Result.FailNotNull<SingleFileUploadResult>(
+                ErrorCodes.BadRequest, "Uploaded files must go in or below the objects folder.");
+        }
+
+        var slug = PreservedResource.MakeValidSlug(sourceFileName);
+        if (parentDirectory.Directories.Any(d => d.LocalPath!.GetSlug() == slug) ||
+            parentDirectory.Files.Any(f => f.LocalPath!.GetSlug() == slug))
+        {
+            return Result.FailNotNull<SingleFileUploadResult>(
+                ErrorCodes.BadRequest, "This file name conflicts with " + slug);
+        }
+
+        var uploadFileResult = await mediator.Send(new UploadFileToDeposit(
+            deposit.Files!,
+            context,
+            slug,
+            stream,
+            size,
+            checksum,
+            fileName,
+            contentType,
+            deposit.MetsETag!));
+        if (uploadFileResult.Success)
+        {
+            var result = new SingleFileUploadResult
+            {
+                Uploaded = "File " + slug + " uploaded.",
+                Context = context
+            };
+            return Result.OkNotNull(result);
+        }
+
+        return Result.FailNotNull<SingleFileUploadResult>(
+            uploadFileResult.ErrorCode ?? ErrorCodes.UnknownError, uploadFileResult.ErrorMessage);
+    }
+
+    public async Task<Result> RebuildDepositFileSystem()
+    {
+        var readS3Result = await mediator.Send(new GetWorkingDirectory(
+                deposit.Files!, true, true));
+        return readS3Result;
+    }
+
+    public async Task<Result> ValidateDepositFileSystem()
+    {       
+        var readS3Result = await mediator.Send(new GetWorkingDirectory(
+            deposit.Files!, true, false));
+        var readJsonResult = await mediator.Send(new GetWorkingDirectory(
+            deposit.Files!, false, false));
+
+        if (readS3Result.Value == null)
+        {
+            return readS3Result;
+        }
+        if (readJsonResult.Value == null)
+        {
+            return readJsonResult;
+        }
+        var s3Json = JsonSerializer.Serialize(RemoveRootMetadata(readS3Result.Value));
+        var metsJson = JsonSerializer.Serialize(RemoveRootMetadata(readJsonResult.Value));
+        try
+        {
+            JsonAssertion.Equivalent(s3Json, metsJson);
+            return Result.Ok();
+        }
+        catch (Exception e)
+        {
+            return Result.Fail(ErrorCodes.Conflict, "Storage validation Failed. " + e.Message);
+        }
+    }
+    
+    
+    private WorkingDirectory? RemoveRootMetadata(WorkingDirectory wd)
+    {
+        wd.Modified = DateTime.MinValue;
+        // Also do not compare the object directory
+        var objects = wd.Directories.SingleOrDefault(d => d.LocalPath == "objects");
+        if (objects != null)
+        {
+            objects.Modified = DateTime.MinValue;
+        }
+        foreach (var workingFile in wd?.Files ?? [])
+        {
+            workingFile.Digest = null;
+            workingFile.Modified = DateTime.MinValue;
+            workingFile.Size = 0;
+        }
+
+        return wd;
     }
 }

@@ -208,7 +208,7 @@ public class Storage(
         return saveResult;
     }
 
-    public async Task<Result> DeleteFromDepositFileSystem(AmazonS3Uri location, string path, CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteFromDepositFileSystem(AmazonS3Uri location, string path, bool errorIfNotFound, CancellationToken cancellationToken = default)
     {
         var wdResult = await ReadDepositFileSystem(location, cancellationToken);
         if (wdResult.Success)
@@ -227,8 +227,11 @@ public class Storage(
                 var parentOfFile = root.FindDirectory(path.GetParent(), false);
                 if (parentOfFile != null)
                 {
-                    var file = parentOfFile.Files.Single(f => f.LocalPath == path);
-                    somethingWasRemoved = parentOfFile.Files.Remove(file);
+                    var file = parentOfFile.Files.SingleOrDefault(f => f.LocalPath == path);
+                    if (file != null)
+                    {
+                        somethingWasRemoved = parentOfFile.Files.Remove(file);
+                    }
                 }
             }
             if (somethingWasRemoved)
@@ -236,7 +239,11 @@ public class Storage(
                 var saveResult = await SaveDepositFileSystem(location, root, cancellationToken);
                 return saveResult;
             }
-            return Result.Fail(ErrorCodes.NotFound, "Could not delete path from METS: " + path);
+
+            if (errorIfNotFound)
+            {
+                return Result.Fail(ErrorCodes.NotFound, "Could not delete path from METS: " + path);
+            }
         }
         return wdResult;
     }

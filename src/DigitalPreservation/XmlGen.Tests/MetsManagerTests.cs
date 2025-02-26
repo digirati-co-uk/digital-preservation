@@ -266,6 +266,7 @@ public class MetsManagerTests
             ContentType = "text/plain",
             Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
             LocalPath = "objects/readme.txt",
+            Size = 9999,
             Name = "readme.txt",
             Modified = DateTime.UtcNow
         };
@@ -281,6 +282,7 @@ public class MetsManagerTests
         objectsDir.Files.Should().HaveCount(1);
         objectsDir.Files[0].Name.Should().Be("readme.txt");
         objectsDir.Files[0].LocalPath.Should().Be("objects/readme.txt");
+        objectsDir.Files[0].Size.Should().Be(9999);
         objectsDir.Files[0].ContentType.Should().Be("text/plain");
         objectsDir.Files[0].Digest.Should().Be("801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105");
         
@@ -306,6 +308,7 @@ public class MetsManagerTests
             ContentType = "text/plain",
             Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
             LocalPath = "objects/readme.txt",
+            Size = 9999,
             Name = "readme.txt",
             Modified = DateTime.UtcNow
         };
@@ -321,6 +324,7 @@ public class MetsManagerTests
         objectsDir.Files.Should().HaveCount(3); // an extra file, should be last because "r"
         objectsDir.Files[2].Name.Should().Be("readme.txt");
         objectsDir.Files[2].LocalPath.Should().Be("objects/readme.txt");
+        objectsDir.Files[2].Size.Should().Be(9999);
         objectsDir.Files[2].ContentType.Should().Be("text/plain");
         objectsDir.Files[2].Digest.Should().Be("801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105");
 
