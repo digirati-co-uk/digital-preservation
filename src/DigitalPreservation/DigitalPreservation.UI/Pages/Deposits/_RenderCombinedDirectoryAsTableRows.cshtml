@@ -78,7 +78,7 @@ File is in both
             <span aria-label="name" title="@file.LocalPath">
                 @if (file.LocalPath.HasText() && file.LocalPath == Model.MetsPath)
                 {
-                    <a href="@(Context.Request.Path + "/mets")"><strong>@Model.MetsPath.GetSlug()</strong></a>
+                    <a target="_blank" href="@(Context.Request.Path + "/mets")"><strong>@Model.MetsPath.GetSlug()</strong></a>
                 }
                 else
                 {

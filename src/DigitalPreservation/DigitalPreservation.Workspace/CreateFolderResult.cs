@@ -1,4 +1,4 @@
-﻿namespace DigitalPreservation.UI.Workspace;
+﻿namespace DigitalPreservation.Workspace;
 
 public class CreateFolderResult
 {

@@ -1,9 +1,8 @@
 ﻿using DigitalPreservation.Core.Web;
 using DigitalPreservation.UI.Features.Preservation.Requests;
-using DigitalPreservation.UI.Features.Workspace;
+using DigitalPreservation.Workspace.Requests;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Storage.Repository.Common.Requests;
 
 namespace DigitalPreservation.UI.Controllers;
 

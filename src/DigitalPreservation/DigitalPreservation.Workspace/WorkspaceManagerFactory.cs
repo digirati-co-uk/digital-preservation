@@ -1,9 +1,10 @@
 ﻿using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
-namespace DigitalPreservation.UI.Workspace;
+namespace DigitalPreservation.Workspace;
 
 public class WorkspaceManagerFactory(
     ILogger<WorkspaceManager> logger,

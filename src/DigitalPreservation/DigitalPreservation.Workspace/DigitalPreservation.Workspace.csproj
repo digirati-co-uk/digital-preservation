@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\DigitalPreservation.Common.Model\DigitalPreservation.Common.Model.csproj" />
+      <ProjectReference Include="..\Storage.Repository.Common\Storage.Repository.Common.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="LateApexEarlySpeed.Xunit.Assertion.Json" Version="1.0.6" />
+      <PackageReference Include="MediatR" Version="12.4.1" />
+    </ItemGroup>
+
+</Project>

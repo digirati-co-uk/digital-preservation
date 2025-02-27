@@ -5,13 +5,14 @@ using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
-using DigitalPreservation.UI.Features.Workspace;
 using DigitalPreservation.Utils;
+using DigitalPreservation.Workspace.Requests;
 using LateApexEarlySpeed.Xunit.Assertion.Json;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
-namespace DigitalPreservation.UI.Workspace;
+namespace DigitalPreservation.Workspace;
 
 public class WorkspaceManager(
     Deposit deposit,
@@ -24,7 +25,7 @@ public class WorkspaceManager(
     public List<string> Warnings { get; } = [];
 
     public bool HasValidFiles { get; set; }
-    public string MetsPath { get; set; }
+    public string? MetsPath { get; set; }
     public bool Editable { get; set; }
 
     private async Task<WorkingDirectory?> GetFileSystemWorkingDirectory()

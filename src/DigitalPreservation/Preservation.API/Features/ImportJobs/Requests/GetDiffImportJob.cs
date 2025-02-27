@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
+using DigitalPreservation.Workspace;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
@@ -20,7 +21,7 @@ public class GetDiffImportJob(Deposit deposit) : IRequest<Result<ImportJob>>
 }
 
 public class GetDiffImportJobHandler(
-    IMetsParser metsParser,
+    WorkspaceManagerFactory workspaceManagerFactory,
     ILogger<GetDiffImportJobHandler> logger,
     IStorage storage,
     IStorageApiClient storageApi,
@@ -97,7 +98,12 @@ public class GetDiffImportJobHandler(
         var importContainer = source.AsContainer(request.Deposit.ArchivalGroup);
         var (sourceContainers, sourceBinaries) = importContainer.Flatten();
 
+        var notForImport = $"{agPathUnderRoot}/{IStorage.DepositFileSystem}";
+        var removed = sourceBinaries.RemoveAll(b => b.GetPathUnderRoot() == notForImport);
+        logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
+        
         logger.LogInformation("(get import source) embellishing from METS...");
+        var workspace = workspaceManagerFactory.Create(request.Deposit);
         var metsWrapperResult = await metsParser.GetMetsFileWrapper(request.Deposit.Files);
         if (metsWrapperResult.Failure || metsWrapperResult.Value == null)
         {
@@ -112,13 +118,6 @@ public class GetDiffImportJobHandler(
         // for now just do it here to understand it and embellish the JOB files in the source
         // This combines the two sources of info - METS and
         // For the Deposit page we want to hold them sparate I think
-
-
-
-        var notForImport = $"{agPathUnderRoot}/{IStorage.DepositFileSystem}";
-        var removed = sourceBinaries.RemoveAll(b => b.GetPathUnderRoot() == notForImport);
-        logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
-
 
         var agString = request.Deposit.ArchivalGroup.ToString();
         foreach (var binary in sourceBinaries)

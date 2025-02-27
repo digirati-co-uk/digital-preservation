@@ -9,7 +9,7 @@ using MediatR;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
-namespace DigitalPreservation.UI.Features.Workspace;
+namespace DigitalPreservation.Workspace.Requests;
 
 public class DeleteObject(Uri s3Root, string path, string metsETag, bool fromFileSystem, bool fromMets) : IRequest<Result>
 {

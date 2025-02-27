@@ -2,6 +2,7 @@ using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
+using DigitalPreservation.Workspace;
 using Preservation.API.Data;
 using Preservation.API.Infrastructure;
 using Preservation.API.Mutation;
@@ -33,6 +34,7 @@ try
         {
             cfg.RegisterServicesFromAssemblyContaining<Program>();
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+            cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
         .AddStorageAwsAccess(builder.Configuration)
         .AddStorageClient(builder.Configuration, "Preservation-API")
@@ -40,6 +42,7 @@ try
         .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
+        .AddSingleton<WorkspaceManagerFactory>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddPreservationContext(builder.Configuration)

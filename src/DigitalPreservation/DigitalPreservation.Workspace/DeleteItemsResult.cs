@@ -1,6 +1,6 @@
 ﻿using DigitalPreservation.Common.Model.DepositHelpers;
 
-namespace DigitalPreservation.UI.Workspace;
+namespace DigitalPreservation.Workspace;
 
 public class DeleteItemsResult
 {

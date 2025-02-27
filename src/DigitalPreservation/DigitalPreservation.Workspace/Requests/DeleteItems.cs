@@ -2,7 +2,7 @@
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
 
-namespace DigitalPreservation.UI.Features.Workspace;
+namespace DigitalPreservation.Workspace.Requests;
 
 public class DeleteItems(Uri? depositFiles, DeleteSelection deleteSelection) : IRequest<Result>
 {

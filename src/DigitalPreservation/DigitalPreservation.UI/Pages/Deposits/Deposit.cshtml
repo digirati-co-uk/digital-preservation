@@ -180,7 +180,7 @@ ViewData["section"] = "deposits";
                                 <tbody>
                                 @{
                                     var wrapper = new CombinedDirectoryRecursionWrapper(combined, 
-                                        Model.WorkspaceManager.MetsPath, Model.WorkspaceManager.Editable,
+                                        Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
                                         Model.Deposit.Active, new Counter());
                                     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
                                 }

@@ -2,10 +2,9 @@
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
-using DigitalPreservation.UI.Workspace;
+using DigitalPreservation.Workspace;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.AspNetCore.Rewrite;
 using Microsoft.Identity.Web;
 using Preservation.Client;
 using Serilog;
@@ -71,6 +70,7 @@ try
         {
             cfg.RegisterServicesFromAssemblyContaining<Program>();
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+            cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IMetsParser, MetsParser>()

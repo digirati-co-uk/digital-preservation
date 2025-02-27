@@ -5,7 +5,7 @@ using DigitalPreservation.Common.Model.Transit;
 using MediatR;
 using Storage.Repository.Common;
 
-namespace DigitalPreservation.UI.Features.Workspace;
+namespace DigitalPreservation.Workspace.Requests;
 
 public class GetWorkingDirectory(Uri s3Uri, bool readFromS3, bool writeToStorage, DateTime? lastModified = null) : IRequest<Result<WorkingDirectory?>>
 {
