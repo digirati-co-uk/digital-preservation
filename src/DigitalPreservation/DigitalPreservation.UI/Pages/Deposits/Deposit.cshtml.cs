@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -315,6 +316,25 @@ public class DepositModel(
 
         TempData["Error"] = fetchResultsResult.CodeAndMessage();
         return [];
+    }
+
+    public string GetDepositLocation()
+    {
+        if (Deposit != null)
+        {
+            if (Deposit.Files?.Scheme == "s3")
+            {
+                const string template =
+                    "https://eu-west-1.console.aws.amazon.com/s3/buckets/{bucket}?region=eu-west-1&bucketType=general&prefix={prefix}&showversions=false";
+                var s3Uri = new AmazonS3Uri(Deposit.Files);
+                string href = template
+                    .Replace("{bucket}", s3Uri.Bucket)
+                    .Replace("{prefix}", s3Uri.Key.TrimEnd('/') + "/");
+                return href;
+            }
+        }
+
+        return "#";
     }
 }
 

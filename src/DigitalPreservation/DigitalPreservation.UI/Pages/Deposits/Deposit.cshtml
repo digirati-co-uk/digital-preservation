@@ -68,6 +68,12 @@ ViewData["section"] = "deposits";
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
+                            <a class="dropdown-item text-primary" role="button" target="_blank" href="@Model.GetDepositLocation()">
+                                <svg class="bi"><use xlink:href="#cloud"/></svg><span class="ms-2">Open Deposit location</span>
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
                             <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
                                 <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
                             </button>

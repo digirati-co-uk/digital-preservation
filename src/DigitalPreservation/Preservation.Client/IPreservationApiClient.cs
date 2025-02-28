@@ -45,6 +45,7 @@ public interface IPreservationApiClient
     Task<Result<(string, string)>> GetMetsWithETag(string depositId, CancellationToken cancellationToken);
     
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
+    Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken);
     
     
     // Healthchecks and housekeeping

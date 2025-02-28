@@ -202,3 +202,13 @@ td.dep-actions, th.dep-actions {
     width:0.1%;
     white-space: nowrap;
 }
+
+tr.where-mets td {
+    color: var(--bs-tertiary-color);    
+}
+tr.where-deposit td {
+    color: var(bs-body-color);
+}
+tr.where-both td {
+    color: var(bs-body-color);
+}

@@ -53,4 +53,5 @@ public interface IStorage
     static string DepositFileSystem => "__METSlike.json";
     Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest);
     Task<byte[]> GetBytes(Uri binaryOrigin);
+    Task<Stream> GetStream(Uri? binaryOrigin);
 }

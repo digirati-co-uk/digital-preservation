@@ -27,11 +27,12 @@ public class WorkspaceManager(
     public bool HasValidFiles { get; set; }
     public string? MetsPath { get; set; }
     public bool Editable { get; set; }
+    public string? MetsName { get; set; }
 
-    private async Task<WorkingDirectory?> GetFileSystemWorkingDirectory()
+    private async Task<WorkingDirectory?> GetFileSystemWorkingDirectory(bool refresh = false)
     {
         var readFilesResult = await mediator.Send(new GetWorkingDirectory(
-            deposit.Files!, false, false, deposit.LastModified));
+            deposit.Files!, refresh, refresh, deposit.LastModified));
         if (readFilesResult is { Success: true, Value: not null })
         {
             return readFilesResult.Value;
@@ -40,10 +41,10 @@ public class WorkspaceManager(
         return null;
     }
     
-    public async Task<CombinedDirectory?> GetCombinedDirectory()
+    public async Task<CombinedDirectory?> GetCombinedDirectory(bool refresh = false)
     {
         var metsWrapper = await GetMetsWrapper(); // what if there is no METS?
-        var fileSystem = await GetFileSystemWorkingDirectory();
+        var fileSystem = await GetFileSystemWorkingDirectory(refresh);
         var combined = CombinedBuilder.Build(fileSystem, metsWrapper?.PhysicalStructure);
         var objects = combined.Directories.SingleOrDefault(d => d.LocalPath == "objects");
         if (objects == null || objects.DescendantFileCount() == 0)
@@ -66,6 +67,7 @@ public class WorkspaceManager(
             var metsWrapper = result.Value;
             MetsPath = metsWrapper.Self?.LocalPath ?? MetsPath;
             Editable = metsWrapper.Editable;
+            MetsName = metsWrapper.Name;
             return metsWrapper;
         }
         Warnings.Add("Could not obtain METS file wrapper");
@@ -179,7 +181,7 @@ public class WorkspaceManager(
                 }
 
                 var deleteDirectoryResult = await mediator.Send(new DeleteObject(deposit.Files!,
-                    deleteDirectory.LocalPath!, deposit.MetsETag!,
+                    deleteDirectory.LocalPath!, true, deposit.MetsETag!,
                     deleteSelection.DeleteFromDepositFiles, deleteSelection.DeleteFromMets));
                 if (deleteDirectoryResult.Success)
                 {
@@ -209,7 +211,7 @@ public class WorkspaceManager(
 
                 var deleteFileResult = await mediator.Send(
                     new DeleteObject(
-                        deposit.Files!, fileToDelete.LocalPath, deposit.MetsETag!,
+                        deposit.Files!, fileToDelete.LocalPath, false, deposit.MetsETag!,
                         deleteSelection.DeleteFromDepositFiles, deleteSelection.DeleteFromMets));
                 if (deleteFileResult.Success)
                 {

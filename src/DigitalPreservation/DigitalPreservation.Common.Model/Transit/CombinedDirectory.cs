@@ -79,4 +79,11 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
         return counter;
     }
+
+    public CombinedFile? FindFile(string path)
+    {
+        var parent = FindDirectory(path.GetParent());
+        var slug = path.GetSlug();
+        return parent?.Files.SingleOrDefault(f => f.LocalPath!.GetSlug() == slug);
+    }
 }

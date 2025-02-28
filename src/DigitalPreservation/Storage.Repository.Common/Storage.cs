@@ -558,14 +558,20 @@ public class Storage(
 
     public async Task<byte[]> GetBytes(Uri binaryOrigin)
     {
+        var stream = await GetStream(binaryOrigin);
+        var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        return ms.ToArray();
+    }
+
+    public async Task<Stream> GetStream(Uri? binaryOrigin)
+    {
         var s3Uri = new AmazonS3Uri(binaryOrigin);
         var s3Req = new GetObjectRequest
         {
             BucketName = s3Uri.Bucket, Key = s3Uri.Key
         };
-        var ms = new MemoryStream();
-        var s3Resp = await s3Client!.GetObjectAsync(s3Req);
-        await s3Resp.ResponseStream.CopyToAsync(ms);
-        return ms.ToArray();
+        var s3Resp = await s3Client.GetObjectAsync(s3Req);
+        return s3Resp.ResponseStream;
     }
 }

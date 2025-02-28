@@ -11,10 +11,11 @@ using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.Workspace.Requests;
 
-public class DeleteObject(Uri s3Root, string path, string metsETag, bool fromFileSystem, bool fromMets) : IRequest<Result>
+public class DeleteObject(Uri s3Root, string path, bool isDirectory, string metsETag, bool fromFileSystem, bool fromMets) : IRequest<Result>
 {
     public Uri S3Root { get; } = s3Root;
     public string Path { get; } = path;
+    public bool IsDirectory { get; } = isDirectory;
     public string MetsETag { get; } = metsETag;
     public bool FromFileSystem { get; } = fromFileSystem;
     public bool FromMets { get; } = fromMets;
@@ -34,6 +35,10 @@ public class DeleteObjectHandler(
             BucketName = s3Uri.Bucket,
             Key = s3Uri.Key + request.Path
         };
+        if (request.IsDirectory && !dor.Key.EndsWith('/'))
+        {
+            dor.Key += "/";
+        }
         try
         {
             if (request.FromFileSystem)
