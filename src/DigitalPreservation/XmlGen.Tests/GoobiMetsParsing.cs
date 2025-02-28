@@ -15,7 +15,7 @@ public class GoobiMetsParsing
 
     public GoobiMetsParsing()
     {
-        var goobiMetsFile = "Samples/goobi-wc-b29356350.xml";
+        var goobiMetsFile = "Samples/goobi-wc-b29356350-1.xml";
         var serializer = new XmlSerializer(typeof(Mets));
         using XmlReader reader = XmlReader.Create(goobiMetsFile);
         GoobiMets = (Mets) serializer.Deserialize(reader)!;

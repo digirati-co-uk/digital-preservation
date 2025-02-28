@@ -26,14 +26,14 @@ public class MetsWrapperTests
     {
         var s3Client = new Mock<IAmazonS3>().Object;
         var parser = new MetsParser(s3Client, logger);
-        var goobiMetsFile = new FileInfo("Samples/goobi-wc-b29356350.xml");
+        var goobiMetsFile = new FileInfo("Samples/goobi-wc-b29356350-2.xml");
         var result = await parser.GetMetsFileWrapper(new Uri(goobiMetsFile.FullName));
 
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();
 
         var phys = result.Value!.PhysicalStructure;
-        phys!.Files.Should().Contain(f => f.Name == "goobi-wc-b29356350.xml");
+        phys!.Files.Should().Contain(f => f.Name == "goobi-wc-b29356350-2.xml");
 
         phys.Directories.Should().HaveCount(2);
         var objDir = phys.Directories.Single(d => d.Name == "objects");
