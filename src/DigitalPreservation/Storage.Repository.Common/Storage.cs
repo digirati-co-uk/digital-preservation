@@ -496,37 +496,6 @@ public class Storage(
         return Result.OkNotNull(bulkDelete);
     }
 
-    public async Task<Result<ImportSource>> GetImportSource(
-        Uri sourceUri,
-        CancellationToken cancellationToken)
-    { 
-        logger.LogInformation("Getting Import Source for " + sourceUri);
-        var s3Uri = new AmazonS3Uri(sourceUri);
-        WorkingDirectory workingDirectory;
-        var readResult = await GenerateDepositFileSystem(s3Uri, true, cancellationToken);
-        
-        if (readResult is { Success: true, Value: not null })
-        {
-            workingDirectory = readResult.Value;
-        }
-        else
-        {
-            logger.LogError("Unable to get ImportSource for " + sourceUri + " - " + readResult.CodeAndMessage());
-            return Result.ConvertFailNotNull<WorkingDirectory?, ImportSource>(readResult);
-        }
-        
-        // We don't embellish from METS here.
-        // That's a separate function performed only by the Preservation API.
-
-        var importSource = new ImportSource
-        {
-            Root = workingDirectory,
-            Source = sourceUri
-        };
-        
-        return Result.OkNotNull(importSource);
-    }
-
     public async Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest)
     {     
         var s3Uri = new AmazonS3Uri(binaryOrigin);

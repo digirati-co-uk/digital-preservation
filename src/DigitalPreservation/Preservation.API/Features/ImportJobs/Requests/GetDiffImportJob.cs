@@ -23,7 +23,6 @@ public class GetDiffImportJob(Deposit deposit) : IRequest<Result<ImportJob>>
 public class GetDiffImportJobHandler(
     WorkspaceManagerFactory workspaceManagerFactory,
     ILogger<GetDiffImportJobHandler> logger,
-    IStorage storage,
     IStorageApiClient storageApi,
     ResourceMutator resourceMutator) : IRequestHandler<GetDiffImportJob, Result<ImportJob>>
 {
@@ -75,18 +74,9 @@ public class GetDiffImportJobHandler(
                 return Result.FailNotNull<ImportJob>(archivalGroupResult.ErrorCode!, archivalGroupResult.ErrorMessage);
             }
         }
-
-        // var importSourceResult = await storage.GetImportSource(
-        //     request.Deposit.Files,
-        //     cancellationToken);
-        // if (importSourceResult.Failure)
-        // {
-        //     return Result.FailNotNull<ImportJob>(importSourceResult.ErrorCode!, importSourceResult.ErrorMessage);
-        // }
         
         var workspace = workspaceManagerFactory.Create(request.Deposit);
         var combined = await workspace.GetCombinedDirectory(true);
-        //var source = importSourceResult.Value!;
         
         // We might update this from the METS file later
         var agName = request.Deposit.ArchivalGroupName ?? existingArchivalGroup?.Name ?? combined!.DirectoryInDeposit!.Name;
@@ -97,27 +87,13 @@ public class GetDiffImportJobHandler(
         }
         logger.LogInformation("(get import source) concluded AG name is " + agName);
 
-        // Now embellish the source
-        // var importContainer = source.AsContainer(request.Deposit.ArchivalGroup);
-        var importContainer = combined!.DirectoryInDeposit.ToContainer(request.Deposit.ArchivalGroup, request.Deposit.Files);
+        var importContainer = combined!.DirectoryInDeposit!.ToContainer(request.Deposit.ArchivalGroup, request.Deposit.Files);
         var (sourceContainers, sourceBinaries) = importContainer.Flatten();
 
         var notForImport = $"{agPathUnderRoot}/{IStorage.DepositFileSystem}";
         var removed = sourceBinaries.RemoveAll(b => b.GetPathUnderRoot() == notForImport);
         logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
-        
-        // logger.LogInformation("(get import source) embellishing from METS...");
-        // var metsWrapperResult = await metsParser.GetMetsFileWrapper(request.Deposit.Files);
-        // if (metsWrapperResult.Failure || metsWrapperResult.Value == null)
-        // {
-        //     logger.LogError("Could not parse a METS file in the deposit working area. " + metsWrapperResult.CodeAndMessage());
-        //     return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable,
-        //         "Could not parse a METS file in the deposit working area.");
-        // }
-        //
-        // var metsWrapper = metsWrapperResult.Value;
-
-
+ 
         var agStringWithSlash = request.Deposit.ArchivalGroup.ToString().TrimEnd('/')+ "/";
         foreach (var binary in sourceBinaries)
         {
@@ -129,14 +105,6 @@ public class GetDiffImportJobHandler(
                 logger.LogWarning(message);
                 return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable,message);
             }
-            // var metsPhysicalFile = metsWrapper.Files.SingleOrDefault(f => f.LocalPath == relativePath);
-            // if (metsPhysicalFile is null)
-            // {
-            //     var message = $"Could not find file {relativePath} in METS file.";
-            //     logger.LogWarning(message);
-            //     return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable,message);
-            // }
-
             if (combinedFile.FileInMets.Digest.IsNullOrWhiteSpace())
             {
                 var message = $"File {relativePath} has no digest in METS file.";
@@ -251,9 +219,6 @@ public class GetDiffImportJobHandler(
                 importJob.BinariesToDelete.Add(binary);
             }
         }
-        // importJob.BinariesToDelete.AddRange(allExistingBinaries.Where(
-        //     existingBinary => !sourceBinaries.Exists(b => b.Id == existingBinary.Id)));
-        
         
         foreach(var sourceBinary in sourceBinaries.Where(
                     sb => !importJob.BinariesToAdd.Exists(b => b.Id == sb.Id)))

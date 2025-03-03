@@ -41,15 +41,6 @@ public interface IStorage
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     Task<Result<BulkDeleteResult>> EmptyStorageLocation(Uri storageLocation, CancellationToken cancellationToken);
-    
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="sourceUri"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    Task<Result<ImportSource>> GetImportSource(Uri sourceUri, CancellationToken cancellationToken);
-
     static string DepositFileSystem => "__METSlike.json";
     Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest);
     Task<byte[]> GetBytes(Uri binaryOrigin);
