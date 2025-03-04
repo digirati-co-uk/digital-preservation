@@ -101,14 +101,53 @@ public class DepositModel(
             if (result.Success)
             {
                 var details = result.Value!;
-                TempData["Deleted"] = $"{details.DeletedItems.Count} item(s) DELETED.";
+                TempData["Deleted"] = $"{details.Items.Count} item(s) DELETED.";
                 return Redirect($"/deposits/{id}");
             }
 
             TempData["Error"] = result.ErrorMessage;
         }
         
-        return Page();
+        return Redirect($"/deposits/{id}");
+    }
+    
+    
+    public async Task<IActionResult> OnPostAddItemsToMets(
+        [FromRoute] string id,
+        [FromForm] string addToMetsObject)
+    {
+        if (await BindDeposit(id))
+        {
+            var minimalItems = JsonSerializer.Deserialize<List<MinimalItem>>(addToMetsObject)!;
+            var filesystem = await WorkspaceManager.GetFileSystemWorkingDirectory();
+            if (filesystem == null)
+            {
+                TempData["Error"] = "Could not read deposit file system.";
+                return Redirect($"/deposits/{id}");
+            }
+            var wbsToAdd = new List<WorkingBase>();
+            foreach (var item in minimalItems)
+            {
+                WorkingBase? wbToAdd = item.IsDirectory
+                    ? filesystem.FindDirectory(item.RelativePath)
+                    : filesystem.FindFile(item.RelativePath);
+                if (wbToAdd != null)
+                {
+                    wbsToAdd.Add(wbToAdd);
+                }
+            }
+            var result = await WorkspaceManager.AddItemsToMets(wbsToAdd);
+            if (result.Success)
+            {
+                var details = result.Value!;
+                TempData["Created"] = $"{details.Items.Count} item(s) added to METS.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            TempData["Error"] = result.ErrorMessage;
+        }
+        
+        return Redirect($"/deposits/{id}");
     }
 
 

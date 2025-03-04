@@ -57,7 +57,7 @@ ViewData["section"] = "deposits";
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-primary" type="button">
+                            <button class="dropdown-item text-primary" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
                                 <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
                             </button>
                         </li>
@@ -453,6 +453,35 @@ ViewData["section"] = "deposits";
 </div>
 
 
+
+@* ------------------- Add SELECTION TO METS MODAL *@
+
+<div class="modal fade" id="addSelectionToMetsModal" tabindex="-1" aria-labelledby="addSelectionToMetsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <form class="single-submit" method="post" asp-page-handler="AddItemsToMets">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="addSelectionToMetsModalLabel"><svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add to METS file</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <div id="addToMetsHelp" class="form-text">(nothing selected)</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" id="addToMetsObject" name="addToMetsObject">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary" id="addToMetsButton" disabled="disabled"><svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add to METS</span></button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+
 @* ------------------- EDIT ARCHIVAL GROUP PATH MODAL *@
 
 <div class="modal fade" id="archivalGroupPathModal" tabindex="-1" aria-labelledby="archivalGroupPathModalLabel" aria-hidden="true">
@@ -536,13 +565,17 @@ ViewData["section"] = "deposits";
     const newFolderContextIsFile = document.getElementById("newFolderContextIsFile");
     const newFileContext = document.getElementById("newFileContext");
     const newFileContextIsFile = document.getElementById("newFileContextIsFile");
-    const deleteItemHelp = document.getElementById("deleteItemHelp");
     
     const deleteButton = document.getElementById("deleteButton");
     const deleteFromDepositRadio = document.getElementById("deleteFromDeposit");
     const deleteFromMetsAndDepositRadio = document.getElementById("deleteFromMetsAndDeposit");
+    const deleteItemHelp = document.getElementById("deleteItemHelp");
+    
     const deleteDepositButton = document.getElementById("deleteDepositButton");
     const confirmDepositDelete = document.getElementById("confirmDepositDelete");
+
+    const addToMetsButton = document.getElementById("addToMetsButton");
+    const addToMetsHelp = document.getElementById("addToMetsHelp");
 
     document.getElementById("toggleRhs").addEventListener("click", () => {
         const sideState = localStorage.getItem("sidebarInfoPanel");
@@ -609,6 +642,48 @@ ViewData["section"] = "deposits";
         deleteItemHelp.innerHTML = summary;
         document.getElementById("deleteSelectionObject").value = JSON.stringify(deleteSelectionObject);
     });
+
+
+    document.getElementById("addSelectionToMets").addEventListener("click", () => {
+
+        addToMetsButton.setAttribute("disabled", "true");
+
+        const itemSelectors = document.getElementsByClassName("item-selector");
+        const addToMetsObject = [];
+        let summary = "<table>";
+        for(const itemSelector of itemSelectors)
+        {
+            if (itemSelector.checked){
+                const row = itemSelector.closest("tr");
+                const type = row.getAttribute("data-type");
+                const relativePath = row.getAttribute("data-path");
+                if (relativePath && (type === "directory" || type === "file")){
+                    const whereabouts = row.getAttribute("data-whereabouts");
+                    if(whereabouts === "Deposit"){
+                        const item = {
+                            path: relativePath,
+                            isDir: (type === "directory"),
+                            where: whereabouts
+                        };
+                        addToMetsObject.push(item);
+                        summary += "<tr><td>";
+                        summary += item.isDir ? "🗀" : "🗎";
+                        summary += " - </td><td>";
+                        summary += relativePath;
+                        summary += "</td></tr>";
+                    }
+                }
+            }
+        }
+        summary += "</table>";
+        addToMetsHelp.innerHTML = summary;
+        document.getElementById("addToMetsObject").value = JSON.stringify(addToMetsObject);
+        if (addToMetsObject.length > 0){
+            addToMetsButton.removeAttribute("disabled");
+        }
+    });
+    
+    
     
     document.getElementById("deleteDepositModal").addEventListener("show.bs.modal", () => {
         confirmDepositDelete.checked = false;

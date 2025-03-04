@@ -5,5 +5,6 @@ public enum Whereabouts
     Both,
     Mets,
     Deposit,
-    Neither
+    Neither,
+    Unknown
 }

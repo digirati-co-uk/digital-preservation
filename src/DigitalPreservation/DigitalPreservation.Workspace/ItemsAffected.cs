@@ -2,7 +2,7 @@
 
 namespace DigitalPreservation.Workspace;
 
-public class DeleteItemsResult
+public class ItemsAffected
 {
-    public List<MinimalItem> DeletedItems { get; set; } = [];
+    public List<MinimalItem> Items { get; set; } = [];
 }

@@ -29,7 +29,7 @@ public class WorkspaceManager(
     public bool Editable { get; set; }
     public string? MetsName { get; set; }
 
-    private async Task<WorkingDirectory?> GetFileSystemWorkingDirectory(bool refresh = false)
+    public async Task<WorkingDirectory?> GetFileSystemWorkingDirectory(bool refresh = false)
     {
         var readFilesResult = await mediator.Send(new GetWorkingDirectory(
             deposit.Files!, refresh, refresh, deposit.LastModified));
@@ -115,118 +115,42 @@ public class WorkspaceManager(
 
     }
 
-    public async Task<Result<DeleteItemsResult>> DeleteItems(DeleteSelection deleteSelection, Whereabouts? deleteFrom)
+    public async Task<Result<ItemsAffected>> DeleteItems(DeleteSelection deleteSelection, Whereabouts? deleteFrom)
     {
         if (deleteFrom is null or Whereabouts.Mets or Whereabouts.Neither)
         {
-            return Result.FailNotNull<DeleteItemsResult>(ErrorCodes.BadRequest,
+            return Result.FailNotNull<ItemsAffected>(ErrorCodes.BadRequest,
                 "No location to delete from specified.");
         }
 
         if (deleteSelection.Items.Count == 0)
         {
-            return Result.FailNotNull<DeleteItemsResult>(ErrorCodes.BadRequest,
+            return Result.FailNotNull<ItemsAffected>(ErrorCodes.BadRequest,
                 "No items to delete.");
         }
         
         deleteSelection.DeleteFromDepositFiles = deleteFrom is Whereabouts.Deposit or Whereabouts.Both;
         deleteSelection.DeleteFromMets = deleteFrom is Whereabouts.Both;
         deleteSelection.Deposit = deposit.Id;
+        
+        var combined = await GetCombinedDirectory(true);
+        var deleteResult = await mediator.Send(new DeleteItems(deposit.Files, deleteSelection, combined!, deposit.MetsETag!));
+        // refresh the file system again
+        // need to see how long this operation takes on large deposits
+        await GetFileSystemWorkingDirectory(true);
+        return deleteResult;
+    }
 
-        var goodResult = new DeleteItemsResult();
-
-        
-        
-        // Interim
-        // var deleteResult = await mediator.Send(new DeleteItems(Deposit.Files, deleteSelection));
-        // if (deleteResult.Success)
-        // {
-        //     TempData["Deleted"] = $"{deleteSelection.Items.Count} items DELETED.";
-        //     return Redirect($"/deposits/{id}");
-        // }
-        //
-        // TempData["Error"] = deleteResult.CodeAndMessage();
-        // return Redirect($"/deposits/{id}");
-        
-        
-        // This loop is editing the METS one at a time, needs to be more sensible
-        foreach (var item in deleteSelection.Items)
+    public async Task<Result<ItemsAffected>> AddItemsToMets(List<WorkingBase> items)
+    {
+        if (items.Count == 0)
         {
-            var deleteDirectoryContext = item.RelativePath;
-            if (!item.IsDirectory)
-            {
-                deleteDirectoryContext = deleteDirectoryContext.GetParent();
-            }
-
-            var combined = await GetCombinedDirectory();
-            var deleteDirectory = combined!.FindDirectory(deleteDirectoryContext);
-            if (deleteDirectory == null)
-            {
-                return Result.FailNotNull<DeleteItemsResult>(
-                    ErrorCodes.NotFound, $"Directory {deleteDirectoryContext} not found.");
-            }
-
-            if (item.IsDirectory)
-            {
-                if (deleteDirectory.LocalPath == "objects")
-                {
-                    return Result.FailNotNull<DeleteItemsResult>(
-                        ErrorCodes.BadRequest, "You cannot delete the objects directory.");
-                }
-
-                if (deleteDirectory.Files.Count > 0)
-                {
-                    return Result.FailNotNull<DeleteItemsResult>(
-                        ErrorCodes.BadRequest, "You cannot delete a folder that has files in it; delete the files first.");
-                }
-
-                var deleteDirectoryResult = await mediator.Send(new DeleteObject(deposit.Files!,
-                    deleteDirectory.LocalPath!, true, deposit.MetsETag!,
-                    deleteSelection.DeleteFromDepositFiles, deleteSelection.DeleteFromMets));
-                if (deleteDirectoryResult.Success)
-                {
-                    goodResult.DeletedItems.Add(item);
-                }
-                else
-                {
-                    return Result.FailNotNull<DeleteItemsResult>(
-                        deleteDirectoryResult.ErrorCode!,
-                        $"DeleteItems failed after {goodResult.DeletedItems.Count} with: {deleteDirectoryResult.ErrorMessage}.");
-                }
-            }
-            else
-            {
-                var fileToDelete = deleteDirectory.Files.SingleOrDefault(f => f.LocalPath == item.RelativePath);
-                if (fileToDelete == null)
-                {
-                    return Result.FailNotNull<DeleteItemsResult>(
-                        ErrorCodes.NotFound, $"File {item.RelativePath} not found.");
-                }
-
-                if (!fileToDelete.LocalPath!.Contains('/'))
-                {
-                    return Result.FailNotNull<DeleteItemsResult>(
-                        ErrorCodes.BadRequest, "You cannot delete files in the root.");
-                }
-
-                var deleteFileResult = await mediator.Send(
-                    new DeleteObject(
-                        deposit.Files!, fileToDelete.LocalPath, false, deposit.MetsETag!,
-                        deleteSelection.DeleteFromDepositFiles, deleteSelection.DeleteFromMets));
-                if (deleteFileResult.Success)
-                {
-                    goodResult.DeletedItems.Add(item);
-                }
-                else
-                {
-                    return Result.FailNotNull<DeleteItemsResult>(
-                        deleteFileResult.ErrorCode!,
-                        $"DeleteItems failed after {goodResult.DeletedItems.Count} with: {deleteFileResult.ErrorMessage}.");
-                }
-            }
+            return Result.FailNotNull<ItemsAffected>(ErrorCodes.BadRequest,
+                "No items to add to METS.");
         }
-
-        return Result.OkNotNull(goodResult);
+        
+        var addToMetsResult = await mediator.Send(new AddItemsToMets(deposit.Files!, items, deposit.MetsETag!));
+        return addToMetsResult;
     }
 
     public async Task<Result<SingleFileUploadResult>> UploadSingleSmallFile(

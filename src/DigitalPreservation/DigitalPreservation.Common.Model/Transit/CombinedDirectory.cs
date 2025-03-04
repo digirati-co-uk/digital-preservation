@@ -7,11 +7,21 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
     public string? LocalPath => DirectoryInDeposit?.LocalPath ?? DirectoryInMets?.LocalPath;
     public string? Name => DirectoryInDeposit?.Name ?? DirectoryInMets?.Name;
 
-    public WorkingDirectory? DirectoryInDeposit { get; } = directoryInDeposit;
-    public WorkingDirectory? DirectoryInMets { get; } = directoryInMets;
+    public WorkingDirectory? DirectoryInDeposit { get; private set; } = directoryInDeposit;
+    public WorkingDirectory? DirectoryInMets { get; private set; } = directoryInMets;
 
     public List<CombinedFile> Files { get; set; } = [];
     public List<CombinedDirectory> Directories { get; set; } = [];
+
+    private void DeleteDirectoryInDeposit()
+    {
+        DirectoryInDeposit = null;
+    }
+
+    private void DeleteDirectoryInMets()
+    {
+        DirectoryInMets = null;
+    }
     
     public bool? HaveSameName()
     {
@@ -86,4 +96,158 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         var slug = path.GetSlug();
         return parent?.Files.SingleOrDefault(f => f.LocalPath!.GetSlug() == slug);
     }
+
+    public bool RemoveFileFromDeposit(string path, bool trueIfNotFound)
+    {
+        return RemoveFileFromBranch(path, trueIfNotFound, Branch.Deposit);
+    }
+    
+    public bool RemoveFileFromMets(string path, bool trueIfNotFound)
+    {
+        return RemoveFileFromBranch(path, trueIfNotFound, Branch.Mets);
+    }
+    
+    public bool RemoveDirectoryFromDeposit(string path, bool trueIfNotFound)
+    {
+        return RemoveDirectoryFromBranch(path, trueIfNotFound, Branch.Deposit);
+    }
+    
+    public bool RemoveDirectoryFromMets(string path, bool trueIfNotFound)
+    {
+        return RemoveDirectoryFromBranch(path, trueIfNotFound, Branch.Mets);
+    }
+    
+    private bool RemoveFileFromBranch(string path, bool trueIfNotFound, Branch branch)
+    {
+        var combinedFile = FindFile(path);
+        if (combinedFile is null)
+        {
+            return trueIfNotFound;
+        }
+
+        switch (branch)
+        {
+            case Branch.Deposit when combinedFile.FileInDeposit is null:
+            case Branch.Mets when combinedFile.FileInMets is null:
+                return trueIfNotFound;
+        }
+        
+        var combinedParent = FindDirectory(combinedFile.LocalPath!.GetParent());
+        var parentDirectoryInBranch = branch switch
+        {
+            Branch.Deposit => combinedParent?.DirectoryInDeposit,
+            Branch.Mets => combinedParent?.DirectoryInMets,
+            _ => null
+        };
+
+        if (combinedParent is null || parentDirectoryInBranch is null)
+        {
+            return false;
+        }
+
+        // remove the file from the correct files branch of the tree
+        var fileInBranch = parentDirectoryInBranch.Files.Single(f => f.LocalPath == path);
+        var removedFromBranch = parentDirectoryInBranch.Files.Remove(fileInBranch);
+
+        switch (branch)
+        {
+            case Branch.Deposit:
+                combinedFile.DeleteFileInDeposit();
+                break;
+            case Branch.Mets:
+                combinedFile.DeleteFileInMets();
+                break;
+        }
+
+        WorkingFile? fileInOtherBranch = null;
+        if (branch == Branch.Deposit)
+        {
+            fileInOtherBranch = combinedFile.FileInMets;
+        }
+        else if (branch == Branch.Mets)
+        {
+            fileInOtherBranch = combinedFile.FileInDeposit;
+        }
+        
+        
+        if (fileInOtherBranch is null)
+        {
+            // this combinedFile now has neither deposit nor mets, so it too should be removed
+            combinedParent.Files.Remove(combinedFile);
+        }
+        return removedFromBranch;
+    }
+    
+    
+    private bool RemoveDirectoryFromBranch(string path, bool trueIfNotFound, Branch branch)
+    {
+        var combinedDirectory = FindDirectory(path);
+        if (combinedDirectory is null)
+        {
+            return trueIfNotFound;
+        }
+
+        if (combinedDirectory.Files.Count > 0 || combinedDirectory.Directories.Count > 0)
+        {
+            return false;
+        }
+
+        switch (branch)
+        {
+            case Branch.Deposit when combinedDirectory.DirectoryInDeposit is null:
+            case Branch.Mets when combinedDirectory.DirectoryInMets is null:
+                return trueIfNotFound;
+        }
+        
+        var combinedParent = FindDirectory(combinedDirectory.LocalPath!.GetParent());
+        var parentDirectoryInBranch = branch switch
+        {
+            Branch.Deposit => combinedParent?.DirectoryInDeposit,
+            Branch.Mets => combinedParent?.DirectoryInMets,
+            _ => null
+        };
+
+        if (combinedParent is null || parentDirectoryInBranch is null)
+        {
+            return false;
+        }
+
+        // remove the directory from the correct directories branch of the tree
+        var directoryInBranch = parentDirectoryInBranch.Directories.Single(d => d.LocalPath == path);
+        var removedFromBranch = directoryInBranch.Directories.Remove(directoryInBranch);
+
+        switch (branch)
+        {
+            case Branch.Deposit:
+                combinedDirectory.DeleteDirectoryInDeposit();
+                break;
+            case Branch.Mets:
+                combinedDirectory.DeleteDirectoryInMets();
+                break;
+        }
+
+        WorkingDirectory? directoryInOtherBranch = null;
+        if (branch == Branch.Deposit)
+        {
+            directoryInOtherBranch = combinedDirectory.DirectoryInMets;
+        }
+        else if (branch == Branch.Mets)
+        {
+            directoryInOtherBranch = combinedDirectory.DirectoryInDeposit;
+        }
+        
+        if (directoryInOtherBranch is null)
+        {
+            // this combinedDirectory now has neither deposit nor mets, so it too should be removed
+            combinedParent.Directories.Remove(combinedDirectory);
+        }
+        return removedFromBranch;
+    }
+
+    private enum Branch
+    {
+        Deposit,
+        Mets
+    }
+
 }

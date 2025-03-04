@@ -7,9 +7,18 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets)
     public string? Digest => FileInDeposit?.Digest ?? FileInMets?.Digest;
     public long? Size => FileInDeposit?.Size ?? FileInMets?.Size;
     public string? ContentType => FileInDeposit?.ContentType ?? FileInMets?.ContentType;
-    public WorkingFile? FileInDeposit { get; } = fileInDeposit;
-    public WorkingFile? FileInMets { get; } = fileInMets;
+    public WorkingFile? FileInDeposit { get; private set; } = fileInDeposit;
+    public WorkingFile? FileInMets { get; private set; } = fileInMets;
 
+    public void DeleteFileInDeposit()
+    {
+        FileInDeposit = null;
+    }
+    
+    public void DeleteFileInMets()
+    {
+        FileInMets = null;
+    }
     
     public bool? HaveSameName()
     {
