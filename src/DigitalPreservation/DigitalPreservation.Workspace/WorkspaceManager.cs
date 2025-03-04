@@ -115,9 +115,9 @@ public class WorkspaceManager(
 
     }
 
-    public async Task<Result<ItemsAffected>> DeleteItems(DeleteSelection deleteSelection, Whereabouts? deleteFrom)
+    public async Task<Result<ItemsAffected>> DeleteItems(DeleteSelection deleteSelection)
     {
-        if (deleteFrom is null or Whereabouts.Mets or Whereabouts.Neither)
+        if (deleteSelection is { DeleteFromMets: false, DeleteFromDepositFiles: false })
         {
             return Result.FailNotNull<ItemsAffected>(ErrorCodes.BadRequest,
                 "No location to delete from specified.");
@@ -129,12 +129,10 @@ public class WorkspaceManager(
                 "No items to delete.");
         }
         
-        deleteSelection.DeleteFromDepositFiles = deleteFrom is Whereabouts.Deposit or Whereabouts.Both;
-        deleteSelection.DeleteFromMets = deleteFrom is Whereabouts.Both;
         deleteSelection.Deposit = deposit.Id;
         
         var combined = await GetCombinedDirectory(true);
-        var deleteResult = await mediator.Send(new DeleteItems(deposit.Files, deleteSelection, combined!, deposit.MetsETag!));
+        var deleteResult = await mediator.Send(new DeleteItems(deposit.Files!, deleteSelection, combined!, deposit.MetsETag!));
         // refresh the file system again
         // need to see how long this operation takes on large deposits
         await GetFileSystemWorkingDirectory(true);

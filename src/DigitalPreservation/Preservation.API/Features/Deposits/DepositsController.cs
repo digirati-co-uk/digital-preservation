@@ -1,6 +1,9 @@
-﻿using DigitalPreservation.Common.Model.PreservationApi;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
+using DigitalPreservation.Workspace;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
@@ -10,7 +13,10 @@ namespace Preservation.API.Features.Deposits;
 
 [Route("[controller]")]
 [ApiController]
-public class DepositsController(IMediator mediator) : Controller
+public class DepositsController(
+    IMediator mediator,
+    WorkspaceManagerFactory workspaceManagerFactory
+    ) : Controller
 {
     [HttpGet(Name = "ListDeposits")]
     [ProducesResponseType<List<Deposit>>(200, "application/json")]
@@ -53,6 +59,67 @@ public class DepositsController(IMediator mediator) : Controller
             return Content(wrapper.Value.MetsFileWrapper.XDocument!.ToString(), "application/xml");
         }
         return this.StatusResponseFromResult(wrapper);
+    }
+
+
+
+    [HttpPost("{id}/mets", Name = "AddDepositItemsToMets")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> AddItemsToMets([FromRoute] string id, [FromBody] List<WorkingBase> items)
+    {
+        var depositResult = await mediator.Send(new GetDeposit(id));
+        if (depositResult is { Success: true, Value: not null })
+        {
+            var deposit = depositResult.Value;
+            var eTag = Request.Headers.IfMatch.FirstOrDefault();
+            if (eTag.HasText() && eTag == deposit.MetsETag)
+            {
+                var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+                var addResult = await workspaceManager.AddItemsToMets(items);
+                return this.StatusResponseFromResult(addResult);
+            }
+
+            var pd = new ProblemDetails
+            {
+                Title = "Conflict: ETag does not match deposit METS",
+                Detail = deposit.MetsETag,
+                Status = 409
+            };
+            return Conflict(pd);
+        }
+        return this.StatusResponseFromResult(depositResult);
+    }
+    
+    
+    [HttpPost("{id}/mets/delete", Name = "DeleteFromDeposit")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> DeleteItemsToMets([FromRoute] string id, [FromBody] DeleteSelection deleteSelection)
+    {
+        var depositResult = await mediator.Send(new GetDeposit(id));
+        if (depositResult is { Success: true, Value: not null })
+        {
+            var deposit = depositResult.Value;
+            var eTag = Request.Headers.IfMatch.FirstOrDefault();
+            if (eTag.HasText() && eTag == deposit.MetsETag)
+            {
+                var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+                var deleteResult = await workspaceManager.DeleteItems(deleteSelection);
+                return this.StatusResponseFromResult(deleteResult);
+            }
+
+            var pd = new ProblemDetails
+            {
+                Title = "Conflict: ETag does not match deposit METS",
+                Detail = deposit.MetsETag,
+                Status = 409
+            };
+            return Conflict(pd);
+        }
+        return this.StatusResponseFromResult(depositResult);
     }
     
         

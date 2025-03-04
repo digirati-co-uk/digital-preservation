@@ -97,7 +97,15 @@ public class DepositModel(
         if (await BindDeposit(id))
         {
             var deleteSelection = JsonSerializer.Deserialize<DeleteSelection>(deleteSelectionObject)!;
-            var result = await WorkspaceManager.DeleteItems(deleteSelection, deleteFrom);
+            if (deleteFrom is Whereabouts.Both or Whereabouts.Deposit)
+            {
+                deleteSelection.DeleteFromDepositFiles = true;
+            }
+            if (deleteFrom is Whereabouts.Both or Whereabouts.Mets)
+            {
+                deleteSelection.DeleteFromMets = true;
+            }
+            var result = await WorkspaceManager.DeleteItems(deleteSelection);
             if (result.Success)
             {
                 var details = result.Value!;
