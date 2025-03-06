@@ -2,7 +2,7 @@
 
 namespace DigitalPreservation.UI.Infrastructure;
 
-public class SessionTimeoutAsyncPageFilter(Logger<SessionTimeoutAsyncPageFilter> logger) : IAsyncPageFilter
+public class SessionTimeoutAsyncPageFilter(ILogger<SessionTimeoutAsyncPageFilter> logger) : IAsyncPageFilter
 {
     
     public Task OnPageHandlerSelectionAsync(PageHandlerSelectedContext context) =>
