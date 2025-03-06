@@ -4,6 +4,10 @@ namespace DigitalPreservation.Common.Model.Transit;
 
 public abstract class WorkingBase
 {
+    [JsonPropertyOrder(0)]
+    [JsonPropertyName("type")]
+    public abstract string Type { get; set; }
+    
     [JsonPropertyName("localPath")]
     [JsonPropertyOrder(1)]
     public required string LocalPath { get; set; }

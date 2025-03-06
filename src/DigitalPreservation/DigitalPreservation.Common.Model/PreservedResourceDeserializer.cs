@@ -2,7 +2,7 @@
 
 namespace DigitalPreservation.Common.Model;
 
-public class Deserializer
+public static class PreservedResourceDeserializer
 {
     public static PreservedResource? Parse(Stream streamJson)
     {

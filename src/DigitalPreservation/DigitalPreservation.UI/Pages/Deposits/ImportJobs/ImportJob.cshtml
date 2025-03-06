@@ -95,7 +95,7 @@ ViewData["section"] = "deposits";
                     <p>UI to follow</p>
                     <form>
                         <div class="form-floating mb-3">
-                            <textarea class="form-control" id="importJobJson" name="importJobJson">@JsonSerializer.Serialize(Model.ImportJob)</textarea>
+                            <textarea class="form-control" id="importJobJson" name="importJobJson">@JsonSerializer.Serialize(Model.ImportJob, new JsonSerializerOptions{WriteIndented = true})</textarea>
                             <label for="importJobJson">Raw Import Job</label>
                         </div>
                         <div class="mb-3">

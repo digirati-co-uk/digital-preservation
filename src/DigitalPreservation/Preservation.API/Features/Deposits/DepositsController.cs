@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.DepositHelpers;
+﻿using System.Text.Json;
+using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Web;
@@ -67,20 +68,18 @@ public class DepositsController(
     [ProducesResponseType(200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> AddItemsToMets([FromRoute] string id, [FromBody] List<WorkingBase> items)
+    public async Task<IActionResult> AddItemsToMets([FromRoute] string id, [FromBody] List<string> localPaths)
     {
+        // we can't use default serialisation here
         var depositResult = await mediator.Send(new GetDeposit(id));
-        if (depositResult is { Success: true, Value: not null })
+        if (depositResult is not { Success: true, Value: not null })
         {
-            var deposit = depositResult.Value;
-            var eTag = Request.Headers.IfMatch.FirstOrDefault();
-            if (eTag.HasText() && eTag == deposit.MetsETag)
-            {
-                var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
-                var addResult = await workspaceManager.AddItemsToMets(items);
-                return this.StatusResponseFromResult(addResult);
-            }
-
+            return this.StatusResponseFromResult(depositResult);
+        }
+        var deposit = depositResult.Value;
+        var eTag = Request.Headers.IfMatch.FirstOrDefault();
+        if (!eTag.HasText() || eTag != deposit.MetsETag)
+        {
             var pd = new ProblemDetails
             {
                 Title = "Conflict: ETag does not match deposit METS",
@@ -89,8 +88,49 @@ public class DepositsController(
             };
             return Conflict(pd);
         }
-        return this.StatusResponseFromResult(depositResult);
+
+        var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+        var filesystemResult = await workspaceManager.GetFileSystemWorkingDirectory();
+        if (filesystemResult is not { Success: true, Value: not null })
+        {
+            return this.StatusResponseFromResult(filesystemResult);
+        }
+        var fileSystem = filesystemResult.Value;
+        var wbsToAdd = new List<WorkingBase>();
+        foreach (var path in localPaths)
+        {
+            // we don't know if it's a file or a directory from just the path,
+            // but it's not expensive now to find out
+            WorkingBase? wbToAdd = fileSystem.FindFile(path);
+            if (wbToAdd is null)
+            {
+                wbToAdd = fileSystem.FindDirectory(path);
+            }
+
+            if (wbToAdd != null)
+            {
+                wbsToAdd.Add(wbToAdd);
+            }
+        }
+
+        var result = await workspaceManager.AddItemsToMets(wbsToAdd);
+        return this.StatusResponseFromResult(result);
     }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
     
     
     [HttpPost("{id}/mets/delete", Name = "DeleteFromDeposit")]
@@ -122,6 +162,46 @@ public class DepositsController(
         return this.StatusResponseFromResult(depositResult);
     }
     
+    [HttpGet("{id}/filesystem", Name = "GetWorkingDirectory")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> GetFileSystem([FromRoute] string id, [FromQuery] bool refresh = false)
+    {
+        var depositResult = await mediator.Send(new GetDeposit(id));
+        if (depositResult is { Success: true, Value: not null })
+        {
+            var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+            var workingDirectoryResult = await workspaceManager.GetFileSystemWorkingDirectory(refresh);
+            return this.StatusResponseFromResult(workingDirectoryResult);
+        }
+        return this.StatusResponseFromResult(depositResult);
+    }
+    
+    /// <summary>
+    /// It is not a good idea to request this!
+    /// It contains a huge number of self-references across the combined trees, which
+    /// when serialised produce way too much JSON!
+    /// Use for debugging only.
+    /// </summary>
+    /// <param name="id"></param>
+    /// <param name="refresh"></param>
+    /// <returns></returns>
+    [HttpGet("{id}/combined", Name = "GetCombinedDirectory")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> GetCombinedDirectory([FromRoute] string id, [FromQuery] bool refresh = false)
+    {
+        var depositResult = await mediator.Send(new GetDeposit(id));
+        if (depositResult is { Success: true, Value: not null })
+        {
+            var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+            var workingDirectoryResult = await workspaceManager.GetCombinedDirectory(refresh);
+            return this.StatusResponseFromResult(workingDirectoryResult);
+        }
+        return this.StatusResponseFromResult(depositResult);
+    }
         
     [HttpPatch("{id}", Name = "PatchDeposit")]
     [ProducesResponseType<Deposit>(200, "application/json")]

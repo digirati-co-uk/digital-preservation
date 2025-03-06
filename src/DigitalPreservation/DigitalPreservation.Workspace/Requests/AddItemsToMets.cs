@@ -46,7 +46,7 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
                 {
                     RelativePath = item.LocalPath,
                     IsDirectory = item is WorkingDirectory,
-                    Whereabouts = Whereabouts.Unknown
+                    Whereabouts = Whereabouts.Mets
                 });
                 metsHasBeenWrittenTo = true;
             }

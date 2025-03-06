@@ -7,6 +7,10 @@ public class WorkingDirectory : WorkingBase
 {
     public const string DefaultRootName = "__ROOT";
     
+    [JsonPropertyOrder(0)]
+    [JsonPropertyName("type")]
+    public override string Type { get; set; } = nameof(WorkingDirectory); 
+    
     [JsonPropertyName("files")]
     [JsonPropertyOrder(5)]
     public List<WorkingFile> Files { get; set; } = [];

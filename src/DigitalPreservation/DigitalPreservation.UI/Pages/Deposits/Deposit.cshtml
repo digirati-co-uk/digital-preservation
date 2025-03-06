@@ -168,8 +168,8 @@ ViewData["section"] = "deposits";
                 
                 @if (Model.Deposit.Status != DepositStates.Exporting)
                 {                
-                    var combined = await Model.WorkspaceManager.GetCombinedDirectory();
-                    if (combined != null)
+                    var combinedResult = await Model.WorkspaceManager.GetCombinedDirectory();
+                    if (combinedResult is { Success: true, Value: not null })
                     {
                         <div class="table-responsive small">
                             <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
@@ -185,7 +185,7 @@ ViewData["section"] = "deposits";
                                 </thead>
                                 <tbody>
                                 @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(combined, 
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(combinedResult.Value, 
                                         Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
                                         Model.Deposit.Active, new Counter());
                                     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
@@ -193,7 +193,7 @@ ViewData["section"] = "deposits";
                                 </tbody>
                             </table>
                         </div>
-                        <p><small>Deposit structure built @(combined.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")</small></p>
+                        <p><small>Deposit structure built @(combinedResult.Value.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")</small></p>
                     }
                     else
                     {

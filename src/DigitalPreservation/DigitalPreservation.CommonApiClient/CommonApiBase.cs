@@ -48,7 +48,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             var stream = await response.Content.ReadAsStreamAsync();
             if (response.IsSuccessStatusCode)
             {
-                var parsed = Deserializer.Parse(stream);
+                var parsed = PreservedResourceDeserializer.Parse(stream);
                 if (parsed != null)
                 {
                     return Result.Ok<PreservedResource?>(parsed);
@@ -120,7 +120,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             
             if (response.IsSuccessStatusCode)
             {
-                var parsed = Deserializer.Parse(stream);
+                var parsed = PreservedResourceDeserializer.Parse(stream);
                 if (parsed is Container createdContainer)
                 {
                     return Result.Ok<Container?>(createdContainer);

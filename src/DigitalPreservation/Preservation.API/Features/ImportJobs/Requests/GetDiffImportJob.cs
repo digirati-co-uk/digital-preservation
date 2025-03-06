@@ -76,8 +76,12 @@ public class GetDiffImportJobHandler(
         }
         
         var workspace = workspaceManagerFactory.Create(request.Deposit);
-        var combined = await workspace.GetCombinedDirectory(true);
-        
+        var combinedResult = await workspace.GetCombinedDirectory(true);
+        if (combinedResult is not { Success: true, Value: not null })
+        {
+            return Result.FailNotNull<ImportJob>(combinedResult.ErrorCode!, combinedResult.ErrorMessage);
+        }
+        var combined = combinedResult.Value;
         // We might update this from the METS file later
         var agName = request.Deposit.ArchivalGroupName ?? existingArchivalGroup?.Name ?? combined!.DirectoryInDeposit!.Name;
         if (agName.IsNullOrWhiteSpace() || agName == WorkingDirectory.DefaultRootName)

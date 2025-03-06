@@ -4,6 +4,10 @@ namespace DigitalPreservation.Common.Model.Transit;
 
 public class WorkingFile : WorkingBase
 {
+    [JsonPropertyOrder(0)]
+    [JsonPropertyName("type")]
+    public override string Type { get; set; } = nameof(WorkingFile); 
+    
     [JsonPropertyName("contentType")]
     [JsonPropertyOrder(14)]
     public required string ContentType { get; set; }

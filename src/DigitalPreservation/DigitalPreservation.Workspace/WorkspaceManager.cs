@@ -29,33 +29,37 @@ public class WorkspaceManager(
     public bool Editable { get; set; }
     public string? MetsName { get; set; }
 
-    public async Task<WorkingDirectory?> GetFileSystemWorkingDirectory(bool refresh = false)
+    public async Task<Result<WorkingDirectory?>> GetFileSystemWorkingDirectory(bool refresh = false)
     {
         var readFilesResult = await mediator.Send(new GetWorkingDirectory(
             deposit.Files!, refresh, refresh, deposit.LastModified));
-        if (readFilesResult is { Success: true, Value: not null })
+        if (readFilesResult is not { Success: true, Value: not null })
         {
-            return readFilesResult.Value;
+            Warnings.Add("Could not read working directory: " + readFilesResult.CodeAndMessage());
         }
-        Warnings.Add("Could not read working directory: " + readFilesResult.CodeAndMessage());
-        return null;
+        return readFilesResult;
     }
     
-    public async Task<CombinedDirectory?> GetCombinedDirectory(bool refresh = false)
+    public async Task<Result<CombinedDirectory?>> GetCombinedDirectory(bool refresh = false)
     {
         var metsWrapper = await GetMetsWrapper(); // what if there is no METS?
-        var fileSystem = await GetFileSystemWorkingDirectory(refresh);
-        var combined = CombinedBuilder.Build(fileSystem, metsWrapper?.PhysicalStructure);
-        var objects = combined.Directories.SingleOrDefault(d => d.LocalPath == "objects");
-        if (objects == null || objects.DescendantFileCount() == 0)
+        var fileSystemResult = await GetFileSystemWorkingDirectory(refresh);
+        if (fileSystemResult is { Success: true, Value: not null })
         {
-            HasValidFiles = false;
+            var combined = CombinedBuilder.Build(fileSystemResult.Value, metsWrapper?.PhysicalStructure);
+            var objects = combined.Directories.SingleOrDefault(d => d.LocalPath == "objects");
+            if (objects == null || objects.DescendantFileCount() == 0)
+            {
+                HasValidFiles = false;
+            }
+            else
+            {
+                HasValidFiles = true;
+            }
+            return Result.Ok(combined);
         }
-        else
-        {
-            HasValidFiles = true;
-        }
-        return combined;
+
+        return Result.Fail<CombinedDirectory>(ErrorCodes.UnknownError, "Unable to get combined directory");
     }
     
         
@@ -81,8 +85,12 @@ public class WorkspaceManager(
         {
             newFolderContext = newFolderContext.GetParent();
         }
-        var combined = await GetCombinedDirectory();
-        var parentDirectory = combined!.FindDirectory(newFolderContext);
+        var combinedResult = await GetCombinedDirectory();
+        if (combinedResult is not { Success: true, Value: not null })
+        {
+            return Result.FailNotNull<CreateFolderResult>(combinedResult.ErrorCode!, combinedResult.ErrorMessage);
+        }
+        var parentDirectory = combinedResult.Value.FindDirectory(newFolderContext);
         if (parentDirectory == null)
         {
             return Result.FailNotNull<CreateFolderResult>(ErrorCodes.NotFound,
@@ -131,12 +139,16 @@ public class WorkspaceManager(
         
         deleteSelection.Deposit = deposit.Id;
         
-        var combined = await GetCombinedDirectory(true);
-        var deleteResult = await mediator.Send(new DeleteItems(deposit.Files!, deleteSelection, combined!, deposit.MetsETag!));
-        // refresh the file system again
-        // need to see how long this operation takes on large deposits
-        await GetFileSystemWorkingDirectory(true);
-        return deleteResult;
+        var combinedResult = await GetCombinedDirectory(true);
+        if (combinedResult is { Success: true, Value: not null })
+        {
+            var deleteResult = await mediator.Send(new DeleteItems(deposit.Files!, deleteSelection, combinedResult.Value, deposit.MetsETag!));
+            // refresh the file system again
+            // need to see how long this operation takes on large deposits
+            await GetFileSystemWorkingDirectory(true);
+            return deleteResult;
+        }
+        return Result.FailNotNull<ItemsAffected>(combinedResult.ErrorCode ?? ErrorCodes.UnknownError, combinedResult.ErrorMessage);
     }
 
     public async Task<Result<ItemsAffected>> AddItemsToMets(List<WorkingBase> items)
@@ -155,8 +167,13 @@ public class WorkspaceManager(
         Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context)
     {
 
-        var combined = await GetCombinedDirectory();
-        var parentDirectory = combined!.FindDirectory(context);
+        var combinedResult = await GetCombinedDirectory();
+        if (combinedResult is not { Success: true, Value: not null })
+        {
+            return Result.FailNotNull<SingleFileUploadResult>(
+                ErrorCodes.UnknownError, "Could not get combined directory");
+        }
+        var parentDirectory = combinedResult.Value.FindDirectory(context);
         if (parentDirectory == null)
         {
             return Result.FailNotNull<SingleFileUploadResult>(
