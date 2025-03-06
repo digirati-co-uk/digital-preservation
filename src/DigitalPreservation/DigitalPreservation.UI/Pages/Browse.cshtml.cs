@@ -13,7 +13,7 @@ using Microsoft.Identity.Web;
 
 namespace DigitalPreservation.UI.Pages;
 
-public class BrowseModel(IMediator mediator, ITokenAcquisition tokenAcquisition) : PageModel
+public class BrowseModel(IMediator mediator) : PageModel
 {
     public PreservedResource? Resource { get; set; }
     public string? PathUnderRoot { get; set; }
