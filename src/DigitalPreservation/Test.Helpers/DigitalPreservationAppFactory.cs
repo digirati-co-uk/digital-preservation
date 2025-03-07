@@ -60,7 +60,7 @@ public class DigitalPreservationAppFactory<TStartup> : WebApplicationFactory<TSt
                 //     ConfigureAWSServices(services);
                 // }
             })
-            .UseEnvironment("Development")
+            .UseEnvironment("Testing")
             .UseDefaultServiceProvider((_, options) =>
             {
                 options.ValidateScopes = true;
