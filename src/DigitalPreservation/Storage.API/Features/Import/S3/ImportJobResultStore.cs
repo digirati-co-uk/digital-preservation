@@ -40,7 +40,7 @@ public class ImportJobResultStore(
     {
         return await Load<ImportJob>(jobIdentifier, "-job", cancellationToken);
     }
-    
+
     public async Task<Result<ImportJobResult?>> GetImportJobResult(string jobIdentifier, CancellationToken cancellationToken)
     {
         return await Load<ImportJobResult>(jobIdentifier, "-result", cancellationToken);

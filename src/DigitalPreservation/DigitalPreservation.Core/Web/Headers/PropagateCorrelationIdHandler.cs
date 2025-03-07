@@ -46,6 +46,16 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor)
             AddCorrelationId(request, headerValue);
         }
 
+
+        //Pass Bearer token to downstream API 
+        var bearerToken = contextAccessor.HttpContext.TryGetHeaderValue("Authorization");
+        if (!string.IsNullOrEmpty(bearerToken) && request.Headers.Authorization == null)
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", bearerToken);
+        }
+
+
+
         return base.SendAsync(request, cancellationToken);
     }
 

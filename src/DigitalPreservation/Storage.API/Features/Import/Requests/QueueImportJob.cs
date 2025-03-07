@@ -2,6 +2,7 @@
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Utils;
 using MediatR;
 using Storage.API.Fedora.Model;
 
@@ -21,6 +22,12 @@ public class QueueImportJobHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(QueueImportJob request, CancellationToken cancellationToken)
     {
+        if (request.ImportJob.CreatedBy == null)
+        {
+            logger.LogError("Import Job {} does not have a createdBy", request.ImportJob.Id?.GetSlug());
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, 
+                $"Cannot queue an importJob that lacks a createdBy: {request.ImportJob.ArchivalGroup}");
+        }
         var activeImportJobs = await importJobResultStore.GetActiveJobsForArchivalGroup(request.ImportJob.ArchivalGroup, cancellationToken);
         if (activeImportJobs.Success && activeImportJobs.Value!.Count > 0)
         {
@@ -50,7 +57,7 @@ public class QueueImportJobHandler(
 
     private ImportJobResult CreateWaitingResult(string jobIdentifier, ImportJob importJob)
     {
-        var callerIdentity = "dlipdev";
+        var callerIdentity = importJob.CreatedBy!.GetSlug()!;
         var now = DateTime.UtcNow;
         
         var importJobResult = new ImportJobResult

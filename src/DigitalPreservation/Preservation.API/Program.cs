@@ -1,6 +1,9 @@
-using DigitalPreservation.Common.Model.Identity;
+﻿using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.Identity.Web;
 using Preservation.API.Data;
 using Preservation.API.Infrastructure;
 using Preservation.API.Mutation;
@@ -23,7 +26,20 @@ try
             .ReadFrom.Configuration(hostContext.Configuration)
             .Enrich.FromLogContext()
             .Enrich.WithCorrelationId());
-    
+
+    //Auth enabled flag
+    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
+
+    //Auth 
+    if (useAuthFeatureFlag)
+    {
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
+            .EnableTokenAcquisitionToCallDownstreamApi()
+            .AddInMemoryTokenCaches();
+    }
+
+
     builder.Services
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
@@ -39,7 +55,16 @@ try
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddPreservationContext(builder.Configuration)
-        .AddControllers();
+        .AddControllers(config =>
+        {
+            if (useAuthFeatureFlag)
+            {
+                config.Filters.Add(new AuthorizeFilter());
+            }
+        });
+
+   
+    
     
     var app = builder.Build();
     app
@@ -48,6 +73,17 @@ try
         .UseRouting()
         .UseForwardedHeaders()
         .TryRunMigrations(builder.Configuration, app.Logger);
+
+
+    app.UseCors("AllowAll");
+
+    //Auth
+    if (useAuthFeatureFlag)
+    {
+        app.UseAuthentication();
+        app.UseAuthorization();
+    }
+    
     
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Preservation: Hello World!");

@@ -3,9 +3,10 @@ using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Web;
-using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
+
+using HttpHeaders = DigitalPreservation.Core.Web.Headers.HttpHeaders;
 
 namespace DigitalPreservation.CommonApiClient;
 
@@ -16,6 +17,7 @@ namespace DigitalPreservation.CommonApiClient;
 /// <param name="logger"></param>
 public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
 {
+
     public async Task<Result<PreservedResource?>> GetResource(string path)
     {
         return await GetResourceInternal(path, null);
@@ -42,6 +44,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             }
             var uri = new Uri(path, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
+
             var response = await httpClient.SendAsync(req);
             var stream = await response.Content.ReadAsStreamAsync();
             if (response.IsSuccessStatusCode)

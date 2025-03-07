@@ -101,7 +101,7 @@ public class ImportJobResultStore(
             return Result.Fail<ImportJob>(ErrorCodes.UnknownError, e.Message);
         }
     }
-    
+
     public async Task<Result<ImportJobResult?>> GetImportJobResult(string jobIdentifier, CancellationToken cancellationToken)
     {        
         try

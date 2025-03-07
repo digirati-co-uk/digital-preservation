@@ -1,5 +1,4 @@
 using System.Net;
-using System.Security.AccessControl;
 using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
@@ -341,19 +340,19 @@ internal class FedoraClient(
         return Result.Ok<Container?>(null);
     }
 
-    public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string? name,
+    public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string callerIdentity, string? name,
         Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
-        return await CreateContainerWithChecks(pathUnderFedoraRoot, name, false, transaction, cancellationToken);
+        return await CreateContainerWithChecks(pathUnderFedoraRoot, callerIdentity, name, false, transaction, cancellationToken);
     }
 
-    public async Task<Result<Container?>> CreateContainerWithinArchivalGroup(string pathUnderFedoraRoot, string? name, Transaction? transaction = null,
+    public async Task<Result<Container?>> CreateContainerWithinArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, string? name, Transaction? transaction = null,
         CancellationToken cancellationToken = default)
     {
-        return await CreateContainerWithChecks(pathUnderFedoraRoot, name, true, transaction, cancellationToken);
+        return await CreateContainerWithChecks(pathUnderFedoraRoot, callerIdentity, name, true, transaction, cancellationToken);
     }
     
-    private async Task<Result<Container?>> CreateContainerWithChecks(string pathUnderFedoraRoot, string? name, bool isWithinArchivalGroup, Transaction? transaction = null, CancellationToken cancellationToken = default)
+    private async Task<Result<Container?>> CreateContainerWithChecks(string pathUnderFedoraRoot, string callerIdentity, string? name, bool isWithinArchivalGroup, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
         var validateResult = await ContainerCanBeCreatedAtPath(pathUnderFedoraRoot, isWithinArchivalGroup, transaction);
         if (validateResult.Failure)
@@ -361,7 +360,7 @@ internal class FedoraClient(
             return validateResult;
         }
         // All tests passed
-        var container = await CreateContainerInternal(false, pathUnderFedoraRoot, name, transaction);
+        var container = await CreateContainerInternal(false, pathUnderFedoraRoot, callerIdentity, name, transaction);
         return Result.Ok(container);
     }
 
@@ -369,6 +368,7 @@ internal class FedoraClient(
     private async Task<Container?> CreateContainerInternal(
         bool asArchivalGroup,
         string pathUnderFedoraRoot,
+        string callerIdentity,
         string? name,
         Transaction? transaction = null)
     {
@@ -379,6 +379,7 @@ internal class FedoraClient(
         var req = MakeHttpRequestMessage(fedoraUri.GetParentUri()!, HttpMethod.Post)
             .InTransaction(transaction)
             .WithName(name)
+            .WithCreatedBy(callerIdentity)
             .WithSlug(fedoraUri.GetSlug()!);
         if (asArchivalGroup)
         {
@@ -394,7 +395,7 @@ internal class FedoraClient(
             var patchReq = MakeHttpRequestMessage(response.Headers.Location!, HttpMethod.Patch)
                 .InTransaction(transaction);
             // We give the AG this _additional_ type so that we can see that it's an AG when we get bulk child members back from .WithContainedDescriptions
-            patchReq.AsInsertTypePatch("<http://purl.org/dc/dcmitype/Collection>");
+            patchReq.AsInsertTypePatch("<http://purl.org/dc/dcmitype/Collection>", callerIdentity);
             var patchResponse = await httpClient.SendAsync(patchReq);
             patchResponse.EnsureSuccessStatusCode();
         }
@@ -412,9 +413,27 @@ internal class FedoraClient(
         return asArchivalGroup ? converters.MakeArchivalGroup(containerResponse) : converters.MakeContainer(containerResponse);
     }
 
-    public async Task<Result<Binary?>> PutBinary(Binary binary, Transaction transaction, CancellationToken cancellationToken = default)
+    public async Task<Result> UpdateContainerMetadata(string pathUnderFedoraRoot, string? name, string callerIdentity,
+        Transaction transaction,  CancellationToken cancellationToken = default)
+    {
+        var existing = await GetResourceType(pathUnderFedoraRoot, transaction);
+        if (existing.Failure || existing.Value is not (nameof(Container) or nameof(ArchivalGroup)))
+        {
+            return Result.Fail(ErrorCodes.BadRequest, $"Resource at {pathUnderFedoraRoot} is not a Container or ArchivalGroup");
+        }
+        var fedoraUri = converters.GetFedoraUri(pathUnderFedoraRoot);
+        var req = MakeHttpRequestMessage(fedoraUri, HttpMethod.Patch)
+            .InTransaction(transaction)
+            .WithContainerMetadataUpdate(name, callerIdentity);
+
+        var response = await httpClient.SendAsync(req, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return Result.Ok();
+    }
+
+    public async Task<Result<Binary?>> PutBinary(Binary binary, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default)
     {        
-        // TODO: Can we PUT the resource and set it's dc:title in the same PUT request?
+        // TODO: Can we PUT the resource and set its dc:title in the same PUT request?
         // At the moment we have to make a separate update to the metadata endpoint.
         // verify that parent is a container first?
         await EnsureChecksum(binary, false);
@@ -446,7 +465,8 @@ internal class FedoraClient(
             // The binary resource does not have a dc:title property yet
             var patchReq = MakeHttpRequestMessage(metadataUri, HttpMethod.Patch)
                 .InTransaction(transaction);
-            patchReq.AsInsertTitlePatch(binary.Name!);
+            var isCreation = binaryResponse.CreatedBy == fedoraOptions.Value.AdminUser;
+            patchReq.AsInsertTitlePatch(binary.Name!, callerIdentity, isCreation);
             var patchResponse = await httpClient.SendAsync(patchReq, cancellationToken);
             patchResponse.EnsureSuccessStatusCode();
             // now ask again:
@@ -520,7 +540,7 @@ internal class FedoraClient(
     /// <param name="transaction"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<Result<PreservedResource>> Delete(PreservedResource resource, Transaction transaction, CancellationToken cancellationToken = default)
+    public async Task<Result<PreservedResource>> Delete(PreservedResource resource, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -546,7 +566,7 @@ internal class FedoraClient(
         }
     }
 
-    public async Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, bool purge,
+    public async Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, bool purge,
         CancellationToken cancellationToken)
     {
         // GetResource can return a tombstone... - check that
@@ -620,9 +640,9 @@ internal class FedoraClient(
         return Result.Fail(ErrorCodes.UnknownError, "Attempted to purge something that is not a tombstone");
     }
 
-    public async Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string name, Transaction transaction, CancellationToken cancellationToken = default)
+    public async Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, string name, Transaction transaction, CancellationToken cancellationToken = default)
     {
-        var ag = await CreateContainerInternal(true, pathUnderFedoraRoot, name, transaction) as ArchivalGroup;
+        var ag = await CreateContainerInternal(true, pathUnderFedoraRoot, callerIdentity, name, transaction) as ArchivalGroup;
         return Result.Ok(ag);
     }
 

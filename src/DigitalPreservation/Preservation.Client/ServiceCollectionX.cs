@@ -22,13 +22,16 @@ public static class ServiceCollectionX
         serviceCollection.Configure<PreservationOptions>(configuration.GetSection(PreservationOptions.Preservation));
         serviceCollection
             .AddTransient<TimingHandler>()
+            .AddTransient<AuthTokenInjector>()
             .AddHttpClient<IPreservationApiClient, PreservationApiClient>((provider, client) =>
             {
                 var preservationOptions = provider.GetRequiredService<IOptions<PreservationOptions>>().Value;
                 client.BaseAddress = preservationOptions.Root.ThrowIfNull(nameof(preservationOptions.Root));
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
                 client.Timeout = TimeSpan.FromMilliseconds(preservationOptions.TimeoutMs);
-            }).AddHttpMessageHandler<TimingHandler>();
+            })
+            .AddHttpMessageHandler<TimingHandler>()
+            .AddHttpMessageHandler<AuthTokenInjector>();
 
         return serviceCollection;
     }

@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
 using MediatR;
@@ -20,6 +21,7 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType(401)]
     public async Task<IActionResult> Browse([FromRoute] string? path)
     {
+       
         var result = await mediator.Send(new GetResourceFromFedora(path));
         return this.StatusResponseFromResult(result);
     }
@@ -29,7 +31,7 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType(200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult?> HeadResource([FromRoute] string? path)
+    public async Task<IActionResult?> HeadResource([FromRoute] string path)
     {
         var result = await mediator.Send(new GetResourceTypeFromFedora(path));
         if (result.Success)
@@ -63,7 +65,7 @@ public class RepositoryController(IMediator mediator) : Controller
         {
             name = container.Name;
         }
-        var result = await mediator.Send(new CreateContainerInFedora(path, name));
+        var result = await mediator.Send(new CreateContainerInFedora(path, User.GetCallerIdentity(), name));
         var createdLocation = result.Success ? result.Value!.Id : null;
         return this.StatusResponseFromResult(result, 201, createdLocation);
     }
@@ -76,7 +78,7 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType(410)]
     public async Task<ActionResult> DeleteContainer([FromRoute] string path, [FromQuery] bool purge)
     {
-        var result = await mediator.Send(new DeleteContainerFromFedora(path, purge));
+        var result = await mediator.Send(new DeleteContainerFromFedora(path, User.GetCallerIdentity(), purge));
         return this.StatusResponseFromResult(result, 204);
     }
 }

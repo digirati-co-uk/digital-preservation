@@ -6,8 +6,12 @@ using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.Repository.Requests;
 using DigitalPreservation.Utils;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Primitives;
+using Microsoft.Identity.Client;
+using Microsoft.Identity.Web;
 
 namespace DigitalPreservation.UI.Pages;
 
@@ -17,10 +21,12 @@ public class BrowseModel(IMediator mediator) : PageModel
     public string? PathUnderRoot { get; set; }
     public string? ArchivalGroupPath { get; set; }
     
+    
     // When we are on an archival group
     public List<Deposit> Deposits { get; set; } = [];
     public Dictionary<string, List<ImportJobResult>> ImportJobResultsForNewDeposits { get; set; } = new();
 
+    
     public async Task OnGet(string? pathUnderRoot)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";

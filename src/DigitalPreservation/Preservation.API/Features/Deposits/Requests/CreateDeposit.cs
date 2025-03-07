@@ -1,7 +1,9 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Security.Claims;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core.Auth;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
@@ -41,7 +43,7 @@ public class CreateDepositHandler(
             }
 
             var mintedId = identityService.MintIdentity(nameof(Deposit));
-            var callerIdentity = "dlipdev";  // TODO: actual user or app caller identity!
+            var callerIdentity = ClaimsPrincipal.Current.GetCallerIdentity();
             var filesLocation = await storage.GetWorkingFilesLocation(
                 mintedId, request.Deposit.UseObjectTemplate ?? false, callerIdentity);
             if (filesLocation.Failure)

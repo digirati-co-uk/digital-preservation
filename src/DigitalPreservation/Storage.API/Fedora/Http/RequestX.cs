@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using DigitalPreservation.Utils;
 using Storage.API.Fedora.Model;
 using Storage.API.Fedora.Vocab;
 
@@ -32,13 +33,35 @@ internal static class RequestX
     
     public static HttpRequestMessage WithName(this HttpRequestMessage requestMessage, string? name)
     {
-        if(requestMessage.Content == null && !string.IsNullOrWhiteSpace(name)) 
+        if(!string.IsNullOrWhiteSpace(name)) 
         {
-            var turtle = MediaTypeHeaderValue.Parse("text/turtle");
-            requestMessage.Content = new StringContent($"PREFIX dc: <http://purl.org/dc/elements/1.1/>  <> dc:title \"{name}\"", turtle);
+            requestMessage.AppendRdf("dc", RepositoryTypes.DublinCoreElementsNamespace, $"<> dc:title \"{name}\"");
         }
         return requestMessage;
     }
+    
+    public static HttpRequestMessage WithCreatedBy(this HttpRequestMessage requestMessage, string createdBy)
+    {
+        // can only set this in the body, so a binary can't be done this way
+        if(!string.IsNullOrWhiteSpace(createdBy)) 
+        {
+            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:createdBy \"{createdBy}\"");
+            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:lastModifiedBy \"{createdBy}\""); 
+        }
+        return requestMessage;
+    }
+
+    
+    public static HttpRequestMessage WithLastModifiedBy(this HttpRequestMessage requestMessage, string lastModifiedBy)
+    {
+        // can only set this in the body, so a binary can't be done this way
+        if(!string.IsNullOrWhiteSpace(lastModifiedBy)) 
+        {
+            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:lastModifiedBy \"{lastModifiedBy}\""); 
+        }
+        return requestMessage;
+    }
+
     
     public static HttpRequestMessage WithSlug(this HttpRequestMessage requestMessage, string slug) 
     {
@@ -70,11 +93,49 @@ internal static class RequestX
         return requestMessage;
     }
     
-    public static HttpRequestMessage AsInsertTypePatch(this HttpRequestMessage requestMessage, string type)
+    public static HttpRequestMessage AsInsertTypePatch(this HttpRequestMessage requestMessage, string type, string callerIdentity)
     {
         var sparql = $$"""
+                       PREFIX fedora: <{{RepositoryTypes.FedoraNamespace}}>
                        INSERT {   
                         <> a {{type}} .
+                        <> fedora:lastModifiedBy "{{callerIdentity}}" .
+                       }
+                       WHERE { }
+                       """;
+
+        requestMessage.Content = new StringContent(sparql)
+            .WithContentType("application/sparql-update");
+        return requestMessage;
+    }    
+    
+    public static HttpRequestMessage WithContainerMetadataUpdate(this HttpRequestMessage requestMessage, string? title, string callerIdentity)
+    {
+        string titleStatement = title.HasText() ? $"\r\n <> dc:title \"{title}\" ." : string.Empty;
+        var sparql = $$"""
+                       PREFIX dc: <{{RepositoryTypes.DublinCoreElementsNamespace}}>
+                       PREFIX fedora: <{{RepositoryTypes.FedoraNamespace}}>
+                       INSERT {{{titleStatement}}
+                        <> fedora:lastModifiedBy "{{callerIdentity}}" .
+                       }
+                       WHERE { }
+                       """;
+
+        requestMessage.Content = new StringContent(sparql)
+            .WithContentType("application/sparql-update");
+        return requestMessage;
+    }    
+    
+    public static HttpRequestMessage AsInsertTitlePatch(this HttpRequestMessage requestMessage,
+        string title, string callerIdentity, bool isCreation)
+    {
+        string creationStatement = isCreation ? $"\r\n <> fedora:createdBy \"{callerIdentity}\" ." : string.Empty;
+        var sparql = $$"""
+                       PREFIX dc: <{{RepositoryTypes.DublinCoreElementsNamespace}}>
+                       PREFIX fedora: <{{RepositoryTypes.FedoraNamespace}}>
+                       INSERT {   
+                        <> dc:title "{{title}}" .{{creationStatement}}
+                        <> fedora:lastModifiedBy "{{callerIdentity}}" .
                        }
                        WHERE { }
                        """;
@@ -113,20 +174,7 @@ internal static class RequestX
     }
     
     
-    public static HttpRequestMessage AsInsertTitlePatch(this HttpRequestMessage requestMessage, string title)
-    {
-        var sparql = $$"""
-                       PREFIX dc: <http://purl.org/dc/elements/1.1/>
-                       INSERT {   
-                        <> dc:title "{{title}}" .
-                       }
-                       WHERE { }
-                       """;
 
-        requestMessage.Content = new StringContent(sparql)
-            .WithContentType("application/sparql-update");
-        return requestMessage;
-    }
     
     public static HttpRequestMessage OverwriteTombstone(this HttpRequestMessage requestMessage)
     {
