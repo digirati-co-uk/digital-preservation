@@ -44,7 +44,8 @@ public class QueueImportJobHandler(
         if (saveJobResult.Success)
         {
             var waitingResult = CreateWaitingResult(jobIdentifier, request.ImportJob);
-            var saveResultResult =  await importJobResultStore.SaveImportJobResult(jobIdentifier, waitingResult, true, cancellationToken);
+            var saveResultResult =  await importJobResultStore.SaveImportJobResult(
+                jobIdentifier, waitingResult, true, false, cancellationToken);
             if (saveResultResult.Success)
             {
                 logger.LogInformation($"About to queue import job request {jobIdentifier}");

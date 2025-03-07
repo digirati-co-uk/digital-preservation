@@ -11,6 +11,45 @@ public class ImportJobResultStore(
     StorageContext dbContext,
     ILogger<ImportJobResultStore> logger) : IImportJobResultStore
 {
+    public async Task<Result<int>> GetTotalImportJobs(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var total = await dbContext.ImportJobs
+                .Where(j => j.EndTime != null)
+                .CountAsync(cancellationToken: cancellationToken);
+            return Result.Ok(total); 
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<int>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<List<ImportJobResult>>> GetActivityPageOfResults(int page, int pageSize, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var entities = await dbContext.ImportJobs
+                .Where(j => j.EndTime != null)
+                .OrderBy(j => j.EndTime)
+                .Skip(page * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            var importJobs = entities
+                .Select(e => JsonSerializer.Deserialize<ImportJobResult>(e.ImportJobResultJson!)!)
+                .ToList();
+            return Result.OkNotNull(importJobs); 
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<Result<List<string>>> GetActiveJobsForArchivalGroup(Uri? archivalGroup, CancellationToken cancellationToken)
     {
         try
@@ -43,7 +82,8 @@ public class ImportJobResultStore(
                     Id = jobIdentifier, 
                     ArchivalGroup = importJob.ArchivalGroup,
                     ImportJobJson = JsonSerializer.Serialize(importJob),
-                    Active = true
+                    Active = true,
+                    Received = DateTime.UtcNow
                 }, 
                 cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -59,6 +99,7 @@ public class ImportJobResultStore(
         string jobIdentifier, 
         ImportJobResult importJobResult, 
         bool active, 
+        bool ended,
         CancellationToken cancellationToken = default)
     {
         try
@@ -70,6 +111,10 @@ public class ImportJobResultStore(
             }
             entity.ImportJobResultJson = JsonSerializer.Serialize(importJobResult);
             entity.Active = active;
+            if (ended)
+            {
+                entity.EndTime = DateTime.UtcNow;
+            }
             await dbContext.SaveChangesAsync(cancellationToken);
             return Result.Ok();
         }

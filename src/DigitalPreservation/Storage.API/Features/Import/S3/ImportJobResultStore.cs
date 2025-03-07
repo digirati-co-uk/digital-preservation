@@ -18,7 +18,17 @@ public class ImportJobResultStore(
 {
     private readonly AwsStorageOptions options = options.Value;
     private readonly string jobResultsPrefix = "importjobresults/";
-    
+
+    public Task<Result<int>> GetTotalImportJobs(CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<Result<List<ImportJobResult>>> GetActivityPageOfResults(int page, int pageSize, CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+
     public Task<Result<List<string>>> GetActiveJobsForArchivalGroup(Uri? importJobArchivalGroup, CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
@@ -29,7 +39,7 @@ public class ImportJobResultStore(
         return await Save(jobIdentifier, "-job", JsonSerializer.Serialize(importJob), cancellationToken);
     }
 
-    public async Task<Result> SaveImportJobResult(string jobIdentifier, ImportJobResult importJobResult, bool active, CancellationToken cancellationToken = default)
+    public async Task<Result> SaveImportJobResult(string jobIdentifier, ImportJobResult importJobResult, bool active, bool ended, CancellationToken cancellationToken = default)
     {
         return await Save(jobIdentifier, "-result", JsonSerializer.Serialize(importJobResult), cancellationToken);
     }

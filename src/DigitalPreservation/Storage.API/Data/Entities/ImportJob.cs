@@ -12,4 +12,6 @@ public class ImportJob
     public string? ImportJobResultJson { get; set; }
 
     public bool Active { get; set; } = true;
+    public DateTime? Received { get; set; }
+    public DateTime? EndTime { get; set; }
 }

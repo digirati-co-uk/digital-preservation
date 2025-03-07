@@ -41,7 +41,7 @@ public class ImportJobRunner(
                 {
                     logger.LogError("Unable to obtain saved Archival Group (maybe because of a failed create): " + agResult.CodeAndMessage());
                 }
-                var finalUpdateResult = await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, cancellationToken);
+                var finalUpdateResult = await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, true, cancellationToken);
                 if (finalUpdateResult.Success)
                 {
                     logger.LogInformation("Saved Import Job Result: " + jobResult.Id);
