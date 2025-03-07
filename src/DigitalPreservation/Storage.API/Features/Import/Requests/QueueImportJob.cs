@@ -72,7 +72,7 @@ public class QueueImportJobHandler(
             LastModified = now,
             LastModifiedBy = converters.GetAgentUri(callerIdentity),
             ImportJob = importJob.Id!, // NB this may be the Preservation API's import job ID - which is OK
-            OriginalImportJob = importJob.Id!, // what's the purpose of these when there's always a RESULT... are they the same?
+            OriginalImportJob = importJob.OriginalId // what's the purpose of these when there's always a RESULT... are they the same?
         };
         
         return importJobResult;

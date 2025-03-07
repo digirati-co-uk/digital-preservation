@@ -1,4 +1,5 @@
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using Storage.Repository.Common;
@@ -29,9 +30,15 @@ public interface IStorageApiClient
     Task<Result<ArchivalGroup?>> GetArchivalGroup(string path, string? version);
     
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
-    Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri);
+    
     Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob requestImportJob, CancellationToken cancellationToken = default);
     Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri);
+    
+    // Asynchronously export the entire contents of archivalGroup (version=versionToExport) to exportLocation
+    Task<Result<Export>> ExportArchivalGroup(Uri archivalGroup, Uri exportLocation, string versionToExport, CancellationToken cancellationToken = default);
+    
+    // Synchronously export only the METS file from archivalGroup (version=versionToExport) to exportLocation
+    Task<Result<Export>> ExportArchivalGroupMetsOnly(Uri archivalGroup, Uri exportLocation, string? versionToExport, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Basic ping to check Storage API is alive. 
@@ -41,4 +48,7 @@ public interface IStorageApiClient
     Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default);
     Task<ConnectivityCheckResult?> CanSeeS3(CancellationToken cancellationToken = default);
     Task<Result> DeleteContainer(string path, bool requestPurge, CancellationToken cancellationToken);
+    Task<Result<Export>> GetExport(Uri entityExportResultUri);
+
+    Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
 }

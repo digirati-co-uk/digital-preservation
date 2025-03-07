@@ -1,13 +1,14 @@
 ﻿using System.Text.Json;
+using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
-using DigitalPreservation.UI.Features.S3;
 using DigitalPreservation.Utils;
-using LateApexEarlySpeed.Xunit.Assertion.Json;
+using DigitalPreservation.Workspace;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -16,32 +17,22 @@ using Preservation.Client;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
-public class DepositModel : PageModel
+public class DepositModel(
+    IMediator mediator, 
+    IOptions<PreservationOptions> options,
+    WorkspaceManagerFactory workspaceManagerFactory) : PageModel
 {
-    private readonly IMediator mediator;
-    private readonly IOptions<PreservationOptions> options;
-
-    public DepositModel(IMediator mediator, IOptions<PreservationOptions> options)
-    {
-        this.mediator = mediator;
-        this.options = options;
-    }
-
-    public bool Bound { get; set; }
-
     public required string Id { get; set; }
-    
+    public required WorkspaceManager WorkspaceManager { get; set; }
     public Deposit? Deposit { get; set; }
-    public WorkingDirectory? Files { get; set; }
-    
-    public List<ImportJobResult> ImportJobResults { get; set; } = [];
+    public string? ArchivalGroupTestWarning { get; set; }
     
     public async Task OnGet(
         [FromRoute] string id,
         [FromQuery] bool readFromStorage = false,
         [FromQuery] bool writeToStorage = false)
     {
-        Bound = await BindDeposit(id, readFromStorage, writeToStorage);
+        await BindDeposit(id, readFromStorage, writeToStorage);
     }
     
     private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
@@ -51,29 +42,15 @@ public class DepositModel : PageModel
         if (getDepositResult.Success)
         {
             Deposit = getDepositResult.Value!;
-            // There is a METSlike for the deposit contents, AND a METS for the AG (if exists).
-            // The metslike for deposit contents does not get saved to Fedora (but does it get saved to the DB)
-            var readS3Result = await mediator.Send(
-                new GetWorkingDirectory(Deposit.Files!, readFromStorage, writeToStorage)); 
-            if (readS3Result.Success)
+            WorkspaceManager = workspaceManagerFactory.Create(Deposit);
+            
+            if (!Deposit.ArchivalGroupExists && Deposit.ArchivalGroup != null && Deposit.ArchivalGroup.GetPathUnderRoot().HasText())
             {
-                Files = readS3Result.Value!;
-            }
-            else
-            {
-                TempData["Error"] = readS3Result.CodeAndMessage();
-                return false;
-            }
-
-            var fetchResultsResult = await DepositJobResultFetcher.GetImportJobResults(id, mediator);
-            if (fetchResultsResult.Success)
-            {
-                ImportJobResults = fetchResultsResult.Value!;
-            }
-            else
-            {
-                TempData["Error"] = fetchResultsResult.CodeAndMessage();
-                return false;
+                var testArchivalGroupResult = await mediator.Send(new TestArchivalGroupPath(Deposit.ArchivalGroup.GetPathUnderRoot()!));
+                if (testArchivalGroupResult.Failure)
+                {
+                    ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
+                }
             }
         }
         else
@@ -84,73 +61,7 @@ public class DepositModel : PageModel
 
         return true;
     }
-
-    public async Task<IActionResult> OnPostDeleteItem(
-        [FromRoute] string id,
-        [FromForm] string deleteContext,
-        [FromForm] bool deleteContextIsFile)
-    {
-        if (await BindDeposit(id))
-        {
-            var deleteDirectoryContext = deleteContext;
-            if (deleteContextIsFile)
-            {
-                deleteDirectoryContext = deleteDirectoryContext.GetParent();
-            }
-            var deleteDirectory = Files!.FindDirectory(deleteDirectoryContext);
-            if (deleteDirectory == null)
-            {
-                TempData["Error"] = $"Directory {deleteDirectoryContext} not found.";
-                return Redirect($"/deposits/{id}");
-            }
-            if (deleteContextIsFile)
-            {
-                var fileToDelete = deleteDirectory.Files.SingleOrDefault(f => f.LocalPath == deleteContext);
-                if (fileToDelete == null)
-                {
-                    TempData["Error"] = $"File {deleteContext} not found.";
-                    return Redirect($"/deposits/{id}");
-                }
-                if(!fileToDelete.LocalPath.Contains('/'))
-                {
-                    TempData["Error"] = "You cannot delete files in the root.";
-                    return Redirect($"/deposits/{id}");
-                }
-                var deleteFileResult = await mediator.Send(new DeleteObject(Deposit!.Files!, fileToDelete.LocalPath));
-                if (deleteFileResult.Success)
-                {
-                    TempData["Deleted"] = "File " + fileToDelete.LocalPath + " DELETED.";
-                }
-                else
-                {
-                    TempData["Error"] = deleteFileResult.CodeAndMessage();
-                }
-                return Redirect($"/deposits/{id}");
-            }
-            // want to delete a directory
-            if(deleteDirectory.LocalPath == "objects")
-            {
-                TempData["Error"] = "You cannot delete the objects directory.";
-                return Redirect($"/deposits/{id}");
-            }
-            if (deleteDirectory.Files.Count > 0)
-            {
-                TempData["Error"] = "You cannot delete a folder that has files in it; delete the files first.";
-                return Redirect($"/deposits/{id}");
-            }
-            var deleteDirectoryResult = await mediator.Send(new DeleteObject(Deposit!.Files!, deleteDirectory.LocalPath));
-            if (deleteDirectoryResult.Success)
-            {
-                TempData["Deleted"] = "Folder " + deleteDirectory.LocalPath + " DELETED.";
-            }
-            else
-            {
-                TempData["Error"] = deleteDirectoryResult.CodeAndMessage();
-            }
-            return Redirect($"/deposits/{id}");
-        }
-        return Page();
-    }
+    
 
     public async Task<IActionResult> OnPostCreateFolder(
         [FromRoute] string id, 
@@ -160,39 +71,95 @@ public class DepositModel : PageModel
     {
         if (await BindDeposit(id))
         {
-            var s3Root = Deposit!.Files;
-            if (contextIsFile && newFolderContext.HasText())
+            var result = await WorkspaceManager.CreateFolder(newFolderName, newFolderContext, contextIsFile);
+            if (result.Success)
             {
-                newFolderContext = newFolderContext.GetParent();
-            }
-            var parentDirectory = Files!.FindDirectory(newFolderContext);
-            if (parentDirectory == null)
-            {
-                TempData["Error"] = $"Folder path {newFolderContext} could not be found.";
-                return Page();
-            }
-            var slug = PreservedResource.MakeValidSlug(newFolderName);
-            if (parentDirectory.Directories.Any(d => d.GetSlug() == slug) ||
-                parentDirectory.Files.Any(f => f.GetSlug() == slug))
-            {
-                // TODO: As long as the name doesn't conflict, we should CREATE url-safe aliases (e.g., filename-1)
-                TempData["Error"] = "This directory name conflicts with " + slug;
-                return Page();
-            }
-
-            var createFolderResult = await mediator.Send(new CreateFolder(s3Root!, newFolderName, slug, newFolderContext));
-            if (createFolderResult.Success)
-            {
-                TempData["Created"] = "Folder " + slug + " created.";
-                TempData["Context"] = newFolderContext + "/" + slug;
+                var details = result.Value!;
+                TempData["Created"] = details.Created;
+                TempData["Context"] = details.Context;
                 return Redirect($"/deposits/{id}");
             }
 
-            TempData["Error"] = createFolderResult.CodeAndMessage();
+            TempData["Error"] = result.ErrorMessage;
         }
+        
         return Page();
     }
     
+    
+    
+
+    public async Task<IActionResult> OnPostDeleteItems(
+        [FromRoute] string id,
+        [FromForm] Whereabouts? deleteFrom,
+        [FromForm] string deleteSelectionObject)
+    {
+        if (await BindDeposit(id))
+        {
+            var deleteSelection = JsonSerializer.Deserialize<DeleteSelection>(deleteSelectionObject)!;
+            if (deleteFrom is Whereabouts.Both or Whereabouts.Deposit)
+            {
+                deleteSelection.DeleteFromDepositFiles = true;
+            }
+            if (deleteFrom is Whereabouts.Both or Whereabouts.Mets)
+            {
+                deleteSelection.DeleteFromMets = true;
+            }
+            var result = await WorkspaceManager.DeleteItems(deleteSelection);
+            if (result.Success)
+            {
+                var details = result.Value!;
+                TempData["Deleted"] = $"{details.Items.Count} item(s) DELETED.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            TempData["Error"] = result.ErrorMessage;
+        }
+        
+        return Redirect($"/deposits/{id}");
+    }
+    
+    
+    public async Task<IActionResult> OnPostAddItemsToMets(
+        [FromRoute] string id,
+        [FromForm] string addToMetsObject)
+    {
+        if (await BindDeposit(id))
+        {
+            var minimalItems = JsonSerializer.Deserialize<List<MinimalItem>>(addToMetsObject)!;
+            var filesystemResult = await WorkspaceManager.GetFileSystemWorkingDirectory();
+            if (filesystemResult is not { Success: true, Value: not null })
+            {
+                TempData["Error"] = "Could not read deposit file system.";
+                return Redirect($"/deposits/{id}");
+            }
+            var wbsToAdd = new List<WorkingBase>();
+            foreach (var item in minimalItems)
+            {
+                WorkingBase? wbToAdd = item.IsDirectory
+                    ? filesystemResult.Value.FindDirectory(item.RelativePath)
+                    : filesystemResult.Value.FindFile(item.RelativePath);
+                if (wbToAdd != null)
+                {
+                    wbsToAdd.Add(wbToAdd);
+                }
+            }
+            var result = await WorkspaceManager.AddItemsToMets(wbsToAdd);
+            if (result.Success)
+            {
+                var details = result.Value!;
+                TempData["Created"] = $"{details.Items.Count} item(s) added to METS.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            TempData["Error"] = result.ErrorMessage;
+        }
+        
+        return Redirect($"/deposits/{id}");
+    }
+
+
+
     public async Task<IActionResult> OnPostUploadFile(
         [FromRoute] string id,
         [FromForm] List<IFormFile> depositFile,
@@ -202,62 +169,76 @@ public class DepositModel : PageModel
         [FromForm] string? newFileContext,
         [FromForm] bool contextIsFile)
     {
-        // This is a PROVISIONAL implementation and will be replaced by an upload widget
-        // that can upload multiple, stream large files etc.
-        // https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-8.0
+        string errorMessage = "";
+        if (depositFile.Count == 0)
+        {
+            errorMessage += "No file uploaded in form. ";
+        }
+
+        if (depositFile.Count > 1)
+        {
+            errorMessage += "More than one file uploaded in form.";
+        }
+
+        if (checksum.IsNullOrWhiteSpace())
+        {
+            errorMessage += "No checksum supplied in form.";
+        }
+
+        if (errorMessage.HasText())
+        {
+            TempData["Error"] = errorMessage;
+            return Redirect($"/deposits/{id}");
+        }
+
+        if (contextIsFile && newFileContext.HasText())
+        {
+            newFileContext = newFileContext.GetParent();
+        }
+
         if (await BindDeposit(id))
         {
-            if (contextIsFile && newFileContext.HasText())
-            {
-                newFileContext = newFileContext.GetParent();
-            }
-            if (depositFile.Count == 0)
-            {
-                TempData["Error"] = "No file uploaded";
-                return Page();
-            }
-            if (depositFile.Count > 1)
-            {
-                TempData["Error"] = "More than one file uploaded";
-                return Page();
-            }
-            var s3Root = Deposit!.Files;
-            var parentDirectory = Files!.FindDirectory(newFileContext);
-            if (parentDirectory == null)
-            {
-                TempData["Error"] = $"Folder path {newFileContext} could not be found.";
-                return Page();
-            }
-            if (!(parentDirectory.LocalPath == "objects" || parentDirectory.LocalPath.StartsWith("objects/")))
-            {
-                TempData["Error"] = "Uploaded files must go in or below the objects folder.";
-                return Page();
-            }
-
-            var slug = PreservedResource.MakeValidSlug(depositFile[0].FileName);
-            if (parentDirectory.Directories.Any(d => d.GetSlug() == slug) ||
-                parentDirectory.Files.Any(f => f.GetSlug() == slug))
-            {
-                TempData["Error"] = "This file name conflicts with " + slug;
-                return Page();
-            }
-
-            var uploadFileResult = await mediator.Send(new UploadFileToDeposit(
-                s3Root!,
-                newFileContext,
-                slug,
-                depositFile[0],
+            var result = await WorkspaceManager.UploadSingleSmallFile(
+                depositFile[0].OpenReadStream(),
+                depositFile[0].Length,
+                depositFile[0].FileName,
                 checksum,
                 depositFileName,
-                depositFileContentType));
-            if (uploadFileResult.Success)
+                depositFileContentType,
+                newFileContext
+            );
+            if (result.Success)
             {
-                TempData["Uploaded"] = "File " + slug + " uploaded.";
-                TempData["Context"] = newFileContext;
+                var details = result.Value!;
+                TempData["Uploaded"] = details.Uploaded;
+                TempData["Context"] = details.Context;
                 return Redirect($"/deposits/{id}");
             }
 
-            TempData["Error"] = uploadFileResult.CodeAndMessage();
+            TempData["Error"] = result.ErrorMessage;
+        }
+
+        return Page();
+
+    }
+    // This is only for small files! one at a time.
+    // https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-8.0
+
+
+
+
+    public async Task<IActionResult> OnPostRebuildDepositFileSystem([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await WorkspaceManager.RebuildDepositFileSystem();
+            if (result.Success)
+            {
+                TempData["Valid"] = "View of storage has been updated.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            TempData["Error"] = result.ErrorMessage;
         }
 
         return Page();
@@ -265,58 +246,19 @@ public class DepositModel : PageModel
 
     public async Task<IActionResult> OnPostValidateStorage([FromRoute] string id)
     {
-        var getDepositResult = await mediator.Send(new GetDeposit(id));
-        if (getDepositResult.Success)
+        if (await BindDeposit(id))
         {
-            var readS3Result = await mediator.Send(new GetWorkingDirectory(
-                getDepositResult.Value!.Files!, true, false));
-            var readMetsResult = await mediator.Send(new GetWorkingDirectory(
-                getDepositResult.Value!.Files!, false, false));
-
-            if (readS3Result.Value == null)
+            var result = await WorkspaceManager.ValidateDepositFileSystem();
+            if (result.Success)
             {
-                TempData["Error"] = "Could not read S3 storage.";
+                TempData["Valid"] = "Storage validation succeeded. The Deposit File System file reflects S3 content.";
                 return Redirect($"/deposits/{id}");
             }
-            if (readMetsResult.Value == null)
-            {
-                TempData["Error"] = "Could not read METSlike file.";
-                return Redirect($"/deposits/{id}");
-            }
-            var s3Json = JsonSerializer.Serialize(RemoveRootMetadata(readS3Result.Value));
-            var metsJson = JsonSerializer.Serialize(RemoveRootMetadata(readMetsResult.Value));
-            try
-            {
-                JsonAssertion.Equivalent(s3Json, metsJson);
-                TempData["Valid"] = "Storage validation succeeded. The METS file reflects S3 content.";
-            }
-            catch (Exception e)
-            {
-                TempData["Error"] = "Storage validation Failed. " + e.Message;
-            }
-            return Redirect($"/deposits/{id}");
-        }
-        TempData["Error"] = "Could not GET deposit " + id;
-        return Redirect($"/deposits/{id}");
-    }
 
-    private WorkingDirectory? RemoveRootMetadata(WorkingDirectory wd)
-    {
-        wd.Modified = DateTime.MinValue;
-        // Also do not compare the object directory
-        var objects = wd.Directories.SingleOrDefault(d => d.LocalPath == "objects");
-        if (objects != null)
-        {
-            objects.Modified = DateTime.MinValue;
-        }
-        foreach (var workingFile in wd?.Files ?? [])
-        {
-            workingFile.Digest = null;
-            workingFile.Modified = DateTime.MinValue;
-            workingFile.Size = 0;
+            TempData["Error"] = result.ErrorMessage;
         }
 
-        return wd;
+        return Page();
     }
 
 
@@ -344,13 +286,36 @@ public class DepositModel : PageModel
         [FromForm] string? agName,
         [FromForm] string? submissionText)
     {
+        if (agPathUnderRoot.HasText())
+        {
+            if (agPathUnderRoot.StartsWith("http"))
+            {
+                var pathUrl = new Uri(agPathUnderRoot);
+                agPathUnderRoot = pathUrl.AbsolutePath.ToLowerInvariant();
+                if (agPathUnderRoot.StartsWith("/browse/"))
+                {
+                    agPathUnderRoot = agPathUnderRoot.Substring("/browse/".Length);
+                }
+                if (agPathUnderRoot.StartsWith("/repository/"))
+                {
+                    agPathUnderRoot = agPathUnderRoot.Substring("/repository/".Length);
+                }
+                if (agPathUnderRoot.StartsWith("/"))
+                {
+                    agPathUnderRoot = agPathUnderRoot.Substring(1);
+                }
+            }
+        }
         var getDepositResult = await mediator.Send(new GetDeposit(id));
         if (getDepositResult.Success)
         {
             var deposit = getDepositResult.Value;
             deposit!.SubmissionText = submissionText;
             // feels like this URI should not be constructed here
-            deposit.ArchivalGroup = new Uri($"{options.Value.Root}{PreservedResource.BasePathElement}/{agPathUnderRoot}");
+            if (agPathUnderRoot.HasText())
+            {
+                deposit.ArchivalGroup = new Uri($"{options.Value.Root}{PreservedResource.BasePathElement}/{agPathUnderRoot}");
+            }
             deposit.ArchivalGroupName = agName;
             var saveDepositResult = await mediator.Send(new UpdateDeposit(deposit));
             if (saveDepositResult.Success)
@@ -367,14 +332,56 @@ public class DepositModel : PageModel
         return Redirect($"/deposits/{id}");
     }
 
-    public bool HasValidFiles()
+    public string? GetDisplayTitle()
     {
-        var objects = Files?.Directories.SingleOrDefault(d => d.GetSlug() == "objects");
-        if (objects == null)
+        if (Deposit == null)
         {
-            return false;
+            return Id;
         }
-        return objects.DescendantFileCount() > 0;
+
+        if (Deposit.ArchivalGroupName.HasText())
+        {
+            return Deposit.ArchivalGroupName;
+        }
+
+        if (Deposit.ArchivalGroup != null)
+        {
+            return Deposit.ArchivalGroup.GetPathUnderRoot()!;
+        }
+
+        return Deposit.Id?.GetSlug();
+    }
+    
+    public async Task<List<ImportJobResult>> GetImportJobResults()
+    {
+        var fetchResultsResult = await DepositJobResultFetcher.GetImportJobResults(Id, mediator);
+        if (fetchResultsResult.Success)
+        {
+            var importJobResults = fetchResultsResult.Value!;
+            return importJobResults;
+        }
+
+        TempData["Error"] = fetchResultsResult.CodeAndMessage();
+        return [];
+    }
+
+    public string GetDepositLocation()
+    {
+        if (Deposit != null)
+        {
+            if (Deposit.Files?.Scheme == "s3")
+            {
+                const string template =
+                    "https://eu-west-1.console.aws.amazon.com/s3/buckets/{bucket}?region=eu-west-1&bucketType=general&prefix={prefix}&showversions=false";
+                var s3Uri = new AmazonS3Uri(Deposit.Files);
+                string href = template
+                    .Replace("{bucket}", s3Uri.Bucket)
+                    .Replace("{prefix}", s3Uri.Key.TrimEnd('/') + "/");
+                return href;
+            }
+        }
+
+        return "#";
     }
 }
 

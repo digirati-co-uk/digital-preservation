@@ -50,7 +50,7 @@ public class BrowseModel(IMediator mediator) : PageModel
                     var depositsResult = await mediator.Send(new GetDeposits(query));
                     if (depositsResult.Success)
                     {
-                        Deposits = depositsResult.Value ?? [];
+                        Deposits = depositsResult.Value!.Deposits ?? [];
                         await GetJobsForActiveDeposits();
                     }
                     break;

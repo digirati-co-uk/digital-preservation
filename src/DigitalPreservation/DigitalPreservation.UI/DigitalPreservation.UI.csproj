@@ -10,7 +10,6 @@
       <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
       <PackageReference Include="AWSSDK.SecurityToken" Version="3.7.400.20" />
       <PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.400.21" />
-      <PackageReference Include="LateApexEarlySpeed.Xunit.Assertion.Json" Version="1.0.6" />
       <PackageReference Include="MediatR" Version="12.4.1" />
       <PackageReference Include="Microsoft.Identity.Web" Version="3.4.0" />
       <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.4.0" />
@@ -21,8 +20,12 @@
 
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Core\DigitalPreservation.Core.csproj" />
+      <ProjectReference Include="..\DigitalPreservation.Workspace\DigitalPreservation.Workspace.csproj" />
       <ProjectReference Include="..\Preservation.Client\Preservation.Client.csproj" />
-      <ProjectReference Include="..\Storage.Repository.Common\Storage.Repository.Common.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <AdditionalFiles Include="Views\Shared\Components\Pager\Default.cshtml" />
     </ItemGroup>
 
 </Project>

@@ -12,12 +12,14 @@ namespace Preservation.API.Mutation;
 /// </summary>
 /// <param name="options"></param>
 public class ResourceMutator(
-    ILogger<ResourceMutator> logger,
     IOptions<MutatorOptions> options)
 {
     private readonly string storageHost = options.Value.Storage;
     private readonly string preservationHost = options.Value.Preservation;
-    
+
+    public Uri StorageUri { get; } = new(options.Value.Storage);
+    public Uri PreservationUri { get; } = new(options.Value.Preservation);
+
     internal PreservedResource? MutateStorageResource(PreservedResource? storageResource)
     {
         if (storageResource == null) return null;
@@ -105,7 +107,7 @@ public class ResourceMutator(
     }
     
     
-    private Uri? MutatePreservationApiUri(Uri? uri)
+    public Uri? MutatePreservationApiUri(Uri? uri)
     {
         // Discuss whether it's actually worth doing it this way:
         // https://stackoverflow.com/questions/479799/replace-host-in-uri
@@ -150,6 +152,7 @@ public class ResourceMutator(
             PreservedBy = GetAgentUri(entity.PreservedBy),
             Exported = entity.Exported,
             ExportedBy = GetAgentUri(entity.ExportedBy),
+            // ExportResult = entity.ExportResultUri, // don't do this, just rely on the Status value.
             VersionExported = entity.VersionExported,
             VersionPreserved = entity.VersionPreserved
         };
@@ -165,41 +168,7 @@ public class ResourceMutator(
     {
         return deposits.Select(MutateDeposit).ToList();
     }
-
-    public void MutateStorageImportJob(ImportJob storageImportJob)
-    {
-        MutateStorageBaseUris(storageImportJob);
-        storageImportJob.ArchivalGroup = MutateStorageApiUri(storageImportJob.ArchivalGroup)!;
-        foreach (var container in storageImportJob.ContainersToAdd)
-        {
-            MutateStorageResource(container);
-        }
-        foreach (var container in storageImportJob.ContainersToDelete)
-        {
-            MutateStorageResource(container);
-        }
-        foreach (var binary in storageImportJob.BinariesToAdd)
-        {
-            MutateStorageResource(binary);
-        }
-        foreach (var binary in storageImportJob.BinariesToDelete)
-        {
-            MutateStorageResource(binary);
-        }
-        foreach (var binary in storageImportJob.BinariesToPatch)
-        {
-            MutateStorageResource(binary);
-        }
-        foreach (var container in storageImportJob.ContainersToRename)
-        {
-            MutateStorageResource(container);
-        }
-        foreach (var binary in storageImportJob.BinariesToRename)
-        {
-            MutateStorageResource(binary);
-        }
-    }
-
+    
     public void MutatePreservationImportJob(ImportJob preservationImportJob)
     {
         MutatePreservationBaseUris(preservationImportJob);
@@ -233,6 +202,7 @@ public class ResourceMutator(
             MutatePreservationResource(binary);
         }
     }
+
 
     public void MutateStorageImportJobResult(ImportJobResult storageImportJobResult, string depositId, string resultId)
     {

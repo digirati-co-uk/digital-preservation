@@ -54,6 +54,10 @@ namespace Preservation.API.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("ExportResultUri")
+                        .HasColumnType("text")
+                        .HasColumnName("export_result_uri");
+
                     b.Property<DateTime?>("Exported")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("exported");
@@ -153,10 +157,12 @@ namespace Preservation.API.Data.Migrations
                         .HasColumnName("last_updated");
 
                     b.Property<string>("LatestPreservationApiResultJson")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("latest_preservation_api_result_json");
 
                     b.Property<string>("LatestStorageApiResultJson")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("latest_storage_api_result_json");
 

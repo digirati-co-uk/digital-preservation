@@ -17,9 +17,11 @@ public class ImportJobModel(IMediator mediator) : PageModel
         {
             ViewData["Title"] = "Diff for deposit " + depositId;
             var result = await mediator.Send(new GetDiffImportJob(depositId));
-            if (result.Success)
+            if (result is { Success: true, Value: not null })
             {
                 ImportJob = result.Value;
+                ItemsWithInvalidSlugs = ImportJob.ItemsWithInvalidSlugs();
+                AddedBinariesWithInvalidContentTypes = ImportJob.AddedBinariesWithInvalidContentTypes();
                 ViewData["Title"] = $"Diff from {depositId} to {ImportJob!.ArchivalGroupName ?? ImportJob.ArchivalGroup.GetPathUnderRoot()}";
                 return;
             }
@@ -60,9 +62,11 @@ public class ImportJobModel(IMediator mediator) : PageModel
         return Redirect($"/deposits/{depositId}/importjobs/diff");
     }
 
-    public string ImportJobId { get; set; }
+    public string? ImportJobId { get; set; }
 
     public ImportJob? ImportJob { get; set; }
+    public List<PreservedResource> ItemsWithInvalidSlugs { get; set; } = [];
+    public List<Binary> AddedBinariesWithInvalidContentTypes { get; set; } = [];
     
     public ImportJobResult? ImportJobResult { get; set; }
 }

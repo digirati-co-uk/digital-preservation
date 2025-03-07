@@ -1,10 +1,12 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
+using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Repository.Requests;
+using Storage.Repository.Common.Mets;
 
 namespace Preservation.API.Features.Repository;
 
@@ -19,9 +21,27 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> Browse([FromRoute] string? path = null)
+    public async Task<IActionResult> Browse(
+        [FromRoute] string? path = null,
+        [FromQuery] string? view = null)
     {
         var result = await mediator.Send(new GetResource(Request.Path));
+        if (view == "mets" && result is { Success: true, Value: ArchivalGroup archivalGroup })
+        {
+            var mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, true));
+            if (mets is null)
+            {
+                mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, false));
+            }
+
+            if (mets is not null)
+            {
+                return Redirect(mets.Id!.ToString().ReplaceFirst(PreservedResource.BasePathElement, "content"));
+            }
+
+        }
+        
+        // default 99.999% scenario:
         return this.StatusResponseFromResult(result);
     }
     
@@ -30,7 +50,8 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType(200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult?> HeadResource([FromRoute] string? path)
+    [ProducesResponseType(410)]
+    public async Task<IActionResult?> HeadResource([FromRoute] string path)
     {
         var result = await mediator.Send(new GetResourceType(path));
         if (result.Success)

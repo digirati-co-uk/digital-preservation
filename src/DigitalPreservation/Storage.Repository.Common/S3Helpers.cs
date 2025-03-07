@@ -18,4 +18,10 @@ public static class S3Helpers
     
     public static Uri GetS3Uri(this DeleteObjectRequest deleteObjectRequest) =>
         new UriBuilder($"s3://{deleteObjectRequest.BucketName}") { Path = deleteObjectRequest.Key }.Uri;
+    
+    public static Uri GetSourceS3Uri(this CopyObjectRequest copyObjectRequest) =>
+        new UriBuilder($"s3://{copyObjectRequest.SourceBucket}") { Path = copyObjectRequest.SourceKey }.Uri;
+    
+    public static Uri GetDestinationS3Uri(this CopyObjectRequest copyObjectRequest) =>
+        new UriBuilder($"s3://{copyObjectRequest.DestinationBucket}") { Path = copyObjectRequest.DestinationKey }.Uri;
 }

@@ -1,6 +1,8 @@
 ﻿using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
@@ -22,34 +24,16 @@ public class StorageApiClient(
 {
     private readonly HttpClient storageHttpClient = httpClient;
 
-    public async Task<Result<ImportJob>> GetImportJob(string archivalGroupPathUnderRoot, Uri sourceUri)
-    {       
-        var reqPath = $"import/diff/{archivalGroupPathUnderRoot}?source={sourceUri}";
-        var uri = new Uri(reqPath, UriKind.Relative);
-        try
-        {
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await storageHttpClient.SendAsync(req);
-            if (response.IsSuccessStatusCode)
-            {
-                var importJob = await response.Content.ReadFromJsonAsync<ImportJob>();
-                if(importJob != null)
-                {
-                    return Result.OkNotNull(importJob);
-                }
-                return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, "Resource could not be parsed.");
-            }
-            return await response.ToFailNotNullResult<ImportJob>();
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, e.Message);
-        }
+    public async Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot)
+    {
+        logger.LogInformation("Testing archivalGroupPathUnderRoot: " + archivalGroupPathUnderRoot);
+        var reqPath = $"import/test-path/{archivalGroupPathUnderRoot}";
+        return await TestArchivalGroupPathInternal(reqPath);
     }
-
+    
     public async Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri)
     {        
+        logger.LogInformation("StorageAPIClient, GetImportJobResult : " + storageApiImportJobResultUri);
         try
         {
             var req = new HttpRequestMessage(HttpMethod.Get, storageApiImportJobResultUri);
@@ -74,6 +58,7 @@ public class StorageApiClient(
  
     public async Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob? requestImportJob, CancellationToken cancellationToken = default)
     {
+        logger.LogInformation("Storage API Client Executing import job: " + requestImportJob.LogSummary());
         if (requestImportJob == null)
         {
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, "Unable to parse storage import job from request body.");
@@ -96,6 +81,85 @@ public class StorageApiClient(
         {
             logger.LogError(e, e.Message);
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<Export>> ExportArchivalGroup(
+        Uri archivalGroup, 
+        Uri exportLocation,
+        string versionToExport,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await ExportArchivalGroupBase("export", 
+            archivalGroup, exportLocation, versionToExport, cancellationToken);
+        return result;
+    }
+
+    public async Task<Result<Export>> ExportArchivalGroupMetsOnly(Uri archivalGroup, Uri exportLocation, string? versionToExport,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await ExportArchivalGroupBase("exportMetsOnly", 
+            archivalGroup, exportLocation, versionToExport, cancellationToken);
+        return result;
+    }
+
+
+    private async Task<Result<Export>> ExportArchivalGroupBase(
+        string pathElement,
+        Uri archivalGroup,
+        Uri exportLocation,
+        string? versionToExport,
+        CancellationToken cancellationToken = default)
+    {        
+        var export = new Export
+        {
+            ArchivalGroup = archivalGroup,
+            Destination = exportLocation,
+            SourceVersion = versionToExport
+        };
+        try
+        {
+            var response = await storageHttpClient.PostAsJsonAsync(pathElement, export, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var exportResult = await response.Content.ReadFromJsonAsync<Export>(cancellationToken: cancellationToken);
+                if(exportResult != null)
+                {
+                    return Result.OkNotNull(exportResult);
+                }
+                return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            return await response.ToFailNotNullResult<Export>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<Export>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+
+    public async Task<Result<Export>> GetExport(Uri entityExportResultUri)
+    {     
+        try
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, entityExportResultUri);
+            var response = await storageHttpClient.SendAsync(req);
+            if (response.IsSuccessStatusCode)
+            {
+                var export = await response.Content.ReadFromJsonAsync<Export>();
+                if(export != null)
+                {
+                    return Result.OkNotNull(export);
+                }
+                return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            return await response.ToFailNotNullResult<Export>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<Export>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

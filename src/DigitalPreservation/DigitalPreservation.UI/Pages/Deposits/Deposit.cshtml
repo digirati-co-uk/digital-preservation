@@ -1,30 +1,85 @@
 ﻿@page "/deposits/{id}"
 @using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.PreservationApi
+@using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @model DepositModel
+
+@functions {
+    private bool CanBeWorkedOn()
+    {
+        return Model.Deposit is { Active: true } && Model.Deposit.Status != DepositStates.Exporting;
+    }
+}
 @{
-ViewData["Title"] = "Deposit " + (Model.Deposit?.ArchivalGroupName ?? Model.Deposit?.ArchivalGroup?.ToString() ?? Model.Deposit?.Id?.GetSlug() ?? Model.Id);
+ViewData["Title"] = Model.GetDisplayTitle();
 ViewData["section"] = "deposits";
-ViewData["active"] = Model.Deposit?.Active;
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">@ViewData["Title"]</h1>
+    <h1 class="h2 text-truncate" title="@ViewData["Title"]"><svg class="bi mb-1" style="width:1.5rem;height: 1.5rem;"><use xlink:href="#box-seam"/></svg> @ViewData["Title"]</h1>
 
     <div class="btn-toolbar mb-2 mb-md-0">
-        @if (Model.Bound)
+        @if (Model.Deposit is not null)
         {
             <button @(Model.Deposit!.Active ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
                 <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
             </button>
-            <form method="post">
-                <button type="submit" asp-page-handler="ValidateStorage" class="btn btn-sm btn-outline-primary me-2">
-                    <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Validate storage</span>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
-                    <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
-                </button>
+            <form class="single-submit" method="post">
+
+
+                <div class="dropdown">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Actions
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
+                                <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
+                                <svg class="bi"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item text-primary" type="button" id="toggleRhs" 
+                                    data-bs-toggle="collapse" data-bs-target="#sidebarInfoPanel" aria-expanded="true" aria-controls="sidebarInfoPanel">
+                                <svg class="bi"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item text-primary" type="button" id="selectNonMets">
+                                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item text-primary" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
+                                <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item text-danger" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
+                                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item text-primary" role="button" target="_blank" href="@Model.GetDepositLocation()">
+                                <svg class="bi"><use xlink:href="#cloud"/></svg><span class="ms-2">Open Deposit location</span>
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                                <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
             </form>
         }
     </div>
@@ -64,10 +119,10 @@ ViewData["active"] = Model.Deposit?.Active;
 {
     <div class="container-fluid">
         <div class="row align-items-start">
-            <div class="col">
+            <div id="mainPanel" class="col">
 
-                <form method="post" asp-page-handler="UpdateProperties" class="collapse show" id="collapseAgDetails">
-                    <fieldset style="display: contents" @(Model.Deposit.Active ? "" : " disabled=disabled")>
+                <form method="post" asp-page-handler="UpdateProperties" class="single-submit collapse show" id="collapseAgDetails">
+                    <fieldset style="display: contents" @(CanBeWorkedOn() ? "" : " disabled=disabled")>
 
                         @if (Model.Deposit.ArchivalGroupExists)
                         {
@@ -83,9 +138,18 @@ ViewData["active"] = Model.Deposit?.Active;
                         }
                         else
                         {
-                            <div class="form-floating mb-3">
-                                <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
-                                <label for="agPathUnderRoot">Archival Group</label>
+                            @if (Model.ArchivalGroupTestWarning.HasText())
+                            {
+                                <div><small class="text-danger">@Model.ArchivalGroupTestWarning</small></div>
+                            }
+                            <div class="input-group mb-3">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
+                                    <label for="agPathUnderRoot">Archival Group</label>
+                                </div>
+                                <button class="btn btn-outline-secondary" type="button" id="btnAgPathHelp" data-bs-toggle="modal" data-bs-target="#archivalGroupPathModal">
+                                    <svg class="bi"><use xlink:href="#question-circle"/></svg>
+                                </button>
                             </div>
                         }
                         <div class="form-floating mb-3">
@@ -102,36 +166,47 @@ ViewData["active"] = Model.Deposit?.Active;
                     </fieldset>
                 </form>
                 
-                
-
-
-                @* *@
-                @* <div class="border border-primary rounded mb-4 p-3" id="depositFileExplorer"> *@
-                @if (Model.Files is not null)
+                @if (Model.Deposit.Status != DepositStates.Exporting)
+                {                
+                    var combinedResult = await Model.WorkspaceManager.GetCombinedDirectory();
+                    if (combinedResult is { Success: true, Value: not null })
+                    {
+                        <div class="table-responsive small">
+                            <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
+                                <thead>
+                                <tr>
+                                    <th scope="col"></th>
+                                    <th scope="col" class="dep-actions"></th>
+                                    <th scope="col">Name (and path)</th>
+                                    <th scope="col">Hash</th>
+                                    <th scope="col">Size</th>
+                                    <th scope="col">Type</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @{
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(combinedResult.Value, 
+                                        Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
+                                        Model.Deposit.Active, new Counter());
+                                    @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><small>Deposit structure built @(combinedResult.Value.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")</small></p>
+                    }
+                    else
+                    {
+                        <p>No files have been uploaded yet.</p>
+                    }
+                }
+                @if (Model.Deposit.Status == DepositStates.Exporting)
                 {
-                    <div class="table-responsive small">
-                        <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
-                            <thead>
-                            <tr>
-                                <th scope="col" class="dep-actions"></th>
-                                <th scope="col">Path</th>
-                                <th scope="col">Name</th>
-                                <th scope="col">Hash</th>
-                                <th scope="col">Size</th>
-                                <th scope="col">Type</th>
-                                <th scope="col" class="dep-actions"></th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @await Html.PartialAsync("_RenderDirectoryAsTableRows", Model.Files)
-                            </tbody>
-                        </table>
+                    <div class="alert alert-danger" role="alert">
+                        <p>The server is currently exporting files into this Deposit.</p>
                     </div>
                 }
-                else
-                {
-                    <p>No files have been uploaded yet.</p>
-                }
+
                 
                 <hr/>
                 
@@ -148,9 +223,13 @@ ViewData["active"] = Model.Deposit?.Active;
                     {
                         <p aria-label="import job message">No jobs can be run as this deposit is no longer active.</p>
                     }
-                    else if (!Model.Deposit.ArchivalGroupExists && !Model.HasValidFiles())
+                    else if (!Model.Deposit.ArchivalGroupExists && !Model.WorkspaceManager.HasValidFiles)
                     {
                         <p aria-label="import job message">No jobs can be run as there are no valid files in the Deposit.</p>
+                    }
+                    else if (Model.Deposit.Status == DepositStates.Exporting)
+                    {
+                        <p aria-label="import job message">No jobs can be run as the Deposit status is currently 'Exporting'.</p>
                     }
                     else
                     {
@@ -163,51 +242,61 @@ ViewData["active"] = Model.Deposit?.Active;
                     }
                 </div>
                     
-                
-                @if (Model.ImportJobResults.Count == 0)
-                {
-                    <p>There are no submitted import jobs for this Deposit.</p>
-                }
-                else
-                {
-                    
-                    <div class="table-responsive small">
-                        <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
-                            <thead>
-                            <tr>
-                                <th scope="col">Status</th>
-                                <th scope="col">Who</th>
-                                <th scope="col">Begun</th>
-                                <th scope="col">Finished</th>
-                                <th scope="col">From</th>
-                                <th scope="col">To</th>
-                                <th scope="col">Errors</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @foreach (var result in Model.ImportJobResults)
-                            {
+                @{
+                    var importJobResults = await Model.GetImportJobResults();
+                    if (importJobResults.Count == 0)
+                    {
+                        <p>There are no submitted import jobs for this Deposit.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive small">
+                            <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
+                                <thead>
                                 <tr>
-                                    <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
-                                    <td>@result.CreatedBy?.GetSlug()</td>
-                                    <td>@result.DateBegun.GetDateDisplay()</td>
-                                    <td>@result.DateFinished.GetDateDisplay()</td>
-                                    <td>@result.SourceVersion</td>
-                                    <td>@result.NewVersion</td>
-                                    <td class="text-danger">@result.Errors?.Select(e => e.Message + "<br/>")</td>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Who</th>
+                                    <th scope="col">Begun</th>
+                                    <th scope="col">Finished</th>
+                                    <th scope="col">From</th>
+                                    <th scope="col">To</th>
+                                    <th scope="col">Errors</th>
                                 </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                @foreach (var result in importJobResults)
+                                {
+                                    <tr>
+                                        <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
+                                        <td>@result.CreatedBy?.GetSlug()</td>
+                                        <td>@result.DateBegun.GetDateDisplay()</td>
+                                        <td>@result.DateFinished.GetDateDisplay()</td>
+                                        <td>@result.SourceVersion</td>
+                                        <td>@result.NewVersion</td>
+                                        <td class="text-danger">
+                                            @{
+                                                if (result.Errors != null && result.Errors.Any())
+                                                {
+                                                    foreach (var line in result.Errors.Select(e => e.Message))
+                                                    {
+                                                        <p>@line</p>
+                                                    }
+                                                }
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 }
-                
 
             </div>
             
             @* START OF SIDE INFO PANEL *@
             
-            <div class="col-2">
+            <div class="collapse show col-2" id="sidebarInfoPanel">
                 <dl arial-label="deposit-history">
                     <dt>Created</dt>
                     <dd aria-label="created">@Model.Deposit.Created.GetDateDisplay()</dd>
@@ -231,17 +320,28 @@ ViewData["active"] = Model.Deposit?.Active;
                     <dd aria-label="version-exported">@(Model.Deposit.VersionExported ?? "-")</dd>
                 </dl>
             </div>
+            
+            <script>
+                const sideState = localStorage.getItem("sidebarInfoPanel");
+                if (sideState === "hide"){
+                    document.getElementById("sidebarInfoPanel").classList.remove("show");
+                }
+            </script>
         </div>
     </div>
     
     
 }
 
+@* ################### MODAL DIALOGUES *@
+
+@* ------------------- UPLOAD FILE MODAL *@
+
 <div class="modal fade" id="uploadFileModal" tabindex="-1" aria-labelledby="uploadFileModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
 
-            <form method="post" enctype="multipart/form-data" asp-page-handler="UploadFile">
+            <form class="single-submit" method="post" enctype="multipart/form-data" asp-page-handler="UploadFile">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="uploadFileModalLabel"><svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -280,12 +380,13 @@ ViewData["active"] = Model.Deposit?.Active;
 </div>
 
 
+@* ------------------- NEW FOLDER MODAL *@
 
 <div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             
-            <form method="post" asp-page-handler="CreateFolder">
+            <form class="single-submit" method="post" asp-page-handler="CreateFolder">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="newFolderModalLabel"><svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New Folder</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -309,23 +410,39 @@ ViewData["active"] = Model.Deposit?.Active;
     </div>
 </div>
 
-<div class="modal fade" id="deleteItemModal" tabindex="-1" aria-labelledby="deleteItemModalLabel" aria-hidden="true">
+
+@* ------------------- DELETE SELECTION MODAL *@
+
+<div class="modal fade" id="deleteSelectionModal" tabindex="-1" aria-labelledby="deleteSelectionModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
 
-            <form method="post" asp-page-handler="DeleteItem">
+            <form class="single-submit" method="post" asp-page-handler="DeleteItems">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="deleteItemModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span></h1>
+                    <h1 class="modal-title fs-5" id="deleteSelectionModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete selected items</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="deleteFrom" value="@Whereabouts.Deposit" id="deleteFromDeposit">
+                            <label class="form-check-label" for="deleteFromDeposit">
+                                Delete from Deposit only
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="deleteFrom" value="@Whereabouts.Both" id="deleteFromMetsAndDeposit">
+                            <label class="form-check-label" for="deleteFromMetsAndDeposit">
+                                Delete from METS file and Deposit
+                            </label>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <div id="deleteItemHelp" class="form-text">(nothing selected)</div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <input type="hidden" id="deleteContext" name="deleteContext">
-                    <input type="hidden" id="deleteContextIsFile" name="deleteContextIsFile">
+                    <input type="hidden" id="deleteSelectionObject" name="deleteSelectionObject">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="submit" class="btn btn-primary" id="deleteButton" disabled="disabled"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span></button>
                 </div>
@@ -335,11 +452,83 @@ ViewData["active"] = Model.Deposit?.Active;
     </div>
 </div>
 
+
+
+@* ------------------- Add SELECTION TO METS MODAL *@
+
+<div class="modal fade" id="addSelectionToMetsModal" tabindex="-1" aria-labelledby="addSelectionToMetsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <form class="single-submit" method="post" asp-page-handler="AddItemsToMets">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="addSelectionToMetsModalLabel"><svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add to METS file</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <div id="addToMetsHelp" class="form-text">(nothing selected)</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" id="addToMetsObject" name="addToMetsObject">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary" id="addToMetsButton" disabled="disabled"><svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add to METS</span></button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+
+@* ------------------- EDIT ARCHIVAL GROUP PATH MODAL *@
+
+<div class="modal fade" id="archivalGroupPathModal" tabindex="-1" aria-labelledby="archivalGroupPathModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="archivalGroupPathModalLabel"><svg class="bi"><use xlink:href="#question-circle"/></svg><span class="ms-2">Archival Group Path</span></h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    @{
+                        var agRoot = Url.PageLink("/browse", null, new { PathUnderRoot = string.Empty })!.ToLowerInvariant();
+                    }
+                    @if (Model.Deposit!.ArchivalGroupExists)
+                    {
+                        <p>The path is the intended URI of the Archival Group, minus the initial <code>@agRoot</code> part.</p>
+                    }
+                    else
+                    {
+                        <p>The deposit will <em>eventually</em> create an Archival Group with this path, when imported for the first time.</p>
+                        <p>The path is the intended URI of the Archival Group, minus the initial <code>@agRoot</code> part.</p>
+                        <p>
+                            For example, if you want to create an Archival Group at
+                            <code>@(agRoot)/digitised/manuscript/codex123</code>, 
+                            then the value of this field should be <code>digitised/manuscript/codex123</code>.
+                        </p>
+                        <p>You can paste in full URLs or paths and the form will tidy them up.</p>
+                        <p>This field may be set or changed later.</p>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@* ------------------- DELETE DEPOSIT MODAL *@
+
 <div class="modal fade" id="deleteDepositModal" tabindex="-1" aria-labelledby="deleteDepositModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
 
-            <form method="post" asp-page-handler="DeleteDeposit">
+            <form class="single-submit" method="post" asp-page-handler="DeleteDeposit">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="deleteDepositModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -366,6 +555,9 @@ ViewData["active"] = Model.Deposit?.Active;
     </div>
 </div>
 
+@* END MODALS *@
+
+
 <script>
     const rows = document.getElementsByClassName("deposit-row");
 
@@ -373,14 +565,126 @@ ViewData["active"] = Model.Deposit?.Active;
     const newFolderContextIsFile = document.getElementById("newFolderContextIsFile");
     const newFileContext = document.getElementById("newFileContext");
     const newFileContextIsFile = document.getElementById("newFileContextIsFile");
-    const deleteContext = document.getElementById("deleteContext");
-    const deleteContextIsFile = document.getElementById("deleteContextIsFile");
-    const deleteItemHelp = document.getElementById("deleteItemHelp");
+    
     const deleteButton = document.getElementById("deleteButton");
+    const deleteFromDepositRadio = document.getElementById("deleteFromDeposit");
+    const deleteFromMetsAndDepositRadio = document.getElementById("deleteFromMetsAndDeposit");
+    const deleteItemHelp = document.getElementById("deleteItemHelp");
+    
     const deleteDepositButton = document.getElementById("deleteDepositButton");
     const confirmDepositDelete = document.getElementById("confirmDepositDelete");
 
+    const addToMetsButton = document.getElementById("addToMetsButton");
+    const addToMetsHelp = document.getElementById("addToMetsHelp");
 
+    document.getElementById("toggleRhs").addEventListener("click", () => {
+        const sideState = localStorage.getItem("sidebarInfoPanel");
+        if (sideState === "hide"){
+            localStorage.setItem("sidebarInfoPanel", "show");
+        } else {
+            localStorage.setItem("sidebarInfoPanel", "hide");
+        }
+    });
+
+    document.getElementById("selectNonMets").addEventListener("click", () => {
+        const itemSelectors = document.getElementsByClassName("item-selector");
+        for(const itemSelector of itemSelectors)
+        {
+            const row = itemSelector.closest("tr");
+            if (row.getAttribute("data-whereabouts") === "Deposit"){
+                itemSelector.checked = true;
+            }
+        }
+    });
+
+    deleteFromDepositRadio.addEventListener("change", () => {
+        deleteButton.removeAttribute("disabled");
+    });
+
+    deleteFromMetsAndDepositRadio.addEventListener("change", () => {
+        deleteButton.removeAttribute("disabled");
+    });
+    
+    document.getElementById("deleteSelection").addEventListener("click", () => {
+
+        deleteFromDepositRadio.checked = false;
+        deleteFromMetsAndDepositRadio.checked = false;
+        deleteButton.setAttribute("disabled", "true");
+        
+        const itemSelectors = document.getElementsByClassName("item-selector");
+        const deleteSelectionObject = { items: [] };
+        let summary = "<table>";
+        for(const itemSelector of itemSelectors)
+        {
+            if (itemSelector.checked){
+                const row = itemSelector.closest("tr");
+                const type = row.getAttribute("data-type");
+                const relativePath = row.getAttribute("data-path");
+                if (relativePath && (type === "directory" || type === "file")){
+                    const whereabouts = row.getAttribute("data-whereabouts");
+                    const item = {
+                        path: relativePath,
+                        isDir: (type === "directory"),
+                        where: whereabouts
+                    };
+                    deleteSelectionObject.items.push(item);
+                    summary += "<tr><td>";
+                    summary += whereabouts;
+                    summary += " - </td><td>";
+                    summary += item.isDir ? "🗀" : "🗎";
+                    summary += "</td><td>";
+                    summary += relativePath;
+                    summary += "</td></tr>";
+                }       
+            }
+        }
+        summary += "</table>";
+        deleteItemHelp.innerHTML = summary;
+        document.getElementById("deleteSelectionObject").value = JSON.stringify(deleteSelectionObject);
+    });
+
+
+    document.getElementById("addSelectionToMets").addEventListener("click", () => {
+
+        addToMetsButton.setAttribute("disabled", "true");
+
+        const itemSelectors = document.getElementsByClassName("item-selector");
+        const addToMetsObject = [];
+        let summary = "<table>";
+        for(const itemSelector of itemSelectors)
+        {
+            if (itemSelector.checked){
+                const row = itemSelector.closest("tr");
+                const type = row.getAttribute("data-type");
+                const relativePath = row.getAttribute("data-path");
+                if (relativePath && (type === "directory" || type === "file")){
+                    const whereabouts = row.getAttribute("data-whereabouts");
+                    if(whereabouts === "Deposit"){
+                        const item = {
+                            path: relativePath,
+                            isDir: (type === "directory"),
+                            where: whereabouts
+                        };
+                        addToMetsObject.push(item);
+                        summary += "<tr><td>";
+                        summary += item.isDir ? "🗀" : "🗎";
+                        summary += " - </td><td>";
+                        summary += relativePath;
+                        summary += "</td></tr>";
+                    }
+                }
+            }
+        }
+        summary += "</table>";
+        addToMetsHelp.innerHTML = summary;
+        document.getElementById("addToMetsObject").value = JSON.stringify(addToMetsObject);
+        if (addToMetsObject.length > 0){
+            addToMetsButton.removeAttribute("disabled");
+        }
+    });
+    
+    
+    
     document.getElementById("deleteDepositModal").addEventListener("show.bs.modal", () => {
         confirmDepositDelete.checked = false;
         deleteDepositButton.disabled = "disabled";
@@ -410,10 +714,10 @@ ViewData["active"] = Model.Deposit?.Active;
             newFolderContext.value = path;
             newFolderContextIsFile.value = isFile;
             newFileContextIsFile.value = isFile;
-            deleteContext.value = path;
-            deleteContextIsFile.value = isFile;
-            deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;
-            deleteButton.removeAttribute("disabled");
+            // deleteContext.value = path;
+            // deleteContextIsFile.value = isFile;
+            // deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;
+            // deleteButton.removeAttribute("disabled");
             
             if (row.classList.contains("table-active")){
                 for (const r of rows) { r.classList.remove("table-active"); }
@@ -429,6 +733,9 @@ ViewData["active"] = Model.Deposit?.Active;
 </script>
 
 <script>
+    
+    // script for Upload File modal id=uploadFileModal
+    
     const fileSelector = document.getElementById('depositFile');
     const checksum = document.getElementById('checksum');
     const fileName = document.getElementById('depositFileName');
@@ -477,7 +784,6 @@ ViewData["active"] = Model.Deposit?.Active;
       return hexString;
     }
   
-
 </script>
 
 @if (TempData["Context"] != null)

@@ -1,20 +1,26 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using MediatR;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Features.ImportJobs.Requests;
+using Preservation.API.Mutation;
 
 namespace Preservation.API.Features.ImportJobs;
 
 
 [Route("deposits/{depositId}/[controller]")]
 [ApiController]
-public class ImportJobsController(IMediator mediator) : Controller
+public class ImportJobsController(
+    ILogger<ImportJobsController> logger,
+    IMediator mediator, 
+    ResourceMutator resourceMutator) : Controller
 {    
     [HttpGet("diff", Name = "GetDiffImportJob")]
     [ProducesResponseType<ImportJob>(200, "application/json")]
@@ -30,30 +36,90 @@ public class ImportJobsController(IMediator mediator) : Controller
         var validationResult = await ValidateDeposit(depositResult.Value!, 0);
         if (validationResult != null) return this.StatusResponseFromResult(validationResult);
         
-        var result = await mediator.Send(new GetDiffImportJob(depositResult.Value!));
+        var result = await mediator.Send(new GetDiffImportJob(depositResult.Value!, User));
+        if (result is { Success: true, Value: not null })
+        {
+            result.Value.OriginalId = GetDiffUri(depositId);
+        }
+        logger.LogInformation($"Controller returning import job: {result.Value.LogSummary()}");
         return this.StatusResponseFromResult(result);
     }
 
+    private Uri? GetDiffUri(string depositId)
+    {
+        Uri? diffUri = null;
+        // Set the originally requested diff URL
+        var presUri = resourceMutator.PreservationUri;
+        var hostWithPort = presUri.Host;
+        if (presUri.Port != 80 && presUri.Port != 443)
+        {
+            hostWithPort = presUri.Host + ":" + presUri.Port;
+        }
+        var diffRoute = Url.RouteUrl("GetDiffImportJob", 
+            new { depositId }, presUri.Scheme, hostWithPort);
+        if (diffRoute.HasText())
+        {
+            diffUri = new Uri(diffRoute.ToLowerInvariant());
+        }
+
+        return diffUri;
+    }
+
+    [HttpPost(Name = "ExecuteImportJob")]
+    [ProducesResponseType<ImportJobResult>(200, "application/json")]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    [ProducesResponseType(409)]
     public async Task<IActionResult> ExecuteImportJob([FromRoute] string depositId, [FromBody] ImportJob importJob,
         CancellationToken cancellationToken)
     {
+        logger.LogInformation("Import Jobs Controller: Executing Import Job " + importJob.LogSummary());
         var depositResult = await mediator.Send(new GetDeposit(depositId), cancellationToken);
         if (depositResult.Failure)
         {
+            logger.LogError("Unable to fetch deposit " + depositId);
             return this.StatusResponseFromResult(depositResult);
         }
 
         var deposit = depositResult.Value!;
-        var validationResult = await ValidateDeposit(deposit, 1);
+        var validationResult = await ValidateDeposit(deposit, 0);
         if (validationResult != null) return this.StatusResponseFromResult(validationResult);
         
         if (IsPostedDiffReference(importJob, Request.Path))
         {
-            var diffImportJobResult = await mediator.Send(new GetDiffImportJob(deposit), cancellationToken);
+            logger.LogInformation("Submitted import job is a diff reference, creating job...");
+            var diffImportJobResult = await mediator.Send(new GetDiffImportJob(deposit, User), cancellationToken);
             importJob = diffImportJobResult.Value!;
+            importJob.OriginalId = GetDiffUri(depositId);
         }
 
-        importJob.Deposit = deposit.Id;
+        Result<ImportJobResult>? checkDeposit;
+        if (importJob.Deposit is null)
+        {
+            var message = "Import job must declare which Deposit it is for.";
+            logger.LogWarning(message);
+            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
+            return this.StatusResponseFromResult(checkDeposit);
+        }
+        if (importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
+        {
+            var message = "Import job Deposit does not match the Deposit it was submitted to.";
+            logger.LogWarning(message);
+            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
+            return this.StatusResponseFromResult(checkDeposit);
+        }
+
+        foreach (var binary in importJob.BinariesToAdd.Union(importJob.BinariesToPatch))
+        {
+            if (!deposit.Files!.IsBaseOf(binary.Origin!))
+            {
+                var message = $"Binary origin {binary.Origin} is not a child of deposit file location {deposit.Files}.";
+                logger.LogWarning(message);
+                checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
+                return this.StatusResponseFromResult(checkDeposit);
+            }
+        }
+
         var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob), cancellationToken);
         return this.StatusResponseFromResult(executeImportJobResult, 201, executeImportJobResult.Value?.Id);
     }
@@ -87,25 +153,31 @@ public class ImportJobsController(IMediator mediator) : Controller
     
     private async Task<Result?> ValidateDeposit(Deposit existingDeposit, int maxCompleted)
     {
+        logger.LogInformation("Validating deposit " + existingDeposit.Id + " with maxCompleted " + maxCompleted);
         if (existingDeposit.Status == DepositStates.Exporting)
         {
+            logger.LogWarning("Invalid: Deposit is being exported - " + existingDeposit.Id);
             return Result.Fail(ErrorCodes.BadRequest, "Deposit is being exported");
         }
         if (existingDeposit.ArchivalGroup == null)
         {
+            logger.LogWarning("Invalid: Deposit has no Archival Group - " + existingDeposit.Id);
             return Result.Fail(ErrorCodes.BadRequest, "Deposit requires Archival Group");
         }
 
         var existingImportJobResultsResult = await mediator.Send(new GetImportJobResultsForDeposit(existingDeposit.Id!.GetSlug()!));
         if (existingImportJobResultsResult.Failure || existingImportJobResultsResult.Value == null)
         {
+            logger.LogError("Cannot check for existing import job results - " + existingDeposit.Id + " - " + existingImportJobResultsResult.CodeAndMessage());
             return Result.Fail(ErrorCodes.UnknownError, "Could not look for existing import jobs");
         }
         var notErrors = existingImportJobResultsResult.Value.Count(ijr => ijr.Status != ImportJobStates.CompletedWithErrors);
         if (notErrors > maxCompleted)
         {
+            logger.LogWarning("Invalid: there are " + notErrors + " existing non-error import jobs for " + existingDeposit.Id);
             return Result.Fail(ErrorCodes.Conflict, "There are existing import jobs for this deposit");
         }
+        logger.LogInformation("Deposit " + existingDeposit.Id + " is considered valid");
         return null;
     }
     

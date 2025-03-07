@@ -12,9 +12,10 @@ using Storage.Client;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class PatchDeposit(Deposit deposit) : IRequest<Result<Deposit>>
+public class PatchDeposit(Deposit deposit, ClaimsPrincipal principal) : IRequest<Result<Deposit>>
 {
     public Deposit? Deposit { get; } = deposit;
+    public ClaimsPrincipal Principal { get; } = principal;
 }
 
 public class PatchDepositHandler(
@@ -31,6 +32,7 @@ public class PatchDepositHandler(
         }
         try
         {
+            
             var mintedId = request.Deposit.Id!.GetSlug();
             
             var (archivalGroupExists, validateAgResult) = await ArchivalGroupRequestValidator
@@ -53,7 +55,7 @@ public class PatchDepositHandler(
             entity.ArchivalGroupPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot(true);
             entity.ArchivalGroupName = request.Deposit.ArchivalGroupName;
             
-            var callerIdentity = ClaimsPrincipal.Current.GetCallerIdentity();
+            var callerIdentity = request.Principal.GetCallerIdentity();
             entity.LastModifiedBy = callerIdentity;
             entity.LastModified = DateTime.UtcNow;
             await dbContext.SaveChangesAsync(cancellationToken);

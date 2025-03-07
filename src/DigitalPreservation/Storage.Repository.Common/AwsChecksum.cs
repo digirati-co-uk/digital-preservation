@@ -15,13 +15,13 @@ public class AwsChecksum
     /// <returns></returns>
     public static async Task<string?> GetHexChecksumAsync(IAmazonS3 s3Client, string bucket, string key)
     {
-        var objAttrsRequest = new GetObjectAttributesRequest()
+        var objAttrsRequest = new GetObjectAttributesRequest
         {
             BucketName = bucket,
             Key = key,
             ObjectAttributes = [ObjectAttributes.Checksum]
         };
-        var objAttrsResponse = await s3Client!.GetObjectAttributesAsync(objAttrsRequest);
+        var objAttrsResponse = await s3Client.GetObjectAttributesAsync(objAttrsRequest);
         string? base64Sha256 = objAttrsResponse?.Checksum?.ChecksumSHA256;
         return FromBase64ToHex(base64Sha256);
     }

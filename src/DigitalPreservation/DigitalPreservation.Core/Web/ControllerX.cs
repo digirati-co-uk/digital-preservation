@@ -16,6 +16,10 @@ public static class ControllerX
                 case 201:
                     if (createdLocation != null)
                     {
+                        if (result.Value is Uri)
+                        {
+                            return controller.Created(createdLocation, null);
+                        }
                         return controller.Created(createdLocation, result.Value);
                     }
                     throw new MissingFieldException("201 Created for a return type must have a location");

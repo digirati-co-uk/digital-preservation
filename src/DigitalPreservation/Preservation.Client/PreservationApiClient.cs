@@ -17,6 +17,13 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
+    
+    public async Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot)
+    {
+        var reqPath = $"validation/archivalgroup/{archivalGroupPathUnderRoot}";
+        return await TestArchivalGroupPathInternal(reqPath);
+    }
+    
     public async Task<Result<List<Uri>>> GetAllAgents(CancellationToken cancellationToken)
     {        
         try
@@ -40,6 +47,7 @@ internal class PreservationApiClient(
             return Result.FailNotNull<List<Uri>>(ErrorCodes.UnknownError, e.Message);
         }
     }
+
 
     public async Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken)
     {
@@ -90,19 +98,31 @@ internal class PreservationApiClient(
         string? archivalGroupProposedName,
         string? submissionText,
         bool useObjectTemplate,
+        bool export,
+        string? exportVersion,
         CancellationToken cancellationToken = default)
     {
+        Uri postTarget;
         var deposit = new Deposit
         {
             ArchivalGroup = archivalGroupRepositoryPath.HasText() ? new Uri(preservationHttpClient.BaseAddress!, archivalGroupRepositoryPath) : null,
             ArchivalGroupName = archivalGroupProposedName,
-            SubmissionText = submissionText,
-            UseObjectTemplate = useObjectTemplate
+            SubmissionText = submissionText
         };
+        if (export)
+        {
+            postTarget = new Uri($"/{Deposit.BasePathElement}/export", UriKind.Relative);
+            deposit.VersionExported = exportVersion;
+            deposit.UseObjectTemplate = useObjectTemplate; // TODO: for consideration, probably never happen after dev
+        }
+        else
+        {
+            postTarget = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
+            deposit.UseObjectTemplate = useObjectTemplate;
+        }
         try
         {
-            var uri = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
-            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(uri, deposit, cancellationToken);
+            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(postTarget, deposit, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var createdDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
@@ -120,8 +140,10 @@ internal class PreservationApiClient(
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
+    
+    
 
-    public async Task<Result<List<Deposit>>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
+    public async Task<Result<DepositQueryPage>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
     {        
         try
         {
@@ -136,19 +158,19 @@ internal class PreservationApiClient(
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
-                var deposits = await response.Content.ReadFromJsonAsync<List<Deposit>>(cancellationToken: cancellationToken);
+                var deposits = await response.Content.ReadFromJsonAsync<DepositQueryPage>(cancellationToken: cancellationToken);
                 if (deposits is not null)
                 {
                     return Result.OkNotNull(deposits);
                 }
-                return Result.FailNotNull<List<Deposit>>(ErrorCodes.NotFound, "No resource at " + uri);
+                return Result.FailNotNull<DepositQueryPage>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<List<Deposit>>();
+            return await response.ToFailNotNullResult<DepositQueryPage>();
         }
         catch (Exception e)
         {
             logger.LogError(e, e.Message);
-            return Result.FailNotNull<List<Deposit>>(ErrorCodes.UnknownError, e.Message);
+            return Result.FailNotNull<DepositQueryPage>(ErrorCodes.UnknownError, e.Message);
         }
     }
 
@@ -282,8 +304,45 @@ internal class PreservationApiClient(
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
-    
-    
+
+    public async Task<Result<(string, string)>> GetMetsWithETag(string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var relPath = $"/deposits/{depositId}/mets";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var eTag = response.Headers.ETag!.Tag;
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                return Result.OkNotNull((content, eTag));
+            }
+            return await response.ToFailResult<(string, string)>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<(string, string)>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken)
+    {
+        var path = "/content/" + repositoryPath.RemoveStart("/").RemoveStart(PreservedResource.BasePathElement);
+        var uri = new Uri(path, UriKind.Relative);
+        var req = new HttpRequestMessage(HttpMethod.Get, uri);
+        var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return (await response.Content.ReadAsStreamAsync(cancellationToken), 
+                response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream");
+        }
+
+        return (null, null);
+    }
+
 
     public async Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default)
     {

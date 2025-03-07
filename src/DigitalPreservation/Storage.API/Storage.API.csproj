@@ -8,7 +8,7 @@
 
     <ItemGroup>
       <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
-      <PackageReference Include="AWSSDK.S3" Version="3.7.402.11" />
+      <PackageReference Include="AWSSDK.S3" Version="3.7.413.1" />
       <PackageReference Include="AWSSDK.SecurityToken" Version="3.7.400.20" />
       <PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.400.21" />
       <PackageReference Include="Dapper" Version="2.1.35" />

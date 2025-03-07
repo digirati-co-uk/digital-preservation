@@ -46,16 +46,48 @@ ViewData["section"] = "deposits";
                 }
                 else
                 {
-                    @await Html.PartialAsync("_RenderImportJob", Model.ImportJob)
-                
-                
-                    <form method="post" asp-page-handler="ExecuteDiffDirect">
-                        <div class="mb-3">
-                            <button type="submit" class="btn btn-sm btn-primary me-2" id="runImport">
-                                <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>
-                            </button>
+                    if (Model.ItemsWithInvalidSlugs.Any())
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <p>This import job contains one or more items with invalid slugs:</p>
+                            <ul>
+                                @foreach (var res in Model.ItemsWithInvalidSlugs)
+                                {
+                                    <li>@res.StringIcon @res.GetPathUnderRoot()</li>
+                                }
+                            </ul>
+                            <p>Valid characters are <code>a-z 0-9 ._-</code> (not upper case) </p>
                         </div>
-                    </form>
+                    }
+                    if (Model.AddedBinariesWithInvalidContentTypes.Any())
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <p>This import job contains one or more items with an unidentified content type:</p>
+                            <ul>
+                                @foreach (var res in Model.AddedBinariesWithInvalidContentTypes)
+                                {
+                                    <li>@res.StringIcon @res.GetPathUnderRoot()</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    
+                    @await Html.PartialAsync("_RenderImportJob", Model.ImportJob)
+
+                    if (Model.ItemsWithInvalidSlugs.Any() || Model.AddedBinariesWithInvalidContentTypes.Any())
+                    {
+                        <p>This import job is invalid.</p>
+                    }
+                    else
+                    {
+                        <form class="single-submit" method="post" asp-page-handler="ExecuteDiffDirect">
+                            <div class="mb-3">
+                                <button type="submit" class="btn btn-sm btn-primary me-2" id="runImport">
+                                    <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>
+                                </button>
+                            </div>
+                        </form>
+                    }
                 
                     <hr/>
                 
@@ -63,7 +95,7 @@ ViewData["section"] = "deposits";
                     <p>UI to follow</p>
                     <form>
                         <div class="form-floating mb-3">
-                            <textarea class="form-control" id="importJobJson" name="importJobJson">@JsonSerializer.Serialize(Model.ImportJob)</textarea>
+                            <textarea class="form-control" id="importJobJson" name="importJobJson">@JsonSerializer.Serialize(Model.ImportJob, new JsonSerializerOptions{WriteIndented = true})</textarea>
                             <label for="importJobJson">Raw Import Job</label>
                         </div>
                         <div class="mb-3">
@@ -109,7 +141,7 @@ ViewData["section"] = "deposits";
                             @foreach (var error in jobResult.Errors)
                             {
                                 <div class="alert alert-danger" role="alert">
-                                    <p>@error</p>
+                                    <p>@error.Message</p>
                                 </div>
                             }
                         </dd>

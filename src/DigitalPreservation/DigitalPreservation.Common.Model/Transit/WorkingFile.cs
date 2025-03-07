@@ -4,6 +4,10 @@ namespace DigitalPreservation.Common.Model.Transit;
 
 public class WorkingFile : WorkingBase
 {
+    [JsonPropertyOrder(0)]
+    [JsonPropertyName("type")]
+    public override string Type { get; set; } = nameof(WorkingFile); 
+    
     [JsonPropertyName("contentType")]
     [JsonPropertyOrder(14)]
     public required string ContentType { get; set; }
@@ -15,4 +19,9 @@ public class WorkingFile : WorkingBase
     [JsonPropertyName("size")]
     [JsonPropertyOrder(16)]
     public long? Size { get; set; }
+    
+    [JsonPropertyName("formatInformation")]
+    [JsonPropertyOrder(101)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public FormatInformation? FormatInformation { get; set; }
 }

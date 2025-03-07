@@ -1,0 +1,95 @@
+﻿@using DigitalPreservation.Common.Model.Transit
+@using DigitalPreservation.Utils
+@using Storage.Repository.Common
+@model CombinedDirectoryRecursionWrapper
+
+@{
+    CombinedDirectory combinedDirectory = Model.CombinedDirectory;
+    var depth = 0;
+}
+
+<!--
+
+File is in the METS but not on disk
+File is on disk but not in METS
+File is in both
+
+"File is in neither" should never happen!
+... but could contribute to a files-to-be-deleted?
+
+-->
+@if (combinedDirectory.LocalPath.HasText())
+{
+    depth = combinedDirectory.LocalPath.Split('/').Length;
+    string where = combinedDirectory.Whereabouts.ToString().ToLowerInvariant();
+                   <tr class="deposit-row @("where-" + where)" 
+        data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts">
+        <td>
+            @if (Model is { Editable: true, Active: true } && combinedDirectory.LocalPath != "objects")
+            {
+                <input class="form-check-input item-selector item-directory" type="checkbox" 
+                       value="@combinedDirectory.LocalPath" id="@("is-" + Model.RowCounter.Count)">
+                <label class="form-check-label" for="@("is-" + Model.RowCounter.Count++)">@combinedDirectory.Whereabouts</label>
+            }
+        </td>
+        <td class="dep-actions">
+            @if (Model is { Editable: true, Active: true })
+            {
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#newFolderModal" aria-label="new folder">
+                    <svg class="bi"><use xlink:href="#folder-plus"/></svg>
+                </a>
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#uploadFileModal" aria-label="upload file">
+                    <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg>
+                </a>
+            }
+        </td>
+        <td style="padding-left: @(1.3 * depth)rem">
+            <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg> <span title="@combinedDirectory.LocalPath" aria-label="name">@(combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug())</span>
+        </td>
+        <td></td>
+        <td></td>
+        <td></td>
+    </tr>
+}
+@foreach (var dir in combinedDirectory.Directories)
+{
+    var wrapper = new CombinedDirectoryRecursionWrapper(dir, Model.MetsPath, Model.Editable, Model.Active, Model.RowCounter);
+    @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
+}
+@foreach (var file in combinedDirectory.Files)
+{
+    if (file.Name == IStorage.DepositFileSystem)
+    {
+        continue; // this file is hidden
+    }
+    string where = file.Whereabouts.ToString().ToLowerInvariant();
+    <tr class="deposit-row @("where-" + where)" 
+        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts">
+        <td>
+            @if (Model is { Editable: true, Active: true } && file.LocalPath != "mets.xml")
+            {
+                <input class="form-check-input item-selector item-file" type="checkbox" 
+                       value="@file.LocalPath" id="@("is-" + Model.RowCounter.Count)">
+                <label class="form-check-label" for="@("is-" + Model.RowCounter.Count++)">@file.Whereabouts</label>
+            }
+        </td>
+        <td class="dep-actions">
+        </td>
+        <td style="padding-left: @(1.3 * (depth + 1))rem">
+            <svg class="bi"><use xlink:href="#file-earmark@(where != "mets" ? "-plus" : "-text")"/></svg>
+            <span aria-label="name" title="@file.LocalPath">
+                @if (file.LocalPath.HasText() && file.LocalPath == Model.MetsPath)
+                {
+                    <a target="_blank" href="@(Context.Request.Path + "/mets")"><strong>@Model.MetsPath.GetSlug()</strong></a>
+                }
+                else
+                {
+                    @(file.Name ?? file.LocalPath?.GetSlug() ?? "{{ NO LOCALPATH }}")
+                }
+            </span>
+        </td>
+        <td aria-label="hash">@file.Digest?[..8]</td>
+        <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
+        <td aria-label="content-type">@file.ContentType</td>
+    </tr>
+} 

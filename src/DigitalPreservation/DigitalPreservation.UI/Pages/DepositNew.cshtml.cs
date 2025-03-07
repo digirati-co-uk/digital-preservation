@@ -19,7 +19,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         // list deposits
     }
 
-    public async Task<IActionResult> OnPostCreateForArchivalGroup(string archivalGroupPath)
+    public async Task<IActionResult> OnPostCreateForArchivalGroup(string archivalGroupPath, bool export, string? submissionText)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{archivalGroupPath}";
         var result = await mediator.Send(new GetResource(resourcePath));
@@ -28,7 +28,10 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             var model = new NewDepositModel
             {
                 ArchivalGroupPathUnderRoot = archivalGroupPath,
-                ArchivalGroupProposedName = result.Value!.Name!
+                ArchivalGroupProposedName = result.Value!.Name!,
+                SubmissionText = submissionText,
+                Export = export,
+                UseObjectTemplate = true // TODO - this will cause a METS to be created if one can't be found
             };
             return await OnPostCreate(model);
         }
@@ -47,7 +50,10 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                 newDepositModel.ArchivalGroupPathUnderRoot,
                 newDepositModel.ArchivalGroupProposedName,
                 newDepositModel.SubmissionText,
-                newDepositModel.UseObjectTemplate));
+                newDepositModel.UseObjectTemplate,
+                newDepositModel.Export,
+                exportVersion: null // always do this from UI; only supports exporting HEAD
+                ));
             if (result.Success)
             {
                 TempData["CreateDepositSuccess"] = "Created new deposit";
@@ -102,9 +108,10 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                 return false;
             }
 
-            if (depositsForArchivalGroupResult.Value is { Count: > 0 })
+            var deposits = depositsForArchivalGroupResult.Value!.Deposits;
+            if (deposits is { Count: > 0 })
             {
-                var activeDeposit = depositsForArchivalGroupResult.Value.FirstOrDefault(d => d.Active); // should be SingleOrDefault
+                var activeDeposit = deposits.FirstOrDefault(d => d.Active); // should be SingleOrDefault
                 if (activeDeposit is { Active: true })
                 {
                     var depositPath = "/deposits/" + activeDeposit.Id!.GetSlug();

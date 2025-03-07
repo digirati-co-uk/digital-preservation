@@ -22,25 +22,37 @@ public class ImportJobRunner(
             if (executeResult.Success)
             {
                 var jobResult = executeResult.Value!;
-                // what version are we now on?
+                // The job itself may have failed at this point, but the result is still a success
+                // what version are we now on? This may be unchanged if the job itself failed
                 var agResult = await mediator.Send(new GetResourceFromFedora(jobResult.ArchivalGroup.GetPathUnderRoot()), cancellationToken);
                 if (agResult.Success)
                 {
                     if (agResult.Value is ArchivalGroup ag)
                     {
                         jobResult.NewVersion = ag.Version!.OcflVersion;
-                        await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, cancellationToken);
-                        logger.LogInformation("Saving Import Job Result: " + executeResult.Value!.Id);
-                        // At this point we could broadcast a message
-                        return;
+                        logger.LogInformation("Import Job new version is " + jobResult.NewVersion + " for " + jobResult.Id);
                     }
-                    logger.LogError("Resource is not an Archival Group: " + agResult.Value);
-                    return;
+                    else
+                    {
+                        logger.LogError("Resource is not an Archival Group: " + agResult.Value);
+                    }
                 }
-                logger.LogError("Unable to obtain saved Archival Group: " + agResult.CodeAndMessage());
+                else
+                {
+                    logger.LogError("Unable to obtain saved Archival Group (maybe because of a failed create): " + agResult.CodeAndMessage());
+                }
+                var finalUpdateResult = await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, cancellationToken);
+                if (finalUpdateResult.Success)
+                {
+                    logger.LogInformation("Saved Import Job Result: " + jobResult.Id);
+                }
+                else
+                {
+                    logger.LogError("Failed to update final import job: " + jobResult.Id + ", " + finalUpdateResult.CodeAndMessage());
+                }
                 return;
             }
-            logger.LogError("Unable to execute Import Job Result: " + executeResult.CodeAndMessage());
+            logger.LogError("Unable to execute Import Job Result, and did not fail early cleanly: " + executeResult.CodeAndMessage());
             return;
         }
         logger.LogError("Unable to load Import Job: " + importJob.CodeAndMessage());

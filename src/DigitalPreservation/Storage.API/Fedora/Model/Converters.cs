@@ -19,6 +19,7 @@ public class Converters
     private readonly Uri agentRootUri;
     private readonly string transientRoot;
     private readonly string importRoot;
+    private readonly string exportRoot;
 
     // We could register the vocab with Fedora and alias the type
     // But this will always work without having to do anything special to Fedora.
@@ -40,6 +41,7 @@ public class Converters
         agentRootUri = new Uri(agentRoot);
         transientRoot = converterOptions.Value.TransientRoot.ToString();
         importRoot = converterOptions.Value.ImportRoot.ToString();
+        exportRoot = converterOptions.Value.ExportRoot.ToString();
     }
     
     public ArchivalGroup MakeArchivalGroup(FedoraJsonLdResponse fedoraJsonLdResponse)
@@ -92,7 +94,7 @@ public class Converters
     private void PopulateBaseFields(PreservedResource resource, FedoraJsonLdResponse fedoraJsonLdResponse)
     {
         resource.Id = ConvertToRepositoryUri(fedoraJsonLdResponse.Id);
-        resource.Name = fedoraJsonLdResponse.Title;
+        resource.Name = fedoraJsonLdResponse.Title ?? resource.Id.GetSlug();
         resource.Created = fedoraJsonLdResponse.Created;
         resource.CreatedBy = ConvertToAgentUri(fedoraJsonLdResponse.CreatedBy);
         resource.LastModified = fedoraJsonLdResponse.LastModified;
@@ -172,6 +174,11 @@ public class Converters
     public Uri GetStorageImportJobResultId(string archivalGroupPathUnderRoot, string jobIdentifier)
     {
         return new Uri($"{importRoot}results/{jobIdentifier}/{archivalGroupPathUnderRoot}");
+    }
+
+    public Uri GetExportResultId(string identifier)
+    {
+        return new Uri($"{exportRoot}{identifier}");
     }
 
     public string? GetResourcePathPart(Uri fedoraOrStorageUri)

@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
 using MediatR;
@@ -25,21 +26,28 @@ public class ExecuteImportJobHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
+        logger.LogInformation("ExecuteImportJobHandler handling import job " + request.ImportJob.LogSummary());
         var now = DateTime.UtcNow;
         var mintedId = identityService.MintIdentity(nameof(ImportJob));
+        logger.LogInformation("Identity service gave us id for import job: " + mintedId);
         var storageApiImportJob = Duplicate(request.ImportJob);
+        logger.LogInformation("Mutating Preservation Import Job");
         resourceMutator.MutatePreservationImportJob(storageApiImportJob);
         var storageImportJobResultResult = await storageApi.ExecuteImportJob(storageApiImportJob, cancellationToken);
         if (storageImportJobResultResult is { Success: true, Value: not null })
         {
+            logger.LogInformation("Storage API accepted import job");
             var storageImportJobResult = storageImportJobResultResult.Value;
+            logger.LogInformation("Storage API returned Import Job Result " + storageImportJobResult.LogSummary());
             var preservationImportJobResult = Duplicate(storageImportJobResult);
             resourceMutator.MutateStorageImportJobResult(preservationImportJobResult, request.ImportJob.Deposit!, mintedId);
+            preservationImportJobResult.OriginalImportJob = request.ImportJob.OriginalId;
+            logger.LogInformation("Mutated into Preservation API Import Job Result " + preservationImportJobResult.LogSummary());
             var entity = new ImportJobEntity
             {
                 StorageImportJobResultId = storageImportJobResult.Id!,
                 Id = mintedId,
-                ArchivalGroup = request.ImportJob.ArchivalGroup,
+                ArchivalGroup = request.ImportJob.ArchivalGroup!,
                 ImportJobJson = JsonSerializer.Serialize(request.ImportJob),
                 Status = storageImportJobResult.Status,
                 Deposit = request.ImportJob.Deposit!.GetSlug()!,
@@ -50,11 +58,13 @@ public class ExecuteImportJobHandler(
                 LatestPreservationApiResultJson = JsonSerializer.Serialize(preservationImportJobResult)
             };
             dbContext.ImportJobs.Add(entity);
+            logger.LogInformation("Saving Import Job entity " + entity.Id + " to DB");
             await dbContext.SaveChangesAsync(cancellationToken);
             
             return Result.OkNotNull(preservationImportJobResult);
         }
 
+        logger.LogWarning("Import job did not execute: " + storageImportJobResultResult.CodeAndMessage());
         return storageImportJobResultResult;
     }
 

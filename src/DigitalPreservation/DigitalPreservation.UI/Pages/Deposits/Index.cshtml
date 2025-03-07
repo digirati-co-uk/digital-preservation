@@ -42,7 +42,7 @@
 <div id="depositSearchForm" class="collapse @(showForm ? "show" : "") pb-4">
 
     <div class="container">
-        <form method="get" action="/deposits">
+        <form class="single-submit" method="get" action="/deposits">
             <input type="hidden" id="showAllHidden" name="showAll" value="@showAll.ToString().ToLowerInvariant()" />
             <input type="hidden" id="showFormHidden" name="showForm" value="@showForm.ToString().ToLowerInvariant()" />
             <div class="row mb-3">
@@ -326,6 +326,9 @@
         </tbody>
     </table>
 </div>
+
+@await Component.InvokeAsync("Pager", new { values = Model.PagerValues })
+
 
 
 <partial name="Shared/_NewDepositForm"/>

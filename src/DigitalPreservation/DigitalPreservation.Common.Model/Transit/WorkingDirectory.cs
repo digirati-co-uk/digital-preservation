@@ -5,6 +5,12 @@ namespace DigitalPreservation.Common.Model.Transit;
 
 public class WorkingDirectory : WorkingBase
 {
+    public const string DefaultRootName = "__ROOT";
+    
+    [JsonPropertyOrder(0)]
+    [JsonPropertyName("type")]
+    public override string Type { get; set; } = nameof(WorkingDirectory); 
+    
     [JsonPropertyName("files")]
     [JsonPropertyOrder(5)]
     public List<WorkingFile> Files { get; set; } = [];
@@ -13,6 +19,13 @@ public class WorkingDirectory : WorkingBase
     [JsonPropertyOrder(6)]
     public List<WorkingDirectory> Directories { get; set; } = [];
 
+    public WorkingFile? FindFile(string path)
+    {
+        var parent = FindDirectory(path.GetParent());
+        var slug = path.GetSlug();
+        return parent?.Files.SingleOrDefault(f => f.LocalPath.GetSlug() == slug);
+    }
+    
     public WorkingDirectory? FindDirectory(string? path, bool create = false)
     {
         if (path.IsNullOrWhiteSpace() || path == "/")

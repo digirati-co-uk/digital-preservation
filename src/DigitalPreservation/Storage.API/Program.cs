@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
 using Serilog;
 using Storage.API.Data;
+using Storage.API.Features.Export;
+using Storage.API.Features.Export.Data;
 using Storage.API.Features.Import;
 using Storage.API.Features.Import.Data;
 using Storage.API.Fedora;
@@ -60,8 +62,8 @@ try
         .AddFedoraDB(builder.Configuration, "Fedora")
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
-        .AddScoped<IImportJobResultStore,
-            ImportJobResultStore>() // only for Storage API; happens after above for shared S3
+        .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
+        .AddScoped<IExportResultStore, ExportResultStore>() // only for Storage API; happens after above for shared S3
         .AddStorageHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddStorageContext(builder.Configuration)
@@ -74,11 +76,18 @@ try
         });
 
 
+    // Storage API's in-process queues. These will become separate services later.
     builder.Services
         .AddHostedService<ImportJobExecutorService>()
         .AddScoped<ImportJobRunner>()
         .AddSingleton<IImportJobQueue, InProcessImportJobQueue>();
 
+    builder.Services
+        .AddHostedService<ExportExecutorService>()
+        .AddScoped<ExportRunner>()
+        .AddSingleton<IExportQueue, InProcessExportQueue>();
+    
+    
     var app = builder.Build();
     app
         .UseMiddleware<CorrelationIdMiddleware>()

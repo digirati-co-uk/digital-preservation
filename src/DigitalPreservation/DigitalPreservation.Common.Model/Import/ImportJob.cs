@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using DigitalPreservation.Common.Model.Storage;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Import;
 
@@ -8,6 +9,10 @@ public class ImportJob : Resource
     [JsonPropertyOrder(2)]
     [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(ImportJob);
+    
+    [JsonPropertyOrder(3)]
+    [JsonPropertyName("originalId")]
+    public Uri? OriginalId { get; set; }
     
     /// <summary>
     /// The Deposit that was used to generate this job, and to which it will be sent if executed.
@@ -99,6 +104,14 @@ public class ImportJob : Resource
     [JsonPropertyOrder(650)]
     public List<Binary> BinariesToPatch { get; set; } = [];
     
+    
+    
+    
+    
+    
+    
+    
+    
     // TODO: (not for demo) - change name (dc:title) of containers and binaries
     /// <summary>
     /// This cannot change the slug (path) but can change the name - i.e., the dc:title
@@ -113,4 +126,27 @@ public class ImportJob : Resource
     public List<Binary> BinariesToRename { get; set; } = [];
     
     // (metadata to change?) more general. NOT for Oct demo.
+
+    public List<PreservedResource> ItemsWithInvalidSlugs()
+    {
+        var items = new List<PreservedResource>();
+        items.AddRange(ContainersToAdd.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(ContainersToRename.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(ContainersToDelete.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(BinariesToAdd.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(BinariesToPatch.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(BinariesToRename.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        items.AddRange(BinariesToDelete.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
+        return items;
+    }
+
+    public List<Binary> AddedBinariesWithInvalidContentTypes()
+    {
+        var binaries = new List<Binary>();
+        binaries.AddRange(BinariesToAdd.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
+        binaries.AddRange(BinariesToPatch.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
+        // may be not required here
+        // binaries.AddRange(BinariesToRename.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
+        return binaries;
+    }
 }

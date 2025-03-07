@@ -13,7 +13,7 @@ public class RdfTests
         msg.AppendRdf("ex", "http://example.com", "<> ex:thing \"some-value\"");
         
         // Assert
-        ((StringContent)msg.Content).ReadAsStringAsync().Result.Should()
+        ((StringContent)msg.Content!).ReadAsStringAsync().Result.Should()
             .Be($"""
                   PREFIX ex: <http://example.com>
                   <> ex:thing "some-value" .
@@ -31,7 +31,7 @@ public class RdfTests
         msg.AppendRdf("dc", "http://dc2.com", "<> dc:yyyy \"some-other-value\"");
         
         // Assert
-        ((StringContent)msg.Content).ReadAsStringAsync().Result.Should()
+        ((StringContent)msg.Content!).ReadAsStringAsync().Result.Should()
             .Be($"""
                  PREFIX ex: <http://example.com>
                  PREFIX dc: <http://dc2.com>
@@ -51,7 +51,7 @@ public class RdfTests
         msg.AppendRdf("fedora", "http://fedora.info/definitions/v4/repository#", "<> fedora:createdBy \"Tom\"");
         
         // Assert
-        ((StringContent)msg.Content).ReadAsStringAsync().Result.Should()
+        ((StringContent)msg.Content!).ReadAsStringAsync().Result.Should()
             .Be($"""
                  PREFIX ex: <http://example.com>
                  PREFIX dc: <http://dc2.com>
@@ -74,7 +74,7 @@ public class RdfTests
         msg.AppendRdf("dc", "http://dc2.com", "<> dc:zzzz \"another-value\"");
         
         // Assert
-        ((StringContent)msg.Content).ReadAsStringAsync().Result.Should()
+        ((StringContent)msg.Content!).ReadAsStringAsync().Result.Should()
             .Be($"""
                  PREFIX ex: <http://example.com>
                  PREFIX dc: <http://dc2.com>

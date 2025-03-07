@@ -1,8 +1,10 @@
-﻿using DigitalPreservation.CommonApiClient;
+using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Workspace;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
@@ -11,6 +13,7 @@ using Serilog;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 using Microsoft.Identity.Web.UI;
+using Storage.Repository.Common.Mets;
 
 
 
@@ -73,8 +76,12 @@ try
         {
             cfg.RegisterServicesFromAssemblyContaining<Program>();
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+            cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
         .AddStorageAwsAccess(builder.Configuration)
+        .AddSingleton<IMetsParser, MetsParser>()
+        .AddSingleton<IMetsManager, MetsManager>()
+        .AddSingleton<WorkspaceManagerFactory>()
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks();
 

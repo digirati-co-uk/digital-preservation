@@ -17,4 +17,5 @@ public class NewDepositModel
     public bool FromBrowseContext { get; set; }
 
     public bool UseObjectTemplate { get; set; } = true;
+    public bool Export { get; set; }
 }

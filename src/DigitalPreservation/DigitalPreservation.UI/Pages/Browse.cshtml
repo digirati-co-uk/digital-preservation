@@ -13,7 +13,7 @@
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
 
-        @if (Model.Resource.PartOf == null && Model.Resource is not ArchivalGroup)
+        @if (Model.Resource!.PartOf == null && Model.Resource is not ArchivalGroup)
         {
             <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newContainerModal">
                 📁 New Folder
@@ -160,7 +160,7 @@
                             {
                             <text> class="table-info" </text>
                             }
-                            else if (version.Equals(ag.StorageMap.HeadVersion))
+                            else if (version.Equals(ag.StorageMap!.HeadVersion))
                             {
                             <text> class="table-primary" </text>
                             }
@@ -318,7 +318,7 @@
     <div class="modal fade" id="deleteContainerModal" tabindex="-1" aria-labelledby="deleteContainerModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form method="post" action="/deletecontainer">
+                <form class="single-submit" method="post" action="/deletecontainer">
                     <input type="hidden" name="pathUnderRoot" value="@Model.PathUnderRoot" />
                     <div class="modal-header">
                         <h1 class="modal-title fs-5" id="deleteContainerModalLabel"> Delete/Purge Container</h1>
@@ -346,7 +346,7 @@
 <div class="modal fade" id="newContainerModal" tabindex="-1" aria-labelledby="newContainerModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post">
+            <form class="single-submit" method="post">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="newContainerModalLabel"> 📁 New Folder</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -381,47 +381,26 @@
             </div>
             @if (Model.ArchivalGroupPath.HasText())
             {
-                <form method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
+                <form class="single-submit" method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
                     <div class="modal-body">
                         <div class="mb-3">
-                            <p>Creating a new Deposit for existing Archival Group @Model.ArchivalGroupPath</p>
+                            <p>Creating a new Deposit for an existing Archival Group<br/>
+                            <code>@Model.ArchivalGroupPath</code></p>
                         </div>
-                        
-                        What type of deposit?
-                        
-                        these both create the same type of deposit but the second will not populate the 
-                        Empty (Absent files will be removed)
-                        Empty (Add only)
-                        Export (will create an export job, may take a while for a large deposit)
-                        
-                        To what extent will this be different when the METS file is ALWAYS exported?
-                        Maybe that makes the difference, maybe should go straight to METS
-                        
-                        1. Replace the __METSlike.json with a REAL mets file (but keep it for file building? No, need to hang things off it)
-                        
-                        Look at the old mets parsing code, you'll need that
-                        
-                        Extension methods on XML?
-                        Simple to read and write. But compatible with Goobi definitely.
-                        
-                    </div>
-
-
-                    <div class="modal-body">
                         <div class="mb-3 form-check">
-                            <input type="checkbox" name="purge" value="true" class="form-check-input" id="purgeCheck" checked aria-describedby="purgeHelp">
-                            <label class="form-check-label" for="purgeCheck">Purge (allow re-use of URL)</label>
-                            <div id="purgeHelp" class="form-text">Purging the container will allow a resource to be created later at the same URL. If this box is unchecked, the URL is left reserved, and a resource cannot be created here later.</div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="submissionText" class="form-label">Note (optional)</label>
-                            <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
-                            <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                            <input type="checkbox" name="export" value="true" class="form-check-input" id="exportCheck" aria-describedby="exportHelp">
+                            <label class="form-check-label" for="exportCheck">Export to S3</label>
+                            <div id="exportHelp" class="form-text">
+                                The content of the preserved object will be copied to the S3 working location. This is useful when verifying differences between versions but is not required for making updates.<br/>
+                                Exporting a large ArchivalGroup may take some time.
+                            </div>                  
+                            <div class="mb-3 mt-3">
+                                <label for="submissionText" class="form-label">Note (optional)</label>
+                                <input type="text" class="form-control" id="submissionText" name="submissionText" aria-describedby="submissionTextHelp">
+                                <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                            </div>
                         </div>
                     </div>
-
-
                     <div class="modal-footer">
                         <input type="hidden" name="archivalGroupPath" value="@Model.ArchivalGroupPath"/>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -431,7 +410,7 @@
             }
             else
             {
-                <form method="post" asp-page="DepositNew" asp-page-handler="Create">
+                <form class="single-submit" method="post" asp-page="DepositNew" asp-page-handler="Create">
 
                     <div class="modal-body">
                         <div class="mb-3">

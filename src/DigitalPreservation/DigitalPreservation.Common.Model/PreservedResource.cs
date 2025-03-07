@@ -45,8 +45,12 @@ public abstract class PreservedResource : Resource
         return parts.All(ValidSlug);
     }
     
-    public static bool ValidSlug(string slug)
+    public static bool ValidSlug(string? slug)
     {
+        if (slug.IsNullOrWhiteSpace())
+        {
+            return false;
+        }
         var len = slug.Length;
         var valid = len is >= 1 and <= 254;
         if (!valid) return valid;

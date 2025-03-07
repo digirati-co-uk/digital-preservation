@@ -11,7 +11,7 @@ using DepositEntity = Preservation.API.Data.Entities.Deposit;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class GetDeposits(DepositQuery? query) : IRequest<Result<List<Deposit>>>
+public class GetDeposits(DepositQuery? query) : IRequest<Result<DepositQueryPage>>
 {
     public DepositQuery? Query  { get; } = query;
 }
@@ -19,20 +19,21 @@ public class GetDeposits(DepositQuery? query) : IRequest<Result<List<Deposit>>>
 public class GetDepositsHandler(
     ILogger<GetDepositsHandler> logger,
     PreservationContext dbContext,
-    ResourceMutator resourceMutator) : IRequestHandler<GetDeposits, Result<List<Deposit>>>
+    ResourceMutator resourceMutator) : IRequestHandler<GetDeposits, Result<DepositQueryPage>>
 {
-    public async Task<Result<List<Deposit>>> Handle(GetDeposits request, CancellationToken cancellationToken)
+    public async Task<Result<DepositQueryPage>> Handle(GetDeposits request, CancellationToken cancellationToken)
     {
         try
         {
             IQueryable<DepositEntity> queryable;
+            int total = 0;
             
             if (request.Query is null || request.Query.NoTerms())
             {
                 queryable = dbContext.Deposits
                     .Where(d => d.Active)
                     .AsQueryable();
-                //return Result.OkNotNull(resourceMutator.MutateDeposits(noQueryEntities));
+                total = await queryable.CountAsync(cancellationToken);
             }
             else
             {
@@ -120,6 +121,7 @@ public class GetDepositsHandler(
                 }
 
                 queryable = dbContext.Deposits.Where(predicate);
+                total = await queryable.CountAsync(cancellationToken);
             }
 
             var orderBy = request.Query?.OrderBy ?? DepositQuery.Created;
@@ -178,14 +180,26 @@ public class GetDepositsHandler(
                         : queryable.OrderByDescending(x => x.Created);
                     break;
             }
-            var result = await queryable.Take(500).ToListAsync(cancellationToken: cancellationToken);
+
+            var depositPage = new DepositQueryPage
+            {
+                Deposits = [],
+                Page = request.Query?.Page ?? 1,
+                PageSize = request.Query?.PageSize ?? 100,
+                Total = total
+            };
+            var result = await queryable
+                .Skip((depositPage.Page - 1) * depositPage.PageSize)
+                .Take(depositPage.PageSize)
+                .ToListAsync(cancellationToken: cancellationToken);
             var deposits = resourceMutator.MutateDeposits(result);
-            return Result.OkNotNull(deposits);
+            depositPage.Deposits = deposits;
+            return Result.OkNotNull(depositPage);
         }
         catch (Exception e)
         {
             logger.LogError(e, e.Message);
-            return Result.FailNotNull<List<Deposit>>(ErrorCodes.UnknownError, e.Message);
+            return Result.FailNotNull<DepositQueryPage>(ErrorCodes.UnknownError, e.Message);
         }
     }
 }
