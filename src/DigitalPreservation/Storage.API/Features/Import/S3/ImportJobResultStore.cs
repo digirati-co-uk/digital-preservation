@@ -24,7 +24,7 @@ public class ImportJobResultStore(
         throw new NotImplementedException();
     }
 
-    public Task<Result<List<ImportJobResult>>> GetActivityPageOfResults(int page, int pageSize, CancellationToken cancellationToken)
+    public Task<Result<List<DigitalPreservation.Common.Model.ChangeDiscovery.Activity>>> GetActivityPageOfResults(int page, int pageSize, CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }

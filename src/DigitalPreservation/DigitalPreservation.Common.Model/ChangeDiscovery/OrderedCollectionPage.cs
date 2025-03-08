@@ -36,4 +36,7 @@ public class OrderedCollectionPage : ResourceWithContext
     [JsonPropertyName("orderedItems")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<Activity>? OrderedItems { get; set; } 
+    
+    // You don't have to use this size, obviously.
+    public const int DefaultPageSize = 100;
 }

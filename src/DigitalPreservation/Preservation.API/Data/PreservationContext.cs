@@ -9,9 +9,15 @@ public class PreservationContext : DbContext
 {
     public DbSet<Deposit> Deposits { get; set; }
     public DbSet<ImportJob> ImportJobs { get; set; }
+    public DbSet<ArchivalGroupEvent> ArchivalGroupEvents { get; set; }
     
     public PreservationContext(DbContextOptions<PreservationContext> options) : base(options)
     {
+    }
+
+    public ImportJob? GetImportJobFromStorageImportJobResult(Uri storageResultUri)
+    {
+        return ImportJobs.SingleOrDefault(j => j.StorageImportJobResultId == storageResultUri);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

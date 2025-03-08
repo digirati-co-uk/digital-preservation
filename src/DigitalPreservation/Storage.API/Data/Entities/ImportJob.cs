@@ -14,4 +14,6 @@ public class ImportJob
     public bool Active { get; set; } = true;
     public DateTime? Received { get; set; }
     public DateTime? EndTime { get; set; }
+    
+    public Uri? ImportJobResultUri { get; set; }
 }

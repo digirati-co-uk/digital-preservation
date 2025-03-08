@@ -4,10 +4,6 @@ namespace DigitalPreservation.Common.Model.ChangeDiscovery;
 
 public abstract class Activity
 {
-    [JsonPropertyOrder(1)]
-    [JsonPropertyName("id")]
-    public required Uri Id { get; set; }
-    
     [JsonPropertyOrder(2)]
     [JsonPropertyName("type")]
     public abstract string Type { get; }

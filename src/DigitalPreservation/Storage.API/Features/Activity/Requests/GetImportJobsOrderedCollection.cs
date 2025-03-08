@@ -21,17 +21,17 @@ public class GetImportJobsOrderedCollectionHandler(
             return Result.FailNotNull<OrderedCollection>(ErrorCodes.UnknownError, totalItemsResult.ErrorMessage);
         }
         var id = converters.ActivityUri("importjobs/collection");
-        int totalPages = totalItemsResult.Value / 100;
+        int totalPages = (totalItemsResult.Value / OrderedCollectionPage.DefaultPageSize) + 1;
         var collection = new OrderedCollection
         {
             Id = id,
             First = new OrderedCollectionPage
             {
-                Id = converters.ActivityUri("importjobs/pages/0")
+                Id = converters.ActivityUri("importjobs/pages/1")
             },
             Last =  new OrderedCollectionPage
             {
-                Id = converters.ActivityUri($"importjobs/pages/{totalPages - 1}")
+                Id = converters.ActivityUri($"importjobs/pages/{totalPages}")
             },
             TotalItems = totalItemsResult.Value
         };

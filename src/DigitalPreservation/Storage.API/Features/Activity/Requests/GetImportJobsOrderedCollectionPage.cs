@@ -1,6 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
-using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Storage.API.Features.Import;
@@ -19,15 +18,48 @@ public class GetImportJobsOrderedCollectionPageHandler(
 {
     public async Task<Result<OrderedCollectionPage>> Handle(GetImportJobsOrderedCollectionPage request, CancellationToken cancellationToken)
     {
-        
-        Result<List<ImportJobResult>> pageResult = await importJobResultStore.GetActivityPageOfResults(request.Page, 100, cancellationToken);
+        var totalItemsResult = await importJobResultStore.GetTotalImportJobs(cancellationToken);
+        if (totalItemsResult is not { Success: true, Value: > 0 })
+        {
+            return Result.FailNotNull<OrderedCollectionPage>(ErrorCodes.UnknownError, totalItemsResult.ErrorMessage);
+        }
+        var pageResult = await importJobResultStore.GetActivityPageOfResults(
+            request.Page, 
+            OrderedCollectionPage.DefaultPageSize, 
+            cancellationToken);
         if (pageResult is not { Success: true, Value: not null })
         {
             return Result.FailNotNull<OrderedCollectionPage>(ErrorCodes.UnknownError, pageResult.ErrorMessage);
         }
-        var id = converters.ActivityUri($"importjobs/pages/{request.Page}");
+
+        int startIndex = (request.Page - 1) * OrderedCollectionPage.DefaultPageSize;
+        int totalItems = totalItemsResult.Value;
+        var page = new OrderedCollectionPage
+        {
+            Id = converters.ActivityUri($"importjobs/pages/{request.Page}"),
+            PartOf = new OrderedCollection
+            {
+                Id = converters.ActivityUri("importjobs/collection"),
+            },
+            StartIndex = startIndex,
+            OrderedItems = pageResult.Value
+        };
+        if (request.Page > 1)
+        {
+            page.Prev = new OrderedCollectionPage
+            {
+                Id = converters.ActivityUri($"importjobs/pages/{request.Page - 1}"),
+            };
+        }
+        if (totalItems > startIndex + OrderedCollectionPage.DefaultPageSize)
+        {
+            page.Next = new OrderedCollectionPage
+            {
+                Id = converters.ActivityUri($"importjobs/pages/{request.Page + 1}"),
+            };
+        }
+        page.WithContext();
         
-        Build the page!!
-        throw new NotImplementedException();
+        return Result.OkNotNull(page);
     }
 }

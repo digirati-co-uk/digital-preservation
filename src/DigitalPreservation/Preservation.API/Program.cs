@@ -7,6 +7,8 @@ using Microsoft.Identity.Web;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Workspace;
 using Preservation.API.Data;
+using Preservation.API.Features.Activity;
+using Preservation.API.Features.Activity.Readers;
 using Preservation.API.Infrastructure;
 using Preservation.API.Mutation;
 using Serilog;
@@ -71,7 +73,9 @@ try
         });
 
    
-    
+    builder.Services
+        .AddHostedService<StorageImportJobsService>()
+        .AddScoped<StorageImportJobsProcessor>();
     
     var app = builder.Build();
     app
