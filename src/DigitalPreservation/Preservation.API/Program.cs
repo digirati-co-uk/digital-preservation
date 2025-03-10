@@ -72,10 +72,10 @@ try
             }
         });
 
-   
-    builder.Services
-        .AddHostedService<StorageImportJobsService>()
-        .AddScoped<StorageImportJobsProcessor>();
+    //
+    // builder.Services
+    //     .AddHostedService<StorageImportJobsService>()
+    //     .AddScoped<StorageImportJobsProcessor>();
     
     var app = builder.Build();
     app

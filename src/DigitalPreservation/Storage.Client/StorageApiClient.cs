@@ -32,8 +32,13 @@ public class StorageApiClient(
         var importJobsUri = new Uri("/activity/importjobs/collection", UriKind.Relative);
         try
         {
-            var activities = await reader.ReadActivityStream(importJobsUri, after);
-            return Result.OkNotNull(activities.ToList());
+            // for now let's just collect these into a list, to be the value of a Result
+            List<Activity> activities = [];
+            await foreach (var activity in reader.ReadActivityStream(importJobsUri, after).WithCancellation(cancellationToken))
+            {
+                activities.Add(activity);
+            }
+            return Result.OkNotNull(activities);
         }
         catch (Exception e)
         {

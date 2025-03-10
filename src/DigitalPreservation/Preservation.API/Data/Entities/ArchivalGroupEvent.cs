@@ -3,6 +3,10 @@ namespace Preservation.API.Data.Entities;
 
 public class ArchivalGroupEvent
 {
+    /// <summary>
+    /// Auto incrementing PK for ArchivalGroupEvent
+    /// </summary>
+    public int Id { get; set; }
     public required DateTime EventDate { get; set; }
     public required Uri ArchivalGroup  { get; set; }
     public Uri? ImportJobResult { get; set; }
