@@ -54,7 +54,7 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
             {
                 return Result.FailNotNull<ItemsAffected>(
                     addResult.ErrorCode!,
-                    $"MetsManager::AddToMets failed after {goodResult.Items.Count}, " +
+                    $"MetsManager::AddToMets failed after {goodResult.Items.Count} items, " +
                             $"unable to write update METS file. {addResult.ErrorMessage}");
             }
         }
@@ -66,7 +66,7 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
             {
                 return Result.FailNotNull<ItemsAffected>(
                     writeMetsResult.ErrorCode!,
-                    $"DeleteItems failed after {goodResult.Items.Count}, unable to update METS file.");
+                    $"DeleteItems failed after {goodResult.Items.Count} items. Unable to update METS file.");
                 
             }
         }
