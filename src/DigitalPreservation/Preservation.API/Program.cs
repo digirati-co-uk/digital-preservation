@@ -72,7 +72,7 @@ try
             }
         });
 
-    //
+    // trigger build to remove these
     // builder.Services
     //     .AddHostedService<StorageImportJobsService>()
     //     .AddScoped<StorageImportJobsProcessor>();
