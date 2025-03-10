@@ -35,6 +35,7 @@ public class GetImportJobsOrderedCollectionHandler(
             },
             TotalItems = totalItems
         };
+        collection.WithContext();
         return Result.OkNotNull(collection);
     }
 }
