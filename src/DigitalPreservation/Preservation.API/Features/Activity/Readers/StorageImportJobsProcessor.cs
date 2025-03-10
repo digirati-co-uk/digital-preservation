@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Results;
+﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Data.Entities;
@@ -22,7 +23,7 @@ public class StorageImportJobsProcessor(
         if (latestEvent == null)
         {
             logger.LogWarning("Unable to obtain latest event date from ArchivalGroupEvents");
-            return Result.Ok();  // still going to return OK here
+            return Result.Fail(ErrorCodes.UnknownError, "Unable to obtain latest event date from ArchivalGroupEvents");
         }
         logger.LogInformation("Latest recorded ArchivalGroupEvent was at {eventDate}", latestEvent.EventDate);
         var activitiesResult = await storageApiClient.GetImportJobActivities(latestEvent.EventDate, cancellationToken);
