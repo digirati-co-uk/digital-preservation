@@ -214,7 +214,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
 
         // remove the directory from the correct directories branch of the tree
         var directoryInBranch = parentDirectoryInBranch.Directories.Single(d => d.LocalPath == path);
-        var removedFromBranch = directoryInBranch.Directories.Remove(directoryInBranch);
+        var removedFromBranch = parentDirectoryInBranch.Directories.Remove(directoryInBranch);
 
         switch (branch)
         {
@@ -226,16 +226,13 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 break;
         }
 
-        WorkingDirectory? directoryInOtherBranch = null;
-        if (branch == Branch.Deposit)
+        WorkingDirectory? directoryInOtherBranch = branch switch
         {
-            directoryInOtherBranch = combinedDirectory.DirectoryInMets;
-        }
-        else if (branch == Branch.Mets)
-        {
-            directoryInOtherBranch = combinedDirectory.DirectoryInDeposit;
-        }
-        
+            Branch.Deposit => combinedDirectory.DirectoryInMets,
+            Branch.Mets => combinedDirectory.DirectoryInDeposit,
+            _ => null
+        };
+
         if (directoryInOtherBranch is null)
         {
             // this combinedDirectory now has neither deposit nor mets, so it too should be removed
