@@ -22,6 +22,7 @@ public class StorageImportJobsProcessor(
             .FirstOrDefault();
         if (latestEvent == null)
         {
+            // Just check that we are reading the table correctly
             logger.LogWarning("Unable to obtain latest event date from ArchivalGroupEvents");
             return Result.Fail(ErrorCodes.UnknownError, "Unable to obtain latest event date from ArchivalGroupEvents");
         }
@@ -57,7 +58,7 @@ public class StorageImportJobsProcessor(
             // TODO: Deletions
             var agEvent = new ArchivalGroupEvent
             {
-                EventDate = fullJob.DateFinished.Value,
+                EventDate = activity.EndTime,
                 ArchivalGroup = fullJob.ArchivalGroup,
                 ImportJobResult = activity.Object.Id,
                 FromVersion = fullJob.SourceVersion,

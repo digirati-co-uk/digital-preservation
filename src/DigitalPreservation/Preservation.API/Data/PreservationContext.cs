@@ -28,5 +28,14 @@ public class PreservationContext : DbContext
                 .Property(su => su.Created)
                 .HasDefaultValueSql("now()");
         });
+
+        // We need a row in this table to provide a "last checked" date for activity streams
+        modelBuilder.Entity<ArchivalGroupEvent>().HasData(
+            new ArchivalGroupEvent
+            {
+                Id = -1,
+                EventDate = new DateTime(2024, 1, 1).ToUniversalTime(),
+                ArchivalGroup = new Uri("https://example.com/archival-group") 
+            });
     }
 }

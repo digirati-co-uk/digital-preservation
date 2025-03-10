@@ -2,11 +2,12 @@
 
 namespace DigitalPreservation.Common.Model.ChangeDiscovery;
 
-public abstract class Activity
+public class Activity
 {
     [JsonPropertyOrder(2)]
     [JsonPropertyName("type")]
-    public abstract string Type { get; }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ActivityTypes Type { get; set;  }
     
     [JsonPropertyOrder(5)]
     [JsonPropertyName("summary")]
@@ -24,6 +25,16 @@ public abstract class Activity
     
     [JsonPropertyOrder(110)]
     [JsonPropertyName("endTime")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public DateTime? EndTime { get; set; }
+    public DateTime EndTime { get; set; }
+}
+
+public enum ActivityTypes
+{
+    Add,
+    Create,
+    Delete,
+    Move,
+    Refresh,
+    Remove,
+    Update
 }

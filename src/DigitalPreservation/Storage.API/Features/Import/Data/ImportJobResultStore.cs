@@ -1,7 +1,6 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
-using DigitalPreservation.Common.Model.ChangeDiscovery.Activities;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using Microsoft.EntityFrameworkCore;
@@ -57,8 +56,9 @@ public class ImportJobResultStore(
     private static Activity MakeActivity(API.Data.Entities.ImportJob importJob)
     {
         // For import jobs this is always an Update
-        return new Update
+        return new Activity
         {
+            Type = ActivityTypes.Update,
             Object = new ActivityObject
             {
                 Id = importJob.ImportJobResultUri!,
@@ -71,7 +71,9 @@ public class ImportJobResultStore(
                         Type = nameof(ArchivalGroup)
                     }
                 ]
-            }
+            },
+            StartTime = importJob.Received,
+            EndTime = importJob.EndTime!.Value
         };
     }
 
@@ -138,7 +140,7 @@ public class ImportJobResultStore(
             entity.Active = active;
             if (ended)
             {
-                entity.EndTime = DateTime.UtcNow;
+                entity.EndTime = importJobResult.DateFinished!;
                 entity.ImportJobResultUri = importJobResult.Id;
             }
             await dbContext.SaveChangesAsync(cancellationToken);

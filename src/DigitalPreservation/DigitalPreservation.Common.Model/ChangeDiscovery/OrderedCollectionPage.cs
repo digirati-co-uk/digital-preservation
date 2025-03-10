@@ -38,5 +38,5 @@ public class OrderedCollectionPage : ResourceWithContext
     public List<Activity>? OrderedItems { get; set; } 
     
     // You don't have to use this size, obviously.
-    public const int DefaultPageSize = 100;
+    public const int DefaultPageSize = 3;
 }

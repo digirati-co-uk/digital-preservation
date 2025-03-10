@@ -7,22 +7,37 @@ public class StorageImportJobsService(
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         logger.LogInformation($"Starting {nameof(StorageImportJobsService)}");
-
-        while (!cancellationToken.IsCancellationRequested)
+        
+        using PeriodicTimer timer = new(TimeSpan.FromSeconds(60));
+        var delay = 0;
+        try
         {
-            using var scope = serviceScopeFactory.CreateScope();
-            var processor = scope.ServiceProvider.GetRequiredService<StorageImportJobsProcessor>();
-            var result = await processor.ReadStream(cancellationToken);
-            if (result.Success)
+            while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                logger.LogInformation("Completed read of Storage API Import Jobs Activity Stream; waiting 1 minute...");
-                Thread.Sleep(1000 * 60); 
+                if (delay > 0)
+                {
+                    logger.LogInformation("Skipping read of storage API, delay {delay} minutes", delay);
+                    delay--;
+                    continue;
+                }
+                using var scope = serviceScopeFactory.CreateScope();
+                var processor = scope.ServiceProvider.GetRequiredService<StorageImportJobsProcessor>();
+                var result = await processor.ReadStream(cancellationToken);
+                if (result.Success)
+                {
+                    logger.LogInformation("Completed read of Storage API Import Jobs Activity Stream; waiting 1 minute...");
+                    delay = 0;
+                }
+                else
+                {
+                    logger.LogError("FAILED read of Storage API Import Jobs Activity Stream, waiting 30 minutes: {message}", result.ErrorMessage);
+                    delay = 30;
+                }
             }
-            else
-            {
-                logger.LogError("FAILED read of Storage API Import Jobs Activity Stream, waiting 30 minutes: {message}", result.ErrorMessage);
-                Thread.Sleep(1000 * 60 * 30);
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogInformation($"Stopping {nameof(StorageImportJobsService)}");
         }
     }
 }

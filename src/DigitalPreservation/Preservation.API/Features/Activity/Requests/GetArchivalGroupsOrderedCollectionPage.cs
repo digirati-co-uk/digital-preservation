@@ -1,6 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
-using DigitalPreservation.Common.Model.ChangeDiscovery.Activities;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
@@ -10,6 +9,8 @@ using Preservation.API.Data.Entities;
 using Preservation.API.Mutation;
 
 namespace Preservation.API.Features.Activity.Requests;
+
+using Activity = DigitalPreservation.Common.Model.ChangeDiscovery.Activity;
 
 public class GetArchivalGroupsOrderedCollectionPage(int page) : IRequest<Result<OrderedCollectionPage>>
 {
@@ -74,28 +75,27 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
         }
     }
     
-    private static DigitalPreservation.Common.Model.ChangeDiscovery.Activity MakeActivity(ArchivalGroupEvent entity)
+    private static Activity MakeActivity(ArchivalGroupEvent entity)
     {
         // TODO deletions
-        var agObject = new ActivityObject
+        return new Activity
         {
-            Id = entity.ArchivalGroup,
-            Type = nameof(ArchivalGroup),
-            SeeAlso =
-            [
-                new ActivityObject
-                {
-                    Id = entity.ArchivalGroup,
-                    Type = nameof(ImportJobResult)
-                }
-            ]
+            Type = entity.FromVersion is null ? ActivityTypes.Create : ActivityTypes.Update,
+            Object = new ActivityObject
+            {
+                Id = entity.ArchivalGroup,
+                Type = nameof(ArchivalGroup),
+                SeeAlso =
+                [
+                    new ActivityObject
+                    {
+                        Id = entity.ImportJobResult!,
+                        Type = nameof(ImportJobResult)
+                    }
+                ]
+            },
+            EndTime = entity.EventDate
         };
-        if (entity.FromVersion is null)
-        {
-            return new Create { Object = agObject };
-        }
-
-        return new Update { Object = agObject };
     }
     
 }

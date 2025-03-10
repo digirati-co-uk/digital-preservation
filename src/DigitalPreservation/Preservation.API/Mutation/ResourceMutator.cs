@@ -134,7 +134,7 @@ public class ResourceMutator(
     
     public Uri GetActivityStreamUri(string path)
     {
-        return new Uri($"{preservationHost}/{path}");
+        return new Uri($"{preservationHost}/activity/{path}");
     }
     
     public Deposit MutateDeposit(DepositEntity entity)
