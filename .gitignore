@@ -357,3 +357,5 @@ MigrationBackup/
 .env
 
 fedora.bat
+
+.venv
