@@ -1,0 +1,1111 @@
+{
+    "openapi": "3.0.2",
+    "info": {
+        "title": "University of Leeds Identifier Service",
+        "description": "This is the service responsible for managing unique identifiers for digital objects in the University of Leeds libraries.",
+        "termsOfService": "https://www.leeds.ac.uk/termsandconditions",
+        "contact": {
+            "email": "p.l.edwards@leeds.ac.uk"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0.0"
+    },
+    "externalDocs": {
+        "description": "Find out more about identifiers at the University of Leeds",
+        "url": "https://id.library.leeds.ac.uk/"
+    },
+    "servers": [
+        {
+            "description": "Production server",
+            "url": "https://id.library.leeds.ac.uk/api/v1"
+        },
+        {
+            "description": "Development server",
+            "url": "https://dev-id.library.leeds.ac.uk/api/v1"
+        }
+    ],
+    "tags": [],
+    "paths": {
+        "/ids": {
+            "get": {
+                "tags": ["Identifiers"],
+                "summary": "Lists existing identifiers",
+                "description": "Returns a paginated list of identifiers in JSON format. Also accepts query parameters to allow searching identifiers.",
+                "operationId": "query_identifier",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/queryParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/metaSchemaParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/statusParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/pageParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/perPageParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/createdFromParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/createdToParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/updatedFromParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/updatedToParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/orderbyParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/orderParam"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "pagination": {
+                                            "$ref": "#/components/schemas/Pagination"
+                                        },
+                                        "results": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Identifier"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorised",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorisedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": ["Identifiers"],
+                "summary": "Mint a new identifier with the service",
+                "operationId": "create_identifier",
+                "requestBody": {
+                    "description": "A new identifier can be requested from the service, and metadata attched to the identifier here",
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/IdentifierMetadata"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Identifier"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "identifier already exists",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Identifier"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorised",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorisedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ids/{id}": {
+            "get": {
+                "tags": ["Identifiers"],
+                "summary": "Get information about an identifier",
+                "description": "Returns a description of a single identifier",
+                "operationId": "get_identifier",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/identifierParam"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Identifier"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorised",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorisedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Identifier not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": ["Identifiers"],
+                "summary": "Update an identifier",
+                "operationId": "describe_identifier",
+                "description": "Updates the metadata associated with an existing identifier",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/identifierParam"
+                    }
+                ],
+                "requestBody": {
+                    "description": "Metadata for an identifier can be updated by using new values against the existing schema. Metadata is deleted by updating the metadata key with an empty string.",
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/IdentifierMetadata"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Identifier"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorised",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorisedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Identifier not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": ["Identifiers"],
+                "summary": "Mark an identifier as DELETED",
+                "operationId": "delete_identifier",
+                "description": "Updates the metadata associated with an existing identifier and marks its status as deleted",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/identifierParam"
+                    }
+                ],
+                "requestBody": {
+                    "description": "Deletion of an identifier should always be accompanied by a reason, and optionally by a URL corresponding to a new location for the resource represented by the identifier",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DeletionMetadata"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Identifier"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorised",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorisedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Identifier not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": ["Identifiers"],
+                "summary": "Permanently delete an identifier and all metadata associated with it",
+                "operationId": "shred_identifier",
+                "description": "Removes all data for the identifier from the Noid and NoidMeta database tables",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/identifierParam"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorised",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorisedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Identifier not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/catirn/{irn}": {
+            "get": {
+                "tags": ["Identifiers"],
+                "summary": "Get information about an identifier using an EMu Catalogue IRN",
+                "description": "Returns a description of a single identifier",
+                "operationId": "get_identifier_by_catirn",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/irnParam"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Identifier"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorised",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorisedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Identifier not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ptyirn/{irn}": {
+            "get": {
+                "tags": ["Identifiers"],
+                "summary": "Get information about an identifier using an EMu Party IRN",
+                "description": "Returns a description of a single identifier",
+                "operationId": "get_identifier_by_ptyirn",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/irnParam"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Identifier"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorised",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorisedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Identifier not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/siteirn/{irn}": {
+            "get": {
+                "tags": ["Identifiers"],
+                "summary": "Get information about an identifier using an EMu Site IRN",
+                "description": "Returns a description of a single identifier",
+                "operationId": "get_identifier_by_siteirn",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/irnParam"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Identifier"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorised",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnauthorisedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ForbiddenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Identifier not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotFoundResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "ApiKeyAuth": {
+                "type": "apiKey",
+                "name": "X-API-KEY",
+                "in": "header"
+            }
+        },
+        "parameters": {
+            "identifierParam": {
+                "name": "id",
+                "in": "path",
+                "description": "Identifier used in the service",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]*[bcdfghjkmnpqrstvwxyz][0123456789bcdfghjkmnpqrstvwxyz]{7}$",
+                    "example": "abcd1234"
+                }
+            },
+            "irnParam": {
+                "name": "irn",
+                "in": "path",
+                "description": "EMu Internal Resource Number (IRN) used in different modules of the EMu Application",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "example": "765123"
+                }
+            },
+            "queryParam": {
+                "description": "Text used in a search for an identifier. The search is performed across the metadata associated with an identifier.",
+                "in": "query",
+                "name": "q",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "pageParam": {
+                "description": "The number of the page to display. Determines how pagination of results works in conjunction with the per-page parameter (pp)",
+                "in": "query",
+                "name": "page",
+                "required": false,
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 1
+                }
+            },
+            "perPageParam": {
+                "description": "The number of records to display on a page. Determines how pagination of results works in conjunction with the page parameter (p)",
+                "in": "query",
+                "name": "per_page",
+                "required": false,
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 10
+                }
+            },
+            "metaSchemaParam": {
+                "description": "A parameter which identifies one or more of the metadata types used for identifiers",
+                "in": "query",
+                "name": "s",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "enum": [
+                        "title",
+                        "desc",
+                        "catirn",
+                        "accirn",
+                        "ptyirn",
+                        "siteirn",
+                        "epid",
+                        "ludosid",
+                        "doi",
+                        "redirect",
+                        "provenance"
+                    ]
+                }
+            },
+            "statusParam": {
+                "description": "Limit the results of the query to identifiers with the given status. Only live and deleted are currently supported",
+                "in": "query",
+                "name": "status",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "enum": [
+                        "live",
+                        "deleted"
+                    ]
+                }
+            },
+            "createdFromParam": {
+                "description": "Limit the results of the query to identifiers created after the date specified",
+                "in": "query",
+                "name": "created_from",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "format": "date"
+                }
+            },
+            "createdToParam": {
+                "description": "Limit the results of the query to identifiers created before the date specified",
+                "in": "query",
+                "name": "created_to",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "format": "date"
+                }
+            },
+            "updatedFromParam": {
+                "description": "Limit the results of the query to identifiers updated after the date specified",
+                "in": "query",
+                "name": "updated_from",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "format": "date"
+                }
+            },
+            "updatedToParam": {
+                "description": "Limit the results of the query to identifiers updated after the date specified",
+                "in": "query",
+                "name": "updated_to",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "format": "date"
+                }
+            },
+            "orderbyParam": {
+                "description": "List identifiers in an order determined by the value of this field",
+                "in": "query",
+                "name": "orderby",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "enum": [
+                        "created",
+                        "updated",
+                        "noid"
+                    ]
+                }
+            },
+            "orderParam": {
+                "description": "List identifiers in either ascending or descending order",
+                "in": "query",
+                "name": "order",
+                "required": false,
+                "schema": {
+                    "type": "string",
+                    "enum": [
+                        "asc",
+                        "desc"
+                    ]
+                }
+            }
+        },
+        "schemas": {
+            "Identifier": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]*[bcdfghjkmnpqrstvwxyz][0123456789bcdfghjkmnpqrstvwxyz]{7}$",
+                        "description": "identifier",
+                        "example": "abcd1234"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Title",
+                        "example": "Catalogue of English furniture & woodwork (v.3)"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description",
+                        "example": "v. 1 Revised edition. First printed 1923.\\n\\nIncludes bibliographical references and indexes.\\n\\nv. 1. Gothic and early Tudor / by H. Clifford Smith -- v. 2. Late Tudor and early Stuart / by H. Clifford Smith -- v. 3. Late Stuart to Queen Anne / by Oliver Brackett -- v. 4. Georgian / by Ralph Edwards."
+                    },
+                    "created": {
+                        "type": "string",
+                        "description": "Created date",
+                        "format": "date-time",
+                        "example": "Fri, 19 Apr 2024 12:12:16 GMT"
+                    },
+                    "updated": {
+                        "type": "string",
+                        "description": "Last-modified date",
+                        "format": "date-time",
+                        "example": "Fri, 19 Apr 2024 12:32:16 GMT"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Status",
+                        "enum": ["deleted", null],
+                        "example": ""
+                    },
+                    "catirn": {
+                        "type": "string",
+                        "description": "EMu Catalogue IRN",
+                        "example": "703276"
+                    },
+                    "accirn": {
+                        "type": "string",
+                        "description": "EMu Accession IRN",
+                        "example": "720335"
+                    },
+                    "ptyirn": {
+                        "type": "string",
+                        "description": "EMu Party IRN",
+                        "example": "78346"
+                    },
+                    "siteirn": {
+                        "type": "string",
+                        "description": "EMu Site IRN",
+                        "example": "12345"
+                    },
+                    "epid": {
+                        "type": "string",
+                        "description": "EPrint ID",
+                        "example": "20132"
+                    },
+                    "ludosid": {
+                        "type": "string",
+                        "description": "LUDOS ID",
+                        "example": "10298"
+                    },
+                    "doi": {
+                        "type": "string",
+                        "description": "Digital Object Identifier (DOI)",
+                        "example": "10078.2301928"
+                    },
+                    "repositoryuri": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Archival Group URI in repository",
+                        "example": "https://repository.library.leeds.ac.uk/object/abcd1234"
+                    },
+                    "manifesturi": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "IIIF Manifest URI",
+                        "example": "https://iiif.library.leeds.ac.uk/manifests/abcd1234"
+                    },
+                    "catalogueapiuri": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Catalogue API URI",
+                        "example": "https://catalogue-api.library.leeds.ac.uk/id/abcd1234"
+                    },
+                    "redirect": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Redirection URL"
+                    },
+                    "provenance": {
+                        "type": "string",
+                        "description": "Provenance"
+                    }
+                },
+                "xml": {
+                    "name": "identifier"
+                }
+            },
+            "IdentifierMetadata": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Title",
+                        "example": "Catalogue of English furniture & woodwork (v.3)"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description",
+                        "example": "v. 1 Revised edition. First printed 1923.\\n\\nIncludes bibliographical references and indexes.\\n\\nv. 1. Gothic and early Tudor / by H. Clifford Smith -- v. 2. Late Tudor and early Stuart / by H. Clifford Smith -- v. 3. Late Stuart to Queen Anne / by Oliver Brackett -- v. 4. Georgian / by Ralph Edwards."
+                    },
+                    "catirn": {
+                        "type": "string",
+                        "description": "EMu Catalogue IRN",
+                        "example": "703276"
+                    },
+                    "accirn": {
+                        "type": "string",
+                        "description": "EMu Accession IRN",
+                        "example": "720335"
+                    },
+                    "ptyirn": {
+                        "type": "string",
+                        "description": "EMu Party IRN",
+                        "example": "78346"
+                    },
+                    "siteirn": {
+                        "type": "string",
+                        "description": "EMu Site IRN",
+                        "example": "12345"
+                    },
+                    "epid": {
+                        "type": "string",
+                        "description": "EPrint ID",
+                        "example": "20132"
+                    },
+                    "ludosid": {
+                        "type": "string",
+                        "description": "LUDOS ID",
+                        "example": "10298"
+                    },
+                    "doi": {
+                        "type": "string",
+                        "description": "Digital Object Identifier (DOI)",
+                        "example": "10078.2301928"
+                    },
+                    "repositoryuri": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Archival Group URI in repository",
+                        "example": "https://repository.library.leeds.ac.uk/object/abcd1234"
+                    },
+                    "manifesturi": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "IIIF Manifest URI",
+                        "example": "https://iiif.library.leeds.ac.uk/manifests/abcd1234"
+                    },
+                    "catalogueapiuri": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Catalogue API URI",
+                        "example": "https://catalogue-api.library.leeds.ac.uk/id/abcd1234"
+                    },
+                    "redirect": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Redirection URL"
+                    },
+                    "provenance": {
+                        "type": "string",
+                        "description": "Provenance"
+                    }
+                },
+                "xml": {
+                    "name": "identifierMetadata"
+                }
+            },
+            "DeletionMetadata": {
+                "type": "object",
+                "properties": {
+                    "redirect": {
+                        "type": "string",
+                        "description": "Redirection URL",
+                        "example": "https://deleted.identifier.redirect/"
+                    },
+                    "provenance": {
+                        "type": "string",
+                        "description": "Provenance",
+                        "example": "Circumstances under which the identifier was deleted"
+                    }
+                },
+                "xml": {
+                    "name": "identifierMetadata"
+                }
+            },
+            "Pagination": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search terms"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Current page number"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "description": "Number of results to include in each page"
+                    },
+                    "schemas": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "uniqueItems": true
+                        }
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total number of items across all pages"
+                    },
+                    "pages": {
+                        "type": "integer",
+                        "description": "Total number of pages"
+                    },
+                    "has_next": {
+                        "type": "boolean",
+                        "description": "True if the current page is not the last page"
+                    },
+                    "next_num": {
+                        "type": "integer",
+                        "description": "The next page number, or zero if this is the last page"
+                    },
+                    "next_url": {
+                        "type": "string",
+                        "description": "URL for previous page in results"
+                    },
+                    "has_prev": {
+                        "type": "boolean",
+                        "description": "True if the current page is not the first page"
+                    },
+                    "prev_num": {
+                        "type": "integer",
+                        "description": "The previous page number, or zero if this is the first page"
+                    },
+                    "prev_url": {
+                        "type": "string",
+                        "description": "URL for next page in results"
+                    }
+                }
+            },
+            "SuccessResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "integer",
+                        "example": "200",
+                        "description": "HTTP status code",
+                        "format": "int32"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Type of response",
+                        "example": "Success"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Description of the action taken",
+                        "example": "Successfully deleted identifier jcyd83jf"
+                    }
+                },
+                "xml": {
+                    "name": "##default"
+                }
+            },
+            "UnauthorisedResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "integer",
+                        "example": "401",
+                        "description": "HTTP status code",
+                        "format": "int32"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Type of response",
+                        "example": "Unauthorised"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Description of the action taken",
+                        "example": "Missing or invalid API Key"
+                    }
+                },
+                "xml": {
+                    "name": "##default"
+                }
+            },
+            "ForbiddenResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "integer",
+                        "example": "403",
+                        "description": "HTTP status code",
+                        "format": "int32"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Type of response",
+                        "example": "Forbidden"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Description of the action taken",
+                        "example": "Your API key is not valid for this operation"
+                    }
+                },
+                "xml": {
+                    "name": "##default"
+                }
+            },
+            "NotFoundResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "integer",
+                        "example": "404",
+                        "description": "HTTP status code",
+                        "format": "int32"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Type of response",
+                        "example": "Not Found"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Description of the action taken",
+                        "example": "The resource you are trying to access cannot be found"
+                    }
+                },
+                "xml": {
+                    "name": "##default"
+                }
+            }
+        }
+    },
+    "security": [
+        {
+            "ApiKeyAuth": []
+        }
+    ]
+}

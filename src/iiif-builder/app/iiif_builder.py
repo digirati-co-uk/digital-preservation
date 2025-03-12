@@ -7,7 +7,7 @@ from logzero import logger
 from signal_handler import SignalHandler
 from app.db import db, ArchivalGroupActivity
 from preservation_api import get_activities, load_archival_group, load_mets
-from identity_service import get_public_manifest_uri, get_catalogue_api_uri, make_api_manifest_uri
+from identity_service import get_identities_from_archival_group, get_internal_iiif_uris
 from catalogue_api import read_catalogue_api
 from boilerplate import get_boilerplate_manifest
 from manifest_decorator import add_descriptive_metadata_to_manifest, add_painted_resources
@@ -64,27 +64,26 @@ async def process_activity(activity, session):
         return
 
     logger.debug(f"Calling identity service for archival group {archival_group_uri}")
-    # These next two might come back from the identity service in the same operation
-    public_manifest_uri_result = await get_public_manifest_uri(session, archival_group_uri)
-    if public_manifest_uri_result.failure:
-        logger.error(f"Failed to get public IIIF URL for archival group: {public_manifest_uri_result.error}")
-        await stored.update(error_message=public_manifest_uri_result.error).apply()
+
+    identities_result = await get_identities_from_archival_group(session, archival_group_uri)
+    if identities_result.failure:
+        logger.error(f"Failed to get Identities for archival group{archival_group_uri}: {identities_result.error}")
+        await stored.update(error_message=identities_result.error).apply()
         return
 
-    public_manifest_uri = public_manifest_uri_result.value
-    api_manifest_uri = make_api_manifest_uri(public_manifest_uri)
+    pid = identities_result.value["pid"]
+    if settings.USE_MVP_CATALOGUE_API:
+        catalogue_api_uri = f"{settings.MVP_CATALOGUE_API_PREFIX}{pid}"
+    else:
+        catalogue_api_uri = identities_result.value["catalogue_api_uri"]
+
+    internal_iiif_uris = get_internal_iiif_uris(identities_result.value["manifest_uri"])
+    internal_public_manifest_uri = internal_iiif_uris["public_manifest_uri"]
+    internal_api_manifest_uri = internal_iiif_uris["api_manifest_uri"]
     await stored.update(
-        public_manifest_uri=public_manifest_uri,
-        api_manifest_uri=api_manifest_uri).apply()
-
-    catalogue_api_uri_result = await get_catalogue_api_uri(session, archival_group_uri)
-    if catalogue_api_uri_result.failure:
-        logger.error(f"Failed to find out Catalogue API URL for archival group: {catalogue_api_uri_result.error}")
-        await stored.update(error_message=catalogue_api_uri_result.error).apply()
-        return
-
-    catalogue_api_uri = catalogue_api_uri_result.value
-    await stored.update(catalogue_api_uri=catalogue_api_uri).apply()
+        catalogue_api_uri=catalogue_api_uri,
+        public_manifest_uri=internal_public_manifest_uri,
+        api_manifest_uri=internal_api_manifest_uri).apply()
 
     logger.debug(f"Getting descriptive metadata from catalogue API for {catalogue_api_uri}")
     descriptive_metadata_result = await read_catalogue_api(session, catalogue_api_uri)
@@ -96,15 +95,15 @@ async def process_activity(activity, session):
     manifest = get_boilerplate_manifest()
     add_descriptive_metadata_to_manifest(manifest, descriptive_metadata_result.value)
 
-    logger.debug(f"Adding painted resources to manifest {public_manifest_uri}")
+    logger.debug(f"Adding painted resources to manifest {internal_public_manifest_uri}")
     add_painted_resources_result = add_painted_resources(manifest, archival_group_result.value, mets_result.value)
     if add_painted_resources_result.failure:
         logger.error(f"Failed to add painted resources to Manifest: {add_painted_resources_result.error}")
         await stored.update(error_message=add_painted_resources_result.error).apply()
         return
 
-    logger.debug(f"Saving Manifest to IIIF-CS: {public_manifest_uri}")
-    put_manifest_result = put_manifest(api_manifest_uri, manifest)
+    logger.debug(f"Saving Manifest to IIIF-CS: {internal_public_manifest_uri}")
+    put_manifest_result = put_manifest(internal_api_manifest_uri, manifest)
     if put_manifest_result.failure:
         logger.error(f"Failed to PUT Manifest to IIIF-CS: {put_manifest_result.error}")
         await stored.update(error_message=put_manifest_result.error).apply()
