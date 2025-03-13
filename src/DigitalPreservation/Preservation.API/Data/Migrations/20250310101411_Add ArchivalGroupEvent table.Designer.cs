@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Preservation.API.Data;
@@ -11,9 +12,11 @@ using Preservation.API.Data;
 namespace Preservation.API.Data.Migrations
 {
     [DbContext(typeof(PreservationContext))]
-    partial class PreservationContextModelSnapshot : ModelSnapshot
+    [Migration("20250310101411_Add ArchivalGroupEvent table")]
+    partial class AddArchivalGroupEventtable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -60,15 +63,6 @@ namespace Preservation.API.Data.Migrations
                         .HasName("pk_archival_group_events");
 
                     b.ToTable("archival_group_events", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = -1,
-                            ArchivalGroup = "https://example.com/archival-group",
-                            Deleted = false,
-                            EventDate = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
-                        });
                 });
 
             modelBuilder.Entity("Preservation.API.Data.Entities.Deposit", b =>

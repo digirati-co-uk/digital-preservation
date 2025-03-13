@@ -20,6 +20,7 @@ public class Converters
     private readonly string transientRoot;
     private readonly string importRoot;
     private readonly string exportRoot;
+    private readonly string activityRoot;
 
     // We could register the vocab with Fedora and alias the type
     // But this will always work without having to do anything special to Fedora.
@@ -42,6 +43,7 @@ public class Converters
         transientRoot = converterOptions.Value.TransientRoot.ToString();
         importRoot = converterOptions.Value.ImportRoot.ToString();
         exportRoot = converterOptions.Value.ExportRoot.ToString();
+        activityRoot = converterOptions.Value.ActivityRoot.ToString();
     }
     
     public ArchivalGroup MakeArchivalGroup(FedoraJsonLdResponse fedoraJsonLdResponse)
@@ -115,6 +117,11 @@ public class Converters
     public Uri GetAgentUri(string identitySlug)
     {
         return new Uri(agentRoot + identitySlug);
+    }
+    
+    public Uri ActivityUri(string path)
+    {
+        return new Uri(activityRoot + path);
     }
 
     private Uri? ConvertToAgentUri(string? fedoraAgentUri)

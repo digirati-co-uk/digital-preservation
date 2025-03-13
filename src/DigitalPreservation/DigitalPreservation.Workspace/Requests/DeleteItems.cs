@@ -197,7 +197,7 @@ public class DeleteItemsHandler(
             {
                 return Result.FailNotNull<ItemsAffected>(
                     failedDeleteResult.ErrorCode!,
-                    $"DeleteItems failed after {goodResult.Items.Count} with: {failedDeleteResult.ErrorMessage}.");
+                    $"Delete failed after {goodResult.Items.Count} items. {failedDeleteResult.ErrorMessage}.");
             }
 
         }
@@ -209,7 +209,7 @@ public class DeleteItemsHandler(
             {
                 return Result.FailNotNull<ItemsAffected>(
                     writeMetsResult.ErrorCode!,
-                    $"DeleteItems failed after {goodResult.Items.Count}, unable to write METS file.");
+                    $"Delete failed after {goodResult.Items.Count} items. Unable to write METS file.");
                 
             }
         }
