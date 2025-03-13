@@ -1,6 +1,4 @@
 logzero~=1.7.0
-gino~=1.0.1
-SQLAlchemy~=1.3.24
 aiohttp~=3.11.13
 microsoft-kiota-abstractions~=1.9.2
 microsoft-kiota-http~=1.9.2
@@ -9,3 +7,4 @@ microsoft-kiota-serialization-form~=1.9.2
 microsoft-kiota-serialization-json~=1.9.2
 microsoft-kiota-serialization-multipart~=1.9.2
 microsoft-kiota-serialization-text~=1.9.2
+psycopg~=3.2.6

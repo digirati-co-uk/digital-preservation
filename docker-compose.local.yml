@@ -1,6 +1,7 @@
 volumes:
   preservation_postgres_data: {}
   storage_postgres_data: {}
+  iiifbuilder_postgres_data: {}
 
 services:
   db-preservation:
@@ -19,3 +20,11 @@ services:
       - "5434:5432"
     volumes:
       - storage_postgres_data:/var/lib/postgresql/data
+  db-iiifbuilder:
+    image: postgres:14-alpine
+    environment:
+      - POSTGRES_PASSWORD=iiifbuilder
+    ports:
+      - "5437:5432"
+    volumes:
+      - iiifbuilder_postgres_data:/var/lib/postgresql/data
