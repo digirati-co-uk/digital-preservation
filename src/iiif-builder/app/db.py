@@ -59,7 +59,7 @@ class ArchivalGroupActivity:
 
 
     @staticmethod
-    def get_from_id(new_id:int)-> 'ArchivalGroupActivity':
+    def get_from_id(id_:int)-> 'ArchivalGroupActivity':
         with psycopg.connect(settings.POSTGRES_CONNECTION) as conn:
             with conn.cursor() as cur:
                 sql = ("SELECT id, activity_end_time, archival_group_uri, activity_type, "
@@ -67,7 +67,7 @@ class ArchivalGroupActivity:
                        "internal_public_manifest_uri, internal_api_manifest_uri, "
                        "started, finished, error_message "
                        "FROM archival_group_activity WHERE id = %s")
-                result = cur.execute(sql, new_id).fetchone()
+                result = cur.execute(sql, id_).fetchone()
                 if result is None:
                     return None
                 row = result[0]
