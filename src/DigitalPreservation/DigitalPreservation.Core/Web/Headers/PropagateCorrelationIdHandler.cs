@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Http;
+﻿using DigitalPreservation.Core.Auth;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Primitives;
 
 namespace DigitalPreservation.Core.Web.Headers;
@@ -54,7 +55,12 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor)
             request.Headers.TryAddWithoutValidation("Authorization", bearerToken);
         }
 
-
+        //Pass Machine Token Downstream
+        var machineToken = contextAccessor.HttpContext.TryGetHeaderValue(AuthFilterIdentifier.MachineHeaderName);
+        if (!string.IsNullOrEmpty(machineToken))
+        {
+            request.Headers.TryAddWithoutValidation(AuthFilterIdentifier.MachineHeaderName, machineToken);
+        }
 
         return base.SendAsync(request, cancellationToken);
     }
