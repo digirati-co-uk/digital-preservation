@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timezone
 import aiohttp
 import asyncio
 import app.settings as settings
@@ -21,11 +21,14 @@ async def read_stream():
     try:
         async with aiohttp.ClientSession() as session:
             while not signal_handler.cancellation_requested():
-                last_event_time = await ArchivalGroupActivity.get_latest_end_time()
-                activities = get_activities(settings.PRESERVATION_ACTIVITY_STREAM, session, last_event_time)
-                for activity in activities:
-                    logger.debug(f"Processing activity with endTime={activity.end_time}")
-                    process_activity(activity, session)
+                last_event_time = ArchivalGroupActivity.get_latest_end_time()
+                activities_result = await get_activities(settings.PRESERVATION_ACTIVITY_STREAM, session, last_event_time)
+                if activities_result.success():
+                    for activity in activities_result.value:
+                        logger.debug(f"Processing activity with endTime={activity.end_time}")
+                        await process_activity(activity, session)
+                else:
+                    logger.error(f"Could not read activities: {activities_result.error}")
 
                 logger.debug(f"sleeping for {settings.ACTIVITY_STREAM_READ_INTERVAL}s")
                 await asyncio.sleep(settings.ACTIVITY_STREAM_READ_INTERVAL)
@@ -63,7 +66,7 @@ async def process_activity(activity, session):
 
     logger.debug(f"Calling identity service for archival group {job.archival_group_uri}")
 
-    identities_result = await get_identities_from_archival_group(session, job.archival_group_uri)
+    identities_result = await get_identities_from_archival_group(job.archival_group_uri)
     if identities_result.failure:
         logger.error(f"Failed to get Identities for archival group{job.archival_group_uri}: {identities_result.error}")
         job.error_message = identities_result.error
@@ -101,14 +104,14 @@ async def process_activity(activity, session):
         return
 
     logger.debug(f"Saving Manifest to IIIF-CS: {job.internal_public_manifest_uri}")
-    put_manifest_result = put_manifest(job.internal_api_manifest_uri, manifest)
+    put_manifest_result = await put_manifest(session, job.internal_api_manifest_uri, manifest)
     if put_manifest_result.failure:
         logger.error(f"Failed to PUT Manifest to IIIF-CS: {put_manifest_result.error}")
         job.error_message = put_manifest_result.error
         job.save()
         return
 
-    job.finished = datetime.now(datetime.timezone.utc)
+    job.finished = datetime.now(timezone.utc)
     job.save()
 
 

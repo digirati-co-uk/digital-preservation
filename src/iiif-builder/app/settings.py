@@ -12,6 +12,7 @@ REWRITTEN_PUBLIC_IIIF_PRESENTATION_PREFIX = os.environ.get('REWRITTEN_PUBLIC_III
 IIIF_CS_CUSTOMER_ID = os.environ.get('IIIF_CS_CUSTOMER_ID', 2)
 IIIF_CS_ASSET_SPACE_ID = os.environ.get('IIIF_CS_ASSET_SPACE_ID', 5)
 IIIF_CS_PRESENTATION_HOST = os.environ.get('IIIF_CS_PRESENTATION_HOST', 'https://iiif-cs.library.leeds.ac.uk')
+IIIF_CS_BASIC_CREDENTIALS = os.environ.get('IIIF_CS_BASIC_CREDENTIALS')
 
 USE_MVP_CATALOGUE_API = os.environ.get('USE_MVP_CATALOGUE_API', True)
 MVP_CATALOGUE_API_PREFIX = os.environ.get('MVP_CATALOGUE_API_PREFIX', 'https://explore.library.leeds.ac.uk/imu/utilities/getIIIFData.php?pid=')

@@ -7,6 +7,7 @@ from app import settings
 from app.result import Result
 from id_client.identity_service_client import IdentityServiceClient
 
+# Auth configuration for Leeds identity service
 auth_provider = ApiKeyAuthenticationProvider(
     KeyLocation.Header,
     settings.IDENTITY_SERVICE_API_KEY,
@@ -18,7 +19,7 @@ request_adapter = HttpxRequestAdapter(auth_provider)
 request_adapter.base_url = settings.IDENTITY_SERVICE_BASE_URL
 client = IdentityServiceClient(request_adapter)
 
-async def get_identities_from_archival_group(session, archival_group_uri) -> Result:
+async def get_identities_from_archival_group(archival_group_uri) -> Result:
     # Is this the right way to build this?
     request_config = RequestConfiguration(query_parameters=QueryParameters({
         "s": "repositoryuri",

@@ -36,30 +36,30 @@ class ArchivalGroupActivity:
 
 
     @staticmethod
-    async def get_latest_end_time() -> datetime.datetime:
+    def get_latest_end_time() -> datetime:
         with psycopg.connect(settings.POSTGRES_CONNECTION) as conn:
             with conn.cursor() as cur:
                 result = cur.execute("SELECT max(activity_end_time) FROM archival_group_activity").fetchone()[0]
                 if result is None:
-                    return datetime.datetime(2000, 1, 1)
+                    return datetime(2000, 1, 1)
                 return result
 
 
     @classmethod
-    async def new_activity(cls, activity_end_time, archival_group_uri, activity_type)-> 'ArchivalGroupActivity':
+    def new_activity(cls, activity_end_time, archival_group_uri, activity_type)-> 'ArchivalGroupActivity':
         with psycopg.connect(settings.POSTGRES_CONNECTION) as conn:
             with conn.cursor() as cur:
                 sql = ("INSERT INTO archival_group_activity "
                        "(activity_end_time, archival_group_uri, activity_type, started) "
                        "VALUES (%s, %s, %s, %s) "
                        "RETURNING id")
-                values = (activity_end_time, archival_group_uri, activity_type, datetime.datetime.now())
+                values = (activity_end_time, archival_group_uri, activity_type, datetime.now())
                 new_id = cur.execute(sql, values).fetchone()[0]
                 return ArchivalGroupActivity.get_from_id(new_id)
 
 
     @staticmethod
-    def get_from_id(id_:int)-> 'ArchivalGroupActivity':
+    def get_from_id(id_:int)-> 'ArchivalGroupActivity | None':
         with psycopg.connect(settings.POSTGRES_CONNECTION) as conn:
             with conn.cursor() as cur:
                 sql = ("SELECT id, activity_end_time, archival_group_uri, activity_type, "
@@ -103,7 +103,7 @@ class ArchivalGroupActivity:
                     self.internal_api_manifest_uri,
                     self.finished,
                     self.error_message,
-                    self.id
+                    self.id_
                 )
                 cur.execute(sql, values)
 
