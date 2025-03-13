@@ -70,7 +70,7 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not get OrderedCollectionPage");
             return Result.FailNotNull<OrderedCollectionPage>(ErrorCodes.UnknownError, e.Message);
         }
     }
