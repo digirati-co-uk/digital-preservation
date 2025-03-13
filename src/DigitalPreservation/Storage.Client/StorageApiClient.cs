@@ -1,5 +1,7 @@
 ﻿using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.ChangeDiscovery;
+using DigitalPreservation.Common.Model.ChangeDiscovery.Reader;
 using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
@@ -23,6 +25,28 @@ public class StorageApiClient(
     ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger), IStorageApiClient
 {
     private readonly HttpClient storageHttpClient = httpClient;
+
+    public async Task<Result<List<Activity>>> GetImportJobActivities(DateTime after, CancellationToken cancellationToken = default)
+    {
+        var reader = new ActivityStreamReader(storageHttpClient);
+        var importJobsUri = new Uri("/activity/importjobs/collection", UriKind.Relative);
+        try
+        {
+            // for now let's just collect these into a list, to be the value of a Result
+            List<Activity> activities = [];
+            await foreach (var activity in reader.ReadActivityStream(importJobsUri, after).WithCancellation(cancellationToken))
+            {
+                activities.Add(activity);
+            }
+            return Result.OkNotNull(activities);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<List<Activity>>(ErrorCodes.UnknownError, e.Message);
+        }
+        
+    }
 
     public async Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot)
     {

@@ -1,4 +1,5 @@
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
@@ -51,4 +52,6 @@ public interface IStorageApiClient
     Task<Result<Export>> GetExport(Uri entityExportResultUri);
 
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
+    
+    Task<Result<List<Activity>>> GetImportJobActivities(DateTime after, CancellationToken cancellationToken = default);
 }

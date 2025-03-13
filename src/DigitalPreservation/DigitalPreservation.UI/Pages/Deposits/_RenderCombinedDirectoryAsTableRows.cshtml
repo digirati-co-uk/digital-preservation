@@ -24,7 +24,7 @@ File is in both
     string where = combinedDirectory.Whereabouts.ToString().ToLowerInvariant();
                    <tr class="deposit-row @("where-" + where)" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts">
-        <td>
+        <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true } && combinedDirectory.LocalPath != "objects")
             {
                 <input class="form-check-input item-selector item-directory" type="checkbox" 
@@ -65,7 +65,7 @@ File is in both
     string where = file.Whereabouts.ToString().ToLowerInvariant();
     <tr class="deposit-row @("where-" + where)" 
         data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts">
-        <td>
+        <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true } && file.LocalPath != "mets.xml")
             {
                 <input class="form-check-input item-selector item-file" type="checkbox" 

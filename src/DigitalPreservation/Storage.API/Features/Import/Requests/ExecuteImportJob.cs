@@ -84,7 +84,8 @@ public class ExecuteImportJobHandler(
         importJobResult.SourceVersion = sourceVersion;
         
         logger.LogInformation("Saving running ImportJobResult before processing binaries and containers");
-        await importJobResultStore.SaveImportJobResult(request.JobIdentifier, importJobResult, true, cancellationToken);
+        await importJobResultStore.SaveImportJobResult(
+            request.JobIdentifier, importJobResult, true, false, cancellationToken);
 
         
         logger.LogInformation("Now looping through import job tasks");
