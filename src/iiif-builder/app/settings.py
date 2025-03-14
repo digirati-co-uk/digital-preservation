@@ -16,3 +16,8 @@ IIIF_CS_BASIC_CREDENTIALS = os.environ.get('IIIF_CS_BASIC_CREDENTIALS')
 
 USE_MVP_CATALOGUE_API = os.environ.get('USE_MVP_CATALOGUE_API', True)
 MVP_CATALOGUE_API_PREFIX = os.environ.get('MVP_CATALOGUE_API_PREFIX', 'https://explore.library.leeds.ac.uk/imu/utilities/getIIIFData.php?pid=')
+MVP_CATALOGUE_API_KEY_HEADER = os.environ.get('MVP_CATALOGUE_API_HEADER', 'X-API-KEY')
+MVP_CATALOGUE_API_KEY_VALUE = os.environ.get('MVP_CATALOGUE_API_KEY_VALUE')
+# This value is on the wiki page
+# https://dev.azure.com/universityofleeds/Library/_wiki/wikis/Library.wiki/4864/Present-IIIF(new)-manifests-to-Website
+
