@@ -50,7 +50,7 @@ class WorkingDirectory(WorkingBase):
 
 
     def find_directory(self, path:str, create:bool=False)-> 'WorkingDirectory':
-        if (not (path and path.strip())) or path == "/":
+        if path is None or path == '' or path.strip() == '' or path == "/":
             return self
         parts = list(filter(None, path.split('/')))
         directory = self

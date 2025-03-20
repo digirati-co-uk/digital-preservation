@@ -33,13 +33,16 @@ def build_mets_wrapper(root)->MetsWrapper:
     mets_wrapper = MetsWrapper()
     mets_wrapper.physical_structure = physical_structure
     for amd_sec in root.findall(f".//{{{mets}}}amdSec[@ID]"):
+        print("mapping amd_sec with ID " + amd_sec.get("ID"))
         mets_wrapper.amd_map[amd_sec.get("ID")] = amd_sec
 
     file_sec = root.find(f".//{{{mets}}}fileSec")
     for f in file_sec.findall(f".//{{{mets}}}file[@ID]"):
+        print("mapping file with ID " + f.get("ID"))
         mets_wrapper.file_map[f.get("ID")] = f
 
     for tech_md in root.findall(f".//{{{mets}}}techMD[@ID]"):
+        print("mapping tech_md with ID " + tech_md.get("ID"))
         mets_wrapper.tech_map[tech_md.get("ID")] = tech_md
 
     populate_from_mets(mets_wrapper, root)
@@ -103,19 +106,17 @@ def populate_from_mets(mets_wrapper:MetsWrapper, root):
 
 def process_child_struct_divs(mets_wrapper:MetsWrapper, root, parent, directory_labels):
     """
-    :param mets_wrapper:
-    :param root:
-    :param parent:
-    :param file_sec:
-    :param directory_labels:
-    :return:
     // We want to create MetsFileWrapper::PhysicalStructure (WorkingDirectories and WorkingFiles).
     // We can traverse the physical structmap, finding div type=Directory and div type=File
     // But we have a problem - if a directory has no files in it, we don't know the path of that
     // directory. If it has grandchildren we can eventually populate it. But if not we will have
     // to rely on the AMD premis:originalName as the local path.
     """
-    for div in parent.iter(f"{{{mets}}}div"):
+    # print("entering process_child_struct_divs with parent " + str(parent.tag))
+    # print(parent.attrib.keys)
+    # print("loop through child divs of " + str(parent.tag))
+    child_divs = (el for el in parent if el.tag == f"{{{mets}}}div")
+    for div in child_divs:
         type_ = div.get("TYPE", "").lower()
         label = div.get("LABEL", "").lower()
         if type_ == "directory":
@@ -129,18 +130,21 @@ def process_child_struct_divs(mets_wrapper:MetsWrapper, root, parent, directory_
                     original_name = amd.find(f".//{{{premis}}}originalName")
                     if original_name is not None:
                         # Only in this scenario can we create a directory
-                        working_directory = mets_wrapper.physical_structure.find_directory(original_name, True)
+                        working_directory = mets_wrapper.physical_structure.find_directory(original_name.text, True)
                         if not working_directory.name:
-                            name_from_path = get_slug(original_name)
+                            name_from_path = get_slug(original_name.text)
                             name_from_label = None
                             if len(directory_labels) > 0:
                                 name_from_label = directory_labels.pop()
                             working_directory.name = name_from_label or name_from_path
-                            working_directory.local_path = original_name
+                            working_directory.local_path = original_name.text
 
         have_used_adm_id_already = False
-        for fptr in div.iter(f"{{{mets}}}fptr"):
-            adm_id = fptr.get("ADMID", None)
+        # print("loop through child fptr of " + str(div.tag))
+        child_fptrs = (el for el in div if el.tag == f"{{{mets}}}fptr")
+        for fptr in child_fptrs:
+            # print("starting fptr " + str(fptr.tag))
+            adm_id = div.get("ADMID", None)
             # Goobi METS has the ADMID on the mets:div. But that means we can use it only once!
             # Going to make an assumption for now that the first encountered mets:fptr is the one that gets the ADMID
             file_id = fptr.get("FILEID", None)
@@ -192,6 +196,7 @@ def process_child_struct_divs(mets_wrapper:MetsWrapper, root, parent, directory_
                         working_directory.name = name_from_label or name_from_path
                         working_directory.local_path = parent_directory
                     walk_back = walk_back - 1
+            # print("finished fptr " + str(div.tag))
 
         process_child_struct_divs(mets_wrapper, root, div, directory_labels)
 
@@ -215,6 +220,8 @@ def find_value(element, expr):
 
 
 if __name__ == '__main__':
-    for_file("eprints/10315.METS.xml")
-    for_file("dlip/mets.xml")
+    #for_file("eprints/10315.METS.xml")
+    #for_file("dlip/mets.xml")
+    #for_file("wc-goobi/b29356350.xml")
+    for_file("wc-archivematica/METS.299eb16f-1e62-4bf6-b259-c82146153711.xml")
 
