@@ -2,6 +2,7 @@ import collections
 
 from metsrw import METSDocument
 
+from app.mets_parser.mets_wrapper import MetsWrapper
 from app.result import Result
 
 
@@ -65,6 +66,7 @@ def add_metadata_label_and_value(manifest, data_dict, key, lang="en"):
     })
 
 
-def add_painted_resources(manifest, archival_group: str, mets:METSDocument) -> Result:
+def add_painted_resources(manifest, archival_group, mets:MetsWrapper) -> Result:
 
+    working_dir = mets.physical_structure
     return Result(False, f"Could not turn METS file information into painted resources: (error message)")

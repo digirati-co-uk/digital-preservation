@@ -1,15 +1,17 @@
 import datetime
 
-import metsrw
 from aiohttp import ClientSession
+
+from app.iiif_builder import get_preservation_headers
+from app.mets_parser.mets_parser import get_mets_wrapper_from_file_like_object
 from app.result import Result
 
 
 async def get_activities(stream_uri: str, session: ClientSession, last_event_time: datetime.datetime) -> Result:
 
-    # TODO: No Auth, No Error Handling!
+    # TODO: No Error Handling!
     activities = []
-    coll_response = await session.get(stream_uri)
+    coll_response = await session.get(stream_uri, headers=get_preservation_headers())
     coll = await coll_response.json()
     page_uri = coll.get("last", {}).get("id", None)
     while page_uri is not None:
@@ -30,16 +32,15 @@ async def get_activities(stream_uri: str, session: ClientSession, last_event_tim
 
 async def load_archival_group(session: ClientSession, archival_group_uri: str) -> Result:
 
-    # TODO: No Auth, No Error Handling!
-    ag_response = await session.get(archival_group_uri)
+    # TODO: No Error Handling!
+    ag_response = await session.get(archival_group_uri, headers=get_preservation_headers())
     ag = await ag_response.json()
     return Result.success(ag)
 
 
 async def load_mets(session: ClientSession, archival_group_uri:str) -> Result:
 
-    # TODO: No Auth, No Error Handling!
-    mets_response = await session.get(f"{archival_group_uri}?view=mets")
-    mets_xml_string = await mets_response.text()
-    mets = metsrw.METSDocument.fromstring(mets_xml_string)
-    return Result.success(mets)
+    # TODO: No Error Handling!
+    mets_response = await session.get(f"{archival_group_uri}?view=mets", headers=get_preservation_headers())
+    mets_wrapper = get_mets_wrapper_from_file_like_object(mets_response.content)
+    return Result.success(mets_wrapper)
