@@ -102,9 +102,13 @@ async def process_activity(activity, session):
     else:
         job.catalogue_api_uri = identities_result.value["catalogue_api_uri"]
 
-    internal_iiif_uris = get_internal_iiif_uris(identities_result.value["manifest_uri"])
-    job.internal_public_manifest_uri = internal_iiif_uris["public_manifest_uri"]
-    job.internal_api_manifest_uri = internal_iiif_uris["api_manifest_uri"]
+    public_manifest_uri = identities_result.value["manifest_uri"]
+    # This allows the ID service to only worry about the _rewritten_ public URI
+    path_part = public_manifest_uri.lstrip(settings.REWRITTEN_PUBLIC_IIIF_PRESENTATION_PREFIX)
+    iiif_cs = f"{settings.IIIF_CS_PRESENTATION_HOST}/{settings.IIIF_CS_CUSTOMER_ID}"
+    job.internal_public_manifest_uri = f"{iiif_cs}/{path_part}"
+    job.internal_api_manifest_uri    = f"{iiif_cs}/manifests/{job.id_service_pid}"
+    canvas_id_prefix                 = f"{iiif_cs}/canvases/{job.id_service_pid}_"
     job.save()
 
     logger.debug(f"Getting descriptive metadata from catalogue API for {job.catalogue_api_uri}")
@@ -119,7 +123,7 @@ async def process_activity(activity, session):
     add_descriptive_metadata_to_manifest(manifest, descriptive_metadata_result.value)
 
     logger.debug(f"Adding painted resources to manifest {job.internal_public_manifest_uri}")
-    add_painted_resources_result = add_painted_resources(manifest, archival_group_result.value, mets_result.value)
+    add_painted_resources_result = add_painted_resources(manifest, archival_group_result.value, mets_result.value, canvas_id_prefix)
     if add_painted_resources_result.failure:
         logger.error(f"Failed to add painted resources to Manifest: {add_painted_resources_result.error}")
         job.error_message = add_painted_resources_result.error

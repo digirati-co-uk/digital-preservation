@@ -1,8 +1,7 @@
 import collections
 
-from metsrw import METSDocument
-
 from app.mets_parser.mets_wrapper import MetsWrapper
+from app.mets_parser.working_filesystem import WorkingDirectory
 from app.result import Result
 
 
@@ -66,7 +65,73 @@ def add_metadata_label_and_value(manifest, data_dict, key, lang="en"):
     })
 
 
-def add_painted_resources(manifest, archival_group, mets:MetsWrapper) -> Result:
+def add_painted_resources(manifest, archival_group, mets:MetsWrapper, canvas_id_prefix) -> Result:
 
+    # Note that there is no items[] in our manifest.
+    # For IIIF-Builder MVP we are going to do EVERYTHING with paintedResources.
+    if "items" in manifest:
+        del manifest["items"]
+    manifest["paintedResources"] = []
     working_dir = mets.physical_structure
+    if add_painted_resources_from_working_dir(manifest["paintedResources"], working_dir, archival_group, canvas_id_prefix, canvas_index=0):
+        return Result(manifest)
     return Result(False, f"Could not turn METS file information into painted resources: (error message)")
+
+
+def add_painted_resources_from_working_dir(painted_resources, working_dir:WorkingDirectory, archival_group, canvas_id_prefix, canvas_index):
+    """
+        In our initial iiif-builder flow, we will ONLY use `paintedResources` and never send
+        the Manifest with an `items` property. This means that IIIF-CS will generate and manage
+        the IIIF Canvases. This means we can't put arbitrary properties on the Canvases.
+        But we can do enough to cover basic requirements; the canvasPainting resource
+        allows us to give the canvas a label. It also allows to construct canvases with
+        Choice annotation bodies, and multiple images on the same Canvas, and targets that
+        are not the whole Canvas. These extras are not needed for EPrints and are not shown here.
+
+        The following code constructs the Manifest paintedResources as we want them to be,
+        regardless of what's there already (if anything). In the step after this we will distinguish
+        between assets that we want to be there and don't need any further work, and assets
+        that we want to re-process (most likely because the file at a particular relative path changed in
+        an update to an archival group).
+
+        This recursively walks the folder structure.
+        In a later iteration, we can add IIIF Ranges to the Manifest here, to reflect the folder
+        structure.
+    """
+
+    for f in working_dir.files:
+
+        # You can also obtain the origin by traversing the ArchivalGroup Container hierarchy, following
+        # the path given by f.local_path. This gives you the S3 URI directly (the origin property
+        # of the binary at the end of the path) but is more code otherwise.
+        origin = f"{archival_group.origin}/{archival_group.storageMap.files[f.local_path].fullPath}"
+
+        # do we want to do this for starters?
+        if not f.content_type.startswith("image"):
+            continue
+
+        painted_resources.append({
+            "canvasPainting": {
+                # canvasId is optional but gives iiif-b more control. IIIF-CS will mint its own otherwise.
+                "canvasId": f"{canvas_id_prefix}{f.local_path.replace('/', '_')}",
+                "canvasOrder": canvas_index,        # optional, will use array order otherwise
+                "label": { "en" : [ f.name ] }      # e.g., page numbers... e.g., "xvii", "37r", etc.
+            },
+            "asset": {
+                "id": f"{f.local_path.split('/')[-1]}", # use the file name as the ID. Will be scoped to the manifest.
+                "mediaType": f.content_type,
+                "origin": origin
+            }
+        })
+
+        canvas_index = canvas_index + 1
+
+    for d in working_dir.directories:
+        # recurse
+        if not add_painted_resources_from_working_dir(painted_resources, d, archival_group, canvas_id_prefix, canvas_index):
+            return False
+
+    return True
+
+
+
