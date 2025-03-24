@@ -1,7 +1,7 @@
 from datetime import datetime
 from itertools import islice
 
-from util import get_parent, get_slug
+from app.mets_parser.util import get_parent, get_slug
 
 
 class WorkingBase:

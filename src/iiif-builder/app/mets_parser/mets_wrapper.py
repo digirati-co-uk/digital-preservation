@@ -1,4 +1,4 @@
-from working_filesystem import WorkingDirectory, WorkingFile
+from app.mets_parser.working_filesystem import WorkingDirectory, WorkingFile
 
 class MetsWrapper:
     def __init__(self):

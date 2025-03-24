@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 
 import lxml.etree as etree
-from mets_wrapper import MetsWrapper
-from util import get_parent, get_slug
-from working_filesystem import WorkingDirectory, WorkingFile
-from vocab import *
+from app.mets_parser.mets_wrapper import MetsWrapper
+from app.mets_parser.util import get_parent, get_slug
+from app.mets_parser.working_filesystem import WorkingDirectory, WorkingFile
+from app.mets_parser.vocab import *
 
 def get_mets_wrapper_from_file_like_object(file_path_or_object):
     mets_doc = etree.parse(file_path_or_object)

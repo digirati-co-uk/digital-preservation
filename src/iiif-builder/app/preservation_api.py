@@ -1,11 +1,37 @@
 import datetime
+import msal
 
 from aiohttp import ClientSession
+from logzero import logger
 
-from app.iiif_builder import get_preservation_headers
+from app import settings
 from app.mets_parser.mets_parser import get_mets_wrapper_from_file_like_object
 from app.result import Result
 
+print(settings.PRESERVATION_CLIENT_ID,
+    settings.PRESERVATION_AUTHORITY_URL,
+    settings.PRESERVATION_CLIENT_SECRET)
+
+preservation_confidential_client = msal.ConfidentialClientApplication(
+    client_id=settings.PRESERVATION_CLIENT_ID,
+    client_credential=settings.PRESERVATION_CLIENT_SECRET,
+    authority=settings.PRESERVATION_AUTHORITY_URL
+)
+
+def get_preservation_headers():
+    result = preservation_confidential_client.acquire_token_silent(settings.PRESERVATION_SCOPE, account=None)
+    if not result:
+        logger.info("No Preservation auth token exists in cache, fetching a new one from AAD.")
+        result = preservation_confidential_client.acquire_token_for_client(scopes=[settings.PRESERVATION_SCOPE])
+
+    if "access_token" in result:
+        return {
+            "Authorization": f"Bearer {result['access_token']}",
+            "X-Client-Identity": settings.IIIF_BUILDER_IDENTITY
+        }
+
+    logger.error("No access token obtained from AAD.")
+    return None
 
 async def get_activities(stream_uri: str, session: ClientSession, last_event_time: datetime.datetime) -> Result:
 

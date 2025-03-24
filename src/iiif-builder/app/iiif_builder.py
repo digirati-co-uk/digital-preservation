@@ -1,40 +1,17 @@
 from datetime import datetime, timezone
 import aiohttp
 import asyncio
-import msal
 import app.settings as settings
 from logzero import logger
 
-from signal_handler import SignalHandler
+from app.signal_handler import SignalHandler
 from app.db import ArchivalGroupActivity
-from preservation_api import get_activities, load_archival_group, load_mets
-from identity_service import get_identities_from_archival_group, get_internal_iiif_uris
-from catalogue_api import read_catalogue_api
-from boilerplate import get_boilerplate_manifest
-from manifest_decorator import add_descriptive_metadata_to_manifest, add_painted_resources
-from iiif_cloud_services import put_manifest
-
-
-preservation_confidential_client = msal.ConfidentialClientApplication(
-    settings.PRESERVATION_CLIENT_ID,
-    settings.PRESERVATION_AUTHORITY_URL,
-    settings.PRESERVATION_CLIENT_SECRET
-)
-
-def get_preservation_headers():
-    result = preservation_confidential_client.acquire_token_silent(settings.PRESERVATION_SCOPE, account=None)
-    if not result:
-        logger.info("No Preservation auth token exists in cache, fetching a new one from AAD.")
-        result = preservation_confidential_client.acquire_token_for_client(scopes=settings.PRESERVATION_SCOPE)
-
-    if "access_token" in result:
-        return {
-            "Authorization": f"Bearer {result['access_token']}",
-            "X-Client-Identity": settings.IIIF_BUILDER_IDENTITY
-        }
-
-    logger.error("No access token obtained from AAD.")
-    return None
+from app.preservation_api import get_activities, load_archival_group, load_mets
+from app.identity_service import get_identities_from_archival_group, get_internal_iiif_uris
+from app.catalogue_api import read_catalogue_api
+from app.boilerplate import get_boilerplate_manifest
+from app.manifest_decorator import add_descriptive_metadata_to_manifest, add_painted_resources
+from app.iiif_cloud_services import put_manifest
 
 
 async def read_stream():
@@ -140,8 +117,6 @@ async def process_activity(activity, session):
 
     job.finished = datetime.now(timezone.utc)
     job.save()
-
-
 
 
 
