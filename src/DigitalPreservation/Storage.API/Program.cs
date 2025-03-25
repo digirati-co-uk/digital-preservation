@@ -1,10 +1,12 @@
 ﻿using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
 using Serilog;
+using Storage.API;
 using Storage.API.Data;
 using Storage.API.Features.Export;
 using Storage.API.Features.Export.Data;
@@ -72,6 +74,7 @@ try
             if (useAuthFeatureFlag)
             {
                 config.Filters.Add(new AuthorizeFilter());
+                config.Filters.Add(new AuthFilterIdentifier());
             }
         });
 

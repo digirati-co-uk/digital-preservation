@@ -3,10 +3,10 @@ using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Preservation.API.Features.Repository.Requests;
+using Storage.API.Features.Repository.Requests;
 using Storage.Repository.Common;
 
-namespace Preservation.API.Features.Binaries;
+namespace Storage.API.Features.Binaries;
 
 [ApiController]
 [Route("[controller]/{*path}")]
@@ -20,9 +20,7 @@ public class ContentController(
     [ProducesResponseType(401)]
     public async Task<IActionResult> GetBinary([FromRoute] string path)
     {
-        var repositoryPath = StringUtils.BuildPath(
-            true, PreservedResource.BasePathElement, path);
-        var result = await mediator.Send(new GetResource(repositoryPath));
+        var result = await mediator.Send(new GetResourceFromFedora(path));
         if (result.Success)
         {
             var resource = result.Value;

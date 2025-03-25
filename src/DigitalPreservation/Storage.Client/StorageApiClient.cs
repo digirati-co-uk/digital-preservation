@@ -26,6 +26,32 @@ public class StorageApiClient(
 {
     private readonly HttpClient storageHttpClient = httpClient;
 
+    public async Task<Result<Stream>> GetBinaryStream(string path, string? version)
+    {
+        if (path.StartsWith("/repository/"))
+        {
+            var contentPath = path.Replace("/repository/", "/content/");
+            try
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get, new Uri(contentPath, UriKind.Relative));
+                var response = await storageHttpClient.SendAsync(req);
+                if (response.IsSuccessStatusCode)
+                {
+                    var stream = await response.Content.ReadAsStreamAsync();
+                    return Result.OkNotNull(stream);
+                    
+                }
+                return await response.ToFailNotNullResult<Stream>();
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, e.Message);
+                return Result.FailNotNull<Stream>(ErrorCodes.UnknownError, e.Message);
+            }
+        }
+        return Result.FailNotNull<Stream>(ErrorCodes.UnknownError, "Unable to get stream for binary " + path);
+    }
+
     public async Task<Result<List<Activity>>> GetImportJobActivities(DateTime after, CancellationToken cancellationToken = default)
     {
         var reader = new ActivityStreamReader(storageHttpClient);

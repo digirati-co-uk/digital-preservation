@@ -3,7 +3,6 @@ using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.Utils;
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Repository.Requests;
 using Storage.Repository.Common.Mets;
@@ -36,7 +35,14 @@ public class RepositoryController(IMediator mediator) : Controller
 
             if (mets is not null)
             {
-                return Redirect(mets.Id!.ToString().ReplaceFirst(PreservedResource.BasePathElement, "content"));
+                // We need to stream the METS view from storage
+                var streamResult = await mediator.Send(new GetBinaryStream(mets.Id!.AbsolutePath));
+                if (streamResult is { Success: true, Value: not null })
+                {
+                    return new FileStreamResult(streamResult.Value, "application/xml");
+                }
+
+                return this.StatusResponseFromResult(streamResult);
             }
 
         }

@@ -1,4 +1,4 @@
-using DigitalPreservation.Common.Model.Identity;
+﻿using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -16,6 +16,8 @@ using Storage.Client;
 using Storage.Repository.Common;
 using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.S3;
+using Preservation.API;
+using DigitalPreservation.Core.Auth;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -69,6 +71,7 @@ try
             if (useAuthFeatureFlag)
             {
                 config.Filters.Add(new AuthorizeFilter());
+                config.Filters.Add(new AuthFilterIdentifier());
             }
         });
 
