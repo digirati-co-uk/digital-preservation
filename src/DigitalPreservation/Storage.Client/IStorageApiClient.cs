@@ -50,6 +50,15 @@ public interface IStorageApiClient
     Task<ConnectivityCheckResult?> CanSeeS3(CancellationToken cancellationToken = default);
     Task<Result> DeleteContainer(string path, bool requestPurge, CancellationToken cancellationToken);
     Task<Result<Export>> GetExport(Uri entityExportResultUri);
+    
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="path">The full path including the /repository/ initial path element</param>
+    /// <param name="version">v1, v2 etc (optional - latest will be returned by default)</param>
+    /// <returns></returns>
+    Task<Result<Stream>> GetBinaryStream(string path, string? version);
 
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
     

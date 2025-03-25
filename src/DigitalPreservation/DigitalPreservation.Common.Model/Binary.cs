@@ -20,7 +20,6 @@ public class Binary : PreservedResource
     [JsonPropertyOrder(320)]
     public string? Digest { get; set; }
 
-    // TODO - Binary Content for stream
     [JsonPropertyName("content")]
     [JsonPropertyOrder(500)]
     public Uri? Content { get; set; }
