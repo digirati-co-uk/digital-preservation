@@ -9,6 +9,7 @@ ACTIVITY_STREAM_READ_INTERVAL = float(os.environ.get('ACTIVITY_STREAM_READ_INTER
 PRESERVATION_ACTIVITY_STREAM = os.environ.get('PRESERVATION_ACTIVITY_STREAM')
 
 # The header that iiif-builder passes to Preservation API as X-Client-Identity
+PRESERVATION_CLIENT_IDENTITY_HEADER = os.environ.get('PRESERVATION_CLIENT_IDENTITY_HEADER', "X-Client-Identity")
 IIIF_BUILDER_IDENTITY = os.environ.get('IIIF_BUILDER_IDENTITY', "iiif-builder")
 
 # OAuth2 (MS flavoured) settings for calling Preservation API

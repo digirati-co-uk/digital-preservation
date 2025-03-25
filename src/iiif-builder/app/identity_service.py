@@ -21,10 +21,10 @@ client = IdentityServiceClient(request_adapter)
 
 async def get_identities_from_archival_group(archival_group_uri) -> Result:
     # Is this the right way to build this?
-    request_config = RequestConfiguration(query_parameters=QueryParameters({
+    request_config = RequestConfiguration(query_parameters={
         "s": "repositoryuri",
         "q": archival_group_uri
-    }))
+    })
     search_results = await client.ids.get(request_config)
     result_count =  len(search_results.results)
     if result_count == 0:

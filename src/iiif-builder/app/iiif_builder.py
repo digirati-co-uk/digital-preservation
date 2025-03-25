@@ -23,9 +23,9 @@ async def read_stream():
             while not signal_handler.cancellation_requested():
                 last_event_time = ArchivalGroupActivity.get_latest_end_time()
                 activities_result = await get_activities(settings.PRESERVATION_ACTIVITY_STREAM, session, last_event_time)
-                if activities_result.success():
-                    for activity in activities_result.value:
-                        logger.debug(f"Processing activity with endTime={activity.end_time}")
+                if activities_result.success:
+                    for activity in reversed(activities_result.value):
+                        logger.debug(f"Processing activity with endTime={activity["endTime"]}")
                         await process_activity(activity, session)
                 else:
                     logger.error(f"Could not read activities: {activities_result.error}")
@@ -43,7 +43,7 @@ async def read_stream():
 async def process_activity(activity, session):
 
     job: ArchivalGroupActivity = ArchivalGroupActivity.new_activity(
-        activity_end_time = activity["endTime"],
+        activity_end_time_date = datetime.fromisoformat(activity["endTime"]),
         archival_group_uri = activity["object"]["id"],
         activity_type = activity["type"]
     )

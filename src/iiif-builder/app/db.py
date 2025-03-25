@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import psycopg
 
 from app import settings
@@ -41,21 +41,23 @@ class ArchivalGroupActivity:
             with conn.cursor() as cur:
                 result = cur.execute("SELECT max(activity_end_time) FROM archival_group_activity").fetchone()[0]
                 if result is None:
-                    return datetime(2000, 1, 1)
+                    return datetime(2025, 1, 1, tzinfo=timezone.utc)
                 return result
 
 
     @classmethod
-    def new_activity(cls, activity_end_time, archival_group_uri, activity_type)-> 'ArchivalGroupActivity':
+    def new_activity(cls, activity_end_time_date, archival_group_uri, activity_type)-> 'ArchivalGroupActivity':
         with psycopg.connect(settings.POSTGRES_CONNECTION) as conn:
             with conn.cursor() as cur:
                 sql = ("INSERT INTO archival_group_activity "
                        "(activity_end_time, archival_group_uri, activity_type, started) "
                        "VALUES (%s, %s, %s, %s) "
                        "RETURNING id")
-                values = (activity_end_time, archival_group_uri, activity_type, datetime.now())
+                values = (activity_end_time_date, archival_group_uri, activity_type, datetime.now(tz=timezone.utc))
                 new_id = cur.execute(sql, values).fetchone()[0]
-                return ArchivalGroupActivity.get_from_id(new_id)
+
+        if new_id != -1:
+            return ArchivalGroupActivity.get_from_id(new_id)
 
 
     @staticmethod
@@ -67,10 +69,10 @@ class ArchivalGroupActivity:
                        "internal_public_manifest_uri, internal_api_manifest_uri, "
                        "started, finished, error_message "
                        "FROM archival_group_activity WHERE id = %s")
-                result = cur.execute(sql, id_).fetchone()
+                result = cur.execute(sql, [id_]).fetchone()
                 if result is None:
                     return None
-                row = result[0]
+                row = result
                 return ArchivalGroupActivity(
                     id_=row[0],
                     activity_end_time=row[1],
@@ -111,17 +113,18 @@ class ArchivalGroupActivity:
 
 # create table archival_group_activity
 # (
-#     id                           serial primary key,
-#     activity_end_time            timestamp not null,
-#     archival_group_uri           text      not null,
-#     activity_type                text      not null,
+#     id                           serial
+#         primary key,
+#     activity_end_time            timestamp with time zone not null,
+#     archival_group_uri           text                     not null,
+#     activity_type                text                     not null,
 #     id_service_pid               text,
 #     catalogue_api_uri            text,
 #     public_manifest_uri          text,
 #     internal_public_manifest_uri text,
 #     internal_api_manifest_uri    text,
-#     started                      timestamp not null,
-#     finished                     timestamp,
+#     started                      timestamp with time zone not null,
+#     finished                     timestamp with time zone,
 #     error_message                text
 # );
 #
