@@ -104,21 +104,22 @@ def add_painted_resources_from_working_dir(painted_resources, working_dir:Workin
         # You can also obtain the origin by traversing the ArchivalGroup Container hierarchy, following
         # the path given by f.local_path. This gives you the S3 URI directly (the origin property
         # of the binary at the end of the path) but is more code otherwise.
-        origin = f"{archival_group.origin}/{archival_group.storageMap.files[f.local_path].fullPath}"
+        origin = f"{archival_group["origin"]}/{archival_group["storageMap"]["files"][f.local_path]["fullPath"]}"
 
         # do we want to do this for starters?
         if not f.content_type.startswith("image"):
             continue
 
+        single_path_file_id = f.local_path.replace('/', '_')
         painted_resources.append({
             "canvasPainting": {
                 # canvasId is optional but gives iiif-b more control. IIIF-CS will mint its own otherwise.
-                "canvasId": f"{canvas_id_prefix}{f.local_path.replace('/', '_')}",
+                "canvasId": f"{canvas_id_prefix}{single_path_file_id}",
                 "canvasOrder": canvas_index,        # optional, will use array order otherwise
                 "label": { "en" : [ f.name ] }      # e.g., page numbers... e.g., "xvii", "37r", etc.
             },
             "asset": {
-                "id": f"{f.local_path.split('/')[-1]}", # use the file name as the ID. Will be scoped to the manifest.
+                "id": single_path_file_id, # use the file path as the ID. Will be scoped to the manifest.
                 "mediaType": f.content_type,
                 "origin": origin
             }

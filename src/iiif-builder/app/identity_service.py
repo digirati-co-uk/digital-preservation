@@ -1,3 +1,8 @@
+import hashlib
+import base64
+import urllib.parse
+# the above two are only needed for the fake ID service
+
 from kiota_abstractions.authentication import ApiKeyAuthenticationProvider, KeyLocation
 from kiota_abstractions.base_request_configuration import RequestConfiguration
 from kiota_abstractions.request_information import QueryParameters
@@ -19,22 +24,44 @@ request_adapter = HttpxRequestAdapter(auth_provider)
 request_adapter.base_url = settings.IDENTITY_SERVICE_BASE_URL
 client = IdentityServiceClient(request_adapter)
 
-async def get_identities_from_archival_group(archival_group_uri) -> Result:
+
+async def get_identities_from_archival_group(archival_group_uri:str) -> Result:
+    path = urllib.parse.urlparse(archival_group_uri).path
+    fake_pid = base64.urlsafe_b64encode(hashlib.md5(path.encode('utf-8')).digest()).decode('utf-8').rstrip('=').lower()
+    fake_results = {
+        "results": [
+            {
+                "id": fake_pid,
+                "manifesturi": f"https://iiif.leeds.ac.uk/presentation/cc/{fake_pid}",
+                "catalogueapiuri": f"https://catalogue.leeds.ac.uk/{fake_pid}",
+                "repositoryuri": archival_group_uri
+            }
+        ]
+    }
+    return Result.success({
+        "pid": fake_results["results"][0]["id"],
+        "manifest_uri": fake_results["results"][0]["manifesturi"],
+        "catalogue_api_uri": fake_results["results"][0]["catalogueapiuri"]
+    })
+
+
+
+async def get_identities_from_archival_group_for_real(archival_group_uri) -> Result:
     # Is this the right way to build this?
     request_config = RequestConfiguration(query_parameters={
         "s": "repositoryuri",
         "q": archival_group_uri
     })
     search_results = await client.ids.get(request_config)
-    result_count =  len(search_results.results)
+    result_count =  len(search_results["results"])
     if result_count == 0:
         return Result(False, f"No results for AG {archival_group_uri}")
     if result_count > 1:
         return Result(False, f"Multiple results ({result_count}) for AG {archival_group_uri}")
     return Result.success({
-        "pid": search_results.results[0].id,
-        "manifest_uri": search_results.results[0].manifesturi,
-        "catalogue_api_uri": search_results.results[0].catalogueapiuri
+        "pid": search_results["results"][0]["id"],
+        "manifest_uri": search_results["results"][0]["manifesturi"],
+        "catalogue_api_uri": search_results["results"][0]["catalogueapiuri"]
     })
     # Example:
     # {
