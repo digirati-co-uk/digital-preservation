@@ -9,13 +9,11 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Primitives;
-using Microsoft.Identity.Client;
-using Microsoft.Identity.Web;
+using Preservation.Client;
 
 namespace DigitalPreservation.UI.Pages;
 
-public class BrowseModel(IMediator mediator) : PageModel
+public class BrowseModel(IMediator mediator, IPreservationApiClient preservationApiClient) : PageModel
 {
     public PreservedResource? Resource { get; set; }
     public string? PathUnderRoot { get; set; }
@@ -27,7 +25,7 @@ public class BrowseModel(IMediator mediator) : PageModel
     public Dictionary<string, List<ImportJobResult>> ImportJobResultsForNewDeposits { get; set; } = new();
 
     
-    public async Task OnGet(string? pathUnderRoot)
+    public async Task<IActionResult> OnGet(string? pathUnderRoot, [FromQuery] string? view)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
         var result = await mediator.Send(new GetResource(resourcePath));
@@ -39,6 +37,15 @@ public class BrowseModel(IMediator mediator) : PageModel
             switch (Resource!.Type)
             {
                 case nameof(ArchivalGroup):
+                    
+                    if (view == "mets")
+                    {
+                        var metsResult = await preservationApiClient.GetMetsStream(resourcePath);
+                        if (metsResult is { Item1: not null, Item2: not null })
+                        {
+                            return File(metsResult.Item1, metsResult.Item2);
+                        }
+                    }
                     ViewData["Title"] = $"📦 {name}";
                     ArchivalGroupPath = PathUnderRoot;
                     var query = new DepositQuery
@@ -70,6 +77,7 @@ public class BrowseModel(IMediator mediator) : PageModel
                 ArchivalGroupPath = Resource.PartOf.GetPathUnderRoot();
             }
         }
+        return Page();
     }
 
     private async Task GetJobsForActiveDeposits()

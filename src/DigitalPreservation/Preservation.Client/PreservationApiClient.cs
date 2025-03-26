@@ -330,8 +330,25 @@ internal class PreservationApiClient(
 
     public async Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken)
     {
-        var path = "/content/" + repositoryPath.RemoveStart("/").RemoveStart(PreservedResource.BasePathElement);
+        var path = "/content/" + repositoryPath
+            .RemoveStart("/")
+            .RemoveStart(PreservedResource.BasePathElement)
+            .RemoveStart("/");
         var uri = new Uri(path, UriKind.Relative);
+        var req = new HttpRequestMessage(HttpMethod.Get, uri);
+        var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return (await response.Content.ReadAsStreamAsync(cancellationToken), 
+                response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream");
+        }
+
+        return (null, null);
+    }
+
+    public async Task<(Stream?, string?)> GetMetsStream(string archivalGrouprepositoryPath, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(archivalGrouprepositoryPath + "?view=mets", UriKind.Relative);
         var req = new HttpRequestMessage(HttpMethod.Get, uri);
         var response = await preservationHttpClient.SendAsync(req, cancellationToken);
         if (response.IsSuccessStatusCode)
