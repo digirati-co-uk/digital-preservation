@@ -1,14 +1,14 @@
-﻿using System.Security.Claims;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Identity.Web;
+using System.Security.Claims;
 
 namespace DigitalPreservation.Core.Auth;
 
 public sealed class AuthFilterIdentifier : IAsyncAuthorizationFilter
 {
     //This used by PropagateCorrelationIdHandler
-    public const string MachineHeaderName = "xMachineName";
+    public const string MachineHeaderName = "X-Client-Identity";
 
     public Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
