@@ -147,7 +147,7 @@ public class GetDiffImportJobHandler(
             logger.LogWarning(message);
             return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
         }
-
+        
         foreach (var container in sourceContainers)
         {
             var relativePath = container.Id!.ToString().RemoveStart(agStringWithSlash);
@@ -167,7 +167,6 @@ public class GetDiffImportJobHandler(
             }
         }
 
-        // var callerIdentity = ClaimsPrincipal.Current.GetCallerIdentity();
         var callerIdentity = request.Principal.GetCallerIdentity();
         var now = DateTime.UtcNow;
         var importJob = new ImportJob
@@ -195,6 +194,12 @@ public class GetDiffImportJobHandler(
             // This is a new object
             importJob.ContainersToAdd = sourceContainers;
             importJob.BinariesToAdd = sourceBinaries;
+        }
+
+        var validateMetsResult = workspace.ValidateImportJob(importJob, combined, existingArchivalGroup);
+        if (validateMetsResult.Failure)
+        {
+            return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, validateMetsResult.ErrorMessage);
         }
 
         logger.LogInformation("Diff Import Job created: " + importJob.LogSummary());
