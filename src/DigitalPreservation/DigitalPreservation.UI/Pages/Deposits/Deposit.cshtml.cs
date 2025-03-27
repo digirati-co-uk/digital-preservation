@@ -26,7 +26,9 @@ public class DepositModel(
     public required WorkspaceManager WorkspaceManager { get; set; }
     public Deposit? Deposit { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
-    
+
+    public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
+
     public async Task OnGet(
         [FromRoute] string id,
         [FromQuery] bool readFromStorage = false,
