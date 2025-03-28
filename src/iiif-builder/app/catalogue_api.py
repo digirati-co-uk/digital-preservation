@@ -1,7 +1,7 @@
 from app import settings
 from app.result import Result
 
-async def read_catalogue_api(session, catalogue_api_uri) -> Result:
+async def read_catalogue_api_fake(session, catalogue_api_uri) -> Result:
 
     fake_pid = catalogue_api_uri.split('=')[-1]
     fake_result = {
@@ -29,7 +29,7 @@ async def read_catalogue_api(session, catalogue_api_uri) -> Result:
     return Result.success(fake_result)
 
 
-async def read_catalogue_api_for_real(session, catalogue_api_uri) -> Result:
+async def read_catalogue_api(session, catalogue_api_uri) -> Result:
 
     response = await session.get(catalogue_api_uri, headers={
         settings.MVP_CATALOGUE_API_KEY_HEADER: settings.MVP_CATALOGUE_API_KEY_VALUE

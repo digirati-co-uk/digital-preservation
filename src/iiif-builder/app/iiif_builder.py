@@ -7,7 +7,7 @@ from logzero import logger
 from app.signal_handler import SignalHandler
 from app.db import ArchivalGroupActivity
 from app.preservation_api import get_activities, load_archival_group, load_mets
-from app.identity_service import get_identities_from_archival_group, get_internal_iiif_uris
+from app.kiota_identity_service import get_identities_from_archival_group, get_internal_iiif_uris
 from app.catalogue_api import read_catalogue_api
 from app.boilerplate import get_boilerplate_manifest
 from app.manifest_decorator import add_descriptive_metadata_to_manifest, add_painted_resources

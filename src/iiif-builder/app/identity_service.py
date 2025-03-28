@@ -1,73 +1,48 @@
-import hashlib
-import base64
-import urllib.parse
-# the above two are only needed for the fake ID service
+import urllib
 
-from kiota_abstractions.authentication import ApiKeyAuthenticationProvider, KeyLocation
-from kiota_abstractions.base_request_configuration import RequestConfiguration
-from kiota_abstractions.request_information import QueryParameters
-from kiota_http.httpx_request_adapter import HttpxRequestAdapter
+from aiohttp import ClientSession
 
 from app import settings
 from app.result import Result
-from id_client.identity_service_client import IdentityServiceClient
-
-# Auth configuration for Leeds identity service
-auth_provider = ApiKeyAuthenticationProvider(
-    KeyLocation.Header,
-    settings.IDENTITY_SERVICE_API_KEY,
-    settings.IDENTITY_SERVICE_API_HEADER,
-    []
-)
-
-request_adapter = HttpxRequestAdapter(auth_provider)
-request_adapter.base_url = settings.IDENTITY_SERVICE_BASE_URL
-client = IdentityServiceClient(request_adapter)
 
 
-async def get_identities_from_archival_group(archival_group_uri:str) -> Result:
-    path = urllib.parse.urlparse(archival_group_uri).path
-    fake_pid = base64.urlsafe_b64encode(hashlib.md5(path.encode('utf-8')).digest()).decode('utf-8').rstrip('=').lower()
-    fake_results = {
-        "results": [
-            {
-                "id": fake_pid,
-                "manifesturi": f"https://iiif.leeds.ac.uk/presentation/cc/{fake_pid}",
-                "catalogueapiuri": f"https://catalogue.leeds.ac.uk/{fake_pid}",
-                "repositoryuri": archival_group_uri
-            }
-        ]
+async def get_identities_from_archival_group(session: ClientSession, archival_group_uri) -> Result:
+
+    # This is a workaround while the ID service is incomplete.
+    # FOR NOW It assumes that the archival_group_uri ends with an 8-char slug and that this slug is the PID
+    # We will still validate that the PID exists, though.
+
+    pid = archival_group_uri.split('/')[-1]
+    ag_path = urllib.parse.urlparse(archival_group_uri).path.lstrip('/').lstrip('repository/')
+
+    headers = {
+        settings.IDENTITY_SERVICE_API_HEADER: settings.IDENTITY_SERVICE_API_KEY
     }
+    # query_url = f"{settings.IDENTITY_SERVICE_BASE_URL}/ids/q={archival_group_uri}&s=repositoryuri"
+    pid_url = f"{settings.IDENTITY_SERVICE_BASE_URL}/ids/{pid}"
+    response = await session.get(pid_url, headers=headers)
+    if response.status != 200:
+        return Result(False, response.status)
+
+    # if from query:
+    # results_page = await response.json()
+    # results = results_page.get('results', [])
+    # if len(results) == 0:
+    #     return Result(False, "No results found")
+    # if len(results) > 1:
+    #     return Result(False, "Multiple results found")
+    #
+    # result = results[0]
+
+    # if from pid direct
+    result = await response.json()
+
     return Result.success({
-        "pid": fake_results["results"][0]["id"],
-        "manifest_uri": fake_results["results"][0]["manifesturi"],
-        "catalogue_api_uri": fake_results["results"][0]["catalogueapiuri"]
+        "pid": result.get('id'), # should be same as pid
+        "manifest_uri": result.get('manifesturi'),
+        "catalogue_api_uri": result.get('catalogueapiuri'),
+        "catirn": result.get('catirn')
     })
-
-
-
-async def get_identities_from_archival_group_for_real(archival_group_uri) -> Result:
-    # Is this the right way to build this?
-    request_config = RequestConfiguration(query_parameters={
-        "s": "repositoryuri",
-        "q": archival_group_uri
-    })
-    search_results = await client.ids.get(request_config)
-    result_count =  len(search_results["results"])
-    if result_count == 0:
-        return Result(False, f"No results for AG {archival_group_uri}")
-    if result_count > 1:
-        return Result(False, f"Multiple results ({result_count}) for AG {archival_group_uri}")
-    return Result.success({
-        "pid": search_results["results"][0]["id"],
-        "manifest_uri": search_results["results"][0]["manifesturi"],
-        "catalogue_api_uri": search_results["results"][0]["catalogueapiuri"]
-    })
-    # Example:
-    # {
-    #   "manifest_uri": "https://iiif.leeds.ac.uk/presentation/sc/abcd1234",
-    #   "catalogue_api_uri": "https://catalogue-api.leeds.ac.uk/id/abcd1234",
-    # }
 
 
 def get_internal_iiif_uris(public_manifest_uri):
