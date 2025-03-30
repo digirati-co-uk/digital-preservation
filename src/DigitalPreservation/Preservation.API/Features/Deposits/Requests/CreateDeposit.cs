@@ -8,6 +8,7 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
+using LeedsDlipServices.Identity;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Mutation;

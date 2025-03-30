@@ -1,12 +1,11 @@
-﻿using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Core.Auth;
+﻿using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
+using LeedsDlipServices.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
 using Serilog;
-using Storage.API;
 using Storage.API.Data;
 using Storage.API.Features.Export;
 using Storage.API.Features.Export.Data;
@@ -63,7 +62,7 @@ try
         .AddFedoraClient(builder.Configuration, "Storage-API")
         .AddFedoraDB(builder.Configuration, "Fedora")
         .AddStorageAwsAccess(builder.Configuration)
-        .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
+        .AddSingleton<IIdentityService, IIdentityService>()
         .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
         .AddScoped<IExportResultStore, ExportResultStore>() // only for Storage API; happens after above for shared S3
         .AddStorageHealthChecks()

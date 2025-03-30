@@ -1,5 +1,4 @@
-﻿using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Core.Configuration;
+﻿using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
@@ -7,7 +6,6 @@ using Microsoft.Identity.Web;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Workspace;
 using Preservation.API.Data;
-using Preservation.API.Features.Activity;
 using Preservation.API.Features.Activity.Readers;
 using Preservation.API.Infrastructure;
 using Preservation.API.Mutation;
@@ -16,8 +14,8 @@ using Storage.Client;
 using Storage.Repository.Common;
 using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.S3;
-using Preservation.API;
 using DigitalPreservation.Core.Auth;
+using LeedsDlipServices.Identity;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -59,7 +57,7 @@ try
         .AddStorageAwsAccess(builder.Configuration)
         .AddStorageClient(builder.Configuration, "Preservation-API")
         .AddResourceMutator(builder.Configuration)
-        .AddSingleton<IIdentityService, TemporaryNonCheckingIdentityService>()
+        .AddSingleton<IIdentityService, IdentityService>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
         .AddSingleton<WorkspaceManagerFactory>()
