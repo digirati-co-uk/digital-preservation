@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
@@ -266,5 +267,72 @@ public class WorkspaceManager(
         }
 
         return wd;
+    }
+
+    public Result ValidateImportJob(
+        ImportJob importJob, 
+        CombinedDirectory depositCombinedDirectory,
+        ArchivalGroup? existingArchivalGroup)
+    {
+        // The METS file shouldn't be adding or removing resources that aren't
+        // present in EITHER the incoming deposit, or in the existing Archival Group.
+        // However - limit this check to the objects directory (?)
+
+        var agStringWithSlash = importJob.ArchivalGroup! + "/";
+        
+        List<Container> allExistingContainers = [];
+        List<Binary> allExistingBinaries = [];
+        if (existingArchivalGroup is not null)
+        {
+            (allExistingContainers, allExistingBinaries) = existingArchivalGroup.Flatten();
+        }
+        
+        var (allCombinedDirectories, allCombinedFiles) = depositCombinedDirectory.Flatten();
+        var agFiles = existingArchivalGroup?.StorageMap?.Files;
+        foreach (var combinedFile in allCombinedFiles)
+        {
+            if (combinedFile.FileInMets is not null)
+            {
+                // It's in the incoming METS...
+                if (agFiles != null && agFiles.ContainsKey(combinedFile.LocalPath!))
+                {
+                    // ...and also in the ArchivalGroup
+                    continue;
+                }
+
+                if (importJob.BinariesToAdd.Exists(b => b.Id!.ToString() == agStringWithSlash + combinedFile.LocalPath))
+                {
+                    // It's being added in this operation
+                    continue;
+                }
+                
+                return Result.Fail(ErrorCodes.Conflict, 
+                    "File " + combinedFile.LocalPath + " is in deposit METS but not in existing Archival Group or Deposit.");
+            }
+        }
+        
+        foreach (var combinedDirectory in allCombinedDirectories)
+        {
+            if (combinedDirectory.DirectoryInMets is not null)
+            {
+                // It's in the incoming METS...
+                if (allExistingContainers.Exists(c => c.Id!.ToString() == agStringWithSlash + combinedDirectory.LocalPath))
+                {
+                    // ...and also in the ArchivalGroup
+                    continue;
+                }
+
+                if (importJob.ContainersToAdd.Exists(c => c.Id!.ToString() == agStringWithSlash + combinedDirectory.LocalPath))
+                {
+                    // It's being added in this operation
+                    continue;
+                }
+                
+                return Result.Fail(ErrorCodes.Conflict, 
+                    "Folder " + combinedDirectory.LocalPath + " is in deposit METS but not in existing Archival Group or Deposit.");
+            }
+        }
+        
+        return Result.Ok();
     }
 }

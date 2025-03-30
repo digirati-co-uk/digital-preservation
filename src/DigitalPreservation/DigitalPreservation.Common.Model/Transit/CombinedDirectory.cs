@@ -247,4 +247,31 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         Mets
     }
 
+    
+    
+    public (List<CombinedDirectory>, List<CombinedFile>) Flatten()
+    {
+        var directories = new List<CombinedDirectory>();
+        var files = new List<CombinedFile>();
+        FlattenInternal(directories, files, this);
+        return (directories, files);
+    }
+
+    private static void FlattenInternal(
+        List<CombinedDirectory> directories,
+        List<CombinedFile> files,
+        CombinedDirectory traverseDirectory)
+    {
+        foreach (var directory in traverseDirectory.Directories)
+        {
+            directories.Add(directory.CloneForFlatten());
+            FlattenInternal(directories, files, directory);
+        }
+        files.AddRange(traverseDirectory.Files);
+    }
+
+    private CombinedDirectory CloneForFlatten()
+    {
+        return new CombinedDirectory(DirectoryInDeposit, DirectoryInMets);
+    }
 }

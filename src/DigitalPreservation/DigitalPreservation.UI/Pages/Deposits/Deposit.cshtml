@@ -427,7 +427,7 @@ ViewData["section"] = "deposits";
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="deleteFrom" value="@Whereabouts.Deposit" id="deleteFromDeposit">
                             <label class="form-check-label" for="deleteFromDeposit">
-                                Delete from Deposit only
+                                Delete from Deposit only @(Model.ArchivalGroupExists ? "" : "(for updates only)")
                             </label>
                         </div>
                         <div class="form-check">
@@ -559,6 +559,8 @@ ViewData["section"] = "deposits";
 
 
 <script>
+    
+    const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
     const rows = document.getElementsByClassName("deposit-row");
 
     const newFolderContext = document.getElementById("newFolderContext");
@@ -610,6 +612,8 @@ ViewData["section"] = "deposits";
         deleteFromDepositRadio.checked = false;
         deleteFromMetsAndDepositRadio.checked = false;
         deleteButton.setAttribute("disabled", "true");
+        deleteFromDepositRadio.setAttribute("disabled", "true");
+        deleteFromMetsAndDepositRadio.setAttribute("disabled", "true");
         
         const itemSelectors = document.getElementsByClassName("item-selector");
         const deleteSelectionObject = { items: [] };
@@ -639,7 +643,16 @@ ViewData["section"] = "deposits";
             }
         }
         summary += "</table>";
-        deleteItemHelp.innerHTML = summary;
+
+        if (deleteSelectionObject.items.length > 0){
+            deleteItemHelp.innerHTML = summary;
+            deleteFromMetsAndDepositRadio.removeAttribute("disabled");
+            if (archivalGroupExists){
+                deleteFromDepositRadio.removeAttribute("disabled");
+            }
+        } else {
+            deleteItemHelp.innerHTML = "<p>There are no items selected.</p>"
+        }
         document.getElementById("deleteSelectionObject").value = JSON.stringify(deleteSelectionObject);
     });
 
@@ -676,10 +689,12 @@ ViewData["section"] = "deposits";
             }
         }
         summary += "</table>";
-        addToMetsHelp.innerHTML = summary;
         document.getElementById("addToMetsObject").value = JSON.stringify(addToMetsObject);
         if (addToMetsObject.length > 0){
+            addToMetsHelp.innerHTML = summary;
             addToMetsButton.removeAttribute("disabled");
+        } else {
+            addToMetsHelp.innerHTML = "<p>There are no items selected.</p>"
         }
     });
     
@@ -729,6 +744,7 @@ ViewData["section"] = "deposits";
             }
         });
     }
+
 
 </script>
 

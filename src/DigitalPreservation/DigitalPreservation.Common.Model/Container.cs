@@ -32,11 +32,11 @@ public class Container : PreservedResource
     {
         var allExistingContainers = new List<Container>();
         var allExistingBinaries = new List<Binary>();
-        FlatternInternal(allExistingContainers, allExistingBinaries, this);
+        FlattenInternal(allExistingContainers, allExistingBinaries, this);
         return (allExistingContainers, allExistingBinaries);
     }
 
-    private static void FlatternInternal(
+    private static void FlattenInternal(
         List<Container> allExistingContainers,
         List<Binary> allExistingBinaries,
         Container traverseContainer)
@@ -44,7 +44,7 @@ public class Container : PreservedResource
         foreach (var container in traverseContainer.Containers)
         {
             allExistingContainers.Add(container.CloneForFlatten());
-            FlatternInternal(allExistingContainers, allExistingBinaries, container);
+            FlattenInternal(allExistingContainers, allExistingBinaries, container);
         }
         allExistingBinaries.AddRange(traverseContainer.Binaries);
     }
