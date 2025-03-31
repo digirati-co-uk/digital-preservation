@@ -1,3 +1,4 @@
+import urllib
 from datetime import datetime, timezone
 import aiohttp
 import asyncio
@@ -7,12 +8,13 @@ from logzero import logger
 from app.signal_handler import SignalHandler
 from app.db import ArchivalGroupActivity
 from app.preservation_api import get_activities, load_archival_group, load_mets
-from app.kiota_identity_service import get_identities_from_archival_group, get_internal_iiif_uris
+from app.identity_service import get_identities_from_archival_group, get_internal_iiif_uris
 from app.catalogue_api import read_catalogue_api
 from app.boilerplate import get_boilerplate_manifest
 from app.manifest_decorator import add_descriptive_metadata_to_manifest, add_painted_resources
 from app.iiif_cloud_services import put_manifest
 
+archival_group_prefixes = settings.ARCHIVAL_GROUP_PREFIXES_TO_PROCESS.split(',')
 
 async def read_stream():
     logger.info("starting iiif-builder...")
@@ -39,6 +41,14 @@ async def read_stream():
     logger.info("stopping iiif-builder..")
 
 
+def should_process(archival_group_uri):
+    ag_path = urllib.parse.urlparse(archival_group_uri).path.lstrip('/').lstrip('repository/')
+    for prefix in archival_group_prefixes:
+        if ag_path.startswith(f"{prefix.rstrip('/')}/"):
+            return True
+
+    return False
+
 
 async def process_activity(activity, session):
 
@@ -47,6 +57,14 @@ async def process_activity(activity, session):
         archival_group_uri = activity["object"]["id"],
         activity_type = activity["type"]
     )
+
+    if not should_process(job.archival_group_uri):
+        # Not really an error though.
+        message = "Skipping because AG URI doesn't match configured prefix(es)"
+        logger.error(message)
+        job.error_message = message
+        job.save()
+        return
 
     logger.debug(f"Loading archival group from {job.archival_group_uri}")
     archival_group_result = await load_archival_group(session, job.archival_group_uri)

@@ -1,5 +1,6 @@
 import collections
 
+from app import settings
 from app.mets_parser.mets_wrapper import MetsWrapper
 from app.mets_parser.working_filesystem import WorkingDirectory
 from app.result import Result
@@ -121,6 +122,7 @@ def add_painted_resources_from_working_dir(painted_resources, working_dir:Workin
             "asset": {
                 "id": single_path_file_id, # use the file path as the ID. Will be scoped to the manifest.
                 "mediaType": f.content_type,
+                "space": settings.IIIF_CS_ASSET_SPACE_ID,
                 "origin": origin
             }
         })

@@ -8,6 +8,8 @@ from app.result import Result
 
 async def get_identities_from_archival_group(session: ClientSession, archival_group_uri) -> Result:
 
+    for_query = mutate(archival_group_uri)
+
     # This is a workaround while the ID service is incomplete.
     # FOR NOW It assumes that the archival_group_uri ends with an 8-char slug and that this slug is the PID
     # We will still validate that the PID exists, though.
@@ -18,24 +20,23 @@ async def get_identities_from_archival_group(session: ClientSession, archival_gr
     headers = {
         settings.IDENTITY_SERVICE_API_HEADER: settings.IDENTITY_SERVICE_API_KEY
     }
-    # query_url = f"{settings.IDENTITY_SERVICE_BASE_URL}/ids/q={archival_group_uri}&s=repositoryuri"
-    pid_url = f"{settings.IDENTITY_SERVICE_BASE_URL}/ids/{pid}"
-    response = await session.get(pid_url, headers=headers)
+    query_url = f"{settings.IDENTITY_SERVICE_BASE_URL}/ids/q={for_query}&s=repositoryuri"
+    # pid_url = f"{settings.IDENTITY_SERVICE_BASE_URL}/ids/{pid}"
+    response = await session.get(query_url, headers=headers)
     if response.status != 200:
         return Result(False, response.status)
 
-    # if from query:
-    # results_page = await response.json()
-    # results = results_page.get('results', [])
-    # if len(results) == 0:
-    #     return Result(False, "No results found")
-    # if len(results) > 1:
-    #     return Result(False, "Multiple results found")
-    #
-    # result = results[0]
+    results_page = await response.json()
+    results = results_page.get('results', [])
+    if len(results) == 0:
+        return Result(False, "No results found")
+    if len(results) > 1:
+        return Result(False, "Multiple results found")
+
+    result = results[0]
 
     # if from pid direct
-    result = await response.json()
+    # result = await response.json()
 
     return Result.success({
         "pid": result.get('id'), # should be same as pid

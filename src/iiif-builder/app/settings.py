@@ -11,6 +11,8 @@ PRESERVATION_ACTIVITY_STREAM = os.environ.get('PRESERVATION_ACTIVITY_STREAM')
 # The header that iiif-builder passes to Preservation API as X-Client-Identity
 PRESERVATION_CLIENT_IDENTITY_HEADER = os.environ.get('PRESERVATION_CLIENT_IDENTITY_HEADER', "X-Client-Identity")
 IIIF_BUILDER_IDENTITY = os.environ.get('IIIF_BUILDER_IDENTITY', "iiif-builder")
+PRESERVATION_COLLECTIONS_CONTAINER_ALIASES = os.environ.get('PRESERVATION_COLLECTIONS_CONTAINER_ALIASES', None)
+ARCHIVAL_GROUP_PREFIXES_TO_PROCESS = os.environ.get('ARCHIVAL_GROUP_PREFIXES_TO_PROCESS', 'cc-test,cc,iiifb/demo/deep')
 
 # OAuth2 (MS flavoured) settings for calling Preservation API
 PRESERVATION_CLIENT_ID = os.environ.get('PRESERVATION_CLIENT_ID')
@@ -21,14 +23,14 @@ PRESERVATION_AUTHORITY_URL = f"https://login.microsoftonline.com/{PRESERVATION_T
 
 # Details for calling Leeds Identity Service
 IDENTITY_SERVICE_BASE_URL = os.environ.get('IDENTITY_SERVICE_BASE_URL', 'https://dev-id.library.leeds.ac.uk/api/v1')
-IDENTITY_SERVICE_API_HEADER = "Authorization"
+IDENTITY_SERVICE_API_HEADER = os.environ.get('IDENTITY_SERVICE_API_HEADER', "X-API-KEY")
 IDENTITY_SERVICE_API_KEY = os.environ.get('IDENTITY_SERVICE_API_KEY')
 
 # IIIF Cloud Services configuration
 REWRITTEN_PUBLIC_IIIF_PRESENTATION_PREFIX = os.environ.get('REWRITTEN_PUBLIC_IIIF_PRESENTATION_PREFIX', 'https://iiif.leeds.ac.uk/presentation/')
 IIIF_CS_CUSTOMER_ID = os.environ.get('IIIF_CS_CUSTOMER_ID', 2)
 IIIF_CS_ASSET_SPACE_ID = os.environ.get('IIIF_CS_ASSET_SPACE_ID', 5)
-IIIF_CS_PRESENTATION_HOST = os.environ.get('IIIF_CS_PRESENTATION_HOST', 'https://iiif-cs.library.leeds.ac.uk')
+IIIF_CS_PRESENTATION_HOST = os.environ.get('IIIF_CS_PRESENTATION_HOST', 'https://dev-iiif.leeds.ac.uk/presentation/')
 IIIF_CS_BASIC_CREDENTIALS = os.environ.get('IIIF_CS_BASIC_CREDENTIALS')
 
 # Catalogue API details (MVP version)
