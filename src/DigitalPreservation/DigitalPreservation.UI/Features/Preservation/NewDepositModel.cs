@@ -11,6 +11,9 @@ public class NewDepositModel
     
     public string? ArchivalGroupProposedName { get; set; }
     
+    // When an identifier is provided
+    public string? ObjectIdentifier { get; set; }
+    
     public string? SubmissionText { get; set; }
     
     // The request has come for a particular location; it MAY have a slug 

@@ -14,11 +14,11 @@ public class IdentityRecord
     
     [JsonPropertyOrder(20)]
     [JsonPropertyName("created")]
-    public DateTime? Created { get; set; }
+    public string? Created { get; set; }
     
     [JsonPropertyOrder(25)]
     [JsonPropertyName("updated")]
-    public DateTime? Updated { get; set; }
+    public string? Updated { get; set; }
 
     [JsonPropertyOrder(30)]
     [JsonPropertyName("catirn")]
@@ -47,4 +47,9 @@ public class IdentityRecord
     [JsonPropertyOrder(130)]
     [JsonPropertyName("repositoryuri")]    
     public Uri? RepositoryUri { get; set; }
+
+    public IdentityRecord Clone()
+    {
+        return (IdentityRecord)MemberwiseClone();
+    }
 }

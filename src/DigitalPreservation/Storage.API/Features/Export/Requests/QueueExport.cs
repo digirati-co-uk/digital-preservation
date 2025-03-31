@@ -1,7 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Results;
-using LeedsDlipServices.Identity;
 using MediatR;
 using Storage.API.Fedora.Model;
 using ExportResource = DigitalPreservation.Common.Model.Export.Export;
@@ -15,7 +14,7 @@ public class QueueExport(ExportResource export) : IRequest<Result<ExportResource
 
 public class QueueExportHandler(
     ILogger<QueueExportHandler> logger,
-    IIdentityService identityService,
+    IIdentityMinter identityMinter,
     IExportResultStore exportResultStore,
     Converters converters,
     IExportQueue exportQueue) : IRequestHandler<QueueExport, Result<ExportResource>>
@@ -41,7 +40,7 @@ public class QueueExportHandler(
         //    - var destination = new AmazonS3Uri(export.Destination);
         // Any access control concerns, and whitelisting of S3 locations/buckets that can be exported to
         
-        var identifier = identityService.MintIdentity(nameof(ExportResource));
+        var identifier = identityMinter.MintIdentity(nameof(ExportResource));
         request.Export.Id = converters.GetExportResultId(identifier);
         var createResult = await exportResultStore.CreateExportResult(identifier, request.Export, cancellationToken);
         if (createResult.Success)

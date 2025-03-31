@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.Repository.Requests;
@@ -41,19 +42,34 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
 
     public async Task<IActionResult> OnPostCreate(NewDepositModel newDepositModel)
     {
-        NewDeposit = newDepositModel;
-        
         logger.LogDebug("OnPostNewDeposit(NewDepositModel newDepositModel)");
-        if (await ValidateAndNormaliseNewDeposit(newDepositModel))
+        NewDeposit = newDepositModel;
+        Result<Deposit?>? result = null;
+        if (newDepositModel.ObjectIdentifier.HasText())
         {
-            var result = await mediator.Send(new CreateDeposit(
-                newDepositModel.ArchivalGroupPathUnderRoot,
-                newDepositModel.ArchivalGroupProposedName,
-                newDepositModel.SubmissionText,
-                newDepositModel.UseObjectTemplate,
-                newDepositModel.Export,
-                exportVersion: null // always do this from UI; only supports exporting HEAD
+            result = await mediator.Send(new CreateDepositFromIdentifier(newDepositModel.ObjectIdentifier));
+        }
+        else
+        {
+            if (await ValidateAndNormaliseNewDeposit(newDepositModel))
+            {
+                result = await mediator.Send(new CreateDeposit(
+                    newDepositModel.ArchivalGroupPathUnderRoot,
+                    newDepositModel.ArchivalGroupProposedName,
+                    newDepositModel.SubmissionText,
+                    newDepositModel.UseObjectTemplate,
+                    newDepositModel.Export,
+                    exportVersion: null // always do this from UI; only supports exporting HEAD
                 ));
+            }
+        }
+
+        if (result == null)
+        {
+            TempData["CreateDepositFail"] = "Invalid deposit information";
+        }
+        else
+        {
             if (result.Success)
             {
                 TempData["CreateDepositSuccess"] = "Created new deposit";

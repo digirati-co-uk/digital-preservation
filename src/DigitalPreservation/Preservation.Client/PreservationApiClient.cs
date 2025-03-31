@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
+using LeedsDlipServices.Identity;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -90,6 +91,31 @@ internal class PreservationApiClient(
         {
             logger.LogError(e, e.Message);
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, CancellationToken cancellationToken)
+    {
+        var uri = new Uri($"/{Deposit.BasePathElement}/from-identifier", UriKind.Relative);
+        var body = new SchemaAndValue{ Schema = schema, Value = identifier };
+        try
+        {
+            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(uri, body, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var createdDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
+                if (createdDeposit is not null)
+                {
+                    return Result.Ok(createdDeposit);
+                }
+                return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
+            }
+            return await response.ToFailResult<Deposit>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

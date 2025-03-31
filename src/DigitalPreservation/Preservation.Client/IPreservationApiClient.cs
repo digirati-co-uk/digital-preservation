@@ -31,6 +31,8 @@ public interface IPreservationApiClient
         bool export,
         string? exportVersion,
         CancellationToken cancellationToken);
+    
+    Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, CancellationToken cancellationToken);
     Task<Result<DepositQueryPage>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken);

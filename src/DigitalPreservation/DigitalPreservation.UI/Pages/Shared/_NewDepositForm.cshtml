@@ -8,14 +8,21 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
+                        <label for="objectIdentifier" class="form-label">Identifier</label>
+                        <input type="text" class="form-control" id="objectIdentifier" name="NewDepositModel.ObjectIdentifier" aria-describedby="objectIdentifierHelp" placeholder="e.g., 123456">
+                        <div id="objectIdentifierHelp" class="form-text">An IRN, PID or other identifier for the object.</div>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
                         <label for="archivalGroupProposedName" class="form-label">Name of object (optional)</label>
                         <input type="text" class="form-control" id="archivalGroupProposedName" name="NewDepositModel.ArchivalGroupProposedName" aria-describedby="archivalGroupProposedNameHelp">
-                        <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later.</div>
+                        <div id="archivalGroupProposedNameHelp" class="form-text">The name (title) of the object. May be set later. Leave blank if providing Identifier.</div>
                     </div>
                     <div class="mb-3">
                         <label for="submissionText" class="form-label">Note (optional)</label>
                         <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">
-                        <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see.</div>
+                        <div id="submissionTextHelp" class="form-text">A note accompanying the deposit for you and other users to see. Populated automatically if providing Identifier.</div>
                     </div>
                 </div>
                 <div class="modal-footer">

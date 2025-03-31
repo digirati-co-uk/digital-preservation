@@ -3,7 +3,6 @@ using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
-using LeedsDlipServices.Identity;
 using MediatR;
 using Storage.API.Fedora.Model;
 
@@ -17,7 +16,7 @@ public class QueueImportJob(ImportJob importJob) : IRequest<Result<ImportJobResu
 public class QueueImportJobHandler(
     ILogger<QueueImportJobHandler> logger,
     Converters converters,
-    IIdentityService identityService,
+    IIdentityMinter identityMinter,
     IImportJobResultStore importJobResultStore,
     IImportJobQueue importJobQueue) : IRequestHandler<QueueImportJob, Result<ImportJobResult>>
 {
@@ -40,7 +39,7 @@ public class QueueImportJobHandler(
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, 
                 $"Could not check for active import jobs for Archival Group {request.ImportJob.ArchivalGroup}");
         }
-        var jobIdentifier = identityService.MintIdentity(nameof(ImportJobResult));
+        var jobIdentifier = identityMinter.MintIdentity(nameof(ImportJobResult));
         var saveJobResult = await importJobResultStore.SaveImportJob(jobIdentifier, request.ImportJob, cancellationToken);
         if (saveJobResult.Success)
         {

@@ -15,6 +15,7 @@ using Storage.Repository.Common;
 using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.S3;
 using DigitalPreservation.Core.Auth;
+using LeedsDlipServices;
 using LeedsDlipServices.Identity;
 
 Log.Logger = new LoggerConfiguration()
@@ -56,8 +57,9 @@ try
         })
         .AddStorageAwsAccess(builder.Configuration)
         .AddStorageClient(builder.Configuration, "Preservation-API")
+        .AddIdentityServiceClient(builder.Configuration)
+        .AddMvpCatalogueClient(builder.Configuration)
         .AddResourceMutator(builder.Configuration)
-        .AddSingleton<IIdentityService, IdentityService>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
         .AddSingleton<WorkspaceManagerFactory>()

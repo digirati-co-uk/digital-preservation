@@ -29,19 +29,19 @@ public class PageData
     
     [JsonPropertyOrder(10)]
     [JsonPropertyName("created_from")]
-    public DateTime? CreatedFrom { get; set; }
+    public string? CreatedFrom { get; set; }
     
     [JsonPropertyOrder(11)]
     [JsonPropertyName("created_to")]
-    public DateTime? CreatedTo { get; set; }
+    public string? CreatedTo { get; set; }
     
     [JsonPropertyOrder(20)]
     [JsonPropertyName("updated_from")]
-    public DateTime? UpdatedFrom { get; set; }
+    public string? UpdatedFrom { get; set; }
     
     [JsonPropertyOrder(22)]
     [JsonPropertyName("updated_to")]
-    public DateTime? UpdatedTo { get; set; }
+    public string? UpdatedTo { get; set; }
     
     [JsonPropertyOrder(30)]
     [JsonPropertyName("first")]

@@ -12,6 +12,9 @@ public interface IIdentityService
     /// <returns></returns>
     string MintIdentity(string resourceType, Uri? equivalent = null);
     
+    
+    public Task<Result<IdentityRecord>> GetIdentityBySchema(SchemaAndValue schemaAndValue, CancellationToken cancellationToken);
+    
     public Task<Result<IdentityRecord>> GetIdentityByCatIrn(string catIrn, CancellationToken cancellationToken);
     
     
