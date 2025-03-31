@@ -1,5 +1,7 @@
-﻿using DigitalPreservation.Core.Web;
+﻿using DigitalPreservation.Core.Auth;
+using DigitalPreservation.Core.Web;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Storage.API.Features.Activity.Requests;
 
@@ -7,15 +9,17 @@ namespace Storage.API.Features.Activity;
 
 [Route("[controller]")]
 [ApiController]
+[AllowAnonymous] // ignore standard auth
+[CustomActivityAuthorize] // use filter in api totp instead
 public class ActivityController(IMediator mediator) : Controller
 {
-
     [HttpGet("importjobs/collection", Name = "GetImportJobsCollection")]
     public async Task<IActionResult> GetImportJobsCollection()
     {
         var result = await mediator.Send(new GetImportJobsOrderedCollection());
         return this.StatusResponseFromResult(result);
     }
+
 
     [HttpGet("importjobs/pages/{page}", Name = "GetImportJobsPage")]
     public async Task<IActionResult> GetImportJobsPage(int page)
