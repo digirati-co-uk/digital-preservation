@@ -432,12 +432,18 @@ internal class FedoraClient(
     }
 
     public async Task<Result<Binary?>> PutBinary(Binary binary, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default)
-    {        
+    {      
+        logger.LogInformation("PutBinary {id}", binary.Id);
         // TODO: Can we PUT the resource and set its dc:title in the same PUT request?
         // At the moment we have to make a separate update to the metadata endpoint.
         // verify that parent is a container first?
-        await EnsureChecksum(binary, false);
-        HttpRequestMessage req;
+        var checksumResult = await EnsureChecksum(binary, false);
+        if (checksumResult.Failure)
+        {
+            return Result.Fail<Binary>(ErrorCodes.BadRequest, "No checksum obtainable for binary " + binary.Id);
+        }
+        logger.LogInformation("Binary {path} has checksum {checksum}", binary.Id!.AbsolutePath, binary.Digest);
+        HttpRequestMessage? req;
         HttpResponseMessage? response;
         try
         {
@@ -447,6 +453,12 @@ internal class FedoraClient(
         {
             logger.LogError(e, "Unable to Make a binary PUT request");
             return Result.Fail<Binary>(ErrorCodes.UnknownError, "Unable to Make a binary PUT request: " + e.Message);
+        }
+
+        if (req == null)
+        {
+            logger.LogError("HttpRequestMessage for binary PUT is null");
+            return Result.Fail<Binary>(ErrorCodes.UnknownError, "HttpRequestMessage for binary PUT is null");
         }
         try
         {
@@ -465,8 +477,13 @@ internal class FedoraClient(
             // But we want to reinstate a binary.
 
             // Log or record somehow that this has happened?
-            var retryReq = (await MakeBinaryPut(binary, transaction))
+            var retryReq = (await MakeBinaryPut(binary, transaction))?
                 .OverwriteTombstone();
+            if (retryReq == null)
+            {
+                logger.LogError("HttpRequestMessage for binary Retry PUT is null");
+                return Result.Fail<Binary>(ErrorCodes.UnknownError, "HttpRequestMessage for binary Retry PUT is null");
+            }
             response = await httpClient.SendAsync(retryReq, cancellationToken);
         }
 
@@ -529,8 +546,9 @@ internal class FedoraClient(
         return Result.Ok();
     }
 
-    private async Task<HttpRequestMessage> MakeBinaryPut(Binary binary, Transaction transaction)
+    private async Task<HttpRequestMessage?> MakeBinaryPut(Binary binary, Transaction transaction)
     {
+        logger.LogInformation("Constructing a Binary PUT for {path}", binary.Id!.AbsolutePath);
         var fedoraLocation = converters.GetFedoraUri(binary.Id.GetPathUnderRoot());
         var req = MakeHttpRequestMessage(fedoraLocation, HttpMethod.Put)
             .InTransaction(transaction)
@@ -544,9 +562,29 @@ internal class FedoraClient(
         // This should instead reference the file in S3, for Fedora to fetch
         // https://fedora-project.slack.com/archives/C8B5TSR4J/p1710164226000799
         // ^ not possible rn - but can use a signed HTTP url to fetch! (TODO)
-        var byteArray = await storage.GetBytes(binary.Origin!);
-        req.Content = new ByteArrayContent(byteArray)
-            .WithContentType(binary.ContentType);
+        byte[] byteArray;
+        try
+        {
+            logger.LogInformation("Constructing byte[] from storage content at origin {origin}", binary.Origin);
+            byteArray = await storage.GetBytes(binary.Origin!);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to read origin as bytes");
+            return null;
+        }
+
+        try
+        {
+            logger.LogInformation("Creating ByteArrayContent from byte array of length {length}", byteArray.Length);
+            req.Content = new ByteArrayContent(byteArray)
+                .WithContentType(binary.ContentType);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to read origin as bytes");
+            return null;
+        }
         
         // Still set the content disposition to give the file within Fedora an ebucore:filename triple:
         req.Content.WithContentDisposition(binary.Name);

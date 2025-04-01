@@ -20,9 +20,9 @@ public class FedoraOptions
     public required string AdminPassword { get; set; }
 
     /// <summary>
-    /// Timeout, in MS, for requests made to storage client 
+    /// Timeout, in MINUTES, for requests made to Fedora
     /// </summary>
-    public double TimeoutMs { get; set; } = 15000;
+    public double TimeoutMinutes { get; set; } = 10;
 
     // This feels like a storage API setting not a Fedora setting, but it's used by Fedora client...
     public bool RequireDigestOnBinary { get; set; } = true;

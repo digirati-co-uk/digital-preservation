@@ -231,8 +231,11 @@ public class ExecuteImportJobHandler(
         }
 
         logger.LogInformation("Commiting Fedora transaction " + transaction.Location);
+        var startCommitTime = DateTime.UtcNow;
         await fedoraClient.CommitTransaction(transaction);
         importJobResult.DateFinished = DateTime.UtcNow;
+        var commitDuration = importJobResult.DateFinished - startCommitTime;
+        logger.LogInformation("Fedora commit transaction took {duration} seconds", commitDuration.Value.TotalSeconds);
         importJobResult.Status = ImportJobStates.Completed;
         return Result.OkNotNull(importJobResult);
 
