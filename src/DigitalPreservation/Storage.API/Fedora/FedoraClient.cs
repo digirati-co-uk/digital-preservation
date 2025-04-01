@@ -437,8 +437,26 @@ internal class FedoraClient(
         // At the moment we have to make a separate update to the metadata endpoint.
         // verify that parent is a container first?
         await EnsureChecksum(binary, false);
-        var req = await MakeBinaryPut(binary, transaction);
-        var response = await httpClient.SendAsync(req, cancellationToken);
+        HttpRequestMessage req;
+        HttpResponseMessage? response;
+        try
+        {
+            req = await MakeBinaryPut(binary, transaction);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to Make a binary PUT request");
+            return Result.Fail<Binary>(ErrorCodes.UnknownError, "Unable to Make a binary PUT request: " + e.Message);
+        }
+        try
+        {
+            response = await httpClient.SendAsync(req, cancellationToken);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to Send Binary PUT request");
+            return Result.Fail<Binary>(ErrorCodes.UnknownError, "Unable to Send Binary PUT request: " + e.Message);
+        }
         if (response.StatusCode == HttpStatusCode.Gone)
         {
             // https://github.com/fcrepo/fcrepo/pull/2044
@@ -451,7 +469,12 @@ internal class FedoraClient(
                 .OverwriteTombstone();
             response = await httpClient.SendAsync(retryReq, cancellationToken);
         }
-        response.EnsureSuccessStatusCode();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError("Response from Fedora was {status}", response.StatusCode);
+            return Result.Fail<Binary>(ErrorCodes.UnknownError, $"Response from Fedora was {response.StatusCode}");
+        }
         var metadataUri = req.RequestUri!.MetadataUri();
         
         var newReq = MakeHttpRequestMessage(metadataUri, HttpMethod.Get)

@@ -117,7 +117,7 @@ public class ExecuteImportJobHandler(
             logger.LogInformation("{count} binaries to add", importJob.BinariesToAdd.Count);
             foreach (var binary in importJob.BinariesToAdd)
             {
-                logger.LogInformation("Adding binary {id}", binary.Id);
+                logger.LogInformation("Adding binary {id}, size: {size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
                 var fedoraPutBinaryResult = await fedoraClient.PutBinary(
                     binary,
                     callerIdentity,
@@ -141,7 +141,7 @@ public class ExecuteImportJobHandler(
             logger.LogInformation("{count} binaries to patch", importJob.BinariesToPatch.Count);
             foreach (var binary in importJob.BinariesToPatch)
             {
-                logger.LogInformation("Patching file {id}", binary.Id);
+                logger.LogInformation("Patching file {id}, size: {size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
                 var fedoraPatchBinaryResult = await fedoraClient.PutBinary(
                     binary,
                     callerIdentity,
