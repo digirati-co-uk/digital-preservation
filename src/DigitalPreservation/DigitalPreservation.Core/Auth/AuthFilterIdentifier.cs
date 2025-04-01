@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Identity.Web;
 using System.Security.Claims;
@@ -12,6 +13,13 @@ public sealed class AuthFilterIdentifier : IAsyncAuthorizationFilter
 
     public Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
+        //Controller allows Anonymous so ignore this filter
+        if (context.ActionDescriptor.EndpointMetadata
+            .Any(em => em.GetType() == typeof(AllowAnonymousAttribute)))
+        {
+            return Task.CompletedTask;
+        }
+        
         //return if valid standard user user
         if (!string.IsNullOrEmpty(context.HttpContext.User.GetDisplayName()))
         {
