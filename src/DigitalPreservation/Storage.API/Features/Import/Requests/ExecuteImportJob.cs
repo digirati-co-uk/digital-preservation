@@ -232,7 +232,17 @@ public class ExecuteImportJobHandler(
 
         logger.LogInformation("Commiting Fedora transaction " + transaction.Location);
         var startCommitTime = DateTime.UtcNow;
-        await fedoraClient.CommitTransaction(transaction);
+        try
+        {
+            await fedoraClient.CommitTransaction(transaction);
+        }
+        catch (Exception e)
+        {
+            var errorTime = DateTime.UtcNow - startCommitTime;
+            var message = $"Unable to commit Fedora transaction: duration {errorTime.TotalSeconds} seconds: {e.Message}";
+            logger.LogError(e, message);
+            return await FailEarly(message, rollback: false);
+        }
         importJobResult.DateFinished = DateTime.UtcNow;
         var commitDuration = importJobResult.DateFinished - startCommitTime;
         logger.LogInformation("Fedora commit transaction took {duration} seconds", commitDuration.Value.TotalSeconds);
@@ -240,10 +250,13 @@ public class ExecuteImportJobHandler(
         return Result.OkNotNull(importJobResult);
 
         
-        async Task<Result<ImportJobResult>> FailEarly(string? errorMessage, string? errorCode = ErrorCodes.UnknownError)
+        async Task<Result<ImportJobResult>> FailEarly(string? errorMessage, string? errorCode = ErrorCodes.UnknownError, bool rollback = true)
         {
             logger.LogError("Failing Import Job Early: {errorCode} - {errorMessage}", errorCode, errorMessage);
-            await fedoraClient.RollbackTransaction(transaction);
+            if (rollback)
+            {
+                await fedoraClient.RollbackTransaction(transaction);
+            }
             importJobResult.Errors = [new Error { Message = errorMessage ?? "" }];
             importJobResult.DateFinished = DateTime.UtcNow;
             importJobResult.Status = ImportJobStates.CompletedWithErrors;
