@@ -1,0 +1,133 @@
+﻿@page "{stream}/{index?}"
+@using DigitalPreservation.Utils
+@model DigitalPreservation.UI.Pages.Changes
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">@ViewData["Title"]</h1>
+</div>
+
+<div>
+    @if (Model.OrderedCollection is not null)
+    {
+        <table class="table">
+            <tbody>
+            <tr>
+                <th scope="row">Id</th>
+                <td>@Model.OrderedCollection.Id</td>
+            </tr>
+            <tr>
+                <th scope="row">Total Items</th>
+                <td>@Model.OrderedCollection.TotalItems</td>
+            </tr>
+            <tr>
+                <th scope="row">First</th>
+                <td>@if (Model.OrderedCollection.First != null)
+                    {
+                        <a href="@Model.GetPageLink(Model.OrderedCollection.First)">@Model.OrderedCollection.First.Id.AbsolutePath</a>
+                    }
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">Last</th>
+                <td>@if (Model.OrderedCollection.Last != null)
+                    {
+                        <a href="@Model.GetPageLink(Model.OrderedCollection.Last)">@Model.OrderedCollection.Last.Id.AbsolutePath</a>
+                    }
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">partOf</th>
+                <td>@Model.OrderedCollection.PartOf?.Id</td>
+            </tr>
+            </tbody>
+        </table>
+    }
+    else if (Model.OrderedCollectionPage is not null)
+    {
+        <table class="table table-sm">
+            <tbody>
+            <tr>
+                <th scope="row">Id</th>
+                <td>@Model.OrderedCollectionPage.Id</td>
+            </tr>
+            <tr>
+                <th scope="row">Start Index</th>
+                <td>@Model.OrderedCollectionPage.StartIndex</td>
+            </tr>
+            <tr>
+                <th scope="row">Prev</th>
+                <td>@if (Model.OrderedCollectionPage.Prev != null)
+                    {
+                        <a href="@Model.GetPageLink(Model.OrderedCollectionPage.Prev)">@Model.OrderedCollectionPage.Prev.Id.AbsolutePath</a>
+                    }
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">Next</th>
+                <td>@if (Model.OrderedCollectionPage.Next != null)
+                    {
+                        <a href="@Model.GetPageLink(Model.OrderedCollectionPage.Next)">@Model.OrderedCollectionPage.Next.Id.AbsolutePath</a>
+                    }
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">partOf</th>
+                <td>@Model.OrderedCollectionPage.PartOf?.Id</td>
+            </tr>
+
+            <tr>
+                <th scope="row">Activities</th>
+                <td><hr/></td>
+            </tr>
+            @foreach (var activity in Model.OrderedCollectionPage.OrderedItems ?? [])
+            {
+                <tr>
+                    <th></th>
+                    <td>----------------------</td>
+                </tr>
+                <tr>
+                    <th scope="row">Type</th>
+                    <td>@activity.Type</td>
+                </tr>
+                @if (activity.Summary.HasText())
+                {
+                    <tr>
+                        <th scope="row">Summary</th>
+                        <td>@activity.Summary</td>
+                    </tr>
+                }
+                <tr>
+                    <th scope="row">Start Time</th>
+                    <td>@activity.StartTime</td>
+                </tr>
+                <tr>
+                    <th scope="row">End Time</th>
+                    <td>@activity.EndTime</td>
+                </tr>
+                <tr>
+                    <th scope="row">Object</th>
+                    <td><strong>@activity.Object.Type</strong>: @activity.Object.Id
+                        @if (activity.Object.SeeAlso != null)
+                        {
+                            @foreach (var seeAlso in activity.Object.SeeAlso)
+                            {
+                                <br/>
+                                <strong>See Also: @seeAlso.Type</strong> @seeAlso.Id
+                            }
+                        }
+                    </td>
+                </tr>
+            }
+                    
+            </tbody>
+        </table>
+        
+        
+    }
+    else
+    {
+        <p>No OrderedCollection or OrderedCollectionPage found.</p>
+    }
+
+
+</div>

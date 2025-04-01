@@ -29,4 +29,9 @@
       <AdditionalFiles Include="Views\Shared\Components\Pager\Default.cshtml" />
     </ItemGroup>
 
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="Pages\Activity\Index.cshtml" />
+      <_ContentIncludedByDefault Remove="Pages\Changes\Index.cshtml" />
+    </ItemGroup>
+
 </Project>

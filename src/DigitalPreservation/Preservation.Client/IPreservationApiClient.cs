@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
@@ -50,6 +51,8 @@ public interface IPreservationApiClient
     Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken);
     Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, CancellationToken cancellationToken = default);
     
+    Task<OrderedCollection?> GetOrderedCollection(string stream);
+    Task<OrderedCollectionPage?> GetOrderedCollectionPage(string stream, int index);
     
     // Healthchecks and housekeeping
     

@@ -1,5 +1,6 @@
 ﻿using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
@@ -18,7 +19,21 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
-    
+    public async Task<OrderedCollection?> GetOrderedCollection(string stream)
+    {
+        var uri = new Uri($"/activity/{stream}/collection", UriKind.Relative);
+        var oc = await preservationHttpClient.GetFromJsonAsync<OrderedCollection>(uri);
+        return oc;
+    }
+
+    public async Task<OrderedCollectionPage?> GetOrderedCollectionPage(string stream, int index)
+    {
+        var uri = new Uri($"/activity/{stream}/pages/{index}", UriKind.Relative);
+        var ocp = await preservationHttpClient.GetFromJsonAsync<OrderedCollectionPage>(uri);
+        return ocp;
+    }
+
+
     public async Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot)
     {
         var reqPath = $"validation/archivalgroup/{archivalGroupPathUnderRoot}";
