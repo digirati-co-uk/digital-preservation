@@ -1,3 +1,6 @@
+import json
+import base64
+
 from aiohttp import ClientSession
 from logzero import logger
 
@@ -5,16 +8,13 @@ from app import settings
 from app.result import Result
 
 headers_show_extras = {
-    "Authorization": f"Basic {settings.IIIF_CS_BASIC_CREDENTIALS}",
+    "Authorization": f"Basic {base64.b64encode(settings.IIIF_CS_BASIC_CREDENTIALS.encode("utf-8")).decode("ascii")}",
     "X-IIIF-CS-Show-Extras": "All"
 }
 
 
 async def put_manifest(session: ClientSession, api_manifest_uri:str, manifest) -> Result:
 
-    # TODO: Needs Auth - IIIF-CS API Key
-    # This is using the same session as calls to the preservation API and catalogue API, but not
-    # calls to ID service which uses the kiota-generated client.
     existing_manifest_response = await session.get(api_manifest_uri, headers=headers_show_extras)
     etag = None
     if existing_manifest_response.status == 404:
@@ -39,9 +39,10 @@ async def put_manifest(session: ClientSession, api_manifest_uri:str, manifest) -
     if initial_put_response.status != 202:
         msg = f"PUT to {api_manifest_uri} returned status {initial_put_response.status} - cannot continue"
         logger.warning(msg)
+        logger.debug(json.dumps(manifest, indent=2))
         return Result(False, msg)
 
-    logger.information(f"PUT to {api_manifest_uri} has been sent")
+    logger.debug(f"PUT to {api_manifest_uri} has been sent")
     return Result.success(manifest)
 
 def painted_resources_have_same_asset(p1, p2)->bool:

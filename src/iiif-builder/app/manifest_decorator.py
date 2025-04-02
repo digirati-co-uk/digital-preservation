@@ -26,8 +26,8 @@ def add_descriptive_metadata_to_manifest(manifest, descriptive_metadata):
     add_metadata_label_and_value(manifest, data, "Creators", "en")
 
     rights = data.get("Rights", None)
-    if rights is not None:
-        manifest["rights"] = rights
+    if rights is not None and len(rights) > 0 and rights[0]:
+        manifest["rights"] = rights[0]
 
     homepage = data.get("Homepage", None)
     if homepage is not None:
@@ -66,7 +66,7 @@ def add_metadata_label_and_value(manifest, data_dict, key, lang="en"):
     })
 
 
-def add_painted_resources(manifest, archival_group, mets:MetsWrapper, canvas_id_prefix) -> Result:
+def add_painted_resources(manifest, archival_group, mets:MetsWrapper, canvas_id_prefix, asset_prefix) -> Result:
 
     # Note that there is no items[] in our manifest.
     # For IIIF-Builder MVP we are going to do EVERYTHING with paintedResources.
@@ -74,12 +74,12 @@ def add_painted_resources(manifest, archival_group, mets:MetsWrapper, canvas_id_
         del manifest["items"]
     manifest["paintedResources"] = []
     working_dir = mets.physical_structure
-    if add_painted_resources_from_working_dir(manifest["paintedResources"], working_dir, archival_group, canvas_id_prefix, canvas_index=0):
+    if add_painted_resources_from_working_dir(manifest["paintedResources"], working_dir, archival_group, canvas_id_prefix, asset_prefix, canvas_index=0):
         return Result(manifest)
     return Result(False, f"Could not turn METS file information into painted resources: (error message)")
 
 
-def add_painted_resources_from_working_dir(painted_resources, working_dir:WorkingDirectory, archival_group, canvas_id_prefix, canvas_index):
+def add_painted_resources_from_working_dir(painted_resources, working_dir:WorkingDirectory, archival_group, canvas_id_prefix, asset_prefix, canvas_index):
     """
         In our initial iiif-builder flow, we will ONLY use `paintedResources` and never send
         the Manifest with an `items` property. This means that IIIF-CS will generate and manage
@@ -120,8 +120,8 @@ def add_painted_resources_from_working_dir(painted_resources, working_dir:Workin
                 "label": { "en" : [ f.name ] }      # e.g., page numbers... e.g., "xvii", "37r", etc.
             },
             "asset": {
-                "id": single_path_file_id, # use the file path as the ID. Will be scoped to the manifest.
-                "mediaType": f.content_type,
+                "id": f"{asset_prefix}{single_path_file_id}", # use the file path as the ID. Use pid to scope to the manifest,
+                "mediaType": f.content_type, #                            because all in same space
                 "space": settings.IIIF_CS_ASSET_SPACE_ID,
                 "origin": origin
             }
@@ -131,7 +131,7 @@ def add_painted_resources_from_working_dir(painted_resources, working_dir:Workin
 
     for d in working_dir.directories:
         # recurse
-        if not add_painted_resources_from_working_dir(painted_resources, d, archival_group, canvas_id_prefix, canvas_index):
+        if not add_painted_resources_from_working_dir(painted_resources, d, archival_group, canvas_id_prefix, asset_prefix, canvas_index):
             return False
 
     return True

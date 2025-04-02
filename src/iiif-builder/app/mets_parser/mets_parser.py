@@ -14,7 +14,7 @@ def get_mets_wrapper_from_file_like_object(file_path_or_object):
 
 
 def get_mets_wrapper_from_string(xml_string):
-    root = etree.fromstring(xml_string)
+    root = etree.fromstring(bytes(xml_string, encoding='utf-8'))
     mets_wrapper = build_mets_wrapper(root)
     return mets_wrapper
 

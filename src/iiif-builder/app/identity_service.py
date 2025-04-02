@@ -5,23 +5,49 @@ from aiohttp import ClientSession
 from app import settings
 from app.result import Result
 
+container_aliases = {}
+if settings.PRESERVATION_COLLECTIONS_CONTAINER_ALIASES and not settings.PRESERVATION_COLLECTIONS_CONTAINER_ALIASES.isspace():
+    for pairs in settings.PRESERVATION_COLLECTIONS_CONTAINER_ALIASES.split(','):
+        pair = pairs.split(':')
+        container_aliases[pair[0].strip()] = pair[1].strip()
+
+host_aliases = {}
+if settings.PRESERVATION_COLLECTIONS_HOST_ALIASES and not settings.PRESERVATION_COLLECTIONS_HOST_ALIASES.isspace():
+    for pairs in settings.PRESERVATION_COLLECTIONS_HOST_ALIASES.split(','):
+        pair = pairs.split(':')
+        host_aliases[pair[0].strip()] = pair[1].strip()
+
+
+def mutate(archival_group_uri):
+    # for dev and testing - call the id service with its expected archival group uri rather than
+    # the actual one
+    ag_url = urllib.parse.urlparse(archival_group_uri)
+
+    ag_path = ag_url.path.lstrip('/').lstrip('repository/')
+    ag_path_parts = ag_path.split('/')
+    top_level_container = ag_path_parts[-2]
+    container_alias = container_aliases.get(top_level_container, None)
+    if container_alias:
+        old_end = f"{top_level_container}/{ag_path_parts[-1]}"
+        new_end = f"{container_alias}/{ag_path_parts[-1]}"
+        archival_group_uri = f"{archival_group_uri.removesuffix(old_end)}{new_end}"
+
+    ag_host = ag_url.hostname
+    host_alias = host_aliases.get(ag_host, None)
+    if host_alias:
+        archival_group_uri = archival_group_uri.replace(ag_host, host_alias)
+
+    return archival_group_uri
+
 
 async def get_identities_from_archival_group(session: ClientSession, archival_group_uri) -> Result:
 
     for_query = mutate(archival_group_uri)
 
-    # This is a workaround while the ID service is incomplete.
-    # FOR NOW It assumes that the archival_group_uri ends with an 8-char slug and that this slug is the PID
-    # We will still validate that the PID exists, though.
-
-    pid = archival_group_uri.split('/')[-1]
-    ag_path = urllib.parse.urlparse(archival_group_uri).path.lstrip('/').lstrip('repository/')
-
     headers = {
         settings.IDENTITY_SERVICE_API_HEADER: settings.IDENTITY_SERVICE_API_KEY
     }
-    query_url = f"{settings.IDENTITY_SERVICE_BASE_URL}/ids/q={for_query}&s=repositoryuri"
-    # pid_url = f"{settings.IDENTITY_SERVICE_BASE_URL}/ids/{pid}"
+    query_url = f"{settings.IDENTITY_SERVICE_BASE_URL}/ids?q={for_query}&s=repositoryuri"
     response = await session.get(query_url, headers=headers)
     if response.status != 200:
         return Result(False, response.status)
@@ -34,9 +60,6 @@ async def get_identities_from_archival_group(session: ClientSession, archival_gr
         return Result(False, "Multiple results found")
 
     result = results[0]
-
-    # if from pid direct
-    # result = await response.json()
 
     return Result.success({
         "pid": result.get('id'), # should be same as pid
