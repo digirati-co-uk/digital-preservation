@@ -67,10 +67,14 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         if (result == null)
         {
             TempData["CreateDepositFail"] = "Invalid deposit information";
+            if (!TempData.ContainsKey("CreateDepositFail"))
+            {
+                TempData["CreateDepositFail"] = "Invalid deposit information";
+            }
         }
         else
         {
-            if (result.Success)
+            if (result is { Success: true })
             {
                 TempData["CreateDepositSuccess"] = "Created new deposit";
                 return Redirect("/deposits/" + result.Value!.Id!.GetSlug());
