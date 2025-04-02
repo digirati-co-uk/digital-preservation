@@ -77,6 +77,10 @@ public class BrowseModel(IMediator mediator, IPreservationApiClient preservation
                 ArchivalGroupPath = Resource.PartOf.GetPathUnderRoot();
             }
         }
+        else
+        {
+            TempData["ContainerError"] = result.CodeAndMessage();
+        }
         return Page();
     }
 
