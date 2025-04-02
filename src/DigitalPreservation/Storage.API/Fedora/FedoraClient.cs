@@ -554,6 +554,28 @@ internal class FedoraClient(
             .InTransaction(transaction)
             .WithDigest(binary.Digest, "sha-256"); // move algorithm choice to constant
 
+        Stream putStream;
+        try
+        {
+            logger.LogInformation("Getting stream from storage content at origin {origin}", binary.Origin);
+            putStream = await storage.GetStream(binary.Origin!);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to read origin as stream");
+            return null;
+        }        
+        try
+        {
+            logger.LogInformation("Creating StreamContent");
+            req.Content = new StreamContent(putStream)
+                .WithContentType(binary.ContentType);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to construct StreamContent");
+            return null;
+        }
         // TODO: Need something better than this for large files.
         // How would we transfer a 10GB file for example?
         // Also this is grossly inefficient, we've already read the stream to look at the checksum.
@@ -562,29 +584,29 @@ internal class FedoraClient(
         // This should instead reference the file in S3, for Fedora to fetch
         // https://fedora-project.slack.com/archives/C8B5TSR4J/p1710164226000799
         // ^ not possible rn - but can use a signed HTTP url to fetch! (TODO)
-        byte[] byteArray;
-        try
-        {
-            logger.LogInformation("Constructing byte[] from storage content at origin {origin}", binary.Origin);
-            byteArray = await storage.GetBytes(binary.Origin!);
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Unable to read origin as bytes");
-            return null;
-        }
-
-        try
-        {
-            logger.LogInformation("Creating ByteArrayContent from byte array of length {length}", byteArray.Length);
-            req.Content = new ByteArrayContent(byteArray)
-                .WithContentType(binary.ContentType);
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Unable to read origin as bytes");
-            return null;
-        }
+        // byte[] byteArray;
+        // try
+        // {
+        //     logger.LogInformation("Constructing byte[] from storage content at origin {origin}", binary.Origin);
+        //     byteArray = await storage.GetBytes(binary.Origin!);
+        // }
+        // catch (Exception e)
+        // {
+        //     logger.LogError(e, "Unable to read origin as bytes");
+        //     return null;
+        // }
+        //
+        // try
+        // {
+        //     logger.LogInformation("Creating ByteArrayContent from byte array of length {length}", byteArray.Length);
+        //     req.Content = new ByteArrayContent(byteArray)
+        //         .WithContentType(binary.ContentType);
+        // }
+        // catch (Exception e)
+        // {
+        //     logger.LogError(e, "Unable to read origin as bytes");
+        //     return null;
+        // }
         
         // Still set the content disposition to give the file within Fedora an ebucore:filename triple:
         req.Content.WithContentDisposition(binary.Name);
