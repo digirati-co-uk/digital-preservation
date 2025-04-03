@@ -6,5 +6,5 @@
 public static class AuthConstants
 {
     public static string ActivityApiKeyHeader = "x-activity-api";
-    public static string ActivityApiTotpSeed = "df$%df34F45jtrtr43435ns#~@fdd&^";
+    public static string ActivityApiTotpSeed = "SDGRKLFCWC53DC";
 }
