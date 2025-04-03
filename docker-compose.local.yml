@@ -28,3 +28,11 @@ services:
       - "5437:5432"
     volumes:
       - iiifbuilder_postgres_data:/var/lib/postgresql/data
+  iiifbuilder:
+    # image: dlip-iiif-builder:latest
+    build:
+      context: ./src/iiif-builder
+      dockerfile: Dockerfile
+    depends_on:
+      - db-iiifbuilder
+    env_file: src/iiif-builder/.env

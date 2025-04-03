@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import psycopg
+from logzero import logger
 
 from app import settings
 
@@ -37,6 +38,18 @@ class ArchivalGroupActivity:
 
     @staticmethod
     def get_latest_end_time() -> datetime:
+        if settings.ACTIVITY_CUTOFF_DATE is not None:
+            if settings.ACTIVITY_CUTOFF_DATE.lower() == "now":
+                logger.info("Found 'now' as activity cutoff date")
+                return datetime.now(tz=timezone.utc)
+            try:
+                logger.info(f"Trying to parse {settings.ACTIVITY_CUTOFF_DATE} for activity cutoff date")
+                cutoff = datetime.fromisoformat(settings.ACTIVITY_CUTOFF_DATE)
+                return cutoff
+            except ValueError:
+                logger.error(f"Unable to parse {settings.ACTIVITY_CUTOFF_DATE} for activity cutoff date, returning current datetime instead")
+                return datetime.now(tz=timezone.utc)
+
         with psycopg.connect(settings.POSTGRES_CONNECTION) as conn:
             with conn.cursor() as cur:
                 result = cur.execute("SELECT max(activity_end_time) FROM archival_group_activity").fetchone()[0]

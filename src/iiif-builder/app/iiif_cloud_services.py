@@ -59,11 +59,15 @@ def update_ingest_status(existing_manifest, new_manifest):
     for new_painted_resource in new_manifest.get("paintedResources", []):
         if new_painted_resource["asset"]["id"] not in seen_ids:
             seen_ids.append(new_painted_resource["asset"]["id"])
-            existing_painted_resource = next(filter(painted_resources_have_same_asset, existing_manifest["paintedResources"]), None)
+            existing_painted_resource = None
+            for pr in existing_manifest.get("paintedResources", []):
+                if pr["asset"]["id"] == new_painted_resource["asset"]["id"]:
+                    existing_painted_resource = pr
+                    break
 
             if existing_painted_resource is None:
                 new_painted_resource["reingest"] = True
                 continue
 
-            if existing_painted_resource["origin"] != new_painted_resource["origin"]:
+            if existing_painted_resource["asset"]["origin"] != new_painted_resource["asset"]["origin"]:
                 new_painted_resource["reingest"] = True
