@@ -134,7 +134,7 @@
             </tr>
             <tr>
                 <th scope="row">Original path</th>
-                <td>-</td>
+                <td>@Model.WorkingFile.MetsExtensions?.OriginalPath</td>
             </tr>
             <tr>
                 <th scope="row">Content Type</th>
@@ -142,11 +142,11 @@
             </tr>
             <tr>
                 <th scope="row">File format</th>
-                <td>-</td>
+                <td>@Model.WorkingFile.MetsExtensions?.FileFormat.GetDisplay()</td>
             </tr>
             <tr>
                 <th scope="row">Virus scan</th>
-                <td>✅</td>
+                <td>@Model.WorkingFile.MetsExtensions?.VirusScan.GetDisplay()</td>
             </tr>
             <tr>
                 <th scope="row">Size</th>

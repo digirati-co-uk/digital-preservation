@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
@@ -24,4 +25,8 @@ public class WorkingFile : WorkingBase
     [JsonPropertyOrder(101)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public FormatInformation? FormatInformation { get; set; }
+
+    public MetsExtensions? MetsExtensions { get; set; }
 }
+
+

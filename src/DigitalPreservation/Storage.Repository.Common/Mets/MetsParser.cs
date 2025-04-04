@@ -140,6 +140,17 @@ public class MetsParser(
         return Result.OkNotNull(mets);
     }
 
+    public Result<MetsFileWrapper> GetMetsFileWrapperFromXDocument(XDocument metsXDocument)
+    {
+        var mets = new MetsFileWrapper
+        {
+            XDocument = metsXDocument,
+            PhysicalStructure = Storage.RootDirectory()
+        };
+        PopulateFromMets(mets, metsXDocument);
+        mets.Editable = mets.Agent == IMetsManager.MetsCreatorAgent;
+        return Result.OkNotNull(mets);
+    }
 
 
     private async Task<WorkingFile?> LoadMetsFileAsync(Uri root, Uri file)
