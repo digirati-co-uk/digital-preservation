@@ -53,7 +53,7 @@
 
 @{
     var navParts = Model.PathUnderRoot?.Split('/', StringSplitOptions.RemoveEmptyEntries);
-    if (navParts is { Length: > 1 })
+    if (navParts is { Length: > 1 } && Model.Resource != null)
     {
         <nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
             <ol class="breadcrumb" style="margin-bottom: 0">
