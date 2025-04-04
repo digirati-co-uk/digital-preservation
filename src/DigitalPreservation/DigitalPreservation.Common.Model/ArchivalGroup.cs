@@ -26,4 +26,34 @@ public class ArchivalGroup : Container
     
     [JsonIgnore]
     public new static string Icon => "📦";
+
+    public PreservedResource? FindResource(string? localPath)
+    {
+        var idToFind = new Uri($"{Id}/{localPath}");
+        return FindResourceInternal(this, idToFind);
+    }
+
+    private PreservedResource? FindResourceInternal(Container parent, Uri idToFind)
+    {
+        foreach (var binary in parent.Binaries)
+        {
+            if (binary.Id == idToFind)
+            {
+                return binary;
+            }
+        }
+        foreach (var container in parent.Containers)
+        {
+            if (container.Id == idToFind)
+            {
+                return container;
+            }
+            var foundInContainer = FindResourceInternal(container, idToFind);
+            if (foundInContainer != null)
+            {
+                return foundInContainer;
+            }
+        }
+        return null;
+    }
 }
