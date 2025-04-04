@@ -123,7 +123,44 @@
     
     @if (modelBinary != null)
     {
-        <p>A binary woah</p>
+        <table class="table small">
+            <tr>
+                <th scope="row">Name</th>
+                <td>@modelBinary.Name
+                @if (modelBinary.Name != modelBinary.GetSlug())
+                {
+                    <text> (@modelBinary.GetSlug())</text>
+                }</td>
+            </tr>
+            <tr>
+                <th scope="row">Original path</th>
+                <td>-</td>
+            </tr>
+            <tr>
+                <th scope="row">Content Type</th>
+                <td>@modelBinary.ContentType</td>
+            </tr>
+            <tr>
+                <th scope="row">File format</th>
+                <td>-</td>
+            </tr>
+            <tr>
+                <th scope="row">Virus scan</th>
+                <td>✅</td>
+            </tr>
+            <tr>
+                <th scope="row">Size</th>
+                <td>@StringUtils.FormatFileSize(modelBinary.Size, withSpace:true)</td>
+            </tr>
+            <tr>
+                <th scope="row">Digest</th>
+                <td>@modelBinary.Digest</td>
+            </tr>
+            <tr>
+                <th scope="row">Content</th>
+                <td>🚫 <a href="@modelBinary.Content">Binary content (Storage API)</a></td>
+            </tr>
+        </table>
     }
     
     @if (Model.Resource is ArchivalGroup ag)
