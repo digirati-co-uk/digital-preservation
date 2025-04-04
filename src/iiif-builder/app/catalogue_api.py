@@ -1,33 +1,6 @@
 from app import settings
 from app.result import Result
 
-async def read_catalogue_api_fake(session, catalogue_api_uri) -> Result:
-
-    fake_pid = catalogue_api_uri.split('=')[-1]
-    fake_result = {
-        "success": True,
-        "error": None,
-        "data": {
-            "Title": f"A book with PID: {fake_pid}",
-            "Shelfmark": f"FAKE/SHELF/{fake_pid}",
-            "Date": "1971",
-            "Description": f"A Description of {fake_pid}\n\n\nOn multiple lines.",
-            "Attribution": "Image Credit : Leeds University Library",
-            "Homepage": f"https://explore.library.leeds.ac.uk/special-collections-explore/{fake_pid}",
-            "Rights": [
-                "https://creativecommons.org/publicdomain/mark/1.0/"
-            ],
-            "Collections": [
-                "Leeds Archive of Vernacular Culture"
-            ],
-            "Creators": [
-                f"Author 1 {fake_pid}",
-                f"Author 2 {reversed(fake_pid)}",
-            ]
-        }
-    }
-    return Result.success(fake_result)
-
 
 async def read_catalogue_api(session, catalogue_api_uri) -> Result:
 
