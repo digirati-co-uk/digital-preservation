@@ -6,14 +6,14 @@ from app.mets_parser.util import get_parent, get_slug
 from app.mets_parser.working_filesystem import WorkingDirectory, WorkingFile
 from app.mets_parser.vocab import *
 
-def get_mets_wrapper_from_file_like_object(file_path_or_object):
+def get_mets_wrapper_from_file_like_object(file_path_or_object)->MetsWrapper:
     mets_doc = etree.parse(file_path_or_object)
     root = mets_doc.getroot()
     mets_wrapper = build_mets_wrapper(root)
     return mets_wrapper
 
 
-def get_mets_wrapper_from_string(xml_string):
+def get_mets_wrapper_from_string(xml_string)->MetsWrapper:
     root = etree.fromstring(bytes(xml_string, encoding='utf-8'))
     mets_wrapper = build_mets_wrapper(root)
     return mets_wrapper
