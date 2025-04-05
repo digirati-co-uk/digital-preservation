@@ -43,9 +43,9 @@ public class BrowseModel(
         PathUnderRoot = pathUnderRoot;
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
         Resource = await TryGetResourceFromCachedArchivalGroup(pathUnderRoot, version);
-        if (Resource != null)
+        if (Resource != null && CachedArchivalGroup != null)
         {
-            Resource.PartOf = CachedArchivalGroup!.Id;
+            Resource.PartOf = CachedArchivalGroup.Id;
         }
         await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
         if (Resource == null)

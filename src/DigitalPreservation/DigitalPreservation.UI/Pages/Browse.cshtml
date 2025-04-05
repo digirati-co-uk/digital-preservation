@@ -138,6 +138,16 @@
     @if (Model.Resource is ArchivalGroup ag)
     {
         <table class="table small">
+            @if (ag.OtherNames is { Count: > 0 })
+            {
+                <tr>
+                    <th scope="row">Previous names</th>
+                    <td>@foreach (var name in ag.OtherNames)
+                        {
+                            @name<br/>
+                        }</td>
+                </tr>
+            }
             <tr>
                 <th scope="row">Created</th>
                 <td>@ag.Created.GetDateDisplay()</td>
@@ -168,32 +178,33 @@
                         <tbody>
                         @foreach (var version in ag.Versions!.OrderByDescending(v => v.MementoDateTime))
                         {
-                        <tr @if (version.Equals(ag.Version))
-                            {
-                            <text> class="table-info" </text>
-                            }
-                            else if (version.Equals(ag.StorageMap!.HeadVersion))
-                            {
-                            <text> class="table-primary" </text>
-                            }
-                        >
-                            <td><a href="/ocfl/@(ViewBag.Path)?version=@version.OcflVersion">@version.OcflVersion</a></td>
-                            <td><a href="/ocfl/@(ViewBag.Path)?version=@version.OcflVersion">@version.MementoDateTime.GetDateDisplay()</a></td>
-                            <td>
-                                @if (version.Equals(ag.StorageMap?.Version))
+                            <tr
+                                @if (version.Equals(ag.Version))
                                 {
-                                <text><strong>Currently viewing</strong></text>
+                                    <text> class="table-info" </text>
                                 }
-                                @if (version.Equals(ag.StorageMap?.HeadVersion))
+                                else if (version.Equals(ag.StorageMap!.HeadVersion))
                                 {
-                                <text> Latest (head) version</text>
+                                    <text> class="table-primary" </text>
                                 }
-                            </td>
-                        </tr>
+                            >
+                                <td><a href="/ocfl/@(ViewBag.Path)?version=@version.OcflVersion">@version.OcflVersion</a></td>
+                                <td><a href="/ocfl/@(ViewBag.Path)?version=@version.OcflVersion">@version.MementoDateTime.GetDateDisplay()</a></td>
+                                <td>
+                                    @if (version.Equals(ag.StorageMap?.Version))
+                                    {
+                                        <text><strong>Currently viewing</strong></text>
+                                    }
+                                    @if (version.Equals(ag.StorageMap?.HeadVersion))
+                                    {
+                                        <text> Latest (head) version</text>
+                                    }
+                                </td>
+                            </tr>
                         }
                         </tbody>
                     </table>
-                    
+
                 </td>
             </tr>
             <tr>
@@ -213,7 +224,7 @@
                         <tbody>
                         @foreach (var deposit in Model.Deposits)
                         {
-                            
+
                             var slug = deposit.Id!.GetSlug();
                             var path = "/deposits/" + slug;
                             <tr>
@@ -234,7 +245,7 @@
                                                 }
                                             }
                                         }
-                                    }    
+                                    }
                                 </td>
                                 <td>@deposit.PreservedBy?.GetSlug()</td>
                                 <td>@deposit.VersionPreserved</td>
@@ -242,7 +253,7 @@
                         }
                         </tbody>
                     </table>
-                    
+
                 </td>
             </tr>
         </table>

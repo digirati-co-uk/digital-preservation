@@ -35,11 +35,22 @@ public class FedoraJsonLdResponse
     // Our custom(ish) additions
 
     /// <summary>
-    /// Assumes we are using dc:title and that Fedora maps it to title
+    /// We are using dc:title and that Fedora maps it to title,
+    /// but we deserialise that manually - see below.
     /// </summary>
-    [JsonPropertyName("title")]
+    [JsonPropertyName("titles")]
     [JsonPropertyOrder(101)]
-    public string? Title { get; set; }
+    public List<string>? Titles { get; set; }
+
+    [JsonIgnore]
+    public string? Title
+    {
+        get
+        {
+            if (Titles == null || Titles.Count == 0) return null;
+            return Titles[0];
+        }
+    }
 
     // HTTP-level data
 

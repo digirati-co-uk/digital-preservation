@@ -12,6 +12,11 @@ public abstract class PreservedResource : Resource
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Name { get; set; }
     
+    [JsonPropertyOrder(11)]
+    [JsonPropertyName("otherNames")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? OtherNames { get; set; }
+    
     [JsonPropertyName("partOf")]
     [JsonPropertyOrder(50)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -85,6 +90,7 @@ public abstract class PreservedResource : Resource
 
     [JsonIgnore]
     public abstract string StringIcon { get; }
+
 
     public static string MakeValidSlug(string unsafeName)
     {
