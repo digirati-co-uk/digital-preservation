@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
@@ -19,32 +20,15 @@ public abstract class WorkingBase
     [JsonPropertyName("modified")]
     [JsonPropertyOrder(3)]
     public DateTime Modified { get; set; }
+    
+    // METS-specific information
+    [JsonPropertyName("metsExtensions")]
+    [JsonPropertyOrder(100)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public MetsExtensions? MetsExtensions { get; set; }
 
     public string GetSlug()
     {
         return LocalPath.Split('/')[^1];
     }
-    
-    // METS-specific information
-    
-    [JsonPropertyName("physDivId")]
-    [JsonPropertyOrder(101)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? PhysDivId { get; set; }
-    
-    [JsonPropertyName("admId")]
-    [JsonPropertyOrder(102)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? AdmId { get; set; }
-    
-    [JsonPropertyName("rightsStatement")]
-    [JsonPropertyOrder(103)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? RightsStatement { get; set; }
-    
-    [JsonPropertyName("accessCondition")]
-    [JsonPropertyOrder(104)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? AccessCondition { get; set; }
-    
 }

@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 using Checksum = DigitalPreservation.Utils.Checksum;
@@ -359,8 +360,12 @@ public class MetsParser(
                                     var nameFromLabel = directoryLabels.Any() ? directoryLabels.Pop() : null;
                                     workingDirectory.Name = nameFromLabel ?? nameFromPath;
                                     workingDirectory.LocalPath = originalName;
-                                    workingDirectory.AdmId = admId;
-                                    workingDirectory.PhysDivId = div.Attribute("ID")?.Value;
+                                    workingDirectory.MetsExtensions = new MetsExtensions
+                                    {
+                                        AdmId = admId,
+                                        PhysDivId = div.Attribute("ID")?.Value,
+                                        OriginalPath = originalName
+                                    };;
                                 }
                             }
                         }
@@ -391,6 +396,7 @@ public class MetsParser(
                     }
                     string? digest = null;
                     long size = 0;
+                    string? originalName = null;
                     if (!haveUsedAdmIdAlready)
                     {
                         var techMd = xMets.Descendants(XNames.MetsTechMD).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
@@ -413,6 +419,7 @@ public class MetsParser(
                         {
                             long.TryParse(sizeEl.Value, out size);
                         }
+                        originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
                         haveUsedAdmIdAlready = true;
                     }
                     var parts = flocat.Split('/');
@@ -427,7 +434,6 @@ public class MetsParser(
                         }
                     }
                     
-                    
                     var file = new WorkingFile
                     {
                         ContentType = mimeType ?? ContentTypes.NotIdentified,
@@ -435,8 +441,21 @@ public class MetsParser(
                         Digest = digest,
                         Size = size,
                         Name = label ?? parts[^1],
-                        AdmId = admId,
-                        PhysDivId = div.Attribute("ID")?.Value
+                        MetsExtensions = new MetsExtensions
+                        {
+                            AdmId = admId,
+                            PhysDivId = div.Attribute("ID")?.Value,
+                            OriginalPath = originalName,
+                            FileFormat = new FileFormat
+                            {
+                                Name = "TODO",
+                                Key = "TODO"
+                            },
+                            VirusScan = new VirusScan
+                            {
+                                HasVirus = false
+                            }
+                        }
                     };
                     mets.Files.Add(file);
 

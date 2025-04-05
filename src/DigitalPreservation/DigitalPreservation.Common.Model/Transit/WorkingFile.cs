@@ -26,7 +26,6 @@ public class WorkingFile : WorkingBase
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public FormatInformation? FormatInformation { get; set; }
 
-    public MetsExtensions? MetsExtensions { get; set; }
 }
 
 

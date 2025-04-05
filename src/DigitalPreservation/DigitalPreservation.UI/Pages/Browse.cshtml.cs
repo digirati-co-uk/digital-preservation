@@ -43,6 +43,10 @@ public class BrowseModel(
         PathUnderRoot = pathUnderRoot;
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
         Resource = await TryGetResourceFromCachedArchivalGroup(pathUnderRoot, version);
+        if (Resource != null)
+        {
+            Resource.PartOf = CachedArchivalGroup!.Id;
+        }
         await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
         if (Resource == null)
         {
@@ -156,13 +160,17 @@ public class BrowseModel(
             return;
         }
 
+        var localPath = Resource
+            .GetPathUnderRoot()
+            .RemoveStart(CachedArchivalGroup.GetPathUnderRoot() ?? "")
+            .RemoveStart("/");
         if (Resource is Container)
         {
-            WorkingDirectory = metsWrapper.PhysicalStructure.FindDirectory(pathUnderRoot);
+            WorkingDirectory = metsWrapper.PhysicalStructure.FindDirectory(localPath);
         }
         else if (Resource is Binary)
         {
-            WorkingFile = metsWrapper.PhysicalStructure.FindFile(pathUnderRoot!);
+            WorkingFile = metsWrapper.PhysicalStructure.FindFile(localPath!);
         }
     }
 

@@ -123,44 +123,16 @@
     
     @if (modelBinary != null)
     {
-        <table class="table small">
-            <tr>
-                <th scope="row">Name</th>
-                <td>@modelBinary.Name
-                @if (modelBinary.Name != modelBinary.GetSlug())
-                {
-                    <text> (@modelBinary.GetSlug())</text>
-                }</td>
-            </tr>
-            <tr>
-                <th scope="row">Original path</th>
-                <td>@Model.WorkingFile.MetsExtensions?.OriginalPath</td>
-            </tr>
-            <tr>
-                <th scope="row">Content Type</th>
-                <td>@modelBinary.ContentType</td>
-            </tr>
-            <tr>
-                <th scope="row">File format</th>
-                <td>@Model.WorkingFile.MetsExtensions?.FileFormat.GetDisplay()</td>
-            </tr>
-            <tr>
-                <th scope="row">Virus scan</th>
-                <td>@Model.WorkingFile.MetsExtensions?.VirusScan.GetDisplay()</td>
-            </tr>
-            <tr>
-                <th scope="row">Size</th>
-                <td>@StringUtils.FormatFileSize(modelBinary.Size, withSpace:true)</td>
-            </tr>
-            <tr>
-                <th scope="row">Digest</th>
-                <td>@modelBinary.Digest</td>
-            </tr>
-            <tr>
-                <th scope="row">Content</th>
-                <td>🚫 <a href="@modelBinary.Content">Binary content (Storage API)</a></td>
-            </tr>
-        </table>
+        if (Model.WorkingFile == null)
+        {
+            <div class="alert alert-danger" role="alert">
+                <p>There is no WorkingFile derived from METS for this Binary.</p>
+            </div>
+        }
+        else
+        {
+            <partial name="Shared/_BinaryAndWorkingFile" model="(modelBinary, Model.WorkingFile)"/>
+        }
     }
     
     @if (Model.Resource is ArchivalGroup ag)

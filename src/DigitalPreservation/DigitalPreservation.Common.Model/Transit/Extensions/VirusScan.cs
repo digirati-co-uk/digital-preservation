@@ -2,8 +2,9 @@
 
 public class VirusScan
 {
+    public bool HasVirus { get; set; }
     public string? GetDisplay()
     {
-        return "✅";
+        return HasVirus ? "☣" : "✅";
     }
 }

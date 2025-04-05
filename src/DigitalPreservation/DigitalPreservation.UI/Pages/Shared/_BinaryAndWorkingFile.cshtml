@@ -1,0 +1,88 @@
+﻿@using DigitalPreservation.Utils
+
+@model (DigitalPreservation.Common.Model.Binary?, DigitalPreservation.Common.Model.Transit.WorkingFile?) 
+
+@{
+    var binary = Model.Item1;
+    var workingFile = Model.Item2;
+}
+<table class="table small">
+    <tr>
+        <th scope="row">Name</th>
+        <td>
+            @if (binary != null)
+            {
+                <text>@binary.Name</text>
+                @if (binary.Name != binary.GetSlug())
+                {
+                    <text> (@binary.GetSlug())</text>
+                }
+            } 
+            else if (workingFile != null)
+            {
+                <text>@workingFile.Name</text>
+                @if (workingFile.Name != workingFile.GetSlug())
+                {
+                    <text> (@workingFile.GetSlug())</text>
+                }
+            }
+            else
+            {
+                <text>No Binary or WorkingFile</text>
+            }
+        </td>
+    </tr>
+    @if (workingFile != null)
+    {
+        <tr>
+            <th scope="row">Original path</th>
+            <td>@workingFile.MetsExtensions?.OriginalPath</td>
+        </tr>
+    }
+    @if (binary != null)
+    {
+        <tr>
+            <th scope="row">Content Type</th>
+            <td>@binary.ContentType</td>
+        </tr>
+    }
+    @if (workingFile != null)
+    {
+        <tr>
+            <th scope="row">File format</th>
+            <td>@workingFile.MetsExtensions?.FileFormat?.GetDisplay()</td>
+        </tr>
+        <tr>
+            <th scope="row">Virus scan</th>
+            <td>@workingFile.MetsExtensions?.VirusScan?.GetDisplay()</td>
+        </tr>
+    }
+    <tr>
+        <th scope="row">Size</th>
+        <td>@StringUtils.FormatFileSize((binary?.Size ?? workingFile?.Size) ?? 0, withSpace:true)</td>
+    </tr>
+    <tr>
+        <th scope="row">Digest</th>
+        <td>@((binary?.Digest ?? workingFile?.Digest) ?? "")
+        @if (binary?.Digest.HasText() is true && workingFile?.Digest.HasText() is true)
+        {
+            if (binary.Digest != workingFile.Digest)
+            {
+                <div class="alert alert-danger" role="alert">
+                    <p>
+                        Binary Digest @binary.Digest <br/>
+                        does not match workingFile Digest @workingFile.Digest
+                    </p>
+                </div>
+            }
+        }
+        </td>
+    </tr>
+    @if (binary != null)
+    {
+        <tr>
+            <th scope="row">Content</th>
+            <td>🚫 <a href="@binary.Content">Binary content (Storage API)</a></td>
+        </tr>
+    }
+</table>
