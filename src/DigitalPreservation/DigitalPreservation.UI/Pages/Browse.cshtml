@@ -273,9 +273,19 @@
                     <th scope="col">Title</th>
                     <th scope="col">Last Modified</th>
                     <th scope="col">By</th>
-                    <th scope="col">Created</th>
-                    <th scope="col">By</th>
-                    <th scope="col"><svg class="bi"><use xlink:href="#box-seam"/></svg></th>
+                    @if (Model.CachedArchivalGroup == null)
+                    {
+                        <th scope="col">Created</th>
+                        <th scope="col">By</th>
+                        <th scope="col"><svg class="bi"><use xlink:href="#box-seam"/></svg></th>
+                    }
+                    else
+                    {
+                        <th scope="col">Type</th>
+                        <th scope="col">Format</th>
+                        <th scope="col">Access</th>
+                        <th scope="col">☣</th>
+                    }
                 </tr>
                 </thead>
                 <tbody>
@@ -298,14 +308,24 @@
                             <td aria-label="td-title"><a href="@path">@container.Name</a></td>
                             <td aria-label="td-last-modified"><a href="@path">@container.LastModified.GetDateDisplay()</a></td>
                             <td aria-label="td-last-modified-by"><a href="@path">@container.LastModifiedBy?.GetSlug()</a></td>
-                            <td aria-label="td-created"><a href="@path">@container.Created.GetDateDisplay()</a></td>
-                            <td aria-label="td-created-by"><a href="@path">@container.CreatedBy?.GetSlug()</a></td>
-                            <td aria-label="td-deposits">
-                                @if (container.Type == nameof(ArchivalGroup))
-                                {
-                                    <a href="/deposits?archivalGroupPath=@container.GetPathUnderRoot()"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
-                                }
-                            </td>
+                            @if (Model.CachedArchivalGroup == null)
+                            {
+                                <td aria-label="td-created"><a href="@path">@container.Created.GetDateDisplay()</a></td>
+                                <td aria-label="td-created-by"><a href="@path">@container.CreatedBy?.GetSlug()</a></td>
+                                <td aria-label="td-deposits">
+                                    @if (container.Type == nameof(ArchivalGroup))
+                                    {
+                                        <a href="/deposits?archivalGroupPath=@container.GetPathUnderRoot()"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
+                                    }
+                                </td>
+                            }
+                            else 
+                            {
+                                <td aria-label="td-type"></td>
+                                <th aria-label="td-format"></th>
+                                <th aria-label="td-access"></th>
+                                <th aria-label="td-virus"></th>
+                            }
                         </tr>
                     }
 
@@ -319,9 +339,31 @@
                             <td aria-label="td-title"><a href="@path">@binary.Name</a></td>
                             <td aria-label="td-last-modified"><a href="@path">@binary.LastModified.GetDateDisplay()</a></td>
                             <td aria-label="td-last-modified-by"><a href="@path">@binary.LastModifiedBy?.GetSlug()</a></td>
-                            <td aria-label="td-created"><a href="@path">@binary.Created.GetDateDisplay()</a></td>
-                            <td aria-label="td-created-by"><a href="@path">@binary.CreatedBy?.GetSlug()</a></td>
-                            <td aria-label="td-deposits"></td>
+                            @if (Model.CachedArchivalGroup == null)
+                            {
+                                <td aria-label="td-created"><a href="@path">@binary.Created.GetDateDisplay()</a></td>
+                                <td aria-label="td-created-by"><a href="@path">@binary.CreatedBy?.GetSlug()</a></td>
+                                <td aria-label="td-deposits"></td>
+                            }
+                            else
+                            {
+                                <td aria-label="td-type">@binary.ContentType</td>
+                                
+                                var localPath = Model.GetLocalPath(binary);
+                                if (localPath != null)
+                                {
+                                    var metsBinary = Model.MetsWorkingDirectory?.FindFile(localPath);
+                                    <td aria-label="td-format" title="@metsBinary?.MetsExtensions?.FileFormat?.Name">@metsBinary?.MetsExtensions?.FileFormat?.Key</td>
+                                    <td aria-label="td-access">@metsBinary?.MetsExtensions?.AccessCondition</td>
+                                    <td aria-label="td-virus">@metsBinary?.MetsExtensions?.VirusScan?.GetDisplay()</td>
+                                }
+                                else
+                                {
+                                    <td aria-label="td-format">-</td>
+                                    <td aria-label="td-access">-</td>
+                                    <td aria-label="td-virus">-</td>
+                                }
+                            }
                         </tr>
                     }
                 }

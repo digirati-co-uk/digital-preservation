@@ -10,8 +10,8 @@ public class StorageOptions
     public required Uri Root { get; set; }
 
     /// <summary>
-    /// Timeout, in MS, for requests made to storage client 
+    /// Timeout, in MINUTES, for requests made to storage client 
     /// </summary>
-    public double TimeoutMs { get; set; } = 100000;
+    public double TimeoutMinutes { get; set; } = 10;
     
 }

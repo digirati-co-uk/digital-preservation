@@ -20,12 +20,6 @@ public class WorkingFile : WorkingBase
     [JsonPropertyName("size")]
     [JsonPropertyOrder(16)]
     public long? Size { get; set; }
-    
-    [JsonPropertyName("formatInformation")]
-    [JsonPropertyOrder(101)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public FormatInformation? FormatInformation { get; set; }
-
 }
 
 

@@ -27,7 +27,7 @@ public static class ServiceCollectionX
                 var storageOptions = provider.GetRequiredService<IOptions<StorageOptions>>().Value;
                 client.BaseAddress = storageOptions.Root.ThrowIfNull(nameof(storageOptions.Root));
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
-                client.Timeout = TimeSpan.FromMilliseconds(storageOptions.TimeoutMs);
+                client.Timeout = TimeSpan.FromMinutes(storageOptions.TimeoutMinutes);
             }).AddHttpMessageHandler<TimingHandler>();
 
         return serviceCollection;

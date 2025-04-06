@@ -364,7 +364,8 @@ public class MetsParser(
                                     {
                                         AdmId = admId,
                                         PhysDivId = div.Attribute("ID")?.Value,
-                                        OriginalPath = originalName
+                                        OriginalPath = originalName,
+                                        AccessCondition = "Open"
                                     };;
                                 }
                             }
@@ -454,7 +455,8 @@ public class MetsParser(
                             VirusScan = new VirusScan
                             {
                                 HasVirus = false
-                            }
+                            },
+                            AccessCondition = "Open"
                         }
                     };
                     mets.Files.Add(file);

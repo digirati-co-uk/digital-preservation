@@ -31,6 +31,7 @@ public class BrowseModel(
     public ArchivalGroup? CachedArchivalGroup { get; set; }
     public WorkingFile? WorkingFile { get; set; }
     public WorkingDirectory? WorkingDirectory { get; set; }
+    public WorkingDirectory? MetsWorkingDirectory { get; set; }
     
     
     // When we are on an archival group
@@ -160,18 +161,29 @@ public class BrowseModel(
             return;
         }
 
-        var localPath = Resource
-            .GetPathUnderRoot()
-            .RemoveStart(CachedArchivalGroup.GetPathUnderRoot() ?? "")
-            .RemoveStart("/");
+        MetsWorkingDirectory = metsWrapper.PhysicalStructure;
+
+        var localPath = GetLocalPath(Resource);
         if (Resource is Container)
         {
-            WorkingDirectory = metsWrapper.PhysicalStructure.FindDirectory(localPath);
+            WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath);
         }
         else if (Resource is Binary)
         {
-            WorkingFile = metsWrapper.PhysicalStructure.FindFile(localPath!);
+            WorkingFile = MetsWorkingDirectory.FindFile(localPath!);
         }
+    }
+
+    public string? GetLocalPath(PreservedResource resource)
+    {
+        if (CachedArchivalGroup == null)
+        {
+            return null;
+        }
+        return resource
+            .GetPathUnderRoot()
+            .RemoveStart(CachedArchivalGroup.GetPathUnderRoot() ?? "")
+            .RemoveStart("/");
     }
 
     private async Task<PreservedResource?> TryGetResourceFromCachedArchivalGroup(string? pathUnderRoot, string? version)
