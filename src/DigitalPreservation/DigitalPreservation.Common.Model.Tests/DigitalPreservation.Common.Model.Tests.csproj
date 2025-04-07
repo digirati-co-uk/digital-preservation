@@ -27,4 +27,10 @@
       <ProjectReference Include="..\DigitalPreservation.Common.Model\DigitalPreservation.Common.Model.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Update="Fixtures\siegfried1.yml">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
 </Project>
