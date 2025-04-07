@@ -129,7 +129,7 @@ internal class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not create deposit");
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }

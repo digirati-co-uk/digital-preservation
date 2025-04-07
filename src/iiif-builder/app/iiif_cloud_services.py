@@ -36,7 +36,7 @@ async def put_manifest(session: ClientSession, api_manifest_uri:str, manifest) -
         headers["If-Match"] = etag
 
     initial_put_response = await session.put(api_manifest_uri, headers=headers, json=manifest)
-    if initial_put_response.status != 202:
+    if not (initial_put_response.status == 202 or initial_put_response.status == 200):
         msg = f"PUT to {api_manifest_uri} returned status {initial_put_response.status} - cannot continue"
         logger.warning(msg)
         logger.debug(json.dumps(manifest, indent=2))
@@ -52,7 +52,7 @@ def painted_resources_have_same_asset(p1, p2)->bool:
 def update_ingest_status(existing_manifest, new_manifest):
     # You could leave the IIIF-CS to decide whether or not to reingest a re-supplied asset.
     # But it plays it quite safe and may reingest things that haven't changed.
-
+    # This is true for IIIF-CS but these requests won't make it "past" IIIF-P for that to kick in.
     # If an asset is repeated (appears more than once)
     # we only need to tell it to reingest once.
     seen_ids = []

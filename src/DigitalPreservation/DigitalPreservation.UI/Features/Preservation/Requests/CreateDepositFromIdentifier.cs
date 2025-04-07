@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using LeedsDlipServices.Identity;
 using MediatR;
 using Preservation.Client;
 
@@ -18,11 +19,11 @@ public class CreateDepositFromIdentifierHandler(IPreservationApiClient preservat
         string? schema = null;
         if (request.Identifier.Length <= 6 && request.Identifier.All(char.IsDigit))
         {
-            schema = "catirn";
+            schema = SchemaAndValue.SchemaCatIrn;
         }
         else if (request.Identifier.Length >= 8 && !request.Identifier.Contains('/'))
         {
-            schema = "id";
+            schema = SchemaAndValue.SchemaId;
         }
 
         if (schema == null)

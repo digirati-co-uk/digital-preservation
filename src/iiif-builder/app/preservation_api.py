@@ -34,42 +34,53 @@ def get_preservation_headers():
 
 async def get_activities(stream_uri: str, session: ClientSession, last_event_time: datetime.datetime) -> Result:
 
-    # TODO: No Error Handling!
-    activities = []
-    headers = get_preservation_headers()
-    coll_response = await session.get(stream_uri, headers=headers)
-    coll = await coll_response.json()
-    page_uri = coll.get("last", {}).get("id", None)
-    while page_uri is not None:
-        page_response = await session.get(page_uri, headers=headers)
-        page = await page_response.json()
-        ordered_items = page.get("orderedItems", [])
-        for activity in reversed(ordered_items):
-            end_time = activity.get("endTime", None)
-            if end_time is None: continue
-            end_time_date = datetime.datetime.fromisoformat(end_time)
-            if end_time_date > last_event_time:
-                activities.append(activity)
-            else:
-                break
-        page_uri = page.get("prev", {}).get("id", None)
+    try:
+        activities = []
+        headers = get_preservation_headers()
+        coll_response = await session.get(stream_uri, headers=headers)
+        coll = await coll_response.json()
+        page_uri = coll.get("last", {}).get("id", None)
+        while page_uri is not None:
+            page_response = await session.get(page_uri, headers=headers)
+            page = await page_response.json()
+            ordered_items = page.get("orderedItems", [])
+            for activity in reversed(ordered_items):
+                end_time = activity.get("endTime", None)
+                if end_time is None: continue
+                end_time_date = datetime.datetime.fromisoformat(end_time)
+                if end_time_date > last_event_time:
+                    activities.append(activity)
+                else:
+                    break
+            page_uri = page.get("prev", {}).get("id", None)
 
-    return Result.success(activities)
+        return Result.success(activities)
+
+    except Exception as e:
+        logger.error(f"Error getting activities: {e}")
+        return Result(False, "Unable to get activities")
 
 
 async def load_archival_group(session: ClientSession, archival_group_uri: str) -> Result:
 
-    # TODO: No Error Handling!
-    ag_response = await session.get(archival_group_uri, headers=get_preservation_headers())
-    ag = await ag_response.json()
-    return Result.success(ag)
+    try:
+        ag_response = await session.get(archival_group_uri, headers=get_preservation_headers())
+        ag = await ag_response.json()
+        return Result.success(ag)
+    except Exception as e:
+        logger.error(f"Error getting archival group: {e}")
+        return Result(False, "Unable to load Archival Group")
 
 
 async def load_mets(session: ClientSession, archival_group_uri:str) -> Result:
 
-    # TODO: No Error Handling!
-    mets_response = await session.get(f"{archival_group_uri}?view=mets", headers=get_preservation_headers())
-    # mets_wrapper = get_mets_wrapper_from_file_like_object(mets_response.content)
-    mets_str = await mets_response.text()
-    mets_wrapper = get_mets_wrapper_from_string(mets_str)
-    return Result.success(mets_wrapper)
+    try:
+        mets_response = await session.get(f"{archival_group_uri}?view=mets", headers=get_preservation_headers())
+        # mets_wrapper = get_mets_wrapper_from_file_like_object(mets_response.content)
+        mets_str = await mets_response.text()
+        mets_wrapper = get_mets_wrapper_from_string(mets_str)
+        return Result.success(mets_wrapper)
+
+    except Exception as e:
+        logger.error(f"Error getting mets: {e}")
+        return Result(False, "Unable to load Mets")
