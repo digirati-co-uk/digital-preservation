@@ -1,11 +1,13 @@
 ﻿using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
+using LeedsDlipServices.Identity;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -17,7 +19,21 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
-    
+    public async Task<OrderedCollection?> GetOrderedCollection(string stream)
+    {
+        var uri = new Uri($"/activity/{stream}/collection", UriKind.Relative);
+        var oc = await preservationHttpClient.GetFromJsonAsync<OrderedCollection>(uri);
+        return oc;
+    }
+
+    public async Task<OrderedCollectionPage?> GetOrderedCollectionPage(string stream, int index)
+    {
+        var uri = new Uri($"/activity/{stream}/pages/{index}", UriKind.Relative);
+        var ocp = await preservationHttpClient.GetFromJsonAsync<OrderedCollectionPage>(uri);
+        return ocp;
+    }
+
+
     public async Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot)
     {
         var reqPath = $"validation/archivalgroup/{archivalGroupPathUnderRoot}";
@@ -90,6 +106,31 @@ internal class PreservationApiClient(
         {
             logger.LogError(e, e.Message);
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, CancellationToken cancellationToken)
+    {
+        var uri = new Uri($"/{Deposit.BasePathElement}/from-identifier", UriKind.Relative);
+        var body = new SchemaAndValue{ Schema = schema, Value = identifier };
+        try
+        {
+            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(uri, body, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var createdDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
+                if (createdDeposit is not null)
+                {
+                    return Result.Ok(createdDeposit);
+                }
+                return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
+            }
+            return await response.ToFailResult<Deposit>();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not create deposit");
+            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

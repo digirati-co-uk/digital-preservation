@@ -47,13 +47,20 @@ public class IndexModel(IMediator mediator) : PageModel
         }
         
         var result = await mediator.Send(new GetDeposits(Query));
-        QueryPage = result.Value!;
-        Deposits = QueryPage.Deposits;
+        if (result.Success)
+        {
+            QueryPage = result.Value!;
+            Deposits = QueryPage.Deposits;
 
-        PagerValues = new PagerValues(Request.QueryString, QueryPage.Total, QueryPage.PageSize);
-        
-        var agentResult = await mediator.Send(new GetAllAgents());
-        Agents = agentResult.Value!.Select(uri => uri.GetSlug()).OrderBy(s => s).ToList()!;
+            PagerValues = new PagerValues(Request.QueryString, QueryPage.Total, QueryPage.PageSize);
+            
+            var agentResult = await mediator.Send(new GetAllAgents());
+            Agents = agentResult.Value!.Select(uri => uri.GetSlug()).OrderBy(s => s).ToList()!;
+        }
+        else
+        {
+            TempData["Error"] = result.CodeAndMessage();
+        }
         return Page();
     }
     

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mets-objects>
+  <mets:mets xmlns:mets="http://www.loc.gov/METS/" xmlns:mods="http://www.loc.gov/mods/v3" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OBJID="eprint_10315" LABEL="Eprints Item" xsi:schemaLocation="http://www.loc.gov/METS/ http://www.loc.gov/standards/mets/mets.xsd http://www.loc.gov/standards/premis/ http://www.loc.gov/standards/premis/v2/premis-v2-0.xsd http://www.loc.gov/standards/mix/ http://www.loc.gov/standards/mix/mix.xsd http://www.loc.gov/mods/v3 http://www.loc.gov/standards/mods/v3/mods-3-3.xsd">
+    <mets:metsHdr CREATEDATE="2023-12-22T04:53:58Z">
+      <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+        <mets:name>EPrints 3.3.15</mets:name>
+      </mets:agent>
+    </mets:metsHdr>
+    <mets:dmdSec ID="DMD_eprint_10315">
+      <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:titleInfo>
+            <mods:title>[Biblical and genealogical chronicle from Adam and Eve to Louis XI of France]</mods:title>
+          </mods:titleInfo>
+          <mets:abstract>Decoration: 64 miniatures within roundels with toothed edges, 58-83 mm in diameter. 7-line incipit initial 'C' in blue on decorated gold ground. 4-line initials in gold, on pink and blue grounds patterned in white, at the beginnings of paragraphs throughout the manuscript. There is a floral border, measuring 480 mm across the top of the roll at the start of the manuscript and the first 620 mm down each side.
+
+Written in bâtarde.
+
+Kept on rollers in an early 20th-century glass-topped box.
+
+The text gives an integrated pagan and Christian history of the world from God's Creation to Louis XI of France, ruled 1461-1483. The content begins with the Old Testament, the life of Christ, Greek and Roman history, and Western European history. After the life of Christ, the text divides into four columns. The line of popes is given in the first column, the line of Roman emperors in the second, the line of French kings in the third, and in the fourth (when it occurs) the history of Britain, and the history of the crusades and the Latin kingdom of Jerusalem. The text ends in one broad column with French history of the 1460s. The text is accompanied in places by genealogical trees.
+
+From the library of Lord Brotherton.
+
+See for a fuller description: N. R. Ker, Medieval Manuscripts in British Libraries, vol. 3 (Oxford: Clarendon Press, 1983) pp. 60-62. See also: M. A. Norbye, "The King's Blood: Royal Genealogies, Dynastic Rivalries and Historical Culture in the Hundred Years War. A Case Study of 'a Tous Nobles qui Aiment Beaux Faits et Bonnes Histoires'", Ph.D., University College London, 2004; O. S. Pickering, "The Crusades in Leeds University Library's Genealogical History Roll" in "From Clermont to Jerusalem : the Crusades and Crusader societies, 1095-1500", ed. by A.V. Murray (1998), pp. 251-66; J. A. Symington, The Brotherton Collection: a Catalogue of Ancient Manuscripts and Early Printed Books Collected by Edward Allen Baron Brotherton of Wakefield (Leeds, 1931), p. 7. Updated information from M.A. Norbye, relevant to this manuscript and kept with it, is available for consultation.</mets:abstract>
+          <mets:recordInfo>
+            <mets:recordIdentifier source="EPrints">10315</mets:recordIdentifier>
+            <mets:recordIdentifier source="EMu">372705</mets:recordIdentifier>
+            <mets:recordInfoNote type="IngestionID">20151118190008_372705</mets:recordInfoNote>
+          </mets:recordInfo>
+          <mets:originInfo>
+            <mets:publisher>University of Leeds</mets:publisher>
+          </mets:originInfo>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:dmdSec>
+    <mets:amdSec ID="AMD_eprint_10315">
+      <mets:techMD ID="AMD_eprint_10315_370441">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-1_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>51c985a0daa9d05e4ebc2337686b78b9</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036836</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370442">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-10_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>90534c7d685aa9c22b687af099b187e8</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035584</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370443">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-11_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>df836d80696417706b1ac0a58f5da5f0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036112</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+    </mets:amdSec>
+    <mets:fileSec>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370441" SIZE="266036836" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370441">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-1_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370442" SIZE="266035584" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370442">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-10_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370443" SIZE="266036112" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370443">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-11_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+    </mets:fileSec>
+    <mets:structMap>
+      <mets:div DMDID="DMD_eprint_10315" ADMID="AMD_eprint_10315">
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370441"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370442"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370443"/>
+        </mets:div>
+      </mets:div>
+    </mets:structMap>
+  </mets:mets>
+</mets-objects>

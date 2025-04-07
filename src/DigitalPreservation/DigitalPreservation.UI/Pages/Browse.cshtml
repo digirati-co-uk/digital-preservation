@@ -13,44 +13,47 @@
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
 
-        @if (Model.Resource!.PartOf == null && Model.Resource is not ArchivalGroup)
+        @if (Model.Resource != null)
         {
-            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newContainerModal">
-                📁 New Folder
+            @if (Model.Resource.PartOf == null && Model.Resource is not ArchivalGroup)
+            {
+                <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newContainerModal">
+                    📁 New Folder
+                </button>
+            }
+            @if (Model.Resource.PartOf != null)
+            {
+                <a class="btn btn-sm btn-primary me-2" href="/browse/@Model.Resource.PartOf.GetPathUnderRoot()">
+                    📦 Go to Archival Group
+                </a>
+            }
+            @if (Model.Resource is ArchivalGroup)
+            {
+                <a class="btn btn-sm btn-outline-primary me-2 disabled">
+                    📦 Versions
+                </a>
+                <a class="btn btn-sm btn-outline-primary me-2 disabled">
+                    <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
+                </a>
+            }
+            
+            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
+                <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
             </button>
-        }
-        @if (Model.Resource.PartOf != null)
-        {
-            <a class="btn btn-sm btn-primary me-2" href="/browse/@Model.Resource.PartOf.GetPathUnderRoot()">
-                📦 Go to Archival Group
-            </a>
-        }
-        @if (Model.Resource is ArchivalGroup)
-        {
-            <a class="btn btn-sm btn-outline-primary me-2 disabled">
-                📦 Versions
-            </a>
-            <a class="btn btn-sm btn-outline-primary me-2 disabled">
-                <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
-            </a>
-        }
-        
-        <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
-            <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit</span>
-        </button>
 
-        @if (Model.Resource is Container { Containers.Count: 0, Binaries.Count: 0, PartOf: null, Type: nameof(Container) })
-        {
-            <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteContainerModal">
-                <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Container</span>
-            </button>
+            @if (Model.Resource is Container { Containers.Count: 0, Binaries.Count: 0, PartOf: null, Type: nameof(Container) })
+            {
+                <button type="button" class="btn btn-sm btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteContainerModal">
+                    <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Container</span>
+                </button>
+            }
         }
     </div>
 </div>
 
 @{
     var navParts = Model.PathUnderRoot?.Split('/', StringSplitOptions.RemoveEmptyEntries);
-    if (navParts is { Length: > 1 })
+    if (navParts is { Length: > 1 } && Model.Resource != null)
     {
         <nav style="--bs-breadcrumb-divider: '>';" aria-label="breadcrumb">
             <ol class="breadcrumb" style="margin-bottom: 0">
@@ -309,7 +312,10 @@
 
 </div>
 
-<p><small>Created by: <agent-link uri="@Model.Resource.CreatedBy"></agent-link> | Last modified by: <agent-link uri="@Model.Resource.LastModifiedBy"></agent-link></small></p>
+@if (Model.Resource != null)
+{
+    <p><small>Created by: <agent-link uri="@Model.Resource.CreatedBy"></agent-link> | Last modified by: <agent-link uri="@Model.Resource.LastModifiedBy"></agent-link></small></p>
+}
 
 
 @if (Model.Resource is Container { Containers.Count: 0, Binaries.Count: 0, PartOf:null, Type:nameof(Container) })

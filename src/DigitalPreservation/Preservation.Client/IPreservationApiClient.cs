@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
@@ -31,6 +32,8 @@ public interface IPreservationApiClient
         bool export,
         string? exportVersion,
         CancellationToken cancellationToken);
+    
+    Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, CancellationToken cancellationToken);
     Task<Result<DepositQueryPage>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken);
@@ -48,6 +51,8 @@ public interface IPreservationApiClient
     Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken);
     Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, CancellationToken cancellationToken = default);
     
+    Task<OrderedCollection?> GetOrderedCollection(string stream);
+    Task<OrderedCollectionPage?> GetOrderedCollectionPage(string stream, int index);
     
     // Healthchecks and housekeeping
     

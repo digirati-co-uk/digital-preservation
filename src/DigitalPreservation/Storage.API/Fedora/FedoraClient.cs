@@ -432,13 +432,43 @@ internal class FedoraClient(
     }
 
     public async Task<Result<Binary?>> PutBinary(Binary binary, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default)
-    {        
+    {      
+        logger.LogInformation("PutBinary {id}", binary.Id);
         // TODO: Can we PUT the resource and set its dc:title in the same PUT request?
         // At the moment we have to make a separate update to the metadata endpoint.
         // verify that parent is a container first?
-        await EnsureChecksum(binary, false);
-        var req = await MakeBinaryPut(binary, transaction);
-        var response = await httpClient.SendAsync(req, cancellationToken);
+        var checksumResult = await EnsureChecksum(binary, false);
+        if (checksumResult.Failure)
+        {
+            return Result.Fail<Binary>(ErrorCodes.BadRequest, "No checksum obtainable for binary " + binary.Id);
+        }
+        logger.LogInformation("Binary {path} has checksum {checksum}", binary.Id!.AbsolutePath, binary.Digest);
+        HttpRequestMessage? req;
+        HttpResponseMessage? response;
+        try
+        {
+            req = await MakeBinaryPut(binary, transaction);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to Make a binary PUT request");
+            return Result.Fail<Binary>(ErrorCodes.UnknownError, "Unable to Make a binary PUT request: " + e.Message);
+        }
+
+        if (req == null)
+        {
+            logger.LogError("HttpRequestMessage for binary PUT is null");
+            return Result.Fail<Binary>(ErrorCodes.UnknownError, "HttpRequestMessage for binary PUT is null");
+        }
+        try
+        {
+            response = await httpClient.SendAsync(req, cancellationToken);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to Send Binary PUT request");
+            return Result.Fail<Binary>(ErrorCodes.UnknownError, "Unable to Send Binary PUT request: " + e.Message);
+        }
         if (response.StatusCode == HttpStatusCode.Gone)
         {
             // https://github.com/fcrepo/fcrepo/pull/2044
@@ -447,11 +477,21 @@ internal class FedoraClient(
             // But we want to reinstate a binary.
 
             // Log or record somehow that this has happened?
-            var retryReq = (await MakeBinaryPut(binary, transaction))
+            var retryReq = (await MakeBinaryPut(binary, transaction))?
                 .OverwriteTombstone();
+            if (retryReq == null)
+            {
+                logger.LogError("HttpRequestMessage for binary Retry PUT is null");
+                return Result.Fail<Binary>(ErrorCodes.UnknownError, "HttpRequestMessage for binary Retry PUT is null");
+            }
             response = await httpClient.SendAsync(retryReq, cancellationToken);
         }
-        response.EnsureSuccessStatusCode();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError("Response from Fedora was {status}", response.StatusCode);
+            return Result.Fail<Binary>(ErrorCodes.UnknownError, $"Response from Fedora was {response.StatusCode}");
+        }
         var metadataUri = req.RequestUri!.MetadataUri();
         
         var newReq = MakeHttpRequestMessage(metadataUri, HttpMethod.Get)
@@ -506,25 +546,41 @@ internal class FedoraClient(
         return Result.Ok();
     }
 
-    private async Task<HttpRequestMessage> MakeBinaryPut(Binary binary, Transaction transaction)
+    private async Task<HttpRequestMessage?> MakeBinaryPut(Binary binary, Transaction transaction)
     {
+        logger.LogInformation("Constructing a Binary PUT for {path}", binary.Id!.AbsolutePath);
         var fedoraLocation = converters.GetFedoraUri(binary.Id.GetPathUnderRoot());
         var req = MakeHttpRequestMessage(fedoraLocation, HttpMethod.Put)
             .InTransaction(transaction)
             .WithDigest(binary.Digest, "sha-256"); // move algorithm choice to constant
 
-        // TODO: Need something better than this for large files.
-        // How would we transfer a 10GB file for example?
-        // Also this is grossly inefficient, we've already read the stream to look at the checksum.
-        // We should keep the byte array... but then what if it's huge?
-
-        // This should instead reference the file in S3, for Fedora to fetch
+        // This could instead reference the file in S3, for Fedora to fetch
         // https://fedora-project.slack.com/archives/C8B5TSR4J/p1710164226000799
         // ^ not possible rn - but can use a signed HTTP url to fetch! (TODO)
-        var byteArray = await storage.GetBytes(binary.Origin!);
-        req.Content = new ByteArrayContent(byteArray)
-            .WithContentType(binary.ContentType);
         
+        Stream putStream;
+        try
+        {
+            logger.LogInformation("Getting stream from storage content at origin {origin}", binary.Origin);
+            putStream = await storage.GetStream(binary.Origin!);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to read origin as stream");
+            return null;
+        }        
+        try
+        {
+            logger.LogInformation("Creating StreamContent");
+            req.Content = new StreamContent(putStream)
+                .WithContentType(binary.ContentType);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Unable to construct StreamContent");
+            return null;
+        }
+       
         // Still set the content disposition to give the file within Fedora an ebucore:filename triple:
         req.Content.WithContentDisposition(binary.Name);
         return req;

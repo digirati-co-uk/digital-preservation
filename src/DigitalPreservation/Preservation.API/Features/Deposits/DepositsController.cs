@@ -5,6 +5,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
+using LeedsDlipServices.Identity;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
@@ -242,6 +243,22 @@ public class DepositsController(
     public async Task<IActionResult> CreateDeposit([FromBody] Deposit deposit)
     {
         var result = await mediator.Send(new CreateDeposit(deposit, false, User));
+        Uri? createdLocation = null;
+        if (result.Success)
+        {
+            createdLocation = new Uri($"/deposits/{result.Value!.Id!.GetSlug()}", UriKind.Relative);
+        }
+        return this.StatusResponseFromResult(result, 201, createdLocation);
+    }
+    
+    [HttpPost("from-identifier", Name = "CreateDepositFromIdentifier")]
+    [ProducesResponseType<Deposit>(201, "application/json")]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    [ProducesResponseType(400)]
+    public async Task<IActionResult> CreateDepositFromIdentifier([FromBody] SchemaAndValue schemaAndValue)
+    {
+        var result = await mediator.Send(new CreateDepositFromIdentifier(schemaAndValue, User));
         Uri? createdLocation = null;
         if (result.Success)
         {

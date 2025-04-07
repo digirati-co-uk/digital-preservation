@@ -333,6 +333,7 @@ public class MetsParser(
                     var admId = div.Attribute("ADMID")?.Value;
                     if (admId.HasText())
                     {
+                        // TODO - put these andSecs into a dictionary - have done in Python version
                         var amd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
                         if (amd != null)
                         {

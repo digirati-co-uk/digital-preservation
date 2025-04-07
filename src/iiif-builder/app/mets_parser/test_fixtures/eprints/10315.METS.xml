@@ -1,0 +1,2800 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mets-objects>
+  <mets:mets xmlns:mets="http://www.loc.gov/METS/" xmlns:mods="http://www.loc.gov/mods/v3" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OBJID="eprint_10315" LABEL="Eprints Item" xsi:schemaLocation="http://www.loc.gov/METS/ http://www.loc.gov/standards/mets/mets.xsd http://www.loc.gov/standards/premis/ http://www.loc.gov/standards/premis/v2/premis-v2-0.xsd http://www.loc.gov/standards/mix/ http://www.loc.gov/standards/mix/mix.xsd http://www.loc.gov/mods/v3 http://www.loc.gov/standards/mods/v3/mods-3-3.xsd">
+    <mets:metsHdr CREATEDATE="2023-12-22T04:53:58Z">
+      <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+        <mets:name>EPrints 3.3.15</mets:name>
+      </mets:agent>
+    </mets:metsHdr>
+    <mets:dmdSec ID="DMD_eprint_10315">
+      <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:titleInfo>
+            <mods:title>[Biblical and genealogical chronicle from Adam and Eve to Louis XI of France]</mods:title>
+          </mods:titleInfo>
+          <mets:abstract>Decoration: 64 miniatures within roundels with toothed edges, 58-83 mm in diameter. 7-line incipit initial 'C' in blue on decorated gold ground. 4-line initials in gold, on pink and blue grounds patterned in white, at the beginnings of paragraphs throughout the manuscript. There is a floral border, measuring 480 mm across the top of the roll at the start of the manuscript and the first 620 mm down each side.
+
+Written in bâtarde.
+
+Kept on rollers in an early 20th-century glass-topped box.
+
+The text gives an integrated pagan and Christian history of the world from God's Creation to Louis XI of France, ruled 1461-1483. The content begins with the Old Testament, the life of Christ, Greek and Roman history, and Western European history. After the life of Christ, the text divides into four columns. The line of popes is given in the first column, the line of Roman emperors in the second, the line of French kings in the third, and in the fourth (when it occurs) the history of Britain, and the history of the crusades and the Latin kingdom of Jerusalem. The text ends in one broad column with French history of the 1460s. The text is accompanied in places by genealogical trees.
+
+From the library of Lord Brotherton.
+
+See for a fuller description: N. R. Ker, Medieval Manuscripts in British Libraries, vol. 3 (Oxford: Clarendon Press, 1983) pp. 60-62. See also: M. A. Norbye, "The King's Blood: Royal Genealogies, Dynastic Rivalries and Historical Culture in the Hundred Years War. A Case Study of 'a Tous Nobles qui Aiment Beaux Faits et Bonnes Histoires'", Ph.D., University College London, 2004; O. S. Pickering, "The Crusades in Leeds University Library's Genealogical History Roll" in "From Clermont to Jerusalem : the Crusades and Crusader societies, 1095-1500", ed. by A.V. Murray (1998), pp. 251-66; J. A. Symington, The Brotherton Collection: a Catalogue of Ancient Manuscripts and Early Printed Books Collected by Edward Allen Baron Brotherton of Wakefield (Leeds, 1931), p. 7. Updated information from M.A. Norbye, relevant to this manuscript and kept with it, is available for consultation.</mets:abstract>
+          <mets:recordInfo>
+            <mets:recordIdentifier source="EPrints">10315</mets:recordIdentifier>
+            <mets:recordIdentifier source="EMu">372705</mets:recordIdentifier>
+            <mets:recordInfoNote type="IngestionID">20151118190008_372705</mets:recordInfoNote>
+          </mets:recordInfo>
+          <mets:originInfo>
+            <mets:publisher>University of Leeds</mets:publisher>
+          </mets:originInfo>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:dmdSec>
+    <mets:amdSec ID="AMD_eprint_10315">
+      <mets:techMD ID="AMD_eprint_10315_370441">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-1_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>51c985a0daa9d05e4ebc2337686b78b9</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036836</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370442">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-10_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>90534c7d685aa9c22b687af099b187e8</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035584</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370443">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-11_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>df836d80696417706b1ac0a58f5da5f0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036112</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370444">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-12_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>70116ef16d4668b848a431fee0ceab19</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036344</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370445">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-13_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>eb3f682f26522150a7d8b730332970d0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036544</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370446">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-14_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>8ae3b06c6e01a772b2005ba94b07f0ed</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036620</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370447">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-15_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>1c48e4d82b7c98798f76414ce9b0fe93</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035572</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370448">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-16_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>43f366ec4f24bc0a7a6cdaa2e6ded937</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035676</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370449">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-17_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>b47d4e757a75b5f13e9eb4088bf60144</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036060</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370450">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-18_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>99cd45dacecd10715c8f7049cbe4b8a7</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035860</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370451">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-19_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>81c4844e28e7d942acec681ca18df421</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035888</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370452">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-2_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>e5732d26bd332c456c8be0ba382e8103</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036192</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370453">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-20_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>3eeee5c1f7f8c73d5da9c8dad79238c5</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036120</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370454">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-21_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>c4b995a3ec9d7164c095d9852b497c1e</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036152</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370455">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-22_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>1007f583a906030dc7c8eb7129ff9c65</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036376</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370456">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-23_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>b6b8540021580dcc30e425dc9e3f5474</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036412</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370457">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-24_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>a96a47fb297285cdf44c8b92188a6164</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036368</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370458">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-25_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>e22e3cf009dbe459f7ae9f8727ca4c61</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036336</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370459">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-26_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>e8e9748bf096147e85110f48c6f41a95</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036192</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370460">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-27_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>afc5389da5e55a178e86688fffc52099</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036268</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370461">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-28_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>ee7944a1354cd36a5e381b90226c0654</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036272</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370462">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-29_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>d82d65c082361ece47a6bf1e9c768ac8</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036236</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370463">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-3_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>ffb25e5754218386171fe2022f962e36</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035888</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370464">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-30_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>bcaf9290b7336d238db2ad2dbdfd3173</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036412</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370465">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-31_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>a34c0116e00fd4ba35813883fad21aba</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036348</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370466">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-32_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>37802e91b1f6714c43b3d01fbd746d56</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036020</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370467">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-33_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>5410c1bfce65a6f9c40d59113a846e27</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036576</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370468">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-34_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>3885449fe7ad608b4fab12983aae2687</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266036000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370469">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-35_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>f77be354f92faad7e3f135c1514111e7</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035700</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370470">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-36_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>55f7897562ed32f4355f8ba0da060bb9</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035540</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370471">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-37_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>42d695d16eed242a2efefabe7e9a4d1b</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>223682312</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370472">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-38_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>ac37528ce9f4e13fc29ea9e024546dd0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>253882948</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370473">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-39_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>8040778019271e5c66dce2aa5aca7186</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>253882916</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370474">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-4_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>25a11357140aa2b17de66d1913b75b7b</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035768</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370475">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-40_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>64475b1f517fd390d4e5094894e50ac5</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>253882584</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370476">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-5_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>79f4c805a69055ace5eb76a09d5c7c9d</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035500</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370477">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-6_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>a700ad8f885e955d9655ef04dfd79671</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035956</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370478">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-7_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>9a136966cb25a3cb0b8a95a236e3ff97</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035396</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370479">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-8_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>b478a7410c11cb65f27622985f30280c</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035332</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_370480">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>BC_MS_100-9_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>af81ea90f46792905e4423f486dfbb91</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>266035476</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685494">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>99a25d5483faebdf779cb2658b7c8415</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>68623832</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685495">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_002.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>ad2c4252fa57e7af8bfb3dcdd8cf9de7</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>66478528</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685496">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_003.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>767e7f65046918674a79f0bf73915a31</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>64036488</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685497">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_004.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>c171ff3a7a0d43fe4c972fa302fca74f</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>64926520</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685498">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_005.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>b433b14a4073d524753ed668e14c2139</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>65071230</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685499">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_006.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>15a469d663acc38e5abd8955369e925a</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>65901934</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685500">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_007.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>fa71136a47d798f65597f8cc5a7a5200</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>68466824</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685501">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_008.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>285e931e9efe801b44e2a4c80740cd82</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>69166052</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685502">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_009.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>f9607afb0384b663faa25ec3409b7f64</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>66916218</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685503">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_010.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>71674ace021b3ea6bf441da095c1671e</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>68860358</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685504">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_011.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>c5abb2f8f282c273a568b3440a32380c</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>71093642</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685505">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_012.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>f93b2454d88921da2f0ad311115249ea</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>69380106</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685506">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_013.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>bff58e71638461154003427c286975d4</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>71401962</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685507">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_014.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>6fea75a1080987a279720bc97810766c</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>70550288</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685508">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_015.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>b7dc4c04037e155eed644cf98bbf1f46</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>72584504</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685509">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_016.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>fefdf2804ac018d9fc5be8fd9020357d</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>72395040</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685510">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_017.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>e17bb1601465f0958bbfc342bc9f0ddf</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>71802660</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685511">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_018.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>257cab96cfbc1e2244cbc0ff15da47dc</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>70759972</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685512">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_019.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>d9dd7be3dcf35444559427de50766c4b</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>72884366</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685513">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>372705_020.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>35e97c00635e14fef4f8d3aae1b7a42e</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>75482400</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685514">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_001.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>709e6ababa7ac8b088c71b84d74e0f63</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>86175350</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685515">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_002.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>b5e0cf217ae170320c5068a319b382d6</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>83537274</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685516">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_003.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>4212c322cb8aeb1160eb5b83c9ab7d51</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>81249766</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685517">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_004.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>71643204eda40ec06edae2696bf8a7ff</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>82216430</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685518">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_005.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>6c97ee3dd454bd85c9ae72e18a936fd0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>82211682</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685519">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_006.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>95b7b99f7ebff760d4862c7578edceb3</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>82980352</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685520">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_007.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>a50e846c5a18d72a0511642bbb56c341</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>85152288</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685521">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_008.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>8d3ce1af232d4a853144646c72262cf5</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>86496300</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685522">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_009.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>78d80456a300fd65b3f66d1d9703225f</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>84093714</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685523">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_010.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>4f1240abec635bae1d8916a444db5a2c</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>85817190</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685524">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_011.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>629ce9f73efe463fd8508f1dbf866989</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>88073660</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685525">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_012.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>6955482734b7df425dfa76685e9b5258</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>86181298</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685526">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_013.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>9019083643552a40b4eee4072cdc79b3</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>88676562</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685527">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_014.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>1e4534e99884c8d487eb47cf3dd42fbd</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>87827762</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685528">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_015.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>1d0120d702bf1df870dbffbab1d166e1</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>89997202</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685529">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_016.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>36257babb168bcb6c2b1c9577450ea10</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>89910266</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685530">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_017.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>6cfef67e0985747fa415412be05bd94e</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>89686134</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685531">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_018.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>2bb36bb6819d706b7a969e9f96eb050c</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>88312566</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685532">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_019.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>ef68049e53c58c73296a78bffda830b9</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>90556188</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_685533">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>U_372705_020.tif</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>8d07c15bdf785a1f3bb5a854f8313cb6</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>93304292</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/353</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+      <mets:techMD ID="AMD_eprint_10315_1074806">
+        <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">
+          <premis:object version="3.0" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd">
+            <premis:objectIdentifier>
+              <premis:objectIdentifierType>local</premis:objectIdentifierType>
+              <premis:objectIdentifierValue>V_372705_000.jpg</premis:objectIdentifierValue>
+            </premis:objectIdentifier>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm>MD5</premis:messageDigestAlgorithm>
+                <premis:messageDigest>4fff351e8c35fac1f7e7cd38c7083eca</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>24430939</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName>JPEG File Interchange Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName>PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey>fmt/44</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+          </premis:object>
+        </mets:mdWrap>
+      </mets:techMD>
+    </mets:amdSec>
+    <mets:fileSec>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370441" SIZE="266036836" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370441">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-1_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370442" SIZE="266035584" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370442">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-10_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370443" SIZE="266036112" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370443">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-11_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370444" SIZE="266036344" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370444">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-12_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370445" SIZE="266036544" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370445">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-13_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370446" SIZE="266036620" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370446">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-14_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370447" SIZE="266035572" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370447">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-15_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370448" SIZE="266035676" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370448">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-16_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370449" SIZE="266036060" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370449">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-17_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370450" SIZE="266035860" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370450">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-18_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370451" SIZE="266035888" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370451">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-19_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370452" SIZE="266036192" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370452">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-2_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370453" SIZE="266036120" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370453">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-20_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370454" SIZE="266036152" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370454">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-21_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370455" SIZE="266036376" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370455">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-22_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370456" SIZE="266036412" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370456">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-23_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370457" SIZE="266036368" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370457">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-24_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370458" SIZE="266036336" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370458">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-25_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370459" SIZE="266036192" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370459">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-26_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370460" SIZE="266036268" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370460">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-27_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370461" SIZE="266036272" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370461">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-28_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370462" SIZE="266036236" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370462">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-29_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370463" SIZE="266035888" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370463">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-3_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370464" SIZE="266036412" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370464">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-30_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370465" SIZE="266036348" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370465">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-31_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370466" SIZE="266036020" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370466">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-32_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370467" SIZE="266036576" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370467">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-33_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370468" SIZE="266036000" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370468">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-34_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370469" SIZE="266035700" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370469">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-35_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370470" SIZE="266035540" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370470">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-36_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370471" SIZE="223682312" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370471">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-37_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370472" SIZE="253882948" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370472">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-38_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370473" SIZE="253882916" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370473">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-39_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370474" SIZE="266035768" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370474">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-4_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370475" SIZE="253882584" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370475">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-40_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370476" SIZE="266035500" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370476">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-5_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370477" SIZE="266035956" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370477">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-6_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370478" SIZE="266035396" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370478">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-7_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370479" SIZE="266035332" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370479">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-8_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_370480" SIZE="266035476" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_370480">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/BC_MS_100-9_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685494" SIZE="68623832" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685494">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685495" SIZE="66478528" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685495">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_002.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685496" SIZE="64036488" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685496">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_003.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685497" SIZE="64926520" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685497">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_004.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685498" SIZE="65071230" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685498">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_005.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685499" SIZE="65901934" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685499">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_006.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685500" SIZE="68466824" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685500">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_007.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685501" SIZE="69166052" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685501">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_008.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685502" SIZE="66916218" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685502">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_009.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685503" SIZE="68860358" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685503">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_010.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685504" SIZE="71093642" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685504">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_011.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685505" SIZE="69380106" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685505">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_012.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685506" SIZE="71401962" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685506">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_013.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685507" SIZE="70550288" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685507">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_014.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685508" SIZE="72584504" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685508">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_015.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685509" SIZE="72395040" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685509">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_016.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685510" SIZE="71802660" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685510">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_017.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685511" SIZE="70759972" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685511">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_018.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685512" SIZE="72884366" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685512">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_019.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685513" SIZE="75482400" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685513">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/372705_020.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685514" SIZE="86175350" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685514">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_001.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685515" SIZE="83537274" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685515">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_002.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685516" SIZE="81249766" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685516">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_003.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685517" SIZE="82216430" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685517">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_004.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685518" SIZE="82211682" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685518">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_005.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685519" SIZE="82980352" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685519">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_006.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685520" SIZE="85152288" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685520">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_007.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685521" SIZE="86496300" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685521">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_008.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685522" SIZE="84093714" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685522">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_009.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685523" SIZE="85817190" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685523">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_010.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685524" SIZE="88073660" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685524">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_011.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685525" SIZE="86181298" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685525">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_012.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685526" SIZE="88676562" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685526">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_013.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685527" SIZE="87827762" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685527">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_014.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685528" SIZE="89997202" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685528">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_015.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685529" SIZE="89910266" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685529">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_016.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685530" SIZE="89686134" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685530">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_017.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685531" SIZE="88312566" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685531">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_018.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685532" SIZE="90556188" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685532">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_019.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_685533" SIZE="93304292" MIMETYPE="image/tiff" ADMID="AMD_eprint_10315_685533">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/U_372705_020.tif"/>
+        </mets:file>
+      </mets:fileGrp>
+      <mets:fileGrp USE="reference">
+        <mets:file ID="eprint_10315_1074806" SIZE="24430939" MIMETYPE="image/jpeg" ADMID="AMD_eprint_10315_1074806">
+          <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/V_372705_000.jpg"/>
+        </mets:file>
+      </mets:fileGrp>
+    </mets:fileSec>
+    <mets:structMap>
+      <mets:div DMDID="DMD_eprint_10315" ADMID="AMD_eprint_10315">
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370441"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370442"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370443"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370444"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370445"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370446"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370447"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370448"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370449"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370450"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370451"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370452"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370453"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370454"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370455"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370456"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370457"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370458"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370459"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370460"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370461"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370462"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370463"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370464"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370465"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370466"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370467"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370468"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370469"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370470"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370471"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370472"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370473"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370474"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370475"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370476"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370477"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370478"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370479"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_370480"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685494"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685495"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685496"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685497"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685498"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685499"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685500"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685501"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685502"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685503"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685504"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685505"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685506"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685507"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685508"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685509"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685510"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685511"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685512"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685513"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685514"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685515"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685516"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685517"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685518"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685519"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685520"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685521"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685522"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685523"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685524"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685525"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685526"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685527"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685528"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685529"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685530"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685531"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685532"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_685533"/>
+        </mets:div>
+        <mets:div>
+          <mets:fptr FILEID="eprint_10315_1074806"/>
+        </mets:div>
+      </mets:div>
+    </mets:structMap>
+  </mets:mets>
+</mets-objects>

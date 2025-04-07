@@ -5,6 +5,7 @@ using DigitalPreservation.UI.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Workspace;
+using LeedsDlipServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
@@ -72,6 +73,8 @@ try
         .AddHttpContextAccessor()
         .ConfigureForwardedHeaders()
         .AddPreservationClient(builder.Configuration, "DigitalPreservation UI")
+        .AddIdentityServiceClient(builder.Configuration)
+        .AddMvpCatalogueClient(builder.Configuration)
         .AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining<Program>();

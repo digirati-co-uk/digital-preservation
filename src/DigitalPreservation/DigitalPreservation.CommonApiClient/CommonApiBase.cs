@@ -91,7 +91,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             {
                 return Result.Fail<string?>(ErrorCodes.Tombstone, "Resource has been replaced by a Tombstone.");
             }
-            var errorCode = ProblemDetailsX.GetErrorCode((int?)response.StatusCode);
+            var errorCode = ErrorCodes.GetErrorCode((int?)response.StatusCode);
             return Result.Fail<string?>(errorCode, "Resource Type could not be retrieved.");
         }
         catch (Exception e)

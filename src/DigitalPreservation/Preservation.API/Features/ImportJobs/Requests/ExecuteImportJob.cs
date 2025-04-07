@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
+using LeedsDlipServices.Identity;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
