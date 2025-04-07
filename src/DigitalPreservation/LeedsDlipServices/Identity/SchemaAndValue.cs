@@ -4,6 +4,15 @@ namespace LeedsDlipServices.Identity;
 
 public class SchemaAndValue
 {
+    [JsonIgnore]
+    public const string SchemaCatIrn = "catirn";
+    
+    [JsonIgnore]
+    public const string SchemaId = "id";
+
+    [JsonIgnore] 
+    public const string SchemaArchivalGroupUri = "repositoryuri";
+    
     [JsonPropertyOrder(1)]
     [JsonPropertyName("type")]
     public string? Type => "SchemaAndValue";

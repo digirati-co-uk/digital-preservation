@@ -72,7 +72,7 @@ public class IdentityService(
                 var identityRecord = await response.Content.ReadFromJsonAsync<IdentityRecord>(cancellationToken: cancellationToken);
                 if (identityRecord == null)
                 {
-                    return Result.FailNotNull<IdentityRecord>(ErrorCodes.NotFound, "Unable to find or deserialize IdentityRecord response");
+                    return Result.FailNotNull<IdentityRecord>(ErrorCodes.UnknownError, "Unable to find or deserialize IdentityRecord response");
                 }
                 var mutated = Mutate(identityRecord);
                 return Result.OkNotNull(mutated);
@@ -111,13 +111,13 @@ public class IdentityService(
 
     public async Task<Result<IdentityRecord>> GetIdentityByCatIrn(string catIrn, CancellationToken cancellationToken)
     {
-        var result = await GetSingleIdentityFromSchemaQuery("catirn", catIrn, cancellationToken);
+        var result = await GetSingleIdentityFromSchemaQuery(SchemaAndValue.SchemaCatIrn, catIrn, cancellationToken);
         return result;
     }
 
     public async Task<Result<IdentityRecord>> GetIdentityByArchivalGroup(Uri archivalGroupUri, CancellationToken cancellationToken)
     {
-        var result = await GetSingleIdentityFromSchemaQuery("repositoryuri", archivalGroupUri.ToString(), cancellationToken);
+        var result = await GetSingleIdentityFromSchemaQuery(SchemaAndValue.SchemaArchivalGroupUri, archivalGroupUri.ToString(), cancellationToken);
         return result;
     }
 }
