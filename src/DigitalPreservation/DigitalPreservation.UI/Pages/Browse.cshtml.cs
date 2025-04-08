@@ -22,6 +22,7 @@ public class BrowseModel(
 {
     
     private readonly IMemoryCache memoryCache = memoryCache;
+    public bool HasPredictableIIIFPath { get; set; }
     public PreservedResource? Resource { get; set; }
     public string? PathUnderRoot { get; set; }
     public string? ArchivalGroupPath { get; set; }
@@ -69,6 +70,9 @@ public class BrowseModel(
                 }
                 ViewData["Title"] = $"📦 {name}";
                 ArchivalGroupPath = PathUnderRoot;
+                // Temporary 
+                var parentSlug = ArchivalGroupPath?.GetParent()?.GetSlug();
+                HasPredictableIIIFPath = parentSlug is "cc" or "cc-test";
                 var query = new DepositQuery
                 {
                     ArchivalGroupPath = PathUnderRoot,
