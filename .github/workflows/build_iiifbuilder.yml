@@ -1,0 +1,41 @@
+name: Build, Test & Publish IIIFBuilder
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+    paths:
+      - "src/iiif-builder/**"
+      - ".github/**"
+  workflow_dispatch: {}
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-build-and-push
+        id: buildpush
+        name: build and push
+        with:
+          image-name: "iiif-builder"
+          dockerfile: "Dockerfile"
+          context: "./src/iiif-builder/"
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+          ecr-prefix: ${{ vars.ECR_PREFIX }}
+  
+  deploy-development:
+    needs: [build-push]
+    uses: ./.github/workflows/deploy.yml
+    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
+    with:
+      image_tag: "${{ github.sha }}"
+      target_env: development
+      deploy_dotnet: 'false'
+      deploy_iiifbuilder: 'true'
+    secrets: inherit
