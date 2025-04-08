@@ -13,6 +13,14 @@ on:
       target_env:
         required: true
         type: string
+      deploy_dotnet:
+        required: false
+        default: 'true'
+        type: string
+      deploy_iiifbuilder:
+        required: false
+        default: 'false'
+        type: string
     secrets:
       slack_webhook:
         required: true       
@@ -25,6 +33,7 @@ jobs:
 
   # NOTE - This suits a matrix but we cannot use it here as we need to read environment ${{vars}} for matrix setup but it's not available
   deploy-storage:
+    if: (inputs.deploy_dotnet == 'true')
     runs-on: ubuntu-latest
     environment: 
       name: ${{ inputs.target_env }}
@@ -47,6 +56,7 @@ jobs:
           role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}
 
   deploy-preservation:
+    if: (inputs.deploy_dotnet == 'true')
     runs-on: ubuntu-latest
     environment: 
       name: ${{ inputs.target_env }}
@@ -69,6 +79,7 @@ jobs:
           role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}
 
   deploy-preservation-ui:
+    if: (inputs.deploy_dotnet == 'true')
     runs-on: ubuntu-latest
     environment: 
       name: ${{ inputs.target_env }}
@@ -86,6 +97,27 @@ jobs:
         name: bounce service
         with:
           target-ecs-service: ${{ vars.PRESERVATION_UI_SERVICE }}
+          target-ecs-cluster: ${{ vars.CLUSTER_NAME }}
+          wait-for-services: ${{ inputs.wait_services }}
+          role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}
+
+  deploy-iiif-builder:
+    if: (inputs.deploy_iiifbuilder == 'true')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ecr-retag
+        name: retag image
+        with:
+          source-image: ${{ vars.ECR_PREFIX }}/dlip-pres-iiif-builder
+          source-tag: ${{ inputs.image_tag }}
+          target-tag: ${{ inputs.target_env }}
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+      - uses: ./.github/actions/ecs-bounce
+        name: bounce service
+        with:
+          target-ecs-service: ${{ vars.IIIFBUILDER_SERVICE }}
           target-ecs-cluster: ${{ vars.CLUSTER_NAME }}
           wait-for-services: ${{ inputs.wait_services }}
           role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}
