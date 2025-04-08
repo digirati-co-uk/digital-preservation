@@ -1,4 +1,6 @@
 using System.Text.Json.Nodes;
+using Amazon.SimpleNotificationService;
+using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using DigitalPreservation.Utils;
@@ -9,13 +11,15 @@ namespace Storage.API.Features.Import;
 
 public class SqsImportJobQueue(
     ILogger<SqsImportJobQueue> logger,
+    IAmazonSimpleNotificationService simpleNotificationService,
     IAmazonSQS sqsClient,
     IOptions<ImportOptions> options) : IImportJobQueue
 {
     private string? queueUrl;
     private string? queueName;
+    private string? topicArn;
 
-    private async Task EnsureQueueUrl()
+    private async Task EnsureOptions()
     {
         if (queueUrl == null)
         {
@@ -33,17 +37,17 @@ public class SqsImportJobQueue(
     }
     public async ValueTask QueueRequest(string jobIdentifier, CancellationToken cancellationToken)
     {
-        await EnsureQueueUrl();
-        var request = new SendMessageRequest(queueUrl, jobIdentifier);
-        var response = await sqsClient.SendMessageAsync(request, cancellationToken);
+        topicArn = options.Value.ImportJobTopicArn;
+        var request = new PublishRequest(topicArn, jobIdentifier);
+        var response = await simpleNotificationService.PublishAsync(request, cancellationToken);
         logger.LogDebug(
-            "Received statusCode {StatusCode} for sending SQS for {Identifier} - {MessageId}",
+            "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
             response.HttpStatusCode, jobIdentifier, response.MessageId);
     }
 
     public async ValueTask<string> DequeueRequest(CancellationToken cancellationToken)
     {
-        await EnsureQueueUrl();
+        await EnsureOptions();
         string jobIdentifier = string.Empty;
         var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
         {
@@ -121,5 +125,8 @@ public class SqsImportJobQueue(
 
 public class ImportOptions
 {
+    public required string ImportJobTopicArn { get; set; }
     public required string ImportJobSqsQueueName { get; set; }
+    public required string ExportJobTopicArn { get; set; }
+    public required string ExportJobSqsQueueName { get; set; }
 }
