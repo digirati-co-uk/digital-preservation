@@ -52,10 +52,11 @@ class ArchivalGroupActivity:
 
         with psycopg.connect(settings.POSTGRES_CONNECTION) as conn:
             with conn.cursor() as cur:
-                result = cur.execute("SELECT max(activity_end_time) FROM archival_group_activity").fetchone()[0]
-                if result is None:
-                    return datetime(2025, 1, 1, tzinfo=timezone.utc)
-                return result
+                next_res = cur.execute("SELECT max(activity_end_time) FROM archival_group_activity").fetchone()
+                if next_res is not None and next_res[0] is not None:
+                    return next_res[0]
+
+        return datetime(2025, 4, 8, tzinfo=timezone.utc)
 
 
     @classmethod
