@@ -79,10 +79,7 @@ try
 
 
     // Storage API's in-process queues. These will become separate services later.
-    builder.Services
-        .AddHostedService<ImportJobExecutorService>()
-        .AddScoped<ImportJobRunner>()
-        .AddSingleton<IImportJobQueue, InProcessImportJobQueue>();
+    builder.Services.AddSingleton<IImportJobQueue, SqsImportJobQueue>();
 
     builder.Services
         .AddHostedService<ExportExecutorService>()
