@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Results;
+﻿using System.Xml.Linq;
+using DigitalPreservation.Common.Model.Results;
 
 namespace DigitalPreservation.Common.Model.Mets;
 
@@ -12,6 +13,8 @@ public interface IMetsParser
     /// <returns></returns>
     Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation, bool parse = true);
 
+    Result<MetsFileWrapper> GetMetsFileWrapperFromXDocument(XDocument metsXDocument);
+    
     Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation);
 
 }

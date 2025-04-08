@@ -759,8 +759,9 @@ internal class FedoraClient(
         {
             throw new InvalidOperationException("First resource in @graph should be the asked-for URI");
         }
-            
-        var fedoraObject = containerAndContained[0].Deserialize<FedoraJsonLdResponse>();
+
+        var jsonElement = containerAndContained[0];
+        var fedoraObject = GetFedoraJsonLdResponse(jsonElement);
         var topContainer = isArchivalGroup ? converters.MakeArchivalGroup(fedoraObject!) : converters.MakeContainer(fedoraObject!);
         if (dbContainer != null)
         {
@@ -786,7 +787,7 @@ internal class FedoraClient(
             var resource = dict[id];
             if (resource.HasType("fedora:Container"))
             {
-                var fedoraContainer = resource.Deserialize<FedoraJsonLdResponse>()!;
+                var fedoraContainer = GetFedoraJsonLdResponse(resource)!;
                 Container? container;
                 if (recurse)
                 {
@@ -806,6 +807,37 @@ internal class FedoraClient(
             }
         }
         return topContainer;
+    }
+
+    /// <summary>
+    /// The fedora title object can be a single string, or an array of strings.
+    /// </summary>
+    /// <param name="jsonElement"></param>
+    /// <returns></returns>
+    private static FedoraJsonLdResponse? GetFedoraJsonLdResponse(JsonElement jsonElement)
+    {
+        List<string> titles = [];
+        if (jsonElement.TryGetProperty("title", out JsonElement titleElement)) 
+        {
+            if (titleElement.ValueKind == JsonValueKind.String)
+            {
+                titles.Add(titleElement.GetString()!);
+            }
+            else if (titleElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var titleStringElement in titleElement.EnumerateArray())
+                {
+                    titles.Add(titleStringElement.GetString()!);
+                }
+            }
+        }
+        var fedoraObject = jsonElement.Deserialize<FedoraJsonLdResponse>();
+        if (fedoraObject != null)
+        {
+            fedoraObject.Titles = titles;
+        }
+
+        return fedoraObject;
     }
 
 

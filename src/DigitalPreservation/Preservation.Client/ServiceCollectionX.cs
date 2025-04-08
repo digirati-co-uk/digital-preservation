@@ -28,7 +28,7 @@ public static class ServiceCollectionX
                 var preservationOptions = provider.GetRequiredService<IOptions<PreservationOptions>>().Value;
                 client.BaseAddress = preservationOptions.Root.ThrowIfNull(nameof(preservationOptions.Root));
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
-                client.Timeout = TimeSpan.FromMilliseconds(preservationOptions.TimeoutMs);
+                client.Timeout = TimeSpan.FromMinutes(preservationOptions.TimeoutMinutes);
             })
             .AddHttpMessageHandler<TimingHandler>()
             .AddHttpMessageHandler<AuthTokenInjector>();

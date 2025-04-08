@@ -10,7 +10,6 @@ public class PreservationOptions
     public required Uri Root { get; set; }
 
     /// <summary>
-    /// Timeout, in MS, for requests made to preservation client 
-    /// </summary>
-    public double TimeoutMs { get; set; } = 100000;
+    /// Timeout, in MINUTES, for requests made to preservation client 
+    public double TimeoutMinutes { get; set; } = 10;
 }

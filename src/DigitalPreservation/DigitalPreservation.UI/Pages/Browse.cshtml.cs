@@ -1,12 +1,14 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Xml.Linq;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.Repository.Requests;
 using DigitalPreservation.Utils;
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Caching.Memory;
@@ -18,10 +20,9 @@ public class BrowseModel(
     IMediator mediator, 
     IPreservationApiClient preservationApiClient, 
     ILogger<BrowseModel> logger,
-    IMemoryCache memoryCache) : PageModel
+    IMemoryCache memoryCache,
+    IMetsParser metsParser) : PageModel
 {
-    
-    private readonly IMemoryCache memoryCache = memoryCache;
     public bool HasPredictableIIIFPath { get; set; }
     public PreservedResource? Resource { get; set; }
     public string? PathUnderRoot { get; set; }
@@ -29,6 +30,9 @@ public class BrowseModel(
     
     // When browsing an Archival Group, use the OCFL object for speed
     public ArchivalGroup? CachedArchivalGroup { get; set; }
+    public WorkingFile? WorkingFile { get; set; }
+    public WorkingDirectory? WorkingDirectory { get; set; }
+    public WorkingDirectory? MetsWorkingDirectory { get; set; }
     
     
     // When we are on an archival group
@@ -40,9 +44,15 @@ public class BrowseModel(
     {
         PathUnderRoot = pathUnderRoot;
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
-        Resource = await TryGetResourceFromArchivalGroup(pathUnderRoot, version);
+        Resource = await TryGetResourceFromCachedArchivalGroup(pathUnderRoot, version);
+        if (Resource != null && CachedArchivalGroup != null)
+        {
+            Resource.PartOf = CachedArchivalGroup.Id;
+        }
+        await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
         if (Resource == null)
         {
+            // The resource is not an Archival Group and is not in an Archival Group
             var result = await mediator.Send(new GetResource(resourcePath));
             if (result.Success)
             {
@@ -62,7 +72,7 @@ public class BrowseModel(
                 
                 if (view == "mets")
                 {
-                    var metsResult = await preservationApiClient.GetMetsStream(resourcePath);
+                    var metsResult = await preservationApiClient.GetMetsStream(resourcePath, version);
                     if (metsResult is { Item1: not null, Item2: not null })
                     {
                         return File(metsResult.Item1, metsResult.Item2);
@@ -82,7 +92,7 @@ public class BrowseModel(
                 var depositsResult = await mediator.Send(new GetDeposits(query));
                 if (depositsResult.Success)
                 {
-                    Deposits = depositsResult.Value!.Deposits ?? [];
+                    Deposits = depositsResult.Value!.Deposits;
                     await GetJobsForActiveDeposits();
                 }
                 break;
@@ -105,7 +115,82 @@ public class BrowseModel(
         return Page();
     }
 
-    private async Task<PreservedResource?> TryGetResourceFromArchivalGroup(string? pathUnderRoot, string? version)
+    private async Task TrySetWorkingFileAndDirectoryFromMets(string? pathUnderRoot, string? version)
+    {
+        if (CachedArchivalGroup == null || Resource == null)
+        {
+            logger.LogInformation("Not a resource we can get from CachedArchivalGroup");
+            return;
+        }
+        var agResourcePath = CachedArchivalGroup.Id!.AbsolutePath;
+        
+        var headCacheKey = $"METS-{agResourcePath}?version=";
+        var cacheKey     = $"{headCacheKey}{version ?? ""}";
+        var metsWrapper = memoryCache.TryGetValue(cacheKey, out MetsFileWrapper? wrapper) ? wrapper : null;
+        if (metsWrapper == null)
+        {
+            var metsResult = await preservationApiClient.GetMetsStream(agResourcePath, version);
+            if (metsResult is { Item1: not null, Item2: not null })
+            {
+                try
+                {
+                    var xMets = XDocument.Load(metsResult.Item1);
+                    var result = metsParser.GetMetsFileWrapperFromXDocument(xMets);
+                    if (result is { Success: true, Value: not null })
+                    {
+                        metsWrapper = result.Value;
+                        memoryCache.Set(cacheKey, metsWrapper, TimeSpan.FromMinutes(3));
+                        if (cacheKey != headCacheKey)
+                        {
+                            // a specific version was requested, but if it's the latest, cache it under the headCacheKey
+                            var latest = CachedArchivalGroup.Versions!.OrderBy(v => v.MementoTimestamp).Last();
+                            if (CachedArchivalGroup.Version!.OcflVersion == latest.OcflVersion)
+                            {
+                                logger.LogInformation("Setting headCacheKey {headCacheKey} for original cacheKey {cacheKey}",
+                                    headCacheKey, cacheKey);
+                                memoryCache.Set(headCacheKey, metsWrapper, TimeSpan.FromMinutes(3));
+                            }
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    logger.LogError(e, "Failed to load mets file");
+                }
+            }
+        }
+        if(metsWrapper?.PhysicalStructure == null)
+        {
+            logger.LogWarning("Could not obtain METS file for archival group.");
+            return;
+        }
+
+        MetsWorkingDirectory = metsWrapper.PhysicalStructure;
+
+        var localPath = GetLocalPath(Resource);
+        if (Resource is Container)
+        {
+            WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath);
+        }
+        else if (Resource is Binary)
+        {
+            WorkingFile = MetsWorkingDirectory.FindFile(localPath!);
+        }
+    }
+
+    public string? GetLocalPath(PreservedResource resource)
+    {
+        if (CachedArchivalGroup == null)
+        {
+            return null;
+        }
+        return resource
+            .GetPathUnderRoot()
+            .RemoveStart(CachedArchivalGroup.GetPathUnderRoot() ?? "")
+            .RemoveStart("/");
+    }
+
+    private async Task<PreservedResource?> TryGetResourceFromCachedArchivalGroup(string? pathUnderRoot, string? version)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot}";
         if (pathUnderRoot is null or "/" or "")

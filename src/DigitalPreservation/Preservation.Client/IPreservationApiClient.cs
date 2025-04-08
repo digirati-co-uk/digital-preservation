@@ -49,7 +49,7 @@ public interface IPreservationApiClient
     
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
     Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken);
-    Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, CancellationToken cancellationToken = default);
+    Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, string? version, CancellationToken cancellationToken = default);
     
     Task<OrderedCollection?> GetOrderedCollection(string stream);
     Task<OrderedCollectionPage?> GetOrderedCollectionPage(string stream, int index);

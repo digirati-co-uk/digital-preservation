@@ -387,9 +387,14 @@ internal class PreservationApiClient(
         return (null, null);
     }
 
-    public async Task<(Stream?, string?)> GetMetsStream(string archivalGrouprepositoryPath, CancellationToken cancellationToken)
+    public async Task<(Stream?, string?)> GetMetsStream(string archivalGrouprepositoryPath, string? version, CancellationToken cancellationToken)
     {
-        var uri = new Uri(archivalGrouprepositoryPath + "?view=mets", UriKind.Relative);
+        var queryString = "?view=mets";
+        if (version.HasText())
+        {
+            queryString += "&version=" + version;
+        }
+        var uri = new Uri(archivalGrouprepositoryPath + queryString, UriKind.Relative);
         var req = new HttpRequestMessage(HttpMethod.Get, uri);
         var response = await preservationHttpClient.SendAsync(req, cancellationToken);
         if (response.IsSuccessStatusCode)

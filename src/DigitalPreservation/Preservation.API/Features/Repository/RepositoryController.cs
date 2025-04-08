@@ -22,8 +22,10 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType(401)]
     public async Task<IActionResult> Browse(
         [FromRoute] string? path = null,
-        [FromQuery] string? view = null)
+        [FromQuery] string? view = null,
+        [FromQuery] string? version = null)
     {
+        // TODO: We are not using version yet
         var result = await mediator.Send(new GetResource(Request.Path));
         if (view == "mets" && result is { Success: true, Value: ArchivalGroup archivalGroup })
         {

@@ -47,8 +47,10 @@ File is in both
             <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg> <span title="@combinedDirectory.LocalPath" aria-label="name">@(combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug())</span>
         </td>
         <td></td>
-        <td></td>
-        <td></td>
+       <td></td>
+       <td></td>
+       <td></td>
+       <td></td>
     </tr>
 }
 @foreach (var dir in combinedDirectory.Directories)
@@ -91,5 +93,7 @@ File is in both
         <td aria-label="hash">@file.Digest?[..8]</td>
         <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
         <td aria-label="content-type">@file.ContentType</td>
+        <td aria-label="pronom" title="@(file.FileInMets?.MetsExtensions?.FileFormat?.Name ?? "(no PRONOM format")">@(file.FileInMets?.MetsExtensions?.FileFormat?.Key ?? "-")</td>
+        <td aria-label="virus">@file.FileInMets?.MetsExtensions?.VirusScan?.GetDisplay()</td>
     </tr>
 } 
