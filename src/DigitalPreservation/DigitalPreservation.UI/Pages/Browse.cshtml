@@ -32,7 +32,9 @@
                 <a class="btn btn-sm btn-outline-primary me-2 disabled">
                     📦 Versions
                 </a>
-                <a class="btn btn-sm btn-outline-primary me-2 disabled">
+                <a class="btn btn-sm btn-outline-primary me-2 @(Model.HasPredictableIIIFPath ? "" : " disabled")"
+                   target="_blank" 
+                   href="https://theseusviewer.org/?iiif-content=https://presentation-api.dlip.digirati.io/2/cc/@Model.Resource.GetSlug()">
                     <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
                 </a>
             }

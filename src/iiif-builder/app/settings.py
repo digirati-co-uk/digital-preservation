@@ -7,7 +7,7 @@ load_dotenv()  # take environment variables from .env file; to then be supersede
 POSTGRES_CONNECTION = os.environ.get('POSTGRES_CONNECTION')
 ACTIVITY_STREAM_READ_INTERVAL = float(os.environ.get('ACTIVITY_STREAM_READ_INTERVAL', '60.0'))
 PRESERVATION_ACTIVITY_STREAM = os.environ.get('PRESERVATION_ACTIVITY_STREAM')
-ACTIVITY_CUTOFF_DATE = os.environ.get('ACTIVITY_CUTOFF_DATE', "NOW") # or a parseable timestamp, or None.  Example '2011-11-04T00:05:23Z'
+ACTIVITY_CUTOFF_DATE = os.environ.get('ACTIVITY_CUTOFF_DATE', None) # or a parseable timestamp, or None.  Example '2011-11-04T00:05:23Z'
 
 # The header that iiif-builder passes to Preservation API as X-Client-Identity
 PRESERVATION_CLIENT_IDENTITY_HEADER = os.environ.get('PRESERVATION_CLIENT_IDENTITY_HEADER', "X-Client-Identity")

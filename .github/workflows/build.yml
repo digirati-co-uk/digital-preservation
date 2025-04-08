@@ -1,4 +1,4 @@
-name: Build, Test & Publish Images
+name: Build, Test & Publish dotnet Images
 
 on:
   push:
