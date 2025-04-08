@@ -14,13 +14,13 @@ on:
         required: true
         type: string
       deploy_dotnet:
-        description: 'If "true" all dotnet services are deployed (storage-api, preservation-api, ui)'
         required: false
         default: 'true'
+        type: string
       deploy_iiifbuilder:
-        description: 'If "true" iiif-builder background services deployed'
         required: false
         default: 'false'
+        type: string
     secrets:
       slack_webhook:
         required: true       

@@ -24,7 +24,7 @@ jobs:
         name: build and push
         with:
           image-name: "iiif-builder"
-          dockerfile: "Dockerfile"
+          dockerfile: "./src/iiif-builder/Dockerfile"
           context: "./src/iiif-builder/"
           iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
           ecr-prefix: ${{ vars.ECR_PREFIX }}
