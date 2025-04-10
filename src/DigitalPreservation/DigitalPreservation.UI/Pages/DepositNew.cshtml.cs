@@ -66,7 +66,6 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
 
         if (result == null)
         {
-            TempData["CreateDepositFail"] = "Invalid deposit information";
             if (!TempData.ContainsKey("CreateDepositFail"))
             {
                 TempData["CreateDepositFail"] = "Invalid deposit information";
