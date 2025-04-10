@@ -8,6 +8,44 @@ namespace Storage.API.Fedora.Http;
 public static partial class RdfBodyBuilder
 {
     private static readonly MediaTypeHeaderValue Turtle = MediaTypeHeaderValue.Parse("text/turtle");
+
+    public static string EscapeForLiteralRdf(this string s, bool stripLineBreaks)
+    {
+        var sb = new StringBuilder();
+        foreach (var c in s)
+        {
+            switch (c)
+            {
+                case '\"':
+                    sb.Append("\\\"");
+                    break;
+                case '\r' when stripLineBreaks:
+                    sb.Append(" - ");
+                    break;
+                case '\r' when !stripLineBreaks:
+                    sb.Append("\\r");
+                    break;
+                case '\n' when stripLineBreaks:
+                    sb.Append(" - ");
+                    break;
+                case '\n' when !stripLineBreaks:
+                    sb.Append("\\n");
+                    break;
+                case '\t':
+                    sb.Append( "\\t" );
+                    break;
+                default:
+                {
+                    if( c < 32 || c >= 127 )
+                        sb.Append($"\\u{(int)c:x4}");
+                    else
+                        sb.Append(c);
+                    break;
+                }
+            }
+        }
+        return sb.ToString();
+    }
     
     public static void AppendRdf(this HttpRequestMessage requestMessage, string prefix, string uri, string statement)
     {

@@ -68,7 +68,8 @@ public class ExecuteImportJobHandler(
 
             if (archivalGroupResult.Failure || archivalGroupResult.Value is null)
             {
-                return await FailEarly("Failed to create archival group: " + archivalGroupPathUnderRoot);
+                return await FailEarly(
+                    $"Failed to create archival group: {archivalGroupPathUnderRoot}, message: {archivalGroupResult.CodeAndMessage()}");
             }
         }
         else
