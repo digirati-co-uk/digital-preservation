@@ -125,6 +125,7 @@ public class SqsImportJobQueue(
 
 public class ImportOptions
 {
+    public const string ImportExport = "ImportExport";
     public required string ImportJobTopicArn { get; set; }
     public required string ImportJobSqsQueueName { get; set; }
     public required string ExportJobTopicArn { get; set; }

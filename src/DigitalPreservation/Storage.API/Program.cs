@@ -1,4 +1,6 @@
-﻿using DigitalPreservation.Common.Model.Identity;
+﻿using Amazon.SimpleNotificationService;
+using Amazon.SQS;
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
@@ -62,6 +64,7 @@ try
         .AddFedoraClient(builder.Configuration, "Storage-API")
         .AddFedoraDB(builder.Configuration, "Fedora")
         .AddStorageAwsAccess(builder.Configuration)
+        .AddImportExport(builder.Configuration)
         .AddSingleton<IIdentityMinter, IdentityMinter>()
         .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
         .AddScoped<IExportResultStore, ExportResultStore>() // only for Storage API; happens after above for shared S3

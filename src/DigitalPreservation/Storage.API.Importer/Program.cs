@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Common.Model.Identity;
+﻿using Amazon.SQS;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,6 +10,7 @@ using Storage.API.Features.Import;
 using Storage.API.Features.Import.Data;
 using Storage.API.Fedora;
 using Storage.API.Infrastructure;
+using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
@@ -28,11 +29,19 @@ try
             .Enrich.FromLogContext()
             .Enrich.WithCorrelationId();
     });
+    
+    builder.Services
+        .AddMediatR(cfg =>
+        {
+            cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+            cfg.RegisterServicesFromAssemblyContaining<IFedoraClient>();
+        });
 
     builder.Services
         .AddFedoraClient(builder.Configuration, "Storage-API-IIIF-Builder")
         .AddFedoraDB(builder.Configuration, "Fedora")
         .AddStorageAwsAccess(builder.Configuration)
+        .AddImportExport(builder.Configuration)
         .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
         .AddScoped<IExportResultStore, ExportResultStore>() // only for Storage API; happens after above for shared S3
         .AddStorageHealthChecks()
