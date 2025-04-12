@@ -182,12 +182,8 @@ internal class FedoraClient(
             return Result.Ok(RepositoryTypes.Tombstone);
         }
 
-        return headResponse.StatusCode switch
-        {
-            HttpStatusCode.NotFound => Result.Fail<string?>(ErrorCodes.NotFound, "Not found"),
-            HttpStatusCode.Unauthorized => Result.Fail<string?>(ErrorCodes.Unauthorized, "Unauthorized"),
-            _ => Result.Fail<string?>(ErrorCodes.UnknownError, "Status from repository was " + headResponse.StatusCode)
-        };
+        var message = await headResponse.Content.ReadAsStringAsync();
+        return Result.Fail<string?>(ErrorCodes.GetErrorCode((int?)headResponse.StatusCode), message);
     }
     
     public async Task<Result<string?>> GetResourceType(string? pathUnderFedoraRoot, Transaction? transaction = null)
@@ -360,12 +356,12 @@ internal class FedoraClient(
             return validateResult;
         }
         // All tests passed
-        var container = await CreateContainerInternal(false, pathUnderFedoraRoot, callerIdentity, name, transaction);
-        return Result.Ok(container);
+        var containerResult = await CreateContainerInternal(false, pathUnderFedoraRoot, callerIdentity, name, transaction);
+        return containerResult;
     }
 
 
-    private async Task<Container?> CreateContainerInternal(
+    private async Task<Result<Container?>> CreateContainerInternal(
         bool asArchivalGroup,
         string pathUnderFedoraRoot,
         string callerIdentity,
@@ -386,7 +382,11 @@ internal class FedoraClient(
             req.AsArchivalGroup();
         }
         var response = await httpClient.SendAsync(req);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var message = await response.Content.ReadAsStringAsync();
+            return Result.Fail<Container>(ErrorCodes.GetErrorCode((int?)response.StatusCode), message);    
+        }
 
         if(asArchivalGroup)
         {
@@ -408,9 +408,10 @@ internal class FedoraClient(
         var containerResponse = await MakeFedoraResponse<FedoraJsonLdResponse>(newResponse);
         if (containerResponse == null)
         {
-            return null;
+            return Result.Fail<Container>(ErrorCodes.UnknownError, "Could not deserialise Fedora response for new Container");
         }
-        return asArchivalGroup ? converters.MakeArchivalGroup(containerResponse) : converters.MakeContainer(containerResponse);
+        var container = asArchivalGroup ? converters.MakeArchivalGroup(containerResponse) : converters.MakeContainer(containerResponse);
+        return Result.Ok(container);
     }
 
     public async Task<Result> UpdateContainerMetadata(string pathUnderFedoraRoot, string? name, string callerIdentity,
@@ -490,7 +491,9 @@ internal class FedoraClient(
         if (!response.IsSuccessStatusCode)
         {
             logger.LogError("Response from Fedora was {status}", response.StatusCode);
-            return Result.Fail<Binary>(ErrorCodes.UnknownError, $"Response from Fedora was {response.StatusCode}");
+            var message = await response.Content.ReadAsStringAsync(cancellationToken);
+            var code = ErrorCodes.GetErrorCode((int?)response.StatusCode);
+            return Result.Fail<Binary>(code, $"PUT {binary.GetSlug()} failed; response from Fedora was {response.StatusCode}: {message}");
         }
         var metadataUri = req.RequestUri!.MetadataUri();
         
@@ -609,11 +612,12 @@ internal class FedoraClient(
             {
                 return Result.OkNotNull(resource);
             }
+            var message = await response.Content.ReadAsStringAsync(cancellationToken);
             return response.StatusCode switch
             {
-                HttpStatusCode.NotFound => Result.FailNotNull<PreservedResource>(ErrorCodes.NotFound, "Not found"),
-                HttpStatusCode.Unauthorized => Result.FailNotNull<PreservedResource>(ErrorCodes.Unauthorized, "Unauthorized"),
-                _ => Result.FailNotNull<PreservedResource>(ErrorCodes.UnknownError, "Status from repository was " + response.StatusCode)
+                HttpStatusCode.NotFound => Result.FailNotNull<PreservedResource>(ErrorCodes.NotFound, "Not found: " + message),
+                HttpStatusCode.Unauthorized => Result.FailNotNull<PreservedResource>(ErrorCodes.Unauthorized, "Unauthorized: " + message),
+                _ => Result.FailNotNull<PreservedResource>(ErrorCodes.UnknownError, "Fedora returned " + response.StatusCode + ": " + message)
             };
         }
         catch (Exception e)
@@ -654,7 +658,7 @@ internal class FedoraClient(
         var container = await GetPopulatedContainer(fedoraLocation, false, false, false);
         if (container == null || container.PartOf != null || container.Containers.Count > 0 || container.Binaries.Count > 0)
         {
-            return Result.Fail(ErrorCodes.BadRequest, "This is not a deleteable container");
+            return Result.Fail(ErrorCodes.BadRequest, "This is not a deletable container");
         }
         
         // It's OK to attempt to delete (and optionally purge) this Container
@@ -668,6 +672,11 @@ internal class FedoraClient(
                 {
                     return await PurgeTombstone(cancellationToken, fedoraLocation);
                 }
+            }
+            else
+            {
+                var message = await response.Content.ReadAsStringAsync(cancellationToken);
+                return Result.Fail(ErrorCodes.GetErrorCode((int?)response.StatusCode), message);
             }
         }
         catch (Exception ex)
@@ -689,8 +698,8 @@ internal class FedoraClient(
             {
                 return Result.Ok();
             }
-
-            return Result.Fail(ErrorCodes.UnknownError, "Failed to purge tombstone: " + delTombstoneResponse.StatusCode);
+            var message = await delTombstoneResponse.Content.ReadAsStringAsync(cancellationToken);
+            return Result.Fail(ErrorCodes.GetErrorCode((int?)delTombstoneResponse.StatusCode), "Failed to purge tombstone: " + message);
         }
 
         return Result.Fail(ErrorCodes.UnknownError, "Attempted to purge something that is not a tombstone");
@@ -698,8 +707,13 @@ internal class FedoraClient(
 
     public async Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, string name, Transaction transaction, CancellationToken cancellationToken = default)
     {
-        var ag = await CreateContainerInternal(true, pathUnderFedoraRoot, callerIdentity, name, transaction) as ArchivalGroup;
-        return Result.Ok(ag);
+        var agResult = await CreateContainerInternal(true, pathUnderFedoraRoot, callerIdentity, name, transaction);
+        if (agResult is { Success: true, Value: ArchivalGroup })
+        {
+            return Result.Ok((ArchivalGroup)agResult.Value);
+        }
+        
+        return Result.Fail<ArchivalGroup>(agResult.ErrorCode ?? ErrorCodes.UnknownError, agResult.ErrorMessage);
     }
 
     private async Task<Container?> GetPopulatedContainer(Uri uri, bool isArchivalGroup, bool recurse, bool canUseDb, Transaction? transaction = null)
