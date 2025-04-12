@@ -360,12 +360,12 @@ internal class FedoraClient(
             return validateResult;
         }
         // All tests passed
-        var container = await CreateContainerInternal(false, pathUnderFedoraRoot, callerIdentity, name, transaction);
-        return Result.Ok(container);
+        var containerResult = await CreateContainerInternal(false, pathUnderFedoraRoot, callerIdentity, name, transaction);
+        return containerResult;
     }
 
 
-    private async Task<Container?> CreateContainerInternal(
+    private async Task<Result<Container?>> CreateContainerInternal(
         bool asArchivalGroup,
         string pathUnderFedoraRoot,
         string callerIdentity,
@@ -386,7 +386,11 @@ internal class FedoraClient(
             req.AsArchivalGroup();
         }
         var response = await httpClient.SendAsync(req);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            return Result.Fail<Container>(ErrorCodes.GetErrorCode((int?)response.StatusCode), 
+                "Could not Create Container: " + response.ReasonPhrase);
+        }
 
         if(asArchivalGroup)
         {
@@ -397,7 +401,11 @@ internal class FedoraClient(
             // We give the AG this _additional_ type so that we can see that it's an AG when we get bulk child members back from .WithContainedDescriptions
             patchReq.AsInsertTypePatch("<http://purl.org/dc/dcmitype/Collection>", callerIdentity);
             var patchResponse = await httpClient.SendAsync(patchReq);
-            patchResponse.EnsureSuccessStatusCode();
+            if (!patchResponse.IsSuccessStatusCode)
+            {
+                return Result.Fail<Container>(ErrorCodes.GetErrorCode((int?)patchResponse.StatusCode), 
+                    "Could not PATCH Container: " + patchResponse.ReasonPhrase);
+            }
         }
         // The body is the new resource URL
         var newReq = MakeHttpRequestMessage(response.Headers.Location!, HttpMethod.Get)
@@ -408,9 +416,16 @@ internal class FedoraClient(
         var containerResponse = await MakeFedoraResponse<FedoraJsonLdResponse>(newResponse);
         if (containerResponse == null)
         {
-            return null;
+            return Result.Fail<Container>(ErrorCodes.UnknownError, "Could not deserialize container response");
         }
-        return asArchivalGroup ? converters.MakeArchivalGroup(containerResponse) : converters.MakeContainer(containerResponse);
+
+        if (asArchivalGroup)
+        {
+            var ag = converters.MakeArchivalGroup(containerResponse);
+            return Result.Ok<Container?>(ag);
+        }
+        var container = converters.MakeContainer(containerResponse);
+        return Result.Ok<Container?>(container);
     }
 
     public async Task<Result> UpdateContainerMetadata(string pathUnderFedoraRoot, string? name, string callerIdentity,
@@ -698,8 +713,12 @@ internal class FedoraClient(
 
     public async Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, string name, Transaction transaction, CancellationToken cancellationToken = default)
     {
-        var ag = await CreateContainerInternal(true, pathUnderFedoraRoot, callerIdentity, name, transaction) as ArchivalGroup;
-        return Result.Ok(ag);
+        var agResult = await CreateContainerInternal(true, pathUnderFedoraRoot, callerIdentity, name, transaction);
+        if (agResult.Success)
+        {
+            return Result.Ok(agResult.Value as ArchivalGroup);
+        }
+        return Result.Fail<ArchivalGroup>(agResult.ErrorCode ?? ErrorCodes.UnknownError, agResult.ErrorMessage);
     }
 
     private async Task<Container?> GetPopulatedContainer(Uri uri, bool isArchivalGroup, bool recurse, bool canUseDb, Transaction? transaction = null)

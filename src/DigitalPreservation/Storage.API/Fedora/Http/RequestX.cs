@@ -5,7 +5,7 @@ using Storage.API.Fedora.Vocab;
 
 namespace Storage.API.Fedora.Http;
 
-internal static class RequestX
+public static class RequestX
 {
     public static HttpRequestMessage ForJsonLd(this HttpRequestMessage requestMessage)
     {
@@ -33,9 +33,10 @@ internal static class RequestX
     
     public static HttpRequestMessage WithName(this HttpRequestMessage requestMessage, string? name)
     {
-        if(!string.IsNullOrWhiteSpace(name)) 
+        if(!string.IsNullOrWhiteSpace(name))
         {
-            requestMessage.AppendRdf("dc", RepositoryTypes.DublinCoreElementsNamespace, $"<> dc:title \"{name}\"");
+            var escaped = name.EscapeForLiteralRdf(true);
+            requestMessage.AppendRdf("dc", RepositoryTypes.DublinCoreElementsNamespace, $"<> dc:title \"{escaped}\"");
         }
         return requestMessage;
     }
@@ -45,8 +46,9 @@ internal static class RequestX
         // can only set this in the body, so a binary can't be done this way
         if(!string.IsNullOrWhiteSpace(createdBy)) 
         {
-            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:createdBy \"{createdBy}\"");
-            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:lastModifiedBy \"{createdBy}\""); 
+            var escaped = createdBy.EscapeForLiteralRdf(true);
+            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:createdBy \"{escaped}\"");
+            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:lastModifiedBy \"{escaped}\""); 
         }
         return requestMessage;
     }
@@ -57,7 +59,8 @@ internal static class RequestX
         // can only set this in the body, so a binary can't be done this way
         if(!string.IsNullOrWhiteSpace(lastModifiedBy)) 
         {
-            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:lastModifiedBy \"{lastModifiedBy}\""); 
+            var escaped = lastModifiedBy.EscapeForLiteralRdf(true);
+            requestMessage.AppendRdf("fedora", RepositoryTypes.FedoraNamespace, $"<> fedora:lastModifiedBy \"{escaped}\""); 
         }
         return requestMessage;
     }
@@ -95,11 +98,12 @@ internal static class RequestX
     
     public static HttpRequestMessage AsInsertTypePatch(this HttpRequestMessage requestMessage, string type, string callerIdentity)
     {
+        var escapedCallerIdentity = callerIdentity.EscapeForLiteralRdf(true);
         var sparql = $$"""
                        PREFIX fedora: <{{RepositoryTypes.FedoraNamespace}}>
                        INSERT {   
                         <> a {{type}} .
-                        <> fedora:lastModifiedBy "{{callerIdentity}}" .
+                        <> fedora:lastModifiedBy "{{escapedCallerIdentity}}" .
                        }
                        WHERE { }
                        """;
@@ -111,12 +115,13 @@ internal static class RequestX
     
     public static HttpRequestMessage WithContainerMetadataUpdate(this HttpRequestMessage requestMessage, string? title, string callerIdentity)
     {
-        string titleStatement = title.HasText() ? $"\r\n <> dc:title \"{title}\" ." : string.Empty;
+        string titleStatement = title.HasText() ? $"\r\n <> dc:title \"{title.EscapeForLiteralRdf(true)}\" ." : string.Empty;
+        var escapedCallerIdentity = callerIdentity.EscapeForLiteralRdf(true);
         var sparql = $$"""
                        PREFIX dc: <{{RepositoryTypes.DublinCoreElementsNamespace}}>
                        PREFIX fedora: <{{RepositoryTypes.FedoraNamespace}}>
                        INSERT {{{titleStatement}}
-                        <> fedora:lastModifiedBy "{{callerIdentity}}" .
+                        <> fedora:lastModifiedBy "{{escapedCallerIdentity}}" .
                        }
                        WHERE { }
                        """;
@@ -129,13 +134,15 @@ internal static class RequestX
     public static HttpRequestMessage AsInsertTitlePatch(this HttpRequestMessage requestMessage,
         string title, string callerIdentity, bool isCreation)
     {
-        string creationStatement = isCreation ? $"\r\n <> fedora:createdBy \"{callerIdentity}\" ." : string.Empty;
+        var escapedTitle = title.EscapeForLiteralRdf(true);
+        var escapedCallerIdentity = callerIdentity.EscapeForLiteralRdf(true);
+        string creationStatement = isCreation ? $"\r\n <> fedora:createdBy \"{escapedCallerIdentity}\" ." : string.Empty;
         var sparql = $$"""
                        PREFIX dc: <{{RepositoryTypes.DublinCoreElementsNamespace}}>
                        PREFIX fedora: <{{RepositoryTypes.FedoraNamespace}}>
                        INSERT {   
-                        <> dc:title "{{title}}" .{{creationStatement}}
-                        <> fedora:lastModifiedBy "{{callerIdentity}}" .
+                        <> dc:title "{{escapedTitle}}" .{{creationStatement}}
+                        <> fedora:lastModifiedBy "{{escapedCallerIdentity}}" .
                        }
                        WHERE { }
                        """;
