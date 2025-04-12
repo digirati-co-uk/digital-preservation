@@ -15,7 +15,7 @@
                 <text>@binary.Name</text>
                 @if (binary.Name != binary.GetSlug())
                 {
-                    <text> (@binary.GetSlug())</text>
+                    <br/><small>@binary.GetSlug()</small>
                 }
             } 
             else if (workingFile != null)
@@ -23,7 +23,7 @@
                 <text>@workingFile.Name</text>
                 @if (workingFile.Name != workingFile.GetSlug())
                 {
-                    <text> (@workingFile.GetSlug())</text>
+                    <br/><small>@workingFile.GetSlug()</small>
                 }
             }
             else
@@ -35,7 +35,7 @@
     @if (workingFile != null)
     {
         <tr>
-            <th scope="row">Original path</th>
+            <th scope="row">Path</th>
             <td>@workingFile.MetsExtensions?.OriginalPath</td>
         </tr>
     }
