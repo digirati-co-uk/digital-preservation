@@ -59,16 +59,27 @@ public class ExecuteImportJobHandler(
                 return await FailEarly("Archival Group does not have a name: " + archivalGroupPathUnderRoot, ErrorCodes.BadRequest);
             }
 
-            var archivalGroupResult = await fedoraClient.CreateArchivalGroup(
-                archivalGroupPathUnderRoot,
-                callerIdentity,
-                importJob.ArchivalGroupName,
-                transaction,
-                cancellationToken);
+            Result<ArchivalGroup?> archivalGroupResult;
+
+            try
+            {
+                archivalGroupResult = await fedoraClient.CreateArchivalGroup(
+                    archivalGroupPathUnderRoot,
+                    callerIdentity,
+                    importJob.ArchivalGroupName,
+                    transaction,
+                    cancellationToken);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Unable to create Archival Group");
+                return await FailEarly("Failed to create archival group: " + archivalGroupPathUnderRoot);
+            }
 
             if (archivalGroupResult.Failure || archivalGroupResult.Value is null)
             {
-                return await FailEarly("Failed to create archival group: " + archivalGroupPathUnderRoot);
+                return await FailEarly(
+                    $"Failed to create archival group: {archivalGroupPathUnderRoot}, message: {archivalGroupResult.CodeAndMessage()}");
             }
         }
         else
