@@ -33,6 +33,8 @@ try
             .Enrich.FromLogContext()
             .Enrich.WithCorrelationId());
 
+    // Don't impose any limit for file uploads
+    builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = long.MaxValue);
 
     IEnumerable<string>? initialScopes = new List<string>();
     builder.Configuration.GetSection("DownstreamApi:Scopes").Bind(initialScopes);
