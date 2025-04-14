@@ -1,4 +1,5 @@
-﻿using Amazon.S3;
+﻿using System.Net;
+using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
@@ -52,7 +53,7 @@ public class UploadFileToDepositHandler(
             ChecksumAlgorithm = ChecksumAlgorithm.SHA256,
             InputStream = request.Stream
         };
-        req.Metadata.Add(S3Helpers.OriginalNameMetadataKey, request.DepositFileName);
+        req.Metadata.Add(S3Helpers.OriginalNameMetadataKey, WebUtility.UrlEncode(request.DepositFileName));
         try
         {
             var response = await s3Client.PutObjectAsync(req, cancellationToken);

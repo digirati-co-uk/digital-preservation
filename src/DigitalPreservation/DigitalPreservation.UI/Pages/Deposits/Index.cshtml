@@ -3,7 +3,6 @@
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
-@using Microsoft.AspNetCore.WebUtilities
 @model IndexModel
 
 @{
@@ -299,7 +298,7 @@
                 agDisplay = $"<span aria-label=\"ag-path\">{agPath}</span>";
             }
 
-            <tr aria-label="row-@(counter++)">
+            <tr aria-label="row-@(counter++)" class="@(deposit.Status == DepositStates.Error ? "table-danger" :"")">
                 <td aria-label="td-id"><b><a href="@path">@slug</a></b></td>
                 <td aria-label="td-archival-group">
                     @if (deposit.VersionPreserved.HasText())
@@ -325,9 +324,20 @@
         }
         </tbody>
     </table>
+    
+    <p><a href="/deposits?status=error&showAll=true">See all deposits with errors</a></p>
 </div>
 
-@await Component.InvokeAsync("Pager", new { values = Model.PagerValues })
+@if (Model.PagerValues != null)
+{
+    @await Component.InvokeAsync("Pager", new { values = Model.PagerValues })
+}
+else
+{
+    <div class="alert alert-danger" role="alert">
+        <p>No PagerValues Present - are any deposits returned?</p>
+    </div>
+}
 
 
 

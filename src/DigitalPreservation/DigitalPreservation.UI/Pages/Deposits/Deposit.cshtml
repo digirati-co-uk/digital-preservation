@@ -300,6 +300,8 @@ ViewData["section"] = "deposits";
             
             <div class="collapse show col-2" id="sidebarInfoPanel">
                 <dl arial-label="deposit-history">
+                    <dt>Status</dt>
+                    <dd aria-label="status" class="@(Model.Deposit.Status == DepositStates.Error ? "text-danger" : "")">@Model.Deposit.Status</dd>
                     <dt>Created</dt>
                     <dd aria-label="created">@Model.Deposit.Created.GetDateDisplay()</dd>
                     <dt>Created by</dt>

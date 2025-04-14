@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Text.Encodings.Web;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
@@ -52,7 +53,7 @@ public class CreateFolderHandler(
             BucketName = s3Uri.Bucket,
             Key = fullKey
         };
-        pReq.Metadata.Add(S3Helpers.OriginalNameMetadataKey, request.Name);
+        pReq.Metadata.Add(S3Helpers.OriginalNameMetadataKey, WebUtility.UrlEncode(request.Name));
         try
         {
             var response = await s3Client.PutObjectAsync(pReq, cancellationToken);

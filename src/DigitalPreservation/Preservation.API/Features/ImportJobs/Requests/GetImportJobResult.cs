@@ -98,7 +98,14 @@ public class GetImportJobResultHandler(
             {
                 logger.LogDebug("IJR-07: isComplete && !wasComplete");
                 var deposit = dbContext.Deposits.Single(d => d.MintedId == request.DepositId);
-                deposit.Status = DepositStates.Preserved;
+                if (storageApiImportJobResult.Status == ImportJobStates.Completed && entity.Errors.IsNullOrWhiteSpace())
+                {
+                    deposit.Status = DepositStates.Preserved;
+                }
+                else
+                {
+                    deposit.Status = DepositStates.Error;
+                }
                 deposit.Active = false; // even if completedWithErrors, I think. Should not be a regular occurrence.
                 deposit.Preserved = storageApiImportJobResult.DateFinished;
                 deposit.PreservedBy = storageApiImportJobResult.CreatedBy!.GetSlug()!;

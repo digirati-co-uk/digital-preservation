@@ -182,12 +182,8 @@ internal class FedoraClient(
             return Result.Ok(RepositoryTypes.Tombstone);
         }
 
-        return headResponse.StatusCode switch
-        {
-            HttpStatusCode.NotFound => Result.Fail<string?>(ErrorCodes.NotFound, "Not found"),
-            HttpStatusCode.Unauthorized => Result.Fail<string?>(ErrorCodes.Unauthorized, "Unauthorized"),
-            _ => Result.Fail<string?>(ErrorCodes.UnknownError, "Status from repository was " + headResponse.StatusCode)
-        };
+        var message = await headResponse.Content.ReadAsStringAsync();
+        return Result.Fail<string?>(ErrorCodes.GetErrorCode((int?)headResponse.StatusCode), message);
     }
     
     public async Task<Result<string?>> GetResourceType(string? pathUnderFedoraRoot, Transaction? transaction = null)
@@ -388,8 +384,8 @@ internal class FedoraClient(
         var response = await httpClient.SendAsync(req);
         if (!response.IsSuccessStatusCode)
         {
-            return Result.Fail<Container>(ErrorCodes.GetErrorCode((int?)response.StatusCode), 
-                "Could not Create Container: " + response.ReasonPhrase);
+            var message = await response.Content.ReadAsStringAsync();
+            return Result.Fail<Container>(ErrorCodes.GetErrorCode((int?)response.StatusCode), message);    
         }
 
         if(asArchivalGroup)
@@ -416,16 +412,10 @@ internal class FedoraClient(
         var containerResponse = await MakeFedoraResponse<FedoraJsonLdResponse>(newResponse);
         if (containerResponse == null)
         {
-            return Result.Fail<Container>(ErrorCodes.UnknownError, "Could not deserialize container response");
+            return Result.Fail<Container>(ErrorCodes.UnknownError, "Could not deserialise Fedora response for new Container");
         }
-
-        if (asArchivalGroup)
-        {
-            var ag = converters.MakeArchivalGroup(containerResponse);
-            return Result.Ok<Container?>(ag);
-        }
-        var container = converters.MakeContainer(containerResponse);
-        return Result.Ok<Container?>(container);
+        var container = asArchivalGroup ? converters.MakeArchivalGroup(containerResponse) : converters.MakeContainer(containerResponse);
+        return Result.Ok(container);
     }
 
     public async Task<Result> UpdateContainerMetadata(string pathUnderFedoraRoot, string? name, string callerIdentity,
@@ -505,7 +495,9 @@ internal class FedoraClient(
         if (!response.IsSuccessStatusCode)
         {
             logger.LogError("Response from Fedora was {status}", response.StatusCode);
-            return Result.Fail<Binary>(ErrorCodes.UnknownError, $"Response from Fedora was {response.StatusCode}");
+            var message = await response.Content.ReadAsStringAsync(cancellationToken);
+            var code = ErrorCodes.GetErrorCode((int?)response.StatusCode);
+            return Result.Fail<Binary>(code, $"PUT {binary.GetSlug()} failed; response from Fedora was {response.StatusCode}: {message}");
         }
         var metadataUri = req.RequestUri!.MetadataUri();
         
@@ -624,11 +616,12 @@ internal class FedoraClient(
             {
                 return Result.OkNotNull(resource);
             }
+            var message = await response.Content.ReadAsStringAsync(cancellationToken);
             return response.StatusCode switch
             {
-                HttpStatusCode.NotFound => Result.FailNotNull<PreservedResource>(ErrorCodes.NotFound, "Not found"),
-                HttpStatusCode.Unauthorized => Result.FailNotNull<PreservedResource>(ErrorCodes.Unauthorized, "Unauthorized"),
-                _ => Result.FailNotNull<PreservedResource>(ErrorCodes.UnknownError, "Status from repository was " + response.StatusCode)
+                HttpStatusCode.NotFound => Result.FailNotNull<PreservedResource>(ErrorCodes.NotFound, "Not found: " + message),
+                HttpStatusCode.Unauthorized => Result.FailNotNull<PreservedResource>(ErrorCodes.Unauthorized, "Unauthorized: " + message),
+                _ => Result.FailNotNull<PreservedResource>(ErrorCodes.UnknownError, "Fedora returned " + response.StatusCode + ": " + message)
             };
         }
         catch (Exception e)
@@ -669,7 +662,7 @@ internal class FedoraClient(
         var container = await GetPopulatedContainer(fedoraLocation, false, false, false);
         if (container == null || container.PartOf != null || container.Containers.Count > 0 || container.Binaries.Count > 0)
         {
-            return Result.Fail(ErrorCodes.BadRequest, "This is not a deleteable container");
+            return Result.Fail(ErrorCodes.BadRequest, "This is not a deletable container");
         }
         
         // It's OK to attempt to delete (and optionally purge) this Container
@@ -683,6 +676,11 @@ internal class FedoraClient(
                 {
                     return await PurgeTombstone(cancellationToken, fedoraLocation);
                 }
+            }
+            else
+            {
+                var message = await response.Content.ReadAsStringAsync(cancellationToken);
+                return Result.Fail(ErrorCodes.GetErrorCode((int?)response.StatusCode), message);
             }
         }
         catch (Exception ex)
@@ -704,8 +702,8 @@ internal class FedoraClient(
             {
                 return Result.Ok();
             }
-
-            return Result.Fail(ErrorCodes.UnknownError, "Failed to purge tombstone: " + delTombstoneResponse.StatusCode);
+            var message = await delTombstoneResponse.Content.ReadAsStringAsync(cancellationToken);
+            return Result.Fail(ErrorCodes.GetErrorCode((int?)delTombstoneResponse.StatusCode), "Failed to purge tombstone: " + message);
         }
 
         return Result.Fail(ErrorCodes.UnknownError, "Attempted to purge something that is not a tombstone");
@@ -714,9 +712,9 @@ internal class FedoraClient(
     public async Task<Result<ArchivalGroup?>> CreateArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, string name, Transaction transaction, CancellationToken cancellationToken = default)
     {
         var agResult = await CreateContainerInternal(true, pathUnderFedoraRoot, callerIdentity, name, transaction);
-        if (agResult.Success)
+        if (agResult is { Success: true, Value: ArchivalGroup })
         {
-            return Result.Ok(agResult.Value as ArchivalGroup);
+            return Result.Ok((ArchivalGroup)agResult.Value);
         }
         return Result.Fail<ArchivalGroup>(agResult.ErrorCode ?? ErrorCodes.UnknownError, agResult.ErrorMessage);
     }
@@ -820,12 +818,24 @@ internal class FedoraClient(
             }
             else if (resource.HasType("fedora:Binary"))
             {
-                var fedoraBinary = resource.Deserialize<BinaryMetadataResponse>();
+                var fedoraBinary = GetFedoraBinaryMetadataResponse(resource)!;
                 var binary = converters.MakeBinary(fedoraBinary!);
                 topContainer.Binaries.Add(binary);
             }
         }
         return topContainer;
+    }
+
+    private BinaryMetadataResponse? GetFedoraBinaryMetadataResponse(JsonElement jsonElement)
+    {
+        var titles = GetMultipleDcTitles(jsonElement);
+        var binaryMetadata = jsonElement.Deserialize<BinaryMetadataResponse>();
+        if (binaryMetadata != null)
+        {
+            binaryMetadata.Titles = titles;
+        }
+
+        return binaryMetadata;
     }
 
     /// <summary>
@@ -834,6 +844,18 @@ internal class FedoraClient(
     /// <param name="jsonElement"></param>
     /// <returns></returns>
     private static FedoraJsonLdResponse? GetFedoraJsonLdResponse(JsonElement jsonElement)
+    {
+        var titles = GetMultipleDcTitles(jsonElement);
+        var fedoraObject = jsonElement.Deserialize<FedoraJsonLdResponse>();
+        if (fedoraObject != null)
+        {
+            fedoraObject.Titles = titles;
+        }
+
+        return fedoraObject;
+    }
+
+    private static List<string> GetMultipleDcTitles(JsonElement jsonElement)
     {
         List<string> titles = [];
         if (jsonElement.TryGetProperty("title", out JsonElement titleElement)) 
@@ -850,13 +872,8 @@ internal class FedoraClient(
                 }
             }
         }
-        var fedoraObject = jsonElement.Deserialize<FedoraJsonLdResponse>();
-        if (fedoraObject != null)
-        {
-            fedoraObject.Titles = titles;
-        }
 
-        return fedoraObject;
+        return titles;
     }
 
 
@@ -918,9 +935,14 @@ internal class FedoraClient(
     private static async Task<T?> MakeFedoraResponse<T>(HttpResponseMessage response) where T : FedoraJsonLdResponse
     {
         // works for SINGLE resources, not contained responses that send back a @graph
-        var fedoraResponse = await response.Content.ReadFromJsonAsync<T>();
+        
+        var stream = await response.Content.ReadAsStreamAsync();
+        using var jDoc = await JsonDocument.ParseAsync(stream); // jDoc is a Fedora JSON response
+        var titles = GetMultipleDcTitles(jDoc.RootElement);
+        var fedoraResponse = jDoc.Deserialize<T>();
         if (fedoraResponse != null)
         {
+            fedoraResponse.Titles = titles;
             fedoraResponse.HttpResponseHeaders = response.Headers;
             fedoraResponse.HttpStatusCode = response.StatusCode;
             fedoraResponse.Body = await response.Content.ReadAsStringAsync();

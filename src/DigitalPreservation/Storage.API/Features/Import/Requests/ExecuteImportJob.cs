@@ -59,7 +59,7 @@ public class ExecuteImportJobHandler(
                 return await FailEarly("Archival Group does not have a name: " + archivalGroupPathUnderRoot, ErrorCodes.BadRequest);
             }
 
-            Result<ArchivalGroup?> archivalGroupResult;
+            Result<ArchivalGroup?>? archivalGroupResult = null;
 
             try
             {
@@ -72,8 +72,13 @@ public class ExecuteImportJobHandler(
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Unable to create Archival Group");
-                return await FailEarly("Failed to create archival group: " + archivalGroupPathUnderRoot);
+                var resultMessage = "Failed to create archival group";
+                logger.LogError(e, resultMessage);
+                if (archivalGroupResult != null)
+                {
+                    resultMessage += " - " + archivalGroupResult.CodeAndMessage();
+                }
+                return await FailEarly("Failed to create archival group: " + archivalGroupPathUnderRoot, resultMessage);
             }
 
             if (archivalGroupResult.Failure || archivalGroupResult.Value is null)
