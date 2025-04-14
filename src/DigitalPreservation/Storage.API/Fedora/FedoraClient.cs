@@ -397,7 +397,11 @@ internal class FedoraClient(
             // We give the AG this _additional_ type so that we can see that it's an AG when we get bulk child members back from .WithContainedDescriptions
             patchReq.AsInsertTypePatch("<http://purl.org/dc/dcmitype/Collection>", callerIdentity);
             var patchResponse = await httpClient.SendAsync(patchReq);
-            patchResponse.EnsureSuccessStatusCode();
+            if (!patchResponse.IsSuccessStatusCode)
+            {
+                return Result.Fail<Container>(ErrorCodes.GetErrorCode((int?)patchResponse.StatusCode), 
+                    "Could not PATCH Container: " + patchResponse.ReasonPhrase);
+            }
         }
         // The body is the new resource URL
         var newReq = MakeHttpRequestMessage(response.Headers.Location!, HttpMethod.Get)
@@ -712,7 +716,6 @@ internal class FedoraClient(
         {
             return Result.Ok((ArchivalGroup)agResult.Value);
         }
-        
         return Result.Fail<ArchivalGroup>(agResult.ErrorCode ?? ErrorCodes.UnknownError, agResult.ErrorMessage);
     }
 
@@ -815,12 +818,24 @@ internal class FedoraClient(
             }
             else if (resource.HasType("fedora:Binary"))
             {
-                var fedoraBinary = resource.Deserialize<BinaryMetadataResponse>();
+                var fedoraBinary = GetFedoraBinaryMetadataResponse(resource)!;
                 var binary = converters.MakeBinary(fedoraBinary!);
                 topContainer.Binaries.Add(binary);
             }
         }
         return topContainer;
+    }
+
+    private BinaryMetadataResponse? GetFedoraBinaryMetadataResponse(JsonElement jsonElement)
+    {
+        var titles = GetMultipleDcTitles(jsonElement);
+        var binaryMetadata = jsonElement.Deserialize<BinaryMetadataResponse>();
+        if (binaryMetadata != null)
+        {
+            binaryMetadata.Titles = titles;
+        }
+
+        return binaryMetadata;
     }
 
     /// <summary>
@@ -829,6 +844,18 @@ internal class FedoraClient(
     /// <param name="jsonElement"></param>
     /// <returns></returns>
     private static FedoraJsonLdResponse? GetFedoraJsonLdResponse(JsonElement jsonElement)
+    {
+        var titles = GetMultipleDcTitles(jsonElement);
+        var fedoraObject = jsonElement.Deserialize<FedoraJsonLdResponse>();
+        if (fedoraObject != null)
+        {
+            fedoraObject.Titles = titles;
+        }
+
+        return fedoraObject;
+    }
+
+    private static List<string> GetMultipleDcTitles(JsonElement jsonElement)
     {
         List<string> titles = [];
         if (jsonElement.TryGetProperty("title", out JsonElement titleElement)) 
@@ -845,13 +872,8 @@ internal class FedoraClient(
                 }
             }
         }
-        var fedoraObject = jsonElement.Deserialize<FedoraJsonLdResponse>();
-        if (fedoraObject != null)
-        {
-            fedoraObject.Titles = titles;
-        }
 
-        return fedoraObject;
+        return titles;
     }
 
 
@@ -913,9 +935,14 @@ internal class FedoraClient(
     private static async Task<T?> MakeFedoraResponse<T>(HttpResponseMessage response) where T : FedoraJsonLdResponse
     {
         // works for SINGLE resources, not contained responses that send back a @graph
-        var fedoraResponse = await response.Content.ReadFromJsonAsync<T>();
+        
+        var stream = await response.Content.ReadAsStreamAsync();
+        using var jDoc = await JsonDocument.ParseAsync(stream); // jDoc is a Fedora JSON response
+        var titles = GetMultipleDcTitles(jDoc.RootElement);
+        var fedoraResponse = jDoc.Deserialize<T>();
         if (fedoraResponse != null)
         {
+            fedoraResponse.Titles = titles;
             fedoraResponse.HttpResponseHeaders = response.Headers;
             fedoraResponse.HttpStatusCode = response.StatusCode;
             fedoraResponse.Body = await response.Content.ReadAsStringAsync();
