@@ -114,15 +114,32 @@ public class MetsParser(
 
         if (mets.MetsUri is not null)
         {
-            mets.Self = await LoadMetsFileAsync(mets.RootUri, mets.MetsUri);
+            try
+            {
+                mets.Self = await LoadMetsFileAsync(mets.RootUri, mets.MetsUri);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Unable to Load Mets File");
+                return Result.FailNotNull<MetsFileWrapper>(ErrorCodes.UnknownError, e.Message);
+            }
         }
         if(mets.Self != null)
         {
-            var (xMets, eTag) = await ExamineXml(mets, parse);
-            mets.ETag = eTag;
-            if (parse && xMets is not null)
+            try
             {
-                PopulateFromMets(mets, xMets);
+                var (xMets, eTag) = await ExamineXml(mets, parse);
+                mets.ETag = eTag;
+                if (parse && xMets is not null)
+                {
+                    PopulateFromMets(mets, xMets);
+                }
+                mets.XDocument = xMets;
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Unable to Parse Mets XML File");
+                return Result.FailNotNull<MetsFileWrapper>(ErrorCodes.UnknownError, e.Message);
             }
             if (mets.PhysicalStructure.FindFile(mets.Self.LocalPath) is null)
             {
@@ -134,8 +151,6 @@ public class MetsParser(
                 // and in the flat list
                 mets.Files.Add(mets.Self);
             }
-
-            mets.XDocument = xMets;
             mets.Editable = mets.Agent == IMetsManager.MetsCreatorAgent;
         }
         return Result.OkNotNull(mets);
