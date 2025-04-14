@@ -6,7 +6,6 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Primitives;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -55,7 +54,10 @@ public class IndexModel(IMediator mediator) : PageModel
             PagerValues = new PagerValues(Request.QueryString, QueryPage.Total, QueryPage.PageSize);
             
             var agentResult = await mediator.Send(new GetAllAgents());
-            Agents = agentResult.Value!.Select(uri => uri.GetSlug()).OrderBy(s => s).ToList()!;
+            if (agentResult.Success)
+            {
+                Agents = agentResult.Value!.Select(uri => uri.GetSlug()).OrderBy(s => s).ToList()!;
+            }
         }
         else
         {

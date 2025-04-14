@@ -220,6 +220,11 @@ public class BrowseModel(
             testPath = testPath.GetParent();
         }
 
+        if (CachedArchivalGroup != null && Request.Headers.CacheControl == "no-cache")
+        {
+            CachedArchivalGroup = null;
+        }
+
         if (CachedArchivalGroup == null)
         {
             // If not, get the resource.
