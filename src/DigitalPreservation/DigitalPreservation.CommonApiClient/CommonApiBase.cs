@@ -58,7 +58,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
                 }
                 return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            return await response.ToFailResult<PreservedResource>();
+            return await response.ToFailResult<PreservedResource>("Unable to GET Resource");
         }
         catch (Exception e)
         {
@@ -130,7 +130,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
                 }
                 return Result.Fail<Container?>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            return await response.ToFailResult<Container>();
+            return await response.ToFailResult<Container>("Unable to create Container");
         }
         catch (Exception e)
         {
@@ -151,7 +151,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             {
                 return Result.Ok();
             }
-            return await response.ToFailResult();
+            return await response.ToFailResult("Unable to delete Container");
         }
         catch (Exception e)
         {
@@ -176,7 +176,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
                 }
                 return Result.Fail<ArchivalGroup>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            return await response.ToFailResult<ArchivalGroup>();
+            return await response.ToFailResult<ArchivalGroup>("Unable to test archival group path");
         }
         catch (Exception e)
         {

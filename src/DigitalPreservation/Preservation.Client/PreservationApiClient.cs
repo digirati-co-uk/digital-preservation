@@ -55,7 +55,7 @@ internal class PreservationApiClient(
                 }
                 return Result.FailNotNull<List<Uri>>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<List<Uri>>();
+            return await response.ToFailNotNullResult<List<Uri>>("Unable to get agents");
         }
         catch (Exception e)
         {
@@ -80,7 +80,7 @@ internal class PreservationApiClient(
                 }
                 return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
             }
-            return await response.ToFailResult<Deposit>();
+            return await response.ToFailResult<Deposit>("Unable to update deposit");
         }
         catch (Exception e)
         {
@@ -100,7 +100,7 @@ internal class PreservationApiClient(
             {
                 return Result.Ok();
             }
-            return await response.ToFailResult();
+            return await response.ToFailResult("Unable to delete deposit");
         }
         catch (Exception e)
         {
@@ -125,7 +125,7 @@ internal class PreservationApiClient(
                 }
                 return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
             }
-            return await response.ToFailResult<Deposit>();
+            return await response.ToFailResult<Deposit>("Unable to create deposit from identifier");
         }
         catch (Exception e)
         {
@@ -173,7 +173,7 @@ internal class PreservationApiClient(
                 }
                 return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
             }
-            return await response.ToFailResult<Deposit>();
+            return await response.ToFailResult<Deposit>("Unable to create deposit");
         }
         catch (Exception e)
         {
@@ -185,7 +185,8 @@ internal class PreservationApiClient(
     
 
     public async Task<Result<DepositQueryPage>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
-    {        
+    {
+        var responseStatusCode = -1;
         try
         {
             var relPath = "/deposits";
@@ -197,6 +198,7 @@ internal class PreservationApiClient(
             var uri = new Uri(relPath, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            responseStatusCode = (int)response.StatusCode;
             if (response.IsSuccessStatusCode)
             {
                 var deposits = await response.Content.ReadFromJsonAsync<DepositQueryPage>(cancellationToken: cancellationToken);
@@ -206,12 +208,13 @@ internal class PreservationApiClient(
                 }
                 return Result.FailNotNull<DepositQueryPage>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<DepositQueryPage>();
+            return await response.ToFailNotNullResult<DepositQueryPage>("Unable to get Deposits");
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
-            return Result.FailNotNull<DepositQueryPage>(ErrorCodes.UnknownError, e.Message);
+            var errorCode = ErrorCodes.GetErrorCode(responseStatusCode);
+            logger.LogError(e, "status code was {status}, error was {message}", responseStatusCode, e.Message);
+            return Result.FailNotNull<DepositQueryPage>(errorCode, e.Message);
         }
     }
 
@@ -231,7 +234,7 @@ internal class PreservationApiClient(
                 }
                 return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<List<ImportJobResult>>();
+            return await response.ToFailNotNullResult<List<ImportJobResult>>("Unable to get import job results");
         }
         catch (Exception e)
         {
@@ -256,7 +259,7 @@ internal class PreservationApiClient(
                 }
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<ImportJobResult>();
+            return await response.ToFailNotNullResult<ImportJobResult>("Unable to get import job result");
         }
         catch (Exception e)
         {
@@ -282,7 +285,7 @@ internal class PreservationApiClient(
                 }
                 return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<ImportJob>();
+            return await response.ToFailNotNullResult<ImportJob>("Unable to get diff import job");
         }
         catch (Exception e)
         {
@@ -311,7 +314,7 @@ internal class PreservationApiClient(
                 }
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<ImportJobResult>();
+            return await response.ToFailNotNullResult<ImportJobResult>("Unable to send diff import job");
         }
         catch (Exception e)
         {
@@ -337,7 +340,7 @@ internal class PreservationApiClient(
                 }
                 return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailResult<Deposit>();
+            return await response.ToFailResult<Deposit>("Unable to get deposit");
         }
         catch (Exception e)
         {
@@ -360,7 +363,7 @@ internal class PreservationApiClient(
                 var content = await response.Content.ReadAsStringAsync(cancellationToken);
                 return Result.OkNotNull((content, eTag));
             }
-            return await response.ToFailResult<(string, string)>();
+            return await response.ToFailResult<(string, string)>("Unable to get mets with ETag");
         }
         catch (Exception e)
         {

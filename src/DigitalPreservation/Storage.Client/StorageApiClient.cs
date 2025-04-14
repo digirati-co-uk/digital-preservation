@@ -41,7 +41,7 @@ public class StorageApiClient(
                     return Result.OkNotNull(stream);
                     
                 }
-                return await response.ToFailNotNullResult<Stream>();
+                return await response.ToFailNotNullResult<Stream>("Unable to get Binary stream");
             }
             catch (Exception e)
             {
@@ -97,7 +97,7 @@ public class StorageApiClient(
                 }
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            return await response.ToFailNotNullResult<ImportJobResult>();
+            return await response.ToFailNotNullResult<ImportJobResult>("Unable to get import job result");
         }
         catch (Exception e)
         {
@@ -125,7 +125,7 @@ public class StorageApiClient(
                 }
                 return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            return await response.ToFailNotNullResult<ImportJobResult>();
+            return await response.ToFailNotNullResult<ImportJobResult>("Unable to execute import job");
         }
         catch (Exception e)
         {
@@ -179,7 +179,7 @@ public class StorageApiClient(
                 }
                 return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            return await response.ToFailNotNullResult<Export>();
+            return await response.ToFailNotNullResult<Export>("Unable to export archival group");
         }
         catch (Exception e)
         {
@@ -204,7 +204,7 @@ public class StorageApiClient(
                 }
                 return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");
             }
-            return await response.ToFailNotNullResult<Export>();
+            return await response.ToFailNotNullResult<Export>("Unable to get export result");
         }
         catch (Exception e)
         {
