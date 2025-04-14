@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using System.Net;
+using System.Net.Http.Headers;
 using DigitalPreservation.Utils;
 using Storage.API.Fedora.Model;
 using Storage.API.Fedora.Vocab;
@@ -175,7 +176,8 @@ public static class RequestX
     {
         if (!string.IsNullOrWhiteSpace(contentDisposition))
         {
-            httpContent.Headers.Add("Content-Disposition", $"attachment; filename=\"{contentDisposition}\""); 
+            var encoded = WebUtility.UrlEncode(contentDisposition);
+            httpContent.Headers.Add("Content-Disposition", $"attachment; filename=\"{encoded}\""); 
         }
         return httpContent;
     }

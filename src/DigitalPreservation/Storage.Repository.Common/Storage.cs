@@ -319,7 +319,7 @@ public class Storage(
                     if (metadata == null) continue;
                     if (metadata.Keys.Contains(S3Helpers.OriginalNameMetadataResponseKey))
                     {
-                        dir.Name = metadata[S3Helpers.OriginalNameMetadataResponseKey];
+                        dir.Name = WebUtility.UrlDecode(metadata[S3Helpers.OriginalNameMetadataResponseKey]);
                     }
                 }
                 else
@@ -340,7 +340,7 @@ public class Storage(
                     {
                         if (metadata.Keys.Contains(S3Helpers.OriginalNameMetadataResponseKey))
                         {
-                            wf.Name = metadata[S3Helpers.OriginalNameMetadataResponseKey];
+                            wf.Name = WebUtility.UrlDecode(metadata[S3Helpers.OriginalNameMetadataResponseKey]);
                         }
                     }
                     dir!.Files.Add(wf);
