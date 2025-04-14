@@ -72,8 +72,7 @@ public class ExecuteImportJobHandler(
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Unable to create Archival Group");
-                return await FailEarly("Failed to create archival group: " + archivalGroupPathUnderRoot);
+                return await FailEarly("Failed to create archival group: " + archivalGroupPathUnderRoot, archivalGroupResult.CodeAndMessage());
             }
 
             if (archivalGroupResult.Failure || archivalGroupResult.Value is null)

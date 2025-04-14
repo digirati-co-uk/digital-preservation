@@ -299,7 +299,7 @@
                 agDisplay = $"<span aria-label=\"ag-path\">{agPath}</span>";
             }
 
-            <tr aria-label="row-@(counter++)">
+            <tr aria-label="row-@(counter++)" class="@(deposit.Status == DepositStates.Error ? "table-danger" :"")">
                 <td aria-label="td-id"><b><a href="@path">@slug</a></b></td>
                 <td aria-label="td-archival-group">
                     @if (deposit.VersionPreserved.HasText())
@@ -325,6 +325,8 @@
         }
         </tbody>
     </table>
+    
+    <p><a href="/deposits?status=error&showAll=true">See all deposits with errors</a></p>
 </div>
 
 @await Component.InvokeAsync("Pager", new { values = Model.PagerValues })
