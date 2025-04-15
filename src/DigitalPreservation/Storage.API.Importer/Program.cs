@@ -1,5 +1,6 @@
-﻿using Amazon.SQS;
+﻿using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Web.Headers;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -41,7 +42,9 @@ try
         .AddFedoraClient(builder.Configuration, "Storage-API-IIIF-Builder")
         .AddFedoraDB(builder.Configuration, "Fedora")
         .AddStorageAwsAccess(builder.Configuration)
+        .AddSingleton<IHttpContextAccessor, HttpContextAccessor>()
         .AddImportExport(builder.Configuration)
+        .AddSingleton<IIdentityMinter, IdentityMinter>()
         .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
         .AddScoped<IExportResultStore, ExportResultStore>() // only for Storage API; happens after above for shared S3
         .AddStorageHealthChecks()

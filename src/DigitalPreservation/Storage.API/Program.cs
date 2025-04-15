@@ -81,13 +81,14 @@ try
         });
 
 
-    // Storage API's in-process queues. These will become separate services later.
+    // The Import Service is a separate ECR, a separate scalable service...
     builder.Services.AddSingleton<IImportJobQueue, SqsImportJobQueue>();
-
+    // ...but export is much less used, and can run alongside the Storage API as
+    // a Hosted Service
     builder.Services
         .AddHostedService<ExportExecutorService>()
         .AddScoped<ExportRunner>()
-        .AddSingleton<IExportQueue, InProcessExportQueue>();
+        .AddSingleton<IExportQueue, InProcessExportQueue>(); // <= SqsExportQueue
     
     
     var app = builder.Build();
