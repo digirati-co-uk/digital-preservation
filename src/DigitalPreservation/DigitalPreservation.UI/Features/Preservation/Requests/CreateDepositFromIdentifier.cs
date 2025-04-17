@@ -17,7 +17,7 @@ public class CreateDepositFromIdentifierHandler(IPreservationApiClient preservat
     public async Task<Result<Deposit?>?> Handle(CreateDepositFromIdentifier request, CancellationToken cancellationToken)
     {
         string? schema = null;
-        if (request.Identifier.Length <= 6 && request.Identifier.All(char.IsDigit))
+        if (request.Identifier.Length <= 7 && request.Identifier.All(char.IsDigit))
         {
             schema = SchemaAndValue.SchemaCatIrn;
         }
