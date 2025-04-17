@@ -1,8 +1,6 @@
-﻿using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Serilog;
 using Storage.API.Data;
 using Storage.API.Features.Export;
@@ -23,22 +21,31 @@ Log.Information("Application starting..");
 
 try
 {
-    var builder = Host.CreateApplicationBuilder(args);
-    builder.Services.AddSerilog(config =>
-    {
-        config
-            .ReadFrom.Configuration(builder.Configuration)
+    var builder = WebApplication.CreateBuilder(args);
+    builder.Host.UseSerilog((hostContext, loggerConfiguration)
+        => loggerConfiguration
+            .ReadFrom.Configuration(hostContext.Configuration)
             .Enrich.FromLogContext()
-            .Enrich.WithCorrelationId();
-    });
+            .Enrich.WithCorrelationId());
     
     builder.Services
+        .ConfigureForwardedHeaders()
+        .AddHttpContextAccessor()
         .AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
             cfg.RegisterServicesFromAssemblyContaining<IFedoraClient>();
         });
-
+    
+    
+    //Auth enabled flag - can still use this, eg for local testing scenarios
+    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
+    if (useAuthFeatureFlag)
+    {
+        // Here we will need some auth config that allows Storage.API.Importer to have a ClientID and Secret
+        // It _only_ makes calls this way because it never has a user context
+    }
+    
     builder.Services
         .AddOcfl(builder.Configuration)
         .AddMemoryCache()
@@ -60,8 +67,15 @@ try
         .AddSingleton<IImportJobQueue, SqsImportJobQueue>()
         .AddSingleton<IExportQueue, InProcessExportQueue>(); // don't need this but Mediatr does
     
-    using var host = builder.Build();
-    await host.RunAsync();
+    var app = builder.Build();
+    app.UseHealthChecks("/health");
+    app.Run();
+}
+
+catch (HostAbortedException)
+{
+    // No-op - required when adding migrations,
+    // See: https://github.com/dotnet/efcore/issues/29809#issuecomment-1345132260
 }
 catch (Exception ex)
 {
