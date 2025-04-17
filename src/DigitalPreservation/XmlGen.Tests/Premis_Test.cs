@@ -3,12 +3,20 @@ using System.Xml.Serialization;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
 using FluentAssertions;
+using Xunit.Abstractions;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace XmlGen.Tests;
 
 public class PremisTests
 {
+    private readonly ITestOutputHelper testOutputHelper;
+
+    public PremisTests(ITestOutputHelper testOutputHelper)
+    {
+        this.testOutputHelper = testOutputHelper;
+    }
+
     [Fact (Skip = "Experimental")]
     public void Premis_Namespace_Handled()
     {
@@ -20,7 +28,7 @@ public class PremisTests
         var premis = (PremisComplexType) serializer.Deserialize(reader)!;
     }
     
-    [Fact (Skip = "Experimental")]
+    [Fact]
     public void Premis_Namespace_Artifically_Handled()
     {
         var updatedXml = "Samples/standalone-premis-updated.xml";
@@ -75,7 +83,7 @@ public class PremisTests
         premisFile.Should().NotBeNull();
     }
 
-    [Fact (Skip = "Experimental")]
+    [Fact]
     public void Premis_2()
     {
         var doc = new XmlDocument();
@@ -85,6 +93,54 @@ public class PremisTests
         var premis = (PremisComplexType) serializer.Deserialize(reader)!;
         premis.Should().NotBeNull();
         
+    }
+
+    [Fact]
+    public void Build_Premis()
+    {
+        var premis = new PremisComplexType();
+        var premisFile = new File();
+        premis.Object.Add(premisFile);
+        var objectCharacteristics = new ObjectCharacteristicsComplexType();
+        premisFile.ObjectCharacteristics.Add(objectCharacteristics);
+        
+        var fixity = new FixityComplexType
+        {
+            MessageDigestAlgorithm = new MessageDigestAlgorithm{ Value = "SHA256" },
+            MessageDigest = "efc63a2c4dbb61936b5028c637c76f066ce463b5de6f3d5d674c9f024fa08d73"
+        };
+        objectCharacteristics.Fixity.Add(fixity);
+
+        objectCharacteristics.Size = 46857743;
+
+        var format = new FormatComplexType
+        {
+            FormatDesignation = new FormatDesignationComplexType
+            {
+                FormatName = new FormatName { Value = "Tagged Image File Format" }
+            }
+        };
+        var registry = new FormatRegistryComplexType
+        {
+            FormatRegistryName = new FormatRegistryName { Value = "PRONOM" },
+            FormatRegistryKey = new FormatRegistryKey { Value = "fmt/353" }
+        };
+        format.FormatRegistry.Add(registry);
+        objectCharacteristics.Format.Add(format);
+
+        premisFile.OriginalName = new OriginalNameComplexType
+        {
+            Value = "files/the-tiff-was-here.tiff"
+        };
+
+        var serializer = new XmlSerializer(typeof(PremisComplexType));
+        var sw = new StringWriter();
+        var namespaces = new XmlSerializerNamespaces();
+        namespaces.Add("premis", "http://www.loc.gov/premis/v3");
+        namespaces.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
+        serializer.Serialize(sw, premis, namespaces);
+        var s = sw.ToString();
+        testOutputHelper.WriteLine(s);
     }
     
 }
