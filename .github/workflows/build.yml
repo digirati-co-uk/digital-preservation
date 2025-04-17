@@ -47,6 +47,8 @@ jobs:
         include:
           - image: "storage-api"
             dockerfile: "Dockerfile.StorageApi"
+          - image: "storage-api-importer"
+            dockerfile: "Dockerfile.StorageApiImporter"
           - image: "preservation-api"
             dockerfile: "Dockerfile.PreservationApi"
           - image: "preservation-ui"

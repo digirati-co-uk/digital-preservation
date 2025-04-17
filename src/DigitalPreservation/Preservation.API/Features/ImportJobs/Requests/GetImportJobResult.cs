@@ -97,21 +97,28 @@ public class GetImportJobResultHandler(
             if (isComplete && !wasComplete)
             {
                 logger.LogDebug("IJR-07: isComplete && !wasComplete");
-                var deposit = dbContext.Deposits.Single(d => d.MintedId == request.DepositId);
-                if (storageApiImportJobResult.Status == ImportJobStates.Completed && entity.Errors.IsNullOrWhiteSpace())
+                var deposit = dbContext.Deposits.SingleOrDefault(d => d.MintedId == request.DepositId);
+                if (deposit != null)
                 {
-                    deposit.Status = DepositStates.Preserved;
+                    if (storageApiImportJobResult.Status == ImportJobStates.Completed && entity.Errors.IsNullOrWhiteSpace())
+                    {
+                        deposit.Status = DepositStates.Preserved;
+                    }
+                    else
+                    {
+                        deposit.Status = DepositStates.Error;
+                    }
+                    deposit.Active = false; // even if completedWithErrors, I think. Should not be a regular occurrence.
+                    deposit.Preserved = storageApiImportJobResult.DateFinished;
+                    deposit.PreservedBy = storageApiImportJobResult.CreatedBy!.GetSlug()!;
+                    deposit.LastModified = deposit.Preserved!.Value;
+                    deposit.LastModifiedBy = deposit.PreservedBy;
+                    deposit.VersionPreserved = storageApiImportJobResult.NewVersion;
                 }
                 else
                 {
-                    deposit.Status = DepositStates.Error;
+                    logger.LogDebug("No deposit {} in DB.", request.DepositId);
                 }
-                deposit.Active = false; // even if completedWithErrors, I think. Should not be a regular occurrence.
-                deposit.Preserved = storageApiImportJobResult.DateFinished;
-                deposit.PreservedBy = storageApiImportJobResult.CreatedBy!.GetSlug()!;
-                deposit.LastModified = deposit.Preserved!.Value;
-                deposit.LastModifiedBy = deposit.PreservedBy;
-                deposit.VersionPreserved = storageApiImportJobResult.NewVersion;
             }
             
             logger.LogDebug("IJR-08: Saving changes");

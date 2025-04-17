@@ -1,4 +1,6 @@
-﻿namespace Storage.API.Features.Import;
+﻿using DigitalPreservation.Utils;
+
+namespace Storage.API.Features.Import;
 
 public class ImportJobExecutorService(
     IServiceScopeFactory serviceScopeFactory,
@@ -12,10 +14,12 @@ public class ImportJobExecutorService(
         while (!cancellationToken.IsCancellationRequested)
         {
             var transaction = await importJobQueue.DequeueRequest(cancellationToken);
-            
-            using var scope = serviceScopeFactory.CreateScope();
-            var processor = scope.ServiceProvider.GetRequiredService<ImportJobRunner>();
-            await processor.Execute(transaction, cancellationToken);
+            if (transaction.HasText())
+            {
+                using var scope = serviceScopeFactory.CreateScope();
+                var processor = scope.ServiceProvider.GetRequiredService<ImportJobRunner>();
+                await processor.Execute(transaction, cancellationToken);
+            }
         }
     }
 }

@@ -2,7 +2,7 @@
 
 namespace Storage.API.Data;
 
-internal static class StorageContextConfiguration
+public static class StorageContextConfiguration
 {
     private const string ConnectionStringKey = "Postgres";
     private const string RunMigrationsKey = "RunMigrations";

@@ -35,6 +35,10 @@ public class StorageImportJobsProcessor(
         logger.LogInformation("{count} activities returned from GetImportJobActivities", activitiesResult.Value.Count);
         foreach (var activity in activitiesResult.Value)
         {
+            // These should be oldest-first
+            // This is important so that if something goes wrong here, our last activity date is the last successfully
+            // processed one. So if it's a temporary issue, it will sort itself out later.
+            // TODO: a possible optimisation is to group all the events by archival group URI and only process each distinct AG once.
             var jobEntity = dbContext.GetImportJobFromStorageImportJobResult(activity.Object.Id);
             if (jobEntity == null)
             {
@@ -47,7 +51,14 @@ public class StorageImportJobsProcessor(
             if (fullJobResult is not { Success: true, Value: not null })
             {
                 logger.LogError("Unable to get full import job result for {deposit}, {id}", jobEntity.Deposit, jobEntity.Id);
-                continue;
+                if (fullJobResult.ErrorCode == ErrorCodes.NotFound)
+                {
+                    logger.LogWarning("Import Job not found - can't process, but will continue");
+                    continue;
+                }
+
+                logger.LogError(fullJobResult.CodeAndMessage());
+                return Result.Fail(fullJobResult.ErrorCode ?? ErrorCodes.UnknownError, fullJobResult.ErrorMessage);
             }
             var fullJob = fullJobResult.Value;
             if (fullJob.DateFinished is null)

@@ -49,8 +49,16 @@ public class QueueImportJobHandler(
             if (saveResultResult.Success)
             {
                 logger.LogInformation($"About to queue import job request {jobIdentifier}");
-                await importJobQueue.QueueRequest(jobIdentifier, cancellationToken);
-                return Result.OkNotNull(waitingResult);
+                try
+                {
+                    await importJobQueue.QueueRequest(jobIdentifier, cancellationToken);
+                    return Result.OkNotNull(waitingResult);
+                }
+                catch (Exception e)
+                {
+                    logger.LogError(e, "Could not publish import job");
+                    return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Could not publish import job: " + e.Message);
+                }
             }
         }
         return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Unable to create and queue import job.");

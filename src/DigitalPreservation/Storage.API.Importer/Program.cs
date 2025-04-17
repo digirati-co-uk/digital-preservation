@@ -1,12 +1,6 @@
-﻿using Amazon.SimpleNotificationService;
-using Amazon.SQS;
 using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.Identity.Web;
 using Serilog;
 using Storage.API.Data;
 using Storage.API.Features.Export;
@@ -33,85 +27,51 @@ try
             .ReadFrom.Configuration(hostContext.Configuration)
             .Enrich.FromLogContext()
             .Enrich.WithCorrelationId());
-
+    
     builder.Services
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
         .AddMediatR(cfg =>
         {
-            cfg.RegisterServicesFromAssemblyContaining<Program>();
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+            cfg.RegisterServicesFromAssemblyContaining<IFedoraClient>();
         });
-
-    //Auth enabled flag
+    
+    
+    //Auth enabled flag - can still use this, eg for local testing scenarios
     var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
-
-
     if (useAuthFeatureFlag)
     {
-        // Auth
-        builder.Services
-            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
-            .EnableTokenAcquisitionToCallDownstreamApi()
-            .AddInMemoryTokenCaches();
+        // Here we will need some auth config that allows Storage.API.Importer to have a ClientID and Secret
+        // It _only_ makes calls this way because it never has a user context
     }
-
-
+    
     builder.Services
-        .AddMemoryCache()
         .AddOcfl(builder.Configuration)
-        .AddFedoraClient(builder.Configuration, "Storage-API")
+        .AddMemoryCache()
+        .AddFedoraClient(builder.Configuration, "Storage-API-IIIF-Builder")
         .AddFedoraDB(builder.Configuration, "Fedora")
         .AddStorageAwsAccess(builder.Configuration)
+        .AddSingleton<IHttpContextAccessor, HttpContextAccessor>()
         .AddImportExport(builder.Configuration)
         .AddSingleton<IIdentityMinter, IdentityMinter>()
         .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
         .AddScoped<IExportResultStore, ExportResultStore>() // only for Storage API; happens after above for shared S3
         .AddStorageHealthChecks()
         .AddCorrelationIdHeaderPropagation()
-        .AddStorageContext(builder.Configuration)
-        .AddControllers(config =>
-        {
-            if (useAuthFeatureFlag)
-            {
-                config.Filters.Add(new AuthorizeFilter());
-                config.Filters.Add(new AuthFilterIdentifier());
-            }
-        });
-
-
-    // The Import Service is a separate ECR, a separate scalable service...
-    builder.Services.AddSingleton<IImportJobQueue, SqsImportJobQueue>();
-    // ...but export is much less used, and can run alongside the Storage API as
-    // a Hosted Service
-    builder.Services
-        .AddHostedService<ExportExecutorService>()
-        .AddScoped<ExportRunner>()
-        .AddSingleton<IExportQueue, InProcessExportQueue>(); // <= SqsExportQueue
+        .AddStorageContext(builder.Configuration);
     
+    builder.Services
+        .AddHostedService<ImportJobExecutorService>()
+        .AddScoped<ImportJobRunner>()
+        .AddSingleton<IImportJobQueue, SqsImportJobQueue>()
+        .AddSingleton<IExportQueue, InProcessExportQueue>(); // don't need this but Mediatr does
     
     var app = builder.Build();
-    app
-        .UseMiddleware<CorrelationIdMiddleware>()
-        .UseSerilogRequestLogging()
-        .UseRouting()
-        .UseForwardedHeaders()
-        .TryRunMigrations(builder.Configuration, app.Logger);
-
-    //Auth
-    if (useAuthFeatureFlag)
-    {
-        app.UseAuthentication();
-        app.UseAuthorization();
-    }
-
-    // TODO - remove this, only used for initial setup
-    app.MapGet("/", () => "Storage: Hello World!");
-    app.MapControllers();
     app.UseHealthChecks("/health");
     app.Run();
 }
+
 catch (HostAbortedException)
 {
     // No-op - required when adding migrations,
@@ -126,6 +86,3 @@ finally
     Log.Information("Shut down complete");
     Log.CloseAndFlush();
 }
-
-// required for WebApplicationFactory
-public partial class Program { }
