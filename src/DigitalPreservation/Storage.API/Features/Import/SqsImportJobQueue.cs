@@ -1,4 +1,6 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
@@ -38,7 +40,8 @@ public class SqsImportJobQueue(
     public async ValueTask QueueRequest(string jobIdentifier, CancellationToken cancellationToken)
     {
         topicArn = options.Value.ImportJobTopicArn;
-        var request = new PublishRequest(topicArn, jobIdentifier);
+        var importJobMessage = JsonSerializer.Serialize(new ImportJobMessage { Id = jobIdentifier });
+        var request = new PublishRequest(topicArn, importJobMessage);
         var response = await simpleNotificationService.PublishAsync(request, cancellationToken);
         logger.LogDebug(
             "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
@@ -90,20 +93,12 @@ public class SqsImportJobQueue(
                 logger.LogTrace("Handling message {Message} from {Queue}", message.MessageId, queueName);
             }
 
-            var messageAttributes = message.MessageAttributes
-                .ToDictionary(pair => pair.Key, pair => pair.Value.StringValue);
-
-            var queueMessage = new QueueMessage
+            var queueMessage = QueueMessage.FromSqsMessage(message, queueName!);
+            var importJobMessage = queueMessage.GetMessageContents<ImportJobMessage>();
+            if (importJobMessage != null)
             {
-                MessageAttributes = messageAttributes,
-                Attributes = message.Attributes,
-                Body = JsonNode.Parse(message.Body)!.AsObject(),
-                MessageId = message.MessageId,
-                QueueName = queueName!
-            };
-
-            return queueMessage.GetMessageContents<string>() ?? string.Empty;
-
+                return importJobMessage.Id;
+            }
         }
         catch (Exception ex)
         {
@@ -112,8 +107,8 @@ public class SqsImportJobQueue(
         }
         return string.Empty;
     }
-    
-    
+
+
     private Task DeleteMessage(Message message, CancellationToken cancellationToken)
         => sqsClient.DeleteMessageAsync(new DeleteMessageRequest
         {
@@ -131,3 +126,11 @@ public class ImportOptions
     public required string ExportJobTopicArn { get; set; }
     public required string ExportJobSqsQueueName { get; set; }
 }
+
+internal class ImportJobMessage
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; set; }
+    
+    public string Type => "ImportJobMessage";
+} 

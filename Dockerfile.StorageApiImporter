@@ -1,0 +1,23 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY ["src/DigitalPreservation/Storage.API.Importer/Storage.API.Importer.csproj", "Storage.API.Importer/"]
+COPY ["src/DigitalPreservation/DigitalPreservation.Core/DigitalPreservation.Core.csproj", "DigitalPreservation.Core/"]
+
+RUN dotnet restore "Storage.API.Importer/Storage.API.Importer.csproj"
+
+COPY src/DigitalPreservation/ .
+WORKDIR "/src/Storage.API.Importer"
+RUN dotnet build "Storage.API.Importer.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "Storage.API.Importer.csproj" -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+
+LABEL org.opencontainers.image.source=https://github.com/uol-dlip/digital-preservation
+LABEL org.opencontainers.image.description="UoL DLIP Storage API Importer Service"
+
+WORKDIR /app
+COPY --from=publish /app/publish .
+USER $APP_UID
+ENTRYPOINT ["dotnet", "Storage.API.Importer.dll"]

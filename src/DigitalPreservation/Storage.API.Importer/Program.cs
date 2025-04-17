@@ -11,6 +11,7 @@ using Storage.API.Features.Import;
 using Storage.API.Features.Import.Data;
 using Storage.API.Fedora;
 using Storage.API.Infrastructure;
+using Storage.API.Ocfl;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
@@ -39,6 +40,8 @@ try
         });
 
     builder.Services
+        .AddOcfl(builder.Configuration)
+        .AddMemoryCache()
         .AddFedoraClient(builder.Configuration, "Storage-API-IIIF-Builder")
         .AddFedoraDB(builder.Configuration, "Fedora")
         .AddStorageAwsAccess(builder.Configuration)
@@ -54,7 +57,8 @@ try
     builder.Services
         .AddHostedService<ImportJobExecutorService>()
         .AddScoped<ImportJobRunner>()
-        .AddSingleton<IImportJobQueue, SqsImportJobQueue>();
+        .AddSingleton<IImportJobQueue, SqsImportJobQueue>()
+        .AddSingleton<IExportQueue, InProcessExportQueue>(); // don't need this but Mediatr does
     
     using var host = builder.Build();
     await host.RunAsync();

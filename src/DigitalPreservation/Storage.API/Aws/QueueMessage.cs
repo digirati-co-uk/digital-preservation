@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Amazon.SQS.Model;
 
 namespace Storage.API.Aws;
 
@@ -29,6 +30,22 @@ public class QueueMessage
     /// The name of the queue that this message was from
     /// </summary>
     public required string QueueName { get; set; }
+
+    public static QueueMessage FromSqsMessage(Message message, string queueName)
+    {
+        var messageAttributes = message.MessageAttributes
+            .ToDictionary(pair => pair.Key, pair => pair.Value.StringValue);
+
+        var queueMessage = new QueueMessage
+        {
+            MessageAttributes = messageAttributes,
+            Attributes = message.Attributes,
+            Body = JsonNode.Parse(message.Body)!.AsObject(),
+            MessageId = message.MessageId,
+            QueueName = queueName
+        };
+        return queueMessage;
+    }
 }
 
 public static class QueueMessageX
