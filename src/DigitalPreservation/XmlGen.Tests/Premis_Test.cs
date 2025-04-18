@@ -3,6 +3,7 @@ using System.Xml.Serialization;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
 using FluentAssertions;
+using Storage.Repository.Common.Mets;
 using Xunit.Abstractions;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
@@ -98,49 +99,174 @@ public class PremisTests
     [Fact]
     public void Build_Premis()
     {
-        var premis = new PremisComplexType();
-        var premisFile = new File();
-        premis.Object.Add(premisFile);
-        var objectCharacteristics = new ObjectCharacteristicsComplexType();
-        premisFile.ObjectCharacteristics.Add(objectCharacteristics);
-        
-        var fixity = new FixityComplexType
-        {
-            MessageDigestAlgorithm = new MessageDigestAlgorithm{ Value = "SHA256" },
-            MessageDigest = "efc63a2c4dbb61936b5028c637c76f066ce463b5de6f3d5d674c9f024fa08d73"
-        };
-        objectCharacteristics.Fixity.Add(fixity);
-
-        objectCharacteristics.Size = 46857743;
-
-        var format = new FormatComplexType
-        {
-            FormatDesignation = new FormatDesignationComplexType
-            {
-                FormatName = new FormatName { Value = "Tagged Image File Format" }
-            }
-        };
-        var registry = new FormatRegistryComplexType
-        {
-            FormatRegistryName = new FormatRegistryName { Value = "PRONOM" },
-            FormatRegistryKey = new FormatRegistryKey { Value = "fmt/353" }
-        };
-        format.FormatRegistry.Add(registry);
-        objectCharacteristics.Format.Add(format);
-
-        premisFile.OriginalName = new OriginalNameComplexType
-        {
-            Value = "files/the-tiff-was-here.tiff"
-        };
-
-        var serializer = new XmlSerializer(typeof(PremisComplexType));
-        var sw = new StringWriter();
-        var namespaces = new XmlSerializerNamespaces();
-        namespaces.Add("premis", "http://www.loc.gov/premis/v3");
-        namespaces.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
-        serializer.Serialize(sw, premis, namespaces);
-        var s = sw.ToString();
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
     }
     
+    [Fact]
+    public void Read_Premis()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var read = PremisManager.Read(premis);
+        read.Should().BeEquivalentTo(testData);
+    }
+    
+    [Fact]
+    public void Build_Premis_Get_XmlElement()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var xmlElement = PremisManager.GetXmlElement(premis, false);
+        
+        testOutputHelper.WriteLine(xmlElement?.ToString());
+    }
+
+
+    [Fact]
+    public void Edit_Premis_Size()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var update = new PremisFile
+        {
+            Size = 1111111
+        };
+        PremisManager.Patch(premis, update);
+        
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    [Fact]
+    public void Edit_Premis_PronomKey_Only()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var update = new PremisFile
+        {
+            PronomKey = "fmt/333"
+        };
+        PremisManager.Patch(premis, update);
+        
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    [Fact]
+    public void Edit_Premis_PronomKey_And_Format_Name()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var update = new PremisFile
+        {
+            FormatName = "Some other bitmap",
+            PronomKey = "fmt/333"
+        };
+        PremisManager.Patch(premis, update);
+        
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    [Fact]
+    public void Simplest_Premis()
+    {
+        var premis = PremisManager.Create(new PremisFile());
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    
+    [Fact]
+    public void Premis_Digest_Only()
+    {
+        var premis = PremisManager.Create(new PremisFile
+        {
+            Digest = "123456"
+        });
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+        
+    [Fact]
+    public void Premis_Digest_and_Size_Only()
+    {
+        var premis = PremisManager.Create(new PremisFile
+        {
+            Digest = "123456",
+            Size = 654321
+        });
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }        
+    
+    [Fact]
+    public void Premis_Digest_and_Size_then_Edit_Name()
+    {
+        var start = new PremisFile
+        {
+            Digest = "123456",
+            Size = 654321
+        };
+        var premis = PremisManager.Create(start);
+        start.OriginalName = "bob";
+        PremisManager.Patch(premis, start);
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+        
+    [Fact]
+    public void Premis_Digest_and_Size_then_Edit_More()
+    {
+        var start = new PremisFile
+        {
+            Digest = "123456",
+            Size = 654321
+        };
+        var premis = PremisManager.Create(start);
+        start.OriginalName = "bob";
+        PremisManager.Patch(premis, start);
+        start.PronomKey = "fmt/bob";
+        PremisManager.Patch(premis, start);
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    [Fact]
+    public void Premis_Build_up_all()
+    {
+        var premisFile = new PremisFile
+        {
+            Digest = "123456",
+            Size = 654321
+        };
+        var premis = PremisManager.Create(premisFile);
+        premisFile.OriginalName = "bob";
+        PremisManager.Patch(premis, premisFile);
+        premisFile.PronomKey = "fmt/bob";
+        PremisManager.Patch(premis, premisFile);
+        premisFile.FormatName = "Some file format";
+        PremisManager.Patch(premis, premisFile);
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    
+    private static PremisFile GetTestPremisData()
+    {
+        var testData = new PremisFile
+        {
+            Digest = "efc63a2c4dbb61936b5028c637c76f066ce463b5de6f3d5d674c9f024fa08d79",
+            Size = 9999999,
+            FormatName = "Tagged Image File Format Test",
+            PronomKey = "fmt/999",
+            OriginalName = "files/a-file-path"
+        };
+        return testData;
+    }
 }

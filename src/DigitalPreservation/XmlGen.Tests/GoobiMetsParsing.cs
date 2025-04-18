@@ -198,7 +198,7 @@ public class GoobiMetsParsing
         premisXml.Name.Should().Be("premis:object");
         
         // Now turn it into typed PremisComplexObject
-        var premis = premisXml.GetPremisComplexObject()!;
+        var premis = premisXml.GetPremisComplexType()!;
         premis.Should().NotBeNull();
 
         var premisFile = premis.Object[0] as File;
