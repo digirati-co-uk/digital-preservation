@@ -657,26 +657,6 @@ public class MetsManager(
         return mets;
     }
     
-    // const string PremisFixityWrapper = """
-    //                                    <premis:object xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:premis="http://www.loc.gov/premis/v3" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd" version="3.0">
-    //                                        <premis:objectCharacteristics>
-    //                                            <premis:fixity>
-    //                                                <premis:messageDigestAlgorithm>sha256</premis:messageDigestAlgorithm>
-    //                                                <premis:messageDigest>{sha256}</premis:messageDigest>
-    //                                            </premis:fixity>
-    //                                            <premis:size>{size}</premis:size>
-    //                                        </premis:objectCharacteristics>
-    //                                        <premis:originalName>{localPath}</premis:originalName>
-    //                                    </premis:object>
-    //                                    """;
-    //
-    // const string PremisOriginalNameWrapper = """
-    //                                    <premis:object xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:premis="http://www.loc.gov/premis/v3" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd" version="3.0">
-    //                                        <premis:originalName>{localPath}</premis:originalName>
-    //                                    </premis:object>
-    //                                    """;
-
-
     private static XmlSerializerNamespaces GetNamespaces()
     {
         var ns = new XmlSerializerNamespaces();
@@ -687,29 +667,6 @@ public class MetsManager(
         ns.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
         return ns;
     }
-    
-    // [Obsolete]
-    // private static AmdSecType GetAmdSecType(string reducedPremisForObjectDir, string admId, string techId)
-    // {
-    //     var reducedPremisX = GetElement(reducedPremisForObjectDir);
-    //     var amdSec = new AmdSecType
-    //     {
-    //         Id = admId,
-    //         TechMd =
-    //         {
-    //             new MdSecType
-    //             {
-    //                 Id = techId,
-    //                 MdWrap = new MdSecTypeMdWrap
-    //                 {
-    //                     Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
-    //                     XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } }
-    //                 }
-    //             }
-    //         }
-    //     };
-    //     return amdSec;
-    // }
     
     
     private static AmdSecType GetAmdSecType(PremisFile premisFile, string admId, string techId)
