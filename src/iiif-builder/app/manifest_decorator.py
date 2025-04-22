@@ -10,7 +10,9 @@ def add_descriptive_metadata_to_manifest(manifest, descriptive_metadata):
     # descriptive_metadata is a Dictionary in the MVP implementation
     # See https://dev.azure.com/universityofleeds/Library/_wiki/wikis/Library.wiki/4864/Present-IIIF(new)-manifests-to-Website
     data = descriptive_metadata["data"]
-    manifest["label"] = { "en": [ data["Title"] ] }
+    # bug in test data
+    title = data.get("Title", None) or data.get("title", None) or "[NO TITLE]"
+    manifest["label"] = { "en": [ title ] }
     add_metadata_label_and_value(manifest, data, "Shelfmark", "none")
     add_metadata_label_and_value(manifest, data, "Object Number", "none")
     add_metadata_label_and_value(manifest, data, "Date", "none")
