@@ -1,7 +1,11 @@
 ﻿using System.Net.Http.Headers;
+using System.Security.Claims;
 using DigitalPreservation.CommonApiClient;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.Abstractions;
 
 namespace Preservation.Client;
 
@@ -25,7 +29,7 @@ public class AuthTokenInjector(ITokenAcquisition tokenAcquisition, ITokenScope t
         catch (Exception e)
         {
             logger.LogError(e, "Failed to obtain Bearer Token");
-            return null;
+            throw;
         }
     }
 

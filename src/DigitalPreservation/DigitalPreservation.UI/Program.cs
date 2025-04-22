@@ -1,4 +1,4 @@
-using DigitalPreservation.CommonApiClient;
+﻿using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
@@ -49,6 +49,8 @@ try
             null)
         .EnableTokenAcquisitionToCallDownstreamApi(initialScopes)
         .AddSessionTokenCaches();
+
+    builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options => options.Events = new RejectSessionCookieWhenAccountNotInCacheEvents());
 
     // <ms_docref_add_default_controller_for_sign-in-out>
     builder.Services.AddRazorPages().AddMvcOptions(options =>
@@ -110,13 +112,13 @@ try
         .UseHttpsRedirection()
         .UseStaticFiles()
         .UseRouting()
-        .UseAuthorization()
         .UseForwardedHeaders();
     app.UseSession();
     app.MapRazorPages();
     app.MapControllers();
     app.UseHealthChecks("/health");
     app.UseAuthentication();
+    app.UseAuthorization();
 
 
 
