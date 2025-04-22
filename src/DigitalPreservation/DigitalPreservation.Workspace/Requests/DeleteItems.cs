@@ -74,7 +74,7 @@ public class DeleteItemsHandler(
             {
                 if (item.IsDirectory)
                 {
-                    if (deleteDirectory.LocalPath == "objects")
+                    if (deleteDirectory.LocalPath == FolderNames.Objects)
                     {
                         failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                             ErrorCodes.BadRequest, "You cannot delete the objects directory.");

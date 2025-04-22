@@ -20,5 +20,6 @@ public class NewDepositModel
     public bool FromBrowseContext { get; set; }
 
     public bool UseObjectTemplate { get; set; } = true;
+    public bool UseBagItTemplate { get; set; }
     public bool Export { get; set; }
 }

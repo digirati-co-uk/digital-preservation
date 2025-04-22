@@ -14,6 +14,7 @@ namespace Preservation.API.Features.Deposits.Requests;
 
 public class CreateDepositFromIdentifier(SchemaAndValue schemaAndValue, ClaimsPrincipal principal) : IRequest<Result<Deposit?>>
 {
+    public TemplateType TemplateType { get; set; }
     public SchemaAndValue SchemaAndValue { get; } = schemaAndValue;
     public ClaimsPrincipal Principal { get; } = principal;
 }
@@ -41,7 +42,7 @@ public class CreateDepositFromIdentifierHandler(
             {
                 ArchivalGroup = identity.RepositoryUri,
                 ArchivalGroupName = identity.Title,
-                UseObjectTemplate = false,
+                Template = request.TemplateType,
                 SubmissionText =
                     $"Deposit created from identity: {request.SchemaAndValue.Schema} = {request.SchemaAndValue.Value}"
             };

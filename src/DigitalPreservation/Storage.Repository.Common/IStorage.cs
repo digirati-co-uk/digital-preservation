@@ -1,5 +1,6 @@
 ﻿using Amazon.S3.Util;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 
@@ -7,7 +8,7 @@ namespace Storage.Repository.Common;
 
 public interface IStorage
 {
-    Task<Result<Uri>> GetWorkingFilesLocation(string idPart, bool useObjectTemplate, string? callerIdentity = null);
+    Task<Result<Uri>> GetWorkingFilesLocation(string idPart, TemplateType templateType, string? callerIdentity = null);
     Task<ConnectivityCheckResult> CanSeeStorage(string source);
     
     /// <summary>

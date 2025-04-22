@@ -32,7 +32,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                 ArchivalGroupProposedName = result.Value!.Name!,
                 SubmissionText = submissionText,
                 Export = export,
-                UseObjectTemplate = true // TODO - this will cause a METS to be created if one can't be found
+                UseObjectTemplate = true
             };
             return await OnPostCreate(model);
         }
@@ -53,11 +53,20 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         {
             if (await ValidateAndNormaliseNewDeposit(newDepositModel))
             {
+                var templateType = TemplateType.None;
+                if (newDepositModel.UseObjectTemplate)
+                {
+                    templateType = TemplateType.RootLevel;
+                }
+                else if (newDepositModel.UseBagItTemplate)
+                {
+                    templateType = TemplateType.BagIt;
+                }
                 result = await mediator.Send(new CreateDeposit(
                     newDepositModel.ArchivalGroupPathUnderRoot,
                     newDepositModel.ArchivalGroupProposedName,
                     newDepositModel.SubmissionText,
-                    newDepositModel.UseObjectTemplate,
+                    templateType,
                     newDepositModel.Export,
                     exportVersion: null // always do this from UI; only supports exporting HEAD
                 ));

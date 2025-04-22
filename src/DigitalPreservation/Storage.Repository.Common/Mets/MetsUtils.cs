@@ -11,6 +11,4 @@ public static class MetsUtils
         }
         return name.EndsWith(".xml") && name.Contains("mets");
     }
-    
-
 }

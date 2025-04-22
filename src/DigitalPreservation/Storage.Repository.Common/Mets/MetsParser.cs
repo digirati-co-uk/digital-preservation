@@ -20,7 +20,9 @@ public class MetsParser(
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
     {
         // If metsLocation ends with .xml, it's assumed to be the METS file itself.
-        // If not, it's assumed to be its containing directory / key.
+        // If not, it's assumed to be either its DIRECT containing directory / key,
+        // or if the location contains no direct XML files but does contain a data/ directory
+        // then we look in the data directory (a BagIt layout).
         // No other possibilities are supported.
         Uri root;
         Uri? file = null;
@@ -63,6 +65,21 @@ public class MetsParser(
                     firstXmlFile = dir.EnumerateFiles().FirstOrDefault(
                     f => MetsUtils.IsMetsFile(f.Name, false));
                 }
+
+                if (firstXmlFile == null)
+                {
+                    var childDirs = dir.GetDirectories();
+                    if (childDirs is [{ Name: FolderNames.BagItData }]) // one and one only child directory, called data
+                    {                
+                        firstXmlFile = childDirs[0].EnumerateFiles().FirstOrDefault(
+                            f => MetsUtils.IsMetsFile(f.Name, true));
+                        if (firstXmlFile == null)
+                        {
+                            firstXmlFile = childDirs[0].EnumerateFiles().FirstOrDefault(
+                                f => MetsUtils.IsMetsFile(f.Name, false));
+                        }
+                    }
+                }
                 if (firstXmlFile != null)
                 {
                     file = new Uri(firstXmlFile.FullName);
@@ -78,13 +95,29 @@ public class MetsParser(
                 {
                     BucketName = rootS3Uri.Bucket,
                     Prefix = prefix,
-                    Delimiter = "/" // first "children" only                        
+                    Delimiter = "/" // first "children" only ... does that return "data/" no?                       
                 };
                 var resp = await s3Client.ListObjectsV2Async(listObjectsReq);
                 var firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, true));
                 if (firstXmlKey != null)
                 {
                     firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, false));
+                }
+                
+                if (firstXmlKey == null)
+                {
+                    listObjectsReq = new ListObjectsV2Request
+                    {
+                        BucketName = rootS3Uri.Bucket,
+                        Prefix = prefix + "data/", // BagIt layout
+                        Delimiter = "/"                       
+                    };
+                    resp = await s3Client.ListObjectsV2Async(listObjectsReq);
+                    firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, true));
+                    if (firstXmlKey != null)
+                    {
+                        firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, false));
+                    }
                 }
 
                 if (firstXmlKey != null)

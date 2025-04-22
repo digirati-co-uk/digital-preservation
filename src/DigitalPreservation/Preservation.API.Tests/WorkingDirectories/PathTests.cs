@@ -23,9 +23,9 @@ public class PathTests
     {
         var root = TestStructure.GetTestStructure();
         
-        var objects = root.FindDirectory("objects");
+        var objects = root.FindDirectory(FolderNames.Objects);
         
-        objects!.LocalPath.Should().Be("objects");
+        objects!.LocalPath.Should().Be(FolderNames.Objects);
     }
     
     
@@ -45,7 +45,7 @@ public class PathTests
     public void Can_Find_Child_File()
     {
         var root = TestStructure.GetTestStructure();
-        var objects = root.FindDirectory("objects");
+        var objects = root.FindDirectory(FolderNames.Objects);
         
         var image1 = objects!.FindFile("image1.jpg");
         
@@ -57,7 +57,7 @@ public class PathTests
     public void Can_Find_Relative_File()
     {
         var root = TestStructure.GetTestStructure();
-        var objects = root.FindDirectory("objects");
+        var objects = root.FindDirectory(FolderNames.Objects);
         
         var subimage1 = objects!.FindFile("subdirectory/sub-image1.jpg");
         

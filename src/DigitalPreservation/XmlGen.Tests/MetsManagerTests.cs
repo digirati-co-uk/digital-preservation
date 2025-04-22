@@ -39,7 +39,7 @@ public class MetsManagerTests
         result.Value.Should().NotBeNull();
 
         result.Value!.PhysicalStructure!.Directories.Should().HaveCount(1);
-        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
+        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
         
         result.Value.PhysicalStructure.Files.Should().HaveCount(1);
         result.Value.PhysicalStructure.Files.Should().Contain(wd => wd.Name == "empty-mets.xml");
@@ -63,7 +63,7 @@ public class MetsManagerTests
         result.Value.Should().NotBeNull();
 
         result.Value!.PhysicalStructure!.Directories.Should().HaveCount(1);
-        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
+        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
         
         result.Value.PhysicalStructure.Files.Should().HaveCount(1);
         result.Value.PhysicalStructure.Files.Should().Contain(wd => wd.Name == "archivalGroup-mets.xml");
@@ -111,7 +111,7 @@ public class MetsManagerTests
         result.Success.Should().BeTrue();
         var metsWrapper = result.Value!;
         metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(1);
-        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
         
         var dir = new WorkingDirectory
         {
@@ -259,7 +259,7 @@ public class MetsManagerTests
         result.Success.Should().BeTrue();
         var metsWrapper = result.Value!;
         metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(1);
-        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
         
         var file = new WorkingFile
         {

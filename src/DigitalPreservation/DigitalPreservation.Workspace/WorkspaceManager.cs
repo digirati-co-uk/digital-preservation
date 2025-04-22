@@ -42,8 +42,21 @@ public class WorkspaceManager(
         var fileSystemResult = await GetFileSystemWorkingDirectory(refresh);
         if (fileSystemResult is { Success: true, Value: not null })
         {
-            var combined = CombinedBuilder.Build(fileSystemResult.Value, metsWrapper?.PhysicalStructure);
-            var objects = combined.Directories.SingleOrDefault(d => d.LocalPath == "objects");
+            var fileSystemRoot = fileSystemResult.Value;
+            string? relativePath = null;
+            CombinedDirectory combinedRoot;
+            // Is this a BagIt layout or a regular one?
+            // If it is completely empty, we won't know this!
+            var dataDirectory = fileSystemRoot.Directories.SingleOrDefault(d => d.Name == FolderNames.BagItData);
+            if (dataDirectory != null)
+            {
+                combinedRoot = CombinedBuilder.BuildOffset(fileSystemRoot, dataDirectory, metsWrapper?.PhysicalStructure);
+            }
+            else
+            {
+                combinedRoot = CombinedBuilder.Build(fileSystemRoot, metsWrapper?.PhysicalStructure, relativePath);
+            }
+            var objects = combinedRoot.Directories.SingleOrDefault(d => d.LocalPath == FolderNames.Objects);
             if (objects == null || objects.DescendantFileCount() == 0)
             {
                 HasValidFiles = false;
@@ -52,7 +65,7 @@ public class WorkspaceManager(
             {
                 HasValidFiles = true;
             }
-            return Result.Ok(combined);
+            return Result.Ok(combinedRoot);
         }
 
         return Result.Fail<CombinedDirectory>(ErrorCodes.UnknownError, "Unable to get combined directory");
@@ -176,7 +189,7 @@ public class WorkspaceManager(
                 ErrorCodes.BadRequest, $"Folder path {parentDirectory} could not be found.");
         }
 
-        if (!(parentDirectory.LocalPath == "objects" || parentDirectory.LocalPath!.StartsWith("objects/")))
+        if (!(parentDirectory.LocalPath == FolderNames.Objects || parentDirectory.LocalPath!.StartsWith($"{FolderNames.Objects}/")))
         {
             return Result.FailNotNull<SingleFileUploadResult>(
                 ErrorCodes.BadRequest, "Uploaded files must go in or below the objects folder.");
@@ -254,7 +267,7 @@ public class WorkspaceManager(
     {
         wd.Modified = DateTime.MinValue;
         // Also do not compare the object directory
-        var objects = wd.Directories.SingleOrDefault(d => d.LocalPath == "objects");
+        var objects = wd.Directories.SingleOrDefault(d => d.LocalPath == FolderNames.Objects);
         if (objects != null)
         {
             objects.Modified = DateTime.MinValue;

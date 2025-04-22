@@ -2,9 +2,34 @@
 
 namespace DigitalPreservation.Common.Model.Transit;
 
-public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDirectory? directoryInMets)
+public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDirectory? directoryInMets, string? relativePath = null)
 {
-    public string? LocalPath => DirectoryInDeposit?.LocalPath ?? DirectoryInMets?.LocalPath;
+    public string? LocalPath
+    {
+        get
+        {
+            if (relativePath == null)
+            {
+                return DirectoryInDeposit?.LocalPath ?? DirectoryInMets?.LocalPath;
+            }
+            if (DirectoryInDeposit == null)
+            {
+                return DirectoryInMets?.LocalPath;
+            }
+
+            if (DirectoryInDeposit.LocalPath == relativePath)
+            {
+                return "";
+            }
+            if (DirectoryInDeposit.LocalPath.StartsWith($"{relativePath}/"))
+            {
+                return DirectoryInDeposit.LocalPath.RemoveStart($"{relativePath}/");
+            }
+            // We're in the root of a BagIt - which should not actually contain any other folders, but...
+            return "../" +  DirectoryInDeposit.LocalPath;
+        }
+    }
+
     public string? Name => DirectoryInDeposit?.Name ?? DirectoryInMets?.Name;
 
     public WorkingDirectory? DirectoryInDeposit { get; private set; } = directoryInDeposit;
@@ -44,6 +69,10 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
 
             if (DirectoryInDeposit is not null)
             {
+                if (relativePath.HasText() && !DirectoryInDeposit.LocalPath.StartsWith(relativePath))
+                {
+                    return Whereabouts.Extra;
+                }
                 return Whereabouts.Deposit;
             }
 
@@ -272,6 +301,6 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
 
     private CombinedDirectory CloneForFlatten()
     {
-        return new CombinedDirectory(DirectoryInDeposit, DirectoryInMets);
+        return new CombinedDirectory(DirectoryInDeposit, DirectoryInMets, relativePath);
     }
 }

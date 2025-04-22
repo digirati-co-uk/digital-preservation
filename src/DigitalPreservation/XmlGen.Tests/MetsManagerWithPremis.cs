@@ -38,7 +38,7 @@ public class MetsManagerWithPremis
         result.Success.Should().BeTrue();
         var metsWrapper = result.Value!;
         metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(1);
-        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
         
         var file = new WorkingFile
         {

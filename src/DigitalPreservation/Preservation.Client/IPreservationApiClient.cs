@@ -28,7 +28,7 @@ public interface IPreservationApiClient
         string? archivalGroupRepositoryPath, 
         string? archivalGroupProposedName, 
         string? submissionText, 
-        bool useObjectTemplate, 
+        TemplateType templateType, 
         bool export,
         string? exportVersion,
         CancellationToken cancellationToken);

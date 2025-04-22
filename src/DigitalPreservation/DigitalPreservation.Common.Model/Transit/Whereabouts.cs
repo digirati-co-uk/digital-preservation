@@ -6,5 +6,12 @@ public enum Whereabouts
     Mets,
     Deposit,
     Neither,
-    Unknown
+    Extra
+}
+
+public static class FolderNames
+{
+    public const string Objects = "objects";
+    public const string Metadata = "metadata";
+    public const string BagItData = "data";
 }

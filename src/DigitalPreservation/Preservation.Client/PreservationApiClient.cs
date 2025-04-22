@@ -138,7 +138,7 @@ internal class PreservationApiClient(
         string? archivalGroupRepositoryPath,
         string? archivalGroupProposedName,
         string? submissionText,
-        bool useObjectTemplate,
+        TemplateType templateType,
         bool export,
         string? exportVersion,
         CancellationToken cancellationToken = default)
@@ -148,18 +148,17 @@ internal class PreservationApiClient(
         {
             ArchivalGroup = archivalGroupRepositoryPath.HasText() ? new Uri(preservationHttpClient.BaseAddress!, archivalGroupRepositoryPath) : null,
             ArchivalGroupName = archivalGroupProposedName,
-            SubmissionText = submissionText
+            SubmissionText = submissionText,
+            Template = templateType
         };
         if (export)
         {
             postTarget = new Uri($"/{Deposit.BasePathElement}/export", UriKind.Relative);
             deposit.VersionExported = exportVersion;
-            deposit.UseObjectTemplate = useObjectTemplate; // TODO: for consideration, probably never happen after dev
         }
         else
         {
             postTarget = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
-            deposit.UseObjectTemplate = useObjectTemplate;
         }
         try
         {

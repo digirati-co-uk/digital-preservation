@@ -495,6 +495,13 @@
                             <div id="archivalGroupSlugHelp" class="form-text">The deposit will <em>eventually</em> create an Archival Group with this path.<br/>
                                 This may be set or changed later.<br/></div>
                         </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" name="NewDepositModel.UseBagItTemplate" value="true" class="form-check-input" id="bagitCheck" aria-describedby="bagitHelp">
+                            <label class="form-check-label" for="bagitCheck">Use BagIt layout</label>
+                            <div id="bagitHelp" class="form-text">
+                                Creates the Deposit with a layout that the contents of a BagIt Bag can be imported into, with a data/ directory in the root. 
+                            </div>   
+                        </div>
                         <div class="mb-3">
                             <label for="submissionText" class="form-label">Note (optional)</label>
                             <input type="text" class="form-control" id="submissionText" name="NewDepositModel.SubmissionText" aria-describedby="submissionTextHelp">

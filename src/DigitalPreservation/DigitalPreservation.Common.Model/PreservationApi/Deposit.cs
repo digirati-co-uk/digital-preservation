@@ -62,9 +62,9 @@ public class Deposit : Resource
     public string? VersionExported { get; set; }
     
     [JsonPropertyOrder(500)]
-    [JsonPropertyName("useObjectTemplate")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? UseObjectTemplate { get; set; }
+    [JsonPropertyName("template")]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public TemplateType Template { get; set; } =  TemplateType.None;
     
     /// <summary>
     /// At the time the deposit is requested
@@ -87,4 +87,11 @@ public static class DepositStates
     public const string Error = "error";
 
     public static readonly string[] All = [New, Exporting, Preserved, Error];
+}
+
+public enum TemplateType
+{
+    None,
+    RootLevel,
+    BagIt
 }

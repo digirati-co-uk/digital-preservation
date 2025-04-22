@@ -1,8 +1,31 @@
-﻿namespace DigitalPreservation.Common.Model.Transit;
+﻿using DigitalPreservation.Utils;
 
-public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets)
+namespace DigitalPreservation.Common.Model.Transit;
+
+public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, string? relativePath = null)
 {
-    public string? LocalPath => FileInDeposit?.LocalPath ?? FileInMets?.LocalPath;
+    public string? LocalPath
+    {
+        get
+        {
+            if (relativePath == null)
+            {
+                return FileInDeposit?.LocalPath ?? FileInMets?.LocalPath;
+            }
+            if (FileInDeposit == null)
+            {
+                return FileInMets?.LocalPath;
+            }
+
+            if (FileInDeposit.LocalPath.StartsWith($"{relativePath}/"))
+            {
+                return FileInDeposit.LocalPath.RemoveStart($"{relativePath}/");
+            }
+            // We're in the root of a BagIt 
+            return "../" +  FileInDeposit.LocalPath;
+        }
+    }
+
     public string? Name => FileInDeposit?.Name ?? FileInMets?.Name;
     public string? Digest => FileInDeposit?.Digest ?? FileInMets?.Digest;
     public long? Size => FileInDeposit?.Size ?? FileInMets?.Size;
@@ -71,6 +94,10 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets)
 
             if (FileInDeposit is not null)
             {
+                if (relativePath.HasText() && !FileInDeposit.LocalPath.StartsWith(relativePath))
+                {
+                    return Whereabouts.Extra;
+                }
                 return Whereabouts.Deposit;
             }
 

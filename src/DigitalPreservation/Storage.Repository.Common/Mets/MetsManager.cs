@@ -7,6 +7,7 @@ using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
@@ -71,7 +72,7 @@ public class MetsManager(
         foreach (var childContainer in container.Containers)
         {
             DivType? childDirectoryDiv = null;
-            if (container is ArchivalGroup && childContainer.GetSlug() == "objects")
+            if (container is ArchivalGroup && childContainer.GetSlug() == FolderNames.Objects)
             {
                 // The objects div should already exist from our template
                 childDirectoryDiv = mets.StructMap[0].Div.Div.Single(d => d.Id == ObjectsDivId);
@@ -639,9 +640,9 @@ public class MetsManager(
                             {
                                 Id = ObjectsDivId,  // do this with premis:originalName metadata for directories?
                                 Type = DirectoryType,
-                                Label = "objects",
-                                Dmdid = { "DMD_objects" },
-                                Admid = { "ADM_objects" }
+                                Label = FolderNames.Objects,
+                                Dmdid = { $"DMD_{FolderNames.Objects}" },
+                                Admid = { $"ADM_{FolderNames.Objects}" }
                             } 
                         }
                     }
@@ -649,7 +650,7 @@ public class MetsManager(
             },
             AmdSec =
             {
-                GetAmdSecType(new PremisFile { OriginalName = "objects" }, $"{AdmIdPrefix}objects", $"{TechIdPrefix}objects")
+                GetAmdSecType(new PremisFile { OriginalName = FolderNames.Objects }, $"{AdmIdPrefix}{FolderNames.Objects}", $"{TechIdPrefix}{FolderNames.Objects}")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };

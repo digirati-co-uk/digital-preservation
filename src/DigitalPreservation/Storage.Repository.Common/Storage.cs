@@ -5,6 +5,7 @@ using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
@@ -21,7 +22,7 @@ public class Storage(
 {
     private readonly AwsStorageOptions options = options.Value;
 
-    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, bool useObjectTemplate, string? callerIdentity = null)
+    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, TemplateType templateType, string? callerIdentity = null)
     {
         // This will be able to yield different locations in different buckets for different callers
         // e.g., Goobi
@@ -39,21 +40,20 @@ public class Storage(
         if (pResp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
         {
             var root = RootDirectory();
-            if (useObjectTemplate)
+            switch (templateType)
             {
-                var por = new PutObjectRequest
+                case TemplateType.RootLevel:
+                    await PutDirectory(FolderNames.Objects, key, root);
+                    await PutDirectory(FolderNames.Metadata, key, root);
+                    break;
+                case TemplateType.BagIt:
                 {
-                    BucketName = options.DefaultWorkingBucket,
-                    Key = key + "objects/"
-                };
-                por.Metadata.Add(S3Helpers.OriginalNameMetadataKey, "objects");
-                await s3Client.PutObjectAsync(por);
-                root.Directories.Add(new WorkingDirectory
-                {
-                    LocalPath = "objects",
-                    Modified = root.Modified,
-                    Name = "objects"
-                });
+                    var dataDir = await PutDirectory(FolderNames.BagItData, key, root);
+                    var dataKey = $"{key}{FolderNames.BagItData}";
+                    await PutDirectory(FolderNames.Objects, dataKey, dataDir);
+                    await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
+                    break;
+                }
             }
             var depositFileSystemKey = key + IStorage.DepositFileSystem;
             var writeDepositFileSystemResult = await WriteDepositFileSystem(options.DefaultWorkingBucket, depositFileSystemKey, root);
@@ -65,6 +65,25 @@ public class Storage(
         }
         var failResult = ResultHelpers.FailFromAwsStatusCode<Uri>(pResp.HttpStatusCode, "Could not create deposit file location.", pReq.GetS3Uri());
         return Result.Generify<Uri>(failResult);
+    }
+
+    private async Task<WorkingDirectory> PutDirectory(string name, string parentKey, WorkingDirectory parentWorkingDirectory)
+    {
+        var por = new PutObjectRequest
+        {
+            BucketName = options.DefaultWorkingBucket,
+            Key = $"{parentKey}{name}/"
+        };
+        por.Metadata.Add(S3Helpers.OriginalNameMetadataKey, name);
+        await s3Client.PutObjectAsync(por);
+        var workingDirectory = new WorkingDirectory
+        {
+            LocalPath = $"{parentWorkingDirectory.LocalPath}/{name}",
+            Modified = parentWorkingDirectory.Modified,
+            Name = name
+        };
+        parentWorkingDirectory.Directories.Add(workingDirectory);
+        return workingDirectory;
     }
 
     private async Task<Result> WriteDepositFileSystem(string bucket, string key, WorkingDirectory wd, CancellationToken cancellationToken = default)

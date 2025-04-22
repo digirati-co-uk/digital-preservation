@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
 using LeedsDlipServices.Identity;
@@ -71,7 +72,7 @@ public class CreateDepositBase(
             var callerIdentity = request.Principal.GetCallerIdentity();
             logger.LogInformation("Identity service gave us deposit Id: " + mintedId);
             var filesLocation = await storage.GetWorkingFilesLocation(
-                mintedId, request.Deposit.UseObjectTemplate ?? false, callerIdentity);
+                mintedId, request.Deposit.Template, callerIdentity);
             if (filesLocation.Failure)
             {
                 logger.LogError("Unable to create GetWorkingFilesLocation for deposit " + mintedId + "; " + filesLocation.CodeAndMessage());
@@ -99,7 +100,7 @@ public class CreateDepositBase(
             var agNameFromDeposit = request.Deposit.ArchivalGroupName ?? archivalGroupForExport?.Name;
             
             var metsResult = await EnsureMets(
-                request.Deposit.UseObjectTemplate is true,
+                request.Deposit.Template,
                 filesLocation.Value!, 
                 request.Deposit.ArchivalGroup,
                 archivalGroupExists is true, 
@@ -165,7 +166,7 @@ public class CreateDepositBase(
     }
     
       private async Task<Result> EnsureMets(
-        bool useObjectTemplate,
+        TemplateType templateType,
         Uri filesLocation, 
         Uri? archivalGroupUri, 
         bool archivalGroupExists, 
@@ -181,13 +182,24 @@ public class CreateDepositBase(
         // However _the export will still be queued (or maybe just started)_ at this point.
         // But we can assume that if exportedArchivalGroup contains a METS, then it will be exported.
 
-        logger.LogInformation("Ensuring a METS file in " + filesLocation + "; useObjectTemplate=" + useObjectTemplate);
-        if (!archivalGroupExists && useObjectTemplate)
+        logger.LogInformation("Ensuring a METS file in " + filesLocation + "; template=" + templateType);
+        if (!archivalGroupExists && templateType != TemplateType.None)
         {
-            // the simplest case - but still only for useObjectTemplate=true
+            // the simplest case - but still only for templated Deposits
             // e.g., Goobi will supply a METS as its next step
-            logger.LogInformation("Archival Group does not yet exist, and useObjectTemplate=true, so create a standard METS file");
-            var result = await metsManager.CreateStandardMets(filesLocation, agNameFromDeposit);
+            logger.LogInformation("Archival Group does not yet exist, and template={templateType}, so create a standard METS file", templateType);
+            // Standard or BagIt layout?
+            Uri metsLocation;
+            if (templateType == TemplateType.RootLevel)
+            {
+                metsLocation = filesLocation;
+            }
+            else
+            {
+                var dataSlug = FolderNames.BagItData + (filesLocation.ToString().EndsWith('/') ? "/" : "");
+                metsLocation = filesLocation.AppendSlug(dataSlug);
+            }
+            var result = await metsManager.CreateStandardMets(metsLocation, agNameFromDeposit);
             if (result is { Success: true, Value: not null })
             {
                 return Result.Ok();
@@ -222,16 +234,18 @@ public class CreateDepositBase(
             {
                 archivalGroup = exportedArchivalGroup;
             }
-
+            
+            // An exported Archival Group is, for now, always in our root-level template, not in BagIt format
             var metsFile = archivalGroup.Binaries.FirstOrDefault(b => metsManager.IsMetsFile(b.Id!.GetSlug()!));
             if (metsFile is null)
             {
                 logger.LogWarning("No METS file found in Archival Group " + archivalGroupUri + ", version " + ocflVersion);
             }
-            if (metsFile is null && useObjectTemplate)
+            if (metsFile is null && templateType != TemplateType.None)
             {
                 logger.LogWarning("Creating Standard METS file in AG " + archivalGroupUri + ", version " + ocflVersion);
                 // existing AG has no METS (even if it's exporting), but we can make one safely because it's one of our own
+                // FOR NOW THIS THE EXPORT IS ALWAYS ROOT LEVEL, MATCHING THE AG
                 var result = await metsManager.CreateStandardMets(filesLocation, archivalGroup, agNameFromDeposit);
                 if (result is { Success: true, Value: not null })
                 {
@@ -245,6 +259,7 @@ public class CreateDepositBase(
             {
                 logger.LogInformation("There is a METS file, but this isn't an export, so we need to copy it into the Deposit.");
                 var storageArchivalGroupUri = resourceMutator.MutatePreservationApiUri(archivalGroupUri);
+                // For now this will always export to the root
                 var exportMetsResult = await storageApiClient.ExportArchivalGroupMetsOnly(storageArchivalGroupUri!, filesLocation, ocflVersion, cancellationToken);
                 if (exportMetsResult is { Success: true, Value: not null, Value.DateFinished: not null })
                 {
