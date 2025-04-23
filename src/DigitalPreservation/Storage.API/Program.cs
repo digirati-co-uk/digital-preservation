@@ -45,6 +45,8 @@ try
 
     //Auth enabled flag
     var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
+    var useLocalHostedServiceForImport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForImport");
+    var useLocalHostedServiceForExport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForExport");
 
 
     if (useAuthFeatureFlag)
@@ -80,15 +82,32 @@ try
             }
         });
 
+    if (useLocalHostedServiceForImport)
+    {
+        builder.Services
+            .AddHostedService<ImportJobExecutorService>()
+            .AddScoped<ImportJobRunner>()
+            .AddSingleton<IImportJobQueue, InProcessImportJobQueue>(); // <= SqsExportQueue
+    }
+    else
+    {
+        // The Import Service is a separate ECR, a separate scalable service...
+        builder.Services.AddSingleton<IImportJobQueue, SqsImportJobQueue>();
+    }
 
-    // The Import Service is a separate ECR, a separate scalable service...
-    builder.Services.AddSingleton<IImportJobQueue, SqsImportJobQueue>();
-    // ...but export is much less used, and can run alongside the Storage API as
-    // a Hosted Service
-    builder.Services
-        .AddHostedService<ExportExecutorService>()
-        .AddScoped<ExportRunner>()
-        .AddSingleton<IExportQueue, InProcessExportQueue>(); // <= SqsExportQueue
+    if (useLocalHostedServiceForExport)
+    {
+        // ...but export is much less used, and can run alongside the Storage API as
+        // a Hosted Service
+        builder.Services
+            .AddHostedService<ExportExecutorService>()
+            .AddScoped<ExportRunner>()
+            .AddSingleton<IExportQueue, InProcessExportQueue>(); // <= SqsExportQueue
+    }
+    else
+    {
+        throw new NotSupportedException("Separate export service not yet implemented!");
+    }
     
     
     var app = builder.Build();

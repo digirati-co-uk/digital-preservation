@@ -99,4 +99,22 @@ public class WorkingDirectory : WorkingBase
         }
         return counter;
     }
+
+    public WorkingDirectory ToRootLayout()
+    {
+        if (!LocalPath.StartsWith($"{FolderNames.BagItData}/"))
+        {
+            return this;
+        }
+
+        return new WorkingDirectory
+        {
+            LocalPath = LocalPath.RemoveStart($"{FolderNames.BagItData}/")!,
+            Directories = Directories.Select(d => d.ToRootLayout()).ToList(),
+            Files = Files.Select(f => f.ToRootLayout()).ToList(),
+            MetsExtensions = MetsExtensions,
+            Modified = Modified,
+            Name = Name
+        };
+    }
 }

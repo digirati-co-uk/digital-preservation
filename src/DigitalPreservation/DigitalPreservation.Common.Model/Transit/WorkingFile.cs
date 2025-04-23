@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using DigitalPreservation.Common.Model.Transit.Extensions;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
@@ -20,6 +21,25 @@ public class WorkingFile : WorkingBase
     [JsonPropertyName("size")]
     [JsonPropertyOrder(16)]
     public long? Size { get; set; }
+
+    public WorkingFile ToRootLayout()
+    {
+        if (!LocalPath.StartsWith($"{FolderNames.BagItData}/"))
+        {
+            return this;
+        }
+
+        return new WorkingFile
+        {
+            LocalPath = LocalPath.RemoveStart($"{FolderNames.BagItData}/")!,
+            MetsExtensions = MetsExtensions,
+            Modified = Modified,
+            Name = Name,
+            ContentType = ContentType,
+            Digest = Digest,
+            Size = Size
+        };
+    }
 }
 
 

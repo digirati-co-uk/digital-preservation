@@ -5,14 +5,16 @@ using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit;
 using MediatR;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.Workspace.Requests;
 
-public class DeleteObject(Uri s3Root, string path, bool isDirectory, string metsETag, bool fromFileSystem, bool fromMets) : IRequest<Result>
+public class DeleteObject(bool isBagItLayout, Uri s3Root, string path, bool isDirectory, string metsETag, bool fromFileSystem, bool fromMets) : IRequest<Result>
 {
+    public bool IsBagItLayout { get; } = isBagItLayout;
     public Uri S3Root { get; } = s3Root;
     public string Path { get; } = path;
     public bool IsDirectory { get; } = isDirectory;
@@ -30,10 +32,11 @@ public class DeleteObjectHandler(
     {
         // TODO same as other - put ALL this behind IStorage?
         var s3Uri = new AmazonS3Uri(request.S3Root);
+        var keyPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Path;
         var dor = new DeleteObjectRequest
         {
             BucketName = s3Uri.Bucket,
-            Key = s3Uri.Key + request.Path
+            Key = s3Uri.Key + keyPath
         };
         if (request.IsDirectory && !dor.Key.EndsWith('/'))
         {
@@ -46,7 +49,7 @@ public class DeleteObjectHandler(
                 var response = await s3Client.DeleteObjectAsync(dor, cancellationToken);
                 if (response.HttpStatusCode == HttpStatusCode.NoContent)
                 {
-                    var removeJson = await storage.DeleteFromDepositFileSystem(s3Uri, request.Path, false, cancellationToken);
+                    var removeJson = await storage.DeleteFromDepositFileSystem(s3Uri, keyPath, false, cancellationToken);
                     if(removeJson.Failure)
                     {
                         return Result.Fail(removeJson.ErrorCode ?? ErrorCodes.UnknownError, 

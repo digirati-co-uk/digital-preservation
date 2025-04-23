@@ -8,10 +8,12 @@ using MediatR;
 namespace DigitalPreservation.Workspace.Requests;
 
 public class AddItemsToMets(
+    bool isBagItLayout,
     Uri depositFiles, 
     List<WorkingBase> items, 
     string depositETag) : IRequest<Result<ItemsAffected>>
 {
+    public bool IsBagItLayout { get; } = isBagItLayout;
     public Uri DepositFiles { get; } = depositFiles;
     public List<WorkingBase> Items { get; } = items;
     public string DepositETag { get; } = depositETag;
@@ -35,7 +37,24 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
 
         bool metsHasBeenWrittenTo = false;
         var goodResult = new ItemsAffected();
-        var shallowestFirst = request.Items
+
+        var rootRelativeItems = request.Items;
+        if (request.IsBagItLayout)
+        {
+            rootRelativeItems = [];
+            foreach (var item in request.Items)
+            {
+                if (item is WorkingDirectory directory)
+                {
+                    rootRelativeItems.Add(directory.ToRootLayout());
+                }
+                else if (item is WorkingFile file)
+                {
+                    rootRelativeItems.Add(file.ToRootLayout());
+                }
+            }
+        }
+        var shallowestFirst = rootRelativeItems
             .OrderBy(item => item.LocalPath.Count(c => c == '/'));
         foreach (var item in shallowestFirst)
         {

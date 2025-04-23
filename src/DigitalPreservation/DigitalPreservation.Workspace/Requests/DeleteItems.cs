@@ -15,11 +15,13 @@ using Storage.Repository.Common.S3;
 namespace DigitalPreservation.Workspace.Requests;
 
 public class DeleteItems(
+    bool isBagItLayout,
     Uri depositFiles, 
     DeleteSelection deleteSelection, 
     CombinedDirectory combinedRootDirectory,
     string depositETag) : IRequest<Result<ItemsAffected>>
 {
+    public bool IsBagItLayout { get; } = isBagItLayout;
     public CombinedDirectory CombinedRootDirectory { get; } = combinedRootDirectory;
     public Uri DepositFiles { get; } = depositFiles;
     public DeleteSelection DeleteSelection { get; } = deleteSelection;
@@ -56,7 +58,7 @@ public class DeleteItemsHandler(
         {
             Result<ItemsAffected>? failedDeleteResult = null;
             bool deletedFromDepositFiles = false;
-            var deleteDirectoryContext = item.RelativePath;
+            var deleteDirectoryContext = item.RelativePath; 
             if (!item.IsDirectory)
             {
                 deleteDirectoryContext = deleteDirectoryContext.GetParent();
@@ -104,12 +106,13 @@ public class DeleteItemsHandler(
                 }
 
                 // this is the DeleteObject code
+                var keyPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + item.RelativePath;
                 if (failedDeleteResult == null)
                 {
                     var dor = new DeleteObjectRequest
                     {
                         BucketName = s3Uri.Bucket,
-                        Key = s3Uri.Key + item.RelativePath
+                        Key = s3Uri.Key + keyPath // until now, it's always been the apparent root
                     };
                     if (item.IsDirectory && !dor.Key.EndsWith('/'))
                     {

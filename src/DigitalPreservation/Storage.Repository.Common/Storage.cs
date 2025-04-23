@@ -49,7 +49,7 @@ public class Storage(
                 case TemplateType.BagIt:
                 {
                     var dataDir = await PutDirectory(FolderNames.BagItData, key, root);
-                    var dataKey = $"{key}{FolderNames.BagItData}";
+                    var dataKey = $"{key}{FolderNames.BagItData}/";
                     await PutDirectory(FolderNames.Objects, dataKey, dataDir);
                     await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
                     break;

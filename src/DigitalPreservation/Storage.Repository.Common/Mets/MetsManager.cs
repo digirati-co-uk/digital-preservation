@@ -28,7 +28,8 @@ public class MetsManager(
     private const string AdmIdPrefix = "ADM_";
     private const string TechIdPrefix = "TECH_";
     private const string DmdPhysRoot = "DMD_PHYS_ROOT";
-    private const string ObjectsDivId = "PHYS_objects";
+    private const string ObjectsDivId = PhysIdPrefix + FolderNames.Objects;
+    private const string MetadataDivId = PhysIdPrefix + FolderNames.Metadata;
     private const string DirectoryType = "Directory";
     private const string ItemType = "Item";
     
@@ -353,14 +354,14 @@ public class MetsManager(
         return EditMets(null, deletePath, fullMets);
     }
 
-    private Result EditMets(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
+    private static Result EditMets(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
     {
         // Add workingBase to METS
         // This is where our non-opaque phys structmap IDs come into play.
         // This may not be a good idea. But without it, we need a more complex way of
         // finding the METS parts, like the XDocument parsing in MetsParser.
 
-        var operationPath = workingBase?.LocalPath ?? deletePath;
+        var operationPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath);
         var elements = operationPath!.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var div = fullMets.Mets.StructMap.Single(sm => sm.Type=="PHYSICAL").Div!;
         DivType? parent = null;
@@ -412,7 +413,7 @@ public class MetsManager(
                     var fileId = div.Fptr[0].Fileid;
                     var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
                     var file = fileGrp.File.Single(f => f.Id == fileId);
-                    if (file.FLocat[0].Href != deletePath)
+                    if (file.FLocat[0].Href != operationPath)
                     {
                         return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
                     }
@@ -447,7 +448,7 @@ public class MetsManager(
                     var fileId = div.Fptr[0].Fileid;
                     var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
                     var file = fileGrp.File.Single(f => f.Id == fileId);
-                    if (file.FLocat[0].Href != workingFile.LocalPath)
+                    if (file.FLocat[0].Href != operationPath)
                     {
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
                     }
@@ -458,7 +459,7 @@ public class MetsManager(
                     {
                         Digest = workingFile.Digest,
                         Size = workingFile.Size,
-                        OriginalName = workingFile.LocalPath
+                        OriginalName = operationPath // workingFile.LocalPath
                     };  
                     PremisComplexType? premisType;
                     if (premisXml is not null)
@@ -510,17 +511,17 @@ public class MetsManager(
                 return Result.Fail(ErrorCodes.BadRequest, "No working directory or working file supplied to add.");
             }
 
-            var physId = PhysIdPrefix + workingBase.LocalPath;
-            var admId = AdmIdPrefix + workingBase.LocalPath;
-            var techId = TechIdPrefix + workingBase.LocalPath;
+            var physId = PhysIdPrefix + operationPath;
+            var admId = AdmIdPrefix + operationPath;
+            var techId = TechIdPrefix + operationPath;
                 
             if (workingBase is WorkingFile workingFile)
             {
-                var fileId = FileIdPrefix + workingFile.LocalPath;
+                var fileId = FileIdPrefix + operationPath;
                 var childItemDiv = new DivType
                 {
                     Type = ItemType,
-                    Label = workingFile.Name ?? workingFile.LocalPath.GetSlug(),
+                    Label = workingFile.Name ?? operationPath.GetSlug(),
                     Id = physId,
                     Fptr = { new DivTypeFptr{ Fileid = fileId } }
                 };
@@ -534,7 +535,7 @@ public class MetsManager(
                         FLocat = { 
                             new FileTypeFLocat
                             {
-                                Href = workingFile.LocalPath, Loctype = FileTypeFLocatLoctype.Url
+                                Href = operationPath, Loctype = FileTypeFLocatLoctype.Url
                             } 
                         }
                     });
@@ -542,7 +543,7 @@ public class MetsManager(
                 {
                     Digest = workingFile.Digest,
                     Size = workingFile.Size,
-                    OriginalName = workingFile.LocalPath
+                    OriginalName = operationPath // workingFile.LocalPath
                 };
                 fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
             }
@@ -551,14 +552,14 @@ public class MetsManager(
                 var childDirectoryDiv = new DivType
                 {
                     Type = DirectoryType,
-                    Label = workingDirectory.Name ?? workingDirectory.LocalPath.GetSlug(),
+                    Label = workingDirectory.Name ?? operationPath.GetSlug(),
                     Id = physId,
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
                 var premisFile = new PremisFile
                 {
-                    OriginalName = workingDirectory.LocalPath
+                    OriginalName = operationPath // workingDirectory.LocalPath
                 };
                 fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
             }
@@ -638,19 +639,28 @@ public class MetsManager(
                         Div = { 
                             new DivType
                             {
+                                Id = MetadataDivId,  // do this with premis:originalName metadata for directories?
+                                Type = DirectoryType,
+                                Label = FolderNames.Metadata,
+                                Dmdid = { $"DMD_{FolderNames.Metadata}" },
+                                Admid = { $"ADM_{FolderNames.Metadata}" }
+                            }, 
+                            new DivType
+                            {
                                 Id = ObjectsDivId,  // do this with premis:originalName metadata for directories?
                                 Type = DirectoryType,
                                 Label = FolderNames.Objects,
                                 Dmdid = { $"DMD_{FolderNames.Objects}" },
                                 Admid = { $"ADM_{FolderNames.Objects}" }
-                            } 
+                            }
                         }
                     }
                 }
             },
             AmdSec =
             {
-                GetAmdSecType(new PremisFile { OriginalName = FolderNames.Objects }, $"{AdmIdPrefix}{FolderNames.Objects}", $"{TechIdPrefix}{FolderNames.Objects}")
+                GetAmdSecType(new PremisFile { OriginalName = FolderNames.Objects }, $"{AdmIdPrefix}{FolderNames.Objects}", $"{TechIdPrefix}{FolderNames.Objects}"),
+                GetAmdSecType(new PremisFile { OriginalName = FolderNames.Metadata }, $"{AdmIdPrefix}{FolderNames.Metadata}", $"{TechIdPrefix}{FolderNames.Metadata}")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };

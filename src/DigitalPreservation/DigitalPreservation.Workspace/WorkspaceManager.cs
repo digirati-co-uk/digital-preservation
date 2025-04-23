@@ -20,6 +20,7 @@ public class WorkspaceManager(
 {
     public List<string> Warnings { get; } = [];
 
+    public bool IsBagItLayout { get; set; }
     public bool HasValidFiles { get; set; }
     public string? MetsPath { get; set; }
     public bool Editable { get; set; }
@@ -43,20 +44,24 @@ public class WorkspaceManager(
         if (fileSystemResult is { Success: true, Value: not null })
         {
             var fileSystemRoot = fileSystemResult.Value;
-            string? relativePath = null;
             CombinedDirectory combinedRoot;
+            CombinedDirectory apparentRoot;
             // Is this a BagIt layout or a regular one?
             // If it is completely empty, we won't know this!
             var dataDirectory = fileSystemRoot.Directories.SingleOrDefault(d => d.Name == FolderNames.BagItData);
             if (dataDirectory != null)
             {
                 combinedRoot = CombinedBuilder.BuildOffset(fileSystemRoot, dataDirectory, metsWrapper?.PhysicalStructure);
+                IsBagItLayout = true;
+                apparentRoot = combinedRoot.Directories.Single(
+                    d => d.DirectoryInDeposit!.LocalPath == FolderNames.BagItData);
             }
             else
             {
-                combinedRoot = CombinedBuilder.Build(fileSystemRoot, metsWrapper?.PhysicalStructure, relativePath);
+                combinedRoot = CombinedBuilder.Build(fileSystemRoot, metsWrapper?.PhysicalStructure);
+                apparentRoot = combinedRoot;
             }
-            var objects = combinedRoot.Directories.SingleOrDefault(d => d.LocalPath == FolderNames.Objects);
+            var objects = apparentRoot.Directories.SingleOrDefault(d => d.LocalPath == FolderNames.Objects);
             if (objects == null || objects.DescendantFileCount() == 0)
             {
                 HasValidFiles = false;
@@ -65,7 +70,7 @@ public class WorkspaceManager(
             {
                 HasValidFiles = true;
             }
-            return Result.Ok(combinedRoot);
+            return Result.Ok(apparentRoot);
         }
 
         return Result.Fail<CombinedDirectory>(ErrorCodes.UnknownError, "Unable to get combined directory");
@@ -116,7 +121,7 @@ public class WorkspaceManager(
         }
 
         var createFolderResult = await mediator.Send(new CreateFolder(
-            deposit.Files!, newFolderName, slug, newFolderContext, deposit.MetsETag!));
+            IsBagItLayout, deposit.Files!, newFolderName, slug, newFolderContext, deposit.MetsETag!));
         if (createFolderResult.Success)
         {
             var result = new CreateFolderResult
@@ -151,7 +156,8 @@ public class WorkspaceManager(
         var combinedResult = await GetCombinedDirectory(true);
         if (combinedResult is { Success: true, Value: not null })
         {
-            var deleteResult = await mediator.Send(new DeleteItems(deposit.Files!, deleteSelection, combinedResult.Value, deposit.MetsETag!));
+            var deleteResult = await mediator.Send(
+                new DeleteItems(IsBagItLayout, deposit.Files!, deleteSelection, combinedResult.Value, deposit.MetsETag!));
             // refresh the file system again
             // need to see how long this operation takes on large deposits
             await GetFileSystemWorkingDirectory(true);
@@ -168,7 +174,8 @@ public class WorkspaceManager(
                 "No items to add to METS.");
         }
         
-        var addToMetsResult = await mediator.Send(new AddItemsToMets(deposit.Files!, items, deposit.MetsETag!));
+        var addToMetsResult = await mediator.Send(
+            new AddItemsToMets(IsBagItLayout, deposit.Files!, items, deposit.MetsETag!));
         return addToMetsResult;
     }
 
@@ -204,6 +211,7 @@ public class WorkspaceManager(
         }
 
         var uploadFileResult = await mediator.Send(new UploadFileToDeposit(
+            IsBagItLayout,
             deposit.Files!,
             context,
             slug,

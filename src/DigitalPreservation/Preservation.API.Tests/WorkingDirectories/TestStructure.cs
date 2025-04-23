@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Transit;
+﻿using System.Text.Json;
+using DigitalPreservation.Common.Model.Transit;
 
 namespace Preservation.API.Tests.WorkingDirectories;
 
@@ -94,5 +95,67 @@ public class TestStructure
                 }
             ]
         };
+    }
+
+    public static WorkingDirectory GetBagItFileSystemStructure()
+    {
+        var json = """
+                   {
+                     "type": "WorkingDirectory",
+                     "localPath": "",
+                     "name": "__ROOT",
+                     "modified": "2025-04-23T16:50:48.0982194Z",
+                     "files": [
+                       {
+                         "type": "WorkingFile",
+                         "localPath": "__METSlike.json",
+                         "name": "__METSlike.json",
+                         "modified": "2025-04-23T16:50:47Z",
+                         "contentType": "application/json",
+                         "digest": "55db7dbc746857b1fde06f1df4db3d43ac02233f40d4a010c7b0e6756dfb7908",
+                         "size": 724
+                       }
+                     ],
+                     "directories": [
+                       {
+                         "type": "WorkingDirectory",
+                         "localPath": "data",
+                         "name": "data",
+                         "modified": "2025-04-23T16:50:47Z",
+                         "files": [
+                           {
+                             "type": "WorkingFile",
+                             "localPath": "data/mets.xml",
+                             "name": null,
+                             "modified": "2025-04-23T16:50:48Z",
+                             "contentType": "application/xml",
+                             "digest": "b04009c745c94ebf1db79881c241836bcee6cc7f793f4ca4ec0cc8b8c8427d6c",
+                             "size": 2031
+                           }
+                         ],
+                         "directories": [
+                           {
+                             "type": "WorkingDirectory",
+                             "localPath": "data/metadata",
+                             "name": "metadata",
+                             "modified": "2025-04-23T16:50:47Z",
+                             "files": [],
+                             "directories": []
+                           },
+                           {
+                             "type": "WorkingDirectory",
+                             "localPath": "data/objects",
+                             "name": "objects",
+                             "modified": "2025-04-23T16:50:47Z",
+                             "files": [],
+                             "directories": []
+                           }
+                         ]
+                       }
+                     ]
+                   }
+                   """;
+        var wd = JsonSerializer.Deserialize<WorkingDirectory>(json);
+        return wd!;
     }
 }

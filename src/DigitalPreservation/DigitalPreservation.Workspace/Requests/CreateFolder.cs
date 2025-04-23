@@ -15,12 +15,14 @@ using Storage.Repository.Common.S3;
 namespace DigitalPreservation.Workspace.Requests;
 
 public class CreateFolder(
+    bool isBagItLayout,
     Uri s3Root, 
     string name, 
     string newFolderSlug, 
     string? parent, 
     string metsETag) : IRequest<Result<WorkingDirectory?>>
 {
+    public bool IsBagItLayout { get; } = isBagItLayout;
     public Uri S3Root { get; } = s3Root;
     public string Name { get; } = name;
     public string NewFolderSlug { get; } = newFolderSlug;
@@ -42,7 +44,8 @@ public class CreateFolderHandler(
         // TODO: Should all of this be behind IStorage?
 
         var s3Uri = new AmazonS3Uri(request.S3Root);
-        var fullKey = StringUtils.BuildPath(false, s3Uri.Key, request.Parent, request.NewFolderSlug);
+        var localPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent;
+        var fullKey = StringUtils.BuildPath(false, s3Uri.Key, localPath, request.NewFolderSlug);
         if (!fullKey.EndsWith("/"))
         {
             fullKey += "/";
@@ -75,9 +78,10 @@ public class CreateFolderHandler(
                 Modified = headResponse.LastModified.ToUniversalTime()
             };
             var newRootResult = await storage.AddToDepositFileSystem(s3Uri, dir, cancellationToken);
+            var dirForMets = request.IsBagItLayout ? dir.ToRootLayout() : dir;
             if (newRootResult.Success)
             {
-                await metsManager.HandleCreateFolder(s3Uri.ToUri(), dir, request.MetsETag);
+                await metsManager.HandleCreateFolder(s3Uri.ToUri(), dirForMets, request.MetsETag);
                 return Result.Ok(dir);
             }
             return Result.Generify<WorkingDirectory?>(newRootResult);

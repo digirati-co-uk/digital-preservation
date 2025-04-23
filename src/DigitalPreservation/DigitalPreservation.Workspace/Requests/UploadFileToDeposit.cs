@@ -14,6 +14,7 @@ using Storage.Repository.Common.S3;
 namespace DigitalPreservation.Workspace.Requests;
 
 public class UploadFileToDeposit(
+    bool isBagItLayout,
     Uri s3Root, 
     string? parent, 
     string slug, 
@@ -24,6 +25,7 @@ public class UploadFileToDeposit(
     string contentType,
     string metsETag) : IRequest<Result<WorkingFile?>>
 {
+    public bool IsBagItLayout { get; } = isBagItLayout;
     public Uri S3Root { get; } = s3Root;
     public string? Parent { get; } = parent;
     public string Slug { get; } = slug;
@@ -44,7 +46,8 @@ public class UploadFileToDepositHandler(
     {
         // TODO: This needs to prevent overlapping calls (repeated requests for the same object, or two uploads trying to update METS)
         var s3Uri = new AmazonS3Uri(request.S3Root);
-        var fullKey = StringUtils.BuildPath(false, s3Uri.Key, request.Parent, request.Slug);
+        var keyPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent;
+        var fullKey = StringUtils.BuildPath(false, s3Uri.Key, keyPath, request.Slug);
         var req = new PutObjectRequest
         {
             BucketName = s3Uri.Bucket,
