@@ -54,6 +54,11 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor)
         {
             request.Headers.TryAddWithoutValidation("Authorization", bearerToken);
         }
+        else
+        {
+          //Add Bearer token to request if not already present
+           
+        }
 
         //Pass Machine Token Downstream
         var machineToken = contextAccessor.HttpContext.TryGetHeaderValue(AuthFilterIdentifier.MachineHeaderName);
