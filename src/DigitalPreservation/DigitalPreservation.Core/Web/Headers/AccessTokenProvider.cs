@@ -3,34 +3,43 @@ using System.Text.Json;
 
 namespace DigitalPreservation.Core.Web.Headers;
 
-public  class AccessTokenProvider
+/// <summary>
+/// Used to get Bearer token from Azure AD for use in downstream API calls.
+/// This will only be instantiated if added via DI in startup.
+/// </summary>
+public class AccessTokenProvider : IAccessTokenProvider
 {
     private readonly MemoryCache memoryCache;
-    private readonly IAccessTokenProviderOptions options;
+    private readonly IAccessTokenProviderOptions? options;
     private readonly string key = "storageApiAccessToken";
 
 
-    public AccessTokenProvider(IAccessTokenProviderOptions options)
+    public  AccessTokenProvider(IAccessTokenProviderOptions? options)
     {
         this.options = options;
         memoryCache = new MemoryCache(new MemoryCacheOptions());
     }
 
-    public async Task<string> GetAccessToken()
+    public async Task<string?> GetAccessToken()
     {
-        if (memoryCache.TryGetValue(key, out string token))
+        // Exit if no options configured
+        if (options is null)
+            return null;
+
+        if (memoryCache.TryGetValue(key, out string? token))
         {
             return token;
         }
         token = await GetBearerToken();
         var cacheEntryOptions = new MemoryCacheEntryOptions()
-            .SetSlidingExpiration(TimeSpan.FromMinutes(55)); // assume token is valid for 1 hour
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(10)) // assume token is valid for 1 hour
+            .SetSlidingExpiration(TimeSpan.FromMinutes(10));
         memoryCache.Set(key, token, cacheEntryOptions);
         return token;
     }
 
-
-    private async Task<string> GetBearerToken()
+    
+    private async Task<string?> GetBearerToken()
     {
         
         var client = new HttpClient();
@@ -40,8 +49,8 @@ public  class AccessTokenProvider
         collection.Add(new("grant_type", "client_credentials"));
         collection.Add(new("client_id", options.ClientId ));
         collection.Add(new("client_secret", options.ClientSecret));
-        collection.Add(new("scope", $"api://{options.ClientSecret}/.default"));
-        collection.Add(new("resource", $"api://{options.ClientSecret}"));
+        collection.Add(new("scope", $"api://{options.ClientId}/.default"));
+        collection.Add(new("resource", $"api://{options.ClientId}"));
         var content = new FormUrlEncodedContent(collection);
         request.Content = content;
         var response = await client.SendAsync(request);
@@ -50,12 +59,14 @@ public  class AccessTokenProvider
         var json = await response.Content.ReadAsStringAsync();
         var obj = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
 
-        return obj["access_token"];
-
-
-
+       return obj?["access_token"];
     }
 
+}
+
+public interface IAccessTokenProvider
+{
+    public Task<string?> GetAccessToken();
 }
 
 

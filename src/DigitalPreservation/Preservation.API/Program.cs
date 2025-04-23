@@ -75,6 +75,11 @@ try
             }
         });
 
+    builder.Services.AddSingleton<IAccessTokenProviderOptions>(
+        builder.Configuration.GetSection("TokenProvider").Get<AccessTokenProviderOptions>());
+    builder.Services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+
+
     builder.Services
         .AddHostedService<StorageImportJobsService>()
         .AddScoped<StorageImportJobsProcessor>();

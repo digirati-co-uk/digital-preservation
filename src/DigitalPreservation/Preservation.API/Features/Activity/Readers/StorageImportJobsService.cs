@@ -31,7 +31,7 @@ public class StorageImportJobsService(
                 else
                 {
                     logger.LogError("FAILED read of Storage API Import Jobs Activity Stream, waiting 30 minutes: {message}", result.ErrorMessage);
-                    delay = 30;
+                    delay = 3;
                 }
             }
         }
