@@ -21,8 +21,8 @@ public static class ServiceCollectionX
     {
         serviceCollection.Configure<PreservationOptions>(configuration.GetSection(PreservationOptions.Preservation));
         serviceCollection
-            .AddScoped<TimingHandler>()
-            .AddScoped<AuthTokenInjector>()
+            .AddTransient<TimingHandler>()
+            .AddTransient<AuthTokenInjector>()
             .AddHttpClient<IPreservationApiClient, PreservationApiClient>((provider, client) =>
             {
                 var preservationOptions = provider.GetRequiredService<IOptions<PreservationOptions>>().Value;
