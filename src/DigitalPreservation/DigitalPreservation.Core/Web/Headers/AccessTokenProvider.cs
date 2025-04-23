@@ -32,8 +32,8 @@ public class AccessTokenProvider : IAccessTokenProvider
         }
         token = await GetBearerToken();
         var cacheEntryOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(TimeSpan.FromMinutes(10)) // assume token is valid for 1 hour
-            .SetSlidingExpiration(TimeSpan.FromMinutes(10));
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(56)) // assume token is valid for 1 hour
+            .SetSlidingExpiration(TimeSpan.FromMinutes(55));
         memoryCache.Set(key, token, cacheEntryOptions);
         return token;
     }
