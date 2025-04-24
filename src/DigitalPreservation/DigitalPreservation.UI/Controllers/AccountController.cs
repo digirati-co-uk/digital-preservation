@@ -11,7 +11,7 @@ public class AccountController() : Controller
 
     [HttpGet()]
     [Route("/Account/SignedOut")]
-    public IActionResult SignedOut()
+    public async Task<IActionResult> SignedOut()
     {
         if (AppServicesAuthenticationInformation.IsAppServicesAadAuthenticationEnabled)
         {
@@ -23,6 +23,10 @@ public class AccountController() : Controller
             return Ok();
         }
 
+
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        await HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
+        
         var scheme = OpenIdConnectDefaults.AuthenticationScheme;
         return SignOut(
             new AuthenticationProperties

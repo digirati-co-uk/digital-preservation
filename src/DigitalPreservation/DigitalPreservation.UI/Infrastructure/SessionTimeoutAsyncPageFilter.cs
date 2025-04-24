@@ -1,33 +1,64 @@
-﻿using Microsoft.AspNetCore.Mvc.Filters;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.Caching.Distributed;
+
 
 namespace DigitalPreservation.UI.Infrastructure;
 
-public class SessionTimeoutAsyncPageFilter(ILogger<SessionTimeoutAsyncPageFilter> logger) : IAsyncPageFilter
+public class SessionTimeoutAsyncPageFilter : IAsyncPageFilter
 {
-    
-    public Task OnPageHandlerSelectionAsync(PageHandlerSelectedContext context) =>
-    Task.CompletedTask;
-    
+    private readonly IDistributedCache _cache;
+    private readonly int _timeoutInHours = 48;
+    private const int _cacheExpirationInDays = 2;
 
-    public async Task OnPageHandlerExecutionAsync(PageHandlerExecutingContext context, PageHandlerExecutionDelegate next)
+    public SessionTimeoutAsyncPageFilter(IDistributedCache cache)
     {
-        try
+        _cache = cache;
+    }
+
+    public Task OnPageHandlerSelectionAsync(PageHandlerSelectedContext context)
+    {
+        return Task.CompletedTask;
+    }
+
+    public async Task OnPageHandlerExecutionAsync(PageHandlerExecutingContext context,
+        PageHandlerExecutionDelegate next)
+    {
+        var claimTypes = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier";
+        var name = context.HttpContext.User.Claims.FirstOrDefault(c => c.Type == claimTypes)!.Value;
+
+        if (name == null) throw new ArgumentNullException(nameof(name));
+
+        var lastActivity = GetFromCache(name);
+
+        if (lastActivity != null && lastActivity.GetValueOrDefault().AddHours(_timeoutInHours) < DateTime.UtcNow)
         {
-            var session = context.HttpContext.Session;
-            if (!session.Keys.Any())
-            {
-                //try and refresh the request path if possible
-                context.HttpContext.Response.Redirect($"/Account/RefreshLogin?path={context.HttpContext.Request.Path}");
-                return;
-            }
+            await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            // not needed for now will log user out of AZURE AD
+            //await context.HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
         }
-        catch (Exception e)
-        {
-            logger.LogDebug(e, "Session invalid, redirecting to RefreshLogin");
-            context.HttpContext.Response.Redirect("/Account/RefreshLogin");
-            return;
-        }
+
+        AddUpdateCache(name);
         await next.Invoke();
     }
 
+    private void AddUpdateCache(string name)
+    {
+        var options = new DistributedCacheEntryOptions()
+            .SetSlidingExpiration(TimeSpan.FromDays(_cacheExpirationInDays));
+
+        _cache.SetString(name, DateTime.UtcNow.ToString("s"), options);
+    }
+
+    private DateTime? GetFromCache(string key)
+    {
+        var item = _cache.GetString(key);
+        if (item != null)
+        {
+            return DateTime.Parse(item);
+        }
+
+        return null;
+    }
 }
