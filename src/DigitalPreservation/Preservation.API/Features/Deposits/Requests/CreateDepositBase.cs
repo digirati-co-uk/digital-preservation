@@ -189,16 +189,7 @@ public class CreateDepositBase(
             // e.g., Goobi will supply a METS as its next step
             logger.LogInformation("Archival Group does not yet exist, and template={templateType}, so create a standard METS file", templateType);
             // Standard or BagIt layout?
-            Uri metsLocation;
-            if (templateType == TemplateType.RootLevel)
-            {
-                metsLocation = filesLocation;
-            }
-            else
-            {
-                var dataSlug = FolderNames.BagItData + (filesLocation.ToString().EndsWith('/') ? "/" : "");
-                metsLocation = filesLocation.AppendSlug(dataSlug);
-            }
+            var metsLocation = FolderNames.GetFilesLocation(filesLocation, templateType == TemplateType.BagIt);
             var result = await metsManager.CreateStandardMets(metsLocation, agNameFromDeposit);
             if (result is { Success: true, Value: not null })
             {

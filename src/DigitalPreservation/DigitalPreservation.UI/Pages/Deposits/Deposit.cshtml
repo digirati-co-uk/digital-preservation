@@ -186,8 +186,17 @@ ViewData["section"] = "deposits";
                                 </tr>
                                 </thead>
                                 <tbody>
+                                @if (Model.WorkspaceManager.IsBagItLayout)
+                                {
+                                    <tr>
+                                        <td colspan="8">
+                                            <svg class="bi"><use xlink:href="#bag-heart"/></svg>
+                                            <em>This Deposit uses BagIt layout on disk/S3.</em>
+                                        </td>
+                                    </tr>
+                                }
                                 @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(combinedResult.Value, 
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(combinedResult.Value,
                                         Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
                                         Model.Deposit.Active, new Counter());
                                     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)

@@ -25,7 +25,7 @@ File is in both
                    <tr class="deposit-row @("where-" + where)" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts">
         <td aria-label="select-row">
-            @if (Model is { Editable: true, Active: true } && !FolderNames.PathIsSpecial(combinedDirectory.LocalPath))
+            @if (Model is { Editable: true, Active: true } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
             {
                 <input class="form-check-input item-selector item-directory" type="checkbox" 
                        value="@combinedDirectory.LocalPath" id="@("is-" + Model.RowCounter.Count)">

@@ -58,7 +58,7 @@ public class TestStructure
             ]
         };
     }
-    public static WorkingDirectory GetTestStructure()
+    public static WorkingDirectory GetTestMetsStructure()
     {
         return new WorkingDirectory
         {
@@ -155,6 +155,63 @@ public class TestStructure
                      ]
                    }
                    """;
+        var wd = JsonSerializer.Deserialize<WorkingDirectory>(json);
+        return wd!;
+    }
+
+    public static WorkingDirectory GetActualMetsTemplate()
+    {
+        const string json = """
+                            {
+                              "type": "WorkingDirectory",
+                              "localPath": "",
+                              "name": "__ROOT",
+                              "modified": "2025-04-24T08:25:09.8741297Z",
+                              "files": [
+                                {
+                                  "type": "WorkingFile",
+                                  "localPath": "mets.xml",
+                                  "name": "mets.xml",
+                                  "modified": "0001-01-01T00:00:00",
+                                  "contentType": "application/xml",
+                                  "digest": "b04009c745c94ebf1db79881c241836bcee6cc7f793f4ca4ec0cc8b8c8427d6c",
+                                  "size": null
+                                }
+                              ],
+                              "directories": [
+                                {
+                                  "type": "WorkingDirectory",
+                                  "localPath": "metadata",
+                                  "name": "metadata",
+                                  "modified": "0001-01-01T00:00:00",
+                                  "files": [],
+                                  "directories": [],
+                                  "metsExtensions": {
+                                    "physDivId": "PHYS_metadata",
+                                    "admId": "ADM_metadata",
+                                    "accessCondition": "Open",
+                                    "originalPath": "metadata"
+                                  }
+                                },
+                                {
+                                  "type": "WorkingDirectory",
+                                  "localPath": "objects",
+                                  "name": "objects",
+                                  "modified": "0001-01-01T00:00:00",
+                                  "files": [],
+                                  "directories": [],
+                                  "metsExtensions": {
+                                    "physDivId": "PHYS_objects",
+                                    "admId": "ADM_objects",
+                                    "accessCondition": "Open",
+                                    "originalPath": "objects"
+                                  }
+                                }
+                              ]
+                            }
+                            
+                            """;
+        
         var wd = JsonSerializer.Deserialize<WorkingDirectory>(json);
         return wd!;
     }

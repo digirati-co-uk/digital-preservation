@@ -37,8 +37,9 @@ public class MetsManagerWithPremis
         
         result.Success.Should().BeTrue();
         var metsWrapper = result.Value!;
-        metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(1);
+        metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(2);
         metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
         
         var file = new WorkingFile
         {
@@ -56,7 +57,7 @@ public class MetsManagerWithPremis
         parseResult.Success.Should().BeTrue();
 
         var updatedWrapper = parseResult.Value!;
-        var objectsDir = updatedWrapper.PhysicalStructure!.Directories[0];
+        var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         objectsDir.Directories.Should().HaveCount(0);
         objectsDir.Files.Should().HaveCount(1);
         objectsDir.Files[0].Name.Should().Be("readme.txt");

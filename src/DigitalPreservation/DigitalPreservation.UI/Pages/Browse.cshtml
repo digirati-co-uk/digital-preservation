@@ -496,11 +496,12 @@
                                 This may be set or changed later.<br/></div>
                         </div>
                         <div class="mb-3 form-check">
+                            <input type="hidden" name="NewDepositModel.UseObjectTemplate" value="true" /> <!-- default to this when submitted from UI, but allow bagit to override it -->
                             <input type="checkbox" name="NewDepositModel.UseBagItTemplate" value="true" class="form-check-input" id="bagitCheck" aria-describedby="bagitHelp">
                             <label class="form-check-label" for="bagitCheck">Use BagIt layout</label>
                             <div id="bagitHelp" class="form-text">
-                                Creates the Deposit with a layout that the contents of a BagIt Bag can be imported into, with a data/ directory in the root. 
-                            </div>   
+                                Creates the Deposit with a layout that the contents of a BagIt Bag can be imported into, with a data/ directory in the root.
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label for="submissionText" class="form-label">Note (optional)</label>

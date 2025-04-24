@@ -94,7 +94,8 @@ public class GetDiffImportJobHandler(
         }
         logger.LogInformation("(get import source) concluded AG name is " + agName);
 
-        var importContainer = combined!.DirectoryInDeposit!.ToContainer(request.Deposit.ArchivalGroup, request.Deposit.Files);
+        var origin = FolderNames.GetFilesLocation(request.Deposit.Files, workspace.IsBagItLayout);
+        var importContainer = combined!.DirectoryInDeposit!.ToContainer(request.Deposit.ArchivalGroup, origin);
         var (sourceContainers, sourceBinaries) = importContainer.Flatten();
 
         var notForImport = $"{agPathUnderRoot}/{IStorage.DepositFileSystem}";

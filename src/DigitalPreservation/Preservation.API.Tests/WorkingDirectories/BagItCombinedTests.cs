@@ -8,7 +8,7 @@ public class BagItCombinedTests
     public void Combined_When_Both_Same()
     {
         var fileSystem = TestStructure.GetBagItTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
         var offsetFileSystem = fileSystem.Directories.Single(d => d.LocalPath == FolderNames.BagItData);
         var combined = CombinedBuilder.BuildOffset(fileSystem, offsetFileSystem, mets);
@@ -56,7 +56,7 @@ public class BagItCombinedTests
     public void Combined_With_More_In_Mets()
     {
         var fileSystem = TestStructure.GetBagItTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
         mets.Files.Add(new WorkingFile { LocalPath = "extra-file.txt", ContentType = "text/plain" });
         var extraDir = new WorkingDirectory { LocalPath = "extra-directory" };
@@ -108,7 +108,7 @@ public class BagItCombinedTests
     public void Combined_With_More_In_Filesystem()
     {
         var fileSystem = TestStructure.GetBagItTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var mets = TestStructure.GetTestMetsStructure();
         var offsetFileSystem = fileSystem.Directories.Single(d => d.LocalPath == FolderNames.BagItData);
         offsetFileSystem.Files.Add(new WorkingFile { LocalPath = "data/extra-file.txt", ContentType = "text/plain" });
         var extraDir = new WorkingDirectory { LocalPath = "data/extra-directory" };
@@ -159,7 +159,7 @@ public class BagItCombinedTests
     public void Combined_With_Multiple_Differences()
     {
         var fileSystem = TestStructure.GetBagItTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var mets = TestStructure.GetTestMetsStructure();
         var offsetFileSystem = fileSystem.Directories.Single(d => d.LocalPath == FolderNames.BagItData);
 
         offsetFileSystem.Files.Add(new WorkingFile { LocalPath = "data/extra-fs-file.txt", ContentType = "text/plain" });
@@ -206,5 +206,18 @@ public class BagItCombinedTests
         
         apparentRoot.Directories[0].Files[0].FileInDeposit.Should().NotBeNull();
         apparentRoot.Directories[0].Files[0].FileInMets.Should().BeNull();
+    }
+
+    [Fact]
+    public void Use_Real_Working_Filesystem()
+    {
+        
+        var fileSystem = TestStructure.GetBagItFileSystemStructure();
+        var mets = TestStructure.GetActualMetsTemplate();
+        var offsetFileSystem = fileSystem.Directories.Single(d => d.LocalPath == FolderNames.BagItData);
+        var combined = CombinedBuilder.BuildOffset(fileSystem, offsetFileSystem, mets);
+        var apparentRoot = combined.Directories.Single(d => d.LocalPath == "");
+        apparentRoot.Files.Should().HaveCount(1);
+        apparentRoot.Files[0].LocalPath.Should().Be("mets.xml");
     }
 }

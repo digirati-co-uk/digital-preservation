@@ -54,13 +54,13 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             if (await ValidateAndNormaliseNewDeposit(newDepositModel))
             {
                 var templateType = TemplateType.None;
-                if (newDepositModel.UseObjectTemplate)
-                {
-                    templateType = TemplateType.RootLevel;
-                }
-                else if (newDepositModel.UseBagItTemplate)
+                if (newDepositModel.UseBagItTemplate)
                 {
                     templateType = TemplateType.BagIt;
+                }
+                else if (newDepositModel.UseObjectTemplate)
+                {
+                    templateType = TemplateType.RootLevel;
                 }
                 result = await mediator.Send(new CreateDeposit(
                     newDepositModel.ArchivalGroupPathUnderRoot,

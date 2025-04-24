@@ -7,8 +7,8 @@ public class CombinedTests
     [Fact]
     public void Combined_When_Both_Same()
     {
-        var fileSystem = TestStructure.GetTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var fileSystem = TestStructure.GetTestMetsStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
         var combined = CombinedBuilder.Build(fileSystem, mets, null);
 
@@ -27,8 +27,8 @@ public class CombinedTests
     [Fact]
     public void Combined_With_More_In_Mets()
     {
-        var fileSystem = TestStructure.GetTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var fileSystem = TestStructure.GetTestMetsStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
         mets.Files.Add(new WorkingFile { LocalPath = "extra-file.txt", ContentType = "text/plain" });
         var extraDir = new WorkingDirectory { LocalPath = "extra-directory" };
@@ -77,8 +77,8 @@ public class CombinedTests
     [Fact]
     public void Combined_With_More_In_Filesystem()
     {
-        var fileSystem = TestStructure.GetTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var fileSystem = TestStructure.GetTestMetsStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
         fileSystem.Files.Add(new WorkingFile { LocalPath = "extra-file.txt", ContentType = "text/plain" });
         var extraDir = new WorkingDirectory { LocalPath = "extra-directory" };
@@ -126,8 +126,8 @@ public class CombinedTests
     [Fact]
     public void Combined_With_Multiple_Differences()
     {
-        var fileSystem = TestStructure.GetTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var fileSystem = TestStructure.GetTestMetsStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
         fileSystem.Files.Add(new WorkingFile { LocalPath = "extra-fs-file.txt", ContentType = "text/plain" });
         var extraFsDir = new WorkingDirectory { LocalPath = "extra-fs-directory" };
