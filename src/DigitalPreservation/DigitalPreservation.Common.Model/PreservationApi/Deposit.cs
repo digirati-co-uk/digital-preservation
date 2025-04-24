@@ -64,7 +64,7 @@ public class Deposit : Resource
     [JsonPropertyOrder(500)]
     [JsonPropertyName("template")]
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public TemplateType Template { get; set; } =  TemplateType.None;
+    public TemplateType Template { get; set; } = TemplateType.None;
     
     /// <summary>
     /// At the time the deposit is requested

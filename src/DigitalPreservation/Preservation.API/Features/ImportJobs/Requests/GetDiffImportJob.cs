@@ -2,7 +2,6 @@
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
-using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -10,7 +9,6 @@ using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
-using Preservation.API.Data;
 using Preservation.API.Mutation;
 using Storage.Client;
 using Storage.Repository.Common;

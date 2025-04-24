@@ -120,7 +120,7 @@ public class ImportJobsController(
             }
         }
 
-        var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob), cancellationToken);
+        var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob, User), cancellationToken);
         return this.StatusResponseFromResult(executeImportJobResult, 201, executeImportJobResult.Value?.Id);
     }
     
