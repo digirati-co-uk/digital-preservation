@@ -17,6 +17,7 @@ using Storage.Repository.Common.S3;
 using DigitalPreservation.Core.Auth;
 using LeedsDlipServices;
 using LeedsDlipServices.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -75,9 +76,15 @@ try
             }
         });
 
-    builder.Services.AddSingleton<IAccessTokenProviderOptions>(
-        builder.Configuration.GetSection("TokenProvider").Get<AccessTokenProviderOptions>());
-    builder.Services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+
+    //Auth
+    if (useAuthFeatureFlag)
+    {
+        var accessTokenProviderOptions = new AccessTokenProviderOptions();
+        builder.Configuration.GetSection("TokenProvider").Bind(accessTokenProviderOptions);
+        builder.Services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
+        builder.Services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+    }
 
 
     builder.Services

@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace DigitalPreservation.Core.Web.Headers;
 
@@ -12,19 +13,35 @@ public class AccessTokenProvider : IAccessTokenProvider
     private readonly MemoryCache memoryCache;
     private readonly IAccessTokenProviderOptions? options;
     private readonly string key = "storageApiAccessToken";
+    private readonly ILogger<AccessTokenProvider> logger;
 
 
-    public  AccessTokenProvider(IAccessTokenProviderOptions? options)
+    public  AccessTokenProvider(ILogger<AccessTokenProvider> logger, IAccessTokenProviderOptions? options)
     {
         this.options = options;
         memoryCache = new MemoryCache(new MemoryCacheOptions());
+        logger = logger;
     }
 
     public async Task<string?> GetAccessToken()
     {
         // Exit if no options configured
-        if (options is null)
+        if (options == null)
+        {
+            logger.LogWarning("No options configured for AccessTokenProvider");
             return null;
+        }
+
+        var nullCheck = options.GetType()
+            .GetProperties() //get all properties on object
+            .Select(pi => pi.GetValue(options)) //get value for the property
+            .Any(value => value == null);
+
+        if (nullCheck)
+        {
+            logger.LogWarning("AccessTokenProvider options are not configured correctly");
+            return null;
+        }
 
         if (memoryCache.TryGetValue(key, out string? token))
         {
@@ -72,14 +89,14 @@ public interface IAccessTokenProvider
 
 public class AccessTokenProviderOptions  : IAccessTokenProviderOptions
 {
-    public string ClientId { get; set; }
-    public string ClientSecret { get; set; }
-    public string TenantId { get; set; }
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
+    public string? TenantId { get; set; }
 }
 
 public interface IAccessTokenProviderOptions
 {
-    string ClientId { get; set; }
-    string ClientSecret { get; set; }
-    string TenantId { get; set; }
+    string? ClientId { get; set; }
+    string? ClientSecret { get; set; }
+    string? TenantId { get; set; }
 }
