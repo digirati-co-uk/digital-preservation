@@ -26,10 +26,13 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         }
     }
 
+    // Which do we want to be the first choice?
     public string? Name => FileInDeposit?.Name ?? FileInMets?.Name;
     public string? Digest => FileInDeposit?.Digest ?? FileInMets?.Digest;
     public long? Size => FileInDeposit?.Size ?? FileInMets?.Size;
     public string? ContentType => FileInDeposit?.ContentType ?? FileInMets?.ContentType;
+    
+    
     public WorkingFile? FileInDeposit { get; private set; } = fileInDeposit;
     public WorkingFile? FileInMets { get; private set; } = fileInMets;
 
@@ -43,44 +46,44 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         FileInMets = null;
     }
     
-    public bool? HaveSameName()
+    public FileMisMatch<string>? GetNameMisMatch()
     {
         if (FileInDeposit is null || FileInMets is null)
         {
             return null;
         }
         
-        return FileInDeposit.Name!.Equals(FileInMets.Name!);
+        return new FileMisMatch<string>(FileInDeposit.Name, FileInMets.Name);
     }
     
-    public bool? HaveSameDigest()
+    public FileMisMatch<string>? GetDigestMisMatch()
     {
         if (FileInDeposit is null || FileInMets is null)
         {
             return null;
         }
         
-        return FileInDeposit.Digest!.Equals(FileInMets.Digest!);
+        return new FileMisMatch<string>(FileInDeposit.Digest, FileInMets.Digest);
     }
     
-    public bool? HaveSameSize()
+    public FileMisMatch<long?>? GetSizeMisMatch()
     {
         if (FileInDeposit is null || FileInMets is null)
         {
             return null;
         }
         
-        return FileInDeposit.Size!.Equals(FileInMets.Size!);
+        return new FileMisMatch<long?>(FileInDeposit.Size, FileInMets.Size);
     }
     
-    public bool? HaveSameContentType()
+    public FileMisMatch<string>? GetContentTypeMisMatch()
     {
         if (FileInDeposit is null || FileInMets is null)
         {
             return null;
         }
         
-        return FileInDeposit.ContentType!.Equals(FileInMets.ContentType!);
+        return new FileMisMatch<string>(FileInDeposit.ContentType, FileInMets.ContentType);
     }
     
     public Whereabouts Whereabouts
@@ -108,6 +111,12 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
             return Whereabouts.Neither;
         }
+    }
+
+    public class FileMisMatch<T>(T? valueInDeposit, T? valueInMets)
+    {
+        public T? ValueInDeposit = valueInDeposit;
+        public T? ValueInMets = valueInMets;
     }
     
 }
