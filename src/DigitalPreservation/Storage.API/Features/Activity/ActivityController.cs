@@ -9,8 +9,6 @@ namespace Storage.API.Features.Activity;
 
 [Route("[controller]")]
 [ApiController]
-[AllowAnonymous] // ignore standard auth
-[CustomActivityAuthorize] // use filter in api totp instead
 public class ActivityController(IMediator mediator) : Controller
 {
     [HttpGet("importjobs/collection", Name = "GetImportJobsCollection")]

@@ -17,14 +17,19 @@ public static class ApplicationBuilderX
     }
 }
 
-internal class HeaderPropagationMessageHandlerBuilderFilter(IHttpContextAccessor contextAccessor)
+/// <summary>
+/// 
+/// </summary>
+/// <param name="contextAccessor"></param>
+/// <param name="tokenProvider">Only added when required via DI in startup</param>
+internal class HeaderPropagationMessageHandlerBuilderFilter(IHttpContextAccessor contextAccessor, IAccessTokenProvider? tokenProvider = null)
     : IHttpMessageHandlerBuilderFilter
 {
     public Action<HttpMessageHandlerBuilder> Configure(Action<HttpMessageHandlerBuilder> next)
     {
         return builder =>
         {
-            builder.AdditionalHandlers.Add(new PropagateCorrelationIdHandler(contextAccessor));
+            builder.AdditionalHandlers.Add(new PropagateCorrelationIdHandler(contextAccessor, tokenProvider));
             next(builder);
         };
     }
@@ -33,13 +38,19 @@ internal class HeaderPropagationMessageHandlerBuilderFilter(IHttpContextAccessor
 /// <summary>
 /// A DelegatingHandler that propagates x-correlation-id to downstream service
 /// </summary>
-public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor) : DelegatingHandler
+
+public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor, IAccessTokenProvider? tokenProvider) : DelegatingHandler
 {
     private const string CorrelationHeaderKey = "x-correlation-id";
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (contextAccessor.HttpContext == null) return base.SendAsync(request, cancellationToken);
+        if (contextAccessor.HttpContext == null)
+        {
+            SetMachineToken(request);
+
+            return base.SendAsync(request, cancellationToken);
+        }
 
         var headerValue = contextAccessor.HttpContext.TryGetHeaderValue(CorrelationHeaderKey);
         if (!string.IsNullOrEmpty(headerValue))
@@ -54,6 +65,11 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor)
         {
             request.Headers.TryAddWithoutValidation("Authorization", bearerToken);
         }
+        else
+        {
+            //Add Bearer token to request if not already present
+            SetMachineToken(request);
+        }
 
         //Pass Machine Token Downstream
         var machineToken = contextAccessor.HttpContext.TryGetHeaderValue(AuthFilterIdentifier.MachineHeaderName);
@@ -63,6 +79,17 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor)
         }
 
         return base.SendAsync(request, cancellationToken);
+    }
+
+    private void SetMachineToken(HttpRequestMessage request)
+    {
+        //Add Bearer token to request if not already present
+        var token = tokenProvider?.GetAccessToken().Result;
+
+        if (token is null) return;
+
+        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
+        request.Headers.TryAddWithoutValidation(AuthFilterIdentifier.MachineHeaderName, "api-call");
     }
 
     private static void AddCorrelationId(HttpRequestMessage request, string? correlationId) 
