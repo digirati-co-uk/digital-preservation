@@ -15,6 +15,7 @@ headers_show_extras = {
 
 async def put_manifest(session: ClientSession, api_manifest_uri:str, manifest) -> Result:
 
+    logger.info(f"See if a Manifest already exists at {api_manifest_uri}")
     existing_manifest_response = await session.get(api_manifest_uri, headers=headers_show_extras)
     etag = None
     if existing_manifest_response.status == 404:
@@ -35,6 +36,7 @@ async def put_manifest(session: ClientSession, api_manifest_uri:str, manifest) -
         headers = headers_show_extras.copy()
         headers["If-Match"] = etag
 
+    logger.info(f"Sending PUT to {api_manifest_uri}")
     initial_put_response = await session.put(api_manifest_uri, headers=headers, json=manifest)
     if not (initial_put_response.status == 202 or initial_put_response.status == 200):
         msg = f"PUT to {api_manifest_uri} returned status {initial_put_response.status} - cannot continue"
@@ -55,19 +57,30 @@ def update_ingest_status(existing_manifest, new_manifest):
     # This is true for IIIF-CS but these requests won't make it "past" IIIF-P for that to kick in.
     # If an asset is repeated (appears more than once)
     # we only need to tell it to reingest once.
+    logger.info("Checking for assets that have changed")
+    logger.info(f"Existing manifest has {len(existing_manifest.get('paintedResources', []))} painted resources")
+    logger.info(f"New manifest has {len(new_manifest.get('paintedResources', []))} painted resources")
     seen_ids = []
     for new_painted_resource in new_manifest.get("paintedResources", []):
-        if new_painted_resource["asset"]["id"] not in seen_ids:
-            seen_ids.append(new_painted_resource["asset"]["id"])
-            existing_painted_resource = None
-            for pr in existing_manifest.get("paintedResources", []):
-                if pr["asset"]["id"] == new_painted_resource["asset"]["id"]:
-                    existing_painted_resource = pr
-                    break
+        asset_id = new_painted_resource["asset"]["id"]
+        if asset_id in seen_ids:
+            logger.info(f"Asset {asset_id} has already been seen, skipping")
+            continue
+        seen_ids.append(asset_id)
+        existing_painted_resource = None
+        for pr in existing_manifest.get("paintedResources", []):
+            if pr["asset"]["id"] == asset_id:
+                logger.info(f"Found painted resource for asset {asset_id} in existing Manifest")
+                existing_painted_resource = pr
+                break
 
-            if existing_painted_resource is None:
-                new_painted_resource["reingest"] = True
-                continue
+        if existing_painted_resource is None:
+            logger.info(f"No existing painted resource for asset {asset_id}, so set reingest:true")
+            new_painted_resource["reingest"] = True
+            continue
 
-            if existing_painted_resource["asset"]["origin"] != new_painted_resource["asset"]["origin"]:
-                new_painted_resource["reingest"] = True
+        existing_origin = existing_painted_resource["asset"]["origin"]
+        new_origin = new_painted_resource["asset"]["origin"]
+        if existing_origin != new_origin:
+            logger.info(f"Existing painted resource for asset {asset_id} has different existing origin {existing_origin} and new origin {new_origin}, so set reingest:true")
+            new_painted_resource["reingest"] = True

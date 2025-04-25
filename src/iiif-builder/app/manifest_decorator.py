@@ -1,47 +1,57 @@
 import collections
 
+from logzero import logger
+
 from app import settings
 from app.mets_parser.mets_wrapper import MetsWrapper
 from app.mets_parser.working_filesystem import WorkingDirectory
 from app.result import Result
 
 
-def add_descriptive_metadata_to_manifest(manifest, descriptive_metadata):
+def add_descriptive_metadata_to_manifest(manifest, descriptive_metadata) -> Result:
     # descriptive_metadata is a Dictionary in the MVP implementation
     # See https://dev.azure.com/universityofleeds/Library/_wiki/wikis/Library.wiki/4864/Present-IIIF(new)-manifests-to-Website
-    data = descriptive_metadata["data"]
-    # bug in test data
-    title = data.get("Title", None) or data.get("title", None) or "[NO TITLE]"
-    manifest["label"] = { "en": [ title ] }
-    add_metadata_label_and_value(manifest, data, "Shelfmark", "none")
-    add_metadata_label_and_value(manifest, data, "Object Number", "none")
-    add_metadata_label_and_value(manifest, data, "Date", "none")
-    add_metadata_label_and_value(manifest, data, "Description", "en") # is it always though?
-    add_metadata_label_and_value(manifest, data, "Dimensions", "none")
-    add_metadata_label_and_value(manifest, data, "Notes", "en")
-    add_metadata_label_and_value(manifest, data, "Collections", "en")
-    add_metadata_label_and_value(manifest, data, "Credit Line", "none")
-    add_metadata_label_and_value(manifest, data, "Attribution", "en")
-    add_metadata_label_and_value(manifest, data, "Medium", "en")
-    add_metadata_label_and_value(manifest, data, "Technique", "en")
-    add_metadata_label_and_value(manifest, data, "Support", "en")
-    add_metadata_label_and_value(manifest, data, "Creators", "en")
 
-    rights = data.get("Rights", None)
-    if rights is not None and len(rights) > 0 and rights[0]:
-        manifest["rights"] = rights[0]
+    try:
+        data = descriptive_metadata["data"]
+        # bug in test data
+        title = data.get("Title", None) or data.get("title", None) or "[NO TITLE]"
+        manifest["label"] = { "en": [ title ] }
+        add_metadata_label_and_value(manifest, data, "Shelfmark", "none")
+        add_metadata_label_and_value(manifest, data, "Object Number", "none")
+        add_metadata_label_and_value(manifest, data, "Date", "none")
+        add_metadata_label_and_value(manifest, data, "Description", "en") # is it always though?
+        add_metadata_label_and_value(manifest, data, "Dimensions", "none")
+        add_metadata_label_and_value(manifest, data, "Notes", "en")
+        add_metadata_label_and_value(manifest, data, "Collections", "en")
+        add_metadata_label_and_value(manifest, data, "Credit Line", "none")
+        add_metadata_label_and_value(manifest, data, "Attribution", "en")
+        add_metadata_label_and_value(manifest, data, "Medium", "en")
+        add_metadata_label_and_value(manifest, data, "Technique", "en")
+        add_metadata_label_and_value(manifest, data, "Support", "en")
+        add_metadata_label_and_value(manifest, data, "Creators", "en")
 
-    homepage = data.get("Homepage", None)
-    if homepage is not None:
-        manifest["homepage"] = [
-            {
-                "id": homepage,
-                "type": "Text",
-                "format": "text/html",
-                "language": [ "en" ],
-                "label": { "en": [ f"Homepage for {manifest["label"]["en"][0]}" ] }
-            }
-        ]
+        rights = data.get("Rights", None)
+        if rights is not None and len(rights) > 0 and rights[0]:
+            manifest["rights"] = rights[0]
+
+        homepage = data.get("Homepage", None)
+        if homepage is not None:
+            manifest["homepage"] = [
+                {
+                    "id": homepage,
+                    "type": "Text",
+                    "format": "text/html",
+                    "language": [ "en" ],
+                    "label": { "en": [ f"Homepage for {manifest["label"]["en"][0]}" ] }
+                }
+            ]
+        return Result.success(None)
+
+    except Exception as e:
+        msg = f"Could not call catalogue API: {e}"
+        logger.error(msg)
+        return Result(False, msg)
 
 
 def add_metadata_label_and_value(manifest, data_dict, key, lang="en"):
@@ -101,6 +111,8 @@ def add_painted_resources_from_working_dir(painted_resources, working_dir:Workin
         In a later iteration, we can add IIIF Ranges to the Manifest here, to reflect the folder
         structure.
     """
+    logger.info(f"adding painted resources from working dir: {working_dir.local_path}")
+    logger.info(f"{working_dir.local_path} has {len(working_dir.files)} files and {len(working_dir.directories)} directories")
 
     for f in working_dir.files:
 
@@ -108,13 +120,17 @@ def add_painted_resources_from_working_dir(painted_resources, working_dir:Workin
         # the path given by f.local_path. This gives you the S3 URI directly (the origin property
         # of the binary at the end of the path) but is more code otherwise.
         origin = f"{archival_group["origin"]}/{archival_group["storageMap"]["files"][f.local_path]["fullPath"]}"
+        logger.info(f"file {f.local_path} has origin {origin}")
+        logger.info(f"file {f.local_path} has content type {f.content_type}")
 
         # do we want to do this for starters?
         if not f.content_type.startswith("image"):
+            logger.info(f"skipping file {f.local_path} because it is not an image")
             continue
 
         single_path_file_id = f.local_path.replace('/', '_')
-        painted_resources.append({
+        logger.info(f"file {f.local_path} will use iiif-cs id {single_path_file_id}")
+        painted_resource = {
             "canvasPainting": {
                 # canvasId is optional but gives iiif-b more control. IIIF-CS will mint its own otherwise.
                 "canvasId": f"{canvas_id_prefix}{single_path_file_id}",
@@ -127,12 +143,14 @@ def add_painted_resources_from_working_dir(painted_resources, working_dir:Workin
                 "space": settings.IIIF_CS_ASSET_SPACE_ID,
                 "origin": origin
             }
-        })
+        }
+        logger.info(f"appending painted resource with canvasId: {painted_resource['canvasPainting']['canvasId']}, asset.id: {painted_resource['asset']['id']}")
+        painted_resources.append(painted_resource)
 
         canvas_index = canvas_index + 1
 
     for d in working_dir.directories:
-        # recurse
+        logger.info(f"recursing into directory {d.local_path}")
         if not add_painted_resources_from_working_dir(painted_resources, d, archival_group, canvas_id_prefix, asset_prefix, canvas_index):
             return False
 

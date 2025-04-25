@@ -32,7 +32,7 @@ async def read_stream():
                 else:
                     logger.error(f"Could not read activities: {activities_result.error}")
 
-                logger.debug(f"sleeping for {settings.ACTIVITY_STREAM_READ_INTERVAL}s")
+                logger.debug(f"Sleeping for {settings.ACTIVITY_STREAM_READ_INTERVAL}s")
                 await asyncio.sleep(settings.ACTIVITY_STREAM_READ_INTERVAL)
     except Exception as e:
         logger.error(f"Fatal error in iiif-builder: {e}")
@@ -118,7 +118,12 @@ async def process_activity(activity, session):
 
     manifest = get_boilerplate_manifest()
     manifest["publicId"] = job.internal_public_manifest_uri
-    add_descriptive_metadata_to_manifest(manifest, descriptive_metadata_result.value)
+    add_descriptive_metadata_result = add_descriptive_metadata_to_manifest(manifest, descriptive_metadata_result.value)
+    if add_descriptive_metadata_result.failure:
+        logger.error(f"Failed to parse descriptive metadata from catalogue API: {add_descriptive_metadata_result.error}")
+        job.error_message = add_descriptive_metadata_result.error
+        job.save()
+        return
 
     logger.debug(f"Adding painted resources to manifest {job.internal_public_manifest_uri}")
     add_painted_resources_result = add_painted_resources(manifest, archival_group_result.value, mets_result.value, canvas_id_prefix, asset_prefix)
@@ -127,6 +132,7 @@ async def process_activity(activity, session):
         job.error_message = add_painted_resources_result.error
         job.save()
         return
+    logger.info(f"Added {len(manifest['paintedResources'])} painted resources to Manifest {job.internal_public_manifest_uri}")
 
     logger.debug(f"Saving Manifest to IIIF-CS: {job.internal_public_manifest_uri}")
     put_manifest_result = await put_manifest(session, job.internal_api_manifest_uri, manifest)

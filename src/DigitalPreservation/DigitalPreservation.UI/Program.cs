@@ -1,4 +1,4 @@
-using DigitalPreservation.CommonApiClient;
+﻿using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Workspace;
 using LeedsDlipServices;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
@@ -39,16 +40,20 @@ try
     IEnumerable<string>? initialScopes = new List<string>();
     builder.Configuration.GetSection("DownstreamApi:Scopes").Bind(initialScopes);
 
-    builder.Services
-        .AddMicrosoftIdentityWebAppAuthentication(builder.Configuration, "AzureAd")
-        .EnableTokenAcquisitionToCallDownstreamApi()
-        .AddInMemoryTokenCaches();
+    builder.Services.AddDistributedMemoryCache();
 
-    builder.Services.AddAuthentication()
-        .AddMicrosoftIdentityWebApp(builder.Configuration, "AzureAd", Microsoft.Identity.Web.Constants.AzureAd,
-            null)
+    builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApp(builder.Configuration, "AzureAd")
         .EnableTokenAcquisitionToCallDownstreamApi(initialScopes)
-        .AddSessionTokenCaches();
+        .AddDistributedTokenCaches();
+
+    builder.Services.AddAuthorization(options =>
+    {
+        options.FallbackPolicy = options.DefaultPolicy;
+    });
+
+
+    builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options => options.Events = new RejectSessionCookieWhenAccountNotInCacheEvents());
 
     // <ms_docref_add_default_controller_for_sign-in-out>
     builder.Services.AddRazorPages().AddMvcOptions(options =>
@@ -61,7 +66,7 @@ try
     }).AddMicrosoftIdentityUI();
 
     // Add session timeout page filter
-    builder.Services.AddSingleton<SessionTimeoutAsyncPageFilter>();
+    builder.Services.AddTransient<SessionTimeoutAsyncPageFilter>();
     builder.Services.AddSession();
 
 
@@ -110,13 +115,13 @@ try
         .UseHttpsRedirection()
         .UseStaticFiles()
         .UseRouting()
-        .UseAuthorization()
         .UseForwardedHeaders();
     app.UseSession();
     app.MapRazorPages();
     app.MapControllers();
     app.UseHealthChecks("/health");
     app.UseAuthentication();
+    app.UseAuthorization();
 
 
 
