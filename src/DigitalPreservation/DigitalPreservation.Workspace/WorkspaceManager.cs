@@ -48,7 +48,7 @@ public class WorkspaceManager(
             CombinedDirectory apparentRoot;
             // Is this a BagIt layout or a regular one?
             // If it is completely empty, we won't know this!
-            var dataDirectory = fileSystemRoot.Directories.SingleOrDefault(d => d.Name == FolderNames.BagItData);
+            var dataDirectory = fileSystemRoot.Directories.SingleOrDefault(d => d.LocalPath == FolderNames.BagItData);
             if (dataDirectory != null)
             {
                 combinedRoot = CombinedBuilder.BuildOffset(fileSystemRoot, dataDirectory, metsWrapper?.PhysicalStructure);
