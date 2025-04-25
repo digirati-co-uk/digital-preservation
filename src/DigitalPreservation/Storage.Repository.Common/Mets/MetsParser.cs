@@ -413,6 +413,7 @@ public class MetsParser(
                     string? digest = null;
                     long size = 0;
                     string? originalName = null;
+                    FileFormat? fileFormat = null;
                     if (!haveUsedAdmIdAlready)
                     {
                         var techMd = xMets.Descendants(XNames.MetsTechMD).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
@@ -437,6 +438,21 @@ public class MetsParser(
                         }
                         originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
                         haveUsedAdmIdAlready = true;
+                        var format = techMd.Descendants(XNames.PremisFormat).SingleOrDefault();
+                        if (format != null)
+                        {
+                            var name = format.Descendants(XNames.PremisFormatName).SingleOrDefault()?.Value;
+                            var key = format.Descendants(XNames.PremisFormatRegistryKey).SingleOrDefault()?.Value;
+                            if (name.HasText() && key.HasText())
+                            {
+                                fileFormat = new FileFormat
+                                {
+                                    Name = name, Key = key
+                                };
+                            }
+                        }
+
+                        fileFormat ??= new FileFormat { Name = "[Not Identified]", Key = "dlip/unknown" };
                     }
                     var parts = flocat.Split('/');
                     if (string.IsNullOrEmpty(mimeType))
@@ -462,11 +478,7 @@ public class MetsParser(
                             AdmId = admId,
                             PhysDivId = div.Attribute("ID")?.Value,
                             OriginalPath = originalName,
-                            FileFormat = new FileFormat
-                            {
-                                Name = "TODO",
-                                Key = "TODO"
-                            },
+                            FileFormat = fileFormat,
                             VirusScan = new VirusScan
                             {
                                 HasVirus = false

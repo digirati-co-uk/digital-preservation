@@ -28,7 +28,7 @@ public static class XElementX
     /// </summary>
     /// <param name="rawPremisXml"></param>
     /// <returns></returns>
-    public static PremisComplexType? GetPremisComplexObject(this XmlElement rawPremisXml)
+    public static PremisComplexType? GetPremisComplexType(this XmlElement rawPremisXml)
     {
         // I think that Goobi's example is incompatible with the generated classes.
         // We need a `PremisComplexType` to deserialise, rather than ObjectComplexType

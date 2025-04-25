@@ -10,8 +10,11 @@ using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
+using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
+using DigitalPreservation.XmlGen.Premis.V3;
 using Checksum = DigitalPreservation.Utils.Checksum;
+using File = System.IO.File;
 
 namespace Storage.Repository.Common.Mets;
 
@@ -87,8 +90,7 @@ public class MetsManager(
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
-                var reducedPremisForObjectDir = PremisOriginalNameWrapper
-                    .Replace("{localPath}", localPath);
+                var reducedPremisForObjectDir = new PremisFile { OriginalName = localPath };
                 mets.AmdSec.Add(GetAmdSecType(reducedPremisForObjectDir, admId, techId));
             }
             AddResourceToMets(mets, archivalGroup, childDirectoryDiv, childContainer);
@@ -112,10 +114,6 @@ public class MetsManager(
                 Fptr = { new DivTypeFptr{ Fileid = fileId } }
             };
             div.Div.Add(childItemDiv);
-            var reducedPremis = PremisFixityWrapper
-                .Replace("{sha256}", binary.Digest)
-                .Replace("{size}", binary.Size.ToString())
-                .Replace("{localPath}", localPath);
             mets.FileSec.FileGrp[0].File.Add(
                 new FileType
                 {
@@ -129,7 +127,13 @@ public class MetsManager(
                         } 
                     }
                 });
-            mets.AmdSec.Add(GetAmdSecType(reducedPremis, admId, techId));
+            var premisFile = new PremisFile
+            {
+                Digest = binary.Digest,
+                Size = binary.Size,
+                OriginalName = localPath
+            };
+            mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
         }
     }
 
@@ -448,16 +452,25 @@ public class MetsManager(
                     }
 
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
-                    
-                    // This replaces the Premis metadata, which won't be OK later when it gets richer
-                    // from pipeline decorators.
-                    // TODO: Instead, need to merge the premis metadata.
-                    var reducedPremis = PremisFixityWrapper
-                        .Replace("{sha256}", workingFile.Digest)
-                        .Replace("{size}", workingFile.Size.ToString())
-                        .Replace("{localPath}", workingFile.LocalPath);
-                    var reducedPremisX = GetElement(reducedPremis);
-                    amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } };
+                    var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
+                    var patchPremis = new PremisFile
+                    {
+                        Digest = workingFile.Digest,
+                        Size = workingFile.Size,
+                        OriginalName = workingFile.LocalPath
+                    };  
+                    PremisComplexType? premisType;
+                    if (premisXml is not null)
+                    {
+                        premisType = premisXml.GetPremisComplexType()!;
+                        PremisManager.Patch(premisType, patchPremis);
+                    }
+                    else
+                    {
+                        premisType = PremisManager.Create(patchPremis);
+                    }
+                    premisXml = PremisManager.GetXmlElement(premisType, true);
+                    amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
                 }
                 else if (workingBase is WorkingDirectory workingDirectory)
                 {
@@ -511,10 +524,6 @@ public class MetsManager(
                     Fptr = { new DivTypeFptr{ Fileid = fileId } }
                 };
                 div.Div.Add(childItemDiv);
-                var reducedPremis = PremisFixityWrapper
-                    .Replace("{sha256}", workingFile.Digest)
-                    .Replace("{size}", workingFile.Size.ToString())
-                    .Replace("{localPath}", workingFile.LocalPath);
                 fullMets.Mets.FileSec.FileGrp[0].File.Add(
                     new FileType
                     {
@@ -528,7 +537,13 @@ public class MetsManager(
                             } 
                         }
                     });
-                fullMets.Mets.AmdSec.Add(GetAmdSecType(reducedPremis, admId, techId));
+                var premisFile = new PremisFile
+                {
+                    Digest = workingFile.Digest,
+                    Size = workingFile.Size,
+                    OriginalName = workingFile.LocalPath
+                };
+                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
             }
             else if (workingBase is WorkingDirectory workingDirectory)
             {
@@ -540,9 +555,11 @@ public class MetsManager(
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
-                var reducedPremisForObjectDir = PremisOriginalNameWrapper
-                    .Replace("{localPath}", workingDirectory.LocalPath);
-                fullMets.Mets.AmdSec.Add(GetAmdSecType(reducedPremisForObjectDir, admId, techId));
+                var premisFile = new PremisFile
+                {
+                    OriginalName = workingDirectory.LocalPath
+                };
+                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
             }
             else
             {
@@ -580,8 +597,6 @@ public class MetsManager(
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()
     {
-        var reducedPremisForObjectDir = PremisOriginalNameWrapper
-            .Replace("{localPath}", "objects");
         var mets = new DigitalPreservation.XmlGen.Mets.Mets
         {
             MetsHdr = new()
@@ -634,7 +649,7 @@ public class MetsManager(
             },
             AmdSec =
             {
-                GetAmdSecType(reducedPremisForObjectDir, $"{AdmIdPrefix}objects", $"{TechIdPrefix}objects")
+                GetAmdSecType(new PremisFile { OriginalName = "objects" }, $"{AdmIdPrefix}objects", $"{TechIdPrefix}objects")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };
@@ -642,31 +657,6 @@ public class MetsManager(
         return mets;
     }
     
-    const string PremisFixityWrapper = """
-                                       <premis:object xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:premis="http://www.loc.gov/premis/v3" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd" version="3.0">
-                                           <premis:objectCharacteristics>
-                                               <premis:fixity>
-                                                   <premis:messageDigestAlgorithm>sha256</premis:messageDigestAlgorithm>
-                                                   <premis:messageDigest>{sha256}</premis:messageDigest>
-                                               </premis:fixity>
-                                               <premis:size>{size}</premis:size>
-                                           </premis:objectCharacteristics>
-                                           <premis:originalName>{localPath}</premis:originalName>
-                                       </premis:object>
-                                       """;
-    
-    const string PremisOriginalNameWrapper = """
-                                       <premis:object xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:premis="http://www.loc.gov/premis/v3" xsi:type="premis:file" xsi:schemaLocation="http://www.loc.gov/premis/v3 http://www.loc.gov/standards/premis/v3/premis.xsd" version="3.0">
-                                           <premis:originalName>{localPath}</premis:originalName>
-                                       </premis:object>
-                                       """;
-    private static XmlElement GetElement(string xml)
-    {
-        var doc = new XmlDocument();
-        doc.LoadXml(xml);
-        return doc.DocumentElement!;
-    }
-
     private static XmlSerializerNamespaces GetNamespaces()
     {
         var ns = new XmlSerializerNamespaces();
@@ -678,9 +668,11 @@ public class MetsManager(
         return ns;
     }
     
-    private static AmdSecType GetAmdSecType(string reducedPremisForObjectDir, string admId, string techId)
+    
+    private static AmdSecType GetAmdSecType(PremisFile premisFile, string admId, string techId)
     {
-        var reducedPremisX = GetElement(reducedPremisForObjectDir);
+        var premis = PremisManager.Create(premisFile);
+        var xElement = PremisManager.GetXmlElement(premis, true);
         var amdSec = new AmdSecType
         {
             Id = admId,
@@ -692,11 +684,19 @@ public class MetsManager(
                     MdWrap = new MdSecTypeMdWrap
                     {
                         Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
-                        XmlData = new MdSecTypeMdWrapXmlData { Any = { reducedPremisX } }
+                        XmlData = new MdSecTypeMdWrapXmlData { Any = { xElement }}
                     }
                 }
             }
         };
         return amdSec;
+    }
+    
+    [Obsolete("Make a ModsManager like PremisManager")]
+    private static XmlElement GetElement(string xml)
+    {
+        var doc = new XmlDocument();
+        doc.LoadXml(xml);
+        return doc.DocumentElement!;
     }
 }

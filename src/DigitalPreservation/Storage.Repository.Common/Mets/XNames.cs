@@ -54,6 +54,7 @@ public static class XNames
     public static readonly XName PremisSignificantPropertiesType = premis + "significantPropertiesType";
     public static readonly XName PremisSignificantPropertiesValue = premis + "significantPropertiesValue";
     public static readonly XName PremisSize = premis + "size";
+    public static readonly XName PremisFormat = premis + "format";
     public static readonly XName PremisFormatName = premis + "formatName";
     public static readonly XName PremisFormatVersion = premis + "formatVersion";
     public static readonly XName PremisFormatRegistryKey = premis + "formatRegistryKey";

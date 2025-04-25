@@ -3,12 +3,21 @@ using System.Xml.Serialization;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
 using FluentAssertions;
+using Storage.Repository.Common.Mets;
+using Xunit.Abstractions;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace XmlGen.Tests;
 
 public class PremisTests
 {
+    private readonly ITestOutputHelper testOutputHelper;
+
+    public PremisTests(ITestOutputHelper testOutputHelper)
+    {
+        this.testOutputHelper = testOutputHelper;
+    }
+
     [Fact (Skip = "Experimental")]
     public void Premis_Namespace_Handled()
     {
@@ -20,7 +29,7 @@ public class PremisTests
         var premis = (PremisComplexType) serializer.Deserialize(reader)!;
     }
     
-    [Fact (Skip = "Experimental")]
+    [Fact]
     public void Premis_Namespace_Artifically_Handled()
     {
         var updatedXml = "Samples/standalone-premis-updated.xml";
@@ -75,7 +84,7 @@ public class PremisTests
         premisFile.Should().NotBeNull();
     }
 
-    [Fact (Skip = "Experimental")]
+    [Fact]
     public void Premis_2()
     {
         var doc = new XmlDocument();
@@ -86,5 +95,178 @@ public class PremisTests
         premis.Should().NotBeNull();
         
     }
+
+    [Fact]
+    public void Build_Premis()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
     
+    [Fact]
+    public void Read_Premis()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var read = PremisManager.Read(premis);
+        read.Should().BeEquivalentTo(testData);
+    }
+    
+    [Fact]
+    public void Build_Premis_Get_XmlElement()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var xmlElement = PremisManager.GetXmlElement(premis, false);
+        
+        testOutputHelper.WriteLine(xmlElement?.ToString());
+    }
+
+
+    [Fact]
+    public void Edit_Premis_Size()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var update = new PremisFile
+        {
+            Size = 1111111
+        };
+        PremisManager.Patch(premis, update);
+        
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    [Fact]
+    public void Edit_Premis_PronomKey_Only()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var update = new PremisFile
+        {
+            PronomKey = "fmt/333"
+        };
+        PremisManager.Patch(premis, update);
+        
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    [Fact]
+    public void Edit_Premis_PronomKey_And_Format_Name()
+    {
+        var testData = GetTestPremisData();
+        var premis = PremisManager.Create(testData);
+        var update = new PremisFile
+        {
+            FormatName = "Some other bitmap",
+            PronomKey = "fmt/333"
+        };
+        PremisManager.Patch(premis, update);
+        
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    [Fact]
+    public void Simplest_Premis()
+    {
+        var premis = PremisManager.Create(new PremisFile());
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    
+    [Fact]
+    public void Premis_Digest_Only()
+    {
+        var premis = PremisManager.Create(new PremisFile
+        {
+            Digest = "123456"
+        });
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+        
+    [Fact]
+    public void Premis_Digest_and_Size_Only()
+    {
+        var premis = PremisManager.Create(new PremisFile
+        {
+            Digest = "123456",
+            Size = 654321
+        });
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }        
+    
+    [Fact]
+    public void Premis_Digest_and_Size_then_Edit_Name()
+    {
+        var start = new PremisFile
+        {
+            Digest = "123456",
+            Size = 654321
+        };
+        var premis = PremisManager.Create(start);
+        start.OriginalName = "bob";
+        PremisManager.Patch(premis, start);
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+        
+    [Fact]
+    public void Premis_Digest_and_Size_then_Edit_More()
+    {
+        var start = new PremisFile
+        {
+            Digest = "123456",
+            Size = 654321
+        };
+        var premis = PremisManager.Create(start);
+        start.OriginalName = "bob";
+        PremisManager.Patch(premis, start);
+        start.PronomKey = "fmt/bob";
+        PremisManager.Patch(premis, start);
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    [Fact]
+    public void Premis_Build_up_all()
+    {
+        var premisFile = new PremisFile
+        {
+            Digest = "123456",
+            Size = 654321
+        };
+        var premis = PremisManager.Create(premisFile);
+        premisFile.OriginalName = "bob";
+        PremisManager.Patch(premis, premisFile);
+        premisFile.PronomKey = "fmt/bob";
+        PremisManager.Patch(premis, premisFile);
+        premisFile.FormatName = "Some file format";
+        PremisManager.Patch(premis, premisFile);
+        var s = PremisManager.Serialise(premis);
+        testOutputHelper.WriteLine(s);
+    }
+    
+    
+    private static PremisFile GetTestPremisData()
+    {
+        var testData = new PremisFile
+        {
+            Digest = "efc63a2c4dbb61936b5028c637c76f066ce463b5de6f3d5d674c9f024fa08d79",
+            Size = 9999999,
+            FormatName = "Tagged Image File Format Test",
+            PronomKey = "fmt/999",
+            OriginalName = "files/a-file-path"
+        };
+        return testData;
+    }
 }
