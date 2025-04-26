@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
+using DigitalPreservation.Workspace;
 using LeedsDlipServices.Identity;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
@@ -116,8 +117,8 @@ public class CreateDepositBase(
             }
             logger.LogInformation("Result from EnsureMets is success " + metsResult.Success);
             
-            await storage.GenerateDepositFileSystem( 
-                new AmazonS3Uri(filesLocation.Value), true, cancellationToken);
+            var metadataReader = await MetadataReader.Create(storage, filesLocation.Value!);
+            await storage.GenerateDepositFileSystem(filesLocation.Value!, true, metadataReader.Decorate, cancellationToken);
 
             var entity = new DepositEntity
             {

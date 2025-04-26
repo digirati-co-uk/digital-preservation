@@ -12,10 +12,10 @@ using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.Workspace.Requests;
 
-public class DeleteObject(bool isBagItLayout, Uri s3Root, string path, bool isDirectory, string metsETag, bool fromFileSystem, bool fromMets) : IRequest<Result>
+public class DeleteObject(bool isBagItLayout, Uri rootUri, string path, bool isDirectory, string metsETag, bool fromFileSystem, bool fromMets) : IRequest<Result>
 {
     public bool IsBagItLayout { get; } = isBagItLayout;
-    public Uri S3Root { get; } = s3Root;
+    public Uri RootUri { get; } = rootUri;
     public string Path { get; } = path;
     public bool IsDirectory { get; } = isDirectory;
     public string MetsETag { get; } = metsETag;
@@ -30,8 +30,8 @@ public class DeleteObjectHandler(
 {
     public async Task<Result> Handle(DeleteObject request, CancellationToken cancellationToken)
     {
-        // TODO same as other - put ALL this behind IStorage?
-        var s3Uri = new AmazonS3Uri(request.S3Root);
+        // TODO same as other - put ALL this behind IStorage? YES
+        var s3Uri = new AmazonS3Uri(request.RootUri);
         var keyPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Path;
         var dor = new DeleteObjectRequest
         {
@@ -49,7 +49,7 @@ public class DeleteObjectHandler(
                 var response = await s3Client.DeleteObjectAsync(dor, cancellationToken);
                 if (response.HttpStatusCode == HttpStatusCode.NoContent)
                 {
-                    var removeJson = await storage.DeleteFromDepositFileSystem(s3Uri, keyPath, false, cancellationToken);
+                    var removeJson = await storage.DeleteFromDepositFileSystem(request.RootUri, keyPath, false, cancellationToken);
                     if(removeJson.Failure)
                     {
                         return Result.Fail(removeJson.ErrorCode ?? ErrorCodes.UnknownError, 
@@ -63,7 +63,7 @@ public class DeleteObjectHandler(
 
                 if (request.FromMets)
                 {
-                    var deleteFromMetsResult = await metsManager.HandleDeleteObject(s3Uri.ToUri(), request.Path, request.MetsETag);
+                    var deleteFromMetsResult = await metsManager.HandleDeleteObject(request.RootUri, request.Path, request.MetsETag);
                     return deleteFromMetsResult;
                 }
             }

@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using DigitalPreservation.Common.Model.Transit.Extensions;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
@@ -26,6 +27,8 @@ public abstract class WorkingBase
     [JsonPropertyOrder(100)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public MetsExtensions? MetsExtensions { get; set; }
+    
+    public List<IMetadata> Metadata { get; set; } = [];
 
     public string GetSlug()
     {

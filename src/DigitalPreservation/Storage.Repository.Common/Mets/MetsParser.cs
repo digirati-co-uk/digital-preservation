@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 using Checksum = DigitalPreservation.Utils.Checksum;
@@ -446,7 +447,7 @@ public class MetsParser(
                     string? digest = null;
                     long size = 0;
                     string? originalName = null;
-                    FileFormat? fileFormat = null;
+                    PremisMetadata? premisMetadata = null;
                     if (!haveUsedAdmIdAlready)
                     {
                         var techMd = xMets.Descendants(XNames.MetsTechMD).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
@@ -478,14 +479,21 @@ public class MetsParser(
                             var key = format.Descendants(XNames.PremisFormatRegistryKey).SingleOrDefault()?.Value;
                             if (name.HasText() && key.HasText())
                             {
-                                fileFormat = new FileFormat
+                                premisMetadata = new PremisMetadata
                                 {
-                                    Name = name, Key = key
+                                    Source = MetsManager.Mets,
+                                    PronomKey = key,
+                                    FormatName = name
                                 };
                             }
                         }
 
-                        fileFormat ??= new FileFormat { Name = "[Not Identified]", Key = "dlip/unknown" };
+                        premisMetadata ??= new PremisMetadata
+                        {
+                            Source = MetsManager.Mets,
+                            PronomKey = "dlip/unknown",
+                            FormatName = "[Not Identified]"
+                        };
                     }
                     var parts = flocat.Split('/');
                     if (string.IsNullOrEmpty(mimeType))
@@ -506,19 +514,21 @@ public class MetsParser(
                         Digest = digest,
                         Size = size,
                         Name = label ?? parts[^1],
+                        Metadata = [
+                            new VirusScanMetadata{ Source = MetsManager.Mets, HasVirus = false }
+                        ],
                         MetsExtensions = new MetsExtensions
                         {
                             AdmId = admId,
                             PhysDivId = div.Attribute("ID")?.Value,
                             OriginalPath = originalName,
-                            FileFormat = fileFormat,
-                            VirusScan = new VirusScan
-                            {
-                                HasVirus = false
-                            },
                             AccessCondition = "Open"
                         }
                     };
+                    if (premisMetadata != null)
+                    {
+                        file.Metadata.Add(premisMetadata);
+                    }
                     mets.Files.Add(file);
 
                     // We only know the "on disk" paths of folders from file paths in flocat

@@ -1,4 +1,5 @@
-﻿@using DigitalPreservation.Utils
+﻿@using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
+@using DigitalPreservation.Utils
 
 @model (DigitalPreservation.Common.Model.Binary?, DigitalPreservation.Common.Model.Transit.WorkingFile?) 
 
@@ -48,13 +49,16 @@
     }
     @if (workingFile != null)
     {
+        var premisFromMets = workingFile.Metadata.OfType<PremisMetadata>().SingleOrDefault();
+        var virusFromMets = workingFile.Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
+        
         <tr>
             <th scope="row">File format</th>
-            <td>@workingFile.MetsExtensions?.FileFormat?.GetDisplay()</td>
+            <td>@premisFromMets?.GetDisplay()</td>
         </tr>
         <tr>
             <th scope="row">Virus scan</th>
-            <td>@workingFile.MetsExtensions?.VirusScan?.GetDisplay()</td>
+            <td>@virusFromMets?.GetDisplay()</td>
         </tr>
     }
     <tr>

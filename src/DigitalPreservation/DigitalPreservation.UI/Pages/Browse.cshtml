@@ -1,6 +1,7 @@
 ﻿@page "{*pathUnderRoot}"
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Import
+@using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @using Microsoft.AspNetCore.Mvc.TagHelpers
@@ -355,9 +356,11 @@
                                 if (localPath != null)
                                 {
                                     var metsBinary = Model.MetsWorkingDirectory?.FindFile(localPath);
-                                    <td aria-label="td-format" title="@metsBinary?.MetsExtensions?.FileFormat?.Name">@metsBinary?.MetsExtensions?.FileFormat?.Key</td>
+                                    var premisFromMets = metsBinary?.Metadata.OfType<PremisMetadata>().SingleOrDefault();
+                                    var virusFromMets = metsBinary?.Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
+                                    <td aria-label="td-format" title="@premisFromMets?.FormatName">@premisFromMets?.PronomKey</td>
                                     <td aria-label="td-access">@metsBinary?.MetsExtensions?.AccessCondition</td>
-                                    <td aria-label="td-virus">@metsBinary?.MetsExtensions?.VirusScan?.GetDisplay()</td>
+                                    <td aria-label="td-virus">@virusFromMets?.GetDisplay()</td>
                                 }
                                 else
                                 {

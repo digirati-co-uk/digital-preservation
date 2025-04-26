@@ -21,7 +21,6 @@ public class ExecuteExport(string? identifier, ExportResource export, bool metsO
 }
 
 public class ExecuteExportHandler(
-    IStorage storage,
     IStorageMapper storageMapper,
     IAmazonS3 s3Client,
     IExportResultStore exportResultStore,
@@ -37,7 +36,8 @@ public class ExecuteExportHandler(
         
         export.Files = [];
         var errors = new List<Error>();
-        logger.LogInformation($"Executing Export {request.Identifier} for {request.Export.ArchivalGroup}; metOnly: {request.MetsOnly}");
+        logger.LogInformation("Executing Export {RequestIdentifier} for {ExportArchivalGroup}; metOnly: {RequestMetsOnly}", 
+            request.Identifier, request.Export.ArchivalGroup, request.MetsOnly);
         try
         {
             var storageMap = await storageMapper.GetStorageMap(export.ArchivalGroup, export.SourceVersion);
@@ -86,13 +86,16 @@ public class ExecuteExportHandler(
                 }
             }
 
-            var newWd = await storage.GenerateDepositFileSystem(destination, true, cancellationToken);
+            // Remove this, so that a new export DOES NOT have a __metslike.json - which is a Preservation API concern.
+            // The Preservation API can attempt to create one if this file is absent.
+            // var newWd = await storage.GenerateDepositFileSystem(destination, true, cancellationToken);
             // TODO: validate that newWd.Value matches what we expected from storageMap.Files
             export.DateFinished = DateTime.UtcNow;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, ex.Message);
+            logger.LogError(ex, "Could not Execute Export {RequestIdentifier} for {ExportArchivalGroup}; metOnly: {RequestMetsOnly}", 
+                request.Identifier, request.Export.ArchivalGroup, request.MetsOnly);
             errors.Add(new Error
             {
                 Id = new Uri(export.Id + "#error"),

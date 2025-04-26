@@ -28,14 +28,4 @@ public class MetsExtensions
     [JsonPropertyOrder(201)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OriginalPath { get; set; }
-    
-    [JsonPropertyName("fileFormat")]
-    [JsonPropertyOrder(202)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public FileFormat? FileFormat { get; set; }
-    
-    [JsonPropertyName("virusScan")]
-    [JsonPropertyOrder(203)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public VirusScan? VirusScan { get; set; }
 }

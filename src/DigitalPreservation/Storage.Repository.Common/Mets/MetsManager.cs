@@ -10,6 +10,7 @@ using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
@@ -32,6 +33,8 @@ public class MetsManager(
     private const string MetadataDivId = PhysIdPrefix + FolderNames.Metadata;
     private const string DirectoryType = "Directory";
     private const string ItemType = "Item";
+
+    public const string Mets = "METS";
     
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -92,7 +95,11 @@ public class MetsManager(
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
-                var reducedPremisForObjectDir = new PremisFile { OriginalName = localPath };
+                var reducedPremisForObjectDir = new PremisMetadata
+                {
+                    Source = Mets,
+                    OriginalName = localPath
+                };
                 mets.AmdSec.Add(GetAmdSecType(reducedPremisForObjectDir, admId, techId));
             }
             AddResourceToMets(mets, archivalGroup, childDirectoryDiv, childContainer);
@@ -129,8 +136,9 @@ public class MetsManager(
                         } 
                     }
                 });
-            var premisFile = new PremisFile
+            var premisFile = new PremisMetadata
             {
+                Source = Mets,
                 Digest = binary.Digest,
                 Size = binary.Size,
                 OriginalName = localPath
@@ -455,8 +463,9 @@ public class MetsManager(
 
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
-                    var patchPremis = new PremisFile
+                    var patchPremis = new PremisMetadata
                     {
+                        Source = Mets,
                         Digest = workingFile.Digest,
                         Size = workingFile.Size,
                         OriginalName = operationPath // workingFile.LocalPath
@@ -539,8 +548,9 @@ public class MetsManager(
                             } 
                         }
                     });
-                var premisFile = new PremisFile
+                var premisFile = new PremisMetadata
                 {
+                    Source = Mets,
                     Digest = workingFile.Digest,
                     Size = workingFile.Size,
                     OriginalName = operationPath // workingFile.LocalPath
@@ -557,8 +567,9 @@ public class MetsManager(
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
-                var premisFile = new PremisFile
+                var premisFile = new PremisMetadata
                 {
+                    Source = Mets,
                     OriginalName = operationPath // workingDirectory.LocalPath
                 };
                 fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
@@ -659,8 +670,16 @@ public class MetsManager(
             },
             AmdSec =
             {
-                GetAmdSecType(new PremisFile { OriginalName = FolderNames.Objects }, $"{AdmIdPrefix}{FolderNames.Objects}", $"{TechIdPrefix}{FolderNames.Objects}"),
-                GetAmdSecType(new PremisFile { OriginalName = FolderNames.Metadata }, $"{AdmIdPrefix}{FolderNames.Metadata}", $"{TechIdPrefix}{FolderNames.Metadata}")
+                GetAmdSecType(new PremisMetadata
+                    {
+                        Source = Mets, OriginalName = FolderNames.Objects 
+                    }, 
+                    $"{AdmIdPrefix}{FolderNames.Objects}", $"{TechIdPrefix}{FolderNames.Objects}"),
+                GetAmdSecType(new PremisMetadata
+                    {
+                        Source = Mets, OriginalName = FolderNames.Metadata 
+                    }, 
+                    $"{AdmIdPrefix}{FolderNames.Metadata}", $"{TechIdPrefix}{FolderNames.Metadata}")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };
@@ -680,7 +699,7 @@ public class MetsManager(
     }
     
     
-    private static AmdSecType GetAmdSecType(PremisFile premisFile, string admId, string techId)
+    private static AmdSecType GetAmdSecType(PremisMetadata premisFile, string admId, string techId)
     {
         var premis = PremisManager.Create(premisFile);
         var xElement = PremisManager.GetXmlElement(premis, true);

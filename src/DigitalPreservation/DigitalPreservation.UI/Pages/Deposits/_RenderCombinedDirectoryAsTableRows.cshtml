@@ -1,4 +1,5 @@
 ﻿@using DigitalPreservation.Common.Model.Transit
+@using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.Utils
 @using Storage.Repository.Common
 @model CombinedDirectoryRecursionWrapper
@@ -93,7 +94,11 @@ File is in both
         <td aria-label="hash">@file.Digest?[..8]</td>
         <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
         <td aria-label="content-type">@file.ContentType</td>
-        <td aria-label="pronom" title="@(file.FileInMets?.MetsExtensions?.FileFormat?.Name ?? "(no PRONOM format")">@(file.FileInMets?.MetsExtensions?.FileFormat?.Key ?? "-")</td>
-        <td aria-label="virus">@file.FileInMets?.MetsExtensions?.VirusScan?.GetDisplay()</td>
+        @{
+            var premisFromMets = file.FileInMets?.Metadata.OfType<PremisMetadata>().SingleOrDefault();
+            var virusFromMets = file.FileInMets?.Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
+        }
+        <td aria-label="pronom" title="@(premisFromMets?.FormatName ?? "(no PRONOM format")">@(premisFromMets?.PronomKey ?? "-")</td>
+        <td aria-label="virus">@virusFromMets?.GetDisplay()</td>
     </tr>
 } 

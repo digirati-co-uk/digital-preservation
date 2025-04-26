@@ -23,8 +23,8 @@ internal class FedoraClient(
     IStorageMapper storageMapper,
     FedoraDB fedoraDB) : IFedoraClient
 {
-    public readonly bool RequireChecksum = fedoraOptions.Value.RequireDigestOnBinary;
-    public readonly string FedoraBucket = fedoraOptions.Value.Bucket;
+    private readonly bool requireChecksum = fedoraOptions.Value.RequireDigestOnBinary;
+    private readonly string fedoraBucket = fedoraOptions.Value.Bucket;
     
     public async Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
@@ -70,8 +70,7 @@ internal class FedoraClient(
                 uri, 
                 isArchivalGroup: false, 
                 recurse: false, 
-                canUseDb: storageMap == null,
-                transaction);
+                canUseDb: storageMap == null);
             if (storageMap != null && container != null)
             {
                 PopulateOrigins(storageMap, container);
@@ -88,10 +87,10 @@ internal class FedoraClient(
     public async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(string pathUnderFedoraRoot, string? version = null, Transaction? transaction = null)
     {
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
-        return await GetPopulatedArchivalGroup(uri, version, transaction);
+        return await GetPopulatedArchivalGroup(uri, version);
     }
 
-    private async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(Uri uri, string? version = null, Transaction? transaction = null)
+    private async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(Uri uri, string? version = null)
     {
         var versions = await GetFedoraVersions(uri);
         if (versions == null)
@@ -101,7 +100,7 @@ internal class FedoraClient(
         var storageMap = await GetCacheableStorageMap(uri, version, true);
         MergeVersions(versions, storageMap.AllVersions);
 
-        if(await GetPopulatedContainer(uri, true, true, false, transaction) is not ArchivalGroup archivalGroup)
+        if(await GetPopulatedContainer(uri, true, true, false) is not ArchivalGroup archivalGroup)
         {
             return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"{uri} is not an Archival Group");
         }
@@ -110,7 +109,7 @@ internal class FedoraClient(
             return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"{uri} does not match {archivalGroup.Id}");
         }
 
-        archivalGroup.Origin = storageMapper.GetArchivalGroupOrigin(archivalGroup.Id)!.S3UriInBucket(FedoraBucket);
+        archivalGroup.Origin = storageMapper.GetArchivalGroupOrigin(archivalGroup.Id)!.S3UriInBucket(fedoraBucket);
         archivalGroup.Versions = versions;
         archivalGroup.StorageMap = storageMap;
         archivalGroup.Version = versions.Single(v => v.OcflVersion == storageMap.Version.OcflVersion);
@@ -339,16 +338,16 @@ internal class FedoraClient(
     public async Task<Result<Container?>> CreateContainer(string pathUnderFedoraRoot, string callerIdentity, string? name,
         Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
-        return await CreateContainerWithChecks(pathUnderFedoraRoot, callerIdentity, name, false, transaction, cancellationToken);
+        return await CreateContainerWithChecks(pathUnderFedoraRoot, callerIdentity, name, false, transaction);
     }
 
     public async Task<Result<Container?>> CreateContainerWithinArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, string? name, Transaction? transaction = null,
         CancellationToken cancellationToken = default)
     {
-        return await CreateContainerWithChecks(pathUnderFedoraRoot, callerIdentity, name, true, transaction, cancellationToken);
+        return await CreateContainerWithChecks(pathUnderFedoraRoot, callerIdentity, name, true, transaction);
     }
     
-    private async Task<Result<Container?>> CreateContainerWithChecks(string pathUnderFedoraRoot, string callerIdentity, string? name, bool isWithinArchivalGroup, Transaction? transaction = null, CancellationToken cancellationToken = default)
+    private async Task<Result<Container?>> CreateContainerWithChecks(string pathUnderFedoraRoot, string callerIdentity, string? name, bool isWithinArchivalGroup, Transaction? transaction = null)
     {
         var validateResult = await ContainerCanBeCreatedAtPath(pathUnderFedoraRoot, isWithinArchivalGroup, transaction);
         if (validateResult.Failure)
@@ -478,7 +477,7 @@ internal class FedoraClient(
         {
             // https://github.com/fcrepo/fcrepo/pull/2044
             // see also https://github.com/whikloj/fcrepo4-tests/blob/fcrepo-6/archival_group_tests.py#L149-L190
-            // 410 indicates that this URI has a tombstone sitting at it; it has previously been DELETEd.
+            // 410 indicates that this URI has a tombstone sitting at it; it has previously been deleted.
             // But we want to reinstate a binary.
 
             // Log or record somehow that this has happened?
@@ -537,7 +536,7 @@ internal class FedoraClient(
         bool isMissing = string.IsNullOrWhiteSpace(binary.Digest);
         if (isMissing || validate)
         {
-            if (isMissing && RequireChecksum)
+            if (isMissing && requireChecksum)
             {
                 return Result.Fail($"Missing digest on incoming Binary {binary.Id}");
             }
@@ -569,7 +568,16 @@ internal class FedoraClient(
         try
         {
             logger.LogInformation("Getting stream from storage content at origin {origin}", binary.Origin);
-            putStream = await storage.GetStream(binary.Origin!);
+            var streamResult = await storage.GetStream(binary.Origin!);
+            if (streamResult is { Success: true, Value: not null })
+            {
+                putStream = streamResult.Value;
+            }
+            else
+            {
+                logger.LogError("Unable to read origin as stream: " + streamResult.CodeAndMessage());
+                return null;
+            }
         }
         catch (Exception e)
         {
@@ -596,10 +604,11 @@ internal class FedoraClient(
     /// <summary>
     /// For deleting resources within AGs
     /// It still works outside AGs but will leave tombstones behind (correctly)
-    ///
+    /// 
     /// The DeleteContainerOutsideOfArchivalGroup is used for additionally specifying a purge
     /// </summary>
     /// <param name="resource"></param>
+    /// <param name="callerIdentity"></param>
     /// <param name="transaction"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
@@ -634,7 +643,7 @@ internal class FedoraClient(
         CancellationToken cancellationToken)
     {
         // GetResource can return a tombstone... - check that
-        // Now get the resource and make sure it's an EMPTY container OUTSIDE of an AG
+        // Now get the resource and make sure it's an EMPTY container OUTSIDE an AG
         var resType = await GetResourceType(pathUnderFedoraRoot);
         if (resType.Failure)
         {
@@ -719,7 +728,7 @@ internal class FedoraClient(
         return Result.Fail<ArchivalGroup>(agResult.ErrorCode ?? ErrorCodes.UnknownError, agResult.ErrorMessage);
     }
 
-    private async Task<Container?> GetPopulatedContainer(Uri uri, bool isArchivalGroup, bool recurse, bool canUseDb, Transaction? transaction = null)
+    private async Task<Container?> GetPopulatedContainer(Uri uri, bool isArchivalGroup, bool recurse, bool canUseDb)
     {
         // temporarily use recurse as a flag to use DB.
         Container? dbContainer = null;
@@ -808,7 +817,7 @@ internal class FedoraClient(
                 Container? container;
                 if (recurse)
                 {
-                    container = await GetPopulatedContainer(fedoraContainer.Id, false, true, canUseDb, transaction);
+                    container = await GetPopulatedContainer(fedoraContainer.Id, false, true, canUseDb);
                 }
                 else
                 {
@@ -819,7 +828,7 @@ internal class FedoraClient(
             else if (resource.HasType("fedora:Binary"))
             {
                 var fedoraBinary = GetFedoraBinaryMetadataResponse(resource)!;
-                var binary = converters.MakeBinary(fedoraBinary!);
+                var binary = converters.MakeBinary(fedoraBinary);
                 topContainer.Binaries.Add(binary);
             }
         }
@@ -984,7 +993,7 @@ internal class FedoraClient(
         using var jDoc = JsonDocument.Parse(content);
         var childIds = GetIdsFromContainsProperty(jDoc.RootElement);
         // We could go and request each of these.
-        // But... the Fedora API gives the created and lastmodified date of the original, not the version, when you ask for a versioned response.
+        // But... the Fedora API gives the created and lastModified date of the original, not the version, when you ask for a versioned response.
         // Is that a bug?
         // We're not going to learn anything more than we would by parsing the memento path elements - which is TERRIBLY non-REST-y
         return childIds
@@ -1048,9 +1057,6 @@ internal class FedoraClient(
             case HttpStatusCode.Gone:
                 tx.Expired = true;
                 break;
-            default:
-                // error?
-                break;
         }
     }
 
@@ -1084,9 +1090,6 @@ internal class FedoraClient(
             case HttpStatusCode.Gone:
                 tx.Expired = true;
                 break;
-            default:
-                // error?
-                break;
         }
         response.EnsureSuccessStatusCode();
     }
@@ -1105,9 +1108,6 @@ internal class FedoraClient(
                 break;
             case HttpStatusCode.Gone:
                 tx.Expired = true;
-                break;
-            default:
-                // error?
                 break;
         }
         response.EnsureSuccessStatusCode();
