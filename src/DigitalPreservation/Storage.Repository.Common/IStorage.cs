@@ -38,6 +38,25 @@ public interface IStorage
     Task<Result> DeleteFromDepositFileSystem(Uri location, string path, bool errorIfNotFound, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Test to see if a file or folder exists in the storage location.
+    /// WARNING - this will return false for "folder" path elements of an S3 URI, like
+    /// s3://bucket/some/path/in/bucket
+    /// In this bucket, some/path/ DOES NOT EXIST
+    /// Only explicitly created path/ keys (symbolising an empty folder) will return true.
+    /// </summary>
+    /// <param name="fileOrFolder">Use a trailing slash to indicate a folder</param>
+    /// <returns></returns>
+    Task<bool> Exists(Uri fileOrFolder);
+    
+    /// <summary>
+    /// Return a list of files and folders under root, or under root + subpath
+    /// </summary>
+    /// <param name="root"></param>
+    /// <param name="subPath"></param>
+    /// <returns></returns>
+    Task<List<Uri>> GetListing(Uri root, string? subPath = null);
+    
+    /// <summary>
     /// Remove all the files in this location, and the location itself!
     /// </summary>
     /// <param name="storageLocation"></param>

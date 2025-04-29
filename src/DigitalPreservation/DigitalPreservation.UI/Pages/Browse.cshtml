@@ -356,7 +356,7 @@
                                 if (localPath != null)
                                 {
                                     var metsBinary = Model.MetsWorkingDirectory?.FindFile(localPath);
-                                    var premisFromMets = metsBinary?.Metadata.OfType<PremisMetadata>().SingleOrDefault();
+                                    var premisFromMets = metsBinary?.Metadata.OfType<FileFormatMetadata>().SingleOrDefault();
                                     var virusFromMets = metsBinary?.Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
                                     <td aria-label="td-format" title="@premisFromMets?.FormatName">@premisFromMets?.PronomKey</td>
                                     <td aria-label="td-access">@metsBinary?.MetsExtensions?.AccessCondition</td>

@@ -28,8 +28,11 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="Fixtures\siegfried1.yml">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <None Update="Fixtures\siegfried.yml">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="Fixtures\siegfried.csv">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
     </ItemGroup>
 

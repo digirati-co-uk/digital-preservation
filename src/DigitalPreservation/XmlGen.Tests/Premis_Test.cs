@@ -124,7 +124,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     {
         var testData = GetTestPremisData();
         var premis = PremisManager.Create(testData);
-        var update = new PremisMetadata
+        var update = new FileFormatMetadata
         {
             Source = "Tests",
             Size = 1111111
@@ -140,7 +140,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     {
         var testData = GetTestPremisData();
         var premis = PremisManager.Create(testData);
-        var update = new PremisMetadata
+        var update = new FileFormatMetadata
         {
             Source = "Tests",
             PronomKey = "fmt/333"
@@ -156,7 +156,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     {
         var testData = GetTestPremisData();
         var premis = PremisManager.Create(testData);
-        var update = new PremisMetadata
+        var update = new FileFormatMetadata
         {
             Source = "Tests",
             FormatName = "Some other bitmap",
@@ -171,7 +171,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     [Fact]
     public void Simplest_Premis()
     {
-        var premis = PremisManager.Create(new PremisMetadata{Source = "Tests"});
+        var premis = PremisManager.Create(new FileFormatMetadata{Source = "Tests"});
         var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
     }
@@ -180,7 +180,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     [Fact]
     public void Premis_Digest_Only()
     {
-        var premis = PremisManager.Create(new PremisMetadata
+        var premis = PremisManager.Create(new FileFormatMetadata
         {
             Source = "Tests",
             Digest = "123456"
@@ -193,7 +193,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     [Fact]
     public void Premis_Digest_and_Size_Only()
     {
-        var premis = PremisManager.Create(new PremisMetadata
+        var premis = PremisManager.Create(new FileFormatMetadata
         {
             Source = "Tests",
             Digest = "123456",
@@ -206,7 +206,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     [Fact]
     public void Premis_Digest_and_Size_then_Edit_Name()
     {
-        var start = new PremisMetadata
+        var start = new FileFormatMetadata
         {
             Source = "Tests",
             Digest = "123456",
@@ -223,7 +223,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     [Fact]
     public void Premis_Digest_and_Size_then_Edit_More()
     {
-        var start = new PremisMetadata
+        var start = new FileFormatMetadata
         {
             Source = "Tests",
             Digest = "123456",
@@ -241,7 +241,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     [Fact]
     public void Premis_Build_up_all()
     {
-        var premisMetadata = new PremisMetadata
+        var premisMetadata = new FileFormatMetadata
         {
             Source = "Tests",
             Digest = "123456",
@@ -259,9 +259,9 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     }
     
     
-    private static PremisMetadata GetTestPremisData()
+    private static FileFormatMetadata GetTestPremisData()
     {
-        var testData = new PremisMetadata
+        var testData = new FileFormatMetadata
         {
             Source = "Tests",
             Digest = "efc63a2c4dbb61936b5028c637c76f066ce463b5de6f3d5d674c9f024fa08d79",

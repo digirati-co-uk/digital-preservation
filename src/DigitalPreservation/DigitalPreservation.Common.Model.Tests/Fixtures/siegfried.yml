@@ -1,0 +1,218 @@
+---
+siegfried   : 1.11.0
+scandate    : 2025-04-25T14:14:41Z
+signature   : default.sig
+created     : 2023-12-17T15:54:41+01:00
+identifiers : 
+  - name    : 'pronom'
+    details : 'DROID_SignatureFile_V116.xml; container-signature-20231127.xml'
+---
+filename : 'bc-example-1/objects/Fedora-Usage-Principles.docx'
+filesize : 17305
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : 4650877617ebc07caa9ec21c8405c6b72d6f20d3904758879b6bfc16f2a45bdc
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/412'
+    format  : 'Microsoft Word for Windows'
+    version : '2007 onwards'
+    mime    : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    class   : 'Word Processor'
+    basis   : 'extension match docx; container name [Content_Types].xml with byte match at 327, 94 (signature 1/3)'
+    warning : 
+---
+filename : 'bc-example-1/objects/IMAGE-2.tiff'
+filesize : 4360016
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : 3aa1134f4c05a7c9b7465940b062122081cc7ed96925b6770145125a34fec78a
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/353'
+    format  : 'Tagged Image File Format'
+    version : 
+    mime    : 'image/tiff'
+    class   : 'Image (Raster)'
+    basis   : 'extension match tiff; byte match at 0, 4 (signature 1/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/awkward/7 ways to celebrate #WomensHistoryMonth 💜 And a sneak peek at SICK new art.htm'
+filesize : 615504
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : e4267807db7270096340540b93834d3c47d56c964d5b5b27fa9a398fde52165e
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/96'
+    format  : 'Hypertext Markup Language'
+    version : 
+    mime    : 'text/html'
+    class   : 'Text (Mark-up)'
+    basis   : 'extension match htm; byte match at [[2 10] [615486 14]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/awkward/慷獹琠散敬牢瑡圣浯湥䡳獩潴祲潍瑮㼿䄠摮愠猠敮歡瀠敥瑡匠䍉敮⁷牡�.msg'
+filesize : 165888
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : 5c96ddc2f012cdededdad116a913bf7e57ba8b9684c8a1b9b429b77f7d13629a
+matches  :
+  - ns      : 'pronom'
+    id      : 'x-fmt/430'
+    format  : 'Microsoft Outlook Email Message'
+    version : '97-2003'
+    mime    : 
+    class   : 'Email'
+    basis   : 'extension match msg; container name __nameid_version1.0 with name only; name __properties_version1.0 with name only'
+    warning : 
+---
+filename : 'bc-example-1/objects/nyc/DSCF0969.JPG'
+filesize : 8848005
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : 11d89be87a4a3bef41bca60193ca158e78172b6bf4164691bc68134b9289950d
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [8848003 2]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/nyc/DSCF0981.JPG'
+filesize : 8148972
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : 77e3e1c6920aef1b77c35e9830fa54d274b7beef54d6e25d56f6dbe0874f29b0
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [8148970 2]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/nyc/DSCF0993.JPG'
+filesize : 9260052
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : ee82fe4bdbb3fd3cae1c4a5e3c35bdae7510cfa60432b1c825d4421141499663
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [9260050 2]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/nyc/DSCF1004.JPG'
+filesize : 8388766
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : 27745ff980dffa4d48e02b1cb4d19a94565f3ffdffaf14dec23597c82bfd7d63
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [8388764 2]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/nyc/DSCF1008.JPG'
+filesize : 10733960
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : ab4f19d0c0df461fc1b020cb8d83d17c16a6f39249c4bad3574c6d68966b20ec
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [10733958 2]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/nyc/DSCF1044.JPG'
+filesize : 9297421
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : e2e9f06f8180d1f101eb5e02f97b70bc395750e6ffdecf045db43605acb50682
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [9297419 2]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/nyc/DSCF1090.JPG'
+filesize : 10108518
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : 1b1036eb0a88daef957b2ed4740ffffb9dea3914665ab598024ae3595f612567
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [10108516 2]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/nyc/DSCF1128.JPG'
+filesize : 9669641
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : a30141f944906ab4ff4ac03c7f341cee9ba165f6036b9e70e5e2c5bf8428b4fd
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [9669639 2]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/nyc/DSCF1156.JPG'
+filesize : 7686654
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : 0298a9c0bf853aaaca9e95dc4c0d0d769b66347102dea65ba6ede6fce1548162
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [7686652 2]] (signature 2/2)'
+    warning : 
+---
+filename : 'bc-example-1/objects/warteck.jpg'
+filesize : 10600729
+modified : 2025-04-20T12:45:53Z
+errors   : 
+sha256   : 243c32394db4879c2fee146a0175ad5d402ed151656e7fb5ea580d04e2d4a6db
+matches  :
+  - ns      : 'pronom'
+    id      : 'fmt/1507'
+    format  : 'Exchangeable Image File Format (Compressed)'
+    version : '2.3.x'
+    mime    : 'image/jpeg'
+    class   : 'Image (Raster)'
+    basis   : 'extension match jpg; byte match at [[0 16] [426 12] [10600727 2]] (signature 2/2)'
+    warning : 

@@ -5,16 +5,8 @@ namespace DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 /// <summary>
 /// Represents only the Premis fields we are interested in WRITING to METS
 /// </summary>
-public class PremisMetadata : IMetadata, IDigestMetadata
+public class FileFormatMetadata : Metadata, IDigestMetadata
 {
-    [JsonPropertyName("source")]
-    [JsonPropertyOrder(1)]
-    public required string Source { get; set; }
-    
-    [JsonPropertyName("timestamp")]
-    [JsonPropertyOrder(2)]
-    public DateTime Timestamp { get; set; }
-    
     [JsonPropertyName("digest")]
     [JsonPropertyOrder(10)]
     public string? Digest { get; set; } // must be sha256; also on its own on 
@@ -34,6 +26,10 @@ public class PremisMetadata : IMetadata, IDigestMetadata
     [JsonPropertyName("originalName")]
     [JsonPropertyOrder(140)]
     public string? OriginalName { get; set; }
+    
+    [JsonPropertyName("contentType")]
+    [JsonPropertyOrder(150)]
+    public string? ContentType { get; set; }
     
     public string GetDisplay()
     {

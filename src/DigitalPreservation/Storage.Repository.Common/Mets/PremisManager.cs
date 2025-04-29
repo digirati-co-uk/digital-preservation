@@ -20,15 +20,15 @@ public static class PremisManager
         Namespaces.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
     }
     
-    public static PremisMetadata? Read(PremisComplexType premis)
+    public static FileFormatMetadata? Read(PremisComplexType premis)
     {
         var file = premis.Object.FirstOrDefault(po => po is File);
         return file == null ? null : Read((File)file);
     }
     
-    public static PremisMetadata Read(File file)
+    public static FileFormatMetadata Read(File file)
     {
-        var premisFile = new PremisMetadata{ Source = "METS" };
+        var premisFile = new FileFormatMetadata{ Source = "METS" };
         var objectCharacteristics = file.ObjectCharacteristics.FirstOrDefault();
         
         var fixity = objectCharacteristics?.Fixity?.FirstOrDefault(f => f.MessageDigestAlgorithm.Value?.ToUpperInvariant() == Sha256);
@@ -64,7 +64,7 @@ public static class PremisManager
 
     }
     
-    public static PremisComplexType Create(PremisMetadata premisFile)
+    public static PremisComplexType Create(FileFormatMetadata premisFile)
     {
         var premis = new PremisComplexType();
         var file = new File();
@@ -116,7 +116,7 @@ public static class PremisManager
         return premis;
     }
 
-    public static void Patch(PremisComplexType premis, PremisMetadata premisFile)
+    public static void Patch(PremisComplexType premis, FileFormatMetadata premisFile)
     {
         // This is not just the same as Create because it shouldn't touch any fields existing
         // in the premis:file already, other than those supplied

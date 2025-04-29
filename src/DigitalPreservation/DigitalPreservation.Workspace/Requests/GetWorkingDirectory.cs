@@ -18,9 +18,9 @@ public class ReadS3Handler(IStorage storage) : IRequestHandler<GetWorkingDirecto
 {
     public async Task<Result<WorkingDirectory?>> Handle(GetWorkingDirectory request, CancellationToken cancellationToken)
     {
-        var metadataReader = await MetadataReader.Create(storage, request.RootUri);
         if (request.ReadFromS3)
         {
+            var metadataReader = await MetadataReader.Create(storage, request.RootUri);
             var fromScratch = await storage.GenerateDepositFileSystem(
                request.RootUri, request.WriteToStorage, metadataReader.Decorate, cancellationToken);
             return fromScratch;
@@ -30,6 +30,7 @@ public class ReadS3Handler(IStorage storage) : IRequestHandler<GetWorkingDirecto
         {
             if (request.LastModified.HasValue && fromJson.Value.Modified < request.LastModified)
             {
+                var metadataReader = await MetadataReader.Create(storage, request.RootUri);
                 var fromScratch = await storage.GenerateDepositFileSystem(
                     request.RootUri, true, metadataReader.Decorate, cancellationToken);
                 return fromScratch;
@@ -38,6 +39,7 @@ public class ReadS3Handler(IStorage storage) : IRequestHandler<GetWorkingDirecto
         }
         if (fromJson.ErrorCode == ErrorCodes.NotFound && request.WriteToStorage)
         {
+            var metadataReader = await MetadataReader.Create(storage, request.RootUri);
             var fromScratch = await storage.GenerateDepositFileSystem(
                 request.RootUri, true, metadataReader.Decorate, cancellationToken);
             return fromScratch;

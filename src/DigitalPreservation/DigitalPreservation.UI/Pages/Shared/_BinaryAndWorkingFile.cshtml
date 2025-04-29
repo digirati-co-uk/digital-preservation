@@ -49,7 +49,7 @@
     }
     @if (workingFile != null)
     {
-        var premisFromMets = workingFile.Metadata.OfType<PremisMetadata>().SingleOrDefault();
+        var premisFromMets = workingFile.Metadata.OfType<FileFormatMetadata>().SingleOrDefault();
         var virusFromMets = workingFile.Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
         
         <tr>

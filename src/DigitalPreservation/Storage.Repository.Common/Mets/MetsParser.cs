@@ -447,7 +447,7 @@ public class MetsParser(
                     string? digest = null;
                     long size = 0;
                     string? originalName = null;
-                    PremisMetadata? premisMetadata = null;
+                    FileFormatMetadata? premisMetadata = null;
                     if (!haveUsedAdmIdAlready)
                     {
                         var techMd = xMets.Descendants(XNames.MetsTechMD).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
@@ -479,7 +479,7 @@ public class MetsParser(
                             var key = format.Descendants(XNames.PremisFormatRegistryKey).SingleOrDefault()?.Value;
                             if (name.HasText() && key.HasText())
                             {
-                                premisMetadata = new PremisMetadata
+                                premisMetadata = new FileFormatMetadata
                                 {
                                     Source = MetsManager.Mets,
                                     PronomKey = key,
@@ -488,7 +488,7 @@ public class MetsParser(
                             }
                         }
 
-                        premisMetadata ??= new PremisMetadata
+                        premisMetadata ??= new FileFormatMetadata
                         {
                             Source = MetsManager.Mets,
                             PronomKey = "dlip/unknown",

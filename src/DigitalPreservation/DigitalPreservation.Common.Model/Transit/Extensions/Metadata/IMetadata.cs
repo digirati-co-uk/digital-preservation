@@ -2,13 +2,18 @@
 
 namespace DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 
-public interface IMetadata
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(FileFormatMetadata), typeDiscriminator: "FileFormatMetadata")]
+[JsonDerivedType(typeof(ExifMetadata), typeDiscriminator: "ExifMetadata")]
+[JsonDerivedType(typeof(DigestMetadata), typeDiscriminator: "DigestMetadata")]
+[JsonDerivedType(typeof(VirusScanMetadata), typeDiscriminator: "VirusScanMetadata")]
+public abstract class Metadata
 {
     [JsonPropertyName("source")]
     [JsonPropertyOrder(1)]
-    string Source { get; set; }
+    public required string Source { get; set; }
     
     [JsonPropertyName("timestamp")]
     [JsonPropertyOrder(1)]
-    DateTime Timestamp { get; set; }
+    public DateTime Timestamp { get; set; }
 }

@@ -95,7 +95,7 @@ public class MetsManager(
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
-                var reducedPremisForObjectDir = new PremisMetadata
+                var reducedPremisForObjectDir = new FileFormatMetadata
                 {
                     Source = Mets,
                     OriginalName = localPath
@@ -136,7 +136,7 @@ public class MetsManager(
                         } 
                     }
                 });
-            var premisFile = new PremisMetadata
+            var premisFile = new FileFormatMetadata
             {
                 Source = Mets,
                 Digest = binary.Digest,
@@ -463,13 +463,7 @@ public class MetsManager(
 
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
-                    var patchPremis = new PremisMetadata
-                    {
-                        Source = Mets,
-                        Digest = workingFile.Digest,
-                        Size = workingFile.Size,
-                        OriginalName = operationPath // workingFile.LocalPath
-                    };  
+                    var patchPremis = GetFileFormatMetadata(workingFile, operationPath);  
                     PremisComplexType? premisType;
                     if (premisXml is not null)
                     {
@@ -548,13 +542,7 @@ public class MetsManager(
                             } 
                         }
                     });
-                var premisFile = new PremisMetadata
-                {
-                    Source = Mets,
-                    Digest = workingFile.Digest,
-                    Size = workingFile.Size,
-                    OriginalName = operationPath // workingFile.LocalPath
-                };
+                var premisFile = GetFileFormatMetadata(workingFile, operationPath);
                 fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
             }
             else if (workingBase is WorkingDirectory workingDirectory)
@@ -567,7 +555,7 @@ public class MetsManager(
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
-                var premisFile = new PremisMetadata
+                var premisFile = new FileFormatMetadata
                 {
                     Source = Mets,
                     OriginalName = operationPath // workingDirectory.LocalPath
@@ -599,6 +587,22 @@ public class MetsManager(
         }
 
         return Result.Ok();
+    }
+
+    private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
+    {
+        var aggregatedMetadata = new FileFormatMetadata
+        {
+            Source = Mets,
+            Digest = workingFile.Digest,
+            Size = workingFile.Size,
+            OriginalName = originalName // workingFile.LocalPath
+        };
+        foreach (var metadata in workingFile.Metadata)
+        {
+            
+        }
+        return aggregatedMetadata;
     }
 
 
@@ -670,12 +674,12 @@ public class MetsManager(
             },
             AmdSec =
             {
-                GetAmdSecType(new PremisMetadata
+                GetAmdSecType(new FileFormatMetadata
                     {
                         Source = Mets, OriginalName = FolderNames.Objects 
                     }, 
                     $"{AdmIdPrefix}{FolderNames.Objects}", $"{TechIdPrefix}{FolderNames.Objects}"),
-                GetAmdSecType(new PremisMetadata
+                GetAmdSecType(new FileFormatMetadata
                     {
                         Source = Mets, OriginalName = FolderNames.Metadata 
                     }, 
@@ -699,7 +703,7 @@ public class MetsManager(
     }
     
     
-    private static AmdSecType GetAmdSecType(PremisMetadata premisFile, string admId, string techId)
+    private static AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId)
     {
         var premis = PremisManager.Create(premisFile);
         var xElement = PremisManager.GetXmlElement(premis, true);

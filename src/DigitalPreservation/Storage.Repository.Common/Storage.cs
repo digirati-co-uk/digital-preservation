@@ -147,6 +147,12 @@ public class Storage(
         };
     }
 
+    public async Task<bool> Exists(Uri fileOrFolder)
+    {
+        var s3Location = new AmazonS3Uri(fileOrFolder);
+        return await Exists(s3Location.Key, s3Location.Bucket);
+    }
+
     private async Task<bool> Exists(string key, string? bucket = null)
     {
         var req = MakeGetRequest(key, bucket);
@@ -167,6 +173,14 @@ public class Storage(
             }
             throw;
         }
+    }
+
+    public async Task<List<Uri>> GetListing(Uri root, string? subPath = null)
+    {
+        var uri = subPath.HasText() ? root.AppendSlug(subPath) : root;
+        var s3Uri = new AmazonS3Uri(uri);
+        var allObjects = await ListAllS3Objects(s3Uri, CancellationToken.None);
+        return allObjects.Select(s3Object => s3Object.GetS3Uri()).ToList();
     }
 
     public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(Uri location, WorkingDirectory directoryToAdd, CancellationToken cancellationToken = default)
@@ -561,11 +575,18 @@ public class Storage(
         {
             BucketName = s3Uri.Bucket, Key = s3Uri.Key
         };
-        var s3Resp = await s3Client.GetObjectAsync(s3Req);
-        if (s3Resp.HttpStatusCode == HttpStatusCode.OK)
+        try
         {
-            return Result.Ok(s3Resp.ResponseStream);
+            var s3Resp = await s3Client.GetObjectAsync(s3Req);
+            if (s3Resp.HttpStatusCode == HttpStatusCode.OK)
+            {
+                return Result.Ok(s3Resp.ResponseStream);
+            }
+            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get stream for " + binaryOrigin);
         }
-        return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get stream for " + binaryOrigin);
+        catch (AmazonS3Exception e)
+        {
+            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)e.StatusCode), "Could not get stream for " + binaryOrigin);
+        }
     }
 }

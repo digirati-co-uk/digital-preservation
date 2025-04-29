@@ -28,7 +28,7 @@ public abstract class WorkingBase
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public MetsExtensions? MetsExtensions { get; set; }
     
-    public List<IMetadata> Metadata { get; set; } = [];
+    public List<Metadata> Metadata { get; set; } = [];
 
     public string GetSlug()
     {

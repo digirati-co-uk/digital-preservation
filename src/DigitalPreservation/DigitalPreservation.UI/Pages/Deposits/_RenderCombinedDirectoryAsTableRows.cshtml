@@ -95,7 +95,7 @@ File is in both
         <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
         <td aria-label="content-type">@file.ContentType</td>
         @{
-            var premisFromMets = file.FileInMets?.Metadata.OfType<PremisMetadata>().SingleOrDefault();
+            var premisFromMets = file.FileInMets?.Metadata.OfType<FileFormatMetadata>().SingleOrDefault();
             var virusFromMets = file.FileInMets?.Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
         }
         <td aria-label="pronom" title="@(premisFromMets?.FormatName ?? "(no PRONOM format")">@(premisFromMets?.PronomKey ?? "-")</td>

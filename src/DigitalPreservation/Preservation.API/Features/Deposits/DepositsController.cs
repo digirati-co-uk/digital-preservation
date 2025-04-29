@@ -91,7 +91,7 @@ public class DepositsController(
         }
 
         var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
-        var filesystemResult = await workspaceManager.GetFileSystemWorkingDirectory();
+        var filesystemResult = await workspaceManager.GetFileSystemWorkingDirectory(refresh: true);
         if (filesystemResult is not { Success: true, Value: not null })
         {
             return this.StatusResponseFromResult(filesystemResult);

@@ -201,4 +201,78 @@ public static class StringUtils
     {
         return date.HasValue ? date.Value.ToString("yyyy-MM-dd") : string.Empty;
     }
+    
+    /// <summary>
+    /// Must not return a path that ends with a "/"
+    /// </summary>
+    /// <param name="strings"></param>
+    /// <returns></returns>
+    public static string GetCommonParent(IEnumerable<string> strings)
+    {
+        return GetCommonParent(strings.ToArray());
+    }
+
+    /// <summary>
+    /// Always return a common folder path, not simply a prefix
+    /// so "/foo/bar", "/foo/baz" => "/foo", and not "/foo/ba" 
+    /// </summary>
+    /// <param name="strings"></param>
+    /// <returns></returns>
+    public static string GetCommonParent(string[] strings)
+    {
+        var prefix = GetCommonPrefix(strings);
+        if (prefix == "/" || prefix.IsNullOrWhiteSpace())
+        {
+            return string.Empty; 
+        }
+
+        if (prefix.EndsWith('/'))
+        {
+            return prefix[..^1];
+        }
+        
+        var slash = prefix.LastIndexOf('/');
+        if (slash == -1)
+        {
+            return string.Empty;
+        }
+        return prefix[..^(prefix.Length - slash)];
+    }
+
+    public static string GetCommonPrefix(string[] strings)
+    {
+        if (strings.Length == 0)
+        {
+            return string.Empty;
+        }
+        var prefix = strings[0];
+        for (int i = 1; i < strings.Length; i++)
+        {
+            var current = string.Empty;
+            for (int j = 0; j < strings[i].Length; j++)
+            {
+                if (j >= prefix.Length)
+                {
+                    break;
+                }
+
+                if (strings[i][j] == prefix[j])
+                {
+                    current += strings[i][j];
+                }
+                else
+                {
+                    break;
+                }
+            }
+            prefix = current;
+        }
+        
+        return prefix;
+    }
+    
+    public static string GetCommonPrefix(IEnumerable<string> strings)
+    {
+        return GetCommonPrefix(strings.ToArray());
+    }
 }

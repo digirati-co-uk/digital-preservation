@@ -114,7 +114,8 @@ public class WorkingDirectory : WorkingBase
             Files = Files.Select(f => f.ToRootLayout()).ToList(),
             MetsExtensions = MetsExtensions,
             Modified = Modified,
-            Name = Name
+            Name = Name,
+            Metadata = Metadata
         };
     }
 }
