@@ -16,6 +16,7 @@ namespace Preservation.API.Features.Deposits;
 [Route("[controller]")]
 [ApiController]
 public class DepositsController(
+    ILogger<DepositsController> logger,
     IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory
     ) : Controller
@@ -78,16 +79,20 @@ public class DepositsController(
             return this.StatusResponseFromResult(depositResult);
         }
         var deposit = depositResult.Value;
-        var eTag = Request.Headers.IfMatch.FirstOrDefault();
-        if (!eTag.HasText() || eTag != deposit.MetsETag)
+        if (deposit.MetsETag != null) // only should true when there is no METS file
         {
-            var pd = new ProblemDetails
+            var eTag = Request.Headers.IfMatch.FirstOrDefault();
+            if (!eTag.HasText() || eTag != deposit.MetsETag)
             {
-                Title = "Conflict: ETag does not match deposit METS",
-                Detail = deposit.MetsETag,
-                Status = 409
-            };
-            return Conflict(pd);
+                logger.LogWarning("Supplied eTag {eTag} does not match deposit eTag {depositETag}", eTag, deposit.MetsETag);
+                var pd = new ProblemDetails
+                {
+                    Title = "Conflict: ETag does not match deposit METS",
+                    Detail = deposit.MetsETag,
+                    Status = 409
+                };
+                return Conflict(pd);
+            }
         }
 
         var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);

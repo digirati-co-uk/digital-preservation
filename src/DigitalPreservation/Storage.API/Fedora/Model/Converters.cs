@@ -35,8 +35,8 @@ public class Converters
         this.fedoraOptions = fedoraOptions.Value;
         this.converterOptions = converterOptions.Value;
         fedoraRootUri = fedoraOptions.Value.Root;
-        fedoraRootUriWithoutSlash = new Uri(fedoraOptions.Value.Root.ToString().TrimEnd('/'));
-        fedoraRoot = fedoraOptions.Value.Root.ToString();
+        fedoraRootUriWithoutSlash = new Uri(fedoraOptions.Value.Root.GetStringTemporaryForTesting().TrimEnd('/'));
+        fedoraRoot = fedoraOptions.Value.Root.GetStringTemporaryForTesting();
         fedoraRootWithoutSlash = fedoraRoot.TrimEnd('/');
         
         // The root URI for repository paths
@@ -45,7 +45,7 @@ public class Converters
         // The root URI for binary streams from Fedora
         contentRoot = $"{converterOptions.Value.StorageRoot}content/";
         
-        fedoraAgentRoot = fedoraOptions.Value.Root.ToString(); // make it same for now
+        fedoraAgentRoot = fedoraOptions.Value.Root.GetStringTemporaryForTesting(); // make it same for now
         
         // The root URI for people and other API callers
         agentRoot = $"{converterOptions.Value.StorageRoot}agents/";
@@ -139,13 +139,13 @@ public class Converters
 
     public Uri ConvertToRepositoryUri(Uri fedoraUri)
     {
-        var repositoryUri = fedoraUri.ToString().ReplaceFirst(fedoraRoot, repositoryRoot);
+        var repositoryUri = fedoraUri.GetStringTemporaryForTesting().ReplaceFirst(fedoraRoot, repositoryRoot);
         return new Uri(repositoryUri);
     }
     
     public Uri ConvertToContentUri(Uri fedoraUri)
     {
-        var contentUri = fedoraUri.ToString().ReplaceFirst(fedoraRoot, contentRoot);
+        var contentUri = fedoraUri.GetStringTemporaryForTesting().ReplaceFirst(fedoraRoot, contentRoot);
         return new Uri(contentUri);
     }
 
@@ -198,7 +198,7 @@ public class Converters
 
     public string GetFedoraDbId(Uri fedoraUri)
     {
-        var fedoraUriString = fedoraUri.ToString();
+        var fedoraUriString = fedoraUri.GetStringTemporaryForTesting();
         var trimmed = fedoraUriString == fedoraRoot ? string.Empty : fedoraUriString.RemoveStart(fedoraRoot);
         return GetFedoraDbId(trimmed);
     }
@@ -230,7 +230,7 @@ public class Converters
 
     public string? GetResourcePathPart(Uri fedoraOrStorageUri)
     {
-        var s = fedoraOrStorageUri.ToString();
+        var s = fedoraOrStorageUri.GetStringTemporaryForTesting();
         if (s.StartsWith(fedoraRoot))
         {
             return s.RemoveStart(fedoraRoot)!;

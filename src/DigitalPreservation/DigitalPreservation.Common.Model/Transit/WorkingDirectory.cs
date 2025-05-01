@@ -61,8 +61,9 @@ public class WorkingDirectory : WorkingBase
     }
     
     
-    public Container ToContainer(Uri repositoryUri, Uri origin)
+    public Container ToContainer(Uri repositoryUri, Uri origin, List<string>? uris = null)
     {
+        uris?.Add(repositoryUri.ToString());
         var container = new Container
         {
             Name = Name,
@@ -71,19 +72,25 @@ public class WorkingDirectory : WorkingBase
         };
         foreach (var wd in Directories)
         {
-            var slug = wd.GetSlug();
-            container.Containers.Add(wd.ToContainer(repositoryUri.AppendSlug(slug), origin.AppendSlug(slug)));
+            var slug = wd.GetUriSafeSlug();
+            container.Containers.Add(wd.ToContainer(repositoryUri.AppendSlug(slug), origin.AppendSlug(slug), uris));
         }
         foreach (var wf in Files)
         {
-            var slug = wf.GetSlug();
+            var slug = wf.GetUriSafeSlug();
+            var binaryId = repositoryUri.AppendSlug(slug);
+            uris?.Add(binaryId.ToString());
+            var fileFormatMetadata = wf.GetFileFormatMetadata();
+            var size =fileFormatMetadata?.Size ?? wf.Size ?? 0;
+            var contentType = fileFormatMetadata?.ContentType ?? wf.ContentType;
+            var digest = wf.Digest.HasText() ? wf.Digest : fileFormatMetadata?.Digest;
             container.Binaries.Add(new Binary
             {
-                Id = repositoryUri.AppendSlug(slug),
-                Name = wf.Name,
-                ContentType = wf.ContentType,
-                Digest = wf.Digest,
-                Size = wf.Size ?? 0,
+                Id = binaryId,
+                Name = wf.Name ?? wf.GetSlug(), // not the Uri-Safe slug
+                ContentType = contentType,
+                Digest = digest,
+                Size = size,
                 Origin = origin.AppendSlug(slug)
             });
         }

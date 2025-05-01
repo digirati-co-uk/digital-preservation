@@ -100,7 +100,7 @@ public static class StringUtils
     /// <returns></returns>
     public static Uri AppendSlug(this Uri uri, string slug)
     {
-        var newUriString = uri.ToString().TrimEnd('/') + '/' + slug.TrimStart('/');
+        var newUriString = uri.GetStringTemporaryForTesting().TrimEnd('/') + '/' + slug.TrimStart('/');
         return new Uri(newUriString);
     }
 
@@ -123,7 +123,7 @@ public static class StringUtils
 
         if (trimTrailingSlash)
         {
-            return new Uri(newUri.ToString().TrimEnd('/'));
+            return new Uri(newUri.GetStringTemporaryForTesting().TrimEnd('/'));
         }
 
         return newUri;
@@ -152,6 +152,21 @@ public static class StringUtils
             path = path[..^1];
         }
         return path.Split('/')[^1];
+    }
+
+    public static string GetUriSafeSlug(this string path)
+    {
+        return path.GetSlug()
+            .Replace("#", "(_hash_)")
+            .Replace("?", "(_query_)");
+    }
+    
+    
+    public static string GetUriSafePath(this string path)
+    {
+        return path
+            .Replace("#", "(_hash_)")
+            .Replace("?", "(_query_)");
     }
     
     

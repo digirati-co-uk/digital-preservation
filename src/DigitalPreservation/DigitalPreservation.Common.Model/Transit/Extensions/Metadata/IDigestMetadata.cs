@@ -2,7 +2,7 @@
 
 namespace DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 
-public interface IDigestMetadata
+public interface IDigestMetadata : IMetadata
 {
     [JsonPropertyName("digest")]
     [JsonPropertyOrder(10)]

@@ -93,23 +93,32 @@ public class GetDiffImportJobHandler(
         logger.LogInformation("(get import source) concluded AG name is " + agName);
 
         var origin = FolderNames.GetFilesLocation(request.Deposit.Files, workspace.IsBagItLayout);
-        var importContainer = combined!.DirectoryInDeposit!.ToContainer(request.Deposit.ArchivalGroup, origin);
+        var safeUris = new List<string>();
+        var importContainer = combined!.DirectoryInDeposit!.ToContainer(request.Deposit.ArchivalGroup, origin, safeUris);
+        var distinctUris = new HashSet<string>();
+        var duplicates = safeUris.Where(item => !distinctUris.Add(item)).ToList();
+        if (duplicates.Count > 0)
+        {
+            var message = "Duplicate URIs found after making safe URIs: " + string.Join(", ", duplicates);
+            logger.LogWarning(message);
+            return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, message);
+        }
         var (sourceContainers, sourceBinaries) = importContainer.Flatten();
 
         var notForImport = $"{agPathUnderRoot}/{IStorage.DepositFileSystem}";
         var removed = sourceBinaries.RemoveAll(b => b.GetPathUnderRoot() == notForImport);
         logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
  
-        var agStringWithSlash = request.Deposit.ArchivalGroup.ToString().TrimEnd('/')+ "/";
+        var agStringWithSlash = request.Deposit.ArchivalGroup.GetStringTemporaryForTesting().TrimEnd('/')+ "/";
         foreach (var binary in sourceBinaries)
         {
-            var relativePath = binary.Id!.ToString().RemoveStart(agStringWithSlash);
-            var combinedFile = combined.FindFile(relativePath!)!;
+            var relativePath = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash);
+            var combinedFile = combined.FindFileByUriSafeSlugs(relativePath!)!; // because it came from a URI not a file path
             if (combinedFile.FileInMets is null)
             {
                 var message = $"Could not find file {relativePath} in METS file.";
                 logger.LogWarning(message);
-                return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable,message);
+                return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
             }
             if (combinedFile.FileInMets.Digest.IsNullOrWhiteSpace())
             {
@@ -129,10 +138,15 @@ public class GetDiffImportJobHandler(
 
             binary.Digest = combinedFile.FileInMets.Digest;
             binary.Name = combinedFile.FileInMets.Name;
-            if (combinedFile.FileInMets.ContentType.HasText()) // need to set this
+            if (binary.ContentType.IsNullOrWhiteSpace())
             {
-                binary.ContentType = combinedFile.FileInMets.ContentType;
+                throw new Exception("We should have set this by now");
             }
+            // This was old and wrong:
+            // if (combinedFile.FileInMets.ContentType.HasText()) // need to set this
+            // {
+            //     binary.ContentType = combinedFile.FileInMets.ContentType;
+            // }
         }
 
         var missingTheirChecksum = sourceBinaries
@@ -149,8 +163,8 @@ public class GetDiffImportJobHandler(
         
         foreach (var container in sourceContainers)
         {
-            var relativePath = container.Id!.ToString().RemoveStart(agStringWithSlash);
-            var metsDirectory = combined.FindDirectory(relativePath)?.DirectoryInMets; 
+            var relativePath = container.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash);
+            var metsDirectory = combined.FindDirectoryByUriSafeSlugs(relativePath)?.DirectoryInMets; 
             if (metsDirectory is not null && metsDirectory.Name.HasText())
             {
                 container.Name = metsDirectory.Name;
@@ -221,7 +235,7 @@ public class GetDiffImportJobHandler(
 
         foreach (var binary in allExistingBinaries)
         {
-            var path = binary.Id!.ToString().RemoveStart(agStringWithSlash)!;
+            var path = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!;
             var sourceFile = combined.FindFile(path);
             if (sourceFile is null)
             {

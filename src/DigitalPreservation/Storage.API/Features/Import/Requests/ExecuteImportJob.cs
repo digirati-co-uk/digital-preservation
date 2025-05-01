@@ -108,7 +108,7 @@ public class ExecuteImportJobHandler(
         try
         {
             logger.LogInformation("{count} containers to add", importJob.ContainersToAdd.Count);
-            foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id!.ToString()))
+            foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id!.GetStringTemporaryForTesting()))
             {
                 logger.LogInformation("Creating container {id}", container.Id);
                 var fedoraContainerResult = await fedoraClient.CreateContainerWithinArchivalGroup(
@@ -203,7 +203,7 @@ public class ExecuteImportJobHandler(
             // Do we want to allow deletion of non-empty containers? It wouldn't come from a diff importJob
             // but might come from other importJob use.
             logger.LogInformation("{count} containers to delete", importJob.ContainersToDelete.Count);
-            foreach (var container in importJob.ContainersToDelete.OrderByDescending(c => c.Id!.ToString()))
+            foreach (var container in importJob.ContainersToDelete.OrderByDescending(c => c.Id!.GetStringTemporaryForTesting()))
             {
                 logger.LogInformation("Deleting container {id}", container.Id);
                 var fedoraDeleteResult = await fedoraClient.Delete(

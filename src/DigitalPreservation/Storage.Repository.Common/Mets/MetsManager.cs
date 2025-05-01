@@ -72,7 +72,7 @@ public class MetsManager(
     /// <param name="container"></param>
     private void AddResourceToMets(DigitalPreservation.XmlGen.Mets.Mets mets, ArchivalGroup archivalGroup, DivType div, Container container)
     {
-        var agString = archivalGroup.Id!.ToString();
+        var agString = archivalGroup.Id!.GetStringTemporaryForTesting();
         foreach (var childContainer in container.Containers)
         {
             DivType? childDirectoryDiv = null;
@@ -84,7 +84,7 @@ public class MetsManager(
 
             if (childDirectoryDiv == null)
             {
-                var localPath = childContainer.Id!.ToString().RemoveStart(agString).RemoveStart("/");
+                var localPath = childContainer.Id!.GetStringTemporaryForTesting().RemoveStart(agString).RemoveStart("/");
                 var admId = AdmIdPrefix + localPath;
                 var techId = TechIdPrefix + localPath;
                 childDirectoryDiv = new DivType
@@ -107,7 +107,7 @@ public class MetsManager(
 
         foreach (var binary in container.Binaries)
         {
-            var localPath = binary.Id!.ToString().RemoveStart(agString).RemoveStart("/");
+            var localPath = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agString).RemoveStart("/");
             if (IsMetsFile(localPath!))
             {
                 continue;
@@ -529,12 +529,13 @@ public class MetsManager(
                     Fptr = { new DivTypeFptr{ Fileid = fileId } }
                 };
                 div.Div.Add(childItemDiv);
+                var premisFile = GetFileFormatMetadata(workingFile, operationPath);
                 fullMets.Mets.FileSec.FileGrp[0].File.Add(
                     new FileType
                     {
                         Id = fileId, 
                         Admid = { admId },
-                        Mimetype = workingFile.ContentType,
+                        Mimetype = premisFile.ContentType ?? workingFile.ContentType,
                         FLocat = { 
                             new FileTypeFLocat
                             {
@@ -542,7 +543,6 @@ public class MetsManager(
                             } 
                         }
                     });
-                var premisFile = GetFileFormatMetadata(workingFile, operationPath);
                 fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
             }
             else if (workingBase is WorkingDirectory workingDirectory)
@@ -591,18 +591,28 @@ public class MetsManager(
 
     private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
     {
-        var aggregatedMetadata = new FileFormatMetadata
+        // This will throw if mismatches
+        var digestMetadata = workingFile.GetDigestMetadata();
+        
+        var fileFormatMetadata = workingFile.GetFileFormatMetadata();
+        if (fileFormatMetadata != null)
+        {
+            if (fileFormatMetadata.OriginalName.IsNullOrWhiteSpace())
+            {
+                fileFormatMetadata.OriginalName = originalName;
+            }
+            return fileFormatMetadata;
+        }
+        
+        // no metadata available
+        return new FileFormatMetadata
         {
             Source = Mets,
-            Digest = workingFile.Digest,
+            ContentType = workingFile.ContentType,
+            Digest = digestMetadata?.Digest ?? workingFile.Digest,
             Size = workingFile.Size,
             OriginalName = originalName // workingFile.LocalPath
         };
-        foreach (var metadata in workingFile.Metadata)
-        {
-            
-        }
-        return aggregatedMetadata;
     }
 
 

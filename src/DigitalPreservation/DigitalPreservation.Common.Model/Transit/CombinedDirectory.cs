@@ -88,6 +88,16 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
     
     public CombinedDirectory? FindDirectory(string? path)
     {
+        return FindDirectoryInternal(path, (directory, part) => directory.LocalPath!.GetSlug() == part);
+    }
+    
+    public CombinedDirectory? FindDirectoryByUriSafeSlugs(string? path)
+    {
+        return FindDirectoryInternal(path, (directory, part) => directory.LocalPath!.GetUriSafeSlug() == part);
+    }
+
+    private CombinedDirectory? FindDirectoryInternal(string? path, Func<CombinedDirectory, string, bool> predicate)
+    {
         if (path.IsNullOrWhiteSpace() || path == "/")
         {
             return this;
@@ -96,7 +106,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         var directory = this;
         foreach (var part in parts)
         {
-            var potentialDirectory = directory.Directories.SingleOrDefault(d => d.LocalPath!.GetSlug() == part);
+            var potentialDirectory = directory.Directories.SingleOrDefault(d => predicate(d, part));
             if (potentialDirectory == null)
             {
                 return null;
@@ -105,10 +115,10 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
 
         return directory;
+        
     }
+    
 
-    
-    
     public int DescendantFileCount(int counter = 0)
     {
         counter+= Files.Count;
@@ -124,6 +134,14 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         var parent = FindDirectory(path.GetParent());
         var slug = path.GetSlug();
         return parent?.Files.SingleOrDefault(f => f.LocalPath!.GetSlug() == slug);
+    }
+    
+    
+    public CombinedFile? FindFileByUriSafeSlugs(string path)
+    {
+        var parent = FindDirectoryByUriSafeSlugs(path.GetParent());
+        var slug = path.GetUriSafeSlug();
+        return parent?.Files.SingleOrDefault(f => f.LocalPath!.GetUriSafeSlug() == slug);
     }
 
     public bool RemoveFileFromDeposit(string path, bool trueIfNotFound)

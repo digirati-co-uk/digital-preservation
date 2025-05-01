@@ -356,11 +356,11 @@
                                 if (localPath != null)
                                 {
                                     var metsBinary = Model.MetsWorkingDirectory?.FindFile(localPath);
-                                    var premisFromMets = metsBinary?.Metadata.OfType<FileFormatMetadata>().SingleOrDefault();
-                                    var virusFromMets = metsBinary?.Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
-                                    <td aria-label="td-format" title="@premisFromMets?.FormatName">@premisFromMets?.PronomKey</td>
+                                    var fileFormatMetadata = metsBinary?.GetFileFormatMetadata();
+                                    var virusMetadata = metsBinary?.GetVirusScanMetadata();
+                                    <td aria-label="td-format" title="@fileFormatMetadata?.FormatName">@fileFormatMetadata?.PronomKey</td>
                                     <td aria-label="td-access">@metsBinary?.MetsExtensions?.AccessCondition</td>
-                                    <td aria-label="td-virus">@virusFromMets?.GetDisplay()</td>
+                                    <td aria-label="td-virus">@virusMetadata?.GetDisplay()</td>
                                 }
                                 else
                                 {

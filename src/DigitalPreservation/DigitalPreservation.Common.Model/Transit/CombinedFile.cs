@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Utils;
+﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
@@ -25,6 +26,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             return "../" +  FileInDeposit.LocalPath;
         }
     }
+    
 
     // Which do we want to be the first choice?
     public string? Name => FileInDeposit?.Name ?? FileInMets?.Name;
@@ -118,5 +120,34 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         public T? ValueInDeposit = valueInDeposit;
         public T? ValueInMets = valueInMets;
     }
-    
+
+    public FileFormatMetadata? GetFileFormatMetadata()
+    {
+        FileFormatMetadata? fileFormatMetadata = null;
+        if (FileInDeposit != null)
+        {
+            fileFormatMetadata = FileInDeposit.GetFileFormatMetadata();
+        }
+
+        if (fileFormatMetadata is null && FileInMets != null)
+        {
+            fileFormatMetadata = FileInMets.GetFileFormatMetadata();
+        }
+        return fileFormatMetadata;
+    }
+
+    public VirusScanMetadata? GetVirusMetadata()
+    {
+        VirusScanMetadata? virusScanMetadata = null;
+        if (FileInDeposit != null)
+        {
+            virusScanMetadata = FileInDeposit.GetVirusScanMetadata();
+        }
+
+        if (virusScanMetadata is null && FileInMets != null)
+        {
+            virusScanMetadata = FileInMets.GetVirusScanMetadata();
+        }
+        return virusScanMetadata;
+    }
 }

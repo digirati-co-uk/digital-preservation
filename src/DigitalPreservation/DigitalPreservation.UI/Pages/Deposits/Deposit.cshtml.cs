@@ -129,18 +129,19 @@ public class DepositModel(
         if (await BindDeposit(id))
         {
             var minimalItems = JsonSerializer.Deserialize<List<MinimalItem>>(addToMetsObject)!;
-            var filesystemResult = await WorkspaceManager.GetFileSystemWorkingDirectory();
-            if (filesystemResult is not { Success: true, Value: not null })
+            var combinedResult = await WorkspaceManager.GetCombinedDirectory(true);
+            if (combinedResult is not { Success: true, Value: not null })
             {
                 TempData["Error"] = "Could not read deposit file system.";
                 return Redirect($"/deposits/{id}");
             }
             var wbsToAdd = new List<WorkingBase>();
+            var contentRoot = combinedResult.Value;
             foreach (var item in minimalItems)
             {
                 WorkingBase? wbToAdd = item.IsDirectory
-                    ? filesystemResult.Value.FindDirectory(item.RelativePath)
-                    : filesystemResult.Value.FindFile(item.RelativePath);
+                    ? contentRoot.FindDirectory(item.RelativePath)?.DirectoryInDeposit?.ToRootLayout()
+                    : contentRoot.FindFile(item.RelativePath)?.FileInDeposit?.ToRootLayout();
                 if (wbToAdd != null)
                 {
                     wbsToAdd.Add(wbToAdd);

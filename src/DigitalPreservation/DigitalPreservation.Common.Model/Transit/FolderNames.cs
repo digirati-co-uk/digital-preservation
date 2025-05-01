@@ -27,7 +27,12 @@ public static class FolderNames
     {
         if (!isBagItLayout) return actualRootOrigin;
         
-        var dataSlug = BagItData + (actualRootOrigin.ToString().EndsWith('/') ? "/" : "");
+        var dataSlug = BagItData + (actualRootOrigin.GetStringTemporaryForTesting().EndsWith('/') ? "/" : "");
         return actualRootOrigin.AppendSlug(dataSlug);
+    }
+
+    public static bool IsMetadata(string localPath)
+    {
+        return localPath.StartsWith($"{BagItData}/{Metadata}/") || localPath.StartsWith($"{Metadata}/");
     }
 }

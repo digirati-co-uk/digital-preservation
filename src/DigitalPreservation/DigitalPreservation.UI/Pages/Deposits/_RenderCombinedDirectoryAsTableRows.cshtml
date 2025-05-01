@@ -91,14 +91,30 @@ File is in both
                 }
             </span>
         </td>
-        <td aria-label="hash">@file.Digest?[..8]</td>
-        <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
-        <td aria-label="content-type">@file.ContentType</td>
         @{
-            var premisFromMets = file.FileInMets?.Metadata.OfType<FileFormatMetadata>().SingleOrDefault();
-            var virusFromMets = file.FileInMets?.Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
+            var fileFormatMetadata = file.GetFileFormatMetadata();
+            var contentType = fileFormatMetadata?.ContentType ?? file.ContentType;
+            var contentTypeDisplay = contentType;
+            if (contentType is { Length: > 22 })
+            {
+                contentTypeDisplay = contentType[..22] + "...";
+            }
+            var virusMetadata = file.GetVirusMetadata();
+            var digest = file.Digest.HasText() ? file.Digest : fileFormatMetadata?.Digest;
         }
-        <td aria-label="pronom" title="@(premisFromMets?.FormatName ?? "(no PRONOM format")">@(premisFromMets?.PronomKey ?? "-")</td>
-        <td aria-label="virus">@virusFromMets?.GetDisplay()</td>
+        <td aria-label="hash">@digest?[..8]</td>
+        <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
+        <td aria-label="content-type">
+            @if (contentTypeDisplay != contentType)
+            {
+                <span title="@contentType">@contentTypeDisplay</span>
+            }
+            else
+            {
+                @contentType
+            }
+        </td>
+        <td aria-label="pronom" title="@(fileFormatMetadata?.FormatName ?? "(no PRONOM format")">@(fileFormatMetadata?.PronomKey ?? "-")</td>
+        <td aria-label="virus">@virusMetadata?.GetDisplay()</td>
     </tr>
 } 

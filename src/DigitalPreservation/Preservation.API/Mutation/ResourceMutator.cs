@@ -97,7 +97,7 @@ public class ResourceMutator(
         // https://stackoverflow.com/questions/479799/replace-host-in-uri
         
         if(uri == null) return null;
-        var uriS = uri.ToString();
+        var uriS = uri.GetStringTemporaryForTesting();
         if (uriS.StartsWith(storageHost))
         {
             return new Uri(preservationHost + uriS.RemoveStart(storageHost));
@@ -113,7 +113,7 @@ public class ResourceMutator(
         // https://stackoverflow.com/questions/479799/replace-host-in-uri
         
         if(uri == null) return null;
-        var uriS = uri.ToString();
+        var uriS = uri.GetStringTemporaryForTesting();
         if (uriS.StartsWith(preservationHost))
         {
             return new Uri(storageHost + uriS.RemoveStart(preservationHost));

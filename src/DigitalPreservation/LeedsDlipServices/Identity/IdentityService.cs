@@ -117,7 +117,7 @@ public class IdentityService(
 
     public async Task<Result<IdentityRecord>> GetIdentityByArchivalGroup(Uri archivalGroupUri, CancellationToken cancellationToken)
     {
-        var result = await GetSingleIdentityFromSchemaQuery(SchemaAndValue.SchemaArchivalGroupUri, archivalGroupUri.ToString(), cancellationToken);
+        var result = await GetSingleIdentityFromSchemaQuery(SchemaAndValue.SchemaArchivalGroupUri, archivalGroupUri.GetStringTemporaryForTesting(), cancellationToken);
         return result;
     }
 }

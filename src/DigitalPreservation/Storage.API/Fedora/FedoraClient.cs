@@ -781,7 +781,7 @@ internal class FedoraClient(
         {
             throw new InvalidOperationException("Could not parse Container response");
         }
-        if (containerAndContained[0].GetProperty("@id").GetString() != uri.ToString())
+        if (containerAndContained[0].GetProperty("@id").GetString() != uri.GetStringTemporaryForTesting())
         {
             throw new InvalidOperationException("First resource in @graph should be the asked-for URI");
         }

@@ -174,8 +174,7 @@ public class WorkspaceManager(
                 "No items to add to METS.");
         }
         
-        var addToMetsResult = await mediator.Send(
-            new AddItemsToMets(IsBagItLayout, deposit.Files!, items, deposit.MetsETag!));
+        var addToMetsResult = await mediator.Send(new AddItemsToMets(deposit.Files!, items, deposit.MetsETag!));
         return addToMetsResult;
     }
 
@@ -315,13 +314,13 @@ public class WorkspaceManager(
             if (combinedFile.FileInMets is not null)
             {
                 // It's in the incoming METS...
-                if (agFiles != null && agFiles.ContainsKey(combinedFile.LocalPath!))
+                if (agFiles != null && agFiles.ContainsKey(combinedFile.LocalPath!.GetUriSafePath()))
                 {
                     // ...and also in the ArchivalGroup
                     continue;
                 }
 
-                if (importJob.BinariesToAdd.Exists(b => b.Id!.ToString() == agStringWithSlash + combinedFile.LocalPath))
+                if (importJob.BinariesToAdd.Exists(b => b.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedFile.LocalPath!.GetUriSafePath()))
                 {
                     // It's being added in this operation
                     continue;
@@ -337,13 +336,13 @@ public class WorkspaceManager(
             if (combinedDirectory.DirectoryInMets is not null)
             {
                 // It's in the incoming METS...
-                if (allExistingContainers.Exists(c => c.Id!.ToString() == agStringWithSlash + combinedDirectory.LocalPath))
+                if (allExistingContainers.Exists(c => c.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedDirectory.LocalPath))
                 {
                     // ...and also in the ArchivalGroup
                     continue;
                 }
 
-                if (importJob.ContainersToAdd.Exists(c => c.Id!.ToString() == agStringWithSlash + combinedDirectory.LocalPath))
+                if (importJob.ContainersToAdd.Exists(c => c.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedDirectory.LocalPath))
                 {
                     // It's being added in this operation
                     continue;

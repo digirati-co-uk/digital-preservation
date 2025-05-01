@@ -72,10 +72,13 @@ public abstract class PreservedResource : Resource
     private static bool ValidSlugChar(char slugChar)
     {
         var valid = (      slugChar >= 48 && slugChar <= 57) // 0-9
-                         // || (slugChar >= 65 && slugChar <= 90) // A-Z
+                            || (slugChar >= 65 && slugChar <= 90) // A-Z
                             || (slugChar >= 97 && slugChar <= 122) // a-z
                             // || slugChar == '@'
                             // || slugChar == '/'
+                            || slugChar == '%'
+                            || slugChar == '('
+                            || slugChar == ')'
                             || slugChar == '.'
                             || slugChar == '_'
                             || slugChar == '-';

@@ -67,14 +67,14 @@ public class Deposit : Resource
     public TemplateType Template { get; set; } = TemplateType.None;
     
     
-    [JsonPropertyOrder(501)]
-    [JsonPropertyName("useObjectTemplate")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use TemplateType instead")]
-    public bool? UseObjectTemplate {
-        get => Template == TemplateType.RootLevel;
-        set => Template = value is true ? TemplateType.RootLevel : TemplateType.None;
-    }
+    // [JsonPropertyOrder(501)]
+    // [JsonPropertyName("useObjectTemplate")]
+    // [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    // [Obsolete("Use TemplateType instead")]
+    // public bool? UseObjectTemplate {
+    //     get => Template == TemplateType.RootLevel;
+    //     set => Template = value is true ? TemplateType.RootLevel : TemplateType.None;
+    // }
     
     /// <summary>
     /// At the time the deposit is requested
