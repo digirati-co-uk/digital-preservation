@@ -297,7 +297,7 @@
 
                     foreach (var container in modelContainer.Containers)
                     {
-                        string path = "/browse/" + container.GetPathUnderRoot();
+                        string path = "/browse/" + container.Id.GetPathUnderRoot(true);
                         <tr aria-label="row-@(counter++)">
                             @if (container.Type == nameof(ArchivalGroup))
                             {
@@ -335,10 +335,10 @@
 
                     @foreach (var binary in modelContainer.Binaries)
                     {
-                        string path = "/browse/" + binary.GetPathUnderRoot();
+                        string path = "/browse/" + binary.Id.GetPathUnderRoot(true);
                         <tr aria-label="row-@(counter++)">
                             <td aria-label="td-icon"><a href="@path">@binary.StringIcon</a></td>
-                            <td aria-label="td-path"><a href="@path">@binary.Id?.GetSlug()</a></td>
+                            <td aria-label="td-path"><a href="@path">@path.GetSlug()</a></td>
                             <td aria-label="td-title"><a href="@path">@binary.Name</a></td>
                             <td aria-label="td-last-modified"><a href="@path">@binary.LastModified.GetDateDisplay()</a></td>
                             <td aria-label="td-last-modified-by"><a href="@path">@binary.LastModifiedBy?.GetSlug()</a></td>

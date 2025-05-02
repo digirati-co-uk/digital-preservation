@@ -37,7 +37,7 @@
     {
         <tr>
             <th scope="row">Path</th>
-            <td>@workingFile.MetsExtensions?.OriginalPath</td>
+            <td>@workingFile.GetStorageMetadata()?.OriginalName?.GetSlug()</td>
         </tr>
     }
     @if (binary != null)

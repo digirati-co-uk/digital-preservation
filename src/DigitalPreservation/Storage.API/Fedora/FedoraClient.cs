@@ -288,9 +288,9 @@ internal class FedoraClient(
     {
         // Does the slug only contain valid chars? ✓
         var slug = pathUnderFedoraRoot.GetSlug();
-        if (!PreservedResource.ValidSlug(slug))
+        if (!PreservedResource.ValidSlug(slug, out var reason))
         {
-            return Result.Fail<Container?>(ErrorCodes.BadRequest, "Invalid slug: " + slug);
+            return Result.Fail<Container?>(ErrorCodes.BadRequest, $"Invalid slug: {slug}; {reason}");
         }
         
         // Is there already something at this path? - no ✓

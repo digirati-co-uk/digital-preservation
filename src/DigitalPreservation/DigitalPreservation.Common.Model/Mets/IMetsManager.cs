@@ -13,13 +13,13 @@ public interface IMetsManager
     Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, ArchivalGroup archivalGroup, string? agNameFromDeposit);
     bool IsMetsFile(string fileName);
     
-    Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag);
+    Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag, Uri? storageLocation);
     Task<Result> HandleDeleteObject(Uri workingRoot, string localPath, string depositETag);
-    Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag);
+    Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag, Uri? storageLocation);
 
     Task<Result<FullMets>> GetFullMets(Uri metsLocation, string? eTagToMatch);
     // Synchronous modification of FullMETS - does not save to disk!
-    Result AddToMets(FullMets fullMets, WorkingBase workingBase);
-    Result DeleteFromMets(FullMets fullMets, string deletePath);
+    Result AddToMets(FullMets fullMets, WorkingBase workingBase, Uri? storageLocation);
+    Result DeleteFromMets(FullMets fullMets, string deletePath, Uri? storageLocation);
     Task<Result> WriteMets(FullMets fullMets);
 }

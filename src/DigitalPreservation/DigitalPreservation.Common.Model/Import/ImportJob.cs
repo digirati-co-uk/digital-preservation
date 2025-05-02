@@ -127,17 +127,35 @@ public class ImportJob : Resource
     
     // (metadata to change?) more general. NOT for Oct demo.
 
-    public List<PreservedResource> ItemsWithInvalidSlugs()
+    public (List<PreservedResource>, string?) ItemsWithInvalidSlugs()
     {
-        var items = new List<PreservedResource>();
-        items.AddRange(ContainersToAdd.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
-        items.AddRange(ContainersToRename.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
-        items.AddRange(ContainersToDelete.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
-        items.AddRange(BinariesToAdd.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
-        items.AddRange(BinariesToPatch.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
-        items.AddRange(BinariesToRename.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
-        items.AddRange(BinariesToDelete.Where(container => !PreservedResource.ValidSlug(container.GetSlug())));
-        return items;
+        var itemsWithInvalidSlugs = new List<PreservedResource>();
+        var invalidSlugMessages = new List<string>();
+        AppendInvalidSlugMessage(ContainersToAdd, itemsWithInvalidSlugs, invalidSlugMessages);
+        AppendInvalidSlugMessage(ContainersToRename, itemsWithInvalidSlugs, invalidSlugMessages);
+        AppendInvalidSlugMessage(ContainersToDelete, itemsWithInvalidSlugs, invalidSlugMessages);
+        AppendInvalidSlugMessage(BinariesToAdd, itemsWithInvalidSlugs, invalidSlugMessages);
+        AppendInvalidSlugMessage(BinariesToPatch, itemsWithInvalidSlugs, invalidSlugMessages);
+        AppendInvalidSlugMessage(BinariesToRename, itemsWithInvalidSlugs, invalidSlugMessages);
+        AppendInvalidSlugMessage(BinariesToDelete, itemsWithInvalidSlugs, invalidSlugMessages);
+        string? msg = null;
+        if (invalidSlugMessages.Count > 0)
+        {
+            msg = string.Join("; ", invalidSlugMessages);
+        }
+        return (itemsWithInvalidSlugs, msg);
+    }
+
+    private void AppendInvalidSlugMessage(IEnumerable<PreservedResource> itemsToTest, List<PreservedResource> itemsWithInvalidSlugs, List<string> invalidSlugMessages)
+    {
+        foreach (var item in itemsToTest)
+        {
+            if (!PreservedResource.ValidSlug(item.GetSlug(), out var msg))
+            {
+                itemsWithInvalidSlugs.Add(item);
+                invalidSlugMessages.Add(msg!);   
+            }
+        }
     }
 
     public List<Binary> AddedBinariesWithInvalidContentTypes()

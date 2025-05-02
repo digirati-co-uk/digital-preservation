@@ -94,6 +94,10 @@ public class WorkingFile : WorkingBase
             .Where(m => m.OriginalName.HasText())
             .Select(m => m.OriginalName!)
             .ToList();
+        var storageLocations = fileFormatMetadata
+            .Where(m => m.StorageLocation != null)
+            .Select(m => m.StorageLocation!)
+            .ToList();
         var digests = fileFormatMetadata
             .Where(m => m.Digest.HasText())
             .Select(m => m.Digest!)
@@ -116,6 +120,7 @@ public class WorkingFile : WorkingBase
                     Size = size.First(),
                     FormatName = formatNames.First(),
                     OriginalName = originalNames.FirstOrDefault(),
+                    StorageLocation = storageLocations.FirstOrDefault(),
                     Source = string.Join(',', fileFormatMetadata.Select(m => m.Source)),
                     Timestamp = fileFormatMetadata.Select(m => m.Timestamp).Max()
                 };
@@ -158,8 +163,11 @@ public class WorkingFile : WorkingBase
     {
         return Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
     }
-    
-    
+
+    public IStorageMetadata? GetStorageMetadata()
+    {
+        return GetFileFormatMetadata();
+    }
 }
 
 

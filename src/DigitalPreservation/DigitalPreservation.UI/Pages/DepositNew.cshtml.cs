@@ -108,9 +108,9 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         }
 
         var agSlug = pathUnderRoot.GetSlug();
-        if(!PreservedResource.ValidSlug(agSlug))
+        if(!PreservedResource.ValidSlug(agSlug, out var reason))
         {
-            TempData["CreateDepositFail"] = $"Not a valid path name: {agSlug}";
+            TempData["CreateDepositFail"] = $"Not a valid path name: {agSlug}; {reason}";
             return false;
         }
         var parentPath = pathUnderRoot.GetParent();
@@ -119,9 +119,10 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             TempData["CreateDepositFail"] = "You can't create a deposit for an Archival Group at the repository root.";
             return false;
         }
-        if (!PreservedResource.ValidPath(pathUnderRoot))
+        var validPathResult = PreservedResource.ValidPath(pathUnderRoot);
+        if (validPathResult.Failure)
         {
-            TempData["CreateDepositFail"] = $"Path {pathUnderRoot} is invalid";
+            TempData["CreateDepositFail"] = $"Path {pathUnderRoot} is invalid: {validPathResult.ErrorMessage}";
             return false;
         }
         

@@ -59,6 +59,7 @@ public static class XNames
     public static readonly XName PremisFormatVersion = premis + "formatVersion";
     public static readonly XName PremisFormatRegistryKey = premis + "formatRegistryKey";
     public static readonly XName PremisOriginalName = premis + "originalName";
+    public static readonly XName PremisContentLocation = premis + "contentLocation";
     public static readonly XName PremisDateCreatedByApplication = premis + "dateCreatedByApplication";
     public static readonly XName PremisObjectCharacteristicsExtension = premis + "objectCharacteristicsExtension";
     public static readonly XName PremisRightsStatement = premis + "rightsStatement";

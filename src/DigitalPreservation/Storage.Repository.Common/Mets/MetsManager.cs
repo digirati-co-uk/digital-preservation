@@ -7,7 +7,6 @@ using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Mets;
-using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -98,7 +97,8 @@ public class MetsManager(
                 var reducedPremisForObjectDir = new FileFormatMetadata
                 {
                     Source = Mets,
-                    OriginalName = localPath
+                    OriginalName = localPath,
+                    StorageLocation = childContainer.Id
                 };
                 mets.AmdSec.Add(GetAmdSecType(reducedPremisForObjectDir, admId, techId));
             }
@@ -141,7 +141,8 @@ public class MetsManager(
                 Source = Mets,
                 Digest = binary.Digest,
                 Size = binary.Size,
-                OriginalName = localPath
+                OriginalName = localPath,
+                StorageLocation = binary.Id
             };
             mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
         }
@@ -318,29 +319,29 @@ public class MetsManager(
             ErrorCodes.UnknownError, "Unable to read METS");
     }
 
-    public async Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag)
+    public async Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag, Uri? storageLocation)
     {
-        return await HandleSingleChange(workingRoot, depositETag, workingFile, null);
+        return await HandleSingleChange(workingRoot, depositETag, workingFile, null, storageLocation);
     }
     
-    public async Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag)
+    public async Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag, Uri? storageLocation)
     {
-        return await HandleSingleChange(workingRoot, depositETag, workingDirectory, null);
+        return await HandleSingleChange(workingRoot, depositETag, workingDirectory, null, storageLocation);
     }
 
     public async Task<Result> HandleDeleteObject(Uri workingRoot, string localPath, string depositETag)
     {
-        return await HandleSingleChange(workingRoot, depositETag, null, localPath);
+        return await HandleSingleChange(workingRoot, depositETag, null, localPath, null);
     }
     
-    private async Task<Result> HandleSingleChange(Uri workingRoot, string? depositETag, WorkingBase? workingBase, string? deletePath)
+    private async Task<Result> HandleSingleChange(Uri workingRoot, string? depositETag, WorkingBase? workingBase, string? deletePath, Uri? storageLocation)
     {
         var result = await GetFullMets(workingRoot, depositETag);
         if (result.Success)
         {
             var fullMets = result.Value!;
             
-            var editMetsResult = EditMets(workingBase, deletePath, fullMets);
+            var editMetsResult = EditMets(workingBase, deletePath, fullMets, storageLocation);
             if (editMetsResult.Success)
             {
                 await WriteMets(fullMets);
@@ -352,17 +353,17 @@ public class MetsManager(
         return Result.Fail(result.ErrorCode ?? ErrorCodes.UnknownError, result.ErrorMessage);
     }
 
-    public Result AddToMets(FullMets fullMets, WorkingBase workingBase)
+    public Result AddToMets(FullMets fullMets, WorkingBase workingBase, Uri? storageLocation)
     {
-        return EditMets(workingBase, null, fullMets);
+        return EditMets(workingBase, null, fullMets, storageLocation);
     }
 
-    public Result DeleteFromMets(FullMets fullMets, string deletePath)
+    public Result DeleteFromMets(FullMets fullMets, string deletePath, Uri? storageLocation)
     {
-        return EditMets(null, deletePath, fullMets);
+        return EditMets(null, deletePath, fullMets, storageLocation);
     }
 
-    private static Result EditMets(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
+    private static Result EditMets(WorkingBase? workingBase, string? deletePath, FullMets fullMets, Uri? storageLocation)
     {
         // Add workingBase to METS
         // This is where our non-opaque phys structmap IDs come into play.
@@ -370,6 +371,7 @@ public class MetsManager(
         // finding the METS parts, like the XDocument parsing in MetsParser.
 
         var operationPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath);
+        var uriSafeOperationPath = operationPath!.GetUriSafePath();
         var elements = operationPath!.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var div = fullMets.Mets.StructMap.Single(sm => sm.Type=="PHYSICAL").Div!;
         DivType? parent = null;
@@ -463,7 +465,7 @@ public class MetsManager(
 
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
-                    var patchPremis = GetFileFormatMetadata(workingFile, operationPath);  
+                    var patchPremis = GetFileFormatMetadata(workingFile, operationPath, storageLocation);  
                     PremisComplexType? premisType;
                     if (premisXml is not null)
                     {
@@ -529,7 +531,7 @@ public class MetsManager(
                     Fptr = { new DivTypeFptr{ Fileid = fileId } }
                 };
                 div.Div.Add(childItemDiv);
-                var premisFile = GetFileFormatMetadata(workingFile, operationPath);
+                var premisFile = GetFileFormatMetadata(workingFile, operationPath, storageLocation);
                 fullMets.Mets.FileSec.FileGrp[0].File.Add(
                     new FileType
                     {
@@ -558,7 +560,8 @@ public class MetsManager(
                 var premisFile = new FileFormatMetadata
                 {
                     Source = Mets,
-                    OriginalName = operationPath // workingDirectory.LocalPath
+                    OriginalName = operationPath, // workingDirectory.LocalPath
+                    StorageLocation = storageLocation
                 };
                 fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
             }
@@ -589,7 +592,7 @@ public class MetsManager(
         return Result.Ok();
     }
 
-    private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
+    private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName, Uri? storageLocation)
     {
         // This will throw if mismatches
         var digestMetadata = workingFile.GetDigestMetadata();
@@ -601,6 +604,10 @@ public class MetsManager(
             {
                 fileFormatMetadata.OriginalName = originalName;
             }
+            if (fileFormatMetadata.StorageLocation == null)
+            {
+                fileFormatMetadata.StorageLocation = storageLocation;
+            }
             return fileFormatMetadata;
         }
         
@@ -611,7 +618,8 @@ public class MetsManager(
             ContentType = workingFile.ContentType,
             Digest = digestMetadata?.Digest ?? workingFile.Digest,
             Size = workingFile.Size,
-            OriginalName = originalName // workingFile.LocalPath
+            OriginalName = originalName, // workingFile.LocalPath
+            StorageLocation = storageLocation
         };
     }
 

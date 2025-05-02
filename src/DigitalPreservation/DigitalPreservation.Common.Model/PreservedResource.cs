@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json.Serialization;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model;
@@ -40,33 +41,65 @@ public abstract class PreservedResource : Resource
     /// </summary>
     /// <param name="path"></param>
     /// <returns></returns>
-    public static bool ValidPath([NotNullWhen(true)] string? path)
+    public static Result ValidPath([NotNullWhen(true)] string? path)
     {
         if (path.IsNullOrWhiteSpace())
         {
-            return false;
+            return Result.Fail("Path is null or whitespace");;
         }
         var parts = path.Split('/');
-        return parts.All(ValidSlug);
+        var badCharMessages = new List<string?>();
+        foreach (var part in parts)
+        {
+            if (!ValidSlug(part, out var reason))
+            {
+                badCharMessages.Add(reason);
+            }
+        }
+
+        if (badCharMessages.Count == 0)
+        {
+            return Result.Ok();
+        }
+        
+        return Result.Fail(ErrorCodes.BadRequest, string.Join(';', badCharMessages));
     }
-    
-    public static bool ValidSlug(string? slug)
+
+    public static bool ValidSlug(string? slug, out string? reason)
     {
+        reason = null;
         if (slug.IsNullOrWhiteSpace())
         {
             return false;
         }
         var len = slug.Length;
-        var valid = len is >= 1 and <= 254;
-        if (!valid) return valid;
+        var valid = len is >= 1 and <= 2000; // 254;
+        if (!valid)
+        {
+            reason = "Slug must be between 1 and 2000 characters";
+            return valid;
+        }
         for (int i = 0; i < len; i++)
         {
             var slugChar = slug[i];
             valid = ValidSlugChar(slugChar);
-            if (!valid) return false;
+            if (!valid) break;
         }
 
-        return slug != BasePathElement && valid;
+        if (valid)
+        {
+            return slug != BasePathElement && valid;
+        }
+        
+        // don't build this list in the loop above as it is only an exceptional circumstance
+        var badChars = string.Join(',', slug.Where(c => !ValidSlugChar(c)));
+        reason = "Character(s) " + badChars + " are not allowed in slugs";
+        return valid;
+    }
+
+    private static bool ValidSlug(string? slug)
+    {
+        return ValidSlug(slug, out _);
     }
 
     private static bool ValidSlugChar(char slugChar)

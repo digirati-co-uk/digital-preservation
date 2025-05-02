@@ -573,7 +573,7 @@ public class Storage(
         var s3Uri = new AmazonS3Uri(binaryOrigin);
         var s3Req = new GetObjectRequest
         {
-            BucketName = s3Uri.Bucket, Key = s3Uri.Key
+            BucketName = s3Uri.Bucket, Key = s3Uri.GetKeyFromOriginalString(binaryOrigin)
         };
         try
         {

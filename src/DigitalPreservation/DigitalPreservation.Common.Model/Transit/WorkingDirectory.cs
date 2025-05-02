@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
@@ -19,14 +20,22 @@ public class WorkingDirectory : WorkingBase
     [JsonPropertyOrder(6)]
     public List<WorkingDirectory> Directories { get; set; } = [];
 
-    public WorkingFile? FindFile(string path)
+    public WorkingFile? FindFile(string path, bool useStorageLocation = false)
     {
         var parent = FindDirectory(path.GetParent());
         var slug = path.GetSlug();
+        if (useStorageLocation)
+        {
+            var file = parent?.Files.SingleOrDefault(f => f.GetStorageMetadata()?.StorageLocation?.GetSlug() == slug);
+            if (file != null)
+            {
+                return file;
+            }
+        }
         return parent?.Files.SingleOrDefault(f => f.LocalPath.GetSlug() == slug);
     }
     
-    public WorkingDirectory? FindDirectory(string? path, bool create = false)
+    public WorkingDirectory? FindDirectory(string? path, bool create = false, bool useStorageLocation = false)
     {
         if (path.IsNullOrWhiteSpace() || path == "/")
         {
@@ -37,7 +46,15 @@ public class WorkingDirectory : WorkingBase
         for (var index = 0; index < parts.Length; index++)
         {
             var part = parts[index];
-            var potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetSlug() == part);
+            WorkingDirectory? potentialDirectory;
+            if (useStorageLocation)
+            {
+                potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetStorageMetadata()?.StorageLocation?.GetSlug() == part);
+            }
+            else
+            {
+                potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetSlug() == part);
+            }
             if (create)
             {
                 if (potentialDirectory == null)
@@ -59,8 +76,13 @@ public class WorkingDirectory : WorkingBase
 
         return directory;
     }
-    
-    
+
+    private IStorageMetadata GetStorageMetadata()
+    {
+        throw new NotImplementedException();
+    }
+
+
     public Container ToContainer(Uri repositoryUri, Uri origin, List<string>? uris = null)
     {
         uris?.Add(repositoryUri.ToString());
@@ -72,13 +94,15 @@ public class WorkingDirectory : WorkingBase
         };
         foreach (var wd in Directories)
         {
-            var slug = wd.GetUriSafeSlug();
-            container.Containers.Add(wd.ToContainer(repositoryUri.AppendSlug(slug), origin.AppendSlug(slug), uris));
+            container.Containers.Add(
+                wd.ToContainer(
+                    repositoryUri.AppendSlug(wd.GetUriSafeSlug()), 
+                    origin.AppendSlug(wd.GetSlug()), 
+                    uris));
         }
         foreach (var wf in Files)
         {
-            var slug = wf.GetUriSafeSlug();
-            var binaryId = repositoryUri.AppendSlug(slug);
+            var binaryId = repositoryUri.AppendSlug(wf.GetUriSafeSlug());
             uris?.Add(binaryId.ToString());
             var fileFormatMetadata = wf.GetFileFormatMetadata();
             var size =fileFormatMetadata?.Size ?? wf.Size ?? 0;
@@ -91,7 +115,7 @@ public class WorkingDirectory : WorkingBase
                 ContentType = contentType,
                 Digest = digest,
                 Size = size,
-                Origin = origin.AppendSlug(slug)
+                Origin = origin.AppendSlug(wf.GetSlug())
             });
         }
         return container;

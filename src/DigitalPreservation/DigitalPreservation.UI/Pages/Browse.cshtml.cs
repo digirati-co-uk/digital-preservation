@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
@@ -166,15 +167,17 @@ public class BrowseModel(
         }
 
         MetsWorkingDirectory = metsWrapper.PhysicalStructure;
+        
+        // The METS file reflects the original layout
 
         var localPath = GetLocalPath(Resource);
         if (Resource is Container)
         {
-            WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath);
+            WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath, create:false, useStorageLocation:true);
         }
         else if (Resource is Binary)
         {
-            WorkingFile = MetsWorkingDirectory.FindFile(localPath!);
+            WorkingFile = MetsWorkingDirectory.FindFile(localPath!, useStorageLocation:true);
         }
     }
 
@@ -184,8 +187,8 @@ public class BrowseModel(
         {
             return null;
         }
-        return resource
-            .GetPathUnderRoot()
+        return resource.Id
+            .GetPathUnderRoot(true)
             .RemoveStart(CachedArchivalGroup.GetPathUnderRoot() ?? "")
             .RemoveStart("/");
     }
@@ -342,7 +345,8 @@ public class BrowseModel(
         }
         
         var slug = containerSlug.ToLowerInvariant();
-        if (ValidateNewContainer(pathUnderRoot, slug, containerTitle))
+        var slugValidResult = ValidateNewContainerSlug(pathUnderRoot, slug, containerTitle);
+        if (slugValidResult.Success)
         {
             var result = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle));
             if(result is { Success: true, Value: not null })
@@ -356,12 +360,17 @@ public class BrowseModel(
             return Redirect(Request.Path);
         }
 
-        TempData["ContainerError"] = "Invalid container file path - only a-z, 0-9 and .-_ are allowed.";
+        TempData["ContainerError"] = slugValidResult.ErrorMessage;
         return Redirect(Request.Path);
     }
 
-    private bool ValidateNewContainer(string? path, string slug, string? containerTitle)
+    private Result ValidateNewContainerSlug(string? path, string slug, string? containerTitle)
     {
-        return PreservedResource.ValidSlug(slug);
+        if (PreservedResource.ValidSlug(slug, out var reason))
+        {
+            return Result.Ok();
+        }
+
+        return Result.Fail(ErrorCodes.BadRequest, reason);
     }
 }

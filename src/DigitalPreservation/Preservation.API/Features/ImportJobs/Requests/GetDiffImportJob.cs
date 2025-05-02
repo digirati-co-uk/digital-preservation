@@ -106,7 +106,7 @@ public class GetDiffImportJobHandler(
         var (sourceContainers, sourceBinaries) = importContainer.Flatten();
 
         var notForImport = $"{agPathUnderRoot}/{IStorage.DepositFileSystem}";
-        var removed = sourceBinaries.RemoveAll(b => b.GetPathUnderRoot() == notForImport);
+        var removed = sourceBinaries.RemoveAll(b => b.Id.GetPathUnderRoot(true) == notForImport);
         logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
  
         var agStringWithSlash = request.Deposit.ArchivalGroup.GetStringTemporaryForTesting().TrimEnd('/')+ "/";

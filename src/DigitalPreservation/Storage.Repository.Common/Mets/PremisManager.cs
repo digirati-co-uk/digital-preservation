@@ -1,5 +1,6 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Premis.V3;
@@ -59,7 +60,13 @@ public static class PremisManager
         {
             premisFile.OriginalName = file.OriginalName.Value;
         }
-
+        
+        var storage = file.Storage?.SingleOrDefault(
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+        if (storage != null)
+        {
+            premisFile.StorageLocation = new Uri(storage.ContentLocation.ContentLocationValue);
+        }
         return premisFile;
 
     }
@@ -111,6 +118,18 @@ public static class PremisManager
             {
                 Value = premisFile.OriginalName
             };
+        }
+
+        if (premisFile.StorageLocation != null)
+        {
+            var storageComplexType = new StorageComplexType();
+            storageComplexType.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            storageComplexType.ContentLocation = new ContentLocationComplexType
+            {
+                ContentLocationType = new ContentLocationType { Value = "uri" },
+                ContentLocationValue = premisFile.StorageLocation.GetStringTemporaryForTesting()
+            };
+            file.Storage.Add(storageComplexType);
         }
 
         return premis;
@@ -183,6 +202,33 @@ public static class PremisManager
                 Value = premisFile.OriginalName
             };
         }
+
+        if (premisFile.StorageLocation != null)
+        {
+            var contentLocation = EnsureContentLocation(file);
+            contentLocation.ContentLocationType = new ContentLocationType { Value = "uri" };
+            contentLocation.ContentLocationValue = premisFile.StorageLocation.GetStringTemporaryForTesting();
+        }
+    }
+
+    private static ContentLocationComplexType EnsureContentLocation(File file)
+    {
+        var thisStorage = file.Storage.FirstOrDefault(
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+        if (thisStorage == null)
+        {
+            thisStorage = new StorageComplexType();
+            thisStorage.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            file.Storage.Add(thisStorage);
+        }
+
+        var contentLocation = thisStorage.ContentLocation;
+        if (contentLocation == null)
+        {
+            contentLocation = new ContentLocationComplexType();
+            thisStorage.ContentLocation = contentLocation;
+        }
+        return contentLocation;
     }
 
     private static FormatComplexType EnsurePronomFormat(ObjectCharacteristicsComplexType objectCharacteristics)

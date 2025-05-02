@@ -5,7 +5,7 @@ namespace DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 /// <summary>
 /// Represents only the Premis fields we are interested in WRITING to METS
 /// </summary>
-public class FileFormatMetadata : Metadata, IDigestMetadata
+public class FileFormatMetadata : Metadata, IDigestMetadata, IStorageMetadata
 {
     [JsonPropertyName("digest")]
     [JsonPropertyOrder(10)]
@@ -26,6 +26,10 @@ public class FileFormatMetadata : Metadata, IDigestMetadata
     [JsonPropertyName("originalName")]
     [JsonPropertyOrder(140)]
     public string? OriginalName { get; set; }
+    
+    [JsonPropertyName("storageLocation")]
+    [JsonPropertyOrder(145)]
+    public Uri? StorageLocation { get; set; }
     
     [JsonPropertyName("contentType")]
     [JsonPropertyOrder(150)]

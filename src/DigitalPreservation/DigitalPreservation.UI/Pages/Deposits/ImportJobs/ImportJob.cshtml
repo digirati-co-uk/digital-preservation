@@ -53,10 +53,11 @@ ViewData["section"] = "deposits";
                             <ul>
                                 @foreach (var res in Model.ItemsWithInvalidSlugs)
                                 {
-                                    <li>@res.StringIcon @res.GetPathUnderRoot()</li>
+                                    <li>@res.StringIcon @res.Id.GetPathUnderRoot(true)</li>
                                 }
                             </ul>
                             <p>Valid characters are <code>a-z A-Z 0-9 ._-%()</code> (not upper case) </p>
+                            <p>@Model.ItemsWithInvalidSlugsMessage</p>
                         </div>
                     }
                     if (Model.AddedBinariesWithInvalidContentTypes.Any())
@@ -66,7 +67,7 @@ ViewData["section"] = "deposits";
                             <ul>
                                 @foreach (var res in Model.AddedBinariesWithInvalidContentTypes)
                                 {
-                                    <li>@res.StringIcon @res.GetPathUnderRoot()</li>
+                                    <li>@res.StringIcon @res.Id.GetPathUnderRoot(true)</li>
                                 }
                             </ul>
                         </div>
@@ -104,6 +105,9 @@ ViewData["section"] = "deposits";
                             </button>
                         </div>
                     </form>
+<code><pre>
+@JsonSerializer.Serialize(Model.ImportJob, new JsonSerializerOptions{WriteIndented = true})                        
+</pre></code>
                 }
             }
             else if (Model.ImportJobId == "custom")

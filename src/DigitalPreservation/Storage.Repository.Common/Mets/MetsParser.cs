@@ -399,6 +399,12 @@ public class MetsParser(
                         if (amd != null)
                         {
                             var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
+                            Uri? storageLocation = null;
+                            var storageUri = amd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
+                            if (storageUri != null)
+                            {
+                                storageLocation = new Uri(storageUri);
+                            }
                             if (originalName != null)
                             {
                                 // Only in this scenario can we create a directory
@@ -413,9 +419,17 @@ public class MetsParser(
                                     {
                                         AdmId = admId,
                                         PhysDivId = div.Attribute("ID")?.Value,
-                                        OriginalPath = originalName,
                                         AccessCondition = "Open"
-                                    };;
+                                    };
+                                    workingDirectory.Metadata =
+                                    [
+                                        new StorageMetadata
+                                        {
+                                            Source = MetsManager.Mets,
+                                            OriginalName = originalName,
+                                            StorageLocation = storageLocation
+                                        }
+                                    ];
                                 }
                             }
                         }
@@ -447,6 +461,7 @@ public class MetsParser(
                     string? digest = null;
                     long size = 0;
                     string? originalName = null;
+                    Uri? storageLocation = null;
                     FileFormatMetadata? premisMetadata = null;
                     if (!haveUsedAdmIdAlready)
                     {
@@ -471,6 +486,11 @@ public class MetsParser(
                             long.TryParse(sizeEl.Value, out size);
                         }
                         originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
+                        var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
+                        if (storageUri != null)
+                        {
+                            storageLocation = new Uri(storageUri);
+                        }
                         haveUsedAdmIdAlready = true;
                         var format = techMd.Descendants(XNames.PremisFormat).SingleOrDefault();
                         if (format != null)
@@ -515,13 +535,22 @@ public class MetsParser(
                         Size = size,
                         Name = label ?? parts[^1],
                         Metadata = [
-                            new VirusScanMetadata{ Source = MetsManager.Mets, HasVirus = false }
+                            new VirusScanMetadata
+                            {
+                                Source = MetsManager.Mets, 
+                                HasVirus = false
+                            },
+                            new StorageMetadata 
+                            {
+                                Source = MetsManager.Mets, 
+                                OriginalName = originalName, 
+                                StorageLocation = storageLocation 
+                            }
                         ],
                         MetsExtensions = new MetsExtensions
                         {
                             AdmId = admId,
                             PhysDivId = div.Attribute("ID")?.Value,
-                            OriginalPath = originalName,
                             AccessCondition = "Open"
                         }
                     };
