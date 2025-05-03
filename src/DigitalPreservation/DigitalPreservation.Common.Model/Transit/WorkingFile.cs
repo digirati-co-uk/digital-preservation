@@ -163,11 +163,6 @@ public class WorkingFile : WorkingBase
     {
         return Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
     }
-
-    public IStorageMetadata? GetStorageMetadata()
-    {
-        return GetFileFormatMetadata();
-    }
 }
 
 

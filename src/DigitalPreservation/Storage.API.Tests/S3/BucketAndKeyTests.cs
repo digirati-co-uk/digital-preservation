@@ -22,7 +22,7 @@ public class BucketAndKeyTests
         var uri = new Uri("s3://my-bucket/some/path/to/thing");
         var s3Uri = new AmazonS3Uri(uri);
         
-        s3Uri.GetKeyFromOriginalString().Should().Be("some/path/to/thing");
+        s3Uri.GetKeyFromLocalPath().Should().Be("some/path/to/thing");
     }
     
     [Fact]
@@ -31,7 +31,7 @@ public class BucketAndKeyTests
         var uri = new Uri("s3://my-bucket/some/path/to/thing");
         var s3Uri = new AmazonS3Uri(uri);
         
-        s3Uri.GetKeyFromOriginalString(uri).Should().Be("some/path/to/thing");
+        s3Uri.GetKeyFromLocalPath(uri).Should().Be("some/path/to/thing");
     }
     
     [Fact]
@@ -40,7 +40,7 @@ public class BucketAndKeyTests
         var uri = new Uri("s3://my-bucket/some/path/to/thing#with-fragment");
         var s3Uri = new AmazonS3Uri(uri);
         
-        s3Uri.GetKeyFromOriginalString(uri).Should().Be("some/path/to/thing#with-fragment");
+        s3Uri.GetKeyFromLocalPath(uri).Should().Be("some/path/to/thing#with-fragment");
     }
     
     [Fact]
@@ -49,7 +49,7 @@ public class BucketAndKeyTests
         var uri = new Uri("s3://my-bucket/some/path/to/thing with # a-fragment");
         var s3Uri = new AmazonS3Uri(uri);
         
-        s3Uri.GetKeyFromOriginalString(uri).Should().Be("some/path/to/thing with # a-fragment");
+        s3Uri.GetKeyFromLocalPath(uri).Should().Be("some/path/to/thing with # a-fragment");
     }
     
     
@@ -59,7 +59,7 @@ public class BucketAndKeyTests
         var uri = new Uri("s3://my-bucket/some/path/to/慷獹琠散敬牢瑡圣浯湥䡳獩潴祲潍瑮㼿䄠摮愠猠敮歡瀠敥瑡匠䍉敮⁷牡�.msg");
         var s3Uri = new AmazonS3Uri(uri);
         
-        s3Uri.GetKeyFromOriginalString(uri).Should().Be("some/path/to/慷獹琠散敬牢瑡圣浯湥䡳獩潴祲潍瑮㼿䄠摮愠猠敮歡瀠敥瑡匠䍉敮⁷牡�.msg");
+        s3Uri.GetKeyFromLocalPath(uri).Should().Be("some/path/to/慷獹琠散敬牢瑡圣浯湥䡳獩潴祲潍瑮㼿䄠摮愠猠敮歡瀠敥瑡匠䍉敮⁷牡�.msg");
     }
     
     [Fact]
@@ -68,6 +68,6 @@ public class BucketAndKeyTests
         var uri = new Uri("s3://my-bucket/some/path/to/7 ways to celebrate #WomensHistoryMonth 💜 And a sneak peek at SICK new art.htm");
         var s3Uri = new AmazonS3Uri(uri);
         
-        s3Uri.GetKeyFromOriginalString(uri).Should().Be("some/path/to/7 ways to celebrate #WomensHistoryMonth 💜 And a sneak peek at SICK new art.htm");
+        s3Uri.GetKeyFromLocalPath(uri).Should().Be("some/path/to/7 ways to celebrate #WomensHistoryMonth 💜 And a sneak peek at SICK new art.htm");
     }
 }

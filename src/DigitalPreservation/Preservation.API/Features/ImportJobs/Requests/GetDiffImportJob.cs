@@ -93,10 +93,10 @@ public class GetDiffImportJobHandler(
         logger.LogInformation("(get import source) concluded AG name is " + agName);
 
         var origin = FolderNames.GetFilesLocation(request.Deposit.Files, workspace.IsBagItLayout);
-        var safeUris = new List<string>();
-        var importContainer = combined!.DirectoryInDeposit!.ToContainer(request.Deposit.ArchivalGroup, origin, safeUris);
+        var allEncounteredProcessedUris = new List<Uri>();
+        var importContainer = combined!.DirectoryInDeposit!.ToContainer(request.Deposit.ArchivalGroup, origin, allEncounteredProcessedUris);
         var distinctUris = new HashSet<string>();
-        var duplicates = safeUris.Where(item => !distinctUris.Add(item)).ToList();
+        var duplicates = allEncounteredProcessedUris.Where(item => !distinctUris.Add(item.ToString())).ToList();
         if (duplicates.Count > 0)
         {
             var message = "Duplicate URIs found after making safe URIs: " + string.Join(", ", duplicates);
@@ -112,17 +112,17 @@ public class GetDiffImportJobHandler(
         var agStringWithSlash = request.Deposit.ArchivalGroup.GetStringTemporaryForTesting().TrimEnd('/')+ "/";
         foreach (var binary in sourceBinaries)
         {
-            var relativePath = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash);
-            var combinedFile = combined.FindFileByUriSafeSlugs(relativePath!)!; // because it came from a URI not a file path
+            var relativeLocalPath = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!.UnEscapePathElements();
+            var combinedFile = combined.FindFile(relativeLocalPath)!; // because it came from a URI not a file path
             if (combinedFile.FileInMets is null)
             {
-                var message = $"Could not find file {relativePath} in METS file.";
+                var message = $"Could not find file {relativeLocalPath} in METS file.";
                 logger.LogWarning(message);
                 return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
             }
             if (combinedFile.FileInMets.Digest.IsNullOrWhiteSpace())
             {
-                var message = $"File {relativePath} has no digest in METS file.";
+                var message = $"File {relativeLocalPath} has no digest in METS file.";
                 logger.LogWarning(message);
                 return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
             }
@@ -131,7 +131,7 @@ public class GetDiffImportJobHandler(
             // the one in the AG doesn't - in which case it will be identified as a PATCH later
             if (binary.Digest.HasText() && binary.Digest != combinedFile.FileInMets.Digest)
             {
-                var message = $"File {relativePath} has different digest in METS and import source.";
+                var message = $"File {relativeLocalPath} has different digest in METS and import source.";
                 logger.LogWarning(message);
                 return Result.FailNotNull<ImportJob>(ErrorCodes.Conflict, message);
             }
@@ -155,7 +155,7 @@ public class GetDiffImportJobHandler(
             .ToList();
         if (missingTheirChecksum.Count > 0)
         {
-            var first = missingTheirChecksum.First().Id!.GetSlug();
+            var first = missingTheirChecksum.First().Id!.GetSlug()?.UnEscapeFromUri();
             var message = $"{missingTheirChecksum.Count} file(s) do not have a checksum, including {first}";
             logger.LogWarning(message);
             return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
@@ -163,8 +163,8 @@ public class GetDiffImportJobHandler(
         
         foreach (var container in sourceContainers)
         {
-            var relativePath = container.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash);
-            var metsDirectory = combined.FindDirectoryByUriSafeSlugs(relativePath)?.DirectoryInMets; 
+            var relativeLocalPath = container.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!.UnEscapePathElements();
+            var metsDirectory = combined.FindDirectory(relativeLocalPath)?.DirectoryInMets; 
             if (metsDirectory is not null && metsDirectory.Name.HasText())
             {
                 container.Name = metsDirectory.Name;

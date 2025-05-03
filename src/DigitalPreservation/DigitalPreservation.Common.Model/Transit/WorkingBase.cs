@@ -11,6 +11,10 @@ public abstract class WorkingBase
     [JsonPropertyName("type")]
     public abstract string Type { get; set; }
     
+    /// <summary>
+    /// This is always a file system rather than a URI path, and may contain characters acceptable in a file name
+    /// but not a URI.
+    /// </summary>
     [JsonPropertyName("localPath")]
     [JsonPropertyOrder(1)]
     public required string LocalPath { get; set; }
@@ -35,11 +39,4 @@ public abstract class WorkingBase
     {
         return LocalPath.Split('/')[^1];
     }
-
-    public string GetUriSafeSlug()
-    {
-        var slug = GetSlug();
-        return slug.GetUriSafeSlug();
-    }
-    
 }

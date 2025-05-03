@@ -66,7 +66,7 @@ public class BrowseModel(
             return NotFound();
         }
         
-        var name = Resource!.Name ?? Resource!.Id!.GetSlug();
+        var name = Resource!.Name ?? Resource!.Id!.GetSlug()?.UnEscapeFromUri();
         switch (Resource!.Type)
         {
             case nameof(ArchivalGroup):
@@ -173,11 +173,11 @@ public class BrowseModel(
         var localPath = GetLocalPath(Resource);
         if (Resource is Container)
         {
-            WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath, create:false, useStorageLocation:true);
+            WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath, create:false);
         }
         else if (Resource is Binary)
         {
-            WorkingFile = MetsWorkingDirectory.FindFile(localPath!, useStorageLocation:true);
+            WorkingFile = MetsWorkingDirectory.FindFile(localPath!);
         }
     }
 

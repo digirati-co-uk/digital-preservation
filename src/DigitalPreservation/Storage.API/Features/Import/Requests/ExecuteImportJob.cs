@@ -23,7 +23,7 @@ public class ExecuteImportJobHandler(
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
         var importJob = request.ImportJob;
-        var callerIdentity = importJob.CreatedBy!.GetSlug()!;
+        var callerIdentity = importJob.CreatedBy!.GetSlug()!.UnEscapeFromUri();
         var archivalGroupPathUnderRoot = importJob.ArchivalGroup.GetPathUnderRoot()!;
         logger.LogInformation("Executing Import Job");
         

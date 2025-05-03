@@ -123,7 +123,7 @@ public class Converters
         }
         else
         {
-            resource.Name = resource.Id.GetSlug();
+            resource.Name = resource.Id.GetSlug()?.UnEscapeFromUri();
         }
 
         if (fedoraJsonLdResponse.Titles is { Count: > 1 })

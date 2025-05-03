@@ -39,7 +39,7 @@ public class MetadataReader : IMetadataReader
         var timestamp = DateTime.UtcNow;
         bool isBagItLayout = false;
         // use storage to read and parse all sources of metadata
-        var bagitSha256ManifestResult = await storage.GetStream(rootUri.AppendSlug("manifest-sha256.txt"));
+        var bagitSha256ManifestResult = await storage.GetStream(rootUri.AppendEscapedSlug("manifest-sha256.txt"));
         if (bagitSha256ManifestResult is { Success: true, Value: not null })
         {
             isBagItLayout = true;
@@ -62,17 +62,17 @@ public class MetadataReader : IMetadataReader
 
         // take care - in S3 brunnhildeRoot does not exist!
         // need to probe for an actual file, not a directory
-        var brunnhildeRoot = workingRootUri.AppendSlug("metadata/").AppendSlug("brunnhilde/");
-        var brunnhildeProbe = brunnhildeRoot.AppendSlug("report.html"); // could use a different probe perhaps
+        var brunnhildeRoot = workingRootUri.AppendEscapedSlug("metadata").AppendEscapedSlug("brunnhilde");
+        var brunnhildeProbe = brunnhildeRoot.AppendEscapedSlug("report.html"); // could use a different probe perhaps
         if (await storage.Exists(brunnhildeProbe))
         {
-            brunnhildeSiegfriedOutput = await ParseSiegfriedOutput(brunnhildeRoot.AppendSlug("siegfried.csv"));
-            var brunnhildeAVResult = await storage.GetStream(brunnhildeRoot.AppendSlug("logs").AppendSlug("viruscheck-log.txt"));
+            brunnhildeSiegfriedOutput = await ParseSiegfriedOutput(brunnhildeRoot.AppendEscapedSlug("siegfried.csv"));
+            var brunnhildeAVResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
             if (brunnhildeAVResult is { Success: true, Value: not null })
             {
                 infectedFiles = await ReadInfectedFilePaths(brunnhildeAVResult.Value);
             }
-            var brunnhildeHtmlResult = await storage.GetStream(brunnhildeRoot.AppendSlug("report.html"));
+            var brunnhildeHtmlResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("report.html"));
             if (brunnhildeHtmlResult is { Success: true, Value: not null })
             {
                 brunnhildeHtml = await GetTextFromStream(brunnhildeHtmlResult.Value);

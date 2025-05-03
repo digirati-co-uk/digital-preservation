@@ -92,56 +92,8 @@ public static class StringUtils
         return path;
     }
 
-    /// <summary>
-    /// This should only be used for simple URIs, no query strings, colon separators etc
-    /// </summary>
-    /// <param name="uri"></param>
-    /// <param name="slug"></param>
-    /// <returns></returns>
-    public static Uri AppendSlug(this Uri uri, string slug)
-    {
-        var newUriString = uri.GetStringTemporaryForTesting().TrimEnd('/') + '/' + slug.TrimStart('/');
-        return new Uri(newUriString);
-    }
 
-    public static Uri? GetParentUri(this Uri uri, bool trimTrailingSlash = false)
-    {
-        if (uri.AbsolutePath == "/")
-        {
-            return null;
-        }
 
-        Uri newUri;
-        if (uri.AbsolutePath.EndsWith('/'))
-        {
-            newUri = new Uri(uri, "..");
-        }
-        else
-        {
-            newUri = new Uri(uri, ".");
-        }
-
-        if (trimTrailingSlash)
-        {
-            return new Uri(newUri.GetStringTemporaryForTesting().TrimEnd('/'));
-        }
-
-        return newUri;
-    }
-    
-    
-    public static string? GetSlug(this Uri uri)
-    {
-        if (uri.Segments is ["/"])
-        {
-            return null;
-        }
-        if (uri.Segments.Length > 0)
-        {
-            return uri.Segments[^1].Trim('/');
-        }
-        return null;
-    }
     
     
     public static string GetSlug(this string path)
@@ -154,21 +106,6 @@ public static class StringUtils
         return path.Split('/')[^1];
     }
 
-    public static string GetUriSafeSlug(this string path)
-    {
-        return path.GetSlug()
-            .Replace("#", "(_hash_)")
-            .Replace("?", "(_query_)");
-    }
-    
-    
-    public static string GetUriSafePath(this string path)
-    {
-        return path
-            .Replace("#", "(_hash_)")
-            .Replace("?", "(_query_)");
-    }
-    
     
     public static string? GetParent(this string path)
     {

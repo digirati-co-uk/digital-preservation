@@ -279,7 +279,7 @@ ViewData["section"] = "deposits";
                                 {
                                     <tr>
                                         <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
-                                        <td>@result.CreatedBy?.GetSlug()</td>
+                                        <td>@result.CreatedBy?.GetSlug()?.UnEscapeFromUri()</td>
                                         <td>@result.DateBegun.GetDateDisplay()</td>
                                         <td>@result.DateFinished.GetDateDisplay()</td>
                                         <td>@result.SourceVersion</td>

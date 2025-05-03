@@ -66,7 +66,7 @@ public class QueueImportJobHandler(
 
     private ImportJobResult CreateWaitingResult(string jobIdentifier, ImportJob importJob)
     {
-        var callerIdentity = importJob.LastModifiedBy!.GetSlug()!;
+        var callerIdentity = importJob.LastModifiedBy!.GetSlug()!.UnEscapeFromUri();
         var now = DateTime.UtcNow;
         
         var importJobResult = new ImportJobResult

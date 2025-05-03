@@ -1,4 +1,5 @@
-﻿using Amazon.S3.Util;
+﻿using Amazon.Runtime.Internal.Util;
+using Amazon.S3.Util;
 using DigitalPreservation.Utils;
 
 namespace Storage.Repository.Common.S3;
@@ -18,17 +19,31 @@ public static class S3X
     /// <param name="amazonS3Uri"></param>
     /// <param name="originalUri"></param>
     /// <returns></returns>
-    public static string GetKeyFromOriginalString(this AmazonS3Uri amazonS3Uri, Uri? originalUri = null)
+    public static string GetKeyFromLocalPath(this AmazonS3Uri amazonS3Uri, Uri? originalUri = null)
     {
         // Use the source Uri to get the key if possible
-        if (originalUri != null && originalUri.OriginalString.HasText())
+        // Or unescape the path?
+        string? keyPart = null;
+        string? keyPartFromLocalPath = null;
+        string? keyPartFromUnescapedAbsolutePath = null;
+        if (originalUri != null)
         {
-            var pathStarts = originalUri.AbsoluteUri.IndexOf(originalUri.AbsolutePath, StringComparison.Ordinal);
-            var keyPart = originalUri.OriginalString.Substring(pathStarts + 1);
-            if (keyPart.HasText())
+            keyPartFromLocalPath = originalUri.LocalPath.RemoveStart("/");
+            keyPartFromUnescapedAbsolutePath = originalUri.AbsolutePath.UnEscapeFromUri().RemoveStart("/");
+            if (originalUri.OriginalString.HasText())
             {
-                return keyPart;
+                var pathStarts = originalUri.AbsoluteUri.IndexOf(originalUri.AbsolutePath, StringComparison.Ordinal);
+                keyPart = originalUri.OriginalString.Substring(pathStarts + 1);
             }
+        }
+
+        if (keyPart != keyPartFromUnescapedAbsolutePath || keyPart != keyPartFromLocalPath || keyPart != amazonS3Uri.Key)
+        {
+            Console.WriteLine($"keyPartFromLocalPath is '{keyPartFromLocalPath}', keyPartFromUnescapedAbsolutePath is '{keyPartFromUnescapedAbsolutePath}', keyPart is '{keyPart}', amazonS3Uri.Key is '{amazonS3Uri.Key}'");
+        }
+        if (keyPartFromLocalPath.HasText())
+        {
+            return keyPartFromLocalPath;
         }
         return amazonS3Uri.Key;
     }

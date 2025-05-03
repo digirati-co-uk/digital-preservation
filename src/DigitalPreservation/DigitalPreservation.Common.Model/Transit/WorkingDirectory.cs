@@ -20,22 +20,22 @@ public class WorkingDirectory : WorkingBase
     [JsonPropertyOrder(6)]
     public List<WorkingDirectory> Directories { get; set; } = [];
 
-    public WorkingFile? FindFile(string path, bool useStorageLocation = false)
+    public WorkingFile? FindFile(string path) // , bool useStorageLocation = false
     {
         var parent = FindDirectory(path.GetParent());
         var slug = path.GetSlug();
-        if (useStorageLocation)
-        {
-            var file = parent?.Files.SingleOrDefault(f => f.GetStorageMetadata()?.StorageLocation?.GetSlug() == slug);
-            if (file != null)
-            {
-                return file;
-            }
-        }
+        // if (useStorageLocation)
+        // {
+        //     var file = parent?.Files.SingleOrDefault(f => f.GetStorageMetadata()?.StorageLocation?.GetSlug() == slug);
+        //     if (file != null)
+        //     {
+        //         return file;
+        //     }
+        // }
         return parent?.Files.SingleOrDefault(f => f.LocalPath.GetSlug() == slug);
     }
     
-    public WorkingDirectory? FindDirectory(string? path, bool create = false, bool useStorageLocation = false)
+    public WorkingDirectory? FindDirectory(string? path, bool create = false) // , bool useStorageLocation = false
     {
         if (path.IsNullOrWhiteSpace() || path == "/")
         {
@@ -47,14 +47,14 @@ public class WorkingDirectory : WorkingBase
         {
             var part = parts[index];
             WorkingDirectory? potentialDirectory;
-            if (useStorageLocation)
-            {
-                potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetStorageMetadata()?.StorageLocation?.GetSlug() == part);
-            }
-            else
-            {
+            // if (useStorageLocation)
+            // {
+            //     potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetStorageMetadata()?.StorageLocation?.GetSlug() == part);
+            // }
+            // else
+            // {
                 potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetSlug() == part);
-            }
+            //}
             if (create)
             {
                 if (potentialDirectory == null)
@@ -77,15 +77,9 @@ public class WorkingDirectory : WorkingBase
         return directory;
     }
 
-    private IStorageMetadata GetStorageMetadata()
+    public Container ToContainer(Uri repositoryUri, Uri origin, List<Uri>? uris = null)
     {
-        throw new NotImplementedException();
-    }
-
-
-    public Container ToContainer(Uri repositoryUri, Uri origin, List<string>? uris = null)
-    {
-        uris?.Add(repositoryUri.ToString());
+        uris?.Add(repositoryUri);
         var container = new Container
         {
             Name = Name,
@@ -96,14 +90,14 @@ public class WorkingDirectory : WorkingBase
         {
             container.Containers.Add(
                 wd.ToContainer(
-                    repositoryUri.AppendSlug(wd.GetUriSafeSlug()), 
-                    origin.AppendSlug(wd.GetSlug()), 
+                    repositoryUri.AppendEscapedSlug(wd.GetSlug().EscapeForUri()), 
+                    origin.AppendEscapedSlug(wd.GetSlug().EscapeForUri()), 
                     uris));
         }
         foreach (var wf in Files)
         {
-            var binaryId = repositoryUri.AppendSlug(wf.GetUriSafeSlug());
-            uris?.Add(binaryId.ToString());
+            var binaryId = repositoryUri.AppendEscapedSlug(wf.GetSlug().EscapeForUri());
+            uris?.Add(binaryId);
             var fileFormatMetadata = wf.GetFileFormatMetadata();
             var size =fileFormatMetadata?.Size ?? wf.Size ?? 0;
             var contentType = fileFormatMetadata?.ContentType ?? wf.ContentType;
@@ -115,7 +109,7 @@ public class WorkingDirectory : WorkingBase
                 ContentType = contentType,
                 Digest = digest,
                 Size = size,
-                Origin = origin.AppendSlug(wf.GetSlug())
+                Origin = origin.AppendEscapedSlug(wf.GetSlug().EscapeForUri())  // We'll need to unescape this back to a key
             });
         }
         return container;

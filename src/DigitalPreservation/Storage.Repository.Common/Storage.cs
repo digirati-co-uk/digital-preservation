@@ -150,7 +150,7 @@ public class Storage(
     public async Task<bool> Exists(Uri fileOrFolder)
     {
         var s3Location = new AmazonS3Uri(fileOrFolder);
-        return await Exists(s3Location.Key, s3Location.Bucket);
+        return await Exists(s3Location.GetKeyFromLocalPath(fileOrFolder), s3Location.Bucket);
     }
 
     private async Task<bool> Exists(string key, string? bucket = null)
@@ -177,8 +177,12 @@ public class Storage(
 
     public async Task<List<Uri>> GetListing(Uri root, string? subPath = null)
     {
-        var uri = subPath.HasText() ? root.AppendSlug(subPath) : root;
-        var s3Uri = new AmazonS3Uri(uri);
+        var parts = subPath?.Split('/', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        foreach (var part in parts)
+        {
+            root = root.AppendEscapedSlug(part);
+        }
+        var s3Uri = new AmazonS3Uri(root);
         var allObjects = await ListAllS3Objects(s3Uri, CancellationToken.None);
         return allObjects.Select(s3Object => s3Object.GetS3Uri()).ToList();
     }
@@ -342,6 +346,10 @@ public class Storage(
                 // TODO: If there's any way we can avoid this, by returning the properties we
                 // are interested in just from the ListObjects request, then we should do that.
                 // But I don't think we can avoid it.
+                // Keep a files table for uploaded files.
+                // They are the only ones that can get away without providing a sha256 checksum in metadata
+                // (they'll acquire one from a pipeline, but they have come from a desktop, rather than
+                // bitcurator etc where they have been checksummed at source)
                 var gomReq = new GetObjectMetadataRequest
                 {
                     BucketName = s3Location.Bucket,
@@ -544,7 +552,7 @@ public class Storage(
         var s3Uri = new AmazonS3Uri(binaryOrigin);
         // Get the SHA256 algorithm from AWS directly rather than compute it here
         // If the S3 file does not already have the SHA-256 in metadata, then it's an error
-        var expected = await AwsChecksum.GetHexChecksumAsync(s3Client, s3Uri.Bucket, s3Uri.Key);
+        var expected = await AwsChecksum.GetHexChecksumAsync(s3Client, s3Uri.Bucket, s3Uri.GetKeyFromLocalPath(binaryOrigin));
         if (string.IsNullOrWhiteSpace(expected))
         {
             return Result.Fail<string>(ErrorCodes.BadRequest, $"S3 Key at {s3Uri} does not have SHA256 Checksum in its attributes");
@@ -573,7 +581,7 @@ public class Storage(
         var s3Uri = new AmazonS3Uri(binaryOrigin);
         var s3Req = new GetObjectRequest
         {
-            BucketName = s3Uri.Bucket, Key = s3Uri.GetKeyFromOriginalString(binaryOrigin)
+            BucketName = s3Uri.Bucket, Key = s3Uri.GetKeyFromLocalPath(binaryOrigin)
         };
         try
         {

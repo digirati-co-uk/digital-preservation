@@ -314,13 +314,13 @@ public class WorkspaceManager(
             if (combinedFile.FileInMets is not null)
             {
                 // It's in the incoming METS...
-                if (agFiles != null && agFiles.ContainsKey(combinedFile.LocalPath!.GetUriSafePath()))
+                if (agFiles != null && agFiles.ContainsKey(combinedFile.LocalPath!.EscapePathElements()))
                 {
                     // ...and also in the ArchivalGroup
                     continue;
                 }
 
-                if (importJob.BinariesToAdd.Exists(b => b.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedFile.LocalPath!.GetUriSafePath()))
+                if (importJob.BinariesToAdd.Exists(b => b.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedFile.LocalPath!.EscapePathElements()))
                 {
                     // It's being added in this operation
                     continue;
