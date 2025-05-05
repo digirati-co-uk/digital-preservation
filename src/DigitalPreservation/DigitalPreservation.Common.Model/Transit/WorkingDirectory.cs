@@ -90,13 +90,13 @@ public class WorkingDirectory : WorkingBase
         {
             container.Containers.Add(
                 wd.ToContainer(
-                    repositoryUri.AppendEscapedSlug(wd.GetSlug().EscapeForUri()), 
-                    origin.AppendEscapedSlug(wd.GetSlug().EscapeForUri()), 
+                    repositoryUri.AppendEscapedSlug(wd.GetSlug().EscapeForUriNoHashes()),  // For Fedora
+                    origin.AppendEscapedSlug(wd.GetSlug().EscapeForUri()),                 // Regular S3 URI
                     uris));
         }
         foreach (var wf in Files)
         {
-            var binaryId = repositoryUri.AppendEscapedSlug(wf.GetSlug().EscapeForUri());
+            var binaryId = repositoryUri.AppendEscapedSlug(wf.GetSlug().EscapeForUriNoHashes());
             uris?.Add(binaryId);
             var fileFormatMetadata = wf.GetFileFormatMetadata();
             var size =fileFormatMetadata?.Size ?? wf.Size ?? 0;

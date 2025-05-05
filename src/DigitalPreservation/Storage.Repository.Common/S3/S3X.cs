@@ -15,6 +15,8 @@ public static class S3X
     /// This is where the equivalence of S3 keys to URI paths breaks down. They are not equivalent - # is valid in an S3 key but not in a Uri path.
     /// But # is valid in the file system from which the original file came, and is being passed around as a URI.
     /// The slipping in and out of URI / bucket-and-key / filesystem representations of a location leaks... there's a small hole in it (even without any encoding issues)
+    ///
+    /// This is OK to use to get S3 Keys for objects in Deposits, but it will not give you a Fedora S3 location, which requires the storage map.
     /// </summary>
     /// <param name="amazonS3Uri"></param>
     /// <param name="originalUri"></param>

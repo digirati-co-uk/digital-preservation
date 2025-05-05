@@ -112,7 +112,7 @@ public class GetDiffImportJobHandler(
         var agStringWithSlash = request.Deposit.ArchivalGroup.GetStringTemporaryForTesting().TrimEnd('/')+ "/";
         foreach (var binary in sourceBinaries)
         {
-            var relativeLocalPath = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!.UnEscapePathElements();
+            var relativeLocalPath = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!.UnEscapePathElementsNoHashes();
             var combinedFile = combined.FindFile(relativeLocalPath)!; // because it came from a URI not a file path
             if (combinedFile.FileInMets is null)
             {
@@ -155,7 +155,7 @@ public class GetDiffImportJobHandler(
             .ToList();
         if (missingTheirChecksum.Count > 0)
         {
-            var first = missingTheirChecksum.First().Id!.GetSlug()?.UnEscapeFromUri();
+            var first = missingTheirChecksum.First().Id!.GetSlug()?.UnEscapeFromUriNoHashes();
             var message = $"{missingTheirChecksum.Count} file(s) do not have a checksum, including {first}";
             logger.LogWarning(message);
             return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
@@ -163,7 +163,7 @@ public class GetDiffImportJobHandler(
         
         foreach (var container in sourceContainers)
         {
-            var relativeLocalPath = container.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!.UnEscapePathElements();
+            var relativeLocalPath = container.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!.UnEscapePathElementsNoHashes();
             var metsDirectory = combined.FindDirectory(relativeLocalPath)?.DirectoryInMets; 
             if (metsDirectory is not null && metsDirectory.Name.HasText())
             {

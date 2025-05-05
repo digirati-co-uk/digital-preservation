@@ -66,7 +66,7 @@ public class BrowseModel(
             return NotFound();
         }
         
-        var name = Resource!.Name ?? Resource!.Id!.GetSlug()?.UnEscapeFromUri();
+        var name = Resource!.Name ?? Resource!.Id!.GetSlug()?.UnEscapeFromUriNoHashes();
         switch (Resource!.Type)
         {
             case nameof(ArchivalGroup):
@@ -188,7 +188,8 @@ public class BrowseModel(
             return null;
         }
         return resource.Id
-            .GetPathUnderRoot(true)
+            .GetPathUnderRoot(true)!
+            .UnEscapePathElementsNoHashes()
             .RemoveStart(CachedArchivalGroup.GetPathUnderRoot() ?? "")
             .RemoveStart("/");
     }

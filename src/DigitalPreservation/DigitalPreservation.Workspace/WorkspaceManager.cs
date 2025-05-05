@@ -309,18 +309,20 @@ public class WorkspaceManager(
         
         var (allCombinedDirectories, allCombinedFiles) = depositCombinedDirectory.Flatten();
         var agFiles = existingArchivalGroup?.StorageMap?.Files;
+        var unescapedPathAgFiles = agFiles?.ToDictionary(kvp => kvp.Key.UnEscapePathElementsNoHashes(), kvp => kvp.Value);
         foreach (var combinedFile in allCombinedFiles)
         {
             if (combinedFile.FileInMets is not null)
             {
                 // It's in the incoming METS...
-                if (agFiles != null && agFiles.ContainsKey(combinedFile.LocalPath!.EscapePathElements()))
+                // Inventory Paths seem only to have %20 encoding?
+                if (unescapedPathAgFiles != null && unescapedPathAgFiles.ContainsKey(combinedFile.LocalPath!))
                 {
                     // ...and also in the ArchivalGroup
                     continue;
                 }
 
-                if (importJob.BinariesToAdd.Exists(b => b.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedFile.LocalPath!.EscapePathElements()))
+                if (importJob.BinariesToAdd.Exists(b => b.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedFile.LocalPath!.EscapePathElementsNoHashes()))
                 {
                     // It's being added in this operation
                     continue;

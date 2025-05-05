@@ -128,4 +128,42 @@ public static class UriX
         var unescapedParts = path.Split('/').Select(UnEscapeFromUri);
         return string.Join("/", unescapedParts);
     }
+    
+    const string HashReplacement = "-_-percent-23-_-";
+    public static string EscapeForUriNoHashes(this string s)
+    {
+        return Uri.EscapeDataString(s).ReplaceUriEscapedHashWithCustomEscapedHash();
+    }
+    
+    public static string UnEscapeFromUriNoHashes(this string s)
+    {
+        return s.ReplaceCustomEscapedHashWithUriEscapedHash().UnEscapeFromUri();
+    }
+    
+    public static string EscapePathElementsNoHashes(this string path)
+    {
+        var escapedParts = path.Split('/').Select(EscapeForUriNoHashes);
+        return string.Join("/", escapedParts);
+    }
+    
+    public static string UnEscapePathElementsNoHashes(this string path)
+    {
+        var unescapedParts = path.Split('/').Select(UnEscapeFromUriNoHashes);
+        return string.Join("/", unescapedParts);
+    }
+
+    public static string ReplaceCustomEscapedHashWithUriEscapedHash(this string s)
+    {
+        return s.Replace(HashReplacement, "%23");
+    }
+    public static string ReplaceUriEscapedHashWithCustomEscapedHash(this string s)
+    {
+        return s.Replace("%23", HashReplacement);
+    }
+    
+    //
+    // public static string RestoreHashesInAlreadyEscapedString(this string s)
+    // {
+    //     return s.Replace(HashReplacement, "#");
+    // }
 }

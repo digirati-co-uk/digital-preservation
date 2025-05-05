@@ -71,7 +71,8 @@ public class MetsManager(
     /// <param name="container"></param>
     private void AddResourceToMets(DigitalPreservation.XmlGen.Mets.Mets mets, ArchivalGroup archivalGroup, DivType div, Container container)
     {
-        var agString = archivalGroup.Id!.GetStringTemporaryForTesting();
+        var agLocalPath = archivalGroup.Id!.LocalPath;
+        //var agString = archivalGroup.Id!.GetStringTemporaryForTesting();
         foreach (var childContainer in container.Containers)
         {
             DivType? childDirectoryDiv = null;
@@ -83,7 +84,7 @@ public class MetsManager(
 
             if (childDirectoryDiv == null)
             {
-                var localPath = childContainer.Id!.GetStringTemporaryForTesting().RemoveStart(agString).RemoveStart("/");
+                var localPath = childContainer.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
                 var admId = AdmIdPrefix + localPath;
                 var techId = TechIdPrefix + localPath;
                 childDirectoryDiv = new DivType
@@ -107,7 +108,7 @@ public class MetsManager(
 
         foreach (var binary in container.Binaries)
         {
-            var localPath = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agString).RemoveStart("/");
+            var localPath = binary.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
             if (IsMetsFile(localPath!))
             {
                 continue;

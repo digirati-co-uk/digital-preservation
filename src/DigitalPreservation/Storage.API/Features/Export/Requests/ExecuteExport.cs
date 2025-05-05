@@ -59,7 +59,7 @@ public class ExecuteExportHandler(
                     continue;
                 }
                 var sourceKey = SafeJoin(storageMap.ObjectPath, file.Value.FullPath);
-                var destKey = SafeJoin(destinationKey, file.Key);
+                var destKey = SafeJoin(destinationKey, file.Key.UnEscapePathElementsNoHashes());
                 var req = new CopyObjectRequest
                 {
                     SourceBucket = storageMap.Root,

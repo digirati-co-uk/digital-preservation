@@ -597,7 +597,7 @@ internal class FedoraClient(
         }
        
         // Still set the content disposition to give the file within Fedora an ebucore:filename triple:
-        req.Content.WithContentDisposition(binary.Name);
+        //req.Content.WithContentDisposition(binary.Name);
         return req;
     }
 
@@ -975,7 +975,12 @@ internal class FedoraClient(
     {
         if (storageMap.StorageType == StorageTypes.S3)
         {
-            binary.Origin = new Uri($"s3://{storageMap.Root}/{storageMap.ObjectPath}/{storageMap.Hashes[binary.Digest!]}");
+            // Fedora replaces spaces in the key with actual "%20" strings that I don't think are escape sequences
+            // e4267807db7270096340540b93834d3c47d56c964d5b5b27fa9a398fde52165e: "v1/content/objects/awkward/7%20ways%20to%20celebrate%20-_-percent-23-_-WomensHistoryMonth%20💜%20And%20a%20sneak%20peek%20at%20SICK%20new%20art.htm"
+            var storageMapFilePath = storageMap.Hashes[binary.Digest!];
+            // "v1/content/objects/awkward/7%20ways%20to%20celebrate%20-_-percent-23-_-WomensHistoryMonth%20💜%20And%20a%20sneak%20peek%20at%20SICK%20new%20art.htm"
+            var backToUriSafe = storageMapFilePath.EscapePathElements(); // because those %20s are really there!
+            binary.Origin = new Uri($"s3://{storageMap.Root}/{storageMap.ObjectPath}/{backToUriSafe}");
         }
         // filesystem later
     }
