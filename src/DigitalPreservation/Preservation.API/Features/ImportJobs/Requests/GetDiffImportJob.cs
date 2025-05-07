@@ -94,7 +94,11 @@ public class GetDiffImportJobHandler(
 
         var origin = FolderNames.GetFilesLocation(request.Deposit.Files, workspace.IsBagItLayout);
         var allEncounteredProcessedUris = new List<Uri>();
-        var importContainer = combined!.DirectoryInDeposit!.ToContainer(request.Deposit.ArchivalGroup, origin, allEncounteredProcessedUris);
+        var importContainerResult = combined!.ToContainer(request.Deposit.ArchivalGroup, origin, allEncounteredProcessedUris);
+        if (importContainerResult.Failure || importContainerResult.Value is null)
+        {
+            return Result.FailNotNull<ImportJob>(importContainerResult.ErrorCode ?? ErrorCodes.BadRequest, importContainerResult.ErrorMessage);
+        }
         var distinctUris = new HashSet<string>();
         var duplicates = allEncounteredProcessedUris.Where(item => !distinctUris.Add(item.ToString())).ToList();
         if (duplicates.Count > 0)
@@ -103,16 +107,20 @@ public class GetDiffImportJobHandler(
             logger.LogWarning(message);
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, message);
         }
-        var (sourceContainers, sourceBinaries) = importContainer.Flatten();
+        var (sourceContainers, sourceBinaries) = importContainerResult.Value.Flatten();
 
         var notForImport = $"{agPathUnderRoot}/{IStorage.DepositFileSystem}";
         var removed = sourceBinaries.RemoveAll(b => b.Id.GetPathUnderRoot(true) == notForImport);
         logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
  
-        var agStringWithSlash = request.Deposit.ArchivalGroup.GetStringTemporaryForTesting().TrimEnd('/')+ "/";
+        var agLocalPathWithSlash = request.Deposit.ArchivalGroup!.LocalPath;
+        if (!agLocalPathWithSlash.EndsWith('/'))
+        {
+            agLocalPathWithSlash += "/";
+        }
         foreach (var binary in sourceBinaries)
         {
-            var relativeLocalPath = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!.UnEscapePathElementsNoHashes();
+            var relativeLocalPath = binary.Id!.LocalPath.RemoveStart(agLocalPathWithSlash)!.UnEscapePathElementsNoHashes();
             var combinedFile = combined.FindFile(relativeLocalPath)!; // because it came from a URI not a file path
             if (combinedFile.FileInMets is null)
             {
@@ -163,7 +171,7 @@ public class GetDiffImportJobHandler(
         
         foreach (var container in sourceContainers)
         {
-            var relativeLocalPath = container.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!.UnEscapePathElementsNoHashes();
+            var relativeLocalPath = container.Id!.LocalPath.RemoveStart(agLocalPathWithSlash)!.UnEscapePathElementsNoHashes();
             var metsDirectory = combined.FindDirectory(relativeLocalPath)?.DirectoryInMets; 
             if (metsDirectory is not null && metsDirectory.Name.HasText())
             {
@@ -228,14 +236,19 @@ public class GetDiffImportJobHandler(
         ImportJob importJob)
     {
         var (allExistingContainers, allExistingBinaries) = archivalGroup.Flatten();
-        var agStringWithSlash = archivalGroup.Id! + "/";
+        
+        var agLocalPathWithSlash =  archivalGroup.Id!.LocalPath;
+        if (!agLocalPathWithSlash.EndsWith('/'))
+        {
+            agLocalPathWithSlash += "/";
+        }
         
         importJob.BinariesToAdd.AddRange(sourceBinaries.Where(
             sourceBinary => !allExistingBinaries.Exists(b => b.Id == sourceBinary.Id)));
 
         foreach (var binary in allExistingBinaries)
         {
-            var path = binary.Id!.GetStringTemporaryForTesting().RemoveStart(agStringWithSlash)!;
+            var path = binary.Id!.LocalPath.RemoveStart(agLocalPathWithSlash)!;
             var sourceFile = combined.FindFile(path);
             if (sourceFile is null)
             {

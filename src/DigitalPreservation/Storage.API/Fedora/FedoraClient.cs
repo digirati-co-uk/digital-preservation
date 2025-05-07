@@ -98,6 +98,7 @@ internal class FedoraClient(
             return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"No versions found for {uri}");
         }
         var storageMap = await GetCacheableStorageMap(uri, version, true);
+        logger.LogInformation("Obtained StorageMap; Root: {root}, ObjectPath: {objectPath}", storageMap.Root, storageMap.ObjectPath);
         MergeVersions(versions, storageMap.AllVersions);
 
         if(await GetPopulatedContainer(uri, true, true, false) is not ArchivalGroup archivalGroup)
@@ -375,7 +376,7 @@ internal class FedoraClient(
             .InTransaction(transaction)
             .WithName(name)
             .WithCreatedBy(callerIdentity)
-            .WithSlug(fedoraUri.GetSlug()!);
+            .WithSlug(pathUnderFedoraRoot.GetSlug());
         if (asArchivalGroup)
         {
             req.AsArchivalGroup();
@@ -408,10 +409,23 @@ internal class FedoraClient(
             .ForJsonLd();
         var newResponse = await httpClient.SendAsync(newReq);
 
-        var containerResponse = await MakeFedoraResponse<FedoraJsonLdResponse>(newResponse);
+        FedoraJsonLdResponse? containerResponse = null;
+        try
+        {
+            containerResponse = await MakeFedoraResponse<FedoraJsonLdResponse>(newResponse);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Could not deserialise Fedora response for new Container");;
+        }
         if (containerResponse == null)
         {
-            return Result.Fail<Container>(ErrorCodes.UnknownError, "Could not deserialise Fedora response for new Container");
+            var message = await newResponse.Content.ReadAsStringAsync();
+            if (message.IsNullOrWhiteSpace())
+            {
+                message = "Could not deserialise Fedora response for new Container";
+            }
+            return Result.Fail<Container>(ErrorCodes.GetErrorCode((int?)response.StatusCode), message);  
         }
         var container = asArchivalGroup ? converters.MakeArchivalGroup(containerResponse) : converters.MakeContainer(containerResponse);
         return Result.Ok(container);
@@ -781,7 +795,7 @@ internal class FedoraClient(
         {
             throw new InvalidOperationException("Could not parse Container response");
         }
-        if (containerAndContained[0].GetProperty("@id").GetString() != uri.GetStringTemporaryForTesting())
+        if (containerAndContained[0].GetProperty("@id").GetString() != uri.OriginalString)
         {
             throw new InvalidOperationException("First resource in @graph should be the asked-for URI");
         }

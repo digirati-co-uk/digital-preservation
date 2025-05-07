@@ -127,7 +127,7 @@ public static class PremisManager
             storageComplexType.ContentLocation = new ContentLocationComplexType
             {
                 ContentLocationType = new ContentLocationType { Value = "uri" },
-                ContentLocationValue = premisFile.StorageLocation.GetStringTemporaryForTesting()
+                ContentLocationValue = premisFile.StorageLocation.OriginalString
             };
             file.Storage.Add(storageComplexType);
         }
@@ -207,7 +207,7 @@ public static class PremisManager
         {
             var contentLocation = EnsureContentLocation(file);
             contentLocation.ContentLocationType = new ContentLocationType { Value = "uri" };
-            contentLocation.ContentLocationValue = premisFile.StorageLocation.GetStringTemporaryForTesting();
+            contentLocation.ContentLocationValue = premisFile.StorageLocation.OriginalString;
         }
     }
 

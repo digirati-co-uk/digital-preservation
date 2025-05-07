@@ -297,8 +297,11 @@ public class WorkspaceManager(
         // The METS file shouldn't be adding or removing resources that aren't
         // present in EITHER the incoming deposit, or in the existing Archival Group.
         // However - limit this check to the objects directory (?)
-
-        var agStringWithSlash = importJob.ArchivalGroup! + "/";
+        var agLocalPathWithSlash = importJob.ArchivalGroup!.LocalPath;
+        if (!agLocalPathWithSlash.EndsWith('/'))
+        {
+            agLocalPathWithSlash += "/";
+        }
         
         List<Container> allExistingContainers = [];
         List<Binary> allExistingBinaries = [];
@@ -322,7 +325,7 @@ public class WorkspaceManager(
                     continue;
                 }
 
-                if (importJob.BinariesToAdd.Exists(b => b.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedFile.LocalPath!.EscapePathElementsNoHashes()))
+                if (importJob.BinariesToAdd.Exists(b => b.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + combinedFile.LocalPath!.EscapePathElementsNoHashes()))
                 {
                     // It's being added in this operation
                     continue;
@@ -338,13 +341,13 @@ public class WorkspaceManager(
             if (combinedDirectory.DirectoryInMets is not null)
             {
                 // It's in the incoming METS...
-                if (allExistingContainers.Exists(c => c.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedDirectory.LocalPath))
+                if (allExistingContainers.Exists(c => c.Id!.LocalPath == agLocalPathWithSlash + combinedDirectory.LocalPath))
                 {
                     // ...and also in the ArchivalGroup
                     continue;
                 }
 
-                if (importJob.ContainersToAdd.Exists(c => c.Id!.GetStringTemporaryForTesting() == agStringWithSlash + combinedDirectory.LocalPath))
+                if (importJob.ContainersToAdd.Exists(c => c.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + combinedDirectory.LocalPath!.EscapePathElementsNoHashes()))
                 {
                     // It's being added in this operation
                     continue;

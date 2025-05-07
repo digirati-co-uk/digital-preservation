@@ -237,7 +237,7 @@ public class MetadataReader : IMetadataReader
 
         // first assume that the extension corresponds to the data - it might not!
         // (if siegfried used without format and > output.xxx being consistent)
-        if (siegfriedUri.GetStringTemporaryForTesting().ToLowerInvariant().EndsWith("csv"))
+        if (siegfriedUri.ToString().ToLowerInvariant().EndsWith("csv"))
         {
             try
             {
@@ -278,7 +278,7 @@ public class MetadataReader : IMetadataReader
         // find {}/metadata/siegfried/siegfried.csv
         var listing = await storage.GetListing(workingRootUri, "/metadata/siegfried/");
         var candidateStrings = listing
-            .Select(u => u.GetStringTemporaryForTesting().ToLowerInvariant())
+            .Select(u => u.ToString().ToLowerInvariant())
             .Where(s => s.EndsWith(".yaml") || s.EndsWith(".yml") || s.EndsWith(".csv"))
             .ToList();
         if (candidateStrings.Count == 0)

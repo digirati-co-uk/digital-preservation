@@ -72,7 +72,6 @@ public class MetsManager(
     private void AddResourceToMets(DigitalPreservation.XmlGen.Mets.Mets mets, ArchivalGroup archivalGroup, DivType div, Container container)
     {
         var agLocalPath = archivalGroup.Id!.LocalPath;
-        //var agString = archivalGroup.Id!.GetStringTemporaryForTesting();
         foreach (var childContainer in container.Containers)
         {
             DivType? childDirectoryDiv = null;

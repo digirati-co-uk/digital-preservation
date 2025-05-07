@@ -81,7 +81,7 @@ public class CreateFolderHandler(
             var dirForMets = request.IsBagItLayout ? dir.ToRootLayout() : dir;
             if (newRootResult.Success)
             {
-                await metsManager.HandleCreateFolder(s3Uri.ToUri(), dirForMets, request.MetsETag);
+                await metsManager.HandleCreateFolder(request.RootUri, dirForMets, request.MetsETag);
                 return Result.Ok(dir);
             }
             return Result.Generify<WorkingDirectory?>(newRootResult);
@@ -90,7 +90,6 @@ public class CreateFolderHandler(
         {
             var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not create folder", pReq.GetS3Uri());
             return exResult;
-            // return Result.Generify<WorkingDirectory?>(exResult);
         }
     }
 }

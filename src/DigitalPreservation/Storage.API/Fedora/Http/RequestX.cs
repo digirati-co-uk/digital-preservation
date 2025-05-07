@@ -67,10 +67,9 @@ public static class RequestX
     }
 
     
-    public static HttpRequestMessage WithSlug(this HttpRequestMessage requestMessage, string slug) 
+    public static HttpRequestMessage WithSlug(this HttpRequestMessage requestMessage, string escapedSlug)
     {
-        var encoded = Uri.EscapeDataString(slug);
-        requestMessage.Headers.Add("slug", encoded);
+        requestMessage.Headers.Add("slug", escapedSlug);
         return requestMessage;
     }
     

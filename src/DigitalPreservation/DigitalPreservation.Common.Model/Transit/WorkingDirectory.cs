@@ -77,43 +77,7 @@ public class WorkingDirectory : WorkingBase
         return directory;
     }
 
-    public Container ToContainer(Uri repositoryUri, Uri origin, List<Uri>? uris = null)
-    {
-        uris?.Add(repositoryUri);
-        var container = new Container
-        {
-            Name = Name,
-            Id = repositoryUri,
-            Origin = origin
-        };
-        foreach (var wd in Directories)
-        {
-            container.Containers.Add(
-                wd.ToContainer(
-                    repositoryUri.AppendEscapedSlug(wd.GetSlug().EscapeForUriNoHashes()),  // For Fedora
-                    origin.AppendEscapedSlug(wd.GetSlug().EscapeForUri()),                 // Regular S3 URI
-                    uris));
-        }
-        foreach (var wf in Files)
-        {
-            var binaryId = repositoryUri.AppendEscapedSlug(wf.GetSlug().EscapeForUriNoHashes());
-            uris?.Add(binaryId);
-            var fileFormatMetadata = wf.GetFileFormatMetadata();
-            var size =fileFormatMetadata?.Size ?? wf.Size ?? 0;
-            var contentType = fileFormatMetadata?.ContentType ?? wf.ContentType;
-            var digest = wf.Digest.HasText() ? wf.Digest : fileFormatMetadata?.Digest;
-            container.Binaries.Add(new Binary
-            {
-                Id = binaryId,
-                Name = wf.Name ?? wf.GetSlug(), // not the Uri-Safe slug
-                ContentType = contentType,
-                Digest = digest,
-                Size = size,
-                Origin = origin.AppendEscapedSlug(wf.GetSlug().EscapeForUri())  // We'll need to unescape this back to a key
-            });
-        }
-        return container;
-    }
+
 
     public int DescendantFileCount(int counter = 0)
     {

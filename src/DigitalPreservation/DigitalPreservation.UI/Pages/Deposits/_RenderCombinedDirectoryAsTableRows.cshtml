@@ -61,7 +61,7 @@ File is in both
 }
 @foreach (var file in combinedDirectory.Files)
 {
-    if (file.Name == IStorage.DepositFileSystem)
+    if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem)
     {
         continue; // this file is hidden
     }
@@ -87,23 +87,21 @@ File is in both
                 }
                 else
                 {
-                    @(file.Name ?? file.LocalPath?.GetSlug() ?? "{{ NO LOCALPATH }}")
+                    @(file.GetName() ?? "{{ NO LOCALPATH }}")
                 }
             </span>
         </td>
         @{
-            var fileFormatMetadata = file.GetFileFormatMetadata();
-            var contentType = fileFormatMetadata?.ContentType ?? file.ContentType;
+            var contentType = file.GetSingleContentType();
             var contentTypeDisplay = contentType;
             if (contentType is { Length: > 22 })
             {
                 contentTypeDisplay = contentType[..22] + "...";
             }
             var virusMetadata = file.GetVirusMetadata();
-            var digest = file.Digest.HasText() ? file.Digest : fileFormatMetadata?.Digest;
         }
-        <td aria-label="hash">@digest?[..8]</td>
-        <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
+        <td aria-label="hash">@file.GetSingleDigest()?[..8]</td>
+        <td aria-label="file-size">@StringUtils.FormatFileSize(file.GetSingleSize(), withSpace: true, fallbackIfNull: " - ")</td>
         <td aria-label="content-type">
             @if (contentTypeDisplay != contentType)
             {
@@ -114,7 +112,7 @@ File is in both
                 @contentType
             }
         </td>
-        <td aria-label="pronom" title="@(fileFormatMetadata?.FormatName ?? "(no PRONOM format")">@(fileFormatMetadata?.PronomKey ?? "-")</td>
+        <td aria-label="pronom" title="@(file.GetCachedDepositFileFormatMetadata()?.FormatName ?? "(no PRONOM format")">@(file.GetCachedDepositFileFormatMetadata()?.PronomKey ?? "-")</td>
         <td aria-label="virus">@virusMetadata?.GetDisplay()</td>
     </tr>
 } 

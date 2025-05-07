@@ -185,7 +185,7 @@ public class ImportJobsController(
     {
         // This is when the API caller posts a reference to the diff import job rather than an _actual_ job
         // means we have to build the diff now.
-        if(importJob.Id!.GetStringTemporaryForTesting().EndsWith(path + "/diff"))
+        if(importJob.Id!.ToString().EndsWith(path + "/diff"))
         {
             // We may want to be more flexible that this, e.g., allowing the DigitalObject to be set as part of the immediate diff execution
             if(   importJob.ContainersToAdd.Count == 0

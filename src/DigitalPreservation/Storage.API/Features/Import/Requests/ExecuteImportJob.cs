@@ -33,6 +33,16 @@ public class ExecuteImportJobHandler(
         importJobResult.Status = ImportJobStates.Running;
         importJobResult.DateBegun = start;
         importJobResult.LastModified = start;
+
+        var preProcessValidationResult = PreProcessValidateImportJob(importJob);
+        if (preProcessValidationResult.Failure)
+        {
+            importJobResult.Errors = [new Error { Message = preProcessValidationResult.ErrorMessage ?? "" }];
+            importJobResult.DateFinished = DateTime.UtcNow;
+            importJobResult.Status = ImportJobStates.CompletedWithErrors;
+            return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
+        }
+        
         
         var timer = new Stopwatch();
         timer.Start();
@@ -108,7 +118,7 @@ public class ExecuteImportJobHandler(
         try
         {
             logger.LogInformation("{count} containers to add", importJob.ContainersToAdd.Count);
-            foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id!.GetStringTemporaryForTesting()))
+            foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id!.ToString()))
             {
                 logger.LogInformation("Creating container {id}", container.Id);
                 var fedoraContainerResult = await fedoraClient.CreateContainerWithinArchivalGroup(
@@ -203,7 +213,7 @@ public class ExecuteImportJobHandler(
             // Do we want to allow deletion of non-empty containers? It wouldn't come from a diff importJob
             // but might come from other importJob use.
             logger.LogInformation("{count} containers to delete", importJob.ContainersToDelete.Count);
-            foreach (var container in importJob.ContainersToDelete.OrderByDescending(c => c.Id!.GetStringTemporaryForTesting()))
+            foreach (var container in importJob.ContainersToDelete.OrderByDescending(c => c.Id!.ToString()))
             {
                 logger.LogInformation("Deleting container {id}", container.Id);
                 var fedoraDeleteResult = await fedoraClient.Delete(
@@ -291,5 +301,27 @@ public class ExecuteImportJobHandler(
             }
             // We could save the current state of the Result here...
         }
+    }
+
+    private Result PreProcessValidateImportJob(ImportJob importJob)
+    {
+        var allBinaries = 
+            importJob.BinariesToAdd
+            .Union(importJob.BinariesToPatch)
+            .Union(importJob.BinariesToRename)
+            .Union(importJob.BinariesToDelete);
+        // Can add more to this later...
+        foreach (var binary in allBinaries)
+        {
+            if (binary.Id == null)
+            {
+                return Result.Fail(ErrorCodes.BadRequest, "Binary ID is null");
+            }
+            if (binary.Id.LocalPath.Contains('#'))
+            {
+                return Result.Fail(ErrorCodes.BadRequest, $"Binary ID contains a fragment identifier (#): {binary.Id}");
+            }
+        }
+        return Result.Ok();
     }
 }

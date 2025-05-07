@@ -27,14 +27,6 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         }
     }
     
-
-    // Which do we want to be the first choice?
-    public string? Name => FileInDeposit?.Name ?? FileInMets?.Name;
-    public string? Digest => FileInDeposit?.Digest ?? FileInMets?.Digest;
-    public long? Size => FileInDeposit?.Size ?? FileInMets?.Size;
-    public string? ContentType => FileInDeposit?.ContentType ?? FileInMets?.ContentType;
-    
-    
     public WorkingFile? FileInDeposit { get; private set; } = fileInDeposit;
     public WorkingFile? FileInMets { get; private set; } = fileInMets;
 
@@ -121,21 +113,6 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         public T? ValueInMets = valueInMets;
     }
 
-    public FileFormatMetadata? GetFileFormatMetadata()
-    {
-        FileFormatMetadata? fileFormatMetadata = null;
-        if (FileInDeposit != null)
-        {
-            fileFormatMetadata = FileInDeposit.GetFileFormatMetadata();
-        }
-
-        if (fileFormatMetadata is null && FileInMets != null)
-        {
-            fileFormatMetadata = FileInMets.GetFileFormatMetadata();
-        }
-        return fileFormatMetadata;
-    }
-
     public VirusScanMetadata? GetVirusMetadata()
     {
         VirusScanMetadata? virusScanMetadata = null;
@@ -149,5 +126,79 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             virusScanMetadata = FileInMets.GetVirusScanMetadata();
         }
         return virusScanMetadata;
+    }
+
+    private FileFormatMetadata? cachedDepositFileFormatMetadata;
+
+    public FileFormatMetadata? GetCachedDepositFileFormatMetadata()
+    {
+        cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
+        return cachedDepositFileFormatMetadata;
+    }
+    
+    public long GetSingleSize()
+    {
+        cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
+        long size;
+        var distinctSizes = new List<long?>
+        {
+            fileInMets?.Size ?? 0,
+            cachedDepositFileFormatMetadata?.Size,
+            fileInDeposit?.Size
+        }.Where(s => s is > 0).Distinct().ToList();
+        if (distinctSizes.Count != 1)
+        {
+            size = -1;
+        }
+        else
+        { 
+            size = distinctSizes.Single()!.Value; // why need a ! here? Pattern match means cannot be null...
+        }
+
+        return size;
+    }
+    
+    
+    public string? GetSingleContentType()
+    {
+        cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
+        var distinctContentTypes = new List<string?>
+        {
+            fileInMets?.ContentType,
+            cachedDepositFileFormatMetadata?.ContentType,
+            fileInDeposit?.ContentType
+        }.Where(ct => ct.HasText()).Distinct().ToList();
+        if (distinctContentTypes.Count > 1)
+        {
+            // It might really be application/octet-stream, which is OK if that's the best we can do
+            distinctContentTypes.RemoveAll(ct => ct == "application/octet-stream");
+        }
+        if (distinctContentTypes.Count == 1)
+        {
+            return distinctContentTypes.Single();
+        }
+
+        return null;
+    }
+
+    public string? GetSingleDigest()
+    {
+        cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
+        var distinctDigests = new List<string?>
+        {
+            fileInMets?.Digest,
+            cachedDepositFileFormatMetadata?.Digest,
+            fileInDeposit?.Digest
+        }.Where(digest => digest.HasText()).Distinct().ToList();
+        if (distinctDigests.Count == 1)
+        {
+            return distinctDigests.Single();
+        }
+        return null;
+    }
+
+    public string? GetName()
+    {
+        return fileInMets?.Name ?? fileInDeposit?.Name ?? fileInMets?.GetSlug() ?? fileInDeposit?.GetSlug();
     }
 }
