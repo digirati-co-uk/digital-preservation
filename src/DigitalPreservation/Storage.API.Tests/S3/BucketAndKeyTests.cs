@@ -37,7 +37,7 @@ public class BucketAndKeyTests
     [Fact]
     public void Get_Bucket_And_Key_Using_Custom_with_fragment()
     {
-        var uri = new Uri("s3://my-bucket/some/path/to/thing#with-fragment");
+        var uri = new Uri("s3://my-bucket/some/path/to/thing%23with-fragment");
         var s3Uri = new AmazonS3Uri(uri);
         
         s3Uri.GetKeyFromLocalPath(uri).Should().Be("some/path/to/thing#with-fragment");
@@ -46,7 +46,7 @@ public class BucketAndKeyTests
     [Fact]
     public void Get_Bucket_And_Key_Using_Custom_with_fragment_and_spaces()
     {
-        var uri = new Uri("s3://my-bucket/some/path/to/thing with # a-fragment");
+        var uri = new Uri("s3://my-bucket/some/path/to/thing with %23 a-fragment");
         var s3Uri = new AmazonS3Uri(uri);
         
         s3Uri.GetKeyFromLocalPath(uri).Should().Be("some/path/to/thing with # a-fragment");
@@ -65,7 +65,7 @@ public class BucketAndKeyTests
     [Fact]
     public void Get_Bucket_And_Key_Using_Custom_with_emojis()
     {
-        var uri = new Uri("s3://my-bucket/some/path/to/7 ways to celebrate #WomensHistoryMonth 💜 And a sneak peek at SICK new art.htm");
+        var uri = new Uri("s3://my-bucket/some/path/to/7 ways to celebrate %23WomensHistoryMonth 💜 And a sneak peek at SICK new art.htm");
         var s3Uri = new AmazonS3Uri(uri);
         
         s3Uri.GetKeyFromLocalPath(uri).Should().Be("some/path/to/7 ways to celebrate #WomensHistoryMonth 💜 And a sneak peek at SICK new art.htm");

@@ -80,6 +80,6 @@ public class AppendToUriTests
         var slug = "this has a # in it";
         var escapedSlug = Uri.EscapeDataString(slug);
         var uri2 = uri.AppendEscapedSlug(escapedSlug);
-        uri2.ToString().Should().Be("http://www.test.com/aa/bb/cc/this has a # in it");
+        uri2.ToString().Should().Be("http://www.test.com/aa/bb/cc/this has a %23 in it");
     }
 }

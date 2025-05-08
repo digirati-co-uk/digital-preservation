@@ -263,7 +263,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     {
         var testData = new FileFormatMetadata
         {
-            Source = "Tests",
+            Source = "METS",
             Digest = "efc63a2c4dbb61936b5028c637c76f066ce463b5de6f3d5d674c9f024fa08d79",
             Size = 9999999,
             FormatName = "Tagged Image File Format Test",
