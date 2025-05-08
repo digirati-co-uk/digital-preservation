@@ -157,17 +157,21 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
         return size;
     }
-    
+
+    public List<string?> GetAllContentTypes()
+    {
+        return
+        [
+            fileInMets?.ContentType,
+            cachedDepositFileFormatMetadata?.ContentType,
+            fileInDeposit?.ContentType
+        ];
+    }
     
     public string? GetSingleContentType()
     {
         cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
-        var distinctContentTypes = new List<string?>
-        {
-            fileInMets?.ContentType,
-            cachedDepositFileFormatMetadata?.ContentType,
-            fileInDeposit?.ContentType
-        }.Where(ct => ct.HasText()).Distinct().ToList();
+        var distinctContentTypes = GetAllContentTypes().Where(ct => ct.HasText()).Distinct().ToList();
         if (distinctContentTypes.Count > 1)
         {
             // It might really be application/octet-stream, which is OK if that's the best we can do
@@ -177,7 +181,6 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         {
             return distinctContentTypes.Single();
         }
-
         return null;
     }
 

@@ -374,7 +374,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
             if (contentType is null)
             {
                 return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
-                    $"File {fileInDeposit.LocalPath} has different content types in deposit and mets");
+                    $"File {fileInDeposit.LocalPath} has different content types in deposit and mets - " + string.Join(", ", combinedFile.GetAllContentTypes()));
             }
 
             var digest = combinedFile.GetSingleDigest();
