@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Common.Model.PreservationApi;
 
 namespace LeedsDlipServices.Identity;
 
@@ -24,4 +25,9 @@ public class SchemaAndValue
     [JsonPropertyOrder(200)]
     [JsonPropertyName("value")]
     public required string Value { get; set; }
+    
+    [JsonPropertyOrder(300)]
+    [JsonPropertyName("template")]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public TemplateType Template { get; set; } = TemplateType.None;
 }

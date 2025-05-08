@@ -45,23 +45,23 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         logger.LogDebug("OnPostNewDeposit(NewDepositModel newDepositModel)");
         NewDeposit = newDepositModel;
         Result<Deposit?>? result = null;
+        var templateType = TemplateType.None;
+        if (newDepositModel.UseBagItTemplate)
+        {
+            templateType = TemplateType.BagIt;
+        }
+        else if (newDepositModel.UseObjectTemplate)
+        {
+            templateType = TemplateType.RootLevel;
+        }
         if (newDepositModel.ObjectIdentifier.HasText())
         {
-            result = await mediator.Send(new CreateDepositFromIdentifier(newDepositModel.ObjectIdentifier));
+            result = await mediator.Send(new CreateDepositFromIdentifier(newDepositModel.ObjectIdentifier, templateType));
         }
         else
         {
             if (await ValidateAndNormaliseNewDeposit(newDepositModel))
             {
-                var templateType = TemplateType.None;
-                if (newDepositModel.UseBagItTemplate)
-                {
-                    templateType = TemplateType.BagIt;
-                }
-                else if (newDepositModel.UseObjectTemplate)
-                {
-                    templateType = TemplateType.RootLevel;
-                }
                 result = await mediator.Send(new CreateDeposit(
                     newDepositModel.ArchivalGroupPathUnderRoot,
                     newDepositModel.ArchivalGroupProposedName,

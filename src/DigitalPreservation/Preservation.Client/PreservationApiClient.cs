@@ -109,10 +109,10 @@ internal class PreservationApiClient(
         }
     }
 
-    public async Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, CancellationToken cancellationToken)
+    public async Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, TemplateType templateType, CancellationToken cancellationToken)
     {
         var uri = new Uri($"/{Deposit.BasePathElement}/from-identifier", UriKind.Relative);
-        var body = new SchemaAndValue{ Schema = schema, Value = identifier };
+        var body = new SchemaAndValue{ Schema = schema, Value = identifier, Template = templateType };
         try
         {
             HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(uri, body, cancellationToken);
