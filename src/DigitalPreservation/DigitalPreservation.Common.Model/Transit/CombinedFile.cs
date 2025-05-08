@@ -177,6 +177,11 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             // It might really be application/octet-stream, which is OK if that's the best we can do
             distinctContentTypes.RemoveAll(ct => ct == "application/octet-stream");
         }
+        if (distinctContentTypes.Count > 1)
+        {
+            // It might really be application/octet-stream, which is OK if that's the best we can do
+            distinctContentTypes.RemoveAll(ct => ct == "binary/octet-stream");
+        }
         if (distinctContentTypes.Count == 1)
         {
             return distinctContentTypes.Single();
