@@ -3,32 +3,24 @@ def get_boilerplate_manifest():
         "type": "Manifest",
         "provider": [
             {
-                "id": "https://example.org/about",
+                "id": "https://library.leeds.ac.uk/info/1600/about",
                 "type": "Agent",
-                "label": {"en": ["Example Organization"]},
+                "label": {"en": ["University of Leeds"]},
                 "homepage": [
                     {
-                        "id": "https://example.org/",
+                        "id": "https://https://library.leeds.ac.uk//",
                         "type": "Text",
-                        "label": {"en": ["Example Organization Homepage"]},
+                        "label": {"en": ["Leeds University Library Homepage"]},
                         "format": "text/html"
                     }
                 ],
                 "logo": [
                     {
-                        "id": "https://example.org/images/logo.png",
+                        "id": "https://resources.library.leeds.ac.uk/logo/black.png",
                         "type": "Image",
                         "format": "image/png",
-                        "height": 100,
-                        "width": 120
-                    }
-                ],
-                "seeAlso": [
-                    {
-                        "id": "https://data.example.org/about/us.jsonld",
-                        "type": "Dataset",
-                        "format": "application/ld+json",
-                        "profile": "https://schema.org/"
+                        "height": 61,
+                        "width": 300
                     }
                 ]
             }
