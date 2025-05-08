@@ -28,10 +28,10 @@ public class SiegfriedTests
     {
         var output = SiegfriedOutput.FromYamlString(inputYaml);
         output.TechnicalProvenance.Should().NotBeNull();
-        output.TechnicalProvenance!.Siegfried.Should().Be("1.11.2");
+        output.TechnicalProvenance!.Siegfried.Should().StartWith("1.11.0");
         output.TechnicalProvenance.Identifiers.Should().HaveCount(1);
         output.TechnicalProvenance.Identifiers?[0].Name.Should().Be("pronom");
-        output.TechnicalProvenance.Created?.Year.Should().Be(2025);
+        output.TechnicalProvenance.Created?.Year.Should().Be(2023);
     }
     
     

@@ -119,7 +119,8 @@ def add_painted_resources_from_working_dir(painted_resources, working_dir:Workin
         # You can also obtain the origin by traversing the ArchivalGroup Container hierarchy, following
         # the path given by f.local_path. This gives you the S3 URI directly (the origin property
         # of the binary at the end of the path) but is more code otherwise.
-        origin = f"{archival_group["origin"]}/{archival_group["storageMap"]["files"][f.local_path]["fullPath"]}"
+        hash_replace = f.local_path.replace('#', '-_-percent-23-_-')
+        origin = f"{archival_group["origin"]}/{archival_group["storageMap"]["files"][hash_replace]["fullPath"]}"
         logger.info(f"file {f.local_path} has origin {origin}")
         logger.info(f"file {f.local_path} has content type {f.content_type}")
 
@@ -128,7 +129,11 @@ def add_painted_resources_from_working_dir(painted_resources, working_dir:Workin
             logger.info(f"skipping file {f.local_path} because it is not an image")
             continue
 
-        single_path_file_id = f.local_path.replace('/', '_')
+        single_path_file_id = hash_replace.replace('/', '_')
+        # TODO: this is too dangerous to use as the DLCS ID.
+        # Need to make it DLCS-safe in a predictable way.
+        # Strip non-ascii chars and append digest?
+        single_path_file_id = single_path_file_id.replace(' ', '_')
         logger.info(f"file {f.local_path} will use iiif-cs id {single_path_file_id}")
         painted_resource = {
             "canvasPainting": {
