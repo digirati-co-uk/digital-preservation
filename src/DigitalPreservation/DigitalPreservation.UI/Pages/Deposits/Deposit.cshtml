@@ -2,13 +2,21 @@
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.Common.Model.Transit
+@using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @model DepositModel
 
 @functions {
+    
+    private bool IsLockedByOtherUser()
+    {
+        return Model.Deposit?.LockedBy != null && Model.Deposit.LockedBy.GetSlug() != User.GetCallerIdentity();
+    }
+    
     private bool CanBeWorkedOn()
     {
+        if (IsLockedByOtherUser()) return false;
         return Model.Deposit is { Active: true } && Model.Deposit.Status != DepositStates.Exporting;
     }
 }
@@ -23,7 +31,7 @@ ViewData["section"] = "deposits";
     <div class="btn-toolbar mb-2 mb-md-0">
         @if (Model.Deposit is not null)
         {
-            <button @(Model.Deposit!.Active ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
+            <button @(CanBeWorkedOn() ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
                 <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
             </button>
             <form class="single-submit" method="post">
@@ -34,6 +42,14 @@ ViewData["section"] = "deposits";
                         Actions
                     </button>
                     <ul class="dropdown-menu">
+                        @if (IsLockedByOtherUser())
+                        {
+                            <li>
+                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
+                                    <svg class="bi"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
+                                </button>
+                            </li>
+                        }
                         <li>
                             <button class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
                                 <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
@@ -45,7 +61,7 @@ ViewData["section"] = "deposits";
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-primary" type="button" id="toggleRhs" 
+                            <button class="dropdown-item text-primary" type="button" id="toggleRhs"
                                     data-bs-toggle="collapse" data-bs-target="#sidebarInfoPanel" aria-expanded="true" aria-controls="sidebarInfoPanel">
                                 <svg class="bi"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
                             </button>
@@ -112,6 +128,12 @@ ViewData["section"] = "deposits";
         <p>@Html.Raw(TempData["Valid"])</p>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
+    }
+    @if (IsLockedByOtherUser())
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>This Deposit is locked by @Model.Deposit!.LockedBy?.GetSlug()</p>
+        </div>
     }
  </div>
 
@@ -198,7 +220,7 @@ ViewData["section"] = "deposits";
                                 @{
                                     var wrapper = new CombinedDirectoryRecursionWrapper(combinedResult.Value,
                                         Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
-                                        Model.Deposit.Active, new Counter());
+                                        Model.Deposit.Active, IsLockedByOtherUser(), new Counter());
                                     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
                                 }
                                 </tbody>

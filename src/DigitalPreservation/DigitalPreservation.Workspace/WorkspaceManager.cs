@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Security.Claims;
+using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -92,9 +93,29 @@ public class WorkspaceManager(
         return null;
     }
 
-
-    public async Task<Result<CreateFolderResult>> CreateFolder(string newFolderName, string? newFolderContext, bool contextIsFile)
+    public string? GetOtherLockOwner(string? callerIdentity)
     {
+        if (callerIdentity.HasText() && deposit.LockedBy != null)
+        {
+            var lockedBy = deposit.LockedBy.GetSlug();
+            if (lockedBy != callerIdentity)
+            {
+                return lockedBy;
+            }
+        }
+        return null;
+    }
+
+
+    public async Task<Result<CreateFolderResult>> CreateFolder(
+        string newFolderName, string? newFolderContext, bool contextIsFile, string? callerIdentity)
+    {
+        var otherLockOwner = GetOtherLockOwner(callerIdentity);
+        if (otherLockOwner.HasText())
+        {
+            return Result.FailNotNull<CreateFolderResult>(ErrorCodes.Unauthorized,
+                "Deposit is locked by another user: " + otherLockOwner);
+        }
         if (contextIsFile && newFolderContext.HasText())
         {
             newFolderContext = newFolderContext.GetParent();
@@ -137,8 +158,14 @@ public class WorkspaceManager(
 
     }
 
-    public async Task<Result<ItemsAffected>> DeleteItems(DeleteSelection deleteSelection)
+    public async Task<Result<ItemsAffected>> DeleteItems(DeleteSelection deleteSelection, string callerIdentity)
     {
+        var otherLockOwner = GetOtherLockOwner(callerIdentity);
+        if (otherLockOwner.HasText())
+        {
+            return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
+                "Deposit is locked by another user: " + otherLockOwner);
+        }
         if (deleteSelection is { DeleteFromMets: false, DeleteFromDepositFiles: false })
         {
             return Result.FailNotNull<ItemsAffected>(ErrorCodes.BadRequest,
@@ -166,8 +193,14 @@ public class WorkspaceManager(
         return Result.FailNotNull<ItemsAffected>(combinedResult.ErrorCode ?? ErrorCodes.UnknownError, combinedResult.ErrorMessage);
     }
 
-    public async Task<Result<ItemsAffected>> AddItemsToMets(List<WorkingBase> items)
+    public async Task<Result<ItemsAffected>> AddItemsToMets(List<WorkingBase> items, string callerIdentity)
     {
+        var otherLockOwner = GetOtherLockOwner(callerIdentity);
+        if (otherLockOwner.HasText())
+        {
+            return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
+                "Deposit is locked by another user: " + otherLockOwner);
+        }
         if (items.Count == 0)
         {
             return Result.FailNotNull<ItemsAffected>(ErrorCodes.BadRequest,
@@ -179,9 +212,14 @@ public class WorkspaceManager(
     }
 
     public async Task<Result<SingleFileUploadResult>> UploadSingleSmallFile(
-        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context)
+        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity)
     {
-
+        var otherLockOwner = GetOtherLockOwner(callerIdentity);
+        if (otherLockOwner.HasText())
+        {
+            return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.Unauthorized,
+                "Deposit is locked by another user: " + otherLockOwner);
+        }
         var combinedResult = await GetCombinedDirectory();
         if (combinedResult is not { Success: true, Value: not null })
         {
@@ -240,7 +278,7 @@ public class WorkspaceManager(
                 deposit.Files!, true, true));
         return readS3Result;
     }
-
+    
     public async Task<Result> ValidateDepositFileSystem()
     {       
         var readS3Result = await mediator.Send(new GetWorkingDirectory(

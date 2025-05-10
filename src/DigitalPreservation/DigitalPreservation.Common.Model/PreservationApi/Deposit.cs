@@ -83,6 +83,16 @@ public class Deposit : Resource
     [JsonPropertyOrder(600)]
     [JsonPropertyName("metsETag")]
     public string? MetsETag { get; set; }
+
+
+    [JsonPropertyOrder(701)] 
+    [JsonPropertyName("lockedBy")]
+    public Uri? LockedBy;
+    
+    
+    [JsonPropertyOrder(702)] 
+    [JsonPropertyName("lockDate")]
+    public DateTime? LockDate;
     
 
     public const string BasePathElement = "deposits";

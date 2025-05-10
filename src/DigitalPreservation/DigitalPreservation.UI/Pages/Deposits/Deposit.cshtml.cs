@@ -5,6 +5,7 @@ using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.Utils;
@@ -73,7 +74,7 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
-            var result = await WorkspaceManager.CreateFolder(newFolderName, newFolderContext, contextIsFile);
+            var result = await WorkspaceManager.CreateFolder(newFolderName, newFolderContext, contextIsFile, User.GetCallerIdentity());
             if (result.Success)
             {
                 var details = result.Value!;
@@ -107,7 +108,7 @@ public class DepositModel(
             {
                 deleteSelection.DeleteFromMets = true;
             }
-            var result = await WorkspaceManager.DeleteItems(deleteSelection);
+            var result = await WorkspaceManager.DeleteItems(deleteSelection, User.GetCallerIdentity());
             if (result.Success)
             {
                 var details = result.Value!;
@@ -147,7 +148,7 @@ public class DepositModel(
                     wbsToAdd.Add(wbToAdd);
                 }
             }
-            var result = await WorkspaceManager.AddItemsToMets(wbsToAdd);
+            var result = await WorkspaceManager.AddItemsToMets(wbsToAdd, User.GetCallerIdentity());
             if (result.Success)
             {
                 var details = result.Value!;
@@ -208,7 +209,8 @@ public class DepositModel(
                 checksum,
                 depositFileName,
                 depositFileContentType,
-                newFileContext
+                newFileContext,
+                User.GetCallerIdentity()
             );
             if (result.Success)
             {
@@ -255,6 +257,23 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "Storage validation succeeded. The Deposit File System file reflects S3 content.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            TempData["Error"] = result.ErrorMessage;
+        }
+
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostReleaseLock([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await mediator.Send(new ReleaseLock(Deposit!));
+            if (result.Success)
+            {
+                TempData["Valid"] = "Lock released.";
                 return Redirect($"/deposits/{id}");
             }
 

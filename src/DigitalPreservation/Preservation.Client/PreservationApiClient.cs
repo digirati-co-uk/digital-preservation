@@ -19,6 +19,28 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
+    public async Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/lock" + (force ? "?force=true" : ""), UriKind.Relative); 
+        var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+        return await response.ToFailResult("Unable to lock deposit");
+    }
+
+    public async Task<Result> ReleaseDepositLock(Deposit deposit, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/lock", UriKind.Relative); 
+        var response = await preservationHttpClient.DeleteAsync(uri, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+        return await response.ToFailResult("Unable to remove lock");
+    }
+
     public async Task<OrderedCollection?> GetOrderedCollection(string stream)
     {
         var uri = new Uri($"/activity/{stream}/collection", UriKind.Relative);

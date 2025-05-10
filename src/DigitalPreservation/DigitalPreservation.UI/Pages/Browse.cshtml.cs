@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Caching.Memory;
 using Preservation.Client;
+using Storage.Repository.Common.Mets;
 
 namespace DigitalPreservation.UI.Pages;
 
@@ -51,6 +52,16 @@ public class BrowseModel(
             Resource.PartOf = CachedArchivalGroup.Id;
         }
         await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
+        if(
+            view != "mets" && 
+            CachedArchivalGroup != null && 
+            WorkingDirectory == null && 
+            WorkingFile == null && 
+            MetsUtils.IsMetsFile(pathUnderRoot!.GetSlug()))
+        {
+            return Redirect("/browse/" + CachedArchivalGroup.GetPathUnderRoot() 
+                                      + "?view=mets" + (version.HasText() ? "&version=" + version : ""));           
+        }
         if (Resource == null)
         {
             // The resource is not an Archival Group and is not in an Archival Group

@@ -51,6 +51,9 @@ public interface IPreservationApiClient
     Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken);
     Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, string? version, CancellationToken cancellationToken = default);
     
+    Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken);
+    Task<Result> ReleaseDepositLock(Deposit deposit, CancellationToken cancellationToken);
+    
     Task<OrderedCollection?> GetOrderedCollection(string stream);
     Task<OrderedCollectionPage?> GetOrderedCollectionPage(string stream, int index);
     

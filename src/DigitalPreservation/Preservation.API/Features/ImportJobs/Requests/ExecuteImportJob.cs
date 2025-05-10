@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using System.Text.Json;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
@@ -31,6 +32,11 @@ public class ExecuteImportJobHandler(
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
         var callerIdentity = request.Principal.GetCallerIdentity();
+        var depositEntity = dbContext.Deposits.SingleOrDefault(d => d.MintedId == request.ImportJob.Deposit!.GetSlug());
+        if (depositEntity?.LockedBy != null && depositEntity.LockedBy != callerIdentity)
+        {
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "Deposit is locked by another user: " + callerIdentity);
+        }
         logger.LogInformation("ExecuteImportJobHandler handling import job " + request.ImportJob.LogSummary());
         var now = DateTime.UtcNow;
         var mintedId = identityService.MintIdentity(nameof(ImportJob));

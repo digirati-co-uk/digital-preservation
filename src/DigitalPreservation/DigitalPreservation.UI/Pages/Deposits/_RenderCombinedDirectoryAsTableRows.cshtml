@@ -1,5 +1,4 @@
 ﻿@using DigitalPreservation.Common.Model.Transit
-@using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.Utils
 @using Storage.Repository.Common
 @model CombinedDirectoryRecursionWrapper
@@ -26,7 +25,7 @@ File is in both
                    <tr class="deposit-row @("where-" + where)" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts">
         <td aria-label="select-row">
-            @if (Model is { Editable: true, Active: true } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
             {
                 <input class="form-check-input item-selector item-directory" type="checkbox" 
                        value="@combinedDirectory.LocalPath" id="@("is-" + Model.RowCounter.Count)">
@@ -34,7 +33,7 @@ File is in both
             }
         </td>
         <td class="dep-actions">
-            @if (Model is { Editable: true, Active: true } && combinedDirectory.LocalPath != FolderNames.Metadata)
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && combinedDirectory.LocalPath != FolderNames.Metadata)
             {
                 <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#newFolderModal" aria-label="new folder">
                     <svg class="bi"><use xlink:href="#folder-plus"/></svg>
@@ -56,7 +55,7 @@ File is in both
 }
 @foreach (var dir in combinedDirectory.Directories)
 {
-    var wrapper = new CombinedDirectoryRecursionWrapper(dir, Model.MetsPath, Model.Editable, Model.Active, Model.RowCounter);
+    var wrapper = new CombinedDirectoryRecursionWrapper(dir, Model.MetsPath, Model.Editable, Model.Active, Model.LockedByOtherUser, Model.RowCounter);
     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
 }
 @foreach (var file in combinedDirectory.Files)
@@ -69,7 +68,7 @@ File is in both
     <tr class="deposit-row @("where-" + where)" 
         data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts">
         <td aria-label="select-row">
-            @if (Model is { Editable: true, Active: true } && file.LocalPath != "mets.xml")
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && file.LocalPath != "mets.xml")
             {
                 <input class="form-check-input item-selector item-file" type="checkbox" 
                        value="@file.LocalPath" id="@("is-" + Model.RowCounter.Count)">

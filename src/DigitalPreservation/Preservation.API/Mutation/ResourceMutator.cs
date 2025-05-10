@@ -150,7 +150,11 @@ public class ResourceMutator(
         }
         return null;
     }
-    
+
+    public string? GetCallerIdentity(Uri? agentUri)
+    {
+        return agentUri?.GetSlug();
+    }
     
     public Uri GetActivityStreamUri(string path)
     {
@@ -180,7 +184,9 @@ public class ResourceMutator(
             ExportedBy = GetAgentUri(entity.ExportedBy),
             // ExportResult = entity.ExportResultUri, // don't do this, just rely on the Status value.
             VersionExported = entity.VersionExported,
-            VersionPreserved = entity.VersionPreserved
+            VersionPreserved = entity.VersionPreserved,
+            LockedBy = GetAgentUri(entity.LockedBy),
+            LockDate = entity.LockDate 
         };
         return deposit;
     }
