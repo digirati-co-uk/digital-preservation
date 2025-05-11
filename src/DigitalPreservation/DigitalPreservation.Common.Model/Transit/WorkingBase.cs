@@ -34,6 +34,15 @@ public abstract class WorkingBase
     public MetsExtensions? MetsExtensions { get; set; }
     
     public List<Metadata> Metadata { get; set; } = [];
+    
+    [JsonPropertyName("accessRestrictions")]
+    [JsonPropertyOrder(5)]
+    public List<string> AccessRestrictions { get; set; } = [];
+    
+    [JsonPropertyName("rightsStatement")]
+    [JsonPropertyOrder(6)]
+    public Uri? RightsStatement { get; set; }
+    
 
     public string GetSlug()
     {

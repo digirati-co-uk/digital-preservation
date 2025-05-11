@@ -13,6 +13,7 @@ using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
+using DigitalPreservation.XmlGen.Mods.V3;
 using DigitalPreservation.XmlGen.Premis.V3;
 using Checksum = DigitalPreservation.Utils.Checksum;
 using File = System.IO.File;
@@ -27,7 +28,7 @@ public class MetsManager(
     private const string FileIdPrefix = "FILE_";
     private const string AdmIdPrefix = "ADM_";
     private const string TechIdPrefix = "TECH_";
-    private const string DmdPhysRoot = "DMD_PHYS_ROOT";
+    public const string DmdPhysRoot = "DMD_PHYS_ROOT";
     private const string ObjectsDivId = PhysIdPrefix + FolderNames.Objects;
     private const string MetadataDivId = PhysIdPrefix + FolderNames.Metadata;
     private const string DirectoryType = "Directory";
@@ -162,10 +163,11 @@ public class MetsManager(
         var mets = GetEmptyMets();
         var rootDmd = mets.DmdSec.Single(x => x.Id == DmdPhysRoot)!;
         rootDmd.MdWrap = new MdSecTypeMdWrap{ Mdtype = MdSecTypeMdWrapMdtype.Mods };
-        var mods = $"""<mods:mods xmlns:mods="http://www.loc.gov/mods/v3"><mods:name>{agNameFromDeposit ?? "[Untitled]"}</mods:name></mods:mods>""";
-        rootDmd.MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { GetElement(mods) } };
+        var mods = ModsManager.Create(agNameFromDeposit ?? "[Untitled]");
+        rootDmd.MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { ModsManager.GetXmlElement(mods) } };
         return (file, mets);
     }
+    
 
 
     
@@ -742,12 +744,44 @@ public class MetsManager(
         };
         return amdSec;
     }
-    
-    [Obsolete("Make a ModsManager like PremisManager")]
-    private static XmlElement GetElement(string xml)
+
+    private const string RestrictionOnAccess = "restriction on access";
+    private const string UseAndReproduction = "use and reproduction";
+
+    public static List<string> GetRootAccessRestrictions(FullMets fullMets)
     {
-        var doc = new XmlDocument();
-        doc.LoadXml(xml);
-        return doc.DocumentElement!;
+        var mods = ModsManager.GetRootMods(fullMets.Mets);
+        return mods == null ? [] : mods.GetAccessConditions(RestrictionOnAccess); // may add Goobi things to this
+    }
+
+    public static void SetRootAccessRestrictions(FullMets fullMets, List<string> accessRestrictions)
+    {
+        var mods = ModsManager.GetRootMods(fullMets.Mets);
+        if (mods is null) return;
+        
+        mods.RemoveAccessConditions(RestrictionOnAccess);
+        foreach (var accessRestriction in accessRestrictions)
+        {
+            mods.AddAccessCondition(accessRestriction, RestrictionOnAccess);
+        }
+    }
+
+    public static void SetRootRightsStatement(FullMets fullMets, Uri? uri)
+    {
+        var mods = ModsManager.GetRootMods(fullMets.Mets);
+        if (mods is null) return;
+        
+        mods.RemoveAccessConditions(UseAndReproduction);
+        if (uri is not null)
+        {
+            mods.AddAccessCondition(uri.ToString(), UseAndReproduction);
+        }
+    }
+    
+    public static Uri? GetRootRightsStatement(FullMets fullMets)
+    {
+        var mods = ModsManager.GetRootMods(fullMets.Mets);
+        var rights = mods?.GetAccessConditions(UseAndReproduction).SingleOrDefault();
+        return rights is not null ? new Uri(rights) : null;
     }
 }
