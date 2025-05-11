@@ -93,24 +93,13 @@ public class WorkspaceManager(
         return null;
     }
 
-    public string? GetOtherLockOwner(string? callerIdentity)
-    {
-        if (callerIdentity.HasText() && deposit.LockedBy != null)
-        {
-            var lockedBy = deposit.LockedBy.GetSlug();
-            if (lockedBy != callerIdentity)
-            {
-                return lockedBy;
-            }
-        }
-        return null;
-    }
+
 
 
     public async Task<Result<CreateFolderResult>> CreateFolder(
         string newFolderName, string? newFolderContext, bool contextIsFile, string? callerIdentity)
     {
-        var otherLockOwner = GetOtherLockOwner(callerIdentity);
+        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
             return Result.FailNotNull<CreateFolderResult>(ErrorCodes.Unauthorized,
@@ -160,7 +149,7 @@ public class WorkspaceManager(
 
     public async Task<Result<ItemsAffected>> DeleteItems(DeleteSelection deleteSelection, string callerIdentity)
     {
-        var otherLockOwner = GetOtherLockOwner(callerIdentity);
+        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
             return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
@@ -195,7 +184,7 @@ public class WorkspaceManager(
 
     public async Task<Result<ItemsAffected>> AddItemsToMets(List<WorkingBase> items, string callerIdentity)
     {
-        var otherLockOwner = GetOtherLockOwner(callerIdentity);
+        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
             return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
@@ -214,7 +203,7 @@ public class WorkspaceManager(
     public async Task<Result<SingleFileUploadResult>> UploadSingleSmallFile(
         Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity)
     {
-        var otherLockOwner = GetOtherLockOwner(callerIdentity);
+        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
             return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.Unauthorized,

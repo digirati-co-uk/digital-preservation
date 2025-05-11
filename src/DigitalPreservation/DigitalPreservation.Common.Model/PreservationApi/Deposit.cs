@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.PreservationApi;
 
@@ -87,15 +88,28 @@ public class Deposit : Resource
 
     [JsonPropertyOrder(701)] 
     [JsonPropertyName("lockedBy")]
-    public Uri? LockedBy;
+    public Uri? LockedBy { get; set; }
     
     
     [JsonPropertyOrder(702)] 
     [JsonPropertyName("lockDate")]
-    public DateTime? LockDate;
+    public DateTime? LockDate { get; set; }
     
 
     public const string BasePathElement = "deposits";
+    
+    public string? GetOtherLockOwner(string? callerIdentity)
+    {
+        if (callerIdentity.HasText() && LockedBy != null)
+        {
+            var lockedBy = LockedBy.GetSlug();
+            if (lockedBy != callerIdentity)
+            {
+                return lockedBy;
+            }
+        }
+        return null;
+    }
 
 }
 

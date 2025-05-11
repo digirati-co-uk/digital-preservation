@@ -50,6 +50,14 @@ ViewData["section"] = "deposits";
                                 </button>
                             </li>
                         }
+                        else
+                        {
+                            <li>
+                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="Lock">
+                                    <svg class="bi"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
+                                </button>
+                            </li>
+                        }
                         <li>
                             <button class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
                                 <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>

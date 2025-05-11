@@ -265,6 +265,23 @@ public class DepositModel(
 
         return Page();
     }
+    
+    public async Task<IActionResult> OnPostLock([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await mediator.Send(new LockDeposit(Deposit!));
+            if (result.Success)
+            {
+                TempData["Valid"] = "Deposit locked.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            TempData["Error"] = result.ErrorMessage;
+        }
+
+        return Page();
+    }
 
     public async Task<IActionResult> OnPostReleaseLock([FromRoute] string id)
     {
