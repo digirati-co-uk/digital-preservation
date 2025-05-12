@@ -295,15 +295,20 @@ public class MetsParser(
     
         public void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
         {
-            var firstMods = xMets.Descendants(XNames.mods + "mods").FirstOrDefault();
-            var modsTitle = firstMods?.Descendants(XNames.mods + "title").FirstOrDefault()?.Value;
-            var modsName = firstMods?.Descendants(XNames.mods + "name").FirstOrDefault()?.Value;
+            var modsScope = xMets.Descendants(XNames.mods + "mods").FirstOrDefault();
+            // EPrints mods is not wrapped in a <mods:mods> element
+            if (modsScope == null)
+            {
+                modsScope = xMets.Root;
+            }
+            var modsTitle = modsScope?.Descendants(XNames.mods + "title").FirstOrDefault()?.Value;
+            var modsName = modsScope?.Descendants(XNames.mods + "name").FirstOrDefault()?.Value;
             string? name = modsTitle ?? modsName;
             if (!string.IsNullOrWhiteSpace(name))
             {
                 mets.Name = name;
             }
-            var rootAccessConditions = firstMods?.Descendants(XNames.mods + "accessCondition").ToList();
+            var rootAccessConditions = modsScope?.Descendants(XNames.mods + "accessCondition").ToList();
             if (rootAccessConditions is { Count: > 0 })
             {
                 foreach (var accessCondition in rootAccessConditions)
