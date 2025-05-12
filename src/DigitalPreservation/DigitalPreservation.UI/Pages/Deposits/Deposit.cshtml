@@ -42,7 +42,7 @@ ViewData["section"] = "deposits";
                         Actions
                     </button>
                     <ul class="dropdown-menu">
-                        @if (IsLockedByOtherUser())
+                        @if (Model.Deposit?.LockedBy != null)
                         {
                             <li>
                                 <button class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
