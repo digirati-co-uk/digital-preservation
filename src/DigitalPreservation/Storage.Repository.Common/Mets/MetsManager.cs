@@ -743,45 +743,43 @@ public class MetsManager(
         return amdSec;
     }
 
-    public const string RestrictionOnAccess = "restriction on access";
-    public const string UseAndReproduction = "use and reproduction";
 
-    public static List<string> GetRootAccessRestrictions(FullMets fullMets)
+    public List<string> GetRootAccessRestrictions(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
-        return mods == null ? [] : mods.GetAccessConditions(RestrictionOnAccess); // may add Goobi things to this
+        return mods == null ? [] : mods.GetAccessConditions(IMetsManager.RestrictionOnAccess); // may add Goobi things to this
     }
 
-    public static void SetRootAccessRestrictions(FullMets fullMets, List<string> accessRestrictions)
+    public void SetRootAccessRestrictions(FullMets fullMets, List<string> accessRestrictions)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
         if (mods is null) return;
         
-        mods.RemoveAccessConditions(RestrictionOnAccess);
+        mods.RemoveAccessConditions(IMetsManager.RestrictionOnAccess);
         foreach (var accessRestriction in accessRestrictions)
         {
-            mods.AddAccessCondition(accessRestriction, RestrictionOnAccess);
+            mods.AddAccessCondition(accessRestriction, IMetsManager.RestrictionOnAccess);
         }
         ModsManager.SetRootMods(fullMets.Mets, mods);
     }
 
-    public static void SetRootRightsStatement(FullMets fullMets, Uri? uri)
+    public void SetRootRightsStatement(FullMets fullMets, Uri? uri)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
         if (mods is null) return;
         
-        mods.RemoveAccessConditions(UseAndReproduction);
+        mods.RemoveAccessConditions(IMetsManager.UseAndReproduction);
         if (uri is not null)
         {
-            mods.AddAccessCondition(uri.ToString(), UseAndReproduction);
+            mods.AddAccessCondition(uri.ToString(), IMetsManager.UseAndReproduction);
         }
         ModsManager.SetRootMods(fullMets.Mets, mods);
     }
     
-    public static Uri? GetRootRightsStatement(FullMets fullMets)
+    public Uri? GetRootRightsStatement(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
-        var rights = mods?.GetAccessConditions(UseAndReproduction).SingleOrDefault();
+        var rights = mods?.GetAccessConditions(IMetsManager.UseAndReproduction).SingleOrDefault();
         return rights is not null ? new Uri(rights) : null;
     }
 }

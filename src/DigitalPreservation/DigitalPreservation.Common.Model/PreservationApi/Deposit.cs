@@ -94,7 +94,6 @@ public class Deposit : Resource
     [JsonPropertyOrder(702)] 
     [JsonPropertyName("lockDate")]
     public DateTime? LockDate { get; set; }
-    
 
     public const string BasePathElement = "deposits";
     

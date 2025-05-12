@@ -26,6 +26,17 @@ public class WorkspaceManager(
     public string? MetsPath { get; set; }
     public bool Editable { get; set; }
     public string? MetsName { get; set; }
+    
+    // TODO: In phase 2, replace these with always an operation on a CombinedDirectory -> METS Directory, including the workspace root.
+    public List<string> RootAccessRestrictions { get; set; } = [];
+    public Uri? RootRightsStatement { get; set; }
+    
+    
+    public async Task<Result> SetAccessConditions(List<string> rootAccessRestrictions, Uri? rootRightsStatement)
+    {
+        var result = await mediator.Send(new SetRootAccessConditions(deposit.Files!, deposit.MetsETag!, rootAccessRestrictions, rootRightsStatement));
+        return result;
+    }
 
     public async Task<Result<WorkingDirectory?>> GetFileSystemWorkingDirectory(bool refresh = false)
     {
@@ -71,6 +82,9 @@ public class WorkspaceManager(
             {
                 HasValidFiles = true;
             }
+
+            RootAccessRestrictions = metsWrapper?.RootAccessConditions ?? [];
+            RootRightsStatement = metsWrapper?.RootRightsStatement;
             return Result.Ok(apparentRoot);
         }
 
@@ -387,4 +401,5 @@ public class WorkspaceManager(
         
         return Result.Ok();
     }
+
 }

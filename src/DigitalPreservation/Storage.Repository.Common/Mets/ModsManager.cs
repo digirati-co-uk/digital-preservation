@@ -42,7 +42,7 @@ public static class ModsManager
     
     public static void RemoveAccessConditions(this ModsDefinition modsDefinition, string? type = null)
     {
-        foreach (var accessCondition in modsDefinition.AccessCondition)
+        foreach (var accessCondition in modsDefinition.AccessCondition.ToList())
         {
             if (type == null || accessCondition.Type == type)
             {

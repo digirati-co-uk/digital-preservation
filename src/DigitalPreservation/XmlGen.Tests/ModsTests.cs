@@ -72,10 +72,10 @@ public class ModsTests
         var mets = metsResult.Value;
         mets.Should().NotBeNull();
 
-        var accessRestrictions = MetsManager.GetRootAccessRestrictions(mets!);
+        var accessRestrictions = metsManager.GetRootAccessRestrictions(mets!);
         accessRestrictions.Should().HaveCount(0);
-        MetsManager.SetRootAccessRestrictions(mets!, [ "my-access-restriction" ]);
-        accessRestrictions = MetsManager.GetRootAccessRestrictions(mets!);
+        metsManager.SetRootAccessRestrictions(mets!, [ "my-access-restriction" ]);
+        accessRestrictions = metsManager.GetRootAccessRestrictions(mets!);
         accessRestrictions.Should().HaveCount(1);
         accessRestrictions[0].Should().Be("my-access-restriction");
         
@@ -107,10 +107,10 @@ public class ModsTests
         var mets = metsResult.Value;
         mets.Should().NotBeNull();
 
-        var rightsStatement = MetsManager.GetRootRightsStatement(mets!);
+        var rightsStatement = metsManager.GetRootRightsStatement(mets!);
         rightsStatement.Should().BeNull();
-        MetsManager.SetRootRightsStatement(mets!, new Uri("https://rightsstatements.org/vocab/NoC-NC/1.0/"));
-        rightsStatement = MetsManager.GetRootRightsStatement(mets!);
+        metsManager.SetRootRightsStatement(mets!, new Uri("https://rightsstatements.org/vocab/NoC-NC/1.0/"));
+        rightsStatement = metsManager.GetRootRightsStatement(mets!);
         rightsStatement.Should().NotBeNull();
         rightsStatement.Should().Be("https://rightsstatements.org/vocab/NoC-NC/1.0/");
         

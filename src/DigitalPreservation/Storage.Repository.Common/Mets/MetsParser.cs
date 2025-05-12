@@ -314,14 +314,14 @@ public class MetsParser(
                 foreach (var accessCondition in rootAccessConditions)
                 {
                     var acType = accessCondition.Attribute("type")?.Value;
-                    if (acType is MetsManager.RestrictionOnAccess or "status") // status is Goobi access cond
+                    if (acType is IMetsManager.RestrictionOnAccess or "status") // status is Goobi access cond
                     {
                         if (accessCondition.Value.HasText())
                         {
                             mets.RootAccessConditions.Add(accessCondition.Value);
                         }
                     }
-                    else if (acType is MetsManager.UseAndReproduction) // Goobi might have different
+                    else if (acType is IMetsManager.UseAndReproduction) // Goobi might have different
                     {
                         if (accessCondition.Value.HasText() && mets.RootRightsStatement is null)
                         {

@@ -1,4 +1,5 @@
-﻿@using DigitalPreservation.Common.Model.Transit
+﻿@using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.Utils
 @using Storage.Repository.Common
 @model CombinedDirectoryRecursionWrapper
@@ -45,6 +46,24 @@ File is in both
         </td>
         <td style="padding-left: @(1.3 * depth)rem">
             <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg> <span title="@combinedDirectory.LocalPath" aria-label="name">@(combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug())</span>
+            @if (combinedDirectory.LocalPath == "objects")
+            {
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#accessConditionsModal" aria-label="Set rights and access conditions">
+                    <svg class="bi"><use xlink:href="#info-square"/></svg>
+                </a>
+                @if (Model.RootAccessRestrictions.Count > 0)
+                {
+                    <small>Access: <em><strong>@string.Join(", ", Model.RootAccessRestrictions)</strong></em></small>
+                }
+                @if (Model.RootRightsStatement != null)
+                {
+                    if (Model.RootAccessRestrictions.Count > 0)
+                    {
+                        <span>; </span>
+                    }
+                    <small>Rights: <em><strong>@RightsStatement.GetShortLabel(Model.RootRightsStatement)</strong></em></small>
+                }
+            }
         </td>
         <td></td>
        <td></td>
@@ -55,7 +74,10 @@ File is in both
 }
 @foreach (var dir in combinedDirectory.Directories)
 {
-    var wrapper = new CombinedDirectoryRecursionWrapper(dir, Model.MetsPath, Model.Editable, Model.Active, Model.LockedByOtherUser, Model.RowCounter);
+    var wrapper = new CombinedDirectoryRecursionWrapper(
+        dir, Model.MetsPath, Model.Editable, Model.Active, Model.LockedByOtherUser, 
+        Model.RootAccessRestrictions, Model.RootRightsStatement,
+        Model.RowCounter);
     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
 }
 @foreach (var file in combinedDirectory.Files)
