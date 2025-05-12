@@ -14,6 +14,7 @@ public static class ModsManager
     {
         Namespaces = new XmlSerializerNamespaces();
         Namespaces.Add("mods", "http://www.loc.gov/mods/v3");
+        Namespaces.Add("xlink", "http://www.w3.org/1999/xlink");
     }
     
     public static ModsDefinition Create(string name, string? language = null)
@@ -31,9 +32,9 @@ public static class ModsManager
         var result = new List<string>();
         foreach (var accessCondition in modsDefinition.AccessCondition)
         {
-            if (type == null || accessCondition.Type == type)
+            if (type == null || accessCondition.Type == type && accessCondition.Text.Length > 0)
             {
-                result.Add(accessCondition.Title); // TODO: what is this? .Value is not there - what is the xml content?
+                result.Add(accessCondition.Text[0]);
             }
         }
         return result;
@@ -54,7 +55,7 @@ public static class ModsManager
     {
         var accessConditionDefinition = new AccessConditionDefinition
         {
-            Title = accessCondition, // TODO...
+            Text = [accessCondition],
             Type = type
         };
         modsDefinition.AccessCondition.Add(accessConditionDefinition);
@@ -86,5 +87,18 @@ public static class ModsManager
         }
 
         return null;
+    }
+
+    public static void SetRootMods(DigitalPreservation.XmlGen.Mets.Mets mets, ModsDefinition mods)
+    {
+        var rootDmd = mets.DmdSec.Single(x => x.Id == MetsManager.DmdPhysRoot)!;
+        rootDmd.MdWrap = new MdSecTypeMdWrap
+        {
+            Mdtype = MdSecTypeMdWrapMdtype.Mods,
+            XmlData = new MdSecTypeMdWrapXmlData
+            {
+                Any = { GetXmlElement(mods) }
+            }
+        };
     }
 }

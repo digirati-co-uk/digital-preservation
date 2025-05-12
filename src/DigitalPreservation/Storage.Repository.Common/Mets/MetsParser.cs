@@ -295,12 +295,42 @@ public class MetsParser(
     
         public void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
         {
-            var modsTitle = xMets.Descendants(XNames.mods + "title").FirstOrDefault()?.Value;
-            var modsName = xMets.Descendants(XNames.mods + "name").FirstOrDefault()?.Value;
+            var firstMods = xMets.Descendants(XNames.mods + "mods").FirstOrDefault();
+            var modsTitle = firstMods?.Descendants(XNames.mods + "title").FirstOrDefault()?.Value;
+            var modsName = firstMods?.Descendants(XNames.mods + "name").FirstOrDefault()?.Value;
             string? name = modsTitle ?? modsName;
             if (!string.IsNullOrWhiteSpace(name))
             {
                 mets.Name = name;
+            }
+            var rootAccessConditions = firstMods?.Descendants(XNames.mods + "accessCondition").ToList();
+            if (rootAccessConditions is { Count: > 0 })
+            {
+                foreach (var accessCondition in rootAccessConditions)
+                {
+                    var acType = accessCondition.Attribute("type")?.Value;
+                    if (acType is MetsManager.RestrictionOnAccess or "status") // status is Goobi access cond
+                    {
+                        if (accessCondition.Value.HasText())
+                        {
+                            mets.RootAccessConditions.Add(accessCondition.Value);
+                        }
+                    }
+                    else if (acType is MetsManager.UseAndReproduction) // Goobi might have different
+                    {
+                        if (accessCondition.Value.HasText() && mets.RootRightsStatement is null)
+                        {
+                            try
+                            {
+                                mets.RootRightsStatement = new Uri(accessCondition.Value);
+                            }
+                            catch (Exception e)
+                            {
+                                logger.LogError(e, "Unable to parse rights statement {accessCondition}", accessCondition.Value);;
+                            }
+                        }
+                    }
+                }
             }
 
             var agent = xMets.Descendants(XNames.mets + "agent").FirstOrDefault();
@@ -308,6 +338,7 @@ public class MetsParser(
             {
                 mets.Agent = agent.Descendants(XNames.mets + "name").FirstOrDefault()?.Value;
             }
+            
 
             // There may be more than one, and they may or may not be qualified as physical or logical
             XElement? physicalStructMap = null;

@@ -161,10 +161,8 @@ public class MetsManager(
         }
 
         var mets = GetEmptyMets();
-        var rootDmd = mets.DmdSec.Single(x => x.Id == DmdPhysRoot)!;
-        rootDmd.MdWrap = new MdSecTypeMdWrap{ Mdtype = MdSecTypeMdWrapMdtype.Mods };
         var mods = ModsManager.Create(agNameFromDeposit ?? "[Untitled]");
-        rootDmd.MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { ModsManager.GetXmlElement(mods) } };
+        ModsManager.SetRootMods(mets, mods);
         return (file, mets);
     }
     
@@ -745,8 +743,8 @@ public class MetsManager(
         return amdSec;
     }
 
-    private const string RestrictionOnAccess = "restriction on access";
-    private const string UseAndReproduction = "use and reproduction";
+    public const string RestrictionOnAccess = "restriction on access";
+    public const string UseAndReproduction = "use and reproduction";
 
     public static List<string> GetRootAccessRestrictions(FullMets fullMets)
     {
@@ -764,6 +762,7 @@ public class MetsManager(
         {
             mods.AddAccessCondition(accessRestriction, RestrictionOnAccess);
         }
+        ModsManager.SetRootMods(fullMets.Mets, mods);
     }
 
     public static void SetRootRightsStatement(FullMets fullMets, Uri? uri)
@@ -776,6 +775,7 @@ public class MetsManager(
         {
             mods.AddAccessCondition(uri.ToString(), UseAndReproduction);
         }
+        ModsManager.SetRootMods(fullMets.Mets, mods);
     }
     
     public static Uri? GetRootRightsStatement(FullMets fullMets)

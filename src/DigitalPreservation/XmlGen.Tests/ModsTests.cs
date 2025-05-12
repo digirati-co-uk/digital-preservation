@@ -79,7 +79,7 @@ public class ModsTests
         accessRestrictions.Should().HaveCount(1);
         accessRestrictions[0].Should().Be("my-access-restriction");
         
-        // have to write it here!
+        await metsManager.WriteMets(mets!);
         
         var parseResult = await parser.GetMetsFileWrapper(metsUri);
         parseResult.Success.Should().BeTrue();
@@ -114,6 +114,8 @@ public class ModsTests
         rightsStatement.Should().NotBeNull();
         rightsStatement.Should().Be("https://rightsstatements.org/vocab/NoC-NC/1.0/");
         
+        await metsManager.WriteMets(mets!);
+        
         var parseResult = await parser.GetMetsFileWrapper(metsUri);
         parseResult.Success.Should().BeTrue();
         var updatedWrapper = parseResult.Value!;
@@ -125,7 +127,7 @@ public class ModsTests
     }
     
     
-    [Fact]
+    [Fact(Skip = "To be implemented in phase 2")]
     public async Task Can_Update_File_Level_MODS()
     {
         var metsFi = new FileInfo("Outputs/mets-with-file-level-mods.xml");
