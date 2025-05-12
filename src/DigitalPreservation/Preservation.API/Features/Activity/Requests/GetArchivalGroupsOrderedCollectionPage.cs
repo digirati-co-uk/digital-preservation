@@ -74,28 +74,32 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
             return Result.FailNotNull<OrderedCollectionPage>(ErrorCodes.UnknownError, e.Message);
         }
     }
-    
+
     private static Activity MakeActivity(ArchivalGroupEvent entity)
     {
         // TODO deletions
-        return new Activity
+        var activity = new Activity
         {
             Type = entity.FromVersion is null ? ActivityTypes.Create : ActivityTypes.Update,
             Object = new ActivityObject
             {
                 Id = entity.ArchivalGroup,
-                Type = nameof(ArchivalGroup),
-                SeeAlso =
-                [
-                    new ActivityObject
-                    {
-                        Id = entity.ImportJobResult!,
-                        Type = nameof(ImportJobResult)
-                    }
-                ]
+                Type = nameof(ArchivalGroup)
             },
             EndTime = entity.EventDate
         };
+        if (entity.ImportJobResult is not null)
+        {
+            activity.Object.SeeAlso =
+            [
+                new ActivityObject
+                {
+                    Id = entity.ImportJobResult!,
+                    Type = nameof(ImportJobResult)
+                }
+            ];
+        }
+        
+        return activity;
     }
-    
 }
