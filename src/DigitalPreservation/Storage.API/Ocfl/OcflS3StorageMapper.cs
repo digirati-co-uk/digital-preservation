@@ -125,7 +125,8 @@ public class OcflS3StorageMapper(
     private async Task<Inventory?> GetInventory(string? agOrigin)
     {
         logger.LogInformation("APPSETTINGS: fedora.Bucket={bucket}, fedora.OcflS3Prefix={ocflS3Prefix}, fedora.Root={root}",
-            fedora.Bucket, fedora.OcflS3Prefix, fedora.Root);;
+            fedora.Bucket, fedora.OcflS3Prefix, fedora.Root);
+        logger.LogInformation("About to fetch inventory from bucket {bucket} and key {key}", fedora.Bucket, $"{agOrigin}/inventory.json");
         var invReq = new GetObjectRequest { BucketName = fedora.Bucket, Key = $"{agOrigin}/inventory.json" };
         var invResp = await awsS3Client.GetObjectAsync(invReq);
         var inventory = JsonSerializer.Deserialize<Inventory>(invResp.ResponseStream);
