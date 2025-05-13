@@ -17,7 +17,6 @@ public class OcflS3StorageMapper(
     IOptions<FedoraOptions> fedoraOptions) : IStorageMapper
 {
     private readonly FedoraOptions fedora = fedoraOptions.Value;
-    private ILogger<OcflS3StorageMapper> logger = logger;
 
     public async Task<StorageMap> GetStorageMap(Uri archivalGroupUri, string? version = null)
     {
