@@ -36,7 +36,7 @@ public class ExecuteExportHandler(
         
         export.Files = [];
         var errors = new List<Error>();
-        logger.LogInformation("Executing Export {RequestIdentifier} for {ExportArchivalGroup}; metOnly: {RequestMetsOnly}", 
+        logger.LogInformation("Executing Export {RequestIdentifier} for {ExportArchivalGroup}; metsOnly: {RequestMetsOnly}", 
             request.Identifier, request.Export.ArchivalGroup, request.MetsOnly);
         try
         {
@@ -94,7 +94,7 @@ public class ExecuteExportHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Could not Execute Export {RequestIdentifier} for {ExportArchivalGroup}; metOnly: {RequestMetsOnly}", 
+            logger.LogError(ex, "Could not Execute Export {RequestIdentifier} for {ExportArchivalGroup}; metsOnly: {RequestMetsOnly}", 
                 request.Identifier, request.Export.ArchivalGroup, request.MetsOnly);
             errors.Add(new Error
             {

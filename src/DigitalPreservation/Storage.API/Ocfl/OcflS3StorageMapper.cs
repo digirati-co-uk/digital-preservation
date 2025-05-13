@@ -10,22 +10,15 @@ using Storage.API.Fedora.Model;
 
 namespace Storage.API.Ocfl;
 
-public class OcflS3StorageMapper : IStorageMapper
+public class OcflS3StorageMapper(
+    ILogger<OcflS3StorageMapper> logger,
+    Converters converters,
+    IAmazonS3 awsS3Client,
+    IOptions<FedoraOptions> fedoraOptions) : IStorageMapper
 {
-    private IAmazonS3 s3Client;
-    private FedoraOptions fedora;
-    private Converters converters;
+    private readonly FedoraOptions fedora = fedoraOptions.Value;
+    private ILogger<OcflS3StorageMapper> logger = logger;
 
-    public OcflS3StorageMapper(
-        Converters converters,
-        IAmazonS3 awsS3Client, 
-        IOptions<FedoraOptions> fedoraOptions)
-    {
-        s3Client = awsS3Client;
-        fedora = fedoraOptions.Value;
-        this.converters = converters;
-    }
-    
     public async Task<StorageMap> GetStorageMap(Uri archivalGroupUri, string? version = null)
     {
         var agOrigin = GetArchivalGroupOrigin(archivalGroupUri);
@@ -76,7 +69,7 @@ public class OcflS3StorageMapper : IStorageMapper
         // Validate that the OCFL layout thinks this is an Archival Group
         var rootInfoKey = $"{agOrigin}/{objectVersion.OcflVersion}/content/.fcrepo/fcr-root.json";
         var rootInfoReq = new GetObjectRequest { BucketName = fedora.Bucket, Key = rootInfoKey };
-        var rootInfoinvResp = await s3Client.GetObjectAsync(rootInfoReq);
+        var rootInfoinvResp = await awsS3Client.GetObjectAsync(rootInfoReq);
 
         bool? archivalGroup = null;
         bool? objectRoot = null;
@@ -131,8 +124,10 @@ public class OcflS3StorageMapper : IStorageMapper
     
     private async Task<Inventory?> GetInventory(string? agOrigin)
     {
+        logger.LogInformation("APPSETTINGS: fedora.Bucket={bucket}, fedora.OcflS3Prefix={ocflS3Prefix}, fedora.Root={root}",
+            fedora.Bucket, fedora.OcflS3Prefix, fedora.Root);;
         var invReq = new GetObjectRequest { BucketName = fedora.Bucket, Key = $"{agOrigin}/inventory.json" };
-        var invResp = await s3Client.GetObjectAsync(invReq);
+        var invResp = await awsS3Client.GetObjectAsync(invReq);
         var inventory = JsonSerializer.Deserialize<Inventory>(invResp.ResponseStream);
         return inventory;
     }
