@@ -295,9 +295,32 @@
                 @{
                     int counter = 1;
 
+                    var containedContainerIds = modelContainer.Containers.Select(c => c.Id).ToList();
+                    var depositsForNotYetExistingArchivalGroups = Model.ActiveDepositsForArchivalGroupsInContainer
+                        .Where(deposit => !containedContainerIds.Contains(deposit.ArchivalGroup));
+                    var depositsForExistingArchivalGroups = 
+                        Model.ActiveDepositsForArchivalGroupsInContainer
+                            .Where(deposit => containedContainerIds.Contains(deposit.ArchivalGroup))
+                            .Where(deposit => deposit.ArchivalGroup != null)
+                            .ToDictionary(deposit => deposit.ArchivalGroup.GetPathUnderRoot()!);
+                    foreach (var ghostArchivalGroup in depositsForNotYetExistingArchivalGroups)
+                    {
+                        string path = ghostArchivalGroup.Id!.PathAndQuery;
+                        <tr aria-label="row-@(counter++)">
+                            <td aria-label="td-icon"><a href="@path"><svg class="bi"><use xlink:href="#box-seam"/></svg></a></td>
+                            <td aria-label="td-path"><a href="@path">@ghostArchivalGroup.ArchivalGroup?.GetSlug()</a></td>
+                            <td aria-label="td-title"><a href="@path">@(ghostArchivalGroup.ArchivalGroupName ?? "(no name yet)")</a></td>
+                            <td aria-label="td-last-modified">--</td>
+                            <td aria-label="td-last-modified-by">--</td>
+                            <td aria-label="td-created">--</td>
+                            <td aria-label="td-created-by">--</td>
+                            <td aria-label="td-deposits"><a href="@path"><svg class="bi"><use xlink:href="#box-seam"/></svg></a></td>
+                        </tr>
+                    }
                     foreach (var container in modelContainer.Containers)
                     {
-                        string path = "/browse/" + container.Id.GetPathUnderRoot(true);
+                        var containerPathUnderRoot = container.Id.GetPathUnderRoot(true);
+                        string path = "/browse/" + containerPathUnderRoot;
                         <tr aria-label="row-@(counter++)">
                             @if (container.Type == nameof(ArchivalGroup))
                             {
@@ -318,7 +341,10 @@
                                 <td aria-label="td-deposits">
                                     @if (container.Type == nameof(ArchivalGroup))
                                     {
-                                        <a href="/deposits?archivalGroupPath=@container.GetPathUnderRoot()"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
+                                        if (depositsForExistingArchivalGroups.TryGetValue(containerPathUnderRoot!, out var deposit))
+                                        {
+                                            <a href="@deposit.Id!.PathAndQuery"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
+                                        }
                                     }
                                 </td>
                             }

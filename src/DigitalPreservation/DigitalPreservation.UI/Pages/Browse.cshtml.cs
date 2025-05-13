@@ -27,6 +27,8 @@ public class BrowseModel(
 {
     public bool HasPredictableIIIFPath { get; set; }
     public PreservedResource? Resource { get; set; }
+
+    public List<Deposit> ActiveDepositsForArchivalGroupsInContainer { get; set; } = [];
     public string? PathUnderRoot { get; set; }
     public string? ArchivalGroupPath { get; set; }
     
@@ -75,6 +77,25 @@ public class BrowseModel(
         if (Resource == null)
         {
             return NotFound();
+        }
+        
+        if (Resource is Container container)
+        {
+            var path = container.Id!.PathAndQuery;
+            if (path.Split('/', StringSplitOptions.RemoveEmptyEntries).Length > 2)
+            {
+                var query = new DepositQuery
+                {
+                    ArchivalGroupPathParent = path
+                };
+                var potentialGhostDepositResult = await mediator.Send(new GetDeposits(query));
+                if (potentialGhostDepositResult.Success)
+                {
+                    ActiveDepositsForArchivalGroupsInContainer = potentialGhostDepositResult.Value!.Deposits
+                        .Where(d => !d.ArchivalGroup!.PathAndQuery.RemoveStart(path + "/")!.Contains('/'))
+                        .ToList();
+                }
+            }
         }
         
         var name = Resource!.Name ?? Resource!.Id!.GetSlug()?.UnEscapeFromUriNoHashes();

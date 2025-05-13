@@ -7,6 +7,7 @@ public class DepositQuery : QueryBase
     public const string Preserved = "Preserved";
     public const string Exported = "Exported";
     public string? ArchivalGroupPath { get; set; }
+    public string? ArchivalGroupPathParent { get; set; }
     public string? PreservedBy { get; set; }
     public DateTime? PreservedAfter { get; set; }
     public DateTime? PreservedBefore { get; set; }
@@ -21,6 +22,7 @@ public class DepositQuery : QueryBase
     {
         return base.NoTerms() &&
                ArchivalGroupPath is null &&
+               ArchivalGroupPathParent is null &&
                PreservedBy is null &&
                PreservedAfter is null &&
                PreservedBefore is null &&

@@ -44,6 +44,10 @@ public class QueryBuilder
         {
             queryString.Add(nameof(query.ArchivalGroupPath), query.ArchivalGroupPath);
         }
+        if (query.ArchivalGroupPathParent.HasText())
+        {
+            queryString.Add(nameof(query.ArchivalGroupPathParent), query.ArchivalGroupPathParent);
+        }
         if (query.Status.HasText())
         {
             queryString.Add(nameof(query.Status), query.Status);
