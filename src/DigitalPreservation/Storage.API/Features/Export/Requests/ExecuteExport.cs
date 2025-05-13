@@ -29,6 +29,8 @@ public class ExecuteExportHandler(
     public async Task<Result<ExportResource>> Handle(ExecuteExport request, CancellationToken cancellationToken)
     {
         var export = request.Export;
+        
+        logger.LogInformation("Exporting Archival Group {archivalGroup}", export.ArchivalGroup);;
         var destination = new AmazonS3Uri(export.Destination);
         var destinationBucket = destination.Bucket;
         var destinationKey = destination.Key;
@@ -37,7 +39,7 @@ public class ExecuteExportHandler(
         export.Files = [];
         var errors = new List<Error>();
         logger.LogInformation("Executing Export {RequestIdentifier} for {ExportArchivalGroup}; metsOnly: {RequestMetsOnly}", 
-            request.Identifier, request.Export.ArchivalGroup, request.MetsOnly);
+            request.Identifier, export.ArchivalGroup, request.MetsOnly);
         try
         {
             var storageMap = await storageMapper.GetStorageMap(export.ArchivalGroup, export.SourceVersion);

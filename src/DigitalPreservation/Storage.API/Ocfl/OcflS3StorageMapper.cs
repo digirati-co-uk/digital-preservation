@@ -21,7 +21,9 @@ public class OcflS3StorageMapper(
 
     public async Task<StorageMap> GetStorageMap(Uri archivalGroupUri, string? version = null)
     {
+        logger.LogInformation("Getting storage map for " + archivalGroupUri + " version " + version);
         var agOrigin = GetArchivalGroupOrigin(archivalGroupUri);
+        logger.LogInformation("agOrigin={agOrigin}", agOrigin);
         Inventory? inventory = await GetInventory(agOrigin);
         var inventoryVersions = inventory!.Versions
             .Select(kvp => new ObjectVersion
