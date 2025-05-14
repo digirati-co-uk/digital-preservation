@@ -23,7 +23,8 @@ public class CreateDepositBase(
     IIdentityService identityService,
     IStorageApiClient storageApiClient,
     IStorage storage,
-    IMetsManager metsManager)
+    IMetsManager metsManager,
+    WorkspaceManagerFactory workspaceManagerFactory)
 {
 
     public async Task<Result<Deposit?>> HandleBase(CreateDeposit request, CancellationToken cancellationToken)
@@ -155,6 +156,11 @@ public class CreateDepositBase(
             {
                 createdDeposit.ArchivalGroupExists = true;
             }
+
+            // refresh the file system
+            var workspaceManager = workspaceManagerFactory.Create(createdDeposit);
+            await workspaceManager.GetCombinedDirectory(true);
+            
             return Result.Ok(createdDeposit);
         }
         catch (Exception e)

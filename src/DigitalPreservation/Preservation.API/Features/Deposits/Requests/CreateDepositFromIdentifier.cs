@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Workspace;
 using LeedsDlipServices.Identity;
 using MediatR;
 using Preservation.API.Data;
@@ -25,8 +26,17 @@ public class CreateDepositFromIdentifierHandler(
     IIdentityService identityService,
     IStorageApiClient storageApiClient,
     IStorage storage,
-    IMetsManager metsManager) : 
-    CreateDepositBase(logger, dbContext, resourceMutator, identityService, storageApiClient, storage, metsManager), 
+    IMetsManager metsManager,
+    WorkspaceManagerFactory workspaceManagerFactory) : 
+    CreateDepositBase(
+        logger, 
+        dbContext, 
+        resourceMutator, 
+        identityService, 
+        storageApiClient, 
+        storage, 
+        metsManager,
+        workspaceManagerFactory), 
     IRequestHandler<CreateDepositFromIdentifier, Result<Deposit?>>
 {
     private readonly IIdentityService identityService1 = identityService;
