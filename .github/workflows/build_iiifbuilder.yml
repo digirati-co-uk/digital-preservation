@@ -10,7 +10,7 @@ on:
       - "src/iiif-builder/**"
       - ".github/**"
   workflow_dispatch: 
-     inputs:
+    inputs:
       environment:
         description: "environment"
         required: true
