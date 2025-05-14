@@ -2,15 +2,25 @@ name: Build, Test & Publish dotnet Images
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main" ]
     tags: [ "v*" ]
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [ "main" ]
     paths:
       - "src/DigitalPreservation/**"
       - ".github/**"
       - "Dockerfile.*"
-  workflow_dispatch: {}
+  workflow_dispatch: 
+    inputs:
+      environment:
+        description: "environment"
+        required: true
+        default: "development"
+        type: choice
+        options:
+          - development
+          - test
+          - production
 
 jobs:
   test-dotnet:
@@ -64,11 +74,11 @@ jobs:
           iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
           ecr-prefix: ${{ vars.ECR_PREFIX }}
   
-  deploy-development:
+  deploy-environment:
     needs: [build-push-images]
     uses: ./.github/workflows/deploy.yml
     if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
     with:
       image_tag: "${{ github.sha }}"
-      target_env: development
+      target_env: "${{ inputs.environment }}"
     secrets: inherit
