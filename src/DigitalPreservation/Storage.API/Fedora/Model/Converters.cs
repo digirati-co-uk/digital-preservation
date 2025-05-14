@@ -228,9 +228,11 @@ public class Converters
         return new Uri($"{exportRoot}{identifier}");
     }
 
+    // should handle fcrepo/rest
+    // only used for AG URIs
     public string? GetResourcePathPart(Uri fedoraOrStorageUri)
     {
-        var s = fedoraOrStorageUri.OriginalString;
+        var s = fedoraOrStorageUri.ToString();
         if (s.StartsWith(fedoraRoot))
         {
             return s.RemoveStart(fedoraRoot)!;

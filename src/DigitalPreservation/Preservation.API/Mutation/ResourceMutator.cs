@@ -104,7 +104,7 @@ public class ResourceMutator(
                 Port = PreservationUri.Port,
                 Scheme = PreservationUri.Scheme
             };
-            return builder.Uri;
+            return new Uri(builder.Uri.ToString()); // ensures that OriginalString is preserved
         }
         return uri;
         // var uriS = uri.GetStringTemporaryForTesting();
@@ -130,7 +130,7 @@ public class ResourceMutator(
                 Port = StorageUri.Port,
                 Scheme = StorageUri.Scheme
             };
-            return builder.Uri;
+            return new Uri(builder.Uri.ToString()); // ensures that OriginalString is preserved
         }
         return uri;
         // var uriS = uri.GetStringTemporaryForTesting();
