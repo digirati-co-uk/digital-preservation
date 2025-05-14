@@ -148,6 +148,7 @@ public class StorageApiClient(
     public async Task<Result<Export>> ExportArchivalGroupMetsOnly(Uri archivalGroup, Uri exportLocation, string? versionToExport,
         CancellationToken cancellationToken = default)
     {
+        logger.LogInformation("Calling ExportArchivalGroupMetsOnly for archivalGroup.OriginalString: " + archivalGroup.OriginalString);
         var result = await ExportArchivalGroupBase("exportMetsOnly", 
             archivalGroup, exportLocation, versionToExport, cancellationToken);
         return result;
