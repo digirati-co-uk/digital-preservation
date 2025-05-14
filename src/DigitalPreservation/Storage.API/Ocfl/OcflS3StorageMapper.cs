@@ -139,6 +139,7 @@ public class OcflS3StorageMapper(
     {
         logger.LogInformation("GetArchivalGroupOrigin for " + archivalGroupUri);
         var idPart = converters.GetResourcePathPart(archivalGroupUri);
+        logger.LogInformation("archivalGroupUri.OriginalString is " + archivalGroupUri.OriginalString);
         logger.LogInformation("converters.GetResourcePathPart(archivalGroupUri) => " + idPart);
         logger.LogInformation(" converterOptions.Value.StorageRoot is " +  converterOptions.Value.StorageRoot);
         
