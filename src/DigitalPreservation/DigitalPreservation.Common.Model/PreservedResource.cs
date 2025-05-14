@@ -92,8 +92,13 @@ public abstract class PreservedResource : Resource
         }
         
         // don't build this list in the loop above as it is only an exceptional circumstance
-        var badChars = string.Join(',', slug.Where(c => !ValidSlugChar(c)));
-        reason = "Character(s) " + badChars + " are not allowed in slugs";
+        var badChars = slug.Where(c => !ValidSlugChar(c)).ToList();
+        var display = string.Join(',', badChars.Select(c => $"'{c}'"));
+        reason = "Character(s) " + display + " are not allowed in slugs.";
+        if (badChars.Contains(' '))
+        {
+            reason += " Spaces are not allowed.";
+        }
         return valid;
     }
 
