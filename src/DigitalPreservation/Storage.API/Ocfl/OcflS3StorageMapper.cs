@@ -11,6 +11,7 @@ using Storage.API.Fedora.Model;
 namespace Storage.API.Ocfl;
 
 public class OcflS3StorageMapper(
+    IOptions<ConverterOptions> converterOptions,
     ILogger<OcflS3StorageMapper> logger,
     Converters converters,
     IAmazonS3 awsS3Client,
@@ -136,7 +137,11 @@ public class OcflS3StorageMapper(
     
     public string? GetArchivalGroupOrigin(Uri archivalGroupUri)
     {
+        logger.LogInformation("GetArchivalGroupOrigin for " + archivalGroupUri);
         var idPart = converters.GetResourcePathPart(archivalGroupUri);
+        logger.LogInformation("converters.GetResourcePathPart(archivalGroupUri) => " + idPart);
+        logger.LogInformation(" converterOptions.Value.StorageRoot is " +  converterOptions.Value.StorageRoot);
+        
         if (idPart == null)
         {
             return null;
