@@ -313,13 +313,13 @@
                 </td>
                 <td aria-label="td-status">@deposit.Status</td>
                 <td aria-label="td-last-modified">@deposit.LastModified.GetDateDisplay()</td>
-                <td aria-label="td-last-modified-by">@deposit.LastModifiedBy?.GetSlug()</td>
+                <td aria-label="td-last-modified-by">@deposit.LastModifiedBy?.GetSlug()?.UnEscapeFromUri()</td>
                 <td aria-label="td-created">@deposit.Created.GetDateDisplay()</td>
-                <td aria-label="td-created-by">@deposit.CreatedBy?.GetSlug()</td>
+                <td aria-label="td-created-by">@deposit.CreatedBy?.GetSlug()?.UnEscapeFromUri()</td>
                 <td aria-label="td-preserved">@deposit.Preserved.GetDateDisplay()</td>
-                <td aria-label="td-preserved-by">@deposit.PreservedBy?.GetSlug()</td>
+                <td aria-label="td-preserved-by">@deposit.PreservedBy?.GetSlug()?.UnEscapeFromUri()</td>
                 <td aria-label="td-exported">@deposit.Exported.GetDateDisplay()</td>
-                <td aria-label="td-exported-by">@deposit.ExportedBy?.GetSlug()</td>
+                <td aria-label="td-exported-by">@deposit.ExportedBy?.GetSlug()?.UnEscapeFromUri()</td>
             </tr>
         }
         </tbody>

@@ -22,11 +22,11 @@ public class QueueImportJobHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(QueueImportJob request, CancellationToken cancellationToken)
     {
-        if (request.ImportJob.CreatedBy == null)
+        if (request.ImportJob.LastModifiedBy == null)
         {
-            logger.LogError("Import Job {} does not have a createdBy", request.ImportJob.Id?.GetSlug());
+            logger.LogError("Import Job {} does not have a LastModifiedBy", request.ImportJob.Id?.GetSlug());
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, 
-                $"Cannot queue an importJob that lacks a createdBy: {request.ImportJob.ArchivalGroup}");
+                $"Cannot queue an importJob that lacks a LastModifiedBy: {request.ImportJob.ArchivalGroup}");
         }
         var activeImportJobs = await importJobResultStore.GetActiveJobsForArchivalGroup(request.ImportJob.ArchivalGroup, cancellationToken);
         if (activeImportJobs.Success && activeImportJobs.Value!.Count > 0)
@@ -66,7 +66,7 @@ public class QueueImportJobHandler(
 
     private ImportJobResult CreateWaitingResult(string jobIdentifier, ImportJob importJob)
     {
-        var callerIdentity = importJob.CreatedBy!.GetSlug()!;
+        var callerIdentity = importJob.LastModifiedBy!.GetSlug()!.UnEscapeFromUri();
         var now = DateTime.UtcNow;
         
         var importJobResult = new ImportJobResult

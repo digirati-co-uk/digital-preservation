@@ -28,12 +28,12 @@ public interface IPreservationApiClient
         string? archivalGroupRepositoryPath, 
         string? archivalGroupProposedName, 
         string? submissionText, 
-        bool useObjectTemplate, 
+        TemplateType templateType, 
         bool export,
         string? exportVersion,
         CancellationToken cancellationToken);
     
-    Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, CancellationToken cancellationToken);
+    Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, TemplateType templateType, CancellationToken cancellationToken);
     Task<Result<DepositQueryPage>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default);
     Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken);
@@ -50,6 +50,9 @@ public interface IPreservationApiClient
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
     Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken);
     Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, string? version, CancellationToken cancellationToken = default);
+    
+    Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken);
+    Task<Result> ReleaseDepositLock(Deposit deposit, CancellationToken cancellationToken);
     
     Task<OrderedCollection?> GetOrderedCollection(string stream);
     Task<OrderedCollectionPage?> GetOrderedCollectionPage(string stream, int index);

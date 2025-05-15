@@ -10,8 +10,8 @@ public class Converters
     private readonly ConverterOptions converterOptions;
     
     private readonly string fedoraRoot;
-    private readonly string fedoraRootWithoutSlash;
     private readonly Uri fedoraRootUri;
+    private readonly string fedoraRootWithoutSlash;
     private readonly Uri fedoraRootUriWithoutSlash;
     private readonly string repositoryRoot;
     private readonly string contentRoot;
@@ -123,7 +123,7 @@ public class Converters
         }
         else
         {
-            resource.Name = resource.Id.GetSlug();
+            resource.Name = resource.Id.GetSlug()?.UnEscapeFromUriNoHashes();
         }
 
         if (fedoraJsonLdResponse.Titles is { Count: > 1 })
@@ -139,13 +139,13 @@ public class Converters
 
     public Uri ConvertToRepositoryUri(Uri fedoraUri)
     {
-        var repositoryUri = fedoraUri.ToString().ReplaceFirst(fedoraRoot, repositoryRoot);
+        var repositoryUri = fedoraUri.OriginalString.ReplaceFirst(fedoraRoot, repositoryRoot);
         return new Uri(repositoryUri);
     }
     
     public Uri ConvertToContentUri(Uri fedoraUri)
     {
-        var contentUri = fedoraUri.ToString().ReplaceFirst(fedoraRoot, contentRoot);
+        var contentUri = fedoraUri.OriginalString.ReplaceFirst(fedoraRoot, contentRoot);
         return new Uri(contentUri);
     }
 
@@ -198,7 +198,7 @@ public class Converters
 
     public string GetFedoraDbId(Uri fedoraUri)
     {
-        var fedoraUriString = fedoraUri.ToString();
+        var fedoraUriString = fedoraUri.OriginalString;
         var trimmed = fedoraUriString == fedoraRoot ? string.Empty : fedoraUriString.RemoveStart(fedoraRoot);
         return GetFedoraDbId(trimmed);
     }
@@ -228,6 +228,8 @@ public class Converters
         return new Uri($"{exportRoot}{identifier}");
     }
 
+    // should handle fcrepo/rest
+    // only used for AG URIs
     public string? GetResourcePathPart(Uri fedoraOrStorageUri)
     {
         var s = fedoraOrStorageUri.ToString();

@@ -7,6 +7,9 @@ public static class S3Helpers
     public const string OriginalNameMetadataKey = "Original-Name";
     public const string OriginalNameMetadataResponseKey = "x-amz-meta-original-name";
     
+    public static Uri GetS3Uri(this S3Object s3Object) =>
+        new UriBuilder($"s3://{s3Object.BucketName}") { Path = s3Object.Key }.Uri;
+    
     public static Uri S3UriInBucket(this string key, string bucket) =>
         new UriBuilder($"s3://{bucket}") { Path = key }.Uri;
     

@@ -22,4 +22,12 @@ public class ActivityController(IMediator mediator) : Controller
         var result = await mediator.Send(new GetArchivalGroupsOrderedCollectionPage(page));
         return this.StatusResponseFromResult(result);
     }
+    
+
+    [HttpPost("archivalgroups/collection", Name = "PushArchivalGroupUpdate")]
+    public async Task<IActionResult> PushEventToStream([FromBody] DigitalPreservation.Common.Model.ChangeDiscovery.Activity? activity)
+    {
+        var result = await mediator.Send(new PushArchivalGroupUpdate(activity));
+        return this.StatusResponseFromResult(result, successStatusCode:204);
+    }
 }

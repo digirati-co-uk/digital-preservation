@@ -53,10 +53,11 @@ ViewData["section"] = "deposits";
                             <ul>
                                 @foreach (var res in Model.ItemsWithInvalidSlugs)
                                 {
-                                    <li>@res.StringIcon @res.GetPathUnderRoot()</li>
+                                    <li>@res.StringIcon @res.Id.GetPathUnderRoot(true)</li>
                                 }
                             </ul>
-                            <p>Valid characters are <code>a-z 0-9 ._-</code> (not upper case) </p>
+                            <p>Valid characters are <code>a-z A-Z 0-9 ._-%()</code> (not upper case) </p>
+                            <p>@Model.ItemsWithInvalidSlugsMessage</p>
                         </div>
                     }
                     if (Model.AddedBinariesWithInvalidContentTypes.Any())
@@ -66,7 +67,7 @@ ViewData["section"] = "deposits";
                             <ul>
                                 @foreach (var res in Model.AddedBinariesWithInvalidContentTypes)
                                 {
-                                    <li>@res.StringIcon @res.GetPathUnderRoot()</li>
+                                    <li>@res.StringIcon @res.Id.GetPathUnderRoot(true)</li>
                                 }
                             </ul>
                         </div>
@@ -104,6 +105,9 @@ ViewData["section"] = "deposits";
                             </button>
                         </div>
                     </form>
+<code><pre>
+@JsonSerializer.Serialize(Model.ImportJob, new JsonSerializerOptions{WriteIndented = true})                        
+</pre></code>
                 }
             }
             else if (Model.ImportJobId == "custom")
@@ -164,7 +168,7 @@ ViewData["section"] = "deposits";
                     <dt class="col-sm-3">Created</dt>
                     <dd class="col-sm-9" aria-label="created">@jobResult.Created.GetDateDisplay()</dd>
                     <dt class="col-sm-3">Created By</dt>
-                    <dd class="col-sm-9" aria-label="created by">@jobResult.CreatedBy?.GetSlug()</dd>
+                    <dd class="col-sm-9" aria-label="created by">@jobResult.CreatedBy?.GetSlug()?.UnEscapeFromUri()</dd>
 
                     <dt class="col-sm-3">Import Job</dt>
                     <dd class="col-sm-9" aria-label="import job">@jobResult.ImportJob</dd>

@@ -17,15 +17,22 @@ public class ImportJobModel(IMediator mediator) : PageModel
         {
             ViewData["Title"] = "Diff for deposit " + depositId;
             var result = await mediator.Send(new GetDiffImportJob(depositId));
+            List<PreservedResource> itemsWithInvalidSlugs = [];
+            string? invalidSlugMessage = null;
+            if (result.Value != null)
+            {
+                (itemsWithInvalidSlugs, invalidSlugMessage) = result.Value.ItemsWithInvalidSlugs();
+            }
             if (result is { Success: true, Value: not null })
             {
                 ImportJob = result.Value;
-                ItemsWithInvalidSlugs = ImportJob.ItemsWithInvalidSlugs();
+                ItemsWithInvalidSlugs = itemsWithInvalidSlugs;
+                ItemsWithInvalidSlugsMessage = invalidSlugMessage;
                 AddedBinariesWithInvalidContentTypes = ImportJob.AddedBinariesWithInvalidContentTypes();
                 ViewData["Title"] = $"Diff from {depositId} to {ImportJob!.ArchivalGroupName ?? ImportJob.ArchivalGroup.GetPathUnderRoot()}";
                 return;
             }
-            TempData["Error"] = result.CodeAndMessage();
+            TempData["Error"] = result.CodeAndMessage() + (invalidSlugMessage != null ? $" ({invalidSlugMessage})" : "");
         }
         else if (importJobId == "custom")
         {
@@ -66,6 +73,7 @@ public class ImportJobModel(IMediator mediator) : PageModel
 
     public ImportJob? ImportJob { get; set; }
     public List<PreservedResource> ItemsWithInvalidSlugs { get; set; } = [];
+    public string? ItemsWithInvalidSlugsMessage { get; set; }
     public List<Binary> AddedBinariesWithInvalidContentTypes { get; set; } = [];
     
     public ImportJobResult? ImportJobResult { get; set; }

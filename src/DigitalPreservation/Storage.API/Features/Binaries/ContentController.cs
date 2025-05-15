@@ -26,8 +26,14 @@ public class ContentController(
             var resource = result.Value;
             if (resource is Binary binary)
             {
-                var stream = await storage.GetStream(binary.Origin);
-                return new FileStreamResult(stream, binary.ContentType!);
+                var streamResult = await storage.GetStream(binary.Origin!);
+                if (streamResult is { Success: true, Value: not null })
+                {
+                    return new FileStreamResult(streamResult.Value, binary.ContentType!);
+                }
+
+                var pdr = streamResult.ToProblemDetails("Cannot stream content");
+                return new ObjectResult(pdr);
             }
 
             var pd = new ProblemDetails

@@ -1,8 +1,11 @@
-﻿using System.Text.Json;
+﻿using System.Security.Claims;
+using System.Text.Json;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
 using LeedsDlipServices.Identity;
 using MediatR;
@@ -13,9 +16,10 @@ using ImportJobEntity = Preservation.API.Data.Entities.ImportJob;
 
 namespace Preservation.API.Features.ImportJobs.Requests;
 
-public class ExecuteImportJob(ImportJob importJob) : IRequest<Result<ImportJobResult>>
+public class ExecuteImportJob(ImportJob importJob, ClaimsPrincipal principal) : IRequest<Result<ImportJobResult>>
 {
     public ImportJob ImportJob { get; } = importJob;
+    public ClaimsPrincipal Principal { get; } = principal;
 }
 
 public class ExecuteImportJobHandler(
@@ -27,10 +31,23 @@ public class ExecuteImportJobHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
+        var callerIdentity = request.Principal.GetCallerIdentity();
+        var depositEntity = dbContext.Deposits.SingleOrDefault(d => d.MintedId == request.ImportJob.Deposit!.GetSlug());
+        if (depositEntity?.LockedBy != null && depositEntity.LockedBy != callerIdentity)
+        {
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "Deposit is locked by another user: " + callerIdentity);
+        }
         logger.LogInformation("ExecuteImportJobHandler handling import job " + request.ImportJob.LogSummary());
         var now = DateTime.UtcNow;
         var mintedId = identityService.MintIdentity(nameof(ImportJob));
         logger.LogInformation("Identity service gave us id for import job: " + mintedId);
+        
+        // Overwrite this, regardless of what the incoming request says
+        request.ImportJob.LastModifiedBy = resourceMutator.GetAgentUri(callerIdentity);
+        request.ImportJob.CreatedBy ??= request.ImportJob.LastModifiedBy;
+        request.ImportJob.LastModified ??= DateTime.UtcNow;
+        request.ImportJob.Created ??= request.ImportJob.LastModified;
+        
         var storageApiImportJob = Duplicate(request.ImportJob);
         logger.LogInformation("Mutating Preservation Import Job");
         resourceMutator.MutatePreservationImportJob(storageApiImportJob);

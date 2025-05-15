@@ -21,7 +21,6 @@ public class ExecuteExport(string? identifier, ExportResource export, bool metsO
 }
 
 public class ExecuteExportHandler(
-    IStorage storage,
     IStorageMapper storageMapper,
     IAmazonS3 s3Client,
     IExportResultStore exportResultStore,
@@ -30,6 +29,8 @@ public class ExecuteExportHandler(
     public async Task<Result<ExportResource>> Handle(ExecuteExport request, CancellationToken cancellationToken)
     {
         var export = request.Export;
+        
+        logger.LogInformation("Exporting Archival Group {archivalGroup}", export.ArchivalGroup);;
         var destination = new AmazonS3Uri(export.Destination);
         var destinationBucket = destination.Bucket;
         var destinationKey = destination.Key;
@@ -37,7 +38,8 @@ public class ExecuteExportHandler(
         
         export.Files = [];
         var errors = new List<Error>();
-        logger.LogInformation($"Executing Export {request.Identifier} for {request.Export.ArchivalGroup}; metOnly: {request.MetsOnly}");
+        logger.LogInformation("Executing Export {RequestIdentifier} for {ExportArchivalGroup}; metsOnly: {RequestMetsOnly}", 
+            request.Identifier, export.ArchivalGroup, request.MetsOnly);
         try
         {
             var storageMap = await storageMapper.GetStorageMap(export.ArchivalGroup, export.SourceVersion);
@@ -59,7 +61,7 @@ public class ExecuteExportHandler(
                     continue;
                 }
                 var sourceKey = SafeJoin(storageMap.ObjectPath, file.Value.FullPath);
-                var destKey = SafeJoin(destinationKey, file.Key);
+                var destKey = SafeJoin(destinationKey, file.Key.UnEscapePathElementsNoHashes());
                 var req = new CopyObjectRequest
                 {
                     SourceBucket = storageMap.Root,
@@ -86,13 +88,16 @@ public class ExecuteExportHandler(
                 }
             }
 
-            var newWd = await storage.GenerateDepositFileSystem(destination, true, cancellationToken);
+            // Remove this, so that a new export DOES NOT have a __metslike.json - which is a Preservation API concern.
+            // The Preservation API can attempt to create one if this file is absent.
+            // var newWd = await storage.GenerateDepositFileSystem(destination, true, cancellationToken);
             // TODO: validate that newWd.Value matches what we expected from storageMap.Files
             export.DateFinished = DateTime.UtcNow;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, ex.Message);
+            logger.LogError(ex, "Could not Execute Export {RequestIdentifier} for {ExportArchivalGroup}; metsOnly: {RequestMetsOnly}", 
+                request.Identifier, request.Export.ArchivalGroup, request.MetsOnly);
             errors.Add(new Error
             {
                 Id = new Uri(export.Id + "#error"),

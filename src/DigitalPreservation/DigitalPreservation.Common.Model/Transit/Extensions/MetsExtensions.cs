@@ -4,6 +4,11 @@ namespace DigitalPreservation.Common.Model.Transit.Extensions;
 
 public class MetsExtensions
 {
+    [JsonPropertyName("href")]
+    [JsonPropertyOrder(10)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Href { get; set; }
+    
     [JsonPropertyName("physDivId")]
     [JsonPropertyOrder(101)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -24,18 +29,4 @@ public class MetsExtensions
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AccessCondition { get; set; }
     
-    [JsonPropertyName("originalPath")]
-    [JsonPropertyOrder(201)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? OriginalPath { get; set; }
-    
-    [JsonPropertyName("fileFormat")]
-    [JsonPropertyOrder(202)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public FileFormat? FileFormat { get; set; }
-    
-    [JsonPropertyName("virusScan")]
-    [JsonPropertyOrder(203)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public VirusScan? VirusScan { get; set; }
 }

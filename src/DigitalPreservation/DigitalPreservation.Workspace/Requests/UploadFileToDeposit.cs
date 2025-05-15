@@ -14,7 +14,8 @@ using Storage.Repository.Common.S3;
 namespace DigitalPreservation.Workspace.Requests;
 
 public class UploadFileToDeposit(
-    Uri s3Root, 
+    bool isBagItLayout,
+    Uri rootUri, 
     string? parent, 
     string slug, 
     Stream stream, 
@@ -24,7 +25,8 @@ public class UploadFileToDeposit(
     string contentType,
     string metsETag) : IRequest<Result<WorkingFile?>>
 {
-    public Uri S3Root { get; } = s3Root;
+    public bool IsBagItLayout { get; } = isBagItLayout;
+    public Uri RootUri { get; } = rootUri;
     public string? Parent { get; } = parent;
     public string Slug { get; } = slug;
     public Stream Stream { get; } = stream;
@@ -43,8 +45,9 @@ public class UploadFileToDepositHandler(
     public async Task<Result<WorkingFile?>> Handle(UploadFileToDeposit request, CancellationToken cancellationToken)
     {
         // TODO: This needs to prevent overlapping calls (repeated requests for the same object, or two uploads trying to update METS)
-        var s3Uri = new AmazonS3Uri(request.S3Root);
-        var fullKey = StringUtils.BuildPath(false, s3Uri.Key, request.Parent, request.Slug);
+        var s3Uri = new AmazonS3Uri(request.RootUri);
+        var keyPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent;
+        var fullKey = StringUtils.BuildPath(false, s3Uri.Key, keyPath, request.Slug);
         var req = new PutObjectRequest
         {
             BucketName = s3Uri.Bucket,
@@ -82,11 +85,10 @@ public class UploadFileToDepositHandler(
                     Name = request.DepositFileName,
                     Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
                 };
-                var saveResult = await storage.AddToDepositFileSystem(s3Uri, file, cancellationToken);
+                var saveResult = await storage.AddToDepositFileSystem(request.RootUri, file, cancellationToken);
                 if (saveResult.Success)
                 {
-                    // TODO - result this up... 
-                    var result = await metsManager.HandleSingleFileUpload(s3Uri.ToUri(), file, request.MetsETag);
+                    var result = await metsManager.HandleSingleFileUpload(request.RootUri, file, request.MetsETag);
                     if (result.Success)
                     {
                         return Result.Ok(file);
@@ -101,7 +103,6 @@ public class UploadFileToDepositHandler(
         {
             var exResult = ResultHelpers.FailFromS3Exception<WorkingFile>(s3E, "Unable to upload file", req.GetS3Uri());
             return exResult;
-            // return Result.Generify<WorkingFile?>(exResult);
         }
     }
 }

@@ -23,7 +23,7 @@ public class ExecuteImportJobHandler(
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
         var importJob = request.ImportJob;
-        var callerIdentity = importJob.CreatedBy!.GetSlug()!;
+        var callerIdentity = importJob.CreatedBy!.GetSlug()!.UnEscapeFromUri();
         var archivalGroupPathUnderRoot = importJob.ArchivalGroup.GetPathUnderRoot()!;
         logger.LogInformation("Executing Import Job");
         
@@ -33,6 +33,16 @@ public class ExecuteImportJobHandler(
         importJobResult.Status = ImportJobStates.Running;
         importJobResult.DateBegun = start;
         importJobResult.LastModified = start;
+
+        var preProcessValidationResult = PreProcessValidateImportJob(importJob);
+        if (preProcessValidationResult.Failure)
+        {
+            importJobResult.Errors = [new Error { Message = preProcessValidationResult.ErrorMessage ?? "" }];
+            importJobResult.DateFinished = DateTime.UtcNow;
+            importJobResult.Status = ImportJobStates.CompletedWithErrors;
+            return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
+        }
+        
         
         var timer = new Stopwatch();
         timer.Start();
@@ -291,5 +301,27 @@ public class ExecuteImportJobHandler(
             }
             // We could save the current state of the Result here...
         }
+    }
+
+    private Result PreProcessValidateImportJob(ImportJob importJob)
+    {
+        var allBinaries = 
+            importJob.BinariesToAdd
+            .Union(importJob.BinariesToPatch)
+            .Union(importJob.BinariesToRename)
+            .Union(importJob.BinariesToDelete);
+        // Can add more to this later...
+        foreach (var binary in allBinaries)
+        {
+            if (binary.Id == null)
+            {
+                return Result.Fail(ErrorCodes.BadRequest, "Binary ID is null");
+            }
+            if (binary.Id.LocalPath.Contains('#'))
+            {
+                return Result.Fail(ErrorCodes.BadRequest, $"Binary ID contains a fragment identifier (#): {binary.Id}");
+            }
+        }
+        return Result.Ok();
     }
 }

@@ -19,6 +19,28 @@ internal class PreservationApiClient(
 {
     private readonly HttpClient preservationHttpClient = httpClient;
 
+    public async Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/lock" + (force ? "?force=true" : ""), UriKind.Relative); 
+        var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+        return await response.ToFailResult("Unable to lock deposit");
+    }
+
+    public async Task<Result> ReleaseDepositLock(Deposit deposit, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/lock", UriKind.Relative); 
+        var response = await preservationHttpClient.DeleteAsync(uri, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+        return await response.ToFailResult("Unable to remove lock");
+    }
+
     public async Task<OrderedCollection?> GetOrderedCollection(string stream)
     {
         var uri = new Uri($"/activity/{stream}/collection", UriKind.Relative);
@@ -109,10 +131,10 @@ internal class PreservationApiClient(
         }
     }
 
-    public async Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, CancellationToken cancellationToken)
+    public async Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, TemplateType templateType, CancellationToken cancellationToken)
     {
         var uri = new Uri($"/{Deposit.BasePathElement}/from-identifier", UriKind.Relative);
-        var body = new SchemaAndValue{ Schema = schema, Value = identifier };
+        var body = new SchemaAndValue{ Schema = schema, Value = identifier, Template = templateType };
         try
         {
             HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(uri, body, cancellationToken);
@@ -138,7 +160,7 @@ internal class PreservationApiClient(
         string? archivalGroupRepositoryPath,
         string? archivalGroupProposedName,
         string? submissionText,
-        bool useObjectTemplate,
+        TemplateType templateType,
         bool export,
         string? exportVersion,
         CancellationToken cancellationToken = default)
@@ -148,18 +170,17 @@ internal class PreservationApiClient(
         {
             ArchivalGroup = archivalGroupRepositoryPath.HasText() ? new Uri(preservationHttpClient.BaseAddress!, archivalGroupRepositoryPath) : null,
             ArchivalGroupName = archivalGroupProposedName,
-            SubmissionText = submissionText
+            SubmissionText = submissionText,
+            Template = templateType
         };
         if (export)
         {
             postTarget = new Uri($"/{Deposit.BasePathElement}/export", UriKind.Relative);
             deposit.VersionExported = exportVersion;
-            deposit.UseObjectTemplate = useObjectTemplate; // TODO: for consideration, probably never happen after dev
         }
         else
         {
             postTarget = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
-            deposit.UseObjectTemplate = useObjectTemplate;
         }
         try
         {

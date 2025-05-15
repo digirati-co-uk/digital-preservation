@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Utils;
 using MediatR;
 
 namespace DigitalPreservation.Workspace.Requests;
@@ -35,7 +36,11 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
 
         bool metsHasBeenWrittenTo = false;
         var goodResult = new ItemsAffected();
-        var shallowestFirst = request.Items
+
+        List<WorkingBase> rootRelativeItems = GetProcessedItems(request.Items);
+
+        
+        var shallowestFirst = rootRelativeItems
             .OrderBy(item => item.LocalPath.Count(c => c == '/'));
         foreach (var item in shallowestFirst)
         {
@@ -71,5 +76,52 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
             }
         }
         return Result.OkNotNull(goodResult);
+    }
+
+    private List<WorkingBase> GetProcessedItems(List<WorkingBase> requestItems)
+    {
+        var rootRelativeItems = new List<WorkingBase>();
+        foreach (var item in requestItems)
+        {
+            if (item is WorkingDirectory directory)
+            {
+                rootRelativeItems.Add(directory.ToRootLayout());
+            }
+            else if (item is WorkingFile file)
+            {
+                var fileAsRoot = file.ToRootLayout();
+                // don't add files directly in the root
+                if (fileAsRoot.LocalPath.StartsWith($"{FolderNames.Objects}/")
+                    || fileAsRoot.LocalPath == FolderNames.Objects
+                    || fileAsRoot.LocalPath.StartsWith($"{FolderNames.Metadata}/")
+                    || fileAsRoot.LocalPath == FolderNames.Metadata)
+                {
+                    rootRelativeItems.Add(fileAsRoot);
+                }
+            }
+        }
+        
+        // Now ensure that all files mentioned have folders defined explicitly
+        var shallowestFirst = rootRelativeItems
+            .OrderBy(item => item.LocalPath.Count(c => c == '/'))
+            .ToList();
+
+        foreach (var item in shallowestFirst)
+        {
+            if (item.LocalPath.Contains('/'))
+            {
+                var parent = item.LocalPath.GetParent();
+                while (parent.HasText() && !rootRelativeItems.Exists(i => i.LocalPath == parent))
+                {
+                    rootRelativeItems.Add(new WorkingDirectory
+                    {
+                        LocalPath = parent
+                    });
+                    parent = parent.GetParent();
+                }
+            }
+        }
+        
+        return rootRelativeItems;
     }
 }

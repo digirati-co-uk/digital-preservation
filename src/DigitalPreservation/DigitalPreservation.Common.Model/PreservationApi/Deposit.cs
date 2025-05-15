@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.PreservationApi;
 
@@ -62,9 +63,19 @@ public class Deposit : Resource
     public string? VersionExported { get; set; }
     
     [JsonPropertyOrder(500)]
-    [JsonPropertyName("useObjectTemplate")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? UseObjectTemplate { get; set; }
+    [JsonPropertyName("template")]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public TemplateType Template { get; set; } = TemplateType.None;
+    
+    
+    // [JsonPropertyOrder(501)]
+    // [JsonPropertyName("useObjectTemplate")]
+    // [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    // [Obsolete("Use TemplateType instead")]
+    // public bool? UseObjectTemplate {
+    //     get => Template == TemplateType.RootLevel;
+    //     set => Template = value is true ? TemplateType.RootLevel : TemplateType.None;
+    // }
     
     /// <summary>
     /// At the time the deposit is requested
@@ -73,9 +84,31 @@ public class Deposit : Resource
     [JsonPropertyOrder(600)]
     [JsonPropertyName("metsETag")]
     public string? MetsETag { get; set; }
+
+
+    [JsonPropertyOrder(701)] 
+    [JsonPropertyName("lockedBy")]
+    public Uri? LockedBy { get; set; }
     
+    
+    [JsonPropertyOrder(702)] 
+    [JsonPropertyName("lockDate")]
+    public DateTime? LockDate { get; set; }
 
     public const string BasePathElement = "deposits";
+    
+    public string? GetOtherLockOwner(string? callerIdentity)
+    {
+        if (callerIdentity.HasText() && LockedBy != null)
+        {
+            var lockedBy = LockedBy.GetSlug();
+            if (lockedBy != callerIdentity)
+            {
+                return lockedBy;
+            }
+        }
+        return null;
+    }
 
 }
 
@@ -87,4 +120,11 @@ public static class DepositStates
     public const string Error = "error";
 
     public static readonly string[] All = [New, Exporting, Preserved, Error];
+}
+
+public enum TemplateType
+{
+    None,
+    RootLevel,
+    BagIt
 }

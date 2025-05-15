@@ -6,5 +6,5 @@ public enum Whereabouts
     Mets,
     Deposit,
     Neither,
-    Unknown
+    Extra
 }

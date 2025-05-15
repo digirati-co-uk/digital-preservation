@@ -1,10 +1,37 @@
-﻿using DigitalPreservation.Utils;
+﻿using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
-public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDirectory? directoryInMets)
+public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDirectory? directoryInMets, string? relativePath = null)
 {
-    public string? LocalPath => DirectoryInDeposit?.LocalPath ?? DirectoryInMets?.LocalPath;
+    public string? LocalPath
+    {
+        get
+        {
+            if (relativePath == null)
+            {
+                return DirectoryInDeposit?.LocalPath ?? DirectoryInMets?.LocalPath;
+            }
+            if (DirectoryInDeposit == null)
+            {
+                return DirectoryInMets?.LocalPath;
+            }
+
+            if (DirectoryInDeposit.LocalPath == relativePath)
+            {
+                return "";
+            }
+            if (DirectoryInDeposit.LocalPath.StartsWith($"{relativePath}/"))
+            {
+                return DirectoryInDeposit.LocalPath.RemoveStart($"{relativePath}/");
+            }
+            // We're in the root of a BagIt - which should not actually contain any other folders, but...
+            return "../" +  DirectoryInDeposit.LocalPath;
+        }
+    }
+
     public string? Name => DirectoryInDeposit?.Name ?? DirectoryInMets?.Name;
 
     public WorkingDirectory? DirectoryInDeposit { get; private set; } = directoryInDeposit;
@@ -44,6 +71,10 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
 
             if (DirectoryInDeposit is not null)
             {
+                if (relativePath.HasText() && !DirectoryInDeposit.LocalPath.StartsWith(relativePath))
+                {
+                    return Whereabouts.Extra;
+                }
                 return Whereabouts.Deposit;
             }
 
@@ -59,6 +90,16 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
     
     public CombinedDirectory? FindDirectory(string? path)
     {
+        return FindDirectoryInternal(path, (directory, part) => directory.LocalPath!.GetSlug() == part);
+    }
+    
+    // public CombinedDirectory? FindDirectoryByUriSafeSlugs(string? path)
+    // {
+    //     return FindDirectoryInternal(path, (directory, part) => directory.LocalPath!.GetUriSafeSlug() == part);
+    // }
+
+    private CombinedDirectory? FindDirectoryInternal(string? path, Func<CombinedDirectory, string, bool> predicate)
+    {
         if (path.IsNullOrWhiteSpace() || path == "/")
         {
             return this;
@@ -67,7 +108,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         var directory = this;
         foreach (var part in parts)
         {
-            var potentialDirectory = directory.Directories.SingleOrDefault(d => d.LocalPath!.GetSlug() == part);
+            var potentialDirectory = directory.Directories.SingleOrDefault(d => predicate(d, part));
             if (potentialDirectory == null)
             {
                 return null;
@@ -76,10 +117,10 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
 
         return directory;
+        
     }
+    
 
-    
-    
     public int DescendantFileCount(int counter = 0)
     {
         counter+= Files.Count;
@@ -96,28 +137,36 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         var slug = path.GetSlug();
         return parent?.Files.SingleOrDefault(f => f.LocalPath!.GetSlug() == slug);
     }
+    
+    
+    // public CombinedFile? FindFileByUriSafeSlugs(string path)
+    // {
+    //     var parent = FindDirectoryByUriSafeSlugs(path.GetParent());
+    //     var slug = path.GetUriSafeSlug();
+    //     return parent?.Files.SingleOrDefault(f => f.LocalPath!.GetUriSafeSlug() == slug);
+    // }
 
-    public bool RemoveFileFromDeposit(string path, bool trueIfNotFound)
+    public bool RemoveFileFromDeposit(string path, string depositPath, bool trueIfNotFound)
     {
-        return RemoveFileFromBranch(path, trueIfNotFound, Branch.Deposit);
+        return RemoveFileFromBranch(path, depositPath, trueIfNotFound, Branch.Deposit);
     }
     
-    public bool RemoveFileFromMets(string path, bool trueIfNotFound)
+    public bool RemoveFileFromMets(string path, string depositPath, bool trueIfNotFound)
     {
-        return RemoveFileFromBranch(path, trueIfNotFound, Branch.Mets);
+        return RemoveFileFromBranch(path, depositPath, trueIfNotFound, Branch.Mets);
     }
     
-    public bool RemoveDirectoryFromDeposit(string path, bool trueIfNotFound)
+    public bool RemoveDirectoryFromDeposit(string path, string depositPath, bool trueIfNotFound)
     {
-        return RemoveDirectoryFromBranch(path, trueIfNotFound, Branch.Deposit);
+        return RemoveDirectoryFromBranch(path, depositPath, trueIfNotFound, Branch.Deposit);
     }
     
-    public bool RemoveDirectoryFromMets(string path, bool trueIfNotFound)
+    public bool RemoveDirectoryFromMets(string path, string depositPath, bool trueIfNotFound)
     {
-        return RemoveDirectoryFromBranch(path, trueIfNotFound, Branch.Mets);
+        return RemoveDirectoryFromBranch(path, depositPath, trueIfNotFound, Branch.Mets);
     }
     
-    private bool RemoveFileFromBranch(string path, bool trueIfNotFound, Branch branch)
+    private bool RemoveFileFromBranch(string path, string depositPath, bool trueIfNotFound, Branch branch)
     {
         var combinedFile = FindFile(path);
         if (combinedFile is null)
@@ -146,7 +195,8 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
 
         // remove the file from the correct files branch of the tree
-        var fileInBranch = parentDirectoryInBranch.Files.Single(f => f.LocalPath == path);
+        var removePath = branch == Branch.Deposit ? depositPath : path;
+        var fileInBranch = parentDirectoryInBranch.Files.Single(f => f.LocalPath == removePath);
         var removedFromBranch = parentDirectoryInBranch.Files.Remove(fileInBranch);
 
         switch (branch)
@@ -179,7 +229,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
     }
     
     
-    private bool RemoveDirectoryFromBranch(string path, bool trueIfNotFound, Branch branch)
+    private bool RemoveDirectoryFromBranch(string path, string depositPath, bool trueIfNotFound, Branch branch)
     {
         var combinedDirectory = FindDirectory(path);
         if (combinedDirectory is null)
@@ -213,7 +263,8 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
 
         // remove the directory from the correct directories branch of the tree
-        var directoryInBranch = parentDirectoryInBranch.Directories.Single(d => d.LocalPath == path);
+        var removePath = branch == Branch.Deposit ? depositPath : path;
+        var directoryInBranch = parentDirectoryInBranch.Directories.Single(d => d.LocalPath == removePath);
         var removedFromBranch = parentDirectoryInBranch.Directories.Remove(directoryInBranch);
 
         switch (branch)
@@ -272,6 +323,82 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
 
     private CombinedDirectory CloneForFlatten()
     {
-        return new CombinedDirectory(DirectoryInDeposit, DirectoryInMets);
+        return new CombinedDirectory(DirectoryInDeposit, DirectoryInMets, relativePath);
     }
+    
+    public Result<Container> ToContainer(Uri repositoryUri, Uri origin, List<Uri>? uris = null)
+    {
+        uris?.Add(repositoryUri);
+        var container = new Container
+        {
+            Name = Name,
+            Id = repositoryUri,
+            Origin = origin
+        };
+        foreach (var combinedDirectory in Directories)
+        {
+            var directoryInDeposit = combinedDirectory.DirectoryInDeposit;
+            if (directoryInDeposit != null)
+            {
+                var childResult = combinedDirectory.ToContainer(
+                    repositoryUri.AppendEscapedSlug(directoryInDeposit.GetSlug().EscapeForUriNoHashes()), // For Fedora
+                    origin.AppendEscapedSlug(directoryInDeposit.GetSlug().EscapeForUri()), // Regular S3 URI
+                    uris);
+                if (childResult is { Success: true, Value: not null })
+                {
+                    container.Containers.Add(childResult.Value);
+                }
+                else
+                {
+                    return childResult;
+                }
+            }
+        }
+        foreach (var combinedFile in Files)
+        {
+            var fileInDeposit = combinedFile.FileInDeposit;
+            if (fileInDeposit == null)
+            {
+                continue;
+                // Is this a FAIL?
+            }
+            var binaryId = repositoryUri.AppendEscapedSlug(fileInDeposit.GetSlug().EscapeForUriNoHashes());
+            uris?.Add(binaryId);
+            
+            var size = combinedFile.GetSingleSize();
+            if (size <= 0)
+            {
+                return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
+                    $"File {fileInDeposit.LocalPath} has different sizes in deposit and mets or does not have a size at all");
+            }
+            
+            var contentType = combinedFile.GetSingleContentType();
+            if (contentType is null)
+            {
+                return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
+                    $"File {fileInDeposit.LocalPath} has different content types in deposit and mets - " + string.Join(", ", combinedFile.GetAllContentTypes()));
+            }
+
+            var digest = combinedFile.GetSingleDigest();
+            if (digest is null)
+            {
+                return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
+                    $"File {fileInDeposit.LocalPath} has different digests in deposit and mets");
+            }
+
+            var name = combinedFile.GetName();
+            
+            container.Binaries.Add(new Binary
+            {
+                Id = binaryId,
+                Name = name, 
+                ContentType = contentType,
+                Digest = digest,
+                Size = size,
+                Origin = origin.AppendEscapedSlug(fileInDeposit.GetSlug().EscapeForUri())  // We'll need to unescape this back to a key
+            });
+        }
+        return Result.OkNotNull(container);
+    }
+
 }

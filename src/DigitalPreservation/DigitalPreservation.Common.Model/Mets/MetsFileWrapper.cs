@@ -34,4 +34,6 @@ public class MetsFileWrapper
     public string? ETag { get; set; }
     public string? Agent { get; set; }
     public bool Editable { get; set; }
+    public List<string> RootAccessConditions { get; set; } = [];
+    public Uri? RootRightsStatement { get; set; }
 }

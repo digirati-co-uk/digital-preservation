@@ -1,6 +1,7 @@
 ﻿@page "{*pathUnderRoot}"
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Import
+@using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @using Microsoft.AspNetCore.Mvc.TagHelpers
@@ -156,7 +157,7 @@
             </tr>
             <tr>
                 <th scope="row">Created by</th>
-                <td>@ag.CreatedBy?.GetSlug()</td>
+                <td>@ag.CreatedBy?.GetSlug()?.UnEscapeFromUri()</td>
             </tr>
             <tr>
                 <th scope="row">Last modified</th>
@@ -164,7 +165,7 @@
             </tr>
             <tr>
                 <th scope="row">Last modified by</th>
-                <td>@ag.LastModifiedBy?.GetSlug()</td>
+                <td>@ag.LastModifiedBy?.GetSlug()?.UnEscapeFromUri()</td>
             </tr>
             <tr>
                 <th scope="row">Versions</th>
@@ -232,7 +233,7 @@
                             <tr>
                                 <td><a href="@path">@slug</a></td>
                                 <td>@deposit.Created.GetDateDisplay()</td>
-                                <td>@deposit.CreatedBy?.GetSlug()</td>
+                                <td>@deposit.CreatedBy?.GetSlug()?.UnEscapeFromUri()</td>
                                 <td>
                                     @deposit.Preserved.GetDateDisplay()
                                     @{
@@ -249,7 +250,7 @@
                                         }
                                     }
                                 </td>
-                                <td>@deposit.PreservedBy?.GetSlug()</td>
+                                <td>@deposit.PreservedBy?.GetSlug()?.UnEscapeFromUri()</td>
                                 <td>@deposit.VersionPreserved</td>
                             </tr>
                         }
@@ -294,9 +295,32 @@
                 @{
                     int counter = 1;
 
+                    var containedContainerIds = modelContainer.Containers.Select(c => c.Id).ToList();
+                    var depositsForNotYetExistingArchivalGroups = Model.ActiveDepositsForArchivalGroupsInContainer
+                        .Where(deposit => !containedContainerIds.Contains(deposit.ArchivalGroup));
+                    var depositsForExistingArchivalGroups = 
+                        Model.ActiveDepositsForArchivalGroupsInContainer
+                            .Where(deposit => containedContainerIds.Contains(deposit.ArchivalGroup))
+                            .Where(deposit => deposit.ArchivalGroup != null)
+                            .ToDictionary(deposit => deposit.ArchivalGroup.GetPathUnderRoot()!);
+                    foreach (var ghostArchivalGroup in depositsForNotYetExistingArchivalGroups)
+                    {
+                        string path = ghostArchivalGroup.Id!.PathAndQuery;
+                        <tr aria-label="row-@(counter++)">
+                            <td aria-label="td-icon"><a href="@path"><svg class="bi"><use xlink:href="#box-seam"/></svg></a></td>
+                            <td aria-label="td-path"><a href="@path">@ghostArchivalGroup.ArchivalGroup?.GetSlug()</a></td>
+                            <td aria-label="td-title"><a href="@path">@(ghostArchivalGroup.ArchivalGroupName ?? "(no name yet)")</a></td>
+                            <td aria-label="td-last-modified">--</td>
+                            <td aria-label="td-last-modified-by">--</td>
+                            <td aria-label="td-created">--</td>
+                            <td aria-label="td-created-by">--</td>
+                            <td aria-label="td-deposits"><a href="@path"><svg class="bi"><use xlink:href="#box-seam"/></svg></a></td>
+                        </tr>
+                    }
                     foreach (var container in modelContainer.Containers)
                     {
-                        string path = "/browse/" + container.GetPathUnderRoot();
+                        var containerPathUnderRoot = container.Id.GetPathUnderRoot(true);
+                        string path = "/browse/" + containerPathUnderRoot;
                         <tr aria-label="row-@(counter++)">
                             @if (container.Type == nameof(ArchivalGroup))
                             {
@@ -306,18 +330,21 @@
                             {
                                 <td aria-label="td-icon"><a href="@path">@container.StringIcon</a></td>
                             }
-                            <td aria-label="td-path"><a href="@path">@container.Id?.GetSlug()</a></td>
+                            <td aria-label="td-path"><a href="@path">@container.Id?.GetSlug()?.UnEscapeFromUri()</a></td>
                             <td aria-label="td-title"><a href="@path">@container.Name</a></td>
                             <td aria-label="td-last-modified"><a href="@path">@container.LastModified.GetDateDisplay()</a></td>
-                            <td aria-label="td-last-modified-by"><a href="@path">@container.LastModifiedBy?.GetSlug()</a></td>
+                            <td aria-label="td-last-modified-by"><a href="@path">@container.LastModifiedBy?.GetSlug()?.UnEscapeFromUri()</a></td>
                             @if (Model.CachedArchivalGroup == null)
                             {
                                 <td aria-label="td-created"><a href="@path">@container.Created.GetDateDisplay()</a></td>
-                                <td aria-label="td-created-by"><a href="@path">@container.CreatedBy?.GetSlug()</a></td>
+                                <td aria-label="td-created-by"><a href="@path">@container.CreatedBy?.GetSlug()?.UnEscapeFromUri()</a></td>
                                 <td aria-label="td-deposits">
                                     @if (container.Type == nameof(ArchivalGroup))
                                     {
-                                        <a href="/deposits?archivalGroupPath=@container.GetPathUnderRoot()"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
+                                        if (depositsForExistingArchivalGroups.TryGetValue(containerPathUnderRoot!, out var deposit))
+                                        {
+                                            <a href="@deposit.Id!.PathAndQuery"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
+                                        }
                                     }
                                 </td>
                             }
@@ -334,17 +361,17 @@
 
                     @foreach (var binary in modelContainer.Binaries)
                     {
-                        string path = "/browse/" + binary.GetPathUnderRoot();
+                        string path = "/browse/" + binary.Id.GetPathUnderRoot(true);
                         <tr aria-label="row-@(counter++)">
                             <td aria-label="td-icon"><a href="@path">@binary.StringIcon</a></td>
-                            <td aria-label="td-path"><a href="@path">@binary.Id?.GetSlug()</a></td>
+                            <td aria-label="td-path"><a href="@path">@path.GetSlug()</a></td>
                             <td aria-label="td-title"><a href="@path">@binary.Name</a></td>
                             <td aria-label="td-last-modified"><a href="@path">@binary.LastModified.GetDateDisplay()</a></td>
-                            <td aria-label="td-last-modified-by"><a href="@path">@binary.LastModifiedBy?.GetSlug()</a></td>
+                            <td aria-label="td-last-modified-by"><a href="@path">@binary.LastModifiedBy?.GetSlug()?.UnEscapeFromUri()</a></td>
                             @if (Model.CachedArchivalGroup == null)
                             {
                                 <td aria-label="td-created"><a href="@path">@binary.Created.GetDateDisplay()</a></td>
-                                <td aria-label="td-created-by"><a href="@path">@binary.CreatedBy?.GetSlug()</a></td>
+                                <td aria-label="td-created-by"><a href="@path">@binary.CreatedBy?.GetSlug()?.UnEscapeFromUri()</a></td>
                                 <td aria-label="td-deposits"></td>
                             }
                             else
@@ -355,9 +382,11 @@
                                 if (localPath != null)
                                 {
                                     var metsBinary = Model.MetsWorkingDirectory?.FindFile(localPath);
-                                    <td aria-label="td-format" title="@metsBinary?.MetsExtensions?.FileFormat?.Name">@metsBinary?.MetsExtensions?.FileFormat?.Key</td>
+                                    var fileFormatMetadata = metsBinary?.GetFileFormatMetadata();
+                                    var virusMetadata = metsBinary?.GetVirusScanMetadata();
+                                    <td aria-label="td-format" title="@fileFormatMetadata?.FormatName">@fileFormatMetadata?.PronomKey</td>
                                     <td aria-label="td-access">@metsBinary?.MetsExtensions?.AccessCondition</td>
-                                    <td aria-label="td-virus">@metsBinary?.MetsExtensions?.VirusScan?.GetDisplay()</td>
+                                    <td aria-label="td-virus">@virusMetadata?.GetDisplay()</td>
                                 }
                                 else
                                 {
@@ -494,6 +523,14 @@
                             <code>@(Model.PathUnderRoot)/<span id="slugDisplay">...</span></code><br/>
                             <div id="archivalGroupSlugHelp" class="form-text">The deposit will <em>eventually</em> create an Archival Group with this path.<br/>
                                 This may be set or changed later.<br/></div>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="hidden" name="NewDepositModel.UseObjectTemplate" value="true" /> <!-- default to this when submitted from UI, but allow bagit to override it -->
+                            <input type="checkbox" name="NewDepositModel.UseBagItTemplate" value="true" class="form-check-input" id="bagitCheck" aria-describedby="bagitHelp">
+                            <label class="form-check-label" for="bagitCheck">Use BagIt layout</label>
+                            <div id="bagitHelp" class="form-text">
+                                Creates the Deposit with a layout that the contents of a BagIt Bag can be imported into, with a data/ directory in the root.
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label for="submissionText" class="form-label">Note (optional)</label>

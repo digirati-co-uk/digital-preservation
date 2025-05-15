@@ -9,7 +9,7 @@ public class PathTests
     [Fact]
     public void Can_Find_Mets_File()
     {
-        var root = TestStructure.GetTestStructure();
+        var root = TestStructure.GetTestMetsStructure();
         
         var mets = root.FindFile("mets.xml");
         
@@ -21,18 +21,18 @@ public class PathTests
     [Fact]
     public void Can_Find_Objects_Dir()
     {
-        var root = TestStructure.GetTestStructure();
+        var root = TestStructure.GetTestMetsStructure();
         
-        var objects = root.FindDirectory("objects");
+        var objects = root.FindDirectory(FolderNames.Objects);
         
-        objects!.LocalPath.Should().Be("objects");
+        objects!.LocalPath.Should().Be(FolderNames.Objects);
     }
     
     
     [Fact]
     public void Can_Find_Nested_File()
     {
-        var root = TestStructure.GetTestStructure();
+        var root = TestStructure.GetTestMetsStructure();
         
         var image1 = root.FindFile("objects/image1.jpg");
         
@@ -44,8 +44,8 @@ public class PathTests
     [Fact]
     public void Can_Find_Child_File()
     {
-        var root = TestStructure.GetTestStructure();
-        var objects = root.FindDirectory("objects");
+        var root = TestStructure.GetTestMetsStructure();
+        var objects = root.FindDirectory(FolderNames.Objects);
         
         var image1 = objects!.FindFile("image1.jpg");
         
@@ -56,8 +56,8 @@ public class PathTests
     [Fact]
     public void Can_Find_Relative_File()
     {
-        var root = TestStructure.GetTestStructure();
-        var objects = root.FindDirectory("objects");
+        var root = TestStructure.GetTestMetsStructure();
+        var objects = root.FindDirectory(FolderNames.Objects);
         
         var subimage1 = objects!.FindFile("subdirectory/sub-image1.jpg");
         

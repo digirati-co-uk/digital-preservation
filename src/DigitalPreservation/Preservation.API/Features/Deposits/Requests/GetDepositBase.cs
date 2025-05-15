@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Workspace;
 using Microsoft.EntityFrameworkCore;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
@@ -12,7 +13,8 @@ public class GetDepositBase(
     ILogger<GetDepositHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
-    ResourceMutator resourceMutator)
+    ResourceMutator resourceMutator,
+    WorkspaceManagerFactory workspaceManagerFactory)
 {
     public async Task<Result<Deposit?>> GetDeposit(string depositId, CancellationToken cancellationToken)
     {
@@ -21,6 +23,7 @@ public class GetDepositBase(
             var entity = await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == depositId, cancellationToken);
             if (entity != null)
             {
+                var wasExportingAndNowFinished = false;
                 if (entity.Status == DepositStates.Exporting)
                 {
                     // TODO: later can have a background process to update exporting deposits
@@ -37,6 +40,7 @@ public class GetDepositBase(
                         {
                             entity.Status = DepositStates.New;
                             await dbContext.SaveChangesAsync(cancellationToken);
+                            wasExportingAndNowFinished = true;
                         }
                     }
                     else
@@ -58,6 +62,11 @@ public class GetDepositBase(
                     deposit.ArchivalGroupExists = true;
                 }
 
+                if (wasExportingAndNowFinished)
+                {
+                    var workspaceManager = workspaceManagerFactory.Create(deposit);
+                    await workspaceManager.GetCombinedDirectory(refresh: true);
+                }
                 return Result.Ok(deposit);
             }
             return Result.Fail<Deposit?>(ErrorCodes.NotFound, $"Deposit {depositId} not found");

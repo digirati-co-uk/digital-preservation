@@ -7,10 +7,10 @@ public class CombinedTests
     [Fact]
     public void Combined_When_Both_Same()
     {
-        var fileSystem = TestStructure.GetTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var fileSystem = TestStructure.GetTestMetsStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
-        var combined = CombinedBuilder.Build(fileSystem, mets);
+        var combined = CombinedBuilder.Build(fileSystem, mets, null);
 
         combined.Directories.Should().HaveCount(1);
         combined.Directories[0].DirectoryInDeposit.Should().BeEquivalentTo(combined.Directories[0].DirectoryInMets);
@@ -27,8 +27,8 @@ public class CombinedTests
     [Fact]
     public void Combined_With_More_In_Mets()
     {
-        var fileSystem = TestStructure.GetTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var fileSystem = TestStructure.GetTestMetsStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
         mets.Files.Add(new WorkingFile { LocalPath = "extra-file.txt", ContentType = "text/plain" });
         var extraDir = new WorkingDirectory { LocalPath = "extra-directory" };
@@ -38,10 +38,10 @@ public class CombinedTests
             { LocalPath = "extra-directory/extra-file-2.txt", ContentType = "text/plain" });
         mets.Directories.Add(extraDir);
 
-        var combined = CombinedBuilder.Build(fileSystem, mets);
+        var combined = CombinedBuilder.Build(fileSystem, mets, null);
 
         combined.Directories.Should().HaveCount(2);
-        var objects = combined.Directories.Single(d => d.LocalPath == "objects");
+        var objects = combined.Directories.Single(d => d.LocalPath == FolderNames.Objects);
         // alphabetical order
         (combined.Directories[1] == objects).Should().BeTrue();
         combined.Directories[1].DirectoryInDeposit.Should().BeEquivalentTo(combined.Directories[1].DirectoryInMets);
@@ -77,8 +77,8 @@ public class CombinedTests
     [Fact]
     public void Combined_With_More_In_Filesystem()
     {
-        var fileSystem = TestStructure.GetTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var fileSystem = TestStructure.GetTestMetsStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
         fileSystem.Files.Add(new WorkingFile { LocalPath = "extra-file.txt", ContentType = "text/plain" });
         var extraDir = new WorkingDirectory { LocalPath = "extra-directory" };
@@ -87,10 +87,10 @@ public class CombinedTests
         extraDir.Files.Add(new WorkingFile
             { LocalPath = "extra-directory/extra-file-2.txt", ContentType = "text/plain" });
         fileSystem.Directories.Add(extraDir);
-        var combined = CombinedBuilder.Build(fileSystem, mets);
+        var combined = CombinedBuilder.Build(fileSystem, mets, null);
 
         combined.Directories.Should().HaveCount(2);
-        var objects = combined.Directories.Single(d => d.LocalPath == "objects");
+        var objects = combined.Directories.Single(d => d.LocalPath == FolderNames.Objects);
         // alphabetical order
         (combined.Directories[1] == objects).Should().BeTrue();
         combined.Directories[1].DirectoryInDeposit.Should().BeEquivalentTo(combined.Directories[1].DirectoryInMets);
@@ -126,8 +126,8 @@ public class CombinedTests
     [Fact]
     public void Combined_With_Multiple_Differences()
     {
-        var fileSystem = TestStructure.GetTestStructure();
-        var mets = TestStructure.GetTestStructure();
+        var fileSystem = TestStructure.GetTestMetsStructure();
+        var mets = TestStructure.GetTestMetsStructure();
 
         fileSystem.Files.Add(new WorkingFile { LocalPath = "extra-fs-file.txt", ContentType = "text/plain" });
         var extraFsDir = new WorkingDirectory { LocalPath = "extra-fs-directory" };
@@ -153,13 +153,13 @@ public class CombinedTests
             { LocalPath = "extra-mets-directory/child-directory/file-2.txt", ContentType = "text/plain" });
         extraMetsDir.Directories.Add(extraMetsDir2);
         
-        var combined = CombinedBuilder.Build(fileSystem, mets);
+        var combined = CombinedBuilder.Build(fileSystem, mets, null);
         combined.Files.Should().HaveCount(3);
         combined.Directories.Should().HaveCount(3);
         
         combined.Directories[0].LocalPath.Should().Be("extra-fs-directory");
         combined.Directories[1].LocalPath.Should().Be("extra-mets-directory");
-        combined.Directories[2].LocalPath.Should().Be("objects");
+        combined.Directories[2].LocalPath.Should().Be(FolderNames.Objects);
 
         combined.Directories[1].Directories.Should().HaveCount(1);
         combined.Directories[1].Directories[0].LocalPath.Should().Be("extra-mets-directory/child-directory");

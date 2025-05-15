@@ -11,14 +11,14 @@ public class CreateDeposit(
     string? archivalGroupPathUnderRoot,
     string? archivalGroupProposedName,
     string? submissionText,
-    bool useObjectsTemplate,
+    TemplateType templateType,
     bool export,
     string? exportVersion): IRequest<Result<Deposit?>>
 {
     public string? ArchivalGroupPathUnderRoot { get; } = archivalGroupPathUnderRoot;
     public string? ArchivalGroupProposedName { get; } = archivalGroupProposedName;
     public string? SubmissionText { get; } = submissionText;
-    public bool UseObjectsTemplate { get; } = useObjectsTemplate;
+    public TemplateType TemplateType { get; } = templateType;
     public bool Export { get; } = export;
     public string? ExportVersion { get; } = exportVersion;
 }
@@ -31,7 +31,7 @@ public class CreateDepositHandler(IPreservationApiClient preservationApiClient) 
             request.ArchivalGroupPathUnderRoot.GetRepositoryPath(),
             request.ArchivalGroupProposedName,
             request.SubmissionText,
-            request.UseObjectsTemplate,
+            request.TemplateType,
             request.Export,
             request.ExportVersion,
             cancellationToken);

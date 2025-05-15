@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Results;
+﻿using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 
 namespace DigitalPreservation.Common.Model.Mets;
@@ -6,19 +7,28 @@ namespace DigitalPreservation.Common.Model.Mets;
 public interface IMetsManager
 {
     public const string MetsCreatorAgent = "University of Leeds Digital Library Infrastructure Project";
+    
+    public const string RestrictionOnAccess = "restriction on access";
+    public const string UseAndReproduction = "use and reproduction";
+    
     // Create an empty METS file
     Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit);
-    bool IsMetsFile(string fileName);
-    
     // Reverse-engineer a METS file from an existing AG. This is OK for now but likely to be an error scenario
     Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, ArchivalGroup archivalGroup, string? agNameFromDeposit);
-    Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag);
+    bool IsMetsFile(string fileName);
+    
+    Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag); // , Uri? storageLocation
     Task<Result> HandleDeleteObject(Uri workingRoot, string localPath, string depositETag);
-    Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag);
+    Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag); // , Uri? storageLocation
 
     Task<Result<FullMets>> GetFullMets(Uri metsLocation, string? eTagToMatch);
     // Synchronous modification of FullMETS - does not save to disk!
-    Result AddToMets(FullMets fullMets, WorkingBase workingBase);
-    Result DeleteFromMets(FullMets fullMets, string deletePath);
+    Result AddToMets(FullMets fullMets, WorkingBase workingBase); // , Uri? storageLocation
+    Result DeleteFromMets(FullMets fullMets, string deletePath); // , Uri? storageLocation
     Task<Result> WriteMets(FullMets fullMets);
+
+    List<string> GetRootAccessRestrictions(FullMets fullMets);
+    void SetRootAccessRestrictions(FullMets fullMets, List<string> accessRestrictions);
+    void SetRootRightsStatement(FullMets fullMets, Uri? uri);
+    Uri? GetRootRightsStatement(FullMets fullMets);
 }

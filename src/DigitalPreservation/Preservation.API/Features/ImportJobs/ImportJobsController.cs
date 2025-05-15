@@ -89,8 +89,16 @@ public class ImportJobsController(
         {
             logger.LogInformation("Submitted import job is a diff reference, creating job...");
             var diffImportJobResult = await mediator.Send(new GetDiffImportJob(deposit, User), cancellationToken);
-            importJob = diffImportJobResult.Value!;
-            importJob.OriginalId = GetDiffUri(depositId);
+            if (diffImportJobResult is { Success: true, Value: not null })
+            {
+                importJob = diffImportJobResult.Value!;
+                importJob.OriginalId = GetDiffUri(depositId);
+            }
+            else
+            {
+                logger.LogError("Unable to fetch diff import job for deposit " + diffImportJobResult.CodeAndMessage());
+                return this.StatusResponseFromResult(diffImportJobResult);
+            }
         }
 
         Result<ImportJobResult>? checkDeposit;
@@ -120,7 +128,7 @@ public class ImportJobsController(
             }
         }
 
-        var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob), cancellationToken);
+        var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob, User), cancellationToken);
         return this.StatusResponseFromResult(executeImportJobResult, 201, executeImportJobResult.Value?.Id);
     }
     

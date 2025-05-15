@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Security.Claims;
+using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -20,10 +21,22 @@ public class WorkspaceManager(
 {
     public List<string> Warnings { get; } = [];
 
+    public bool IsBagItLayout { get; set; }
     public bool HasValidFiles { get; set; }
     public string? MetsPath { get; set; }
     public bool Editable { get; set; }
     public string? MetsName { get; set; }
+    
+    // TODO: In phase 2, replace these with always an operation on a CombinedDirectory -> METS Directory, including the workspace root.
+    public List<string> RootAccessRestrictions { get; set; } = [];
+    public Uri? RootRightsStatement { get; set; }
+    
+    
+    public async Task<Result> SetAccessConditions(List<string> rootAccessRestrictions, Uri? rootRightsStatement)
+    {
+        var result = await mediator.Send(new SetRootAccessConditions(deposit.Files!, deposit.MetsETag!, rootAccessRestrictions, rootRightsStatement));
+        return result;
+    }
 
     public async Task<Result<WorkingDirectory?>> GetFileSystemWorkingDirectory(bool refresh = false)
     {
@@ -42,8 +55,25 @@ public class WorkspaceManager(
         var fileSystemResult = await GetFileSystemWorkingDirectory(refresh);
         if (fileSystemResult is { Success: true, Value: not null })
         {
-            var combined = CombinedBuilder.Build(fileSystemResult.Value, metsWrapper?.PhysicalStructure);
-            var objects = combined.Directories.SingleOrDefault(d => d.LocalPath == "objects");
+            var fileSystemRoot = fileSystemResult.Value;
+            CombinedDirectory combinedRoot;
+            CombinedDirectory apparentRoot;
+            // Is this a BagIt layout or a regular one?
+            // If it is completely empty, we won't know this!
+            var dataDirectory = fileSystemRoot.Directories.SingleOrDefault(d => d.LocalPath == FolderNames.BagItData);
+            if (dataDirectory != null)
+            {
+                combinedRoot = CombinedBuilder.BuildOffset(fileSystemRoot, dataDirectory, metsWrapper?.PhysicalStructure);
+                IsBagItLayout = true;
+                apparentRoot = combinedRoot.Directories.Single(
+                    d => d.DirectoryInDeposit!.LocalPath == FolderNames.BagItData);
+            }
+            else
+            {
+                combinedRoot = CombinedBuilder.Build(fileSystemRoot, metsWrapper?.PhysicalStructure);
+                apparentRoot = combinedRoot;
+            }
+            var objects = apparentRoot.Directories.SingleOrDefault(d => d.LocalPath == FolderNames.Objects);
             if (objects == null || objects.DescendantFileCount() == 0)
             {
                 HasValidFiles = false;
@@ -52,7 +82,10 @@ public class WorkspaceManager(
             {
                 HasValidFiles = true;
             }
-            return Result.Ok(combined);
+
+            RootAccessRestrictions = metsWrapper?.RootAccessConditions ?? [];
+            RootRightsStatement = metsWrapper?.RootRightsStatement;
+            return Result.Ok(apparentRoot);
         }
 
         return Result.Fail<CombinedDirectory>(ErrorCodes.UnknownError, "Unable to get combined directory");
@@ -75,8 +108,17 @@ public class WorkspaceManager(
     }
 
 
-    public async Task<Result<CreateFolderResult>> CreateFolder(string newFolderName, string? newFolderContext, bool contextIsFile)
+
+
+    public async Task<Result<CreateFolderResult>> CreateFolder(
+        string newFolderName, string? newFolderContext, bool contextIsFile, string? callerIdentity)
     {
+        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
+        if (otherLockOwner.HasText())
+        {
+            return Result.FailNotNull<CreateFolderResult>(ErrorCodes.Unauthorized,
+                "Deposit is locked by another user: " + otherLockOwner);
+        }
         if (contextIsFile && newFolderContext.HasText())
         {
             newFolderContext = newFolderContext.GetParent();
@@ -103,7 +145,7 @@ public class WorkspaceManager(
         }
 
         var createFolderResult = await mediator.Send(new CreateFolder(
-            deposit.Files!, newFolderName, slug, newFolderContext, deposit.MetsETag!));
+            IsBagItLayout, deposit.Files!, newFolderName, slug, newFolderContext, deposit.MetsETag!));
         if (createFolderResult.Success)
         {
             var result = new CreateFolderResult
@@ -119,8 +161,14 @@ public class WorkspaceManager(
 
     }
 
-    public async Task<Result<ItemsAffected>> DeleteItems(DeleteSelection deleteSelection)
+    public async Task<Result<ItemsAffected>> DeleteItems(DeleteSelection deleteSelection, string callerIdentity)
     {
+        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
+        if (otherLockOwner.HasText())
+        {
+            return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
+                "Deposit is locked by another user: " + otherLockOwner);
+        }
         if (deleteSelection is { DeleteFromMets: false, DeleteFromDepositFiles: false })
         {
             return Result.FailNotNull<ItemsAffected>(ErrorCodes.BadRequest,
@@ -138,7 +186,8 @@ public class WorkspaceManager(
         var combinedResult = await GetCombinedDirectory(true);
         if (combinedResult is { Success: true, Value: not null })
         {
-            var deleteResult = await mediator.Send(new DeleteItems(deposit.Files!, deleteSelection, combinedResult.Value, deposit.MetsETag!));
+            var deleteResult = await mediator.Send(
+                new DeleteItems(IsBagItLayout, deposit.Files!, deleteSelection, combinedResult.Value, deposit.MetsETag!));
             // refresh the file system again
             // need to see how long this operation takes on large deposits
             await GetFileSystemWorkingDirectory(true);
@@ -147,8 +196,14 @@ public class WorkspaceManager(
         return Result.FailNotNull<ItemsAffected>(combinedResult.ErrorCode ?? ErrorCodes.UnknownError, combinedResult.ErrorMessage);
     }
 
-    public async Task<Result<ItemsAffected>> AddItemsToMets(List<WorkingBase> items)
+    public async Task<Result<ItemsAffected>> AddItemsToMets(List<WorkingBase> items, string callerIdentity)
     {
+        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
+        if (otherLockOwner.HasText())
+        {
+            return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
+                "Deposit is locked by another user: " + otherLockOwner);
+        }
         if (items.Count == 0)
         {
             return Result.FailNotNull<ItemsAffected>(ErrorCodes.BadRequest,
@@ -160,9 +215,14 @@ public class WorkspaceManager(
     }
 
     public async Task<Result<SingleFileUploadResult>> UploadSingleSmallFile(
-        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context)
+        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity)
     {
-
+        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
+        if (otherLockOwner.HasText())
+        {
+            return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.Unauthorized,
+                "Deposit is locked by another user: " + otherLockOwner);
+        }
         var combinedResult = await GetCombinedDirectory();
         if (combinedResult is not { Success: true, Value: not null })
         {
@@ -176,7 +236,7 @@ public class WorkspaceManager(
                 ErrorCodes.BadRequest, $"Folder path {parentDirectory} could not be found.");
         }
 
-        if (!(parentDirectory.LocalPath == "objects" || parentDirectory.LocalPath!.StartsWith("objects/")))
+        if (!(parentDirectory.LocalPath == FolderNames.Objects || parentDirectory.LocalPath!.StartsWith($"{FolderNames.Objects}/")))
         {
             return Result.FailNotNull<SingleFileUploadResult>(
                 ErrorCodes.BadRequest, "Uploaded files must go in or below the objects folder.");
@@ -191,6 +251,7 @@ public class WorkspaceManager(
         }
 
         var uploadFileResult = await mediator.Send(new UploadFileToDeposit(
+            IsBagItLayout,
             deposit.Files!,
             context,
             slug,
@@ -220,7 +281,7 @@ public class WorkspaceManager(
                 deposit.Files!, true, true));
         return readS3Result;
     }
-
+    
     public async Task<Result> ValidateDepositFileSystem()
     {       
         var readS3Result = await mediator.Send(new GetWorkingDirectory(
@@ -254,7 +315,7 @@ public class WorkspaceManager(
     {
         wd.Modified = DateTime.MinValue;
         // Also do not compare the object directory
-        var objects = wd.Directories.SingleOrDefault(d => d.LocalPath == "objects");
+        var objects = wd.Directories.SingleOrDefault(d => d.LocalPath == FolderNames.Objects);
         if (objects != null)
         {
             objects.Modified = DateTime.MinValue;
@@ -277,8 +338,11 @@ public class WorkspaceManager(
         // The METS file shouldn't be adding or removing resources that aren't
         // present in EITHER the incoming deposit, or in the existing Archival Group.
         // However - limit this check to the objects directory (?)
-
-        var agStringWithSlash = importJob.ArchivalGroup! + "/";
+        var agLocalPathWithSlash = importJob.ArchivalGroup!.LocalPath;
+        if (!agLocalPathWithSlash.EndsWith('/'))
+        {
+            agLocalPathWithSlash += "/";
+        }
         
         List<Container> allExistingContainers = [];
         List<Binary> allExistingBinaries = [];
@@ -289,18 +353,20 @@ public class WorkspaceManager(
         
         var (allCombinedDirectories, allCombinedFiles) = depositCombinedDirectory.Flatten();
         var agFiles = existingArchivalGroup?.StorageMap?.Files;
+        var unescapedPathAgFiles = agFiles?.ToDictionary(kvp => kvp.Key.UnEscapePathElementsNoHashes(), kvp => kvp.Value);
         foreach (var combinedFile in allCombinedFiles)
         {
             if (combinedFile.FileInMets is not null)
             {
                 // It's in the incoming METS...
-                if (agFiles != null && agFiles.ContainsKey(combinedFile.LocalPath!))
+                // Inventory Paths seem only to have %20 encoding?
+                if (unescapedPathAgFiles != null && unescapedPathAgFiles.ContainsKey(combinedFile.LocalPath!))
                 {
                     // ...and also in the ArchivalGroup
                     continue;
                 }
 
-                if (importJob.BinariesToAdd.Exists(b => b.Id!.ToString() == agStringWithSlash + combinedFile.LocalPath))
+                if (importJob.BinariesToAdd.Exists(b => b.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + combinedFile.LocalPath!.EscapePathElementsNoHashes()))
                 {
                     // It's being added in this operation
                     continue;
@@ -316,13 +382,13 @@ public class WorkspaceManager(
             if (combinedDirectory.DirectoryInMets is not null)
             {
                 // It's in the incoming METS...
-                if (allExistingContainers.Exists(c => c.Id!.ToString() == agStringWithSlash + combinedDirectory.LocalPath))
+                if (allExistingContainers.Exists(c => c.Id!.LocalPath == agLocalPathWithSlash + combinedDirectory.LocalPath))
                 {
                     // ...and also in the ArchivalGroup
                     continue;
                 }
 
-                if (importJob.ContainersToAdd.Exists(c => c.Id!.ToString() == agStringWithSlash + combinedDirectory.LocalPath))
+                if (importJob.ContainersToAdd.Exists(c => c.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + combinedDirectory.LocalPath!.EscapePathElementsNoHashes()))
                 {
                     // It's being added in this operation
                     continue;
@@ -335,4 +401,5 @@ public class WorkspaceManager(
         
         return Result.Ok();
     }
+
 }

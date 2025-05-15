@@ -32,7 +32,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                 ArchivalGroupProposedName = result.Value!.Name!,
                 SubmissionText = submissionText,
                 Export = export,
-                UseObjectTemplate = true // TODO - this will cause a METS to be created if one can't be found
+                UseObjectTemplate = true
             };
             return await OnPostCreate(model);
         }
@@ -45,9 +45,18 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         logger.LogDebug("OnPostNewDeposit(NewDepositModel newDepositModel)");
         NewDeposit = newDepositModel;
         Result<Deposit?>? result = null;
+        var templateType = TemplateType.None;
+        if (newDepositModel.UseBagItTemplate)
+        {
+            templateType = TemplateType.BagIt;
+        }
+        else if (newDepositModel.UseObjectTemplate)
+        {
+            templateType = TemplateType.RootLevel;
+        }
         if (newDepositModel.ObjectIdentifier.HasText())
         {
-            result = await mediator.Send(new CreateDepositFromIdentifier(newDepositModel.ObjectIdentifier));
+            result = await mediator.Send(new CreateDepositFromIdentifier(newDepositModel.ObjectIdentifier, templateType));
         }
         else
         {
@@ -57,7 +66,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                     newDepositModel.ArchivalGroupPathUnderRoot,
                     newDepositModel.ArchivalGroupProposedName,
                     newDepositModel.SubmissionText,
-                    newDepositModel.UseObjectTemplate,
+                    templateType,
                     newDepositModel.Export,
                     exportVersion: null // always do this from UI; only supports exporting HEAD
                 ));
@@ -99,9 +108,9 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         }
 
         var agSlug = pathUnderRoot.GetSlug();
-        if(!PreservedResource.ValidSlug(agSlug))
+        if(!PreservedResource.ValidSlug(agSlug, out var reason))
         {
-            TempData["CreateDepositFail"] = $"Not a valid path name: {agSlug}";
+            TempData["CreateDepositFail"] = $"Not a valid path name: {agSlug}; {reason}";
             return false;
         }
         var parentPath = pathUnderRoot.GetParent();
@@ -110,9 +119,10 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             TempData["CreateDepositFail"] = "You can't create a deposit for an Archival Group at the repository root.";
             return false;
         }
-        if (!PreservedResource.ValidPath(pathUnderRoot))
+        var validPathResult = PreservedResource.ValidPath(pathUnderRoot);
+        if (validPathResult.Failure)
         {
-            TempData["CreateDepositFail"] = $"Path {pathUnderRoot} is invalid";
+            TempData["CreateDepositFail"] = $"Path {pathUnderRoot} is invalid: {validPathResult.ErrorMessage}";
             return false;
         }
         

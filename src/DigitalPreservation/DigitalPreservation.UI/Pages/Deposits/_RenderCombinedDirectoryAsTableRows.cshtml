@@ -1,4 +1,5 @@
-﻿@using DigitalPreservation.Common.Model.Transit
+﻿@using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.Utils
 @using Storage.Repository.Common
 @model CombinedDirectoryRecursionWrapper
@@ -25,7 +26,7 @@ File is in both
                    <tr class="deposit-row @("where-" + where)" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts">
         <td aria-label="select-row">
-            @if (Model is { Editable: true, Active: true } && combinedDirectory.LocalPath != "objects")
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
             {
                 <input class="form-check-input item-selector item-directory" type="checkbox" 
                        value="@combinedDirectory.LocalPath" id="@("is-" + Model.RowCounter.Count)">
@@ -33,7 +34,7 @@ File is in both
             }
         </td>
         <td class="dep-actions">
-            @if (Model is { Editable: true, Active: true })
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && combinedDirectory.LocalPath != FolderNames.Metadata)
             {
                 <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#newFolderModal" aria-label="new folder">
                     <svg class="bi"><use xlink:href="#folder-plus"/></svg>
@@ -45,6 +46,24 @@ File is in both
         </td>
         <td style="padding-left: @(1.3 * depth)rem">
             <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg> <span title="@combinedDirectory.LocalPath" aria-label="name">@(combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug())</span>
+            @if (combinedDirectory.LocalPath == "objects")
+            {
+                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#accessConditionsModal" aria-label="Set rights and access conditions">
+                    <svg class="bi"><use xlink:href="#info-square"/></svg>
+                </a>
+                @if (Model.RootAccessRestrictions.Count > 0)
+                {
+                    <small>Access: <em><strong>@string.Join(", ", Model.RootAccessRestrictions)</strong></em></small>
+                }
+                @if (Model.RootRightsStatement != null)
+                {
+                    if (Model.RootAccessRestrictions.Count > 0)
+                    {
+                        <span>; </span>
+                    }
+                    <small>Rights: <em><strong>@RightsStatement.GetShortLabel(Model.RootRightsStatement)</strong></em></small>
+                }
+            }
         </td>
         <td></td>
        <td></td>
@@ -55,12 +74,15 @@ File is in both
 }
 @foreach (var dir in combinedDirectory.Directories)
 {
-    var wrapper = new CombinedDirectoryRecursionWrapper(dir, Model.MetsPath, Model.Editable, Model.Active, Model.RowCounter);
+    var wrapper = new CombinedDirectoryRecursionWrapper(
+        dir, Model.MetsPath, Model.Editable, Model.Active, Model.LockedByOtherUser, 
+        Model.RootAccessRestrictions, Model.RootRightsStatement,
+        Model.RowCounter);
     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
 }
 @foreach (var file in combinedDirectory.Files)
 {
-    if (file.Name == IStorage.DepositFileSystem)
+    if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem)
     {
         continue; // this file is hidden
     }
@@ -68,7 +90,7 @@ File is in both
     <tr class="deposit-row @("where-" + where)" 
         data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts">
         <td aria-label="select-row">
-            @if (Model is { Editable: true, Active: true } && file.LocalPath != "mets.xml")
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && file.LocalPath != "mets.xml")
             {
                 <input class="form-check-input item-selector item-file" type="checkbox" 
                        value="@file.LocalPath" id="@("is-" + Model.RowCounter.Count)">
@@ -86,14 +108,32 @@ File is in both
                 }
                 else
                 {
-                    @(file.Name ?? file.LocalPath?.GetSlug() ?? "{{ NO LOCALPATH }}")
+                    @(file.GetName() ?? "{{ NO LOCALPATH }}")
                 }
             </span>
         </td>
-        <td aria-label="hash">@file.Digest?[..8]</td>
-        <td aria-label="file-size">@StringUtils.FormatFileSize(file.Size, withSpace: true, fallbackIfNull: " - ")</td>
-        <td aria-label="content-type">@file.ContentType</td>
-        <td aria-label="pronom" title="@(file.FileInMets?.MetsExtensions?.FileFormat?.Name ?? "(no PRONOM format")">@(file.FileInMets?.MetsExtensions?.FileFormat?.Key ?? "-")</td>
-        <td aria-label="virus">@file.FileInMets?.MetsExtensions?.VirusScan?.GetDisplay()</td>
+        @{
+            var contentType = file.GetSingleContentType();
+            var contentTypeDisplay = contentType;
+            if (contentType is { Length: > 22 })
+            {
+                contentTypeDisplay = contentType[..22] + "...";
+            }
+            var virusMetadata = file.GetVirusMetadata();
+        }
+        <td aria-label="hash">@file.GetSingleDigest()?[..8]</td>
+        <td aria-label="file-size">@StringUtils.FormatFileSize(file.GetSingleSize(), withSpace: true, fallbackIfNull: " - ")</td>
+        <td aria-label="content-type">
+            @if (contentTypeDisplay != contentType)
+            {
+                <span title="@contentType">@contentTypeDisplay</span>
+            }
+            else
+            {
+                @contentType
+            }
+        </td>
+        <td aria-label="pronom" title="@(file.GetCachedDepositFileFormatMetadata()?.FormatName ?? "(no PRONOM format")">@(file.GetCachedDepositFileFormatMetadata()?.PronomKey ?? "-")</td>
+        <td aria-label="virus">@virusMetadata?.GetDisplay()</td>
     </tr>
 } 

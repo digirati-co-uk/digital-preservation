@@ -5,6 +5,7 @@ using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
@@ -21,7 +22,7 @@ public class Storage(
 {
     private readonly AwsStorageOptions options = options.Value;
 
-    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, bool useObjectTemplate, string? callerIdentity = null)
+    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, TemplateType templateType, string? callerIdentity = null)
     {
         // This will be able to yield different locations in different buckets for different callers
         // e.g., Goobi
@@ -39,21 +40,20 @@ public class Storage(
         if (pResp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
         {
             var root = RootDirectory();
-            if (useObjectTemplate)
+            switch (templateType)
             {
-                var por = new PutObjectRequest
+                case TemplateType.RootLevel:
+                    await PutDirectory(FolderNames.Objects, key, root);
+                    await PutDirectory(FolderNames.Metadata, key, root);
+                    break;
+                case TemplateType.BagIt:
                 {
-                    BucketName = options.DefaultWorkingBucket,
-                    Key = key + "objects/"
-                };
-                por.Metadata.Add(S3Helpers.OriginalNameMetadataKey, "objects");
-                await s3Client.PutObjectAsync(por);
-                root.Directories.Add(new WorkingDirectory
-                {
-                    LocalPath = "objects",
-                    Modified = root.Modified,
-                    Name = "objects"
-                });
+                    var dataDir = await PutDirectory(FolderNames.BagItData, key, root);
+                    var dataKey = $"{key}{FolderNames.BagItData}/";
+                    await PutDirectory(FolderNames.Objects, dataKey, dataDir);
+                    await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
+                    break;
+                }
             }
             var depositFileSystemKey = key + IStorage.DepositFileSystem;
             var writeDepositFileSystemResult = await WriteDepositFileSystem(options.DefaultWorkingBucket, depositFileSystemKey, root);
@@ -65,6 +65,25 @@ public class Storage(
         }
         var failResult = ResultHelpers.FailFromAwsStatusCode<Uri>(pResp.HttpStatusCode, "Could not create deposit file location.", pReq.GetS3Uri());
         return Result.Generify<Uri>(failResult);
+    }
+
+    private async Task<WorkingDirectory> PutDirectory(string name, string parentKey, WorkingDirectory parentWorkingDirectory)
+    {
+        var por = new PutObjectRequest
+        {
+            BucketName = options.DefaultWorkingBucket,
+            Key = $"{parentKey}{name}/"
+        };
+        por.Metadata.Add(S3Helpers.OriginalNameMetadataKey, name);
+        await s3Client.PutObjectAsync(por);
+        var workingDirectory = new WorkingDirectory
+        {
+            LocalPath = $"{parentWorkingDirectory.LocalPath}/{name}",
+            Modified = parentWorkingDirectory.Modified,
+            Name = name
+        };
+        parentWorkingDirectory.Directories.Add(workingDirectory);
+        return workingDirectory;
     }
 
     private async Task<Result> WriteDepositFileSystem(string bucket, string key, WorkingDirectory wd, CancellationToken cancellationToken = default)
@@ -128,6 +147,12 @@ public class Storage(
         };
     }
 
+    public async Task<bool> Exists(Uri fileOrFolder)
+    {
+        var s3Location = new AmazonS3Uri(fileOrFolder);
+        return await Exists(s3Location.GetKeyFromLocalPath(fileOrFolder), s3Location.Bucket);
+    }
+
     private async Task<bool> Exists(string key, string? bucket = null)
     {
         var req = MakeGetRequest(key, bucket);
@@ -150,7 +175,19 @@ public class Storage(
         }
     }
 
-    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(AmazonS3Uri location, WorkingDirectory directoryToAdd, CancellationToken cancellationToken = default)
+    public async Task<List<Uri>> GetListing(Uri root, string? subPath = null)
+    {
+        var parts = subPath?.Split('/', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        foreach (var part in parts)
+        {
+            root = root.AppendEscapedSlug(part);
+        }
+        var s3Uri = new AmazonS3Uri(root);
+        var allObjects = await ListAllS3Objects(s3Uri, CancellationToken.None);
+        return allObjects.Select(s3Object => s3Object.GetS3Uri()).ToList();
+    }
+
+    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(Uri location, WorkingDirectory directoryToAdd, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -168,12 +205,12 @@ public class Storage(
         }
         catch (AmazonS3Exception s3E)
         {
-            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add directory to METS", location.ToUri());
+            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add directory to METS", location);
             return Result.Generify<WorkingDirectory>(exResult);
         }
     }
 
-    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(AmazonS3Uri location, WorkingFile fileToAdd, CancellationToken cancellationToken = default)
+    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(Uri location, WorkingFile fileToAdd, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -194,21 +231,22 @@ public class Storage(
         }
         catch (AmazonS3Exception s3E)
         {
-            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add file to METS", location.ToUri());
+            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add file to METS", location);
             return Result.Generify<WorkingDirectory>(exResult);
         }
     }
     
     
-    private async Task<Result> SaveDepositFileSystem(AmazonS3Uri location, WorkingDirectory root,
+    private async Task<Result> SaveDepositFileSystem(Uri location, WorkingDirectory root,
         CancellationToken cancellationToken = default)
     {
-        var key = StringUtils.BuildPath(false, location.Key, IStorage.DepositFileSystem);
-        var saveResult = await WriteDepositFileSystem(location.Bucket, key, root, cancellationToken);
+        var s3Location = new AmazonS3Uri(location);
+        var key = StringUtils.BuildPath(false, s3Location.Key, IStorage.DepositFileSystem);
+        var saveResult = await WriteDepositFileSystem(s3Location.Bucket, key, root, cancellationToken);
         return saveResult;
     }
 
-    public async Task<Result> DeleteFromDepositFileSystem(AmazonS3Uri location, string path, bool errorIfNotFound, CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteFromDepositFileSystem(Uri location, string path, bool errorIfNotFound, CancellationToken cancellationToken = default)
     {
         var wdResult = await ReadDepositFileSystem(location, cancellationToken);
         if (wdResult.Success)
@@ -248,12 +286,13 @@ public class Storage(
         return wdResult;
     }
 
-    public async Task<Result<WorkingDirectory?>> ReadDepositFileSystem(AmazonS3Uri location, CancellationToken cancellationToken)
+    public async Task<Result<WorkingDirectory?>> ReadDepositFileSystem(Uri location, CancellationToken cancellationToken)
     {
+        var s3Location = new AmazonS3Uri(location);
         var gor = new GetObjectRequest
         {
-            BucketName = location.Bucket,
-            Key = StringUtils.BuildPath(false, location.Key, IStorage.DepositFileSystem)
+            BucketName = s3Location.Bucket,
+            Key = StringUtils.BuildPath(false, s3Location.Key, IStorage.DepositFileSystem)
         };
         try
         {
@@ -283,18 +322,23 @@ public class Storage(
         }
     }
 
-    public async Task<Result<WorkingDirectory?>> GenerateDepositFileSystem(AmazonS3Uri location, bool writeToStorage, CancellationToken cancellationToken = default)
+    public async Task<Result<WorkingDirectory?>> GenerateDepositFileSystem(
+        Uri location, 
+        bool writeToStorage, 
+        Action<WorkingBase>? decorator, 
+        CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Generating deposit file system in " + location.ToUri());
+        logger.LogInformation("Generating deposit file system in " + location);
         try
         {
-            var s3Objects = await ListAllS3Objects(location, cancellationToken);
+            var s3Location = new AmazonS3Uri(location);
+            var s3Objects = await ListAllS3Objects(s3Location, cancellationToken);
             var top = RootDirectory();
 
             // Create the directories
             foreach (var s3Object in s3Objects.OrderBy(o => o.Key.Replace('/', '~')))
             {
-                if (s3Object.Key == location.Key)
+                if (s3Object.Key == s3Location.Key)
                 {
                     continue; // we don't want the deposit root itself, we already have that in top
                 }
@@ -302,16 +346,20 @@ public class Storage(
                 // TODO: If there's any way we can avoid this, by returning the properties we
                 // are interested in just from the ListObjects request, then we should do that.
                 // But I don't think we can avoid it.
+                // Keep a files table for uploaded files.
+                // They are the only ones that can get away without providing a sha256 checksum in metadata
+                // (they'll acquire one from a pipeline, but they have come from a desktop, rather than
+                // bitcurator etc where they have been checksummed at source)
                 var gomReq = new GetObjectMetadataRequest
                 {
-                    BucketName = location.Bucket,
+                    BucketName = s3Location.Bucket,
                     Key = s3Object.Key,
                     ChecksumMode = ChecksumMode.ENABLED
                 };
                 var metadataResponse = await s3Client.GetObjectMetadataAsync(gomReq, cancellationToken);
                 var metadata = metadataResponse.Metadata;
                 
-                var path = s3Object.Key.RemoveStart(location.Key)!;
+                var path = s3Object.Key.RemoveStart(s3Location.Key)!;
                 if (path.EndsWith('/'))
                 {
                     var dir = top.FindDirectory(path, true);
@@ -321,6 +369,7 @@ public class Storage(
                     {
                         dir.Name = WebUtility.UrlDecode(metadata[S3Helpers.OriginalNameMetadataResponseKey]);
                     }
+                    decorator?.Invoke(dir);
                 }
                 else
                 {
@@ -343,6 +392,8 @@ public class Storage(
                             wf.Name = WebUtility.UrlDecode(metadata[S3Helpers.OriginalNameMetadataResponseKey]);
                         }
                     }
+
+                    decorator?.Invoke(wf);
                     dir!.Files.Add(wf);
                 }
             }
@@ -351,7 +402,7 @@ public class Storage(
             
             if (writeToStorage)
             {
-                var writeResult = await WriteDepositFileSystem(location.Bucket, location.Key + IStorage.DepositFileSystem, top, cancellationToken);
+                var writeResult = await WriteDepositFileSystem(s3Location.Bucket, s3Location.Key + IStorage.DepositFileSystem, top, cancellationToken);
                 return writeResult.Success ? Result.Ok(top) : Result.Generify<WorkingDirectory?>(writeResult);
             }
             
@@ -501,7 +552,7 @@ public class Storage(
         var s3Uri = new AmazonS3Uri(binaryOrigin);
         // Get the SHA256 algorithm from AWS directly rather than compute it here
         // If the S3 file does not already have the SHA-256 in metadata, then it's an error
-        var expected = await AwsChecksum.GetHexChecksumAsync(s3Client, s3Uri.Bucket, s3Uri.Key);
+        var expected = await AwsChecksum.GetHexChecksumAsync(s3Client, s3Uri.Bucket, s3Uri.GetKeyFromLocalPath(binaryOrigin));
         if (string.IsNullOrWhiteSpace(expected))
         {
             return Result.Fail<string>(ErrorCodes.BadRequest, $"S3 Key at {s3Uri} does not have SHA256 Checksum in its attributes");
@@ -525,22 +576,25 @@ public class Storage(
         return Result.Ok(expected);
     }
 
-    public async Task<byte[]> GetBytes(Uri binaryOrigin)
-    {
-        var stream = await GetStream(binaryOrigin);
-        var ms = new MemoryStream();
-        await stream.CopyToAsync(ms);
-        return ms.ToArray();
-    }
-
-    public async Task<Stream> GetStream(Uri? binaryOrigin)
+    public async Task<Result<Stream?>> GetStream(Uri binaryOrigin)
     {
         var s3Uri = new AmazonS3Uri(binaryOrigin);
         var s3Req = new GetObjectRequest
         {
-            BucketName = s3Uri.Bucket, Key = s3Uri.Key
+            BucketName = s3Uri.Bucket, Key = s3Uri.GetKeyFromLocalPath(binaryOrigin)
         };
-        var s3Resp = await s3Client.GetObjectAsync(s3Req);
-        return s3Resp.ResponseStream;
+        try
+        {
+            var s3Resp = await s3Client.GetObjectAsync(s3Req);
+            if (s3Resp.HttpStatusCode == HttpStatusCode.OK)
+            {
+                return Result.Ok(s3Resp.ResponseStream);
+            }
+            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get stream for " + binaryOrigin);
+        }
+        catch (AmazonS3Exception e)
+        {
+            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)e.StatusCode), "Could not get stream for " + binaryOrigin);
+        }
     }
 }

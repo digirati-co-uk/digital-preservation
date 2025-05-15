@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
@@ -19,14 +20,22 @@ public class WorkingDirectory : WorkingBase
     [JsonPropertyOrder(6)]
     public List<WorkingDirectory> Directories { get; set; } = [];
 
-    public WorkingFile? FindFile(string path)
+    public WorkingFile? FindFile(string path) // , bool useStorageLocation = false
     {
         var parent = FindDirectory(path.GetParent());
         var slug = path.GetSlug();
+        // if (useStorageLocation)
+        // {
+        //     var file = parent?.Files.SingleOrDefault(f => f.GetStorageMetadata()?.StorageLocation?.GetSlug() == slug);
+        //     if (file != null)
+        //     {
+        //         return file;
+        //     }
+        // }
         return parent?.Files.SingleOrDefault(f => f.LocalPath.GetSlug() == slug);
     }
     
-    public WorkingDirectory? FindDirectory(string? path, bool create = false)
+    public WorkingDirectory? FindDirectory(string? path, bool create = false) // , bool useStorageLocation = false
     {
         if (path.IsNullOrWhiteSpace() || path == "/")
         {
@@ -37,7 +46,15 @@ public class WorkingDirectory : WorkingBase
         for (var index = 0; index < parts.Length; index++)
         {
             var part = parts[index];
-            var potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetSlug() == part);
+            WorkingDirectory? potentialDirectory;
+            // if (useStorageLocation)
+            // {
+            //     potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetStorageMetadata()?.StorageLocation?.GetSlug() == part);
+            // }
+            // else
+            // {
+                potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetSlug() == part);
+            //}
             if (create)
             {
                 if (potentialDirectory == null)
@@ -59,36 +76,8 @@ public class WorkingDirectory : WorkingBase
 
         return directory;
     }
-    
-    
-    public Container ToContainer(Uri repositoryUri, Uri origin)
-    {
-        var container = new Container
-        {
-            Name = Name,
-            Id = repositoryUri,
-            Origin = origin
-        };
-        foreach (var wd in Directories)
-        {
-            var slug = wd.GetSlug();
-            container.Containers.Add(wd.ToContainer(repositoryUri.AppendSlug(slug), origin.AppendSlug(slug)));
-        }
-        foreach (var wf in Files)
-        {
-            var slug = wf.GetSlug();
-            container.Binaries.Add(new Binary
-            {
-                Id = repositoryUri.AppendSlug(slug),
-                Name = wf.Name,
-                ContentType = wf.ContentType,
-                Digest = wf.Digest,
-                Size = wf.Size ?? 0,
-                Origin = origin.AppendSlug(slug)
-            });
-        }
-        return container;
-    }
+
+
 
     public int DescendantFileCount(int counter = 0)
     {
@@ -98,5 +87,24 @@ public class WorkingDirectory : WorkingBase
             counter += directory.DescendantFileCount(counter);
         }
         return counter;
+    }
+
+    public WorkingDirectory ToRootLayout()
+    {
+        if (!LocalPath.StartsWith($"{FolderNames.BagItData}/"))
+        {
+            return this;
+        }
+
+        return new WorkingDirectory
+        {
+            LocalPath = LocalPath.RemoveStart($"{FolderNames.BagItData}/")!,
+            Directories = Directories.Select(d => d.ToRootLayout()).ToList(),
+            Files = Files.Select(f => f.ToRootLayout()).ToList(),
+            MetsExtensions = MetsExtensions,
+            Modified = Modified,
+            Name = Name,
+            Metadata = Metadata
+        };
     }
 }

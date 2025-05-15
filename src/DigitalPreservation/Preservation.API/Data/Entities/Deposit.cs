@@ -49,4 +49,8 @@ public class Deposit
     ///  The Storage API URI of the Export Result
     /// </summary>
     public Uri? ExportResultUri { get; set; }
+    
+    public string? LockedBy { get; set; }
+    
+    public DateTime? LockDate { get; set; }
 }

@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 using Checksum = DigitalPreservation.Utils.Checksum;
@@ -20,7 +21,9 @@ public class MetsParser(
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
     {
         // If metsLocation ends with .xml, it's assumed to be the METS file itself.
-        // If not, it's assumed to be its containing directory / key.
+        // If not, it's assumed to be either its DIRECT containing directory / key,
+        // or if the location contains no direct XML files but does contain a data/ directory
+        // then we look in the data directory (a BagIt layout).
         // No other possibilities are supported.
         Uri root;
         Uri? file = null;
@@ -63,6 +66,21 @@ public class MetsParser(
                     firstXmlFile = dir.EnumerateFiles().FirstOrDefault(
                     f => MetsUtils.IsMetsFile(f.Name, false));
                 }
+
+                if (firstXmlFile == null)
+                {
+                    var childDirs = dir.GetDirectories();
+                    if (childDirs is [{ Name: FolderNames.BagItData }]) // one and one only child directory, called data
+                    {                
+                        firstXmlFile = childDirs[0].EnumerateFiles().FirstOrDefault(
+                            f => MetsUtils.IsMetsFile(f.Name, true));
+                        if (firstXmlFile == null)
+                        {
+                            firstXmlFile = childDirs[0].EnumerateFiles().FirstOrDefault(
+                                f => MetsUtils.IsMetsFile(f.Name, false));
+                        }
+                    }
+                }
                 if (firstXmlFile != null)
                 {
                     file = new Uri(firstXmlFile.FullName);
@@ -78,13 +96,29 @@ public class MetsParser(
                 {
                     BucketName = rootS3Uri.Bucket,
                     Prefix = prefix,
-                    Delimiter = "/" // first "children" only                        
+                    Delimiter = "/" // first "children" only ... does that return "data/" no?                       
                 };
                 var resp = await s3Client.ListObjectsV2Async(listObjectsReq);
                 var firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, true));
                 if (firstXmlKey != null)
                 {
                     firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, false));
+                }
+                
+                if (firstXmlKey == null)
+                {
+                    listObjectsReq = new ListObjectsV2Request
+                    {
+                        BucketName = rootS3Uri.Bucket,
+                        Prefix = prefix + "data/", // BagIt layout
+                        Delimiter = "/"                       
+                    };
+                    resp = await s3Client.ListObjectsV2Async(listObjectsReq);
+                    firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, true));
+                    if (firstXmlKey != null)
+                    {
+                        firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, false));
+                    }
                 }
 
                 if (firstXmlKey != null)
@@ -112,11 +146,11 @@ public class MetsParser(
             PhysicalStructure = Storage.RootDirectory()
         };
 
-        if (mets.MetsUri is not null)
+        if (file is not null)
         {
             try
             {
-                mets.Self = await LoadMetsFileAsync(mets.RootUri, mets.MetsUri);
+                mets.Self = await LoadMetsFileAsync(mets.RootUri, file);
             }
             catch (Exception e)
             {
@@ -124,11 +158,11 @@ public class MetsParser(
                 return Result.FailNotNull<MetsFileWrapper>(ErrorCodes.UnknownError, e.Message);
             }
         }
-        if(mets.Self != null)
+        if(file is not null && mets.Self is not null)
         {
             try
             {
-                var (xMets, eTag) = await ExamineXml(mets, parse);
+                var (xMets, eTag) = await ExamineXml(file, mets.Self.Digest, parse);
                 mets.ETag = eTag;
                 if (parse && xMets is not null)
                 {
@@ -155,6 +189,7 @@ public class MetsParser(
         }
         return Result.OkNotNull(mets);
     }
+
 
     public Result<MetsFileWrapper> GetMetsFileWrapperFromXDocument(XDocument metsXDocument)
     {
@@ -194,7 +229,6 @@ public class MetsParser(
             case "s3":
                 var rootS3Uri = new AmazonS3Uri(root);
                 var fileS3Uri = new AmazonS3Uri(file);
-                var prefix = $"{rootS3Uri.Key.TrimEnd('/')}/";
                 try
                 {
                     var resp = await s3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
@@ -214,11 +248,11 @@ public class MetsParser(
                 
                 var s3Stream = await s3Client.GetObjectStreamAsync(fileS3Uri.Bucket, fileS3Uri.Key, null);
                 var digest = Checksum.Sha256FromStream(s3Stream);
-                var name = fileS3Uri.Key.Replace(prefix, string.Empty);
+                var name = fileS3Uri.Key.GetSlug(); // because mets is in root - whether apparent (BagIt) or real
                 return new WorkingFile
                 {
                     ContentType = "application/xml",
-                    LocalPath = name, // because mets is in root
+                    LocalPath = name, 
                     Name = name,
                     Digest = digest
                 };
@@ -230,21 +264,21 @@ public class MetsParser(
     }
     
     
-    private async Task<(XDocument?, string)> ExamineXml(MetsFileWrapper mets, bool parse)
+    private async Task<(XDocument?, string)> ExamineXml(Uri file, string? digest, bool parse)
     {
         XDocument? xDoc = null;
-        switch(mets.RootUri!.Scheme)
+        switch(file.Scheme)
         {
             case "file":
-                var fileETag = mets.Self!.Digest!;
+                var fileETag = digest ?? string.Empty;
                 if (parse)
                 {
-                    xDoc = XDocument.Load(mets.RootUri + mets.Self!.LocalPath);
+                    xDoc = XDocument.Load(file.LocalPath);
                 }
                 return (xDoc, fileETag);
 
             case "s3":
-                var s3Uri = new AmazonS3Uri(mets.RootUri + mets.Self!.LocalPath);
+                var s3Uri = new AmazonS3Uri(file);
                 var resp = await s3Client.GetObjectAsync(s3Uri.Bucket, s3Uri.Key);
                 var s3ETag = resp.ETag!;
                 if (parse)
@@ -254,19 +288,54 @@ public class MetsParser(
                 return (xDoc, s3ETag);
 
             default:
-                throw new NotSupportedException(mets.RootUri!.Scheme + " not supported");
+                throw new NotSupportedException(file.Scheme + " not supported");
         }
     }
     
     
         public void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
         {
-            var modsTitle = xMets.Descendants(XNames.mods + "title").FirstOrDefault()?.Value;
-            var modsName = xMets.Descendants(XNames.mods + "name").FirstOrDefault()?.Value;
+            var modsScope = xMets.Descendants(XNames.mods + "mods").FirstOrDefault();
+            // EPrints mods is not wrapped in a <mods:mods> element
+            if (modsScope == null)
+            {
+                modsScope = xMets.Root;
+            }
+            var modsTitle = modsScope?.Descendants(XNames.mods + "title").FirstOrDefault()?.Value;
+            var modsName = modsScope?.Descendants(XNames.mods + "name").FirstOrDefault()?.Value;
             string? name = modsTitle ?? modsName;
             if (!string.IsNullOrWhiteSpace(name))
             {
                 mets.Name = name;
+            }
+            var rootAccessConditions = modsScope?.Descendants(XNames.mods + "accessCondition").ToList();
+            if (rootAccessConditions is { Count: > 0 })
+            {
+                foreach (var accessCondition in rootAccessConditions)
+                {
+                    var acType = accessCondition.Attribute("type")?.Value;
+                    if (acType is IMetsManager.RestrictionOnAccess or "status") // status is Goobi access cond
+                    {
+                        if (accessCondition.Value.HasText())
+                        {
+                            mets.RootAccessConditions.Add(accessCondition.Value);
+                        }
+                    }
+                    else if (acType is IMetsManager.UseAndReproduction) // Goobi might have different
+                    {
+                        if (accessCondition.Value.HasText() && mets.RootRightsStatement is null)
+                        {
+                            try
+                            {
+                                mets.RootRightsStatement = new Uri(accessCondition.Value);
+                            }
+                            catch (Exception e)
+                            {
+                                logger.LogError(e, "Unable to parse rights statement {accessCondition}", accessCondition.Value);;
+                            }
+                        }
+                    }
+                }
             }
 
             var agent = xMets.Descendants(XNames.mets + "agent").FirstOrDefault();
@@ -274,6 +343,7 @@ public class MetsParser(
             {
                 mets.Agent = agent.Descendants(XNames.mets + "name").FirstOrDefault()?.Value;
             }
+            
 
             // There may be more than one, and they may or may not be qualified as physical or logical
             XElement? physicalStructMap = null;
@@ -365,6 +435,12 @@ public class MetsParser(
                         if (amd != null)
                         {
                             var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
+                            Uri? storageLocation = null;
+                            var storageUri = amd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
+                            if (storageUri != null)
+                            {
+                                storageLocation = new Uri(storageUri);
+                            }
                             if (originalName != null)
                             {
                                 // Only in this scenario can we create a directory
@@ -379,9 +455,17 @@ public class MetsParser(
                                     {
                                         AdmId = admId,
                                         PhysDivId = div.Attribute("ID")?.Value,
-                                        OriginalPath = originalName,
                                         AccessCondition = "Open"
-                                    };;
+                                    };
+                                    workingDirectory.Metadata =
+                                    [
+                                        new StorageMetadata
+                                        {
+                                            Source = MetsManager.Mets,
+                                            OriginalName = originalName,
+                                            StorageLocation = storageLocation
+                                        }
+                                    ];
                                 }
                             }
                         }
@@ -413,7 +497,8 @@ public class MetsParser(
                     string? digest = null;
                     long size = 0;
                     string? originalName = null;
-                    FileFormat? fileFormat = null;
+                    Uri? storageLocation = null;
+                    FileFormatMetadata? premisMetadata = null;
                     if (!haveUsedAdmIdAlready)
                     {
                         var techMd = xMets.Descendants(XNames.MetsTechMD).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
@@ -437,6 +522,11 @@ public class MetsParser(
                             long.TryParse(sizeEl.Value, out size);
                         }
                         originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
+                        var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
+                        if (storageUri != null)
+                        {
+                            storageLocation = new Uri(storageUri);
+                        }
                         haveUsedAdmIdAlready = true;
                         var format = techMd.Descendants(XNames.PremisFormat).SingleOrDefault();
                         if (format != null)
@@ -445,14 +535,21 @@ public class MetsParser(
                             var key = format.Descendants(XNames.PremisFormatRegistryKey).SingleOrDefault()?.Value;
                             if (name.HasText() && key.HasText())
                             {
-                                fileFormat = new FileFormat
+                                premisMetadata = new FileFormatMetadata
                                 {
-                                    Name = name, Key = key
+                                    Source = MetsManager.Mets,
+                                    PronomKey = key,
+                                    FormatName = name
                                 };
                             }
                         }
 
-                        fileFormat ??= new FileFormat { Name = "[Not Identified]", Key = "dlip/unknown" };
+                        premisMetadata ??= new FileFormatMetadata
+                        {
+                            Source = MetsManager.Mets,
+                            PronomKey = "dlip/unknown",
+                            FormatName = "[Not Identified]"
+                        };
                     }
                     var parts = flocat.Split('/');
                     if (string.IsNullOrEmpty(mimeType))
@@ -473,19 +570,30 @@ public class MetsParser(
                         Digest = digest,
                         Size = size,
                         Name = label ?? parts[^1],
+                        Metadata = [
+                            new VirusScanMetadata
+                            {
+                                Source = MetsManager.Mets, 
+                                HasVirus = false
+                            },
+                            new StorageMetadata 
+                            {
+                                Source = MetsManager.Mets, 
+                                OriginalName = originalName, 
+                                StorageLocation = storageLocation 
+                            }
+                        ],
                         MetsExtensions = new MetsExtensions
                         {
                             AdmId = admId,
                             PhysDivId = div.Attribute("ID")?.Value,
-                            OriginalPath = originalName,
-                            FileFormat = fileFormat,
-                            VirusScan = new VirusScan
-                            {
-                                HasVirus = false
-                            },
                             AccessCondition = "Open"
                         }
                     };
+                    if (premisMetadata != null)
+                    {
+                        file.Metadata.Add(premisMetadata);
+                    }
                     mets.Files.Add(file);
 
                     // We only know the "on disk" paths of folders from file paths in flocat

@@ -8,7 +8,7 @@ def get_boilerplate_manifest():
                 "label": {"en": ["University of Leeds"]},
                 "homepage": [
                     {
-                        "id": "https://library.leeds.ac.uk//",
+                        "id": "https://library.leeds.ac.uk/",
                         "type": "Text",
                         "label": {"en": ["Leeds University Library Homepage"]},
                         "format": "text/html"

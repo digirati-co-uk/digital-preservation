@@ -15,11 +15,13 @@ using Storage.Repository.Common.S3;
 namespace DigitalPreservation.Workspace.Requests;
 
 public class DeleteItems(
+    bool isBagItLayout,
     Uri depositFiles, 
     DeleteSelection deleteSelection, 
     CombinedDirectory combinedRootDirectory,
     string depositETag) : IRequest<Result<ItemsAffected>>
 {
+    public bool IsBagItLayout { get; } = isBagItLayout;
     public CombinedDirectory CombinedRootDirectory { get; } = combinedRootDirectory;
     public Uri DepositFiles { get; } = depositFiles;
     public DeleteSelection DeleteSelection { get; } = deleteSelection;
@@ -56,7 +58,7 @@ public class DeleteItemsHandler(
         {
             Result<ItemsAffected>? failedDeleteResult = null;
             bool deletedFromDepositFiles = false;
-            var deleteDirectoryContext = item.RelativePath;
+            var deleteDirectoryContext = item.RelativePath; 
             if (!item.IsDirectory)
             {
                 deleteDirectoryContext = deleteDirectoryContext.GetParent();
@@ -74,7 +76,7 @@ public class DeleteItemsHandler(
             {
                 if (item.IsDirectory)
                 {
-                    if (deleteDirectory.LocalPath == "objects")
+                    if (deleteDirectory.LocalPath == FolderNames.Objects)
                     {
                         failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                             ErrorCodes.BadRequest, "You cannot delete the objects directory.");
@@ -104,12 +106,13 @@ public class DeleteItemsHandler(
                 }
 
                 // this is the DeleteObject code
+                var depositPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + item.RelativePath;
                 if (failedDeleteResult == null)
                 {
                     var dor = new DeleteObjectRequest
                     {
                         BucketName = s3Uri.Bucket,
-                        Key = s3Uri.Key + item.RelativePath
+                        Key = s3Uri.Key + depositPath 
                     };
                     if (item.IsDirectory && !dor.Key.EndsWith('/'))
                     {
@@ -122,8 +125,8 @@ public class DeleteItemsHandler(
                         {
                             // attempt to remove from JSON
                             var deleted = item.IsDirectory ? 
-                                request.CombinedRootDirectory.RemoveDirectoryFromDeposit(item.RelativePath, true) : 
-                                request.CombinedRootDirectory.RemoveFileFromDeposit(item.RelativePath, true);
+                                request.CombinedRootDirectory.RemoveDirectoryFromDeposit(item.RelativePath, depositPath, true) : 
+                                request.CombinedRootDirectory.RemoveFileFromDeposit(item.RelativePath, depositPath, true);
                             if (deleted)
                             {
                                 // if we can remove from JSON, remove from S3
@@ -159,11 +162,11 @@ public class DeleteItemsHandler(
                                     // Also remove from the METS branch of the combinedDirectory object graph
                                     if (item.IsDirectory)
                                     {
-                                        request.CombinedRootDirectory.RemoveDirectoryFromMets(item.RelativePath, true);
+                                        request.CombinedRootDirectory.RemoveDirectoryFromMets(item.RelativePath, depositPath, true);
                                     }
                                     else
                                     {
-                                        request.CombinedRootDirectory.RemoveFileFromMets(item.RelativePath, true);
+                                        request.CombinedRootDirectory.RemoveFileFromMets(item.RelativePath, depositPath, true);
                                     }
                                 }
                                 else

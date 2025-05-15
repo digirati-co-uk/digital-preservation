@@ -128,6 +128,14 @@ namespace Preservation.API.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("last_modified_by");
 
+                    b.Property<DateTime?>("LockDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lock_date");
+
+                    b.Property<string>("LockedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("locked_by");
+
                     b.Property<string>("MintedId")
                         .IsRequired()
                         .HasColumnType("text")

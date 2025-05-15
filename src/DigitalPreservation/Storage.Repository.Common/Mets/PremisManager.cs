@@ -1,12 +1,14 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
+using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Premis.V3;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
 
-public class PremisManager
+public static class PremisManager
 {
     private static readonly XmlSerializerNamespaces Namespaces;
     public const string Pronom = "PRONOM";
@@ -19,15 +21,15 @@ public class PremisManager
         Namespaces.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
     }
     
-    public static PremisFile? Read(PremisComplexType premis)
+    public static FileFormatMetadata? Read(PremisComplexType premis)
     {
         var file = premis.Object.FirstOrDefault(po => po is File);
         return file == null ? null : Read((File)file);
     }
     
-    public static PremisFile Read(File file)
+    public static FileFormatMetadata Read(File file)
     {
-        var premisFile = new PremisFile();
+        var premisFile = new FileFormatMetadata{ Source = "METS" };
         var objectCharacteristics = file.ObjectCharacteristics.FirstOrDefault();
         
         var fixity = objectCharacteristics?.Fixity?.FirstOrDefault(f => f.MessageDigestAlgorithm.Value?.ToUpperInvariant() == Sha256);
@@ -58,12 +60,18 @@ public class PremisManager
         {
             premisFile.OriginalName = file.OriginalName.Value;
         }
-
+        
+        var storage = file.Storage?.SingleOrDefault(
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+        if (storage != null)
+        {
+            premisFile.StorageLocation = new Uri(storage.ContentLocation.ContentLocationValue);
+        }
         return premisFile;
 
     }
     
-    public static PremisComplexType Create(PremisFile premisFile)
+    public static PremisComplexType Create(FileFormatMetadata premisFile)
     {
         var premis = new PremisComplexType();
         var file = new File();
@@ -112,10 +120,22 @@ public class PremisManager
             };
         }
 
+        if (premisFile.StorageLocation != null)
+        {
+            var storageComplexType = new StorageComplexType();
+            storageComplexType.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            storageComplexType.ContentLocation = new ContentLocationComplexType
+            {
+                ContentLocationType = new ContentLocationType { Value = "uri" },
+                ContentLocationValue = premisFile.StorageLocation.OriginalString
+            };
+            file.Storage.Add(storageComplexType);
+        }
+
         return premis;
     }
 
-    public static void Patch(PremisComplexType premis, PremisFile premisFile)
+    public static void Patch(PremisComplexType premis, FileFormatMetadata premisFile)
     {
         // This is not just the same as Create because it shouldn't touch any fields existing
         // in the premis:file already, other than those supplied
@@ -182,6 +202,33 @@ public class PremisManager
                 Value = premisFile.OriginalName
             };
         }
+
+        if (premisFile.StorageLocation != null)
+        {
+            var contentLocation = EnsureContentLocation(file);
+            contentLocation.ContentLocationType = new ContentLocationType { Value = "uri" };
+            contentLocation.ContentLocationValue = premisFile.StorageLocation.OriginalString;
+        }
+    }
+
+    private static ContentLocationComplexType EnsureContentLocation(File file)
+    {
+        var thisStorage = file.Storage.FirstOrDefault(
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+        if (thisStorage == null)
+        {
+            thisStorage = new StorageComplexType();
+            thisStorage.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            file.Storage.Add(thisStorage);
+        }
+
+        var contentLocation = thisStorage.ContentLocation;
+        if (contentLocation == null)
+        {
+            contentLocation = new ContentLocationComplexType();
+            thisStorage.ContentLocation = contentLocation;
+        }
+        return contentLocation;
     }
 
     private static FormatComplexType EnsurePronomFormat(ObjectCharacteristicsComplexType objectCharacteristics)
@@ -219,17 +266,5 @@ public class PremisManager
         }
         return doc.DocumentElement;
     }
-}
-
-/// <summary>
-/// Represents only the Premis fields we are interested in WRITING to METS
-/// </summary>
-public class PremisFile
-{
-    public string? Digest { get; set; } // must be sha256
-    public long? Size { get; set; }
-    public string? FormatName { get; set; }
-    public string? PronomKey { get; set; }
-    public string? OriginalName { get; set; }
 }
 

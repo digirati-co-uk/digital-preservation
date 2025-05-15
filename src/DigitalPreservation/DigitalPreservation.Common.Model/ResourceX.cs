@@ -43,7 +43,7 @@ public static class ResourceX
     
     public static string GetDisplayName(this PreservedResource resource)
     {
-        return resource.Name ?? resource.Id?.GetSlug() ?? $"[{resource.GetType()}]";
+        return resource.Name ?? resource.Id?.GetSlug()?.UnEscapeFromUriNoHashes() ?? $"[{resource.GetType()}]";
     }
     
 }

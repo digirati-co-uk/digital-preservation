@@ -110,7 +110,7 @@ public class GetImportJobResultHandler(
                     }
                     deposit.Active = false; // even if completedWithErrors, I think. Should not be a regular occurrence.
                     deposit.Preserved = storageApiImportJobResult.DateFinished;
-                    deposit.PreservedBy = storageApiImportJobResult.CreatedBy!.GetSlug()!;
+                    deposit.PreservedBy = storageApiImportJobResult.CreatedBy!.GetSlug()!.UnEscapeFromUri();
                     deposit.LastModified = deposit.Preserved!.Value;
                     deposit.LastModifiedBy = deposit.PreservedBy;
                     deposit.VersionPreserved = storageApiImportJobResult.NewVersion;

@@ -32,16 +32,21 @@ def get_preservation_headers():
     return None
 
 
+def get_verify_ssl(uri):
+    return not uri.startswith("https://localhost:")
+
+
 async def get_activities(stream_uri: str, session: ClientSession, last_event_time: datetime.datetime) -> Result:
 
+    verify_ssl = get_verify_ssl(stream_uri)
     try:
         activities = []
         headers = get_preservation_headers()
-        coll_response = await session.get(stream_uri, headers=headers)
+        coll_response = await session.get(stream_uri, headers=headers, verify_ssl=verify_ssl)
         coll = await coll_response.json()
         page_uri = coll.get("last", {}).get("id", None)
         while page_uri is not None:
-            page_response = await session.get(page_uri, headers=headers)
+            page_response = await session.get(page_uri, headers=headers, verify_ssl=verify_ssl)
             page = await page_response.json()
             ordered_items = page.get("orderedItems", [])
             for activity in reversed(ordered_items):
@@ -63,8 +68,9 @@ async def get_activities(stream_uri: str, session: ClientSession, last_event_tim
 
 async def load_archival_group(session: ClientSession, archival_group_uri: str) -> Result:
 
+    verify_ssl = get_verify_ssl(archival_group_uri)
     try:
-        ag_response = await session.get(archival_group_uri, headers=get_preservation_headers())
+        ag_response = await session.get(archival_group_uri, headers=get_preservation_headers(), verify_ssl=verify_ssl)
         ag = await ag_response.json()
         return Result.success(ag)
     except Exception as e:
@@ -74,8 +80,9 @@ async def load_archival_group(session: ClientSession, archival_group_uri: str) -
 
 async def load_mets(session: ClientSession, archival_group_uri:str) -> Result:
 
+    verify_ssl = get_verify_ssl(archival_group_uri)
     try:
-        mets_response = await session.get(f"{archival_group_uri}?view=mets", headers=get_preservation_headers())
+        mets_response = await session.get(f"{archival_group_uri}?view=mets", headers=get_preservation_headers(), verify_ssl=verify_ssl)
         # mets_wrapper = get_mets_wrapper_from_file_like_object(mets_response.content)
         mets_str = await mets_response.text()
         mets_wrapper = get_mets_wrapper_from_string(mets_str)

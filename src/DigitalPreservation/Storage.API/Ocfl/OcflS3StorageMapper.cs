@@ -10,25 +10,20 @@ using Storage.API.Fedora.Model;
 
 namespace Storage.API.Ocfl;
 
-public class OcflS3StorageMapper : IStorageMapper
+public class OcflS3StorageMapper(
+    IOptions<ConverterOptions> converterOptions,
+    ILogger<OcflS3StorageMapper> logger,
+    Converters converters,
+    IAmazonS3 awsS3Client,
+    IOptions<FedoraOptions> fedoraOptions) : IStorageMapper
 {
-    private IAmazonS3 s3Client;
-    private FedoraOptions fedora;
-    private Converters converters;
+    private readonly FedoraOptions fedora = fedoraOptions.Value;
 
-    public OcflS3StorageMapper(
-        Converters converters,
-        IAmazonS3 awsS3Client, 
-        IOptions<FedoraOptions> fedoraOptions)
-    {
-        s3Client = awsS3Client;
-        fedora = fedoraOptions.Value;
-        this.converters = converters;
-    }
-    
     public async Task<StorageMap> GetStorageMap(Uri archivalGroupUri, string? version = null)
     {
+        logger.LogInformation("Getting storage map for " + archivalGroupUri + " version " + version);
         var agOrigin = GetArchivalGroupOrigin(archivalGroupUri);
+        logger.LogInformation("agOrigin={agOrigin}", agOrigin);
         Inventory? inventory = await GetInventory(agOrigin);
         var inventoryVersions = inventory!.Versions
             .Select(kvp => new ObjectVersion
@@ -76,7 +71,7 @@ public class OcflS3StorageMapper : IStorageMapper
         // Validate that the OCFL layout thinks this is an Archival Group
         var rootInfoKey = $"{agOrigin}/{objectVersion.OcflVersion}/content/.fcrepo/fcr-root.json";
         var rootInfoReq = new GetObjectRequest { BucketName = fedora.Bucket, Key = rootInfoKey };
-        var rootInfoinvResp = await s3Client.GetObjectAsync(rootInfoReq);
+        var rootInfoinvResp = await awsS3Client.GetObjectAsync(rootInfoReq);
 
         bool? archivalGroup = null;
         bool? objectRoot = null;
@@ -131,15 +126,19 @@ public class OcflS3StorageMapper : IStorageMapper
     
     private async Task<Inventory?> GetInventory(string? agOrigin)
     {
+        logger.LogInformation("About to fetch inventory from bucket {bucket} and key {key}", fedora.Bucket, $"{agOrigin}/inventory.json");
         var invReq = new GetObjectRequest { BucketName = fedora.Bucket, Key = $"{agOrigin}/inventory.json" };
-        var invResp = await s3Client.GetObjectAsync(invReq);
+        var invResp = await awsS3Client.GetObjectAsync(invReq);
         var inventory = JsonSerializer.Deserialize<Inventory>(invResp.ResponseStream);
         return inventory;
     }
     
     public string? GetArchivalGroupOrigin(Uri archivalGroupUri)
     {
+        logger.LogInformation("GetArchivalGroupOrigin for " + archivalGroupUri);
         var idPart = converters.GetResourcePathPart(archivalGroupUri);
+        logger.LogInformation("converters.GetResourcePathPart(archivalGroupUri) => " + idPart);
+        
         if (idPart == null)
         {
             return null;

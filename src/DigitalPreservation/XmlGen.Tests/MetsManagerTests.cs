@@ -38,8 +38,9 @@ public class MetsManagerTests
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();
 
-        result.Value!.PhysicalStructure!.Directories.Should().HaveCount(1);
-        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
+        result.Value!.PhysicalStructure!.Directories.Should().HaveCount(2);
+        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
+        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
         
         result.Value.PhysicalStructure.Files.Should().HaveCount(1);
         result.Value.PhysicalStructure.Files.Should().Contain(wd => wd.Name == "empty-mets.xml");
@@ -62,13 +63,14 @@ public class MetsManagerTests
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();
 
-        result.Value!.PhysicalStructure!.Directories.Should().HaveCount(1);
-        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
+        result.Value!.PhysicalStructure!.Directories.Should().HaveCount(2);
+        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
+        result.Value.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
         
         result.Value.PhysicalStructure.Files.Should().HaveCount(1);
         result.Value.PhysicalStructure.Files.Should().Contain(wd => wd.Name == "archivalGroup-mets.xml");
 
-        var objectsDir = result.Value.PhysicalStructure.Directories[0];
+        var objectsDir = result.Value.PhysicalStructure.Directories.Single(d => d.Name == FolderNames.Objects);
         objectsDir.Files.Should().HaveCount(2);
         objectsDir.Directories.Should().HaveCount(1);
         
@@ -110,8 +112,9 @@ public class MetsManagerTests
         
         result.Success.Should().BeTrue();
         var metsWrapper = result.Value!;
-        metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(1);
-        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
+        metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(2);
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
         
         var dir = new WorkingDirectory
         {
@@ -126,9 +129,10 @@ public class MetsManagerTests
         parseResult.Success.Should().BeTrue();
 
         var updatedWrapper = parseResult.Value!;
-        updatedWrapper.PhysicalStructure!.Directories[0].Directories.Should().HaveCount(1);
-        updatedWrapper.PhysicalStructure.Directories[0].Directories[0].Name.Should().Be("Child Directory");
-        updatedWrapper.PhysicalStructure.Directories[0].Directories[0].LocalPath.Should().Be("objects/child-dir");
+        // expect metadata and objects dirs, so Directories[1]
+        updatedWrapper.PhysicalStructure!.Directories[1].Directories.Should().HaveCount(1);
+        updatedWrapper.PhysicalStructure.Directories[1].Directories[0].Name.Should().Be("Child Directory");
+        updatedWrapper.PhysicalStructure.Directories[1].Directories[0].LocalPath.Should().Be("objects/child-dir");
         
         // TODO: Validate result.Value.XDocument
     }
@@ -160,7 +164,7 @@ public class MetsManagerTests
         parseResult.Success.Should().BeTrue();
 
         var updatedWrapper = parseResult.Value!;
-        var objectsDir = updatedWrapper.PhysicalStructure!.Directories[0];
+        var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         objectsDir.Directories.Should().HaveCount(2);
         objectsDir.Files.Should().HaveCount(2); // no changes here yet
         
@@ -209,7 +213,7 @@ public class MetsManagerTests
         parseResult2.Success.Should().BeTrue();
         
         var updatedWrapper2 = parseResult2.Value!;
-        objectsDir = updatedWrapper2.PhysicalStructure!.Directories[0];
+        objectsDir = updatedWrapper2.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         folderB = objectsDir.Directories[1]; // now in second position
         folderB.Name.Should().Be("folder b");
         folderB.Directories.Should().HaveCount(2); 
@@ -232,7 +236,7 @@ public class MetsManagerTests
         parseResult3.Success.Should().BeTrue();
         
         var updatedWrapper3 = parseResult3.Value!;
-        objectsDir = updatedWrapper3.PhysicalStructure!.Directories[0];
+        objectsDir = updatedWrapper3.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         folderB = objectsDir.Directories[1]; // still in second position
         folderB.Name.Should().Be("folder b");
         folderB.Directories.Should().HaveCount(2); 
@@ -258,8 +262,9 @@ public class MetsManagerTests
         
         result.Success.Should().BeTrue();
         var metsWrapper = result.Value!;
-        metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(1);
-        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == "objects");
+        metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(2);
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
         
         var file = new WorkingFile
         {
@@ -277,7 +282,7 @@ public class MetsManagerTests
         parseResult.Success.Should().BeTrue();
 
         var updatedWrapper = parseResult.Value!;
-        var objectsDir = updatedWrapper.PhysicalStructure!.Directories[0];
+        var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         objectsDir.Directories.Should().HaveCount(0);
         objectsDir.Files.Should().HaveCount(1);
         objectsDir.Files[0].Name.Should().Be("readme.txt");
@@ -319,7 +324,7 @@ public class MetsManagerTests
         parseResult.Success.Should().BeTrue();
 
         var updatedWrapper = parseResult.Value!;
-        var objectsDir = updatedWrapper.PhysicalStructure!.Directories[0];
+        var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         objectsDir.Directories.Should().HaveCount(1);
         objectsDir.Files.Should().HaveCount(3); // an extra file, should be last because "r"
         objectsDir.Files[2].Name.Should().Be("readme.txt");
@@ -343,7 +348,7 @@ public class MetsManagerTests
         parseResult2.Success.Should().BeTrue();
 
         var updatedWrapper2 = parseResult2.Value!;
-        objectsDir = updatedWrapper2.PhysicalStructure!.Directories[0];
+        objectsDir = updatedWrapper2.PhysicalStructure!.Directories.Single(d =>  d.Name == FolderNames.Objects);
         var folderBB = objectsDir.Directories[0].Directories[0];
         folderBB.Files.Should().HaveCount(2);
         folderBB.Files[1].Name.Should().Be("README");
@@ -376,7 +381,7 @@ public class MetsManagerTests
         parseResult.Success.Should().BeTrue();
         
         var updatedWrapper = parseResult.Value!;
-        var objectsDir = updatedWrapper.PhysicalStructure!.Directories[0];
+        var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         objectsDir.Directories.Should().HaveCount(1);
         objectsDir.Files.Should().HaveCount(1); // ONE LESS FILE
         objectsDir.Files[0].LocalPath.Should().Be("objects/minutes-laqm-8-sept-2020.pdf");
@@ -414,7 +419,7 @@ public class MetsManagerTests
         parseResult.Success.Should().BeTrue();
         
         var updatedWrapper = parseResult.Value!;
-        var objectsDir = updatedWrapper.PhysicalStructure!.Directories[0];
+        var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         objectsDir.Directories.Should().HaveCount(1);
         objectsDir.Directories[0].Directories[0].Files.Should().HaveCount(0);
         
@@ -426,7 +431,7 @@ public class MetsManagerTests
         parseResult2.Success.Should().BeTrue();
         var updatedWrapper2 = parseResult2.Value!;
         
-        objectsDir = updatedWrapper2.PhysicalStructure!.Directories[0];
+        objectsDir = updatedWrapper2.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         objectsDir.Directories.Should().HaveCount(1);
         objectsDir.Directories[0].Directories.Should().HaveCount(0);
         

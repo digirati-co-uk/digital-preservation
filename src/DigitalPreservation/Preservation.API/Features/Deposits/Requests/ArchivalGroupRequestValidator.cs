@@ -20,9 +20,10 @@ public static class ArchivalGroupRequestValidator
             return (false, Result.Ok(deposit));
         }
         var archivalGroupPathUnderRoot = deposit.ArchivalGroup.GetPathUnderRoot(true);
-        if (!PreservedResource.ValidPath(archivalGroupPathUnderRoot))
+        var validPathResult = PreservedResource.ValidPath(archivalGroupPathUnderRoot);
+        if (validPathResult.Failure)
         {
-            return (false, Result.Fail<Deposit?>(ErrorCodes.BadRequest, $"Archive path '{archivalGroupPathUnderRoot}' contains invalid characters."));
+            return (false, Result.Fail<Deposit?>(ErrorCodes.BadRequest, $"Archive path '{archivalGroupPathUnderRoot}' contains invalid characters. {validPathResult.ErrorMessage}"));
         }
         if (checkExistence)
         {

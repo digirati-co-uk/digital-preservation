@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Caching.Memory;
 using Preservation.Client;
+using Storage.Repository.Common.Mets;
 
 namespace DigitalPreservation.UI.Pages;
 
@@ -25,6 +27,8 @@ public class BrowseModel(
 {
     public bool HasPredictableIIIFPath { get; set; }
     public PreservedResource? Resource { get; set; }
+
+    public List<Deposit> ActiveDepositsForArchivalGroupsInContainer { get; set; } = [];
     public string? PathUnderRoot { get; set; }
     public string? ArchivalGroupPath { get; set; }
     
@@ -50,6 +54,16 @@ public class BrowseModel(
             Resource.PartOf = CachedArchivalGroup.Id;
         }
         await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
+        if(
+            view != "mets" && 
+            CachedArchivalGroup != null && 
+            WorkingDirectory == null && 
+            WorkingFile == null && 
+            MetsUtils.IsMetsFile(pathUnderRoot!.GetSlug()))
+        {
+            return Redirect("/browse/" + CachedArchivalGroup.GetPathUnderRoot() 
+                                      + "?view=mets" + (version.HasText() ? "&version=" + version : ""));           
+        }
         if (Resource == null)
         {
             // The resource is not an Archival Group and is not in an Archival Group
@@ -65,7 +79,26 @@ public class BrowseModel(
             return NotFound();
         }
         
-        var name = Resource!.Name ?? Resource!.Id!.GetSlug();
+        if (Resource is Container container)
+        {
+            var path = container.Id!.PathAndQuery;
+            if (path.Split('/', StringSplitOptions.RemoveEmptyEntries).Length > 2)
+            {
+                var query = new DepositQuery
+                {
+                    ArchivalGroupPathParent = path
+                };
+                var potentialGhostDepositResult = await mediator.Send(new GetDeposits(query));
+                if (potentialGhostDepositResult.Success)
+                {
+                    ActiveDepositsForArchivalGroupsInContainer = potentialGhostDepositResult.Value!.Deposits
+                        .Where(d => !d.ArchivalGroup!.PathAndQuery.RemoveStart(path + "/")!.Contains('/'))
+                        .ToList();
+                }
+            }
+        }
+        
+        var name = Resource!.Name ?? Resource!.Id!.GetSlug()?.UnEscapeFromUriNoHashes();
         switch (Resource!.Type)
         {
             case nameof(ArchivalGroup):
@@ -166,11 +199,13 @@ public class BrowseModel(
         }
 
         MetsWorkingDirectory = metsWrapper.PhysicalStructure;
+        
+        // The METS file reflects the original layout
 
         var localPath = GetLocalPath(Resource);
         if (Resource is Container)
         {
-            WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath);
+            WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath, create:false);
         }
         else if (Resource is Binary)
         {
@@ -184,8 +219,9 @@ public class BrowseModel(
         {
             return null;
         }
-        return resource
-            .GetPathUnderRoot()
+        return resource.Id
+            .GetPathUnderRoot(true)!
+            .UnEscapePathElementsNoHashes()
             .RemoveStart(CachedArchivalGroup.GetPathUnderRoot() ?? "")
             .RemoveStart("/");
     }
@@ -342,7 +378,8 @@ public class BrowseModel(
         }
         
         var slug = containerSlug.ToLowerInvariant();
-        if (ValidateNewContainer(pathUnderRoot, slug, containerTitle))
+        var slugValidResult = ValidateNewContainerSlug(pathUnderRoot, slug, containerTitle);
+        if (slugValidResult.Success)
         {
             var result = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle));
             if(result is { Success: true, Value: not null })
@@ -356,12 +393,17 @@ public class BrowseModel(
             return Redirect(Request.Path);
         }
 
-        TempData["ContainerError"] = "Invalid container file path - only a-z, 0-9 and .-_ are allowed.";
+        TempData["ContainerError"] = slugValidResult.ErrorMessage;
         return Redirect(Request.Path);
     }
 
-    private bool ValidateNewContainer(string? path, string slug, string? containerTitle)
+    private Result ValidateNewContainerSlug(string? path, string slug, string? containerTitle)
     {
-        return PreservedResource.ValidSlug(slug);
+        if (PreservedResource.ValidSlug(slug, out var reason))
+        {
+            return Result.Ok();
+        }
+
+        return Result.Fail(ErrorCodes.BadRequest, reason);
     }
 }

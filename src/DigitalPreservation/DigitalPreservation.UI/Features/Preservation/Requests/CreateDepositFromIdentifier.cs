@@ -7,9 +7,10 @@ using Preservation.Client;
 
 namespace DigitalPreservation.UI.Features.Preservation.Requests;
 
-public class CreateDepositFromIdentifier(string identifier) : IRequest<Result<Deposit?>?>
+public class CreateDepositFromIdentifier(string identifier, TemplateType templateType) : IRequest<Result<Deposit?>?>
 {
     public string Identifier { get; set; } = identifier;
+    public TemplateType TemplateType { get; } = templateType;
 }
 
 public class CreateDepositFromIdentifierHandler(IPreservationApiClient preservationApiClient) : IRequestHandler<CreateDepositFromIdentifier, Result<Deposit?>?>
@@ -33,7 +34,7 @@ public class CreateDepositFromIdentifierHandler(IPreservationApiClient preservat
         }
         
         var result = await preservationApiClient.CreateDepositFromIdentifier(
-            schema, request.Identifier, cancellationToken);
+            schema, request.Identifier, request.TemplateType, cancellationToken);
         return result;
         
     }

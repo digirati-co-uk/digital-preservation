@@ -56,7 +56,7 @@ public class IndexModel(IMediator mediator) : PageModel
             var agentResult = await mediator.Send(new GetAllAgents());
             if (agentResult.Success)
             {
-                Agents = agentResult.Value!.Select(uri => uri.GetSlug()).OrderBy(s => s).ToList()!;
+                Agents = agentResult.Value!.Select(uri => uri.GetSlug()?.UnEscapeFromUri()).OrderBy(s => s).ToList()!;
             }
         }
         else

@@ -2,13 +2,21 @@
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.Common.Model.Transit
+@using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
 @model DepositModel
 
 @functions {
+    
+    private bool IsLockedByOtherUser()
+    {
+        return Model.Deposit?.LockedBy != null && Model.Deposit.LockedBy.GetSlug() != User.GetCallerIdentity();
+    }
+    
     private bool CanBeWorkedOn()
     {
+        if (IsLockedByOtherUser()) return false;
         return Model.Deposit is { Active: true } && Model.Deposit.Status != DepositStates.Exporting;
     }
 }
@@ -23,7 +31,7 @@ ViewData["section"] = "deposits";
     <div class="btn-toolbar mb-2 mb-md-0">
         @if (Model.Deposit is not null)
         {
-            <button @(Model.Deposit!.Active ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
+            <button @(CanBeWorkedOn() ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
                 <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
             </button>
             <form class="single-submit" method="post">
@@ -34,6 +42,22 @@ ViewData["section"] = "deposits";
                         Actions
                     </button>
                     <ul class="dropdown-menu">
+                        @if (Model.Deposit?.LockedBy != null)
+                        {
+                            <li>
+                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
+                                    <svg class="bi"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
+                                </button>
+                            </li>
+                        }
+                        else
+                        {
+                            <li>
+                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="Lock">
+                                    <svg class="bi"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
+                                </button>
+                            </li>
+                        }
                         <li>
                             <button class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
                                 <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
@@ -45,7 +69,7 @@ ViewData["section"] = "deposits";
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-primary" type="button" id="toggleRhs" 
+                            <button class="dropdown-item text-primary" type="button" id="toggleRhs"
                                     data-bs-toggle="collapse" data-bs-target="#sidebarInfoPanel" aria-expanded="true" aria-controls="sidebarInfoPanel">
                                 <svg class="bi"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
                             </button>
@@ -112,6 +136,19 @@ ViewData["section"] = "deposits";
         <p>@Html.Raw(TempData["Valid"])</p>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
+    }
+    @if (TempData["AccessConditionsUpdated"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <p>@Html.Raw(TempData["AccessConditionsUpdated"])</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (IsLockedByOtherUser())
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>This Deposit is locked by @Model.Deposit!.LockedBy?.GetSlug()</p>
+        </div>
     }
  </div>
 
@@ -186,10 +223,22 @@ ViewData["section"] = "deposits";
                                 </tr>
                                 </thead>
                                 <tbody>
+                                @if (Model.WorkspaceManager.IsBagItLayout)
+                                {
+                                    <tr>
+                                        <td colspan="8">
+                                            <svg class="bi"><use xlink:href="#bag-heart"/></svg>
+                                            <em>This Deposit uses BagIt layout on disk/S3.</em>
+                                        </td>
+                                    </tr>
+                                }
                                 @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(combinedResult.Value, 
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(combinedResult.Value,
                                         Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
-                                        Model.Deposit.Active, new Counter());
+                                        Model.Deposit.Active, IsLockedByOtherUser(), 
+                                        Model.WorkspaceManager.RootAccessRestrictions,
+                                        Model.WorkspaceManager.RootRightsStatement,
+                                        new Counter());
                                     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
                                 }
                                 </tbody>
@@ -270,7 +319,7 @@ ViewData["section"] = "deposits";
                                 {
                                     <tr>
                                         <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
-                                        <td>@result.CreatedBy?.GetSlug()</td>
+                                        <td>@result.CreatedBy?.GetSlug()?.UnEscapeFromUri()</td>
                                         <td>@result.DateBegun.GetDateDisplay()</td>
                                         <td>@result.DateFinished.GetDateDisplay()</td>
                                         <td>@result.SourceVersion</td>
@@ -559,6 +608,89 @@ ViewData["section"] = "deposits";
     </div>
 </div>
 
+
+@* ------------------- RIGHTS AND ACCESS MODAL *@
+
+<div class="modal fade" id="accessConditionsModal" tabindex="-1" aria-labelledby="accessConditionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            
+            <form class="single-submit" method="post" asp-page-handler="SetRightsAndAccess">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="accessConditionsModalLabel"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Rights and Access</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label id="accessRestrictionsSelectLabel" for="accessRestrictionsSelect" class="form-label">Access Restriction(s)</label>
+                        @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        {
+                            <select multiple id="accessRestrictionsSelect" class="form-select" name="accessRestrictions" aria-labelledby="accessRestrictionsSelectLabel">
+                                @foreach (var accessRestriction in AccessRestriction.All)
+                                {
+                                    <!option value="@accessRestriction.Value" @(Model.WorkspaceManager.RootAccessRestrictions.Contains(accessRestriction.Value) ? " selected" : "")>@accessRestriction.Label</!option>
+                                }
+                            </select>
+                            <div id="accessRestrictionsHelp" class="form-text">
+                                Set access restriction(s) on root. <!-- TODO: when this can be done on any element in the hierarchy, display the accessConditionContext here -->
+                            </div>
+                        }
+                        else
+                        {
+                            @if (Model.WorkspaceManager.RootAccessRestrictions.Count == 0)
+                            {
+                                <p>(No access restrictions)</p>
+                            }
+                            else
+                            {
+                                <ul>
+                                    @foreach (var accessRestriction in Model.WorkspaceManager.RootAccessRestrictions)
+                                    {
+                                        <li>@accessRestriction</li>
+                                    }
+                                </ul> 
+                            }
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label id="rightsStatementSelectLabel" for="rightsStatementSelect" class="form-label">Rights statement</label>
+                        @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        {
+                            <select id="rightsStatementSelect" class="form-select" name="rightsStatement" aria-labelledby="rightsStatementSelectLabel">
+                                <!option value="" @(Model.WorkspaceManager.RootRightsStatement == null ? "" : " selected")>(none)</!option>
+                                @foreach (var rightsStatement in RightsStatement.All)
+                                {
+                                    <!option value="@rightsStatement.Value" @(Model.WorkspaceManager.RootRightsStatement == rightsStatement.Value ? " selected" : "")>@rightsStatement.Label</!option>
+                                }
+                            </select>
+                            <div id="rightsStatementHelp" class="form-text">
+                                Set rights statement on root. <!-- TODO: when this can be done on any element in the hierarchy, display the accessConditionContext here -->
+                            </div>
+                        }
+                        else
+                        {
+                            <p>@(Model.WorkspaceManager.RootRightsStatement == null ? "(no rights statement)" : Model.WorkspaceManager.RootRightsStatement)</p> 
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="hidden" id="accessConditionContext" name="accessConditionContext">
+                    <input type="hidden" id="accessConditionContextIsFile" name="accessConditionContextIsFile">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                    {
+                        <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Save</span></button>
+                    }
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+
+
+
 @* END MODALS *@
 
 
@@ -571,6 +703,8 @@ ViewData["section"] = "deposits";
     const newFolderContextIsFile = document.getElementById("newFolderContextIsFile");
     const newFileContext = document.getElementById("newFileContext");
     const newFileContextIsFile = document.getElementById("newFileContextIsFile");
+    const accessConditionContext = document.getElementById("accessConditionContext");
+    const accessConditionContextIsFile = document.getElementById("accessConditionContextIsFile");
     
     const deleteButton = document.getElementById("deleteButton");
     const deleteFromDepositRadio = document.getElementById("deleteFromDeposit");
@@ -731,8 +865,10 @@ ViewData["section"] = "deposits";
             const isFile = row.getAttribute("data-type") === "file";
             newFileContext.value = path;
             newFolderContext.value = path;
+            accessConditionContext.value = path;
             newFolderContextIsFile.value = isFile;
             newFileContextIsFile.value = isFile;
+            accessConditionContextIsFile.value = isFile;
             // deleteContext.value = path;
             // deleteContextIsFile.value = isFile;
             // deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;

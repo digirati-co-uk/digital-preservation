@@ -1,5 +1,4 @@
-﻿using Amazon.S3.Util;
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using MediatR;
@@ -7,9 +6,9 @@ using Storage.Repository.Common;
 
 namespace DigitalPreservation.Workspace.Requests;
 
-public class GetWorkingDirectory(Uri s3Uri, bool readFromS3, bool writeToStorage, DateTime? lastModified = null) : IRequest<Result<WorkingDirectory?>>
+public class GetWorkingDirectory(Uri rootUri, bool readFromS3, bool writeToStorage, DateTime? lastModified = null) : IRequest<Result<WorkingDirectory?>>
 {
-    public Uri S3Uri { get; } = s3Uri;
+    public Uri RootUri { get; } = rootUri;
     public bool ReadFromS3 { get; } = readFromS3;
     public bool WriteToStorage { get; } = writeToStorage;
     public DateTime? LastModified { get; } = lastModified;
@@ -19,28 +18,30 @@ public class ReadS3Handler(IStorage storage) : IRequestHandler<GetWorkingDirecto
 {
     public async Task<Result<WorkingDirectory?>> Handle(GetWorkingDirectory request, CancellationToken cancellationToken)
     {
-        var s3Uri = new AmazonS3Uri(request.S3Uri);
         if (request.ReadFromS3)
         {
+            var metadataReader = await MetadataReader.Create(storage, request.RootUri);
             var fromScratch = await storage.GenerateDepositFileSystem(
-               s3Uri, request.WriteToStorage, cancellationToken);
+               request.RootUri, request.WriteToStorage, metadataReader.Decorate, cancellationToken);
             return fromScratch;
         }
-        var fromJson = await storage.ReadDepositFileSystem(s3Uri, cancellationToken);
+        var fromJson = await storage.ReadDepositFileSystem(request.RootUri, cancellationToken);
         if (fromJson is { Success: true, Value: not null })
         {
             if (request.LastModified.HasValue && fromJson.Value.Modified < request.LastModified)
             {
+                var metadataReader = await MetadataReader.Create(storage, request.RootUri);
                 var fromScratch = await storage.GenerateDepositFileSystem(
-                    s3Uri, true, cancellationToken);
+                    request.RootUri, true, metadataReader.Decorate, cancellationToken);
                 return fromScratch;
             }
             return fromJson;
         }
         if (fromJson.ErrorCode == ErrorCodes.NotFound && request.WriteToStorage)
         {
+            var metadataReader = await MetadataReader.Create(storage, request.RootUri);
             var fromScratch = await storage.GenerateDepositFileSystem(
-                s3Uri, true, cancellationToken);
+                request.RootUri, true, metadataReader.Decorate, cancellationToken);
             return fromScratch;
         }
         return fromJson;

@@ -4,11 +4,28 @@ namespace DigitalPreservation.Common.Model.Transit;
 
 public static class CombinedBuilder
 {
+    
+    public static CombinedDirectory BuildOffset(WorkingDirectory fileSystemRoot, WorkingDirectory offsetFileSystemDirectory, WorkingDirectory? metsWrapperPhysicalStructure)
+    {
+        var relativePath = offsetFileSystemDirectory.LocalPath;
+        // we can't "join the streams" until we have built the top layer - but that should ONLY be the data dir and root files
+        var combinedRoot = new CombinedDirectory(fileSystemRoot, null, relativePath);
+        var offsetRoot = Build(offsetFileSystemDirectory, metsWrapperPhysicalStructure, relativePath);
+        combinedRoot.Directories.Add(offsetRoot);
+        foreach (var rootFile in fileSystemRoot.Files)
+        {
+            combinedRoot.Files.Add(new CombinedFile(rootFile, null, relativePath));
+        }
+
+        return combinedRoot;
+    }
+    
     public static CombinedDirectory Build(
         WorkingDirectory? fileSystemWorkingDirectory,
-        WorkingDirectory? metsWorkingDirectory)
+        WorkingDirectory? metsWorkingDirectory,
+        string? relativePath = null)
     {
-        var combined = new CombinedDirectory(fileSystemWorkingDirectory, metsWorkingDirectory);
+        var combined = new CombinedDirectory(fileSystemWorkingDirectory, metsWorkingDirectory, relativePath);
 
         // Directories
         var depositDirMap = new Dictionary<string, WorkingDirectory>();
@@ -17,7 +34,14 @@ public static class CombinedBuilder
         {
             foreach (var fsDirectory in fileSystemWorkingDirectory.Directories)
             {
-                depositDirMap.Add(fsDirectory.LocalPath, fsDirectory);
+                if (relativePath.HasText())
+                {
+                    depositDirMap.Add(fsDirectory.LocalPath.RemoveStart($"{relativePath}/")!, fsDirectory);
+                }
+                else
+                {
+                    depositDirMap.Add(fsDirectory.LocalPath, fsDirectory);
+                }
             }
         }
         if (metsWorkingDirectory is not null)
@@ -36,7 +60,7 @@ public static class CombinedBuilder
             {
                 throw new Exception("Both entries are null");
             }
-            combined.Directories.Add(Build(depositDirectory, metsDirectory));
+            combined.Directories.Add(Build(depositDirectory, metsDirectory, relativePath));
         }
         
 
@@ -48,7 +72,14 @@ public static class CombinedBuilder
         {
             foreach (var fsFile in fileSystemWorkingDirectory.Files)
             {
-                depositFileMap.Add(fsFile.LocalPath, fsFile);
+                if (relativePath.HasText())
+                {
+                    depositFileMap.Add(fsFile.LocalPath.RemoveStart($"{relativePath}/")!, fsFile);
+                }
+                else
+                {
+                    depositFileMap.Add(fsFile.LocalPath, fsFile);
+                }
             }
         }
         if (metsWorkingDirectory is not null)
@@ -67,11 +98,12 @@ public static class CombinedBuilder
             {
                 throw new Exception("Both entries are null");
             }
-            combined.Files.Add(new CombinedFile(depositFile, metsFile));
+            combined.Files.Add(new CombinedFile(depositFile, metsFile, relativePath));
         }
         
         
         // Now recurse
         return combined;
     }
+
 }

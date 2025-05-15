@@ -1,6 +1,6 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
-using DigitalPreservation.XmlGen.Mets;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.XmlGen.Premis.V3;
 using FluentAssertions;
 using Storage.Repository.Common.Mets;
@@ -9,15 +9,8 @@ using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace XmlGen.Tests;
 
-public class PremisTests
+public class PremisTests(ITestOutputHelper testOutputHelper)
 {
-    private readonly ITestOutputHelper testOutputHelper;
-
-    public PremisTests(ITestOutputHelper testOutputHelper)
-    {
-        this.testOutputHelper = testOutputHelper;
-    }
-
     [Fact (Skip = "Experimental")]
     public void Premis_Namespace_Handled()
     {
@@ -25,18 +18,19 @@ public class PremisTests
         
         var standaloneOriginal = "Samples/standalone-premis-original.xml";
         var serializer = new XmlSerializer(typeof(PremisComplexType));
-        using XmlReader reader = XmlReader.Create(standaloneOriginal);
-        var premis = (PremisComplexType) serializer.Deserialize(reader)!;
+        using var reader = XmlReader.Create(standaloneOriginal);
+        var premis = (PremisComplexType?) serializer.Deserialize(reader);
+        premis.Should().NotBeNull();
     }
     
     [Fact]
-    public void Premis_Namespace_Artifically_Handled()
+    public void Premis_Namespace_Artificially_Handled()
     {
         var updatedXml = "Samples/standalone-premis-updated.xml";
         var serializer = new XmlSerializer(typeof(ObjectComplexType));
         using XmlReader reader = XmlReader.Create(updatedXml);
-        var premisFile = (File) serializer.Deserialize(reader)!;
-        premisFile.Should().NotBeNull();
+        var premisMetadata = (File) serializer.Deserialize(reader)!;
+        premisMetadata.Should().NotBeNull();
     }
     
     
@@ -60,8 +54,8 @@ public class PremisTests
             manager.PushScope();
         }
         var serializer = new XmlSerializer(typeof(ObjectComplexType));
-        var premisFile = (File) serializer.Deserialize(reader)!;
-        premisFile.Should().NotBeNull();
+        var premisMetadata = (File) serializer.Deserialize(reader)!;
+        premisMetadata.Should().NotBeNull();
     }
 
     [Fact (Skip = "Experimental")]
@@ -78,10 +72,10 @@ public class PremisTests
         {
             manager.AddNamespace("xsi", "http://www.w3.org/2001/XMLSchema-instance");
         }
-        using XmlReader reader = new XmlNodeReader(doc);;
+        using XmlReader reader = new XmlNodeReader(doc);
         var serializer = new XmlSerializer(typeof(ObjectComplexType));
-        var premisFile = (File) serializer.Deserialize(reader)!;
-        premisFile.Should().NotBeNull();
+        var premisMetadata = (File) serializer.Deserialize(reader)!;
+        premisMetadata.Should().NotBeNull();
     }
 
     [Fact]
@@ -89,7 +83,7 @@ public class PremisTests
     {
         var doc = new XmlDocument();
         doc.Load("Samples/standalone-premis-2.xml");
-        using XmlReader reader = new XmlNodeReader(doc);;
+        using XmlReader reader = new XmlNodeReader(doc);
         var serializer = new XmlSerializer(typeof(PremisComplexType));
         var premis = (PremisComplexType) serializer.Deserialize(reader)!;
         premis.Should().NotBeNull();
@@ -130,8 +124,9 @@ public class PremisTests
     {
         var testData = GetTestPremisData();
         var premis = PremisManager.Create(testData);
-        var update = new PremisFile
+        var update = new FileFormatMetadata
         {
+            Source = "Tests",
             Size = 1111111
         };
         PremisManager.Patch(premis, update);
@@ -145,8 +140,9 @@ public class PremisTests
     {
         var testData = GetTestPremisData();
         var premis = PremisManager.Create(testData);
-        var update = new PremisFile
+        var update = new FileFormatMetadata
         {
+            Source = "Tests",
             PronomKey = "fmt/333"
         };
         PremisManager.Patch(premis, update);
@@ -160,8 +156,9 @@ public class PremisTests
     {
         var testData = GetTestPremisData();
         var premis = PremisManager.Create(testData);
-        var update = new PremisFile
+        var update = new FileFormatMetadata
         {
+            Source = "Tests",
             FormatName = "Some other bitmap",
             PronomKey = "fmt/333"
         };
@@ -174,7 +171,7 @@ public class PremisTests
     [Fact]
     public void Simplest_Premis()
     {
-        var premis = PremisManager.Create(new PremisFile());
+        var premis = PremisManager.Create(new FileFormatMetadata{Source = "Tests"});
         var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
     }
@@ -183,8 +180,9 @@ public class PremisTests
     [Fact]
     public void Premis_Digest_Only()
     {
-        var premis = PremisManager.Create(new PremisFile
+        var premis = PremisManager.Create(new FileFormatMetadata
         {
+            Source = "Tests",
             Digest = "123456"
         });
         var s = PremisManager.Serialise(premis);
@@ -195,8 +193,9 @@ public class PremisTests
     [Fact]
     public void Premis_Digest_and_Size_Only()
     {
-        var premis = PremisManager.Create(new PremisFile
+        var premis = PremisManager.Create(new FileFormatMetadata
         {
+            Source = "Tests",
             Digest = "123456",
             Size = 654321
         });
@@ -207,8 +206,9 @@ public class PremisTests
     [Fact]
     public void Premis_Digest_and_Size_then_Edit_Name()
     {
-        var start = new PremisFile
+        var start = new FileFormatMetadata
         {
+            Source = "Tests",
             Digest = "123456",
             Size = 654321
         };
@@ -223,8 +223,9 @@ public class PremisTests
     [Fact]
     public void Premis_Digest_and_Size_then_Edit_More()
     {
-        var start = new PremisFile
+        var start = new FileFormatMetadata
         {
+            Source = "Tests",
             Digest = "123456",
             Size = 654321
         };
@@ -240,27 +241,29 @@ public class PremisTests
     [Fact]
     public void Premis_Build_up_all()
     {
-        var premisFile = new PremisFile
+        var premisMetadata = new FileFormatMetadata
         {
+            Source = "Tests",
             Digest = "123456",
             Size = 654321
         };
-        var premis = PremisManager.Create(premisFile);
-        premisFile.OriginalName = "bob";
-        PremisManager.Patch(premis, premisFile);
-        premisFile.PronomKey = "fmt/bob";
-        PremisManager.Patch(premis, premisFile);
-        premisFile.FormatName = "Some file format";
-        PremisManager.Patch(premis, premisFile);
+        var premis = PremisManager.Create(premisMetadata);
+        premisMetadata.OriginalName = "bob";
+        PremisManager.Patch(premis, premisMetadata);
+        premisMetadata.PronomKey = "fmt/bob";
+        PremisManager.Patch(premis, premisMetadata);
+        premisMetadata.FormatName = "Some file format";
+        PremisManager.Patch(premis, premisMetadata);
         var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
     }
     
     
-    private static PremisFile GetTestPremisData()
+    private static FileFormatMetadata GetTestPremisData()
     {
-        var testData = new PremisFile
+        var testData = new FileFormatMetadata
         {
+            Source = "METS",
             Digest = "efc63a2c4dbb61936b5028c637c76f066ce463b5de6f3d5d674c9f024fa08d79",
             Size = 9999999,
             FormatName = "Tagged Image File Format Test",

@@ -30,6 +30,12 @@ public class PatchDepositHandler(
         {
             return Result.FailNotNull<Deposit>(ErrorCodes.BadRequest, "No Deposit provided");
         }
+        var callerIdentity = request.Principal.GetCallerIdentity();
+        var otherLockOwner = request.Deposit.GetOtherLockOwner(callerIdentity);
+        if (otherLockOwner is not null)
+        {
+            return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is locked by " + otherLockOwner);
+        }
         try
         {
             
@@ -55,7 +61,6 @@ public class PatchDepositHandler(
             entity.ArchivalGroupPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot(true);
             entity.ArchivalGroupName = request.Deposit.ArchivalGroupName;
             
-            var callerIdentity = request.Principal.GetCallerIdentity();
             entity.LastModifiedBy = callerIdentity;
             entity.LastModified = DateTime.UtcNow;
             await dbContext.SaveChangesAsync(cancellationToken);

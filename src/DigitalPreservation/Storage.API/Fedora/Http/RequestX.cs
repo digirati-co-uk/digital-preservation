@@ -67,9 +67,9 @@ public static class RequestX
     }
 
     
-    public static HttpRequestMessage WithSlug(this HttpRequestMessage requestMessage, string slug) 
+    public static HttpRequestMessage WithSlug(this HttpRequestMessage requestMessage, string escapedSlug)
     {
-        requestMessage.Headers.Add("slug", slug);
+        requestMessage.Headers.Add("slug", escapedSlug);
         return requestMessage;
     }
     
@@ -176,7 +176,7 @@ public static class RequestX
     {
         if (!string.IsNullOrWhiteSpace(contentDisposition))
         {
-            var encoded = WebUtility.UrlEncode(contentDisposition);
+            var encoded = Uri.EscapeDataString(contentDisposition); // WebUtility.UrlEncode(contentDisposition);
             httpContent.Headers.Add("Content-Disposition", $"attachment; filename=\"{encoded}\""); 
         }
         return httpContent;

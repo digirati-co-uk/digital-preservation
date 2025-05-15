@@ -12,6 +12,14 @@
                         <input type="text" class="form-control" id="objectIdentifier" name="NewDepositModel.ObjectIdentifier" aria-describedby="objectIdentifierHelp" placeholder="e.g., 123456">
                         <div id="objectIdentifierHelp" class="form-text">An IRN, PID or other identifier for the object.</div>
                     </div>
+                    <div class="mb-3 form-check">
+                        <input type="hidden" name="NewDepositModel.UseObjectTemplate" value="true" /> <!-- default to this when submitted from UI, but allow bagit to override it -->
+                        <input type="checkbox" name="NewDepositModel.UseBagItTemplate" value="true" class="form-check-input" id="bagitCheck" aria-describedby="bagitHelp">
+                        <label class="form-check-label" for="bagitCheck">Use BagIt layout</label>
+                        <div id="bagitHelp" class="form-text">
+                            Creates the Deposit with a layout that the contents of a BagIt Bag can be imported into, with a data/ directory in the root.
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">

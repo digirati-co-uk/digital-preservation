@@ -22,7 +22,7 @@ public class AgentLink : TagHelper
             output.Attributes.SetAttribute("class", "dlip-agent");
             var path = $"/{Agent.BasePathElement}/{slug}";
             output.Attributes.SetAttribute("href", path);
-            output.Content.SetHtmlContent(slug);
+            output.Content.SetHtmlContent(slug?.UnEscapeFromUri());
         }
     }
 }

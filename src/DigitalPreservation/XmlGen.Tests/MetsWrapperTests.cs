@@ -1,4 +1,5 @@
 ﻿using Amazon.S3;
+using DigitalPreservation.Common.Model.Transit;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -36,10 +37,10 @@ public class MetsWrapperTests
         phys!.Files.Should().Contain(f => f.Name == "goobi-wc-b29356350-2.xml");
 
         phys.Directories.Should().HaveCount(2);
-        var objDir = phys.Directories.Single(d => d.Name == "objects");
+        var objDir = phys.Directories.Single(d => d.Name == FolderNames.Objects);
         objDir.Directories.Should().HaveCount(0);
         objDir.Files.Should().HaveCount(32);
-        objDir.LocalPath.Should().Be("objects");
+        objDir.LocalPath.Should().Be(FolderNames.Objects);
         var altoDir = phys.Directories.Single(d => d.Name == "alto");
         altoDir.Directories.Should().HaveCount(0);
         altoDir.Files.Should().HaveCount(32);
@@ -73,7 +74,7 @@ public class MetsWrapperTests
         phys.Directories.Should().HaveCount(1);
         phys.Directories[0].Files.Should().HaveCount(4);
         
-        phys.Directories[0].Name.Should().Be("objects");
+        phys.Directories[0].Name.Should().Be(FolderNames.Objects);
         phys.Directories[0].Files[0].Digest.Should().Be("4675c73e6fd66d2ea9a684ec79e4e6559bb4d44a35e8234794b0691472b0385d");
         phys.Directories[0].Files[3].Digest.Should().Be("315bb3bd2eb2da5ce8b848bb7f09803d8a48e64021c4b6fe074aed9cc591c154");
 
@@ -108,8 +109,8 @@ public class MetsWrapperTests
         objDir.Files.Should().HaveCount(0);
         objDir.Directories.Should().HaveCount(5);
         objDir.Files.Should().HaveCount(0); // no direct children
-        objDir.LocalPath.Should().Be("objects");
-        objDir.Name.Should().Be("objects");
+        objDir.LocalPath.Should().Be(FolderNames.Objects);
+        objDir.Name.Should().Be(FolderNames.Objects);
         objDir.Directories.Should().Contain(d => d.LocalPath == "objects/Edgware_Community_Hospital");
         objDir.Directories.Should().Contain(d => d.LocalPath == "objects/West_Middlesex");
         objDir.Directories.Should().Contain(d => d.LocalPath == "objects/GJW_King_s_College_Hospital");

@@ -95,15 +95,24 @@ public class ResourceMutator(
     {
         // Discuss whether it's actually worth doing it this way:
         // https://stackoverflow.com/questions/479799/replace-host-in-uri
-        
         if(uri == null) return null;
-        var uriS = uri.ToString();
-        if (uriS.StartsWith(storageHost))
+        if (uri.ToString().StartsWith(storageHost))
         {
-            return new Uri(preservationHost + uriS.RemoveStart(storageHost));
+            var builder = new UriBuilder(uri)
+            {
+                Host = PreservationUri.Host,
+                Port = PreservationUri.Port,
+                Scheme = PreservationUri.Scheme
+            };
+            return new Uri(builder.Uri.ToString()); // ensures that OriginalString is preserved
         }
-
         return uri;
+        // var uriS = uri.GetStringTemporaryForTesting();
+        // if (uriS.StartsWith(storageHost))
+        // {
+        //     return new Uri(preservationHost + uriS.RemoveStart(storageHost));
+        // }
+
     }
     
     
@@ -113,13 +122,24 @@ public class ResourceMutator(
         // https://stackoverflow.com/questions/479799/replace-host-in-uri
         
         if(uri == null) return null;
-        var uriS = uri.ToString();
-        if (uriS.StartsWith(preservationHost))
+        if (uri.ToString().StartsWith(preservationHost))
         {
-            return new Uri(storageHost + uriS.RemoveStart(preservationHost));
+            var builder = new UriBuilder(uri)
+            {
+                Host = StorageUri.Host,
+                Port = StorageUri.Port,
+                Scheme = StorageUri.Scheme
+            };
+            return new Uri(builder.Uri.ToString()); // ensures that OriginalString is preserved
         }
-
         return uri;
+        // var uriS = uri.GetStringTemporaryForTesting();
+        // if (uriS.StartsWith(preservationHost))
+        // {
+        //     return new Uri(storageHost + uriS.RemoveStart(preservationHost));
+        // }
+        //
+        // return uri;
     }
 
     public Uri? GetAgentUri(string? agentName)
@@ -130,7 +150,11 @@ public class ResourceMutator(
         }
         return null;
     }
-    
+
+    public string? GetCallerIdentity(Uri? agentUri)
+    {
+        return agentUri?.GetSlug();
+    }
     
     public Uri GetActivityStreamUri(string path)
     {
@@ -160,7 +184,9 @@ public class ResourceMutator(
             ExportedBy = GetAgentUri(entity.ExportedBy),
             // ExportResult = entity.ExportResultUri, // don't do this, just rely on the Status value.
             VersionExported = entity.VersionExported,
-            VersionPreserved = entity.VersionPreserved
+            VersionPreserved = entity.VersionPreserved,
+            LockedBy = GetAgentUri(entity.LockedBy),
+            LockDate = entity.LockDate 
         };
         return deposit;
     }

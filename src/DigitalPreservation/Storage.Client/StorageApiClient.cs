@@ -161,6 +161,7 @@ public class StorageApiClient(
         string? versionToExport,
         CancellationToken cancellationToken = default)
     {        
+        logger.LogInformation("Storage API Client Executing export, archivalGroup: " + archivalGroup);
         var export = new Export
         {
             ArchivalGroup = archivalGroup,
@@ -175,6 +176,7 @@ public class StorageApiClient(
                 var exportResult = await response.Content.ReadFromJsonAsync<Export>(cancellationToken: cancellationToken);
                 if(exportResult != null)
                 {
+                    logger.LogInformation("Received exportResult with exportResult.ArchivalGroup: " + exportResult.ArchivalGroup);
                     return Result.OkNotNull(exportResult);
                 }
                 return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");

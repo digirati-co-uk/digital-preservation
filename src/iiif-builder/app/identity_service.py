@@ -36,6 +36,7 @@ def mutate(archival_group_uri):
     host_alias = host_aliases.get(ag_host, None)
     if host_alias:
         archival_group_uri = archival_group_uri.replace(ag_host, host_alias)
+        archival_group_uri = archival_group_uri.replace(f":{ag_url.port}", "")
 
     return archival_group_uri
 

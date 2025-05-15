@@ -2,6 +2,7 @@
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
@@ -16,6 +17,7 @@ namespace Preservation.API.Features.Deposits;
 [Route("[controller]")]
 [ApiController]
 public class DepositsController(
+    ILogger<DepositsController> logger,
     IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory
     ) : Controller
@@ -78,20 +80,24 @@ public class DepositsController(
             return this.StatusResponseFromResult(depositResult);
         }
         var deposit = depositResult.Value;
-        var eTag = Request.Headers.IfMatch.FirstOrDefault();
-        if (!eTag.HasText() || eTag != deposit.MetsETag)
+        if (deposit.MetsETag != null) // only should true when there is no METS file
         {
-            var pd = new ProblemDetails
+            var eTag = Request.Headers.IfMatch.FirstOrDefault();
+            if (!eTag.HasText() || eTag != deposit.MetsETag)
             {
-                Title = "Conflict: ETag does not match deposit METS",
-                Detail = deposit.MetsETag,
-                Status = 409
-            };
-            return Conflict(pd);
+                logger.LogWarning("Supplied eTag {eTag} does not match deposit eTag {depositETag}", eTag, deposit.MetsETag);
+                var pd = new ProblemDetails
+                {
+                    Title = "Conflict: ETag does not match deposit METS",
+                    Detail = deposit.MetsETag,
+                    Status = 409
+                };
+                return Conflict(pd);
+            }
         }
 
         var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
-        var filesystemResult = await workspaceManager.GetFileSystemWorkingDirectory();
+        var filesystemResult = await workspaceManager.GetFileSystemWorkingDirectory(refresh: true);
         if (filesystemResult is not { Success: true, Value: not null })
         {
             return this.StatusResponseFromResult(filesystemResult);
@@ -114,24 +120,9 @@ public class DepositsController(
             }
         }
 
-        var result = await workspaceManager.AddItemsToMets(wbsToAdd);
+        var result = await workspaceManager.AddItemsToMets(wbsToAdd, User.GetCallerIdentity());
         return this.StatusResponseFromResult(result);
     }
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
     
     
     [HttpPost("{id}/mets/delete", Name = "DeleteFromDeposit")]
@@ -148,7 +139,7 @@ public class DepositsController(
             if (eTag.HasText() && eTag == deposit.MetsETag)
             {
                 var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
-                var deleteResult = await workspaceManager.DeleteItems(deleteSelection);
+                var deleteResult = await workspaceManager.DeleteItems(deleteSelection, User.GetCallerIdentity());
                 return this.StatusResponseFromResult(deleteResult);
             }
 
@@ -283,7 +274,26 @@ public class DepositsController(
         return this.StatusResponseFromResult(result, 201, createdLocation);
     }
     
+    [HttpPost("{id}/lock", Name = "CreateLock")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> CreateLock([FromRoute] string id, [FromQuery] bool force = false)
+    {
+        var lockDepositResult = await mediator.Send(new LockDeposit(id, force, User));
+        return this.StatusResponseFromResult(lockDepositResult, successStatusCode: 204);
+    }
     
+    
+    [HttpDelete("{id}/lock", Name = "DeleteLock")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> DeleteLock([FromRoute] string id)
+    {
+        var deleteDepositLockResult = await mediator.Send(new DeleteDepositLock(id, User));
+        return this.StatusResponseFromResult(deleteDepositLockResult, successStatusCode: 204);
+    }
     
 
 
