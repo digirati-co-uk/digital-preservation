@@ -9,7 +9,17 @@ on:
     paths:
       - "src/iiif-builder/**"
       - ".github/**"
-  workflow_dispatch: {}
+  workflow_dispatch: 
+    inputs:
+      environment:
+        description: "environment"
+        required: true
+        default: "development"
+        type: choice
+        options:
+          - development
+          - test
+          - production
 
 jobs:
   build-push:
@@ -35,7 +45,7 @@ jobs:
     if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
     with:
       image_tag: "${{ github.sha }}"
-      target_env: development
+      target_env: "${{ inputs.environment || 'development' }}"
       deploy_dotnet: 'false'
       deploy_iiifbuilder: 'true'
     secrets: inherit

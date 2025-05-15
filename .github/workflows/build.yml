@@ -80,5 +80,5 @@ jobs:
     if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
     with:
       image_tag: "${{ github.sha }}"
-      target_env: "${{ inputs.environment }}"
+      target_env: "${{ inputs.environment || 'development' }}"
     secrets: inherit
