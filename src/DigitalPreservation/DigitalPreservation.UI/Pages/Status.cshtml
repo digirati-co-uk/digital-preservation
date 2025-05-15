@@ -21,6 +21,17 @@
 
 <div>
     
+    <table class="table">
+        @foreach (var kvp in Model.GetOptions())
+        {
+            <tr>
+                <th scope="row">@kvp.Key</th>
+                <td>@kvp.Value</td>
+            </tr>
+        }
+    </table>
+    
+
     @foreach (var connectivityCheckResult in Model.ConnectivityChecks)
     {
         <div class="card" style="width: 30rem; margin-top: 4rem">
