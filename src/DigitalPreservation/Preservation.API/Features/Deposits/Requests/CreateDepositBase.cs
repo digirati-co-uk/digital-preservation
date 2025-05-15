@@ -26,8 +26,7 @@ public class CreateDepositBase(
     IMetsManager metsManager,
     WorkspaceManagerFactory workspaceManagerFactory)
 {
-
-    public async Task<Result<Deposit?>> HandleBase(CreateDeposit request, CancellationToken cancellationToken)
+    protected async Task<Result<Deposit?>> HandleBase(CreateDeposit request, CancellationToken cancellationToken)
     {        
         var now = DateTime.UtcNow;
         if (request.Deposit is null)
@@ -157,9 +156,14 @@ public class CreateDepositBase(
                 createdDeposit.ArchivalGroupExists = true;
             }
 
-            // refresh the file system
-            var workspaceManager = workspaceManagerFactory.Create(createdDeposit);
-            await workspaceManager.GetCombinedDirectory(true);
+            if (!request.Export)
+            {
+                // refresh the file system
+                // The async export will do this at the end of its run, if we exported.
+                // But here we didn't, so just do a quick update (it won't take long)
+                var workspaceManager = workspaceManagerFactory.Create(createdDeposit);
+                await workspaceManager.GetCombinedDirectory(true);
+            }
             
             return Result.Ok(createdDeposit);
         }

@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Workspace;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
@@ -18,8 +19,9 @@ public class GetDepositWithMetsHandler(
     ILogger<GetDepositHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
-    ResourceMutator resourceMutator) : 
-        GetDepositBase(logger, dbContext, storageApiClient, resourceMutator), 
+    ResourceMutator resourceMutator,
+    WorkspaceManagerFactory workspaceManagerFactory) : 
+        GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory), 
         IRequestHandler<GetDepositWithMets, Result<DepositWithMets>>
 {
     public async Task<Result<DepositWithMets>> Handle(GetDepositWithMets request, CancellationToken cancellationToken)

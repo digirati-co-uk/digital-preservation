@@ -106,13 +106,13 @@ public class DeleteItemsHandler(
                 }
 
                 // this is the DeleteObject code
-                var keyPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + item.RelativePath;
+                var depositPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + item.RelativePath;
                 if (failedDeleteResult == null)
                 {
                     var dor = new DeleteObjectRequest
                     {
                         BucketName = s3Uri.Bucket,
-                        Key = s3Uri.Key + keyPath // until now, it's always been the apparent root
+                        Key = s3Uri.Key + depositPath 
                     };
                     if (item.IsDirectory && !dor.Key.EndsWith('/'))
                     {
@@ -125,8 +125,8 @@ public class DeleteItemsHandler(
                         {
                             // attempt to remove from JSON
                             var deleted = item.IsDirectory ? 
-                                request.CombinedRootDirectory.RemoveDirectoryFromDeposit(item.RelativePath, true) : 
-                                request.CombinedRootDirectory.RemoveFileFromDeposit(item.RelativePath, true);
+                                request.CombinedRootDirectory.RemoveDirectoryFromDeposit(item.RelativePath, depositPath, true) : 
+                                request.CombinedRootDirectory.RemoveFileFromDeposit(item.RelativePath, depositPath, true);
                             if (deleted)
                             {
                                 // if we can remove from JSON, remove from S3
@@ -162,11 +162,11 @@ public class DeleteItemsHandler(
                                     // Also remove from the METS branch of the combinedDirectory object graph
                                     if (item.IsDirectory)
                                     {
-                                        request.CombinedRootDirectory.RemoveDirectoryFromMets(item.RelativePath, true);
+                                        request.CombinedRootDirectory.RemoveDirectoryFromMets(item.RelativePath, depositPath, true);
                                     }
                                     else
                                     {
-                                        request.CombinedRootDirectory.RemoveFileFromMets(item.RelativePath, true);
+                                        request.CombinedRootDirectory.RemoveFileFromMets(item.RelativePath, depositPath, true);
                                     }
                                 }
                                 else

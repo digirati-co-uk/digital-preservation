@@ -146,27 +146,27 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
     //     return parent?.Files.SingleOrDefault(f => f.LocalPath!.GetUriSafeSlug() == slug);
     // }
 
-    public bool RemoveFileFromDeposit(string path, bool trueIfNotFound)
+    public bool RemoveFileFromDeposit(string path, string depositPath, bool trueIfNotFound)
     {
-        return RemoveFileFromBranch(path, trueIfNotFound, Branch.Deposit);
+        return RemoveFileFromBranch(path, depositPath, trueIfNotFound, Branch.Deposit);
     }
     
-    public bool RemoveFileFromMets(string path, bool trueIfNotFound)
+    public bool RemoveFileFromMets(string path, string depositPath, bool trueIfNotFound)
     {
-        return RemoveFileFromBranch(path, trueIfNotFound, Branch.Mets);
+        return RemoveFileFromBranch(path, depositPath, trueIfNotFound, Branch.Mets);
     }
     
-    public bool RemoveDirectoryFromDeposit(string path, bool trueIfNotFound)
+    public bool RemoveDirectoryFromDeposit(string path, string depositPath, bool trueIfNotFound)
     {
-        return RemoveDirectoryFromBranch(path, trueIfNotFound, Branch.Deposit);
+        return RemoveDirectoryFromBranch(path, depositPath, trueIfNotFound, Branch.Deposit);
     }
     
-    public bool RemoveDirectoryFromMets(string path, bool trueIfNotFound)
+    public bool RemoveDirectoryFromMets(string path, string depositPath, bool trueIfNotFound)
     {
-        return RemoveDirectoryFromBranch(path, trueIfNotFound, Branch.Mets);
+        return RemoveDirectoryFromBranch(path, depositPath, trueIfNotFound, Branch.Mets);
     }
     
-    private bool RemoveFileFromBranch(string path, bool trueIfNotFound, Branch branch)
+    private bool RemoveFileFromBranch(string path, string depositPath, bool trueIfNotFound, Branch branch)
     {
         var combinedFile = FindFile(path);
         if (combinedFile is null)
@@ -195,7 +195,8 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
 
         // remove the file from the correct files branch of the tree
-        var fileInBranch = parentDirectoryInBranch.Files.Single(f => f.LocalPath == path);
+        var removePath = branch == Branch.Deposit ? depositPath : path;
+        var fileInBranch = parentDirectoryInBranch.Files.Single(f => f.LocalPath == removePath);
         var removedFromBranch = parentDirectoryInBranch.Files.Remove(fileInBranch);
 
         switch (branch)
@@ -228,7 +229,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
     }
     
     
-    private bool RemoveDirectoryFromBranch(string path, bool trueIfNotFound, Branch branch)
+    private bool RemoveDirectoryFromBranch(string path, string depositPath, bool trueIfNotFound, Branch branch)
     {
         var combinedDirectory = FindDirectory(path);
         if (combinedDirectory is null)
@@ -262,7 +263,8 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
 
         // remove the directory from the correct directories branch of the tree
-        var directoryInBranch = parentDirectoryInBranch.Directories.Single(d => d.LocalPath == path);
+        var removePath = branch == Branch.Deposit ? depositPath : path;
+        var directoryInBranch = parentDirectoryInBranch.Directories.Single(d => d.LocalPath == removePath);
         var removedFromBranch = parentDirectoryInBranch.Directories.Remove(directoryInBranch);
 
         switch (branch)
