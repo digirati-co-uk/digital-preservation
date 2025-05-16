@@ -17,15 +17,18 @@ def add_descriptive_metadata_to_manifest(manifest, descriptive_metadata) -> Resu
         # bug in test data
         title = data.get("Title", None) or data.get("title", None) or "[NO TITLE]"
         manifest["label"] = { "en": [ title ] }
+        add_metadata_label_and_value(manifest, data, "Identifier", "none")
         add_metadata_label_and_value(manifest, data, "Shelfmark", "none")
         add_metadata_label_and_value(manifest, data, "Object Number", "none")
         add_metadata_label_and_value(manifest, data, "Date", "none")
         add_metadata_label_and_value(manifest, data, "Description", "en") # is it always though?
         add_metadata_label_and_value(manifest, data, "Dimensions", "none")
+        add_metadata_label_and_value(manifest, data, "Weight", "none")
         add_metadata_label_and_value(manifest, data, "Notes", "en")
         add_metadata_label_and_value(manifest, data, "Collections", "en")
         add_metadata_label_and_value(manifest, data, "Credit Line", "none")
         add_metadata_label_and_value(manifest, data, "Attribution", "en")
+        add_metadata_label_and_value(manifest, data, "Extent", "en")
         add_metadata_label_and_value(manifest, data, "Medium", "en")
         add_metadata_label_and_value(manifest, data, "Technique", "en")
         add_metadata_label_and_value(manifest, data, "Support", "en")
