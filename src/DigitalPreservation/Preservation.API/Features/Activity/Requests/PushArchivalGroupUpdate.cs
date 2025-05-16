@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Data.Entities;
+using Preservation.API.Mutation;
 using Storage.Client;
 
 namespace Preservation.API.Features.Activity.Requests;
@@ -14,6 +15,7 @@ public class PushArchivalGroupUpdate(DigitalPreservation.Common.Model.ChangeDisc
 }
 
 public class PushArchivalGroupUpdateHandler(
+    ResourceMutator resourceMutator,
     IStorageApiClient storageApiClient,
     PreservationContext dbContext) : IRequestHandler<PushArchivalGroupUpdate, Result>
 {
@@ -37,6 +39,12 @@ public class PushArchivalGroupUpdateHandler(
         if (request.Activity.Object.Type != nameof(ArchivalGroup))
         {
             return Result.Fail(ErrorCodes.BadRequest, "Only ArchivalGroup objects are supported");
+        }
+
+        if (!request.Activity.Object.Id.ToString().StartsWith(resourceMutator.PreservationUri.ToString()))
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"Supplied object host name must be {resourceMutator.PreservationUri} (not {request.Activity.Object.Id.Host})");
         }
         
         var resourceTypeResult = await storageApiClient.GetResourceType(request.Activity.Object.Id.PathAndQuery);
