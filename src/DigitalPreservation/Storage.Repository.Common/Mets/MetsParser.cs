@@ -525,7 +525,14 @@ public class MetsParser(
                         var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
                         if (storageUri != null)
                         {
-                            storageLocation = new Uri(storageUri);
+                            try
+                            {
+                                storageLocation = new Uri(storageUri);
+                            }
+                            catch (Exception e)
+                            {
+                                logger.LogError(e, "Unable to parse storage location {storageUri}", storageUri);
+                            }
                         }
                         haveUsedAdmIdAlready = true;
                         var format = techMd.Descendants(XNames.PremisFormat).SingleOrDefault();
