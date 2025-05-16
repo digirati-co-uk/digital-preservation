@@ -12,4 +12,6 @@ public class PreservationOptions
     /// <summary>
     /// Timeout, in MINUTES, for requests made to preservation client 
     public double TimeoutMinutes { get; set; } = 10;
+    
+    public string? ManifestHost { get; set; }
 }

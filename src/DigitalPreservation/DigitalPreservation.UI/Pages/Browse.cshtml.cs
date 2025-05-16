@@ -13,12 +13,14 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using Preservation.Client;
 using Storage.Repository.Common.Mets;
 
 namespace DigitalPreservation.UI.Pages;
 
 public class BrowseModel(
+    IOptions<PreservationOptions> preservationOptions,
     IMediator mediator, 
     IPreservationApiClient preservationApiClient, 
     ILogger<BrowseModel> logger,
@@ -405,5 +407,10 @@ public class BrowseModel(
         }
 
         return Result.Fail(ErrorCodes.BadRequest, reason);
+    }
+
+    public string GetIIIFManifest()
+    {
+        return $"{preservationOptions.Value.ManifestHost}/{Resource?.GetPathUnderRoot()}";
     }
 }
