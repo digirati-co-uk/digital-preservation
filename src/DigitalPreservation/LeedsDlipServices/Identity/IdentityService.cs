@@ -31,9 +31,7 @@ public class IdentityService(
         try
         {
             var uri = new Uri($"{ApiPrefix}ids?q={q}&s={schema}", UriKind.Relative);
-            logger.LogInformation("Identity Service: ");
-            logger.LogInformation("headers: " + string.Join(", ", httpClient.DefaultRequestHeaders.Select(h => $"{h.Key}: {string.Join("; ", h.Value)}")));
-            logger.LogInformation("BaseAddress: " + httpClient.BaseAddress);
+            logger.LogInformation("Calling identity Service for {uri}", uri);
             var response = await httpClient.GetAsync(uri, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
@@ -56,9 +54,11 @@ public class IdentityService(
                 
             }
 
+            var message =
+                $"Identity Service returned {response.StatusCode} for {schema}={q}, {response.ReasonPhrase ?? "(no reason given)"}";
+            logger.LogError(message);
             var errorCode = ErrorCodes.GetErrorCode((int?)response.StatusCode);
-            return Result.FailNotNull<IdentityRecord>(errorCode, 
-                $"Identity Service returned {response.StatusCode} for {schema}={q}, {response.ReasonPhrase ?? "(no reason given)"}");
+            return Result.FailNotNull<IdentityRecord>(errorCode, message);
         }
         catch (Exception e)
         {
