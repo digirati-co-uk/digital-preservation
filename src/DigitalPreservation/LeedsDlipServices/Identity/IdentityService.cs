@@ -3,11 +3,13 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace LeedsDlipServices.Identity;
 
 public class IdentityService(
+    ILogger<IdentityService> logger,
     HttpClient httpClient,
     IOptions<IdentityOptions> options) : IIdentityService
 {
@@ -29,6 +31,9 @@ public class IdentityService(
         try
         {
             var uri = new Uri($"{ApiPrefix}ids?q={q}&s={schema}", UriKind.Relative);
+            logger.LogInformation("Identity Service: ");
+            logger.LogInformation("headers: " + string.Join(", ", httpClient.DefaultRequestHeaders.Select(h => $"{h.Key}: {string.Join("; ", h.Value)}")));
+            logger.LogInformation("BaseAddress: " + httpClient.BaseAddress);
             var response = await httpClient.GetAsync(uri, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
