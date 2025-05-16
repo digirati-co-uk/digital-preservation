@@ -31,6 +31,9 @@ public class StatusModel(
     {
         var backendPreservationAlive = await mediator.Send(new VerifyPreservationRunning());
         ConnectivityChecks.Add(backendPreservationAlive);
+        
+        var backendPreservationAliveNoAuth = await mediator.Send(new VerifyPreservationRunningNoAuth());
+        ConnectivityChecks.Add(backendPreservationAliveNoAuth);
 
         var uiCanTalkToS3 = await mediator.Send(new VerifyS3Reachable(ConnectivityCheckResult.PreservationUIReadS3));
         ConnectivityChecks.Add(uiCanTalkToS3);
