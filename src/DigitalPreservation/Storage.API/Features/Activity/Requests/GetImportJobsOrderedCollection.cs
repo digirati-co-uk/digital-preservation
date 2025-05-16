@@ -10,36 +10,47 @@ namespace Storage.API.Features.Activity.Requests;
 public class GetImportJobsOrderedCollection : IRequest<Result<OrderedCollection>> { }
 
 public class GetImportJobsOrderedCollectionHandler(
+    ILogger<GetImportJobsOrderedCollectionHandler> logger,
     IImportJobResultStore importJobResultStore,
     Converters converters) : IRequestHandler<GetImportJobsOrderedCollection, Result<OrderedCollection>>
 {
     public async Task<Result<OrderedCollection>> Handle(GetImportJobsOrderedCollection request, CancellationToken cancellationToken)
     {
-        var totalItemsResult = await importJobResultStore.GetTotalImportJobs(cancellationToken);
-        if (totalItemsResult is not { Success: true, Value: > 0 })
+        try
         {
-            return Result.FailNotNull<OrderedCollection>(ErrorCodes.UnknownError, totalItemsResult.ErrorMessage);
-        }
-        var id = converters.ActivityUri("importjobs/collection");
-        int totalPages = totalItemsResult.Value / OrderedCollectionPage.DefaultPageSize;
-        if (totalItemsResult.Value % OrderedCollectionPage.DefaultPageSize > 0)
-        {
-            totalPages++;
-        }
-        var collection = new OrderedCollection
-        {
-            Id = id,
-            First = new OrderedCollectionPage
+            var totalItemsResult = await importJobResultStore.GetTotalImportJobs(cancellationToken);
+            if (totalItemsResult is not { Success: true, Value: > 0 })
             {
-                Id = converters.ActivityUri("importjobs/pages/1")
-            },
-            Last =  new OrderedCollectionPage
+                return Result.FailNotNull<OrderedCollection>(ErrorCodes.UnknownError, totalItemsResult.ErrorMessage);
+            }
+
+            var id = converters.ActivityUri("importjobs/collection");
+            int totalPages = totalItemsResult.Value / OrderedCollectionPage.DefaultPageSize;
+            if (totalItemsResult.Value % OrderedCollectionPage.DefaultPageSize > 0)
             {
-                Id = converters.ActivityUri($"importjobs/pages/{totalPages}")
-            },
-            TotalItems = totalItemsResult.Value
-        };
-        collection.WithContext();
-        return Result.OkNotNull(collection);
+                totalPages++;
+            }
+
+            var collection = new OrderedCollection
+            {
+                Id = id,
+                First = new OrderedCollectionPage
+                {
+                    Id = converters.ActivityUri("importjobs/pages/1")
+                },
+                Last = new OrderedCollectionPage
+                {
+                    Id = converters.ActivityUri($"importjobs/pages/{totalPages}")
+                },
+                TotalItems = totalItemsResult.Value
+            };
+            collection.WithContext();
+            return Result.OkNotNull(collection);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not get import jobs ordered collection");
+            return Result.FailNotNull<OrderedCollection>(ErrorCodes.UnknownError, "Could not get import jobs ordered collection: " + e.Message);
+        }
     }
 }
