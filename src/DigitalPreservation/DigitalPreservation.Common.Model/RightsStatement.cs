@@ -18,13 +18,13 @@ public class RightsStatement
             new RightsStatement 
             { 
                 Label = "In Copyright - EU Orphan Work", 
-                ShortLabel = "InC-EU",
+                ShortLabel = "InC-OW-EU",
                 Value = new Uri("http://rightsstatements.org/vocab/InC-OW-EU/1.0/") 
             },
             new RightsStatement
             {
                 Label = "In Copyright - Educational Use Permitted", 
-                ShortLabel = "InC-EU",
+                ShortLabel = "InC-EDU",
                 Value = new Uri("http://rightsstatements.org/vocab/InC-EDU/1.0/") 
             },
             new RightsStatement
