@@ -1,4 +1,4 @@
-namespace Storage.API.Fedora;
+﻿namespace Storage.API.Fedora;
 
 public class FedoraOptions
 {
@@ -22,7 +22,7 @@ public class FedoraOptions
     /// <summary>
     /// Timeout, in MINUTES, for requests made to Fedora
     /// </summary>
-    public double TimeoutMinutes { get; set; } = 60;
+    public double TimeoutMinutes { get; set; } = 1440;
 
     // This feels like a storage API setting not a Fedora setting, but it's used by Fedora client...
     public bool RequireDigestOnBinary { get; set; } = true;
