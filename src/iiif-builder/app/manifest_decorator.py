@@ -52,7 +52,7 @@ def add_descriptive_metadata_to_manifest(manifest, descriptive_metadata) -> Resu
         return Result.success(None)
 
     except Exception as e:
-        msg = f"Could not call catalogue API: {e}"
+        msg = f"Could not call catalogue API: {repr(e)}"
         logger.error(msg)
         return Result(False, msg)
 

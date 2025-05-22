@@ -62,7 +62,7 @@ async def get_activities(stream_uri: str, session: ClientSession, last_event_tim
         return Result.success(activities)
 
     except Exception as e:
-        logger.error(f"Error getting activities: {e}")
+        logger.error(f"Error getting activities: {repr(e)}")
         return Result(False, "Unable to get activities")
 
 
@@ -74,7 +74,7 @@ async def load_archival_group(session: ClientSession, archival_group_uri: str) -
         ag = await ag_response.json()
         return Result.success(ag)
     except Exception as e:
-        logger.error(f"Error getting archival group: {e}")
+        logger.error(f"Error getting archival group: {repr(e)}")
         return Result(False, "Unable to load Archival Group")
 
 
@@ -89,5 +89,5 @@ async def load_mets(session: ClientSession, archival_group_uri:str) -> Result:
         return Result.success(mets_wrapper)
 
     except Exception as e:
-        logger.error(f"Error getting mets: {e}")
+        logger.error(f"Error getting mets: {repr(e)}")
         return Result(False, "Unable to load Mets")

@@ -35,7 +35,7 @@ async def read_stream():
                 logger.debug(f"Sleeping for {settings.ACTIVITY_STREAM_READ_INTERVAL}s")
                 await asyncio.sleep(settings.ACTIVITY_STREAM_READ_INTERVAL)
     except Exception as e:
-        logger.error(f"Fatal error in iiif-builder: {e}")
+        logger.error(f"Fatal error in iiif-builder: {repr(e)}")
         raise e
 
     logger.info("stopping iiif-builder..")
