@@ -1,4 +1,6 @@
 import datetime
+import traceback
+
 import msal
 
 from aiohttp import ClientSession
@@ -62,6 +64,8 @@ async def get_activities(stream_uri: str, session: ClientSession, last_event_tim
         return Result.success(activities)
 
     except Exception as e:
+        et = traceback.format_exc()
+        logger.error(f"Error getting activities (traceback): {et}")
         logger.error(f"Error getting activities: {repr(e)}")
         return Result(False, "Unable to get activities")
 
