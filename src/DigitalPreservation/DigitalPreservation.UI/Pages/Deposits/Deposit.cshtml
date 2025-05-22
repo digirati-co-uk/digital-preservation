@@ -549,7 +549,7 @@ ViewData["section"] = "deposits";
                     @{
                         var agRoot = Url.PageLink("/browse", null, new { PathUnderRoot = string.Empty })!.ToLowerInvariant();
                     }
-                    @if (Model.Deposit!.ArchivalGroupExists)
+                    @if (Model.Deposit is not null && Model.Deposit.ArchivalGroupExists)
                     {
                         <p>The path is the intended URI of the Archival Group, minus the initial <code>@agRoot</code> part.</p>
                     }
