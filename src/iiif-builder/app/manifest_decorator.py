@@ -17,7 +17,7 @@ def add_descriptive_metadata_to_manifest(manifest, descriptive_metadata) -> Resu
         # bug in test data
         title = data.get("Title", None) or data.get("title", None) or "[NO TITLE]"
         manifest["label"] = { "en": [ title ] }
-        logger.debug("Adding descriptive metadata to manifest; keys are: " + ", ".join(descriptive_metadata.keys()))
+        logger.debug("Adding descriptive metadata to manifest; keys are: " + ", ".join(data.keys()))
         add_metadata_label_and_value(manifest, data, "Identifier", "none")
         add_metadata_label_and_value(manifest, data, "Shelfmark", "none")
         add_metadata_label_and_value(manifest, data, "Object Number", "none")
