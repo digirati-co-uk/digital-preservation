@@ -31,14 +31,7 @@ public class PatchDepositHandler(
             return Result.FailNotNull<Deposit>(ErrorCodes.BadRequest, "No Deposit provided");
         }
         var callerIdentity = request.Principal.GetCallerIdentity();
-        var otherLockOwner = request.Deposit.GetOtherLockOwner(callerIdentity);
         logger.LogInformation("Patching deposit {id} for user {user}", request.Deposit.Id, callerIdentity);
-        logger.LogInformation("Deposit.LockedBy is {lockedBy}", request.Deposit.LockedBy);
-        if (otherLockOwner is not null)
-        {
-            logger.LogWarning("Deposit is locked by {otherLockOwner}, returning Conflict", otherLockOwner);
-            return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is locked by " + otherLockOwner);
-        }
         try
         {
             
@@ -57,6 +50,12 @@ public class PatchDepositHandler(
             if (entity.Status == DepositStates.Exporting)
             {
                 return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is being exported");
+            }
+            logger.LogInformation("Deposit.LockedBy is {lockedBy}", entity.LockedBy);
+            if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
+            {
+                logger.LogWarning("Deposit is locked by {otherLockOwner}, returning Conflict", entity.LockedBy);
+                return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is locked by " + entity.LockedBy);
             }
             
             // there are only some patchable fields

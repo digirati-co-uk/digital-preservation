@@ -28,7 +28,7 @@ public class DeleteDepositHandler(
             var entity = await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == request.Id, cancellationToken);
             if (entity != null)
             {
-                if (entity.LockedBy != null && entity.LockedBy != callerIdentity)
+                if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
                 {
                     return Result.Fail(ErrorCodes.Conflict, "Deposit is locked by " + entity.LockedBy);
                 }
