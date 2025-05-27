@@ -97,6 +97,12 @@ public class Deposit : Resource
 
     public const string BasePathElement = "deposits";
     
+    /// <summary>
+    /// Make sure the deposit has been freshly acquired from the DB before using this!
+    /// Don't run this on a user-supplied deposit.
+    /// </summary>
+    /// <param name="callerIdentity"></param>
+    /// <returns></returns>
     public string? GetOtherLockOwner(string? callerIdentity)
     {
         if (callerIdentity.HasText() && LockedBy != null)
