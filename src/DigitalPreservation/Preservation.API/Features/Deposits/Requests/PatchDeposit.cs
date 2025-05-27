@@ -32,8 +32,10 @@ public class PatchDepositHandler(
         }
         var callerIdentity = request.Principal.GetCallerIdentity();
         var otherLockOwner = request.Deposit.GetOtherLockOwner(callerIdentity);
+        logger.LogInformation("Patching deposit {id} for user {user}", request.Deposit.Id, callerIdentity);
         if (otherLockOwner is not null)
         {
+            logger.LogWarning("Deposit is locked by {otherLockOwner}, returning Conflict", otherLockOwner);
             return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is locked by " + otherLockOwner);
         }
         try
