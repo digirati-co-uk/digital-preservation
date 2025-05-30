@@ -29,6 +29,7 @@ public static class ServiceCollectionX
                 var fedoraOptions = provider.GetRequiredService<IOptions<FedoraOptions>>().Value;
                 client.BaseAddress = fedoraOptions.Root.ThrowIfNull(nameof(fedoraOptions.Root));
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
+                client.DefaultRequestHeaders.WithUserAgent($"{componentName}/1.0");
                 client.Timeout = TimeSpan.FromMinutes(fedoraOptions.TimeoutMinutes);
                 
                 // NOTE - this may change depending on how Auth is handled, may be better suited to something in

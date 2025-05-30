@@ -49,7 +49,7 @@ try
     builder.Services
         .AddOcfl(builder.Configuration)
         .AddMemoryCache()
-        .AddFedoraClient(builder.Configuration, "Storage-API-IIIF-Builder")
+        .AddFedoraClient(builder.Configuration, "Storage-API-Importer")
         .AddFedoraDB(builder.Configuration, "Fedora")
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IHttpContextAccessor, HttpContextAccessor>()

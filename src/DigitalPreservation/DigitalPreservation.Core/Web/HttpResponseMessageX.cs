@@ -15,4 +15,18 @@ public static class HttpResponseMessageX
         headers.Add("x-requested-by", componentName);
         return headers;
     }
+    
+    /// <summary>
+    /// Add a user agent to outgoing request headers.
+    ///
+    /// See https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent for syntax
+    /// </summary>
+    /// <param name="headers">Current collection of headers</param>
+    /// <param name="userAgent">User-Agent value</param>
+    /// <returns></returns>
+    public static HttpRequestHeaders WithUserAgent(this HttpRequestHeaders headers, string userAgent)
+    {
+        headers.Add("User-Agent", userAgent);
+        return headers;
+    }
 }
