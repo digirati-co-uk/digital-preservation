@@ -221,7 +221,7 @@ public class DepositsController(
     [ProducesResponseType(400)]
     public async Task<IActionResult> DeleteDeposit([FromRoute] string id)
     {
-        var result = await mediator.Send(new DeleteDeposit(id));
+        var result = await mediator.Send(new DeleteDeposit(id, User));
         return this.StatusResponseFromResult(result, 204);
     }
     

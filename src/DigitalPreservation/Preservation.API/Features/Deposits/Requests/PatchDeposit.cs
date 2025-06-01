@@ -31,11 +31,7 @@ public class PatchDepositHandler(
             return Result.FailNotNull<Deposit>(ErrorCodes.BadRequest, "No Deposit provided");
         }
         var callerIdentity = request.Principal.GetCallerIdentity();
-        var otherLockOwner = request.Deposit.GetOtherLockOwner(callerIdentity);
-        if (otherLockOwner is not null)
-        {
-            return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is locked by " + otherLockOwner);
-        }
+        logger.LogInformation("Patching deposit {id} for user {user}", request.Deposit.Id, callerIdentity);
         try
         {
             
@@ -55,11 +51,26 @@ public class PatchDepositHandler(
             {
                 return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is being exported");
             }
+            logger.LogInformation("Deposit.LockedBy is {lockedBy}", entity.LockedBy);
+            if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
+            {
+                logger.LogWarning("Deposit is locked by {otherLockOwner}, returning Conflict", entity.LockedBy);
+                return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is locked by " + entity.LockedBy);
+            }
             
             // there are only some patchable fields
-            entity.SubmissionText = request.Deposit.SubmissionText;
-            entity.ArchivalGroupPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot(true);
-            entity.ArchivalGroupName = request.Deposit.ArchivalGroupName;
+            if (request.Deposit.SubmissionText.HasText())
+            {
+                entity.SubmissionText = request.Deposit.SubmissionText;
+            }
+            if (request.Deposit.ArchivalGroup != null)
+            {
+                entity.ArchivalGroupPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot(true);
+            }
+            if (request.Deposit.ArchivalGroupName.HasText())
+            {
+                entity.ArchivalGroupName = request.Deposit.ArchivalGroupName;
+            }
             
             entity.LastModifiedBy = callerIdentity;
             entity.LastModified = DateTime.UtcNow;
