@@ -401,4 +401,65 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         return Result.OkNotNull(container);
     }
 
+    public FileSizeTotals GetSizeTotals()
+    {
+        var totals = new FileSizeTotals();
+        AddBinariesToTotals(this, totals, false);
+        return totals;
+    }
+
+    private void AddBinariesToTotals(CombinedDirectory combinedDirectory, FileSizeTotals totals, bool includeDirInCount = true)
+    {
+        if (includeDirInCount)
+        {
+            totals.TotalDirectoryCount++;
+        }
+        foreach (var combinedFile in combinedDirectory.Files)
+        {
+            if (combinedFile.LocalPath!.StartsWith("__"))
+            {
+                continue; // We need IStorage.DepositFileSystem but we'd have to reference Storage.Repository.Common
+            }
+            totals.TotalFileCount++;
+            var addedToTotal = false;
+            if (combinedFile.FileInDeposit != null)
+            {
+                var size = combinedFile.FileInDeposit.Size;
+                if (size is null or <= 0)
+                {
+                    size = combinedFile.GetCachedDepositFileFormatMetadata()?.Size;
+                }
+                totals.TotalSizeInDeposit += size ?? 0;
+                if (size is > 0)
+                {
+                    totals.TotalSize += size.Value;
+                    addedToTotal = true;
+                }
+            }
+
+            if (combinedFile.FileInMets != null)
+            {
+                var metsSize = combinedFile.FileInMets.Size ?? 0;
+                totals.TotalSizeInMets += metsSize;
+                if(!addedToTotal)
+                {
+                    totals.TotalSize += metsSize;
+                }
+            }
+        }
+        
+        foreach (var childDirectory in combinedDirectory.Directories)
+        {
+            AddBinariesToTotals(childDirectory, totals);
+        }
+    }
+}
+
+public class FileSizeTotals
+{
+    public int TotalFileCount { get; set; } = 0;
+    public int TotalDirectoryCount { get; set; } = 0;
+    public long TotalSize { get; set; }
+    public long TotalSizeInDeposit { get; set; }
+    public long TotalSizeInMets { get; set; }
 }
