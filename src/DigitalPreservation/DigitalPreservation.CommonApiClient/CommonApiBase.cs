@@ -35,14 +35,20 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
         return Result.Cast<PreservedResource?, ArchivalGroup?>(result);
     }
     
-    private async Task<Result<PreservedResource?>> GetResourceInternal(string path, string? version)
+    private async Task<Result<PreservedResource?>> GetResourceInternal(string path, string? version, int? page = null)
     {        
         // path MUST be the full /repository... path, which we just pass through as-is
         try
         {
+            var qsChar = '?';
             if(!string.IsNullOrWhiteSpace(version))
             {
-                path += "?version=" + version;
+                path += $"?version={version}";
+                qsChar = '&';
+            }
+            if (page is > 1)
+            {
+                path += $"{qsChar}page={page}";
             }
             var uri = new Uri(path, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);

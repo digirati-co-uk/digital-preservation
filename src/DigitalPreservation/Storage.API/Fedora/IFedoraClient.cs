@@ -24,10 +24,12 @@ public interface IFedoraClient
     /// Get a resource from fedora
     /// </summary>
     /// <param name="pathUnderFedoraRoot">The path within the repository - i.e., not including /fcrepo/rest/ or /repository/</param>
+    /// <param name="pageSize"></param>
     /// <param name="transaction"></param>
     /// <param name="cancellationToken"></param>
+    /// <param name="page"></param>
     /// <returns></returns>
-    Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default);
+    Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, int page, int pageSize, Transaction? transaction = null, CancellationToken cancellationToken = default);
 
     Task<Result<string?>> GetResourceType(string? pathUnderFedoraRoot, Transaction? transaction = null);
     // Task<Result<Container?>> ContainerCanBeCreatedAtPath(string pathUnderFedoraRoot, Transaction? transaction = null);

@@ -5,7 +5,7 @@ namespace DigitalPreservation.Common.Model;
 // See https://www.hydra-cg.com/spec/latest/core/#templated-links
 // Slightly adapted
 
-public class QueryStringPager(Uri baseUri, int totalItems)
+public class QueryStringPager(Uri baseUri, int totalItems, int page, int pageSize)
 {
     [JsonPropertyOrder(10)]
     [JsonPropertyName("baseUri")]
@@ -15,17 +15,17 @@ public class QueryStringPager(Uri baseUri, int totalItems)
     [JsonPropertyName("totalItems")]
     public int TotalItems { get; } = totalItems;
     
+    [JsonPropertyOrder(21)]
+    [JsonPropertyName("page")]
+    public int Page { get; } = page;
+    
+    [JsonPropertyOrder(22)]
+    [JsonPropertyName("pageSize")]
+    public int PageSize { get; } = pageSize;
+    
     [JsonPropertyOrder(30)]
     [JsonPropertyName("queryTemplate")]
-    public QueryTemplate QueryTemplate { get; } = new()
-    {
-        Template = "?page={page}&pageSize={pageSize}",
-        Mapping =
-        [
-            new VariableMapping("page", "Page", false, "1"),
-            new VariableMapping("pageSize", "Page size", false, "500"),
-        ]
-    };
+    public QueryTemplate? QueryTemplate { get; set; }
 }
 
 public class QueryTemplate

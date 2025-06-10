@@ -18,6 +18,7 @@ public class FedoraDB
     private int binary;
 
     private readonly string? containmentQuery;
+    private readonly string? countQuery;
 
     static FedoraDB()
     {
@@ -44,11 +45,16 @@ public class FedoraDB
             {
                 Available = true;
                 containmentQuery =
-                    " select containment.fedora_id, created, modified, content_size, mime_type, rdf_type_id " + 
+                    " select containment.fedora_id, created, modified, content_size, mime_type, " +
+                    " array_agg(rdf_type_id) as rdf_type_ids " + 
                     " from containment inner join simple_search on containment.fedora_id=simple_search.fedora_id " + 
                     " left join search_resource_rdf_type on simple_search.id=search_resource_rdf_type.resource_id " + 
                     " where containment.parent=@parent and rdf_type_id in " + searchTypeIds + " " +
-                    " order by containment.fedora_id ";
+                    " group by containment.fedora_id, created, modified, content_size, mime_type " +
+                    " order by containment.fedora_id " +
+                    " offset @offset limit @limit";
+                
+                countQuery = "select count(*) from containment where containment.parent=@parent";
             }
         }
         catch (Exception ex)
@@ -76,27 +82,37 @@ public class FedoraDB
         return new NpgsqlConnection(connectionString);
     }
 
-    public async Task<Container?> GetPopulatedContainer(Uri fedoraUri)
+
+    public async Task<int?> GetContainmentCount(Uri fedoraUri)
     {
         var parent = converters!.GetFedoraDbId(fedoraUri);
+        var count = await GetConnection().QuerySingleAsync<int>(countQuery!, new { parent });
+        return count;
+    }
+
+    public async Task<Container?> GetPopulatedContainer(Uri fedoraUri, int page, int pageSize)
+    {
+        var parent = converters!.GetFedoraDbId(fedoraUri);
+        var offset = (page - 1) * pageSize;
+        var limit = pageSize;
         var containedResources = await GetConnection()
-            .QueryAsync<SearchRowWithType>(containmentQuery!, new { parent });
-        string fedoraId = "";
-        List<SearchRowWithType> collapsed = [];
-        SearchRowWithType? current = null;
-        foreach (var rowWithType in containedResources)
-        {
-            if (rowWithType.FedoraId != fedoraId)
-            {
-                current = rowWithType;
-                collapsed.Add(current);
-                fedoraId = rowWithType.FedoraId;
-            }
-            current!.RdfTypeIds.Add(rowWithType.RdfTypeId);
-        }
+            .QueryAsync<SearchRowWithType>(containmentQuery!, new { parent, offset, limit });
+        // string fedoraId = "";
+        // List<SearchRowWithType> collapsed = [];
+        // SearchRowWithType? current = null;
+        // foreach (var rowWithType in containedResources)
+        // {
+        //     if (rowWithType.FedoraId != fedoraId)
+        //     {
+        //         current = rowWithType;
+        //         collapsed.Add(current);
+        //         fedoraId = rowWithType.FedoraId;
+        //     }
+        //     current!.RdfTypeIds.Add(rowWithType.RdfTypeId);
+        // }
         
         var container = new Container();
-        foreach (var rowWithType in collapsed)
+        foreach (var rowWithType in containedResources)
         {
             if (rowWithType.RdfTypeIds.Contains(leedsArchivalGroup))
             {
@@ -149,6 +165,5 @@ class SearchRowWithType
     public DateTime Modified { get; set; }
     public int ContentSize { get; set; }
     public string? MimeType { get; set; }
-    public int RdfTypeId { get; set; }
-    public List<int> RdfTypeIds { get; set; } = [];
+    public long[] RdfTypeIds { get; set; } = [];
 }

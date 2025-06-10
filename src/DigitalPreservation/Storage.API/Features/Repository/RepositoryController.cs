@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
@@ -19,10 +20,30 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> Browse([FromRoute] string? path)
+    public async Task<IActionResult> Browse([FromRoute] string? path, [FromQuery] int? page, [FromQuery] int? pageSize)
     {
-       
-        var result = await mediator.Send(new GetResourceFromFedora(path));
+        Result<PreservedResource?> result;
+        if (page.HasValue && pageSize.HasValue && page.Value > 0 && pageSize.Value > 0)
+        {
+            result = await mediator.Send(new GetResourceFromFedora(path, page.Value, pageSize.Value));
+        }
+        else
+        {
+            result = await mediator.Send(new GetResourceFromFedora(path));
+        }
+
+        if (result is { Success: true, Value: Container { ContainerPager: not null } container })
+        {
+            container.ContainerPager.QueryTemplate = new QueryTemplate
+            {
+                Template = "?page={page}&pageSize={pageSize}",
+                Mapping =
+                [
+                    new VariableMapping("page", "Page", false, "1"),
+                    new VariableMapping("pageSize", "Page size", false, $"{GetResourceFromFedora.DefaultPageSize}"),
+                ]
+            };
+        }
         return this.StatusResponseFromResult(result);
     }
     

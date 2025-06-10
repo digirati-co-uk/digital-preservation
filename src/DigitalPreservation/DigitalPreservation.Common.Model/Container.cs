@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using Microsoft.VisualBasic.CompilerServices;
 
 namespace DigitalPreservation.Common.Model;
 

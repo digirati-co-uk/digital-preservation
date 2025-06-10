@@ -26,7 +26,7 @@ internal class FedoraClient(
     private readonly bool requireChecksum = fedoraOptions.Value.RequireDigestOnBinary;
     private readonly string fedoraBucket = fedoraOptions.Value.Bucket;
     
-    public async Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, Transaction? transaction = null, CancellationToken cancellationToken = default)
+    public async Task<Result<PreservedResource?>> GetResource(string? pathUnderFedoraRoot, int page=1, int pageSize=100, Transaction? transaction = null, CancellationToken cancellationToken = default)
     {
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
         var typeRes = await GetResourceType(pathUnderFedoraRoot, transaction);
@@ -70,7 +70,8 @@ internal class FedoraClient(
                 uri, 
                 isArchivalGroup: false, 
                 recurse: false, 
-                canUseDb: storageMap == null);
+                canUseDb: storageMap == null,
+                page, pageSize);
             if (storageMap != null && container != null)
             {
                 PopulateOrigins(storageMap, container);
@@ -101,7 +102,7 @@ internal class FedoraClient(
         logger.LogInformation("Obtained StorageMap; Root: {root}, ObjectPath: {objectPath}", storageMap.Root, storageMap.ObjectPath);
         MergeVersions(versions, storageMap.AllVersions);
 
-        if(await GetPopulatedContainer(uri, true, true, false) is not ArchivalGroup archivalGroup)
+        if(await GetPopulatedContainer(uri, true, true, false, -1, -1) is not ArchivalGroup archivalGroup)
         {
             return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"{uri} is not an Archival Group");
         }
@@ -682,7 +683,7 @@ internal class FedoraClient(
         }
         
         // OK, so it's a Container - but now we need to validate that it's a deletable container
-        var container = await GetPopulatedContainer(fedoraLocation, false, false, false);
+        var container = await GetPopulatedContainer(fedoraLocation, false, false, false, -1, -1);
         if (container == null || container.PartOf != null || container.Containers.Count > 0 || container.Binaries.Count > 0)
         {
             return Result.Fail(ErrorCodes.BadRequest, "This is not a deletable container");
@@ -742,17 +743,34 @@ internal class FedoraClient(
         return Result.Fail<ArchivalGroup>(agResult.ErrorCode ?? ErrorCodes.UnknownError, agResult.ErrorMessage);
     }
 
-    private async Task<Container?> GetPopulatedContainer(Uri uri, bool isArchivalGroup, bool recurse, bool canUseDb)
+    private async Task<Container?> GetPopulatedContainer(
+        Uri uri, bool isArchivalGroup, bool recurse, bool canUseDb,
+        int page, int pageSize)
     {
         // temporarily use recurse as a flag to use DB.
         Container? dbContainer = null;
         if (canUseDb && fedoraDB.Available)
         {
-            dbContainer = await fedoraDB.GetPopulatedContainer(uri);
-            if (dbContainer is { Containers.Count: < 20, Binaries.Count: < 20 })
+            var containmentCount = await fedoraDB.GetContainmentCount(uri);
+            if (containmentCount is > 20)
             {
-                // Has few enough child items that WithContainedDescriptions is OK to use
-                dbContainer = null;
+                dbContainer = await fedoraDB.GetPopulatedContainer(uri, page, pageSize);
+                if (page <= 1 && dbContainer is { Containers.Count: < 20, Binaries.Count: < 20 })
+                {
+                    // Has few enough child items that WithContainedDescriptions is OK to use
+                    dbContainer = null;
+                }
+
+                if (page < 1 || pageSize < 1)
+                {
+                    dbContainer = null;
+                }
+                if(dbContainer != null)
+                {
+                    var baseUri = converters.ConvertToRepositoryUri(uri);
+                    dbContainer.ContainerPager = new QueryStringPager(
+                        baseUri, containmentCount.Value, page, pageSize);
+                }
             }
         }
         // TODO: This is not using transaction - should it?
@@ -813,6 +831,7 @@ internal class FedoraClient(
 
             topContainer.Containers = dbContainer.Containers;
             topContainer.Binaries = dbContainer.Binaries;
+            topContainer.ContainerPager = dbContainer.ContainerPager;
             return topContainer;
         }
         
@@ -831,7 +850,7 @@ internal class FedoraClient(
                 Container? container;
                 if (recurse)
                 {
-                    container = await GetPopulatedContainer(fedoraContainer.Id, false, true, canUseDb);
+                    container = await GetPopulatedContainer(fedoraContainer.Id, false, true, false, -1, -1);
                 }
                 else
                 {
