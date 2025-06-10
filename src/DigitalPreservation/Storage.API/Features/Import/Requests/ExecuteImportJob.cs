@@ -44,10 +44,13 @@ public class ExecuteImportJobHandler(
         }
         
         
+        
         var timer = new Stopwatch();
         timer.Start();
         
         var transaction = await fedoraClient.BeginTransaction();
+        var transactionMaintainer = new Timer(KeepTransactionAliveByCallback, transaction, 60 * 1000, 60 * 1000);
+
         logger.LogInformation("Fedora transaction begun: " + transaction.Location);
         var validationResult = await fedoraClient.GetValidatedArchivalGroupForImportJob(archivalGroupPathUnderRoot, transaction);
         if (validationResult.Failure)
@@ -134,7 +137,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraContainerResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
+                // await KeepTransactionAlive();
             }
 
             // what about deletions of containers? conflict?
@@ -157,7 +160,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraPutBinaryResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
+                // await KeepTransactionAlive();
             }
 
             // patch files
@@ -182,7 +185,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraPatchBinaryResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
+                // await KeepTransactionAlive();
             }
 
             // delete files
@@ -204,7 +207,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraDeleteResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
+                // await KeepTransactionAlive();
             }
 
 
@@ -230,7 +233,7 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraDeleteResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
+                // await KeepTransactionAlive();
             }
             if (importJob.IsUpdate)
             {
@@ -269,6 +272,7 @@ public class ExecuteImportJobHandler(
             logger.LogError(e, message);
             return await FailEarly(message, rollback: false);
         }
+        await transactionMaintainer.DisposeAsync(); // does this stop the timer?
         importJobResult.DateFinished = DateTime.UtcNow;
         var commitDuration = importJobResult.DateFinished - startCommitTime;
         logger.LogInformation("Fedora commit transaction took {duration} seconds", commitDuration.Value.TotalSeconds);
@@ -278,6 +282,7 @@ public class ExecuteImportJobHandler(
         
         async Task<Result<ImportJobResult>> FailEarly(string? errorMessage, string? errorCode = ErrorCodes.UnknownError, bool rollback = true)
         {
+            await transactionMaintainer.DisposeAsync();
             logger.LogError("Failing Import Job Early: {errorCode} - {errorMessage}", errorCode, errorMessage);
             if (rollback)
             {
@@ -289,17 +294,26 @@ public class ExecuteImportJobHandler(
             return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
         }
 
-        async Task KeepTransactionAlive()
+        // async Task KeepTransactionAlive()
+        // {
+        //     // Fedora's default transaction timeout is 3 minutes
+        //     // We will poke the transaction after 60s - but if a single operation takes > 2m it will still time out.
+        //     if (timer.ElapsedMilliseconds > 60000)
+        //     {
+        //         logger.LogInformation("Keeping transaction alive after {elapsedMilliseconds} ms", timer.ElapsedMilliseconds);
+        //         await fedoraClient.KeepTransactionAlive(transaction);
+        //         timer.Restart();
+        //     }
+        //     // We could save the current state of the Result here...
+        // }
+        
+        async void KeepTransactionAliveByCallback(object? state)
         {
-            // Fedora's default transaction timeout is 3 minutes
-            // We will poke the transaction after 60s - but if a single operation takes > 2m it will still time out.
-            if (timer.ElapsedMilliseconds > 60000)
+            if (state == transaction)
             {
                 logger.LogInformation("Keeping transaction alive after {elapsedMilliseconds} ms", timer.ElapsedMilliseconds);
                 await fedoraClient.KeepTransactionAlive(transaction);
-                timer.Restart();
             }
-            // We could save the current state of the Result here...
         }
     }
 
