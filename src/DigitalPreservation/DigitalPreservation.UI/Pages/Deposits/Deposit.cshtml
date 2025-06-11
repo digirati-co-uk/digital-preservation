@@ -208,6 +208,7 @@ ViewData["section"] = "deposits";
                     var combinedResult = await Model.WorkspaceManager.GetCombinedDirectory();
                     if (combinedResult is { Success: true, Value: not null })
                     {
+                        var rootCombinedDirectory = combinedResult.Value;
                         <div class="table-responsive small">
                             <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
                                 <thead>
@@ -233,7 +234,7 @@ ViewData["section"] = "deposits";
                                     </tr>
                                 }
                                 @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(combinedResult.Value,
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(rootCombinedDirectory,
                                         Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
                                         Model.Deposit.Active, IsLockedByOtherUser(), 
                                         Model.WorkspaceManager.RootAccessRestrictions,
@@ -244,7 +245,16 @@ ViewData["section"] = "deposits";
                                 </tbody>
                             </table>
                         </div>
-                        <p><small>Deposit structure built @(combinedResult.Value.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")</small></p>
+                        <p><small>
+                            @{
+                                var totals = rootCombinedDirectory.GetSizeTotals();
+                            }
+                            @totals.TotalFileCount <text> files in </text> @totals.TotalDirectoryCount <text> directories.</text><br/>
+                            @StringUtils.FormatFileSize(totals.TotalSizeInDeposit, withSpace: true, fallbackIfNull: " - ") <text> in Deposit, </text>
+                            @StringUtils.FormatFileSize(totals.TotalSizeInMets, withSpace: true, fallbackIfNull: " - ") <text> in METS, </text>
+                            @StringUtils.FormatFileSize(totals.TotalSize, withSpace: true, fallbackIfNull: " - ") <text> Overall. </text><br/>
+                            Deposit structure built @(combinedResult.Value.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
+                        </small></p>
                     }
                     else
                     {

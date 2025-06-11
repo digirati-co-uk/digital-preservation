@@ -63,4 +63,35 @@ public class Container : PreservedResource
             PartOf = PartOf
         };
     }
+    
+    
+    public BinarySizeTotals GetSizeTotals()
+    {
+        var totals = new BinarySizeTotals();
+        AddBinariesToTotals(this, totals);
+        return totals;
+    }
+
+    private static void AddBinariesToTotals(Container container, BinarySizeTotals totals)
+    {
+        totals.TotalContainerCount++;
+        
+        foreach (var binary in container.Binaries)
+        {
+            totals.TotalBinaryCount++;
+            totals.TotalSize += binary.Size;
+        }
+
+        foreach (var childContainer in container.Containers)
+        {
+            AddBinariesToTotals(childContainer, totals);
+        }
+    }
+}
+
+public class BinarySizeTotals
+{
+    public int TotalBinaryCount { get; set; } = 0;
+    public int TotalContainerCount { get; set; } = -1;
+    public long TotalSize { get; set; }
 }
