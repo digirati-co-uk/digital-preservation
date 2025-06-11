@@ -1,10 +1,8 @@
 ﻿@page "{*pathUnderRoot}"
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Import
-@using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
-@using Microsoft.AspNetCore.Mvc.TagHelpers
 @model BrowseModel
 @{
     ViewData["section"] = "browse";
@@ -166,6 +164,13 @@
             <tr>
                 <th scope="row">Last modified by</th>
                 <td>@ag.LastModifiedBy?.GetSlug()?.UnEscapeFromUri()</td>
+            </tr>
+            <tr>
+                <th scope="row">Summary</th>
+                @{
+                    var totals = ag.GetSizeTotals();
+                }
+                <td>@($"{totals.TotalBinaryCount} binaries in {totals.TotalContainerCount} containers, {StringUtils.FormatFileSize(totals.TotalSize)}")</td>
             </tr>
             <tr>
                 <th scope="row">Versions</th>

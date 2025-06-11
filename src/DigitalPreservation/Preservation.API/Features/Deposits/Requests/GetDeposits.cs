@@ -41,8 +41,17 @@ public class GetDepositsHandler(
                 var predicate = PredicateBuilder.New<DepositEntity>();
                 if (q.ArchivalGroupPath.HasText())
                 {
-                    predicate = predicate.And(x =>
-                        x.ArchivalGroupPathUnderRoot == q.ArchivalGroupPath.GetPathUnderRoot(false));
+                    if (q.ArchivalGroupPath.Contains('/'))
+                    {
+                        predicate = predicate.And(x =>
+                            x.ArchivalGroupPathUnderRoot == q.ArchivalGroupPath.GetPathUnderRoot(false));
+                    }
+                    else
+                    {
+                        predicate = predicate.And(x =>
+                            x.ArchivalGroupPathUnderRoot != null &&
+                            x.ArchivalGroupPathUnderRoot.EndsWith(q.ArchivalGroupPath));
+                    }
                 }
                 if (q.ArchivalGroupPathParent.HasText())
                 {

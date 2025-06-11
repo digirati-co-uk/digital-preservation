@@ -11,7 +11,6 @@ using Storage.API.Fedora.Model;
 namespace Storage.API.Ocfl;
 
 public class OcflS3StorageMapper(
-    IOptions<ConverterOptions> converterOptions,
     ILogger<OcflS3StorageMapper> logger,
     Converters converters,
     IAmazonS3 awsS3Client,
