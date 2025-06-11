@@ -8,6 +8,7 @@ using DigitalPreservation.Workspace;
 using LeedsDlipServices;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
 using Preservation.Client;
@@ -54,7 +55,10 @@ try
 
 
     builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options => options.Events = new RejectSessionCookieWhenAccountNotInCacheEvents());
-
+    builder.Services.AddHttpLogging(options =>
+    {
+        options.LoggingFields = HttpLoggingFields.RequestPropertiesAndHeaders;
+    });
     // <ms_docref_add_default_controller_for_sign-in-out>
     builder.Services.AddRazorPages().AddMvcOptions(options =>
     {
@@ -118,7 +122,16 @@ try
         .UseRouting()
         .UseForwardedHeaders();
     
-    app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto });
+    
+    app.UseHttpLogging();
+    app.Use(async (context, next) =>
+    {
+        // Connection: RemoteIp
+        app.Logger.LogInformation("Request RemoteIp: {RemoteIpAddress}",
+            context.Connection.RemoteIpAddress);
+
+        await next(context);
+    });
     
     app.UseSession();
     app.MapRazorPages();
