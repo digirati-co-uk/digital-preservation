@@ -58,6 +58,9 @@ try
     builder.Services.AddHttpLogging(options =>
     {
         options.LoggingFields = HttpLoggingFields.RequestPropertiesAndHeaders;
+        options.ResponseHeaders.Add("X-Forwarded-For");
+        options.ResponseHeaders.Add("X-Forwarded-Proto");
+        options.ResponseHeaders.Add("X-Forwarded-Port");
     });
     // <ms_docref_add_default_controller_for_sign-in-out>
     builder.Services.AddRazorPages().AddMvcOptions(options =>
