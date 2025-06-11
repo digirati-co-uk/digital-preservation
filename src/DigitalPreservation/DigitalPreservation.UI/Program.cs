@@ -117,6 +117,9 @@ try
         .UseStaticFiles()
         .UseRouting()
         .UseForwardedHeaders();
+    
+    app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto });
+    
     app.UseSession();
     app.MapRazorPages();
     app.MapControllers();
