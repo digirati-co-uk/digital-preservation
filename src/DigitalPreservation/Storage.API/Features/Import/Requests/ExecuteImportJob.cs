@@ -43,13 +43,12 @@ public class ExecuteImportJobHandler(
             return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
         }
         
-        
-        
-        var timer = new Stopwatch();
-        timer.Start();
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
         
         var transaction = await fedoraClient.BeginTransaction();
-        var transactionMonitor = new Timer(MaintainTransactionState, transaction, 60 * 1000, 60 * 1000);
+        var transactionMonitor = new FedoraTransactionMonitor(logger, fedoraClient, transaction, stopwatch);
+        var timer = new Timer(transactionMonitor.MaintainTransactionState, transaction, 60 * 1000, 60 * 1000);
 
         logger.LogInformation("Fedora transaction begun: " + transaction.Location);
         var validationResult = await fedoraClient.GetValidatedArchivalGroupForImportJob(archivalGroupPathUnderRoot, transaction);
@@ -258,7 +257,7 @@ public class ExecuteImportJobHandler(
         var startCommitTime = DateTime.UtcNow;
         try
         {
-            await fedoraClient.CommitTransaction(transaction);
+            await transactionMonitor.CommitTransaction();
         }
         catch (Exception e)
         {
@@ -267,7 +266,7 @@ public class ExecuteImportJobHandler(
             logger.LogError(e, message);
             return await FailEarly(message, rollback: false);
         }
-        await transactionMonitor.DisposeAsync(); // does this stop the timer?
+        await timer.DisposeAsync(); // does this stop the timer?
         importJobResult.DateFinished = DateTime.UtcNow;
         var commitDuration = importJobResult.DateFinished - startCommitTime;
         logger.LogInformation("Fedora commit transaction took {duration} seconds", commitDuration.Value.TotalSeconds);
@@ -277,7 +276,7 @@ public class ExecuteImportJobHandler(
         
         async Task<Result<ImportJobResult>> FailEarly(string? errorMessage, string? errorCode = ErrorCodes.UnknownError, bool rollback = true)
         {
-            await transactionMonitor.DisposeAsync();
+            await timer.DisposeAsync();
             logger.LogError("Failing Import Job Early: {errorCode} - {errorMessage}", errorCode, errorMessage);
             if (rollback)
             {
@@ -287,28 +286,6 @@ public class ExecuteImportJobHandler(
             importJobResult.DateFinished = DateTime.UtcNow;
             importJobResult.Status = ImportJobStates.CompletedWithErrors;
             return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
-        }
-
-        // async Task KeepTransactionAlive()
-        // {
-        //     // Fedora's default transaction timeout is 3 minutes
-        //     // We will poke the transaction after 60s - but if a single operation takes > 2m it will still time out.
-        //     if (timer.ElapsedMilliseconds > 60000)
-        //     {
-        //         logger.LogInformation("Keeping transaction alive after {elapsedMilliseconds} ms", timer.ElapsedMilliseconds);
-        //         await fedoraClient.KeepTransactionAlive(transaction);
-        //         timer.Restart();
-        //     }
-        //     // We could save the current state of the Result here...
-        // }
-        
-        async void MaintainTransactionState(object? state)
-        {
-            if (state == transaction)
-            {
-                logger.LogInformation("Keeping transaction alive after {elapsedMilliseconds} ms", timer.ElapsedMilliseconds);
-                await fedoraClient.KeepTransactionAlive(transaction);
-            }
         }
     }
 

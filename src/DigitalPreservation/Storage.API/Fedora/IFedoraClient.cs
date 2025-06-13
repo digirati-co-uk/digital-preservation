@@ -1,3 +1,4 @@
+using System.Net;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using Storage.API.Fedora.Model;
@@ -50,8 +51,8 @@ public interface IFedoraClient
     
     // Transactions
     Task<Transaction> BeginTransaction();
-    Task CheckTransaction(Transaction tx);
+    Task<HttpStatusCode> GetTransactionHttpStatus(Transaction tx);
     Task KeepTransactionAlive(Transaction tx);
-    Task CommitTransaction(Transaction tx);
+    Task CommitTransaction(Transaction tx, CancellationToken cancellationToken);
     Task RollbackTransaction(Transaction tx);
 }

@@ -1062,23 +1062,11 @@ internal class FedoraClient(
         return tx;
     }
 
-    public async Task CheckTransaction(Transaction tx)
+    public async Task<HttpStatusCode> GetTransactionHttpStatus(Transaction tx)
     {
-        HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Get);
+        var req = MakeHttpRequestMessage(tx.Location, HttpMethod.Get);
         var response = await httpClient.SendAsync(req);
-        tx.StatusCode = response.StatusCode;
-        switch (response.StatusCode)
-        {
-            case HttpStatusCode.NoContent:
-                tx.Expired = false;
-                break;
-            case HttpStatusCode.NotFound:
-                // error? - maybe not as we can this response before the transaction commit has happened
-                break;
-            case HttpStatusCode.Gone:
-                tx.Expired = true;
-                break;
-        }
+        return response.StatusCode;
     }
 
     public async Task KeepTransactionAlive(Transaction tx)
@@ -1093,10 +1081,10 @@ internal class FedoraClient(
         }
     }
 
-    public async Task CommitTransaction(Transaction tx)
+    public async Task CommitTransaction(Transaction tx, CancellationToken cancellationToken = default)
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Put);
-        var response = await httpClient.SendAsync(req);
+        var response = await httpClient.SendAsync(req, cancellationToken);
         switch (response.StatusCode)
         {
             case HttpStatusCode.NoContent:
