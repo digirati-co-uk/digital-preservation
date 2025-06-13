@@ -7,7 +7,6 @@ public class Transaction
     public required Uri Location { get; set; }
     public DateTime Expires { get; set; }
     public bool Expired { get; set; }
-    //public bool ReadyForCommit { get; set; }
     public bool Committed { get; set; }
     public bool RolledBack { get; set; }
     
