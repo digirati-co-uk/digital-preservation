@@ -1,4 +1,6 @@
-﻿namespace Storage.API.Fedora.Model;
+﻿using System.Net;
+
+namespace Storage.API.Fedora.Model;
 
 public class Transaction
 {
@@ -7,6 +9,8 @@ public class Transaction
     public bool Expired { get; set; }
     public bool Committed { get; set; }
     public bool RolledBack { get; set; }
+    
+    public HttpStatusCode StatusCode { get; set; }
 
     public const string HeaderName = "Atomic-ID";
 }

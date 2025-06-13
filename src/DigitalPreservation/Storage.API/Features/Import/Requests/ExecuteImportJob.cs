@@ -49,7 +49,7 @@ public class ExecuteImportJobHandler(
         timer.Start();
         
         var transaction = await fedoraClient.BeginTransaction();
-        var transactionMaintainer = new Timer(KeepTransactionAliveByCallback, transaction, 60 * 1000, 60 * 1000);
+        var transactionMonitor = new Timer(MaintainTransactionState, transaction, 60 * 1000, 60 * 1000);
 
         logger.LogInformation("Fedora transaction begun: " + transaction.Location);
         var validationResult = await fedoraClient.GetValidatedArchivalGroupForImportJob(archivalGroupPathUnderRoot, transaction);
@@ -137,7 +137,6 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraContainerResult.CodeAndMessage());
                 }
-                // await KeepTransactionAlive();
             }
 
             // what about deletions of containers? conflict?
@@ -160,7 +159,6 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraPutBinaryResult.CodeAndMessage());
                 }
-                // await KeepTransactionAlive();
             }
 
             // patch files
@@ -185,7 +183,6 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraPatchBinaryResult.CodeAndMessage());
                 }
-                // await KeepTransactionAlive();
             }
 
             // delete files
@@ -207,7 +204,6 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraDeleteResult.CodeAndMessage());
                 }
-                // await KeepTransactionAlive();
             }
 
 
@@ -233,7 +229,6 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraDeleteResult.CodeAndMessage());
                 }
-                // await KeepTransactionAlive();
             }
             if (importJob.IsUpdate)
             {
@@ -272,7 +267,7 @@ public class ExecuteImportJobHandler(
             logger.LogError(e, message);
             return await FailEarly(message, rollback: false);
         }
-        await transactionMaintainer.DisposeAsync(); // does this stop the timer?
+        await transactionMonitor.DisposeAsync(); // does this stop the timer?
         importJobResult.DateFinished = DateTime.UtcNow;
         var commitDuration = importJobResult.DateFinished - startCommitTime;
         logger.LogInformation("Fedora commit transaction took {duration} seconds", commitDuration.Value.TotalSeconds);
@@ -282,7 +277,7 @@ public class ExecuteImportJobHandler(
         
         async Task<Result<ImportJobResult>> FailEarly(string? errorMessage, string? errorCode = ErrorCodes.UnknownError, bool rollback = true)
         {
-            await transactionMaintainer.DisposeAsync();
+            await transactionMonitor.DisposeAsync();
             logger.LogError("Failing Import Job Early: {errorCode} - {errorMessage}", errorCode, errorMessage);
             if (rollback)
             {
@@ -307,7 +302,7 @@ public class ExecuteImportJobHandler(
         //     // We could save the current state of the Result here...
         // }
         
-        async void KeepTransactionAliveByCallback(object? state)
+        async void MaintainTransactionState(object? state)
         {
             if (state == transaction)
             {

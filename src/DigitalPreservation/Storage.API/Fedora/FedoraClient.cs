@@ -1046,7 +1046,8 @@ internal class FedoraClient(
         response.EnsureSuccessStatusCode();
         var tx = new Transaction
         {
-            Location = response.Headers.Location!
+            Location = response.Headers.Location!,
+            StatusCode = response.StatusCode
         };
         if (response.Headers.TryGetValues("Atomic-Expires", out IEnumerable<string>? values))
         {
@@ -1065,13 +1066,14 @@ internal class FedoraClient(
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Get);
         var response = await httpClient.SendAsync(req);
+        tx.StatusCode = response.StatusCode;
         switch (response.StatusCode)
         {
             case HttpStatusCode.NoContent:
                 tx.Expired = false;
                 break;
             case HttpStatusCode.NotFound:
-                // error?
+                // error? - maybe not as we can this response before the transaction commit has happened
                 break;
             case HttpStatusCode.Gone:
                 tx.Expired = true;
@@ -1083,7 +1085,7 @@ internal class FedoraClient(
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Post);
         var response = await httpClient.SendAsync(req);
-        response.EnsureSuccessStatusCode();
+        tx.StatusCode = response.StatusCode; // Allow for the possibility of a 404
 
         if (response.Headers.TryGetValues("Atomic-Expires", out var values))
         {
@@ -1110,13 +1112,14 @@ internal class FedoraClient(
                 tx.Expired = true;
                 break;
         }
-        response.EnsureSuccessStatusCode();
+        tx.StatusCode = response.StatusCode;
     }
 
     public async Task RollbackTransaction(Transaction tx)
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Delete);
         var response = await httpClient.SendAsync(req);
+        tx.StatusCode = response.StatusCode;
         switch (response.StatusCode)
         {
             case HttpStatusCode.NoContent:
@@ -1129,6 +1132,5 @@ internal class FedoraClient(
                 tx.Expired = true;
                 break;
         }
-        response.EnsureSuccessStatusCode();
     }
 }
