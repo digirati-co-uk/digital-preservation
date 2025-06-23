@@ -58,7 +58,7 @@ async def get_activities(stream_uri: str, session: ClientSession, last_event_tim
                 if end_time_date > last_event_time:
                     activities.append(activity)
                 else:
-                    break
+                    return Result.success(activities)
             page_uri = page.get("prev", {}).get("id", None)
 
         return Result.success(activities)
