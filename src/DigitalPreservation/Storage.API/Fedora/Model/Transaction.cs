@@ -12,6 +12,7 @@ public class Transaction
     
     public HttpStatusCode StatusCode { get; set; }
     public bool CommitStarted { get; set; }
+    public bool CancelRequested { get; set; }
     public bool Cancelled { get; set; }
 
     public const string HeaderName = "Atomic-ID";

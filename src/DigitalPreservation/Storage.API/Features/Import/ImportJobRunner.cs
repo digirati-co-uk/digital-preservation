@@ -22,9 +22,12 @@ public class ImportJobRunner(
             if (executeResult.Success)
             {
                 var jobResult = executeResult.Value!;
+                var pathUnderRoot = jobResult.ArchivalGroup.GetPathUnderRoot();
                 // The job itself may have failed at this point, but the result is still a success
                 // what version are we now on? This may be unchanged if the job itself failed
-                var agResult = await mediator.Send(new GetResourceFromFedora(jobResult.ArchivalGroup.GetPathUnderRoot()), cancellationToken);
+                logger.LogInformation("ImportJobRunner.Execute for {jobIdentifier} has returned, will try to obtain {pathUnderRoot} from Fedora.",
+                    jobIdentifier, pathUnderRoot);
+                var agResult = await mediator.Send(new GetResourceFromFedora(pathUnderRoot), cancellationToken);
                 if (agResult.Success)
                 {
                     if (agResult.Value is ArchivalGroup ag)

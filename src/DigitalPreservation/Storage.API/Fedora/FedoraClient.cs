@@ -822,6 +822,7 @@ internal class FedoraClient(
         // Get the contains property which may be a single value or an array
         var idsFromContainmentPredicate = GetIdsFromContainsProperty(containerAndContained[0]);
         idsFromContainmentPredicate.Sort();
+        logger.LogDebug("idsFromContainmentPredicate has {childCount} child items.", idsFromContainmentPredicate.Count);
         foreach (var id in idsFromContainmentPredicate)
         {
             var resource = dict[id];

@@ -44,13 +44,15 @@ public class FedoraTransactionMonitor(
         if (tx.CommitStarted)
         {
             logger.LogInformation("(TX) (M) Transaction {transactionId} is currently being committed", transactionId);
-            bool cancel = false;
+            bool cancel = tx.CancelRequested;
             var currentStatus = await fedoraClient.GetTransactionHttpStatus(tx);
-            if ((int)currentStatus < 200 || (int)currentStatus > 299)
+            var currentStatusCode = (int)currentStatus;
+            logger.LogInformation("(TX) (M) Transaction {transactionId} has HTTP Status {statusCode}.", transactionId, currentStatusCode);
+            if (currentStatusCode < 200 || currentStatusCode > 299)
             {
                 // don't even try to PUT a keep-alive
-                logger.LogInformation("(TX) (M) Transaction {transactionId} has status {statusCode}, will cancel the commit.", 
-                    transactionId, currentStatus);
+                logger.LogInformation("(TX) (M) Transaction {transactionId} has non-2xx status ({statusCode}), will cancel the commit if not already requested to cancel.", 
+                    transactionId, currentStatusCode);
                 cancel = true;
             }
 
@@ -61,34 +63,42 @@ public class FedoraTransactionMonitor(
                 try
                 {
                     await fedoraClient.KeepTransactionAlive(tx);
-                    if ((int)tx.StatusCode < 200 || (int)tx.StatusCode > 299)
+                    currentStatusCode = (int)tx.StatusCode;
+                    if (currentStatusCode < 200 || currentStatusCode > 299)
                     {
-                        logger.LogWarning("(TX) (M) KeepTransactionAlive failed for {transactionId}: {statusCode}, will cancel the commit.",
-                            transactionId, tx.StatusCode);
+                        logger.LogWarning("(TX) (M) KeepTransactionAlive for transaction {transactionId} returned {statusCode}, will cancel the commit.",
+                            transactionId, currentStatusCode);
                         cancel = true;
                     }
                     else
                     {
-                        logger.LogInformation("(TX) (M) Transaction {transactionId} has Http Status {statusCode}", transactionId, tx.StatusCode);
+                        logger.LogInformation("(TX) (M) After keep-alive, transaction {transactionId} has status {statusCode}", transactionId, currentStatusCode);
                     }
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "(TX) (M) Keeping transaction {transactionId} alive failed: {statusCode}", transactionId, tx.StatusCode);
+                    logger.LogError(ex, "(TX) (M) Keeping transaction {transactionId} alive failed: {statusCode}, will cancel the commit.", transactionId, (int)tx.StatusCode);
                     cancel = true;
                 }
             }
 
             if (cancel)
             {
-                logger.LogWarning("(TX) (M) Cancelling transaction {transactionId}", transactionId);
-                await cancellationTokenSource.CancelAsync();
+                if (tx.CancelRequested)
+                {
+                    logger.LogWarning("(TX) (M) Cancel already requested for transaction {transactionId}, will continue", transactionId);
+                }
+                else
+                {
+                    logger.LogWarning("(TX) (M) Cancelling transaction {transactionId}", transactionId);
+                    tx.CancelRequested = true;
+                    await cancellationTokenSource.CancelAsync();
+                }
             }
-
         }
         else
         {
-            logger.LogInformation("(TX) (M)Keeping transaction {transactionId} alive after {elapsedMilliseconds} ms", 
+            logger.LogInformation("(TX) (M) (commit not started) Keeping transaction {transactionId} alive after {elapsedMilliseconds} ms", 
                 transactionId, stopwatch.ElapsedMilliseconds);
             await fedoraClient.KeepTransactionAlive(tx);
         }
