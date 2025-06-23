@@ -17,6 +17,10 @@ public static class ServiceCollectionX
         => serviceCollection.Configure<ForwardedHeadersOptions>(opts =>
         {
             opts.ForwardedHeaders =
-                forwardedHeaders ?? ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto;
+                forwardedHeaders ?? ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto;    
+            
+            // https://github.com/dotnet/dotnet-docker/issues/6491
+            opts.KnownNetworks.Clear();
+            opts.KnownProxies.Clear();
         });
 }
