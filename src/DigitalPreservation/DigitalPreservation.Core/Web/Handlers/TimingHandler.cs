@@ -13,7 +13,7 @@ public class TimingHandler(ILogger<TimingHandler> logger) : DelegatingHandler
     {
         var sw = Stopwatch.StartNew();
         var path = request.RequestUri!.GetLeftPart(UriPartial.Path);
-        logger.LogDebug("Calling {Uri}..", path);
+        logger.LogDebug("Calling {Verb} {Uri}..", request.Method, path);
         
         var result = await base.SendAsync(request, cancellationToken);
         

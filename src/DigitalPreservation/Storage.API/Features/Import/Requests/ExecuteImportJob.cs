@@ -253,7 +253,7 @@ public class ExecuteImportJobHandler(
             return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
         }
 
-        logger.LogInformation("(TX) Commiting Fedora transaction " + transaction.Location);
+        logger.LogInformation("(TX) Committing Fedora transaction " + transaction.Location);
         var startCommitTime = DateTime.UtcNow;
         try
         {
