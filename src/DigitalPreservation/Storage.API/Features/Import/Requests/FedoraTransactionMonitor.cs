@@ -51,6 +51,12 @@ public class FedoraTransactionMonitor(
         {
             logger.LogInformation("(TX) (M) Transaction {transactionId} is currently being committed", transactionId);
             bool cancel = tx.CancelRequested;
+            // While Fedora is in its emit events stage, this WILL NOT RETURN until Fedora has finished
+            // So we get a massive pileup of these calls because the timer is still ticking every minute,
+            // re-entering this method.
+            
+            // Try it again with stopping the timer completely once commit called
+            // Try it again without the following line, instead just fedoraClient.KeepTransactionAlive(tx) - does that return immediately?
             var currentStatus = await fedoraClient.GetTransactionHttpStatus(tx);
             var currentStatusCode = (int)currentStatus;
             logger.LogInformation("(TX) (M) Transaction {transactionId} has HTTP Status {statusCode}.", transactionId, currentStatusCode);

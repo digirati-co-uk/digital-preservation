@@ -257,6 +257,16 @@ public class ExecuteImportJobHandler(
         var startCommitTime = DateTime.UtcNow;
         try
         {
+            // disposing it here will prevent further ticks while the commit is carried out.
+            // which should be OK but we introduced the 404 check specifically so we could cancel the 
+            // http request and finish processing
+            // await timer.DisposeAsync(); 
+            
+            // or give it MUCH longer between checks
+            // So it will allow our test one to finish before checking; we can see if it returns before then or not
+            
+            const int halfAnHour = 30 * 60 * 1000;
+            timer.Change(halfAnHour, halfAnHour);
             await transactionMonitor.CommitTransaction();
             await timer.DisposeAsync(); // does this stop the timer?
         }
