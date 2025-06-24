@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using System.Security.Cryptography;
 using DigitalPreservation.Utils;
 using Storage.API.Fedora;
 using Storage.API.Fedora.Model;
