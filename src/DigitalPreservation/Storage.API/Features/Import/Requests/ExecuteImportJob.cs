@@ -258,15 +258,16 @@ public class ExecuteImportJobHandler(
         try
         {
             await transactionMonitor.CommitTransaction();
+            await timer.DisposeAsync(); // does this stop the timer?
         }
         catch (Exception e)
         {
+            await timer.DisposeAsync(); // does this stop the timer?
             var errorTime = DateTime.UtcNow - startCommitTime;
             var message = $"(TX) Unable to commit Fedora transaction: duration {errorTime.TotalSeconds} seconds: {e.Message}";
             logger.LogError(e, message);
             return await FailEarly(message, rollback: false);
         }
-        await timer.DisposeAsync(); // does this stop the timer?
         importJobResult.DateFinished = DateTime.UtcNow;
         var commitDuration = importJobResult.DateFinished - startCommitTime;
         logger.LogInformation("(TX) Fedora commit transaction took {duration} seconds", commitDuration.Value.TotalSeconds);

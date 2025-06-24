@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Security.Cryptography;
 using DigitalPreservation.Utils;
 using Storage.API.Fedora;
 using Storage.API.Fedora.Model;
@@ -21,8 +22,9 @@ public class FedoraTransactionMonitor(
         try
         {
             await fedoraClient.CommitTransaction(tx, token);
+            tx.CommitReturned = true;
         }
-        catch (OperationCanceledException oce)
+        catch (OperationCanceledException)
         {
             tx.Cancelled = true;
             logger.LogWarning("(TX) fedoraClient.CommitTransaction for {transaction} was cancelled (HTTP Request was cancelled)", tx.Location.GetSlug());
@@ -40,6 +42,11 @@ public class FedoraTransactionMonitor(
         var transactionId = tx.Location.GetSlug();
         
         logger.LogInformation("(TX) (M) Monitoring transaction {transactionId}", transactionId);
+        if (tx.CommitReturned)
+        {
+            logger.LogInformation("(TX) (M) Transaction {transactionId} request has already returned, will not maintain it.", transactionId);
+            return;
+        }
         
         if (tx.CommitStarted)
         {

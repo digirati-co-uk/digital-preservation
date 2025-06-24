@@ -1086,21 +1086,6 @@ internal class FedoraClient(
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Put);
         var response = await httpClient.SendAsync(req, cancellationToken);
-        switch (response.StatusCode)
-        {
-            case HttpStatusCode.NoContent:
-                tx.Committed = true;
-                break;
-            case HttpStatusCode.NotFound:
-                // error?
-                break;
-            case HttpStatusCode.Conflict:
-                tx.Committed = false;
-                break;
-            case HttpStatusCode.Gone:
-                tx.Expired = true;
-                break;
-        }
         tx.StatusCode = response.StatusCode;
     }
 
@@ -1109,17 +1094,5 @@ internal class FedoraClient(
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Delete);
         var response = await httpClient.SendAsync(req);
         tx.StatusCode = response.StatusCode;
-        switch (response.StatusCode)
-        {
-            case HttpStatusCode.NoContent:
-                tx.RolledBack = true;
-                break;
-            case HttpStatusCode.NotFound:
-                // error?
-                break;
-            case HttpStatusCode.Gone:
-                tx.Expired = true;
-                break;
-        }
     }
 }
