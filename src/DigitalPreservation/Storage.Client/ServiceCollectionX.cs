@@ -28,7 +28,9 @@ public static class ServiceCollectionX
                 client.BaseAddress = storageOptions.Root.ThrowIfNull(nameof(storageOptions.Root));
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
                 client.Timeout = TimeSpan.FromMinutes(storageOptions.TimeoutMinutes);
-            }).AddHttpMessageHandler<TimingHandler>();
+            })
+            .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(60), 60)
+            .AddHttpMessageHandler<TimingHandler>();
 
         return serviceCollection;
     }
