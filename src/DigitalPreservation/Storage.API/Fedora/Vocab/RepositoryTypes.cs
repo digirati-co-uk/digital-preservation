@@ -11,4 +11,5 @@ public static class RepositoryTypes
     public static readonly string NonRDFSource = W3cLdpNamespace + "NonRDFSource";
     
     public static readonly string Tombstone = nameof(Tombstone);
+    public static readonly string Binary = nameof(Binary);
 }
