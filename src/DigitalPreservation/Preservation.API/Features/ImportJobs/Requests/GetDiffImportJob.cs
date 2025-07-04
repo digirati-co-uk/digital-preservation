@@ -46,7 +46,7 @@ public class GetDiffImportJobHandler(
 
         ArchivalGroup? existingArchivalGroup = null;
         var agPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot()!;
-        var archivalGroupResult = await storageApi.GetArchivalGroup(request.Deposit.ArchivalGroup.AbsolutePath, null);
+        var archivalGroupResult = await storageApi.GetArchivalGroup(request.Deposit.ArchivalGroup.AbsolutePath);
         if (archivalGroupResult is { Success: true, Value: not null })
         {
             logger.LogInformation("Archival group is valid");

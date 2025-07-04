@@ -20,30 +20,27 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
 
     public async Task<Result<PreservedResource?>> GetResource(string path)
     {
-        return await GetResourceInternal(path, null);
+        return await GetResourceInternal(path);
     }
 
-    public async Task<Result<ArchivalGroup?>> GetArchivalGroup(string path, string? version)
+    public async Task<Result<ArchivalGroup?>> GetArchivalGroup(string path)
     {
-        logger.LogInformation("Getting ArchivalGroup " + path + ", version " + version);
-        var result = await GetResourceInternal(path, version);
+        logger.LogInformation("Getting ArchivalGroup " + path);
+        var result = await GetResourceInternal(path);
         if (result.Success)
         {
             return Result.Ok<ArchivalGroup?>(result.Value as ArchivalGroup);
         }
-        logger.LogWarning("Failed to get ArchivalGroup " + path + ", version " + version + ": " + result.CodeAndMessage());
+        logger.LogWarning("Failed to get ArchivalGroup " + path + ": " + result.CodeAndMessage());
         return Result.Cast<PreservedResource?, ArchivalGroup?>(result);
     }
+
     
-    private async Task<Result<PreservedResource?>> GetResourceInternal(string path, string? version)
+    private async Task<Result<PreservedResource?>> GetResourceInternal(string path)
     {        
         // path MUST be the full /repository... path, which we just pass through as-is
         try
         {
-            if(!string.IsNullOrWhiteSpace(version))
-            {
-                path += "?version=" + version;
-            }
             var uri = new Uri(path, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
 

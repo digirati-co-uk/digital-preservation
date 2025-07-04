@@ -87,11 +87,6 @@ public class ExecuteExportHandler(
                     });
                 }
             }
-
-            // Remove this, so that a new export DOES NOT have a __metslike.json - which is a Preservation API concern.
-            // The Preservation API can attempt to create one if this file is absent.
-            // var newWd = await storage.GenerateDepositFileSystem(destination, true, cancellationToken);
-            // TODO: validate that newWd.Value matches what we expected from storageMap.Files
             export.DateFinished = DateTime.UtcNow;
         }
         catch (Exception ex)

@@ -51,7 +51,7 @@ public class MetsManager(
     {
         var (file, mets) = await GetStandardMets(metsLocation, agNameFromDeposit);
         
-        AddResourceToMets(mets, archivalGroup, mets.StructMap[0].Div, archivalGroup);
+        AddResourceToMets(mets, archivalGroup.Id!, mets.StructMap[0].Div, archivalGroup);
         
         var writeResult = await WriteMets(new FullMets{ Mets = mets, Uri = file });
         if (writeResult.Success)
@@ -67,12 +67,12 @@ public class MetsManager(
     /// This will likely never be used in production
     /// </summary>
     /// <param name="mets"></param>
-    /// <param name="archivalGroup"></param>
+    /// <param name="archivalGroupUri"></param>
     /// <param name="div"></param>
     /// <param name="container"></param>
-    private void AddResourceToMets(DigitalPreservation.XmlGen.Mets.Mets mets, ArchivalGroup archivalGroup, DivType div, Container container)
+    private void AddResourceToMets(DigitalPreservation.XmlGen.Mets.Mets mets, Uri archivalGroupUri, DivType div, Container container)
     {
-        var agLocalPath = archivalGroup.Id!.LocalPath;
+        var agLocalPath = archivalGroupUri.LocalPath;
         foreach (var childContainer in container.Containers)
         {
             DivType? childDirectoryDiv = null;
@@ -103,7 +103,7 @@ public class MetsManager(
                 };
                 mets.AmdSec.Add(GetAmdSecType(reducedPremisForObjectDir, admId, techId));
             }
-            AddResourceToMets(mets, archivalGroup, childDirectoryDiv, childContainer);
+            AddResourceToMets(mets, archivalGroupUri, childDirectoryDiv, childContainer);
         }
 
         foreach (var binary in container.Binaries)

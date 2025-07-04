@@ -34,11 +34,7 @@ public class OcflS3StorageMapper(
            .OrderBy(o => o.MementoDateTime)
            .ToList();
 
-        if (version == null)
-        {
-            // Use the latest version
-            version = inventory.Head;
-        }
+        version ??= inventory.Head;
 
         // Allow the supplied string to be either ocfl vX or memento timestamp (they cannot overlap!)
         ObjectVersion objectVersion = inventoryVersions.Single(v => v.OcflVersion == version || v.MementoTimestamp == version);
@@ -70,12 +66,12 @@ public class OcflS3StorageMapper(
         // Validate that the OCFL layout thinks this is an Archival Group
         var rootInfoKey = $"{agOrigin}/{objectVersion.OcflVersion}/content/.fcrepo/fcr-root.json";
         var rootInfoReq = new GetObjectRequest { BucketName = fedora.Bucket, Key = rootInfoKey };
-        var rootInfoinvResp = await awsS3Client.GetObjectAsync(rootInfoReq);
+        var rootInfoInventoryResp = await awsS3Client.GetObjectAsync(rootInfoReq);
 
         bool? archivalGroup = null;
         bool? objectRoot = null;
         bool? deleted = null;
-        using (JsonDocument jDoc = JsonDocument.Parse(rootInfoinvResp.ResponseStream))
+        using (var jDoc = await JsonDocument.ParseAsync(rootInfoInventoryResp.ResponseStream))
         {
             if (jDoc.RootElement.TryGetProperty("archivalGroup", out JsonElement jArchivalGroup))
             {
@@ -91,12 +87,9 @@ public class OcflS3StorageMapper(
             }
         }
 
-        if (
-            archivalGroup.HasValue && archivalGroup == true &&
-            objectRoot.HasValue && objectRoot == true &&
-            deleted.HasValue && deleted == false)
+        if (archivalGroup is true && objectRoot is true && deleted is false)
         {
-            return new StorageMap()
+            return new StorageMap
             {
                 ArchivalGroup = archivalGroupUri,
                 Version = objectVersion,

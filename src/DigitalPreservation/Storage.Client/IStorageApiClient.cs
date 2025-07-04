@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Storage;
 using Storage.Repository.Common;
 
 namespace Storage.Client;
@@ -26,9 +27,11 @@ public interface IStorageApiClient
     /// 
     /// </summary>
     /// <param name="path">The full path including the /repository/ initial path element</param>
-    /// <param name="version">v1, v2 etc (optional - latest will be returned by default)</param>
     /// <returns></returns>
-    Task<Result<ArchivalGroup?>> GetArchivalGroup(string path, string? version);
+    Task<Result<ArchivalGroup?>> GetArchivalGroup(string path);
+    
+    Task<Result<StorageMap>> GetStorageMap(string archivalGroupPathUnderRoot, string? version = null);
+    Task<Result<string?>> GetArchivalGroupName(string archivalGroupPathUnderRoot, string? version = null);
     
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
     
@@ -56,9 +59,8 @@ public interface IStorageApiClient
     /// 
     /// </summary>
     /// <param name="path">The full path including the /repository/ initial path element</param>
-    /// <param name="version">v1, v2 etc (optional - latest will be returned by default)</param>
     /// <returns></returns>
-    Task<Result<Stream>> GetBinaryStream(string path, string? version);
+    Task<Result<Stream>> GetBinaryStream(string path);
 
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
     
