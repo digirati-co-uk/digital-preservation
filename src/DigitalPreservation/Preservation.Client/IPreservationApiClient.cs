@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Storage;
 using Storage.Repository.Common;
 
 namespace Preservation.Client;
@@ -22,6 +23,10 @@ public interface IPreservationApiClient
     /// <param name="path">The full path including the /repository/ initial path element</param>
     /// <returns></returns>
     Task<Result<string?>> GetResourceType(string path);
+    
+    Task<Result<StorageMap>> GetStorageMap(string path, string? version);
+    
+    Task<Result<PreservedResource?>> GetLightweightResource(string requestPathUnderRoot, string? requestVersion);
     
     Task<Result<Container?>> CreateContainer(string path, string? name = null);
     Task<Result<Deposit?>> CreateDeposit(

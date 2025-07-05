@@ -28,7 +28,7 @@
             }
             @if (Model.Resource is ArchivalGroup)
             {
-                <a class="btn btn-sm btn-outline-primary me-2 disabled">
+                <a class="btn btn-sm btn-outline-primary me-2" href="/ocfl/@Model.ArchivalGroupPath">
                     📦 Versions
                 </a>
                 <a class="btn btn-sm btn-outline-primary me-2 @(Model.HasPredictableIIIFPath ? "" : " disabled")"
@@ -196,8 +196,8 @@
                                     <text> class="table-primary" </text>
                                 }
                             >
-                                <td><a href="/ocfl/@(ViewBag.Path)?version=@version.OcflVersion">@version.OcflVersion</a></td>
-                                <td><a href="/ocfl/@(ViewBag.Path)?version=@version.OcflVersion">@version.MementoDateTime.GetDateDisplay()</a></td>
+                                <td><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@version.OcflVersion</a></td>
+                                <td><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@version.MementoDateTime.GetDateDisplay()</a></td>
                                 <td>
                                     @if (version.Equals(ag.StorageMap?.Version))
                                     {

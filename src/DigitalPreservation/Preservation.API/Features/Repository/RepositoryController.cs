@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Net;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.Utils;
@@ -20,12 +21,28 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
+    [ProducesResponseType(410)]
     public async Task<IActionResult> Browse(
         [FromRoute] string? path = null,
         [FromQuery] string? view = null,
         [FromQuery] string? version = null)
     {
-        // TODO: We are not using version yet
+        if (version.HasText())
+        {
+            if (view != "lightweight")
+            {
+                var problem = new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.BadRequest,
+                    Title = "Version only supported on lightweight view",
+                    Detail = "View " + (view ?? "[empty]") + " is not a valid value when a version is requested."
+                };
+                return BadRequest(problem);
+            }
+
+            var lwResult = await mediator.Send(new GetLightweightResource(path!, version));
+            return this.StatusResponseFromResult(lwResult);
+        }
         var result = await mediator.Send(new GetResource(Request.Path));
         if (view == "mets" && result is { Success: true, Value: ArchivalGroup archivalGroup })
         {

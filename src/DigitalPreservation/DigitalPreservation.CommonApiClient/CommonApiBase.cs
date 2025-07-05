@@ -2,6 +2,7 @@
 using System.Net.Http.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
@@ -44,6 +45,37 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             var uri = new Uri(path, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
 
+            var response = await httpClient.SendAsync(req);
+            var stream = await response.Content.ReadAsStreamAsync();
+            if (response.IsSuccessStatusCode)
+            {
+                var parsed = PreservedResourceDeserializer.Parse(stream);
+                if (parsed != null)
+                {
+                    return Result.Ok<PreservedResource?>(parsed);
+                }
+                return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+            }
+            return await response.ToFailResult<PreservedResource>("Unable to GET Resource");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<PreservedResource?>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+    
+    public async Task<Result<PreservedResource?>> GetLightweightResource(string pathUnderRoot, string? version)
+    {        
+        var reqPath = $"{PreservedResource.BasePathElement}/{pathUnderRoot}?view=lightweight";
+        if (version.HasText())
+        {
+            reqPath = $"{reqPath}&version={version}";
+        }
+        try
+        {
+            var uri = new Uri(reqPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await httpClient.SendAsync(req);
             var stream = await response.Content.ReadAsStreamAsync();
             if (response.IsSuccessStatusCode)
@@ -179,6 +211,34 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
         {
             logger.LogError(e, e.Message);
             return Result.Fail<ArchivalGroup>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+    
+    public async Task<Result<StorageMap>> GetStorageMap(string archivalGroupPathUnderRoot, string? version = null)
+    {
+        var reqPath = $"ocfl/storagemap/{archivalGroupPathUnderRoot}";
+        if (version.HasText())
+        {
+            reqPath = $"{reqPath}?version={version}";
+        }
+        try
+        {
+            var uri = new Uri(reqPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await httpClient.SendAsync(req);
+            var storageMap = await response.Content.ReadFromJsonAsync<StorageMap>();
+            if(storageMap != null)
+            {
+                logger.LogInformation("Received storageMap for ArchivalGroup {archivalGroupPathUnderRoot}, version {version}",
+                    archivalGroupPathUnderRoot, version);
+                return Result.OkNotNull(storageMap);
+            }
+            return Result.FailNotNull<StorageMap>(ErrorCodes.UnknownError, "Resource could not be parsed.");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<StorageMap>(ErrorCodes.UnknownError, e.Message);
         }
     }
 }

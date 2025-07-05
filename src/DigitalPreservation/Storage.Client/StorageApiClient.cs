@@ -136,62 +136,20 @@ public class StorageApiClient(
         }
     }
 
+
     public async Task<Result<string?>> GetArchivalGroupName(string archivalGroupPathUnderRoot, string? version = null)
     {
-        // version may have to be a memento timestamp rather than an OCFL version
-        var reqPath = $"{PreservedResource.BasePathElement}/{archivalGroupPathUnderRoot}?view=lightweight";
-        if (version.HasText())
+        var resourceResult = await GetLightweightResource(archivalGroupPathUnderRoot, version);
+        if (resourceResult is { Success: true, Value: ArchivalGroup })
         {
-            reqPath = $"{reqPath}&version={version}";
+            logger.LogInformation("Received resource to read name of ArchivalGroup {archivalGroupPathUnderRoot}, version {version}",
+                archivalGroupPathUnderRoot, version);
+            return Result.Ok(resourceResult.Value.Name);
         }
-        try
-        {
-            var uri = new Uri(reqPath, UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await httpClient.SendAsync(req);
-            var container = await response.Content.ReadFromJsonAsync<Container>();
-            if(container != null)
-            {
-                logger.LogInformation("Received container to read name of ArchivalGroup {archivalGroupPathUnderRoot}, version {version}",
-                    archivalGroupPathUnderRoot, version);
-                return Result.Ok(container.Name);
-            }
-            return Result.Fail<string>(ErrorCodes.UnknownError, "Resource could not be parsed.");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.Fail<string>(ErrorCodes.UnknownError, e.Message);
-        }
+
+        return Result.Fail<string>(resourceResult.ErrorCode ?? ErrorCodes.UnknownError, resourceResult.ErrorMessage);
     }
 
-    public async Task<Result<StorageMap>> GetStorageMap(string archivalGroupPathUnderRoot, string? version = null)
-    {
-        var reqPath = $"ocfl/storagemap/{archivalGroupPathUnderRoot}";
-        if (version.HasText())
-        {
-            reqPath = $"{reqPath}?version={version}";
-        }
-        try
-        {
-            var uri = new Uri(reqPath, UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await httpClient.SendAsync(req);
-            var storageMap = await response.Content.ReadFromJsonAsync<StorageMap>();
-            if(storageMap != null)
-            {
-                logger.LogInformation("Received storageMap for ArchivalGroup {archivalGroupPathUnderRoot}, version {version}",
-                    archivalGroupPathUnderRoot, version);
-                return Result.OkNotNull(storageMap);
-            }
-            return Result.FailNotNull<StorageMap>(ErrorCodes.UnknownError, "Resource could not be parsed.");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.FailNotNull<StorageMap>(ErrorCodes.UnknownError, e.Message);
-        }
-    }
 
     public async Task<Result<Export>> ExportArchivalGroup(
         Uri archivalGroup, 

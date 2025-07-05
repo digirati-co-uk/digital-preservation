@@ -17,6 +17,8 @@ public interface IStorageApiClient
     /// <returns></returns>
     Task<Result<PreservedResource?>> GetResource(string path);
     
+    Task<Result<PreservedResource?>> GetLightweightResource(string requestPathUnderRoot, string? requestVersion);
+    
     /// <summary>
     /// A low-cost way to determine the type of a resource, or whether a resource exists at the path.
     /// </summary>
