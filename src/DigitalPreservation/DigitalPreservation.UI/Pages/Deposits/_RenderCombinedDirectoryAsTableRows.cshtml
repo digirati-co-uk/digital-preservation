@@ -34,7 +34,7 @@ File is in both
             }
         </td>
         <td class="dep-actions">
-            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && combinedDirectory.LocalPath != FolderNames.Metadata)
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.IsMetadata(combinedDirectory.LocalPath))
             {
                 <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#newFolderModal" aria-label="new folder">
                     <svg class="bi"><use xlink:href="#folder-plus"/></svg>
