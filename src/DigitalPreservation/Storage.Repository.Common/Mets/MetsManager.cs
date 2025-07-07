@@ -464,7 +464,15 @@ public class MetsManager(
 
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
-                    var patchPremis = GetFileFormatMetadata(workingFile, operationPath);  
+                    FileFormatMetadata patchPremis;
+                    try
+                    {
+                        patchPremis = GetFileFormatMetadata(workingFile, operationPath);
+                    }
+                    catch (MetadataException mex)
+                    {
+                        return Result.Fail(ErrorCodes.BadRequest, mex.Message);
+                    }
                     PremisComplexType? premisType;
                     if (premisXml is not null)
                     {
@@ -530,7 +538,15 @@ public class MetsManager(
                     Fptr = { new DivTypeFptr{ Fileid = fileId } }
                 };
                 div.Div.Add(childItemDiv);
-                var premisFile = GetFileFormatMetadata(workingFile, operationPath);
+                FileFormatMetadata premisFile;
+                try
+                {
+                    premisFile = GetFileFormatMetadata(workingFile, operationPath);
+                }
+                catch (MetadataException mex)
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, mex.Message);
+                }
                 fullMets.Mets.FileSec.FileGrp[0].File.Add(
                     new FileType
                     {
