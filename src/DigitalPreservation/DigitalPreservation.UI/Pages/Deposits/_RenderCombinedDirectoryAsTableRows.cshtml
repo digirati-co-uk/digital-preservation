@@ -27,7 +27,7 @@ File is in both
                    <tr class="deposit-row @("where-" + where)" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@isMetadata">
         <td aria-label="select-row">
-            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !isMetadata)
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
             {
                 <input class="form-check-input item-selector item-directory" type="checkbox" 
                        value="@combinedDirectory.LocalPath" id="@("is-" + Model.RowCounter.Count)">
@@ -35,7 +35,7 @@ File is in both
             }
         </td>
         <td class="dep-actions">
-            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.IsMetadata(combinedDirectory.LocalPath))
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !isMetadata)
             {
                 <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#newFolderModal" aria-label="new folder">
                     <svg class="bi"><use xlink:href="#folder-plus"/></svg>
