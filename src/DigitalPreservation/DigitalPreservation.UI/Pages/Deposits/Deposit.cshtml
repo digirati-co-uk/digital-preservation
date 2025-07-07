@@ -766,12 +766,18 @@ ViewData["section"] = "deposits";
         const itemSelectors = document.getElementsByClassName("item-selector");
         const deleteSelectionObject = { items: [] };
         let summary = "<table>";
+        let metadataCount = 0;
         for(const itemSelector of itemSelectors)
         {
             if (itemSelector.checked){
                 const row = itemSelector.closest("tr");
                 const type = row.getAttribute("data-type");
                 const relativePath = row.getAttribute("data-path");
+                const isMetadata = row.getAttribute("data-metadata").toLowerCase() === "true";
+                if(isMetadata){
+                    metadataCount++;
+                    continue;
+                }
                 if (relativePath && (type === "directory" || type === "file")){
                     const whereabouts = row.getAttribute("data-whereabouts");
                     const item = {
@@ -791,17 +797,25 @@ ViewData["section"] = "deposits";
             }
         }
         summary += "</table>";
-
-        if (deleteSelectionObject.items.length > 0){
-            deleteItemHelp.innerHTML = summary;
-            deleteFromMetsAndDepositRadio.removeAttribute("disabled");
-            if (archivalGroupExists){
-                deleteFromDepositRadio.removeAttribute("disabled");
-            }
-        } else {
-            deleteItemHelp.innerHTML = "<p>There are no items selected.</p>"
+        
+        if(metadataCount > 0)
+        {
+            deleteItemHelp.innerHTML = `<div class="alert alert-danger" role="alert"><p>${metadataCount} item(s) are in the metadata folder, these cannot be deleted.</p></div>`;
+            document.getElementById("deleteSelectionObject").value = "";            
         }
-        document.getElementById("deleteSelectionObject").value = JSON.stringify(deleteSelectionObject);
+        else
+        {
+            if (deleteSelectionObject.items.length > 0){
+                deleteItemHelp.innerHTML = summary;
+                deleteFromMetsAndDepositRadio.removeAttribute("disabled");
+                if (archivalGroupExists){
+                    deleteFromDepositRadio.removeAttribute("disabled");
+                }
+            } else {
+                deleteItemHelp.innerHTML = "<p>There are no items selected.</p>"
+            }
+            document.getElementById("deleteSelectionObject").value = JSON.stringify(deleteSelectionObject);
+        }
     });
 
 
