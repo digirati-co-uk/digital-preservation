@@ -30,7 +30,7 @@ public class ExecuteExportHandler(
     {
         var export = request.Export;
         
-        logger.LogInformation("Exporting Archival Group {archivalGroup}", export.ArchivalGroup);;
+        logger.LogInformation("Exporting Archival Group {archivalGroup}", export.ArchivalGroup);
         var destination = new AmazonS3Uri(export.Destination);
         var destinationBucket = destination.Bucket;
         var destinationKey = destination.Key;
