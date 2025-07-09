@@ -40,8 +40,12 @@ public class ImportJobsController(
         if (result is { Success: true, Value: not null })
         {
             result.Value.OriginalId = GetDiffUri(depositId);
+            logger.LogInformation($"Controller returning import job: {result.Value.LogSummary()}");
         }
-        logger.LogInformation($"Controller returning import job: {result.Value.LogSummary()}");
+        else
+        {
+            logger.LogError("Failed to get diff import job: " + result.CodeAndMessage());
+        }
         return this.StatusResponseFromResult(result);
     }
 

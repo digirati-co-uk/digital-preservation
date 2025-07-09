@@ -54,7 +54,7 @@ try
 
 
     builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options => options.Events = new RejectSessionCookieWhenAccountNotInCacheEvents());
-
+    
     // <ms_docref_add_default_controller_for_sign-in-out>
     builder.Services.AddRazorPages().AddMvcOptions(options =>
     {
@@ -108,14 +108,16 @@ try
     {
         app.UseExceptionHandler("/Error");
         // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-        app.UseHsts();
+        //app.UseHsts();
     }
-
+    app.UseHsts();
+    
     app
         .UseHttpsRedirection()
         .UseStaticFiles()
         .UseRouting()
         .UseForwardedHeaders();
+    
     app.UseSession();
     app.MapRazorPages();
     app.MapControllers();

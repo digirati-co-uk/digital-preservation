@@ -12,6 +12,6 @@ public class StorageOptions
     /// <summary>
     /// Timeout, in MINUTES, for requests made to storage client 
     /// </summary>
-    public double TimeoutMinutes { get; set; } = 10;
+    public double TimeoutMinutes { get; set; } = 1440;
     
 }

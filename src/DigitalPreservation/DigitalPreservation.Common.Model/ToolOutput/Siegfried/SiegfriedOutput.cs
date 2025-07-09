@@ -36,9 +36,19 @@ public class SiegfriedOutput
             }
             
             var file = deserializer.Deserialize<File>(parser);
+            NormaliseFileSeparators(file);
             output.Files.Add(file);
         }
         return output;
+    }
+
+    private static void NormaliseFileSeparators(File file)
+    {
+        if (file.Filename.HasText() && file.Filename.Contains('\\'))
+        {
+            // Siegfried may have been run on Windows
+            file.Filename = file.Filename.Replace('\\', '/');
+        }
     }
 
     public static SiegfriedOutput FromYamlString(string input)
@@ -58,10 +68,12 @@ public class SiegfriedOutput
         using var csv = new CsvReader(reader, config);
         csv.Context.RegisterClassMap<SiegfriedCsvRowMap>();
         var records = csv.GetRecords<SiegfriedCsvRow>();
-        return new SiegfriedOutput
+        var files = records.Select(r => r.ToFile()).ToList();
+        foreach (var file in files)
         {
-            Files = records.Select(r => r.ToFile()).ToList()
-        };
+            NormaliseFileSeparators(file);
+        }
+        return new SiegfriedOutput { Files = files };
     }
 }
 

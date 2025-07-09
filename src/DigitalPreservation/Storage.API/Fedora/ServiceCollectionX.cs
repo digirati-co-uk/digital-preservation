@@ -37,7 +37,9 @@ public static class ServiceCollectionX
                 var credentials = $"{fedoraOptions.AdminUser}:{fedoraOptions.AdminPassword}";
                 var authHeader = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(credentials));
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authHeader);
-            }).AddHttpMessageHandler<TimingHandler>();
+            })
+            .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(60), 60)
+            .AddHttpMessageHandler<TimingHandler>();
 
         return serviceCollection;
     }

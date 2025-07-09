@@ -822,6 +822,7 @@ internal class FedoraClient(
         // Get the contains property which may be a single value or an array
         var idsFromContainmentPredicate = GetIdsFromContainsProperty(containerAndContained[0]);
         idsFromContainmentPredicate.Sort();
+        logger.LogDebug("idsFromContainmentPredicate has {childCount} child items.", idsFromContainmentPredicate.Count);
         foreach (var id in idsFromContainmentPredicate)
         {
             var resource = dict[id];
@@ -1046,7 +1047,8 @@ internal class FedoraClient(
         response.EnsureSuccessStatusCode();
         var tx = new Transaction
         {
-            Location = response.Headers.Location!
+            Location = response.Headers.Location!,
+            StatusCode = response.StatusCode
         };
         if (response.Headers.TryGetValues("Atomic-Expires", out IEnumerable<string>? values))
         {
@@ -1061,29 +1063,18 @@ internal class FedoraClient(
         return tx;
     }
 
-    public async Task CheckTransaction(Transaction tx)
+    public async Task<HttpStatusCode> GetTransactionHttpStatus(Transaction tx)
     {
-        HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Get);
+        var req = MakeHttpRequestMessage(tx.Location, HttpMethod.Get);
         var response = await httpClient.SendAsync(req);
-        switch (response.StatusCode)
-        {
-            case HttpStatusCode.NoContent:
-                tx.Expired = false;
-                break;
-            case HttpStatusCode.NotFound:
-                // error?
-                break;
-            case HttpStatusCode.Gone:
-                tx.Expired = true;
-                break;
-        }
+        return response.StatusCode;
     }
 
     public async Task KeepTransactionAlive(Transaction tx)
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Post);
         var response = await httpClient.SendAsync(req);
-        response.EnsureSuccessStatusCode();
+        tx.StatusCode = response.StatusCode; // Allow for the possibility of a 404
 
         if (response.Headers.TryGetValues("Atomic-Expires", out var values))
         {
@@ -1091,44 +1082,17 @@ internal class FedoraClient(
         }
     }
 
-    public async Task CommitTransaction(Transaction tx)
+    public async Task CommitTransaction(Transaction tx, CancellationToken cancellationToken = default)
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Put);
-        var response = await httpClient.SendAsync(req);
-        switch (response.StatusCode)
-        {
-            case HttpStatusCode.NoContent:
-                tx.Committed = true;
-                break;
-            case HttpStatusCode.NotFound:
-                // error?
-                break;
-            case HttpStatusCode.Conflict:
-                tx.Committed = false;
-                break;
-            case HttpStatusCode.Gone:
-                tx.Expired = true;
-                break;
-        }
-        response.EnsureSuccessStatusCode();
+        var response = await httpClient.SendAsync(req, cancellationToken);
+        tx.StatusCode = response.StatusCode;
     }
 
     public async Task RollbackTransaction(Transaction tx)
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Delete);
         var response = await httpClient.SendAsync(req);
-        switch (response.StatusCode)
-        {
-            case HttpStatusCode.NoContent:
-                tx.RolledBack = true;
-                break;
-            case HttpStatusCode.NotFound:
-                // error?
-                break;
-            case HttpStatusCode.Gone:
-                tx.Expired = true;
-                break;
-        }
-        response.EnsureSuccessStatusCode();
+        tx.StatusCode = response.StatusCode;
     }
 }

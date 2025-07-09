@@ -43,12 +43,14 @@ public class ExecuteImportJobHandler(
             return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
         }
         
-        
-        var timer = new Stopwatch();
-        timer.Start();
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
         
         var transaction = await fedoraClient.BeginTransaction();
-        logger.LogInformation("Fedora transaction begun: " + transaction.Location);
+        var transactionMonitor = new FedoraTransactionMonitor(logger, fedoraClient, transaction, stopwatch);
+        var timer = new Timer(transactionMonitor.MaintainTransactionState, transaction, 60 * 1000, 60 * 1000);
+
+        logger.LogInformation("(TX) Fedora transaction begun: " + transaction.Location);
         var validationResult = await fedoraClient.GetValidatedArchivalGroupForImportJob(archivalGroupPathUnderRoot, transaction);
         if (validationResult.Failure)
         {
@@ -114,13 +116,13 @@ public class ExecuteImportJobHandler(
             request.JobIdentifier, importJobResult, true, false, cancellationToken);
 
         
-        logger.LogInformation("Now looping through import job tasks");
+        logger.LogInformation("(TX) Now looping through import job tasks");
         try
         {
             logger.LogInformation("{count} containers to add", importJob.ContainersToAdd.Count);
             foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id!.ToString()))
             {
-                logger.LogInformation("Creating container {id}", container.Id);
+                logger.LogInformation("(TX) Creating container {id}", container.Id);
                 var fedoraContainerResult = await fedoraClient.CreateContainerWithinArchivalGroup(
                     container.Id.GetPathUnderRoot()!,
                     callerIdentity,
@@ -134,7 +136,6 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraContainerResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
             }
 
             // what about deletions of containers? conflict?
@@ -143,7 +144,7 @@ public class ExecuteImportJobHandler(
             logger.LogInformation("{count} binaries to add", importJob.BinariesToAdd.Count);
             foreach (var binary in importJob.BinariesToAdd)
             {
-                logger.LogInformation("Adding binary {id}, size: {size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
+                logger.LogInformation("(TX) Adding binary {id}, size: {size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
                 var fedoraPutBinaryResult = await fedoraClient.PutBinary(
                     binary,
                     callerIdentity,
@@ -157,7 +158,6 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraPutBinaryResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
             }
 
             // patch files
@@ -167,7 +167,7 @@ public class ExecuteImportJobHandler(
             logger.LogInformation("{count} binaries to patch", importJob.BinariesToPatch.Count);
             foreach (var binary in importJob.BinariesToPatch)
             {
-                logger.LogInformation("Patching file {id}, size: {size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
+                logger.LogInformation("(TX) Patching file {id}, size: {size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
                 var fedoraPatchBinaryResult = await fedoraClient.PutBinary(
                     binary,
                     callerIdentity,
@@ -182,14 +182,13 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraPatchBinaryResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
             }
 
             // delete files
             logger.LogInformation("{count} binaries to delete", importJob.BinariesToDelete.Count);
             foreach (var binary in importJob.BinariesToDelete)
             {
-                logger.LogInformation("Deleting file {id}", binary.Id);
+                logger.LogInformation("(TX) Deleting file {id}", binary.Id);
                 var fedoraDeleteResult = await fedoraClient.Delete(
                     binary,
                     callerIdentity,
@@ -204,7 +203,6 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraDeleteResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
             }
 
 
@@ -215,7 +213,7 @@ public class ExecuteImportJobHandler(
             logger.LogInformation("{count} containers to delete", importJob.ContainersToDelete.Count);
             foreach (var container in importJob.ContainersToDelete.OrderByDescending(c => c.Id!.ToString()))
             {
-                logger.LogInformation("Deleting container {id}", container.Id);
+                logger.LogInformation("(TX) Deleting container {id}", container.Id);
                 var fedoraDeleteResult = await fedoraClient.Delete(
                     container,
                     callerIdentity,
@@ -230,7 +228,6 @@ public class ExecuteImportJobHandler(
                 {
                     return await FailEarly(fedoraDeleteResult.CodeAndMessage());
                 }
-                await KeepTransactionAlive();
             }
             if (importJob.IsUpdate)
             {
@@ -248,7 +245,7 @@ public class ExecuteImportJobHandler(
         }
         catch(Exception ex)
         {
-            logger.LogError(ex, "Caught error in importJob, rolling back transaction");
+            logger.LogError(ex, "(TX) Caught error in importJob, rolling back transaction");
             await fedoraClient.RollbackTransaction(transaction);
             importJobResult.DateFinished = DateTime.UtcNow;
             importJobResult.Status = ImportJobStates.CompletedWithErrors;
@@ -256,29 +253,42 @@ public class ExecuteImportJobHandler(
             return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
         }
 
-        logger.LogInformation("Commiting Fedora transaction " + transaction.Location);
+        logger.LogInformation("(TX) Committing Fedora transaction " + transaction.Location);
         var startCommitTime = DateTime.UtcNow;
         try
         {
-            await fedoraClient.CommitTransaction(transaction);
+            // disposing it here will prevent further ticks while the commit is carried out.
+            // which should be OK but we introduced the 404 check specifically so we could cancel the 
+            // http request and finish processing
+            // await timer.DisposeAsync(); 
+            
+            // or give it MUCH longer between checks
+            // So it will allow our test one to finish before checking; we can see if it returns before then or not
+            
+            const int halfAnHour = 30 * 60 * 1000;
+            timer.Change(halfAnHour, halfAnHour);
+            await transactionMonitor.CommitTransaction();
+            await timer.DisposeAsync(); // does this stop the timer?
         }
         catch (Exception e)
         {
+            await timer.DisposeAsync(); // does this stop the timer?
             var errorTime = DateTime.UtcNow - startCommitTime;
-            var message = $"Unable to commit Fedora transaction: duration {errorTime.TotalSeconds} seconds: {e.Message}";
+            var message = $"(TX) Unable to commit Fedora transaction: duration {errorTime.TotalSeconds} seconds: {e.Message}";
             logger.LogError(e, message);
             return await FailEarly(message, rollback: false);
         }
         importJobResult.DateFinished = DateTime.UtcNow;
         var commitDuration = importJobResult.DateFinished - startCommitTime;
-        logger.LogInformation("Fedora commit transaction took {duration} seconds", commitDuration.Value.TotalSeconds);
+        logger.LogInformation("(TX) Fedora commit transaction took {duration} seconds", commitDuration.Value.TotalSeconds);
         importJobResult.Status = ImportJobStates.Completed;
         return Result.OkNotNull(importJobResult);
 
         
         async Task<Result<ImportJobResult>> FailEarly(string? errorMessage, string? errorCode = ErrorCodes.UnknownError, bool rollback = true)
         {
-            logger.LogError("Failing Import Job Early: {errorCode} - {errorMessage}", errorCode, errorMessage);
+            await timer.DisposeAsync();
+            logger.LogError("(TX) Failing Import Job Early: {errorCode} - {errorMessage}", errorCode, errorMessage);
             if (rollback)
             {
                 await fedoraClient.RollbackTransaction(transaction);
@@ -287,19 +297,6 @@ public class ExecuteImportJobHandler(
             importJobResult.DateFinished = DateTime.UtcNow;
             importJobResult.Status = ImportJobStates.CompletedWithErrors;
             return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
-        }
-
-        async Task KeepTransactionAlive()
-        {
-            // Fedora's default transaction timeout is 3 minutes
-            // We will poke the transaction after 60s - but if a single operation takes > 2m it will still time out.
-            if (timer.ElapsedMilliseconds > 60000)
-            {
-                logger.LogInformation("Keeping transaction alive after {elapsedMilliseconds} ms", timer.ElapsedMilliseconds);
-                await fedoraClient.KeepTransactionAlive(transaction);
-                timer.Restart();
-            }
-            // We could save the current state of the Result here...
         }
     }
 
