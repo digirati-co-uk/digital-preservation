@@ -227,4 +227,51 @@ public static class StringUtils
     {
         return GetCommonPrefix(strings.ToArray());
     }
+    
+    public static string GetFriendlyAge(DateTime? dtn)
+    {
+        if (dtn.HasValue)
+        {
+            return GetFriendlyAge(dtn.Value);
+        }
+        return "(no date)";
+    }
+
+    public static string GetLocalDate(DateTime dt)
+    {
+        DateTime localTime = dt.ToLocalTime();
+        return localTime.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    public static string GetLocalDate(DateTime? dt)
+    {
+        if (!dt.HasValue)
+        {
+            return "";
+        }
+
+        return GetLocalDate(dt.Value);
+    }
+
+    public static string GetFriendlyAge(DateTime dt)
+    {
+        DateTime localTime = dt.ToLocalTime();
+        var s = localTime.ToString("yyyy-MM-dd HH:mm:ss") + " (";
+        var dtNow = DateTime.Now;
+        if (localTime.Date == dtNow.Date)
+        {
+            s += "today";
+        }
+        else if (localTime.Date == dtNow.AddDays(-1).Date)
+        {
+            s += "yesterday";
+        }
+        else
+        {
+            var td = (dtNow.Date - localTime).TotalDays;
+            var d = Math.Ceiling(td);
+            s += d + " days ago";
+        }
+        return s + ")";
+    }
 }

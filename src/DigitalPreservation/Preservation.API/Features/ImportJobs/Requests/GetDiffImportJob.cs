@@ -46,7 +46,7 @@ public class GetDiffImportJobHandler(
 
         ArchivalGroup? existingArchivalGroup = null;
         var agPathUnderRoot = request.Deposit.ArchivalGroup.GetPathUnderRoot()!;
-        var archivalGroupResult = await storageApi.GetArchivalGroup(request.Deposit.ArchivalGroup.AbsolutePath, null);
+        var archivalGroupResult = await storageApi.GetArchivalGroup(request.Deposit.ArchivalGroup.AbsolutePath);
         if (archivalGroupResult is { Success: true, Value: not null })
         {
             logger.LogInformation("Archival group is valid");
@@ -118,10 +118,14 @@ public class GetDiffImportJobHandler(
         {
             agLocalPathWithSlash += "/";
         }
+        
+        var combinedFilesByBinaryId = new Dictionary<Uri, CombinedFile>();
         foreach (var binary in sourceBinaries)
         {
             var relativeLocalPath = binary.Id!.LocalPath.RemoveStart(agLocalPathWithSlash)!.UnEscapePathElementsNoHashes();
             var combinedFile = combined.FindFile(relativeLocalPath)!; // because it came from a URI not a file path
+            combinedFilesByBinaryId[binary.Id] = combinedFile;
+            
             if (combinedFile.FileInMets is null)
             {
                 var message = $"Could not find file {relativeLocalPath} in METS file.";
@@ -150,11 +154,6 @@ public class GetDiffImportJobHandler(
             {
                 throw new Exception("We should have set this by now");
             }
-            // This was old and wrong:
-            // if (combinedFile.FileInMets.ContentType.HasText()) // need to set this
-            // {
-            //     binary.ContentType = combinedFile.FileInMets.ContentType;
-            // }
         }
 
         var missingTheirChecksum = sourceBinaries
@@ -215,6 +214,21 @@ public class GetDiffImportJobHandler(
             // This is a new object
             importJob.ContainersToAdd = sourceContainers;
             importJob.BinariesToAdd = sourceBinaries;
+        }
+        
+        // Now validate that any binary that needs adding or patching is present in the Deposit
+        var binariesToCheck = new List<Binary>();
+        binariesToCheck.AddRange(importJob.BinariesToAdd);
+        binariesToCheck.AddRange(importJob.BinariesToPatch);
+        foreach (var binary in binariesToCheck)
+        {
+            var fileInDeposit = combinedFilesByBinaryId[binary.Id!].FileInDeposit;
+            if (fileInDeposit == null)
+            {
+                var message = $"Binary {binary.Id!.LocalPath} has no file in the Deposit.";
+                logger.LogWarning(message);
+                return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, message);
+            }
         }
 
         var validateMetsResult = workspace.ValidateImportJob(importJob, combined, existingArchivalGroup);

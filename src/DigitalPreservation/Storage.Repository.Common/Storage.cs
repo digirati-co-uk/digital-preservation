@@ -205,7 +205,7 @@ public class Storage(
         }
         catch (AmazonS3Exception s3E)
         {
-            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add directory to METS", location);
+            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add directory to Deposit files", location);
             return Result.Generify<WorkingDirectory>(exResult);
         }
     }
@@ -218,7 +218,8 @@ public class Storage(
             if (currentResult.Success)
             {
                 var root = currentResult.Value!;
-                var parentDir = root.FindDirectory(fileToAdd.LocalPath.GetParent(), false);
+                // Going to set create to true here (it was false) otherwise you can't add to a METS-only file layout.
+                var parentDir = root.FindDirectory(fileToAdd.LocalPath.GetParent(), true);
                 if (parentDir == null)
                 {
                     return Result.FailNotNull<WorkingDirectory>(ErrorCodes.NotFound, "Parent directory does not exist");
@@ -231,7 +232,7 @@ public class Storage(
         }
         catch (AmazonS3Exception s3E)
         {
-            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add file to METS", location);
+            var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not add file to Deposit files", location);
             return Result.Generify<WorkingDirectory>(exResult);
         }
     }

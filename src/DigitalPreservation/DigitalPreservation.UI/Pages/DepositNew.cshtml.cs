@@ -20,18 +20,23 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         // list deposits
     }
 
-    public async Task<IActionResult> OnPostCreateForArchivalGroup(string archivalGroupPath, bool export, string? submissionText)
+    public async Task<IActionResult> OnPostCreateForArchivalGroup(string archivalGroupPath, bool export, string? submissionText, string? archivalGroupVersion)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{archivalGroupPath}";
         var result = await mediator.Send(new GetResource(resourcePath));
         if (result.Success)
         {
+            if (archivalGroupVersion.HasText())
+            {
+                export = true;
+            }
             var model = new NewDepositModel
             {
                 ArchivalGroupPathUnderRoot = archivalGroupPath,
                 ArchivalGroupProposedName = result.Value!.Name!,
                 SubmissionText = submissionText,
                 Export = export,
+                Version = archivalGroupVersion,
                 UseObjectTemplate = true
             };
             return await OnPostCreate(model);
@@ -68,7 +73,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                     newDepositModel.SubmissionText,
                     templateType,
                     newDepositModel.Export,
-                    exportVersion: null // always do this from UI; only supports exporting HEAD
+                    exportVersion: newDepositModel.Version 
                 ));
             }
         }

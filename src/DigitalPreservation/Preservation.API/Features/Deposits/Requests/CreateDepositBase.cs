@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
@@ -12,6 +13,7 @@ using Preservation.API.Data;
 using Preservation.API.Mutation;
 using Storage.Client;
 using Storage.Repository.Common;
+using Storage.Repository.Common.Mets;
 using DepositEntity = Preservation.API.Data.Entities.Deposit; 
 
 namespace Preservation.API.Features.Deposits.Requests;
@@ -51,21 +53,29 @@ public class CreateDepositBase(
                 return Result.Fail<Deposit?>(ErrorCodes.BadRequest, "Archival Group does not exist, cannot export");
             }
             
-            ArchivalGroup? archivalGroupForExport = null;
+            // Will be a storage map not an AG
+            StorageMap? storageMapForExport = null;
+            string? nameOfArchivalGroupAtVersion = null;
             if (request.Export)
             {
-                logger.LogInformation("CreateDeposit request asked for Export, fetching Archival Group " + request.Deposit.ArchivalGroup!.AbsolutePath);
-                var archivalGroupResult = await storageApiClient.GetArchivalGroup(
-                    request.Deposit.ArchivalGroup!.AbsolutePath, request.Deposit.VersionExported);
-                if (archivalGroupResult.Failure || archivalGroupResult.Value is null)
+                var agPath = request.Deposit.ArchivalGroup!.GetPathUnderRoot()!;
+                var agVersion = request.Deposit.VersionExported;
+                logger.LogInformation("CreateDeposit request asked for Export, " +
+                                      "fetching storage map for Archival Group {agUrl}", 
+                                        request.Deposit.ArchivalGroup!.AbsolutePath);
+                var storageMapResult = await storageApiClient.GetStorageMap(agPath, agVersion);
+                if (storageMapResult.Failure || storageMapResult.Value is null)
                 {
-                    logger.LogError(archivalGroupResult.CodeAndMessage());
-                    return Result.Fail<Deposit?>(archivalGroupResult.ErrorCode!, archivalGroupResult.ErrorMessage);
+                    logger.LogError(storageMapResult.CodeAndMessage());
+                    return Result.Fail<Deposit?>(storageMapResult.ErrorCode!, storageMapResult.ErrorMessage);
                 }
-                archivalGroupForExport = archivalGroupResult.Value;
-                
-                logger.LogInformation("Archival Group retrieved: " + archivalGroupForExport.Id);
-                // This archival group has not had its URIs mutated, it is a Storage API representation
+                storageMapForExport = storageMapResult.Value;
+                var nameResult = await storageApiClient.GetArchivalGroupName(agPath, agVersion);
+                if (nameResult.Success)
+                {
+                    nameOfArchivalGroupAtVersion = nameResult.Value;
+                }
+                logger.LogInformation("Storage map for Archival Group retrieved: " + storageMapForExport.Version);
             }
             
             var mintedId = identityService.MintIdentity(nameof(Deposit));
@@ -82,29 +92,31 @@ public class CreateDepositBase(
             Uri? exportResultUri = null;
             if (request.Export)
             {
-                logger.LogInformation("CreateDeposit request asked for Export, calling storage::ExportArchivalGroup to export " + archivalGroupForExport!.Id! + ", version: " + archivalGroupForExport.Version!.OcflVersion!);
+                logger.LogInformation("CreateDeposit request asked for Export, " +
+                                      "calling storage::ExportArchivalGroup to export {agUri}, version: {version}",
+                    request.Deposit.ArchivalGroup, storageMapForExport!.Version.OcflVersion!);
                 var exportResultResult = await storageApiClient.ExportArchivalGroup(
-                    archivalGroupForExport.Id!,
+                    resourceMutator.MutatePreservationApiUri(request.Deposit.ArchivalGroup!)!, // maybe should ask for the AG and use its URL
                     filesLocation.Value!,
-                    archivalGroupForExport.Version!.OcflVersion!,
+                    storageMapForExport.Version.OcflVersion!,
                     cancellationToken);
                 if (exportResultResult.Failure || exportResultResult.Value is null)
                 {
-                    logger.LogError("Failed to export " +  archivalGroupForExport.Id! + ", " + exportResultResult.CodeAndMessage());
+                    logger.LogError("Failed to export " +  request.Deposit.ArchivalGroup! + ", " + exportResultResult.CodeAndMessage());
                     return Result.Fail<Deposit?>(exportResultResult.ErrorCode!, exportResultResult.ErrorMessage);
                 }
                 exportResultUri = exportResultResult.Value.Id;
                 logger.LogInformation("Obtained exportResultUri: " + exportResultUri!);
             }
 
-            var agNameFromDeposit = request.Deposit.ArchivalGroupName ?? archivalGroupForExport?.Name;
+            var agNameFromDeposit = request.Deposit.ArchivalGroupName ?? nameOfArchivalGroupAtVersion;
             
             var metsResult = await EnsureMets(
                 request.Deposit.Template,
                 filesLocation.Value!, 
                 request.Deposit.ArchivalGroup,
                 archivalGroupExists is true, 
-                archivalGroupForExport, 
+                storageMapForExport,
                 request.Deposit.VersionExported,
                 agNameFromDeposit,
                 cancellationToken);
@@ -139,7 +151,7 @@ public class CreateDepositBase(
             {
                 entity.Exported = now;
                 entity.ExportedBy = callerIdentity;
-                entity.VersionExported = archivalGroupForExport!.Version!.OcflVersion;
+                entity.VersionExported = storageMapForExport!.Version.OcflVersion;
                 entity.ExportResultUri = exportResultUri;
             }
             
@@ -180,7 +192,7 @@ public class CreateDepositBase(
         Uri filesLocation, 
         Uri? archivalGroupUri, 
         bool archivalGroupExists, 
-        ArchivalGroup? exportedArchivalGroup, 
+        StorageMap? storageMapForExport, 
         string? ocflVersion, 
         string? agNameFromDeposit,
         CancellationToken cancellationToken = default)
@@ -212,32 +224,34 @@ public class CreateDepositBase(
         if (archivalGroupExists)
         {
             logger.LogInformation("Archival Group " + archivalGroupUri + " exists.");
-            ArchivalGroup? archivalGroup;
+            StorageMap? storageMap;
             // list its root at the correct version
-            if (exportedArchivalGroup is null)
+            if (storageMapForExport is null)
             {
                 logger.LogInformation("Not already retrieved, so fetch archival group " + archivalGroupUri + ", version " + ocflVersion);
-                var archivalGroupResult = await storageApiClient.GetArchivalGroup(archivalGroupUri!.AbsolutePath, ocflVersion);
-                if (archivalGroupResult is { Success: true, Value: not null, Value.Type: nameof(ArchivalGroup) })
+                var storageMapResult = await storageApiClient.GetStorageMap(archivalGroupUri!.GetPathUnderRoot()!, ocflVersion);
+                if (storageMapResult is { Success: true, Value: not null })
                 {
-                    logger.LogInformation("Archival Group retrieved: " + archivalGroupResult.Value.Id);
-                    archivalGroup = archivalGroupResult.Value;
+                    logger.LogInformation("Storage Map retrieved: " + storageMapResult.Value.Version.OcflVersion);
+                    storageMap = storageMapResult.Value;
                 }
                 else
                 {
-                    logger.LogError("Unable to fetch Archival Group: " + archivalGroupResult.CodeAndMessage());
+                    logger.LogError("Unable to fetch Storage Map: " + storageMapResult.CodeAndMessage());
                     return Result.Fail(
-                        archivalGroupResult.ErrorCode ?? ErrorCodes.UnknownError,
-                        archivalGroupResult.ErrorMessage ?? "Could not retrieve archival group to look for METS: " + archivalGroupUri);
+                        storageMapResult.ErrorCode ?? ErrorCodes.UnknownError,
+                        storageMapResult.ErrorMessage ?? "Could not retrieve storage map to look for METS: " + archivalGroupUri);
                 }
             }
             else
             {
-                archivalGroup = exportedArchivalGroup;
+                storageMap = storageMapForExport;
             }
             
             // An exported Archival Group is, for now, always in our root-level template, not in BagIt format
-            var metsFile = archivalGroup.Binaries.FirstOrDefault(b => metsManager.IsMetsFile(b.Id!.GetSlug()!));
+
+
+            var metsFile = storageMap.Files.Values.FirstOrDefault(f => MetsUtils.IsMetsFile(f.FullPath))?.FullPath;
             if (metsFile is null)
             {
                 logger.LogWarning("No METS file found in Archival Group " + archivalGroupUri + ", version " + ocflVersion);
@@ -247,16 +261,31 @@ public class CreateDepositBase(
                 logger.LogWarning("Creating Standard METS file in AG " + archivalGroupUri + ", version " + ocflVersion);
                 // existing AG has no METS (even if it's exporting), but we can make one safely because it's one of our own
                 // FOR NOW THIS THE EXPORT IS ALWAYS ROOT LEVEL, MATCHING THE AG
-                var result = await metsManager.CreateStandardMets(filesLocation, archivalGroup, agNameFromDeposit);
-                if (result is { Success: true, Value: not null })
+                // We will only do this (add a METS file where none existed) if you are exporting the HEAD
+                // Otherwise what would it mean to add METS to an older version?
+                if (storageMap.Version.OcflVersion != storageMap.HeadVersion.OcflVersion)
                 {
-                    return Result.Ok();
+                    return Result.Fail(ErrorCodes.UnknownError, 
+                        "If exporting an Archival Group that doesn't have a METS, you can only export the HEAD version.");
                 }
-                logger.LogError("Unable to create Standard METS file, " + result.CodeAndMessage());
-                return Result.Fail(result.ErrorCode!, result.ErrorMessage);
+                var archivalGroupResult = await storageApiClient.GetArchivalGroup(archivalGroupUri!.AbsolutePath);
+                if (archivalGroupResult is { Success: true, Value: not null })
+                {
+                    var result = await metsManager.CreateStandardMets(filesLocation, archivalGroupResult.Value,
+                        agNameFromDeposit);
+                    if (result is { Success: true, Value: not null })
+                    {
+                        return Result.Ok();
+                    }
+
+                    logger.LogError("Unable to create Standard METS file, " + result.CodeAndMessage());
+                    return Result.Fail(result.ErrorCode!, result.ErrorMessage);
+                }
+                return Result.Fail(ErrorCodes.UnknownError, 
+                    "Could not load Archival Group {}.");
             }
 
-            if (metsFile is not null && exportedArchivalGroup is null)
+            if (metsFile is not null && storageMapForExport is null)
             {
                 logger.LogInformation("There is a METS file, but this isn't an export, so we need to copy it into the Deposit.");
                 var storageArchivalGroupUri = resourceMutator.MutatePreservationApiUri(archivalGroupUri);

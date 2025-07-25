@@ -337,53 +337,45 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         };
         foreach (var combinedDirectory in Directories)
         {
-            var directoryInDeposit = combinedDirectory.DirectoryInDeposit;
-            if (directoryInDeposit != null)
-            {
-                var childResult = combinedDirectory.ToContainer(
-                    repositoryUri.AppendEscapedSlug(directoryInDeposit.GetSlug().EscapeForUriNoHashes()), // For Fedora
-                    origin.AppendEscapedSlug(directoryInDeposit.GetSlug().EscapeForUri()), // Regular S3 URI
-                    uris);
-                if (childResult is { Success: true, Value: not null })
-                {
-                    container.Containers.Add(childResult.Value);
-                }
-                else
-                {
-                    return childResult;
-                }
-            }
+            string slug = combinedDirectory.LocalPath!.GetSlug();
+            var childResult = combinedDirectory.ToContainer(
+                 repositoryUri.AppendEscapedSlug(slug.EscapeForUriNoHashes()), // For Fedora
+                 origin.AppendEscapedSlug(slug.EscapeForUri()), // Regular S3 URI
+                 uris);
+             if (childResult is { Success: true, Value: not null })
+             {
+                 container.Containers.Add(childResult.Value);
+             }
+             else
+             {
+                 return childResult;
+             }
         }
         foreach (var combinedFile in Files)
         {
-            var fileInDeposit = combinedFile.FileInDeposit;
-            if (fileInDeposit == null)
-            {
-                continue;
-                // Is this a FAIL?
-            }
-            var binaryId = repositoryUri.AppendEscapedSlug(fileInDeposit.GetSlug().EscapeForUriNoHashes());
+            var slug = combinedFile.LocalPath!.GetSlug();
+            var binaryId = repositoryUri.AppendEscapedSlug(slug.EscapeForUriNoHashes());
             uris?.Add(binaryId);
             
             var size = combinedFile.GetSingleSize();
             if (size <= 0)
             {
                 return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
-                    $"File {fileInDeposit.LocalPath} has different sizes in deposit and mets or does not have a size at all");
+                    $"File {combinedFile.LocalPath} has different sizes in deposit and mets or does not have a size at all");
             }
             
             var contentType = combinedFile.GetSingleContentType();
             if (contentType is null)
             {
                 return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
-                    $"File {fileInDeposit.LocalPath} has different content types in deposit and mets - " + string.Join(", ", combinedFile.GetAllContentTypes()));
+                    $"File {combinedFile.LocalPath} has different content types in deposit and mets - " + string.Join(", ", combinedFile.GetAllContentTypes()));
             }
 
             var digest = combinedFile.GetSingleDigest();
             if (digest is null)
             {
                 return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
-                    $"File {fileInDeposit.LocalPath} has different digests in deposit and mets");
+                    $"File {combinedFile.LocalPath} has different digests in deposit and mets");
             }
 
             var name = combinedFile.GetName();
@@ -395,7 +387,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 ContentType = contentType,
                 Digest = digest,
                 Size = size,
-                Origin = origin.AppendEscapedSlug(fileInDeposit.GetSlug().EscapeForUri())  // We'll need to unescape this back to a key
+                Origin = origin.AppendEscapedSlug(slug.EscapeForUri())  // We'll need to unescape this back to a key
             });
         }
         return Result.OkNotNull(container);

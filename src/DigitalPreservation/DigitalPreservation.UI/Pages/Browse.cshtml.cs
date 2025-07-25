@@ -320,8 +320,6 @@ public class BrowseModel(
                     }
                     CachedArchivalGroup = archivalGroupToBeCached;
                 }
-                // Might as well use the resource we just got rather than do any more with the cached version
-                return preservedResource;
             }
         }
 

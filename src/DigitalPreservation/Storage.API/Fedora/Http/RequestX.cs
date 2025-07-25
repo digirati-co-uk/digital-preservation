@@ -217,6 +217,17 @@ public static class RequestX
     }
     
     
+    public static Uri AtVersion(this Uri resourceUri, string? mementoVersion)
+    {
+        if (mementoVersion.HasText())
+        {
+            return new Uri($"{resourceUri}/fcr:versions/{mementoVersion}");
+        }
+
+        return resourceUri;
+    }
+    
+    
     /// <summary>
     /// Same comments as above
     /// </summary>

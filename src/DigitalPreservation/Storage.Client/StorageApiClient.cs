@@ -6,8 +6,10 @@ using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
+using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -26,11 +28,11 @@ public class StorageApiClient(
 {
     private readonly HttpClient storageHttpClient = httpClient;
 
-    public async Task<Result<Stream>> GetBinaryStream(string path, string? version)
+    public async Task<Result<Stream>> GetBinaryStream(string path)
     {
-        if (path.StartsWith("/repository/"))
+        if (path.StartsWith($"/{PreservedResource.BasePathElement}/"))
         {
-            var contentPath = path.Replace("/repository/", "/content/");
+            var contentPath = path.Replace($"/{PreservedResource.BasePathElement}/", "/content/");
             try
             {
                 var req = new HttpRequestMessage(HttpMethod.Get, new Uri(contentPath, UriKind.Relative));
@@ -133,6 +135,21 @@ public class StorageApiClient(
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
+
+
+    public async Task<Result<string?>> GetArchivalGroupName(string archivalGroupPathUnderRoot, string? version = null)
+    {
+        var resourceResult = await GetLightweightResource(archivalGroupPathUnderRoot, version);
+        if (resourceResult is { Success: true, Value: ArchivalGroup })
+        {
+            logger.LogInformation("Received resource to read name of ArchivalGroup {archivalGroupPathUnderRoot}, version {version}",
+                archivalGroupPathUnderRoot, version);
+            return Result.Ok(resourceResult.Value.Name);
+        }
+
+        return Result.Fail<string>(resourceResult.ErrorCode ?? ErrorCodes.UnknownError, resourceResult.ErrorMessage);
+    }
+
 
     public async Task<Result<Export>> ExportArchivalGroup(
         Uri archivalGroup, 

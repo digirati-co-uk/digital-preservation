@@ -22,4 +22,5 @@ public class NewDepositModel
     public bool UseObjectTemplate { get; set; }
     public bool UseBagItTemplate { get; set; }
     public bool Export { get; set; }
+    public string? Version { get; set; }
 }
