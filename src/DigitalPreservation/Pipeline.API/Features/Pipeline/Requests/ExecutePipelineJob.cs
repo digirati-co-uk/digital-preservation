@@ -1,18 +1,9 @@
 ﻿using System.Diagnostics;
-using System.Text.Json;
-using Amazon;
-using Amazon.Runtime.CredentialManagement;
-using Amazon.SimpleNotificationService;
-using Amazon.SimpleNotificationService.Model;
-using Amazon.SQS;
-using Amazon.SQS.Model;
 using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Microsoft.Extensions.Options;
-using Pipeline.API.Aws;
 using Pipeline.API.Config;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -48,7 +39,7 @@ public class ProcessPipelineJobHandler(
 
         return await Task.FromResult(Result.OkNotNull(new ProcessPipelineResult
         {
-            Status = "completed",
+            Status = "completed", //should this be processing
             DateFinished = DateTime.UtcNow
         }));
     }
@@ -62,19 +53,24 @@ public class ProcessPipelineJobHandler(
         var objectPath = $"{mountPath}{separator}{depositName}{separator}{objectFolder}";
         var metadataPath = $"{mountPath}{separator}{depositName}{separator}metadata{separator}brunnhilde";
 
-        ProcessStartInfo start = new ProcessStartInfo();
-        start.FileName = brunnhildeOptions.Value.PathToPython; //TODO: Put in IOptions
-        start.Arguments = $" {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataPath}  --overwrite "; //app/docs/LeedsPipelineObjects /app/docs/subfolder
+        ProcessStartInfo start = new ProcessStartInfo
+        {
+            FileName = brunnhildeOptions.Value.PathToPython,
+            Arguments = $" {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataPath}  --overwrite ",
+            UseShellExecute = false,
+            RedirectStandardOutput = true
+        };
 
-        //TODO: when using file mount then use Relative path
-        //start.Arguments = $" --hash sha256 {mountPath}/{depositName}/objects {mountPath}/metadata/brunnhilde --overwrite "; //app/docs/LeedsPipelineObjects /app/docs/subfolder
-        start.UseShellExecute = false;
-        start.RedirectStandardOutput = true;
         using Process? process = Process.Start(start);
         using StreamReader? reader = process?.StandardOutput;
         var result = reader?.ReadToEnd();
-        Console.Write(result);
-        //Do return
+
+        if (!string.IsNullOrEmpty(result) && result.Contains("Brunnhilde characterization complete."))
+        {
+            //SUCCESS
+            //TODO: call deposit unlock api if result is success?
+        }
+
     }
 
 }

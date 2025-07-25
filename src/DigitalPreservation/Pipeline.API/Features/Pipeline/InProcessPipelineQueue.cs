@@ -9,7 +9,7 @@ public interface IPipelineQueue
 }
 
 /// <summary>
-/// Basic implementation of import job running service using bounded queue for managing / processing
+/// Basic implementation of pipeline job running service using bounded queue for managing / processing
 /// </summary>
 /// <remarks>This is purely for demo purposes - this would likely use SQS </remarks>
 public class InProcessPipelineQueue : IPipelineQueue

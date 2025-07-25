@@ -53,8 +53,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Storage.API.Importer", "Sto
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pipeline.API", "Pipeline.API\Pipeline.API.csproj", "{63819D2C-5A3A-44C9-A36E-06D044CE129A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pipeline.API.Processor", "Pipeline.API.Processor\Pipeline.API.Processor.csproj", "{60342A4C-535F-42A8-AD81-1725D16DD280}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -157,10 +155,6 @@ Global
 		{63819D2C-5A3A-44C9-A36E-06D044CE129A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{63819D2C-5A3A-44C9-A36E-06D044CE129A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{63819D2C-5A3A-44C9-A36E-06D044CE129A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{60342A4C-535F-42A8-AD81-1725D16DD280}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{60342A4C-535F-42A8-AD81-1725D16DD280}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{60342A4C-535F-42A8-AD81-1725D16DD280}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{60342A4C-535F-42A8-AD81-1725D16DD280}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

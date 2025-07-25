@@ -1,20 +1,13 @@
 ﻿using Amazon.SimpleNotificationService;
 using Amazon.SQS;
-using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
-using DigitalPreservation.Core.Web.Headers;
 using MediatR;
-using MediatR.Registration;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
 using Pipeline.API;
 using Pipeline.API.Config;
 using Pipeline.API.Features.Pipeline;
-using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
 using Serilog;
 
@@ -55,10 +48,6 @@ try
     //Auth enabled flag
     var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
     var useLocalHostedServiceForPipeline = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForPipeline");
-
-
-    //TODO: Use an API key to replace below
-
 
     builder.Services
         .AddMemoryCache()
@@ -108,15 +97,12 @@ try
         });
     });
 
+    builder.Services
+        .AddHostedService<PipelineJobExecutorService>()
+        .AddScoped<PipelineJobRunner>()
+        .AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
 
-    if (useLocalHostedServiceForPipeline)
-    {
-        builder.Services
-            .AddHostedService<PipelineJobExecutorService>() 
-            .AddScoped<PipelineJobRunner>()
-            .AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
-    }
-    else
+    if (!useLocalHostedServiceForPipeline)
     {
         builder.Services.AddSingleton<IPipelineQueue, SqsPipelineQueue>();
     }

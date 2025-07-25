@@ -26,7 +26,6 @@ try
     builder.Services.Configure<BrunnhildeOptions>(
         builder.Configuration.GetSection("BrunnhildeOptions"));
 
-
     builder.Services
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
