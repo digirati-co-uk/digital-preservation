@@ -56,9 +56,15 @@ public class ProcessPipelineJobHandler(
     private void ExecuteBrunnhilde(string depositName)
     {
         var mountPath = storageOptions.Value.FileMountPath;
+        var separator = brunnhildeOptions.Value.DirectorySeparator;
+        var objectFolder = brunnhildeOptions.Value.ObjectsFolder;
+
+        var objectPath = $"{mountPath}{separator}{depositName}{separator}{objectFolder}";
+        var metadataPath = $"{mountPath}{separator}{depositName}{separator}metadata{separator}brunnhilde";
+
         ProcessStartInfo start = new ProcessStartInfo();
         start.FileName = brunnhildeOptions.Value.PathToPython; //TODO: Put in IOptions
-        start.Arguments = $" {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {mountPath}\\{depositName}\\objects {mountPath}\\{depositName}\\metadata\\brunnhilde --overwrite "; //app/docs/LeedsPipelineObjects /app/docs/subfolder
+        start.Arguments = $" {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataPath}  --overwrite "; //app/docs/LeedsPipelineObjects /app/docs/subfolder
 
         //TODO: when using file mount then use Relative path
         //start.Arguments = $" --hash sha256 {mountPath}/{depositName}/objects {mountPath}/metadata/brunnhilde --overwrite "; //app/docs/LeedsPipelineObjects /app/docs/subfolder

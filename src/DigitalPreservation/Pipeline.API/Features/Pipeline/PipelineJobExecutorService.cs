@@ -13,11 +13,11 @@ public class PipelineJobExecutorService(
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var transaction = await pipelineQueue.DequeueRequest(cancellationToken); //get deposit name out of message then delete message
-            if (!transaction.HasText()) continue; //dont have deposit name
+            var transaction = await pipelineQueue.DequeueRequest(cancellationToken); 
+            if (!transaction.HasText()) continue; 
             using var scope = serviceScopeFactory.CreateScope();
             var processor = scope.ServiceProvider.GetRequiredService<PipelineJobRunner>();
-            await processor.Execute(transaction, cancellationToken); //passing deposit name
+            await processor.Execute(transaction, cancellationToken);
         }
     }
 }
