@@ -63,6 +63,8 @@ jobs:
             dockerfile: "Dockerfile.PreservationApi"
           - image: "preservation-ui"
             dockerfile: "Dockerfile.UI"
+          - image: "pipeline-api"
+            dockerfile: "Dockerfile.PipelineApi"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-build-and-push
