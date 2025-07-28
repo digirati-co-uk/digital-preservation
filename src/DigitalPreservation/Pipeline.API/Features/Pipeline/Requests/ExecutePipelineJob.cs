@@ -56,7 +56,7 @@ public class ProcessPipelineJobHandler(
         ProcessStartInfo start = new ProcessStartInfo
         {
             FileName = brunnhildeOptions.Value.PathToPython,
-            Arguments = $" {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataPath}  --overwrite ",
+            Arguments = $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataPath}  --overwrite ",
             UseShellExecute = false,
             RedirectStandardOutput = true
         };

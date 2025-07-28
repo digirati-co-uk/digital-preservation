@@ -22,7 +22,7 @@ public class PipelineController(IMediator mediator,
     {
         logger.LogInformation("Executing pipeline process ");
         var pipelineProcessJobResult = await mediator.Send(new ProcessPipelineJob(pipelineJob), cancellationToken);
-        logger.LogInformation("Returned from QueueImportJob");
+        logger.LogInformation("Returned from ProcessPipelineJob");
         return this.StatusResponseFromResult(pipelineProcessJobResult, 204); //TODO: make this the S3 bucket location
     }
 }
