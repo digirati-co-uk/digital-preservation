@@ -51,7 +51,19 @@ public class ProcessPipelineJobHandler(
         var objectFolder = brunnhildeOptions.Value.ObjectsFolder;
 
         var objectPath = $"{mountPath}{separator}{depositName}{separator}{objectFolder}";
+
+        logger.LogInformation($"Object folder path value: {objectPath}");
+
         var metadataPath = $"{mountPath}{separator}{depositName}{separator}metadata{separator}brunnhilde";
+
+        logger.LogInformation($"Metadata folder value: {metadataPath}");
+
+        if (!Directory.Exists(objectPath))
+        {
+            logger.LogError($"Deposit {depositName} folder and contents could not be found at {objectPath}");
+            logger.LogInformation($"Metadata folder");
+            return;
+        }
 
         ProcessStartInfo start = new ProcessStartInfo
         {
