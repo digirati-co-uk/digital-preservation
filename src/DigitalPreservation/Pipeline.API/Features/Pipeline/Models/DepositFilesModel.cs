@@ -2,5 +2,5 @@
 
 public class DepositFilesModel
 {
-    public string DepositName { get; set; }
+    public string DepositNameOrPath { get; set; }
 }

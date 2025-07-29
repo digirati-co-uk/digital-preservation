@@ -8,6 +8,7 @@ using Pipeline.API.Config;
 using Pipeline.API.Features.Pipeline.Models;
 using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
+using System.IO;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -19,7 +20,7 @@ public class PipelineController(IMediator mediator,
     IOptions<StorageOptions> storageOptions,
     IOptions<BrunnhildeOptions> brunnhildeOptions) : Controller
 {
-
+    private readonly List<string> files = [];
     [HttpPost(Name = "ExecutePipelineProcess")]
     [Produces<ProcessPipelineResult>]
     [Produces("application/json")]
@@ -34,24 +35,38 @@ public class PipelineController(IMediator mediator,
     [HttpGet(Name = "CheckDepositFolderExists")]
     [Produces<string[]>]
     [Produces("application/json")]
-    public async Task<string[]> CheckDepositFolderAndContents([FromQuery] DepositFilesModel depositFilesModel, CancellationToken cancellationToken = default)
+    public async Task<List<string>> CheckDepositFolderAndContents([FromQuery] DepositFilesModel depositFilesModel, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation($"Checking deposit folder {depositFilesModel.DepositName} and contents exist.");
+        logger.LogInformation($"Checking deposit folder {depositFilesModel.DepositNameOrPath} and contents exist.");
 
         var mountPath = storageOptions.Value.FileMountPath;
         var separator = brunnhildeOptions.Value.DirectorySeparator;
         var objectFolder = brunnhildeOptions.Value.ObjectsFolder;
 
-        var objectPath = $"{mountPath}{separator}{depositFilesModel.DepositName}{separator}{objectFolder}";
+        var objectPath = $"{mountPath}{separator}{depositFilesModel.DepositNameOrPath}{separator}{objectFolder}";
 
-        if (!Directory.Exists(depositFilesModel.DepositName))
+        if (!Directory.Exists(depositFilesModel.DepositNameOrPath))
         {
-            return [$"Deposit {depositFilesModel.DepositName} objects directory and contents do not exist"]; // at {objectPath}
+            return [$"Deposit {depositFilesModel.DepositNameOrPath} objects directory and contents do not exist"]; // at {objectPath}
         }
         
-        var fileEntries1 = Directory.GetFiles(depositFilesModel.DepositName);
+        ProcessDirectory(depositFilesModel.DepositNameOrPath);
 
         logger.LogInformation("Returned from CheckDepositFolderExists");
-        return await Task.FromResult(fileEntries1);
+        return await Task.FromResult(files);
     }
+
+    private void ProcessDirectory(string targetDirectory)
+    {
+        // Process the list of files found in the directory.
+        string[] fileEntries = Directory.GetFiles(targetDirectory);
+        foreach (string fileName in fileEntries)
+            files.Add(fileName);
+
+        // Recurse into subdirectories of this directory.
+        string[] subdirectoryEntries = Directory.GetDirectories(targetDirectory);
+        foreach (string subdirectory in subdirectoryEntries)
+            ProcessDirectory(subdirectory);
+    }
+
 }
