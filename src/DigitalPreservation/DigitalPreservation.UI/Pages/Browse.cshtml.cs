@@ -57,7 +57,7 @@ public class BrowseModel(
         }
         await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
         if(
-            view != "mets" && 
+            view != ViewValues.Mets && 
             CachedArchivalGroup != null && 
             WorkingDirectory == null && 
             WorkingFile == null && 
@@ -105,7 +105,7 @@ public class BrowseModel(
         {
             case nameof(ArchivalGroup):
                 
-                if (view == "mets")
+                if (view == ViewValues.Mets)
                 {
                     var metsResult = await preservationApiClient.GetMetsStream(resourcePath, version);
                     if (metsResult is { Item1: not null, Item2: not null })
