@@ -44,14 +44,14 @@ public class PipelineController(IMediator mediator,
 
         var objectPath = $"{mountPath}{separator}{depositFilesModel.DepositName}{separator}{objectFolder}";
 
-        if (!Directory.Exists(objectPath))
+        if (!Directory.Exists(depositFilesModel.DepositName))
         {
-            return [$"Deposit {depositFilesModel.DepositName} objects directory and contents do not exist at {objectPath}"];
+            return [$"Deposit {depositFilesModel.DepositName} objects directory and contents do not exist"]; // at {objectPath}
         }
         
-        var fileEntries = Directory.GetFiles(objectPath);
+        var fileEntries1 = Directory.GetFiles(depositFilesModel.DepositName);
 
         logger.LogInformation("Returned from CheckDepositFolderExists");
-        return await Task.FromResult(fileEntries);
+        return await Task.FromResult(fileEntries1);
     }
 }
