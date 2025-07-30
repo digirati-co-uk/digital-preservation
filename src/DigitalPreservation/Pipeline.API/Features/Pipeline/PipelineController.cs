@@ -63,6 +63,7 @@ public class PipelineController(
             model.WorkingDirectory = workingDirectory;
             model.FilesInTarget = files;
             model.Directories = allDirectories;
+            model.DiskSpace = GetDf(depositFilesModel.DepositNameOrPath);
 
             logger.LogInformation("Returned from CheckDepositFolderExists");
         }
@@ -124,36 +125,36 @@ public class PipelineController(
 
         }
 
-        private async Task<string?> GetDf(string targetDirectory)
+        private string GetDf(string targetDirectory)
         {
-            try
+            return Bash(GetDiskSpace(), targetDirectory);
+        }
+
+        private string GetDiskSpace()
+        {
+            return string.Join(" ", "df");
+        }
+
+        private string Bash(string cmd, string targetDirectory)
+        {
+            var escapedArgs = cmd.Replace("\"", "\\\"");
+
+            var process = new Process()
             {
-                Process process = new Process
+                StartInfo = new ProcessStartInfo
                 {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "bash",
-                        RedirectStandardInput = true,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        WorkingDirectory = targetDirectory
-                    }
-                };
-                process.Start();
-                await process.StandardInput.WriteLineAsync("echo \"$df\""); //echo hello
-                var output = await process.StandardOutput.ReadLineAsync();
-                //Console.WriteLine(output);
-
-                return output;
-            }
-            catch (Exception e)
-            {
-                var s = e;
-            }
-
-            return null;
-
+                    FileName = "bash",
+                    Arguments = $"-c \"{escapedArgs}\"",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = targetDirectory 
+                }
+            };
+            process.Start();
+            string result = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            return result;
         }
 
 }
@@ -164,6 +165,7 @@ public class DirectoryModel
     public List<string> FilesInTarget { get; set; }
     public string[] Directories { get; set; }
     public string? WorkingDirectory { get; set; }
+    public string DiskSpace { get; set; }
     public List<string> Errors { get; set; } = new();
 }
 
