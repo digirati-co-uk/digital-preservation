@@ -13,7 +13,6 @@ using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
-using DigitalPreservation.XmlGen.Mods.V3;
 using DigitalPreservation.XmlGen.Premis.V3;
 using Checksum = DigitalPreservation.Utils.Checksum;
 using File = System.IO.File;
@@ -109,7 +108,7 @@ public class MetsManager(
         foreach (var binary in container.Binaries)
         {
             var localPath = binary.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
-            if (IsMetsFile(localPath!))
+            if (MetsUtils.IsMetsFile(localPath!, true))
             {
                 continue;
             }
@@ -637,13 +636,6 @@ public class MetsManager(
             StorageLocation = null // storageLocation
         };
     }
-
-
-    public bool IsMetsFile(string fileName)
-    {
-        return MetsUtils.IsMetsFile(fileName);
-    }
-
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()
     {
