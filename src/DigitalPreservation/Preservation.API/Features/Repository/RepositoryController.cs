@@ -19,7 +19,6 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType<Container>(200, "application/json")]
     [ProducesResponseType<Binary>(200, "application/json")]
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
-    [Produces("text/xml")]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]

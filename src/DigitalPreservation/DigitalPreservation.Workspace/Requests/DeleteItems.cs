@@ -64,12 +64,19 @@ public class DeleteItemsHandler(
                 deleteDirectoryContext = deleteDirectoryContext.GetParent();
             }
 
-            CombinedFile? fileToDelete;
+            CombinedFile? fileToDelete = null;
+            CombinedDirectory? directoryToDelete = null;
+            
             var deleteDirectory = request.CombinedRootDirectory.FindDirectory(deleteDirectoryContext);
             if (deleteDirectory == null)
             {
                 failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                     ErrorCodes.NotFound, $"Directory {deleteDirectoryContext} not found.");
+            }
+
+            if (item.IsDirectory)
+            {
+                directoryToDelete = deleteDirectory;
             }
 
             if (deleteDirectory != null)
@@ -169,10 +176,26 @@ public class DeleteItemsHandler(
                                         request.CombinedRootDirectory.RemoveFileFromMets(item.RelativePath, depositPath, true);
                                     }
                                 }
+                                else if (deleteFromMetsResult.ErrorCode == ErrorCodes.NotFound)
+                                {
+                                    // This file or folder was not in the METS - but did we expect it to be?
+                                    if (directoryToDelete?.DirectoryInMets != null)
+                                    {
+                                        failedDeleteResult = Result.FailNotNull<ItemsAffected>(
+                                            ErrorCodes.NotFound,
+                                            $"Expected to find directory {item.RelativePath} in METS for deletion but could not find it.");
+                                    }
+                                    else if (fileToDelete?.FileInMets != null)
+                                    {
+                                        failedDeleteResult = Result.FailNotNull<ItemsAffected>(
+                                            ErrorCodes.NotFound,
+                                            $"Expected to find file {item.RelativePath} in METS for deletion but could not find it.");
+                                    }
+                                }
                                 else
                                 {
                                     failedDeleteResult = Result.FailNotNull<ItemsAffected>(
-                                        deleteFromMetsResult.ErrorMessage ?? ErrorCodes.UnknownError,
+                                        deleteFromMetsResult.ErrorCode ?? ErrorCodes.UnknownError,
                                         deleteFromMetsResult.ErrorMessage);
                                 }
                             }

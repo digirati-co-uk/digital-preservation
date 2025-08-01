@@ -278,6 +278,7 @@ public class DepositsController(
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
+    [ProducesResponseType(409)]
     public async Task<IActionResult> CreateLock([FromRoute] string id, [FromQuery] bool force = false)
     {
         var lockDepositResult = await mediator.Send(new LockDeposit(id, force, User));
