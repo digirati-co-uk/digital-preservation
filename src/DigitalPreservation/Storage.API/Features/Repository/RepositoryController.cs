@@ -40,7 +40,7 @@ public class RepositoryController(IMediator mediator) : Controller
         string? view = null,
         string? version = null)
     {
-        if (view != "lightweight")
+        if (view != ViewValues.Lightweight)
         {
             var problem = new ProblemDetails
             {

@@ -7,7 +7,7 @@ public static class MetsUtils
         var name = fileName.ToLowerInvariant();
         if (mustBeStandardName)
         {
-            return name.EndsWith("mets.xml");
+            return name == "mets.xml";
         }
         return name.EndsWith(".xml") && name.Contains("mets");
     }

@@ -19,6 +19,7 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType<Container>(200, "application/json")]
     [ProducesResponseType<Binary>(200, "application/json")]
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
+    [ProducesResponseType(400)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     [ProducesResponseType(410)]
@@ -29,7 +30,7 @@ public class RepositoryController(IMediator mediator) : Controller
     {
         if (version.HasText())
         {
-            if (view != "lightweight")
+            if (view != ViewValues.Lightweight)
             {
                 var problem = new ProblemDetails
                 {
@@ -39,12 +40,14 @@ public class RepositoryController(IMediator mediator) : Controller
                 };
                 return BadRequest(problem);
             }
-
+        }
+        if (view == ViewValues.Lightweight)
+        {
             var lwResult = await mediator.Send(new GetLightweightResource(path!, version));
             return this.StatusResponseFromResult(lwResult);
         }
         var result = await mediator.Send(new GetResource(Request.Path));
-        if (view == "mets" && result is { Success: true, Value: ArchivalGroup archivalGroup })
+        if (view == ViewValues.Mets && result is { Success: true, Value: ArchivalGroup archivalGroup })
         {
             var mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, true));
             if (mets is null)
