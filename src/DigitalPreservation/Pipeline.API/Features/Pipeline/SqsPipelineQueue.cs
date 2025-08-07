@@ -1,11 +1,11 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Amazon;
-using Amazon.Runtime.CredentialManagement;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Aws;
@@ -20,27 +20,6 @@ public class SqsPipelineQueue(
 {
     private string? topicArn;
 
-    /// this is used for running locally until I get me Leeds AWS sorted then it will be removed
-    private void GetCredentials()
-    {
-        string profilePath1 = "C:\\Users\\BrianMcEnroy\\.aws\\credentials";
-        CredentialProfile basicProfile;
-        var sharedFile = new SharedCredentialsFile(profilePath1);
-
-        var s = sharedFile.TryGetProfile("uol-bm", out basicProfile);
-        var a = AWSCredentialsFactory.TryGetAWSCredentials(basicProfile, sharedFile, out _);
-
-        if (sharedFile.TryGetProfile("uol-bm", out basicProfile) &&
-            AWSCredentialsFactory.TryGetAWSCredentials(basicProfile, sharedFile, out _))
-        {
-            sharedFile.TryGetProfile("uol-bm", out var profile);
-            AWSCredentialsFactory.TryGetAWSCredentials(profile, sharedFile, out var credentials);
-
-            sqsClient = new AmazonSQSClient(credentials, basicProfile.Region);
-            snsClient = new AmazonSimpleNotificationServiceClient(credentials, basicProfile.Region);
-        }
-    }
-
     public async ValueTask QueueRequest(string depositName, CancellationToken cancellationToken)
     {
         topicArn = options.Value.PipelineJobTopicArn;
@@ -54,59 +33,63 @@ public class SqsPipelineQueue(
 
     public async ValueTask<string> DequeueRequest(CancellationToken cancellationToken)
     {
-        // below method GetCredentials(); call is used for running locally until I get me Leeds AWS sorted then it will be removed
-        //allows me to run the SDK
-        //GetCredentials();
         var depositName = string.Empty;
+        IEnumerable<Subscription>? queues = new List<Subscription>();
 
-        //TODO: get first message out of all the queues in subscription then exit
-        var subs = await snsClient.ListSubscriptionsByTopicAsync(
-            new ListSubscriptionsByTopicRequest
-            {
-                TopicArn = options.Value.PipelineJobTopicArn
-            }, cancellationToken);
+        try
+        {
+            var subs = await snsClient.ListSubscriptionsByTopicAsync(
+                new ListSubscriptionsByTopicRequest
+                {
+                    TopicArn = options.Value.PipelineJobTopicArn
+                }, cancellationToken);
 
-        var queues = subs.Subscriptions.Where(x => x.Protocol.ToLower() == "sqs");
+            queues = subs.Subscriptions.Where(x => x.Protocol.ToLower() == "sqs");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, ex.Message);
+        }
 
         foreach (var queue in queues)
         {
             var queueNameValue = Arn.Parse(queue.Endpoint).Resource;
+            logger.LogInformation($"About to check queue {queueNameValue} for messages");
 
-            var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queueNameValue, cancellationToken); 
-            var queueUrlValue = queueUrlResponse.QueueUrl;
-
-            var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+            try
             {
-                QueueUrl = queueUrlValue,
-                WaitTimeSeconds = 10,
-                MaxNumberOfMessages = 1 
-            }, cancellationToken);
+                var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queueNameValue, cancellationToken);
+                var queueUrlValue = queueUrlResponse.QueueUrl;
 
-            var messageCount = response.Messages?.Count ?? 0;
-
-            if (messageCount > 0)
-            {
-                try
+                var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
                 {
-                    foreach (var message in response.Messages!)
+                    QueueUrl = queueUrlValue,
+                    WaitTimeSeconds = 10,
+                    MaxNumberOfMessages = 1
+                }, cancellationToken);
+
+                var messageCount = response.Messages?.Count ?? 0;
+
+                if (messageCount <= 0) continue;
+
+                foreach (var message in response.Messages!)
+                {
+                    if (cancellationToken.IsCancellationRequested) return string.Empty;
+                    logger.LogDebug("Received SQS message {messageBody}", message.Body);
+
+                    depositName = GetDepositName(message, queueNameValue);
+                    if (depositName.HasText())
                     {
-                        if (cancellationToken.IsCancellationRequested) return string.Empty;
-                        logger.LogDebug("Received SQS message {messageBody}", message.Body);
-
-                        depositName = GetDepositName(message, queueNameValue);
-                        if (depositName.HasText())
-                        {
-                            await DeleteMessage(message, queueUrlValue, cancellationToken);
-                            return depositName;
-                        }
-
-                        return string.Empty;
+                        await DeleteMessage(message, queueUrlValue, cancellationToken);
+                        return depositName;
                     }
+
+                    return string.Empty;
                 }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Error in listen loop for queue {Queue}", queueNameValue);
-                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in listen loop for queue {Queue}", queueNameValue);
             }
 
         }
@@ -147,13 +130,6 @@ public class SqsPipelineQueue(
         }, cancellationToken);
 }
 
-
-public class PipelineOptions
-{
-    public const string PipelineJob = "PipelineJob";
-    public required string PipelineJobTopicArn { get; set; }
-    public required string PipelineJobSqsQueueName { get; set; }
-}
 
 internal class PipelineJobMessage
 {

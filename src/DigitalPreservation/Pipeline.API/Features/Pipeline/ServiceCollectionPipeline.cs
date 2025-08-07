@@ -1,5 +1,6 @@
 ﻿using Amazon.SimpleNotificationService;
 using Amazon.SQS;
+using DigitalPreservation.Common.Model.PipelineApi;
 
 namespace Pipeline.API.Features.Pipeline;
 

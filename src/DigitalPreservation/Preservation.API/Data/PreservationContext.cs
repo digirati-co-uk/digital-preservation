@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using DigitalPreservation.Common.Model.PipelineApi;
+using Microsoft.EntityFrameworkCore;
 using Preservation.API.Data.Entities;
 
 // ReSharper disable ClassNeverInstantiated.Global
@@ -10,7 +11,8 @@ public class PreservationContext : DbContext
     public DbSet<Deposit> Deposits { get; set; }
     public DbSet<ImportJob> ImportJobs { get; set; }
     public DbSet<ArchivalGroupEvent> ArchivalGroupEvents { get; set; }
-    
+    public DbSet<PipelineRunJob> PipelineRunJobs { get; set; }
+
     public PreservationContext(DbContextOptions<PreservationContext> options) : base(options)
     {
     }
@@ -18,6 +20,11 @@ public class PreservationContext : DbContext
     public ImportJob? GetImportJobFromStorageImportJobResult(Uri storageResultUri)
     {
         return ImportJobs.SingleOrDefault(j => j.StorageImportJobResultId == storageResultUri);
+    }
+
+    public PipelineRunJob? GetPipelineJobJobFromPipelineJobResult(Uri storageResultUri)
+    {
+        return PipelineRunJobs.SingleOrDefault(j => j.PipelineJobResultId == storageResultUri);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -58,6 +58,12 @@ ViewData["section"] = "deposits";
                                 </button>
                             </li>
                         }
+                        
+                        <li>
+                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
+                                <svg class="bi"><use xlink:href="#run-pipeline"/></svg><span class="ms-2">Run pipeline</span>
+                            </button>
+                        </li>
                         <li>
                             <button class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
                                 <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>

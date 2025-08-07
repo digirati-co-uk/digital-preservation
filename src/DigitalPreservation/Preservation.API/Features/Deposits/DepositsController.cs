@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
@@ -294,8 +295,28 @@ public class DepositsController(
         var deleteDepositLockResult = await mediator.Send(new DeleteDepositLock(id, User));
         return this.StatusResponseFromResult(deleteDepositLockResult, successStatusCode: 204);
     }
-    
 
 
-    
+    [HttpPost("{id}/pipeline", Name = "RunPipeline")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> RunPipeline([FromRoute] string id)
+    {
+        var runPipelineResult = await mediator.Send(new RunPipeline(id, User));
+        return this.StatusResponseFromResult(runPipelineResult, successStatusCode: 204);
+    }
+
+
+    [HttpPost("pipeline-status", Name = "LogPipelineRunStatus")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit)
+    {
+        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit.Id, pipelineDeposit.Status, User)); 
+        var s = this.StatusResponseFromResult(runPipelineStatusResult, successStatusCode: 204);
+        return this.StatusResponseFromResult(runPipelineStatusResult, successStatusCode: 204);
+    }
+
 }

@@ -1,15 +1,20 @@
 ﻿using Amazon.SimpleNotificationService;
 using Amazon.SQS;
+using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
+using DigitalPreservation.Core.Web.Headers;
 using MediatR;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Pipeline.API;
 using Pipeline.API.Config;
 using Pipeline.API.Features.Pipeline;
 using Pipeline.API.Middleware;
 using Serilog;
+using Pipeline.API.ApiClients;
+using Pipeline.API.Features;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -33,6 +38,10 @@ try
 
     builder.Services.Configure<BrunnhildeOptions>(
         builder.Configuration.GetSection("BrunnhildeOptions"));
+
+    //Add TokenScope
+    builder.Services.AddSingleton<ITokenScope>(x =>
+        new TokenScope(builder.Configuration.GetSection("AzureAd:ScopeUri").Value));
 
     builder.Services
         .ConfigureForwardedHeaders()
@@ -97,6 +106,19 @@ try
         });
     });
 
+
+    var accessTokenProviderOptions = new AccessTokenProviderOptions();
+    builder.Configuration.GetSection("TokenProvider").Bind(accessTokenProviderOptions);
+    builder.Services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
+    builder.Services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+
+    builder.Services.AddHttpClient("PreservationApi", (provider, httpClient) =>
+    {
+        httpClient.BaseAddress = new Uri(provider.GetService<IConfiguration>().GetConnectionString("PreservationApiBaseUrl"));
+        httpClient.DefaultRequestHeaders.Add("x-client-identity", "PipelineApi");
+    });
+
+
     builder.Services
         .AddHostedService<PipelineJobExecutorService>()
         .AddScoped<PipelineJobRunner>()
@@ -106,6 +128,9 @@ try
     {
         builder.Services.AddSingleton<IPipelineQueue, SqsPipelineQueue>();
     }
+
+    builder.Services.AddSingleton<IPipelineJobStateLogger, PipelineJobStateLogger>();
+    builder.Services.AddSingleton<IPreservationApiInterface, PreservationApiInterface>();
 
     var app = builder.Build();
     app
@@ -119,7 +144,6 @@ try
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Pipeline API"); // Adjust the endpoint path and name as needed
     });
-
 
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Pipeline API: Hello World!");
@@ -142,5 +166,13 @@ finally
     Log.CloseAndFlush();
 }
 
+static void SetupOptions(IConfiguration configuration,
+    DbContextOptionsBuilder optionsBuilder)
+    => optionsBuilder
+        .UseNpgsql(configuration.GetConnectionString("Postgres")) //ConnectionStringKey
+        .UseSnakeCaseNamingConvention();
+
 // required for WebApplicationFactory
-public partial class Program { }
+public partial class Program
+{
+}

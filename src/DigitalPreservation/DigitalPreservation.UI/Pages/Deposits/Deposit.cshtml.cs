@@ -249,6 +249,7 @@ public class DepositModel(
         return Page();
     }
 
+
     public async Task<IActionResult> OnPostValidateStorage([FromRoute] string id)
     {
         if (await BindDeposit(id))
@@ -274,6 +275,24 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "Deposit locked.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            TempData["Error"] = result.ErrorMessage;
+        }
+
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostRunPipeline([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await mediator.Send(new LockDeposit(Deposit!));
+            var result1 = await mediator.Send(new RunPipeline(Deposit!)); 
+            if (result.Success && result1.Success)
+            {
+                TempData["Valid"] = "Deposit locked and pipeline run";
                 return Redirect($"/deposits/{id}");
             }
 

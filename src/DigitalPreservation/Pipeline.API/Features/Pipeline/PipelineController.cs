@@ -1,5 +1,4 @@
-﻿using DigitalPreservation.Common.Model.Import;
-using DigitalPreservation.Common.Model.PipelineApi;
+﻿using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +8,6 @@ using Pipeline.API.Features.Pipeline.Models;
 using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
 using System.Diagnostics;
-using System.IO;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -20,7 +18,8 @@ public class PipelineController(
     IMediator mediator,
     ILogger<PipelineController> logger,
     IOptions<StorageOptions> storageOptions,
-    IOptions<BrunnhildeOptions> brunnhildeOptions) : Controller
+    IOptions<BrunnhildeOptions> brunnhildeOptions,
+    IPipelineJobStateLogger pipelineJobStateLogger) : Controller
 {
     private readonly List<string> files = [];
 
@@ -30,10 +29,13 @@ public class PipelineController(
     public async Task<IActionResult> ExecutePipelineJob([FromBody] PipelineJob pipelineJob,
         CancellationToken cancellationToken = default)
     {
+        if (pipelineJob.DepositName != null)
+            await pipelineJobStateLogger.LogJobState(pipelineJob.DepositName, PipelineJobStates.Waiting);
+
         logger.LogInformation("Executing pipeline process ");
         var pipelineProcessJobResult = await mediator.Send(new ProcessPipelineJob(pipelineJob), cancellationToken);
         logger.LogInformation("Returned from ProcessPipelineJob");
-        return this.StatusResponseFromResult(pipelineProcessJobResult, 204); //TODO: make this the S3 bucket location
+        return this.StatusResponseFromResult(pipelineProcessJobResult, 204); 
     }
 
     [HttpGet(Name = "CheckDepositFolderExists")]
@@ -110,15 +112,14 @@ public class PipelineController(
                     }
                 };
                 process.Start();
-                await process.StandardInput.WriteLineAsync("echo \"$PWD\""); //echo hello
+                await process.StandardInput.WriteLineAsync("echo \"$PWD\"");
                 var output = await process.StandardOutput.ReadLineAsync();
-                //Console.WriteLine(output);
 
                 return output;
             }
             catch (Exception e)
             {
-                var s = e;
+                logger.LogError(e, "error getting working directory");
             }
 
             return null;

@@ -21,7 +21,7 @@
       <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
       <PackageReference Include="AWSSDK.S3" Version="3.7.413.1" />
       <PackageReference Include="AWSSDK.SecurityToken" Version="3.7.400.20" />
-      <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.7.400.129" />
+      <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.7.400.185" />
       <PackageReference Include="AWSSDK.SQS" Version="3.7.400.129" />
       <PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.400.21" />
       <PackageReference Include="Dapper" Version="2.1.35" />
@@ -33,6 +33,7 @@
       </PackageReference>
       <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="8.0.8" />
       <PackageReference Include="Microsoft.Identity.Web" Version="3.8.3" />
+      <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.8.3" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
       <PackageReference Include="Serilog.AspNetCore" Version="8.0.2" />
       <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.1.1" />
@@ -42,6 +43,7 @@
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Common.Model\DigitalPreservation.Common.Model.csproj" />
       <ProjectReference Include="..\DigitalPreservation.Core\DigitalPreservation.Core.csproj" />
+      <ProjectReference Include="..\Preservation.Client\Preservation.Client.csproj" />
     </ItemGroup>
 
     <ItemGroup>
