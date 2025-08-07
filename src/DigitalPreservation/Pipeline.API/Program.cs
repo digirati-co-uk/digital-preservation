@@ -54,21 +54,11 @@ try
             cfg.RegisterServicesFromAssemblyContaining<IAmazonSimpleNotificationService>();
         });
 
-    //Auth enabled flag
-    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
-    var useLocalHostedServiceForPipeline = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForPipeline");
 
     builder.Services
         .AddMemoryCache()
         .AddPipeline(builder.Configuration)
-        .AddControllers(config =>
-        {
-            if (useAuthFeatureFlag)
-            {
-                config.Filters.Add(new AuthorizeFilter());
-                config.Filters.Add(new AuthFilterIdentifier());
-            }
-        });
+        .AddControllers();
 
     builder.Services.AddHealthChecks();
 
@@ -122,12 +112,8 @@ try
     builder.Services
         .AddHostedService<PipelineJobExecutorService>()
         .AddScoped<PipelineJobRunner>()
-        .AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
-
-    if (!useLocalHostedServiceForPipeline)
-    {
-        builder.Services.AddSingleton<IPipelineQueue, SqsPipelineQueue>();
-    }
+        .AddSingleton<IPipelineQueue, InProcessPipelineQueue>()
+        .AddSingleton<IPipelineQueue, SqsPipelineQueue>();
 
     builder.Services.AddSingleton<IPipelineJobStateLogger, PipelineJobStateLogger>();
     builder.Services.AddSingleton<IPreservationApiInterface, PreservationApiInterface>();
@@ -142,7 +128,7 @@ try
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Pipeline API"); // Adjust the endpoint path and name as needed
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Pipeline API");
     });
 
     // TODO - remove this, only used for initial setup
