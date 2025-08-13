@@ -2,5 +2,5 @@
 
 public interface IPipelineJobStateLogger
 {
-    Task LogJobState(string depositId, string status);
+    Task LogJobState(string jobIdentifier, string depositId, string? runUser, string status);
 }

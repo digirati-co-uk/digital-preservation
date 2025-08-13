@@ -8,36 +8,39 @@ using MediatR;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
 
-public class ProcessPipelineJob(PipelineJob pipelineJob) : IRequest<Result<ProcessPipelineResult>>
-{
+public class ProcessPipelineJob(PipelineJob pipelineJob) : IRequest<Result>
+{ 
     public PipelineJob PipelineProcessJob { get; } = pipelineJob;
 }
 
 public class ProcessPipelineHandler(
     ILogger<ProcessPipelineHandler> logger,
-    IPipelineQueue pipelineQueue) : IRequestHandler<ProcessPipelineJob, Result<ProcessPipelineResult>>
+    IPipelineQueue pipelineQueue) : IRequestHandler<ProcessPipelineJob, Result>
 {
-    public async Task<Result<ProcessPipelineResult>> Handle(ProcessPipelineJob request, CancellationToken cancellationToken)
+    public async Task<Result> Handle(ProcessPipelineJob request, CancellationToken cancellationToken)
     {
         logger.LogInformation($"About to process pipeline request");
+        var deposit = request.PipelineProcessJob.DepositName;
+        var jobId = request.PipelineProcessJob.JobIdentifier;
+        var runUser = request.PipelineProcessJob.RunUser;
+
         try
         {
-            if (string.IsNullOrEmpty(request.PipelineProcessJob.DepositName))
+            if (string.IsNullOrEmpty(deposit) || string.IsNullOrEmpty(jobId))
             {
                 logger.LogError("Could not process pipeline request");
-                return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.UnknownError, "Could not publish pipeline job as request ");
+                return Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not publish pipeline job as request for job id {jobId} and deposit {deposit}");
             }
 
-            await pipelineQueue.QueueRequest(request.PipelineProcessJob.DepositName, cancellationToken);
-            return await Task.FromResult(Result.OkNotNull(new ProcessPipelineResult
-            {
-                Status = "completed"
-            }));
+            logger.LogInformation($"About to queue pipeline request for job id {jobId} and deposit {deposit}");
+            await pipelineQueue.QueueRequest(jobId, deposit, runUser, cancellationToken);
+
+            return Result.Ok();
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Could not process pipeline request");
-            return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.UnknownError, "Could not publish pipeline job: " + e.Message);
+            logger.LogError(e, $"Could not process pipeline request for job id {jobId} and deposit {deposit}");
+            return Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not publish pipeline job for job id {jobId} and deposit {deposit}: " + e.Message);
         }
 
     }

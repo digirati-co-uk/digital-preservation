@@ -9,10 +9,11 @@ using Pipeline.API.Config;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
 
-public class ExecutePipelineJob(string depositName, ProcessPipelineResult initialProcessPipelineResult) : IRequest<Result<ProcessPipelineResult>>
+public class ExecutePipelineJob(string jobIdentifier, string depositName, string? RunUser) : IRequest<Result>
 {
+    public string JobIdentifier { get; } = jobIdentifier;
     public string DepositName { get; } = depositName;
-    public ProcessPipelineResult InitialProcessPipelineResult { get; } = initialProcessPipelineResult;
+    public string? RunUser { get; set; }
 }
 
 public class ProcessPipelineJobHandler(
@@ -20,37 +21,31 @@ public class ProcessPipelineJobHandler(
     IOptions<StorageOptions> storageOptions,
     IOptions<BrunnhildeOptions> brunnhildeOptions,
     IPipelineJobStateLogger pipelineJobStateLogger,
-    IPreservationApiInterface preservationApiInterface) : IRequestHandler<ExecutePipelineJob, Result<ProcessPipelineResult>> 
+    IPreservationApiInterface preservationApiInterface) : IRequestHandler<ExecutePipelineJob, Result> 
 {
-    public async Task<Result<ProcessPipelineResult>> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
+    public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken) // Task<Result<ProcessPipelineResult>>
     {
-        var pipelineJobResult = request.InitialProcessPipelineResult;
+        var jobId = request.JobIdentifier;
+        var depositId = request.DepositName;
+        var runUser = request.RunUser;
 
         try
         { 
-            await pipelineJobStateLogger.LogJobState(request.DepositName, PipelineJobStates.Running);
-            await ExecuteBrunnhilde(request.DepositName);
+            await pipelineJobStateLogger.LogJobState(jobId, depositId, runUser, PipelineJobStates.Running);
+            await ExecuteBrunnhilde(jobId, request.DepositName, runUser);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, " Caught error in PipelineJob handler ");
+            logger.LogError(ex, $" Caught error in PipelineJob handler for job id {jobId} and deposit {depositId}");
 
-            await pipelineJobStateLogger.LogJobState(request.DepositName, PipelineJobStates.CompletedWithErrors);
-
-            pipelineJobResult.DateFinished = DateTime.UtcNow;
-            pipelineJobResult.Status = "completedWithErrors";
-            pipelineJobResult.Errors = [new Error { Message = ex.Message }];
-            return await Task.FromResult(Result.OkNotNull(pipelineJobResult));
+            await pipelineJobStateLogger.LogJobState(jobId, depositId, runUser, PipelineJobStates.CompletedWithErrors);
+            return Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not publish pipeline job for job id {jobId} and deposit {depositId}: " + ex.Message);
         }
 
-        return await Task.FromResult(Result.OkNotNull(new ProcessPipelineResult
-        {
-            Status = "completed",
-            DateFinished = DateTime.UtcNow
-        }));
+        return Result.Ok();
     }
      
-    private async Task ExecuteBrunnhilde(string depositName)
+    private async Task ExecuteBrunnhilde(string jobIdentifier, string depositName, string? runUser)
     {
         var mountPath = storageOptions.Value.FileMountPath;
         var separator = brunnhildeOptions.Value.DirectorySeparator;
@@ -71,7 +66,7 @@ public class ProcessPipelineJobHandler(
             return;
         }
 
-        ProcessStartInfo start = new ProcessStartInfo
+        var start = new ProcessStartInfo
         {
             FileName = brunnhildeOptions.Value.PathToPython,
             Arguments = $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataPath}  --overwrite ",
@@ -79,15 +74,16 @@ public class ProcessPipelineJobHandler(
             RedirectStandardOutput = true
         };
 
-        using Process? process = Process.Start(start);
-        using StreamReader? reader = process?.StandardOutput;
+        using var process = Process.Start(start);
+        using var reader = process?.StandardOutput;
         var result = reader?.ReadToEnd();
 
         if (!string.IsNullOrEmpty(result) && result.Contains("Brunnhilde characterization complete."))
         {
             await preservationApiInterface.MakeHttpRequestAsync<PipelineDeposit, PipelineDeposit>(
                 $"Deposits/{depositName}/lock", HttpMethod.Delete, new PipelineDeposit { Id = depositName });
-            await pipelineJobStateLogger.LogJobState(depositName, PipelineJobStates.Completed);
+
+            await pipelineJobStateLogger.LogJobState(jobIdentifier, depositName, runUser, PipelineJobStates.Completed);
         }
 
     }

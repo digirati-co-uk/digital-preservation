@@ -14,13 +14,14 @@ using DigitalPreservation.Common.Model.PipelineApi;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class RunPipeline(string id, ClaimsPrincipal user) : IRequest<Result>
+public class RunPipeline(string id, ClaimsPrincipal user, string? runUser) : IRequest<Result>
 {
     public readonly ClaimsPrincipal User = user;
     public string Id { get; } = id;
+    public string? RunUser { get; set; } = runUser;
+
 }
 
-//TODO: UI uses this
 public class RunPipelineHandler(
     ILogger<RunPipelineHandler> logger,
     PreservationContext dbContext,
@@ -36,7 +37,7 @@ public class RunPipelineHandler(
         }
 
         var topicArn = pipelineOptions.Value.PipelineJobTopicArn;
-        var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { DepositName = request.Id });
+        var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { DepositName = request.Id, RunUser = request.RunUser});
         var pubRequest = new PublishRequest(topicArn, pipelineJobMessage);
         var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
         logger.LogDebug(
@@ -51,6 +52,9 @@ internal class PipelineJobMessage
 {
     [JsonPropertyName("depositname")]
     public required string DepositName { get; set; }
+
+    [JsonPropertyName("runuser")]
+    public string? RunUser { get; set; }
 
     public string Type => "PipelineJobMessage";
 }

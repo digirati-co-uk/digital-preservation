@@ -302,9 +302,9 @@ public class DepositsController(
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> RunPipeline([FromRoute] string id)
+    public async Task<IActionResult> RunPipeline([FromRoute] string id, [FromQuery] string? runUser)
     {
-        var runPipelineResult = await mediator.Send(new RunPipeline(id, User));
+        var runPipelineResult = await mediator.Send(new RunPipeline(id, User, runUser));
         return this.StatusResponseFromResult(runPipelineResult, successStatusCode: 204);
     }
 
@@ -315,8 +315,8 @@ public class DepositsController(
     [ProducesResponseType(401)]
     public async Task<IActionResult> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit)
     {
-        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit.Id, pipelineDeposit.Status, User)); 
-        var s = this.StatusResponseFromResult(runPipelineStatusResult, successStatusCode: 204);
+        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit.Id, pipelineDeposit.DepositId , pipelineDeposit.Status, User, pipelineDeposit.RunUser)); 
+
         return this.StatusResponseFromResult(runPipelineStatusResult, successStatusCode: 204);
     }
 

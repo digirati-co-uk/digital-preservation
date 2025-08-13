@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.PipelineApi;
+﻿using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -8,6 +9,7 @@ using Pipeline.API.Features.Pipeline.Models;
 using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
 using System.Diagnostics;
+using DigitalPreservation.Common.Model.Results;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -19,22 +21,27 @@ public class PipelineController(
     ILogger<PipelineController> logger,
     IOptions<StorageOptions> storageOptions,
     IOptions<BrunnhildeOptions> brunnhildeOptions,
-    IPipelineJobStateLogger pipelineJobStateLogger) : Controller
+    IPipelineJobStateLogger pipelineJobStateLogger,
+    IIdentityMinter identityMinter) : Controller
 {
     private readonly List<string> files = [];
 
     [HttpPost(Name = "ExecutePipelineProcess")]
-    [Produces<ProcessPipelineResult>]
+    [Produces<Result>]
     [Produces("application/json")]
     public async Task<IActionResult> ExecutePipelineJob([FromBody] PipelineJob pipelineJob,
         CancellationToken cancellationToken = default)
     {
-        if (pipelineJob.DepositName != null)
-            await pipelineJobStateLogger.LogJobState(pipelineJob.DepositName, PipelineJobStates.Waiting);
+        var jobIdentifier = identityMinter.MintIdentity(nameof(PipelineJob));
 
-        logger.LogInformation("Executing pipeline process ");
+        if (pipelineJob.DepositName != null)
+            await pipelineJobStateLogger.LogJobState(jobIdentifier, pipelineJob.DepositName, pipelineJob.RunUser,  PipelineJobStates.Waiting);
+
+        pipelineJob.JobIdentifier = jobIdentifier;
+
+        logger.LogInformation($"ExecutePipelineJob:Executing pipeline process for job id {jobIdentifier} and deposit {pipelineJob.DepositName}");
         var pipelineProcessJobResult = await mediator.Send(new ProcessPipelineJob(pipelineJob), cancellationToken);
-        logger.LogInformation("Returned from ProcessPipelineJob");
+        logger.LogInformation($"Returned from ProcessPipelineJob for job id {jobIdentifier} and deposit {pipelineJob.DepositName}");
         return this.StatusResponseFromResult(pipelineProcessJobResult, 204); 
     }
 

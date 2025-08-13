@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Preservation.API.Data;
@@ -11,9 +12,11 @@ using Preservation.API.Data;
 namespace Preservation.API.Data.Migrations
 {
     [DbContext(typeof(PreservationContext))]
-    partial class PreservationContextModelSnapshot : ModelSnapshot
+    [Migration("20250811174046_ChangeToPipelineJobRuns")]
+    partial class ChangeToPipelineJobRuns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -286,10 +289,6 @@ namespace Preservation.API.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("pipeline_job_json");
-
-                    b.Property<string>("RunUser")
-                        .HasColumnType("text")
-                        .HasColumnName("run_user");
 
                     b.Property<string>("Status")
                         .IsRequired()

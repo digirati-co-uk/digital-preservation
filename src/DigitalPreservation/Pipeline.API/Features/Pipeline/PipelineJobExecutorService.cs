@@ -14,7 +14,7 @@ public class PipelineJobExecutorService(
         while (!cancellationToken.IsCancellationRequested)
         {
             var transaction = await pipelineQueue.DequeueRequest(cancellationToken); 
-            if (!transaction.HasText()) continue; 
+            if (transaction == null || !transaction.DepositName.HasText()) continue; 
             using var scope = serviceScopeFactory.CreateScope();
             var processor = scope.ServiceProvider.GetRequiredService<PipelineJobRunner>();
             await processor.Execute(transaction, cancellationToken);

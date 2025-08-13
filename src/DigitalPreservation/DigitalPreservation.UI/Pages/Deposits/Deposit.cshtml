@@ -358,7 +358,73 @@ ViewData["section"] = "deposits";
                         </div>
                     }
                 }
+                
+                <hr/>
+                
+                
+                <h3>Pipeline Jobs</h3>
 
+                <div class="mb-3">
+
+                    @if (Model.Deposit.ArchivalGroup == null)
+                    {
+                        <p aria-label="import job message">No jobs can be run as this deposit does not have an archival group specified.</p>
+                    }
+                    else if (!Model.Deposit.Active)
+                    {
+                        <p aria-label="import job message">No jobs can be run as this deposit is no longer active.</p>
+                    }
+                    else if (!Model.Deposit.ArchivalGroupExists && !Model.WorkspaceManager.HasValidFiles)
+                    {
+                        <p aria-label="import job message">No jobs can be run as there are no valid files in the Deposit.</p>
+                    }
+                </div>
+
+                @{
+                    var pipelineJobResults = await Model.GetPipelineJobResults();
+                    if (pipelineJobResults.Count == 0)
+                    {
+                        <p>There are no submitted pipeline jobs for this Deposit.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive small">
+                            <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
+                                <thead>
+                                <tr>
+                                    <th scope="col">JobId</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Begun</th>
+                                    <th scope="col">Finished</th>
+                                    <th scope="col">Errors</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var result in pipelineJobResults)
+                                    {
+                                        <tr>
+                                            <td>@result.JobId</td>
+                                            <td>@result.Status</td>
+                                            <td>@result.DateBegun.GetDateDisplay()</td>
+                                            <td>@result.DateFinished.GetDateDisplay()</td>
+                                            <td class="text-danger">
+                                                @{
+                                                    if (result.Errors != null && result.Errors.Any())
+                                                    {
+                                                        foreach (var line in result.Errors.Select(e => e.Message))
+                                                        {
+                                                            <p>@line</p>
+                                                        }
+                                                    }
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
             </div>
             
             @* START OF SIDE INFO PANEL *@

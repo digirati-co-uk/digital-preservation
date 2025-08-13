@@ -1,8 +1,10 @@
 ﻿using System.Text.Json;
 using Amazon.S3.Util;
+using Azure.Core;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
@@ -288,8 +290,9 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
+            var runUser = User.GetCallerIdentity();
             var result = await mediator.Send(new LockDeposit(Deposit!));
-            var result1 = await mediator.Send(new RunPipeline(Deposit!)); 
+            var result1 = await mediator.Send(new RunPipeline(Deposit!, runUser)); 
             if (result.Success && result1.Success)
             {
                 TempData["Valid"] = "Deposit locked and pipeline run";
@@ -438,6 +441,19 @@ public class DepositModel(
         {
             var importJobResults = fetchResultsResult.Value!;
             return importJobResults;
+        }
+
+        TempData["Error"] = fetchResultsResult.CodeAndMessage();
+        return [];
+    }
+
+    public async Task<List<ProcessPipelineResult>> GetPipelineJobResults()
+    {
+        var fetchResultsResult = await DepositJobResultFetcher.GetPipelineJobResults(Id, mediator);
+        if (fetchResultsResult.Success)
+        {
+            var pipelineJobResults = fetchResultsResult.Value!;
+            return pipelineJobResults;
         }
 
         TempData["Error"] = fetchResultsResult.CodeAndMessage();

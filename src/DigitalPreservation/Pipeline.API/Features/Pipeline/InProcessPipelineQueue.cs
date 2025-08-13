@@ -1,11 +1,13 @@
-﻿using System.Threading.Channels;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.Channels;
 
 namespace Pipeline.API.Features.Pipeline;
 
 public interface IPipelineQueue
 {
-    ValueTask QueueRequest(string depositName, CancellationToken cancellationToken);
-    ValueTask<string> DequeueRequest(CancellationToken cancellationToken);
+    ValueTask QueueRequest(string jobIdentifier, string depositName, string? runUser, CancellationToken cancellationToken);
+    ValueTask<PipelineJobMessage?> DequeueRequest(CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -14,7 +16,7 @@ public interface IPipelineQueue
 /// <remarks>This is purely for demo purposes - this would likely use SQS </remarks>
 public class InProcessPipelineQueue : IPipelineQueue
 {
-    private readonly Channel<string> queue;
+    private readonly Channel<PipelineJobMessage?> queue;
     
     public InProcessPipelineQueue()
     {
@@ -23,12 +25,13 @@ public class InProcessPipelineQueue : IPipelineQueue
             FullMode = BoundedChannelFullMode.Wait
         };
 
-        queue = Channel.CreateBounded<string>(options);
+        queue = Channel.CreateBounded<PipelineJobMessage?>(options);
     }
     
-    public ValueTask QueueRequest(string depositName, CancellationToken cancellationToken)
-        => queue.Writer.WriteAsync(depositName, cancellationToken);
+    public ValueTask QueueRequest(string jobIdentifier, string depositName, string? runUser, CancellationToken cancellationToken)
+        => queue.Writer.WriteAsync(new PipelineJobMessage { JobIdentifier = jobIdentifier, DepositName = depositName, RunUser = runUser}, cancellationToken);
 
-    public ValueTask<string> DequeueRequest(CancellationToken cancellationToken)
+    public ValueTask<PipelineJobMessage?> DequeueRequest(CancellationToken cancellationToken)
         => queue.Reader.ReadAsync(cancellationToken);
 }
+

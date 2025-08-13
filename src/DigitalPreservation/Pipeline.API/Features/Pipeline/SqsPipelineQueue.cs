@@ -5,6 +5,7 @@ using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
@@ -16,14 +17,15 @@ public class SqsPipelineQueue(
     ILogger<SqsPipelineQueue> logger,
     IAmazonSimpleNotificationService snsClient,
     IAmazonSQS sqsClient,
-    IOptions<PipelineOptions> options) : IPipelineQueue
+    IOptions<PipelineOptions> options,
+    IIdentityMinter identityMinter) : IPipelineQueue
 {
     private string? topicArn;
 
-    public async ValueTask QueueRequest(string depositName, CancellationToken cancellationToken)
+    public async ValueTask QueueRequest(string jobIdentifier, string depositName, string? runUser, CancellationToken cancellationToken)
     {
         topicArn = options.Value.PipelineJobTopicArn;
-        var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { DepositName = depositName});
+        var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { JobIdentifier = jobIdentifier, DepositName = depositName, RunUser = runUser});
         var request = new PublishRequest(topicArn, pipelineJobMessage);
         var response = await snsClient.PublishAsync(request, cancellationToken);
         logger.LogDebug(
@@ -31,9 +33,9 @@ public class SqsPipelineQueue(
             response.HttpStatusCode, depositName, response.MessageId);
     }
 
-    public async ValueTask<string> DequeueRequest(CancellationToken cancellationToken)
+    public async ValueTask<PipelineJobMessage?> DequeueRequest(CancellationToken cancellationToken) 
     {
-        var depositName = string.Empty;
+        PipelineJobMessage? messageModel = null;
         IEnumerable<Subscription>? queues = new List<Subscription>();
 
         try
@@ -74,17 +76,17 @@ public class SqsPipelineQueue(
 
                 foreach (var message in response.Messages!)
                 {
-                    if (cancellationToken.IsCancellationRequested) return string.Empty;
+                    if (cancellationToken.IsCancellationRequested) return messageModel;
                     logger.LogDebug("Received SQS message {messageBody}", message.Body);
 
-                    depositName = GetDepositName(message, queueNameValue);
-                    if (depositName.HasText())
+                    messageModel = GetMessageModel(message, queueNameValue);
+                    if (messageModel.DepositName.HasText())
                     {
                         await DeleteMessage(message, queueUrlValue, cancellationToken);
-                        return depositName;
+                        return messageModel;
                     }
 
-                    return string.Empty;
+                    return messageModel;
                 }
             }
             catch (Exception ex)
@@ -94,10 +96,10 @@ public class SqsPipelineQueue(
 
         }
 
-        return depositName;
+        return messageModel;
     }
 
-    private string GetDepositName(Message message, string queue)
+    private PipelineJobMessage? GetMessageModel(Message message, string queue)
     {
         try
         {
@@ -107,10 +109,15 @@ public class SqsPipelineQueue(
             }
 
             var queueMessage = QueueMessage.FromSqsMessage(message, queue!);
-            var importJobMessage = queueMessage.GetMessageContents<PipelineJobMessage>();
-            if (importJobMessage != null)
+            var pipelineJobMessage = queueMessage.GetMessageContents<PipelineJobMessage>();
+            if (pipelineJobMessage != null)
             {
-                return importJobMessage.DepositName;
+                if (string.IsNullOrEmpty(pipelineJobMessage.JobIdentifier))
+                {
+                    pipelineJobMessage.JobIdentifier = identityMinter.MintIdentity(nameof(PipelineJob));
+                }
+
+                return pipelineJobMessage;
             }
         }
         catch (Exception ex)
@@ -118,7 +125,7 @@ public class SqsPipelineQueue(
             logger.LogError(ex, "Error handling message {MessageId} from queue {Queue}",
                 message.MessageId, queue);
         }
-        return string.Empty;
+        return null;
     }
 
 
@@ -131,10 +138,16 @@ public class SqsPipelineQueue(
 }
 
 
-internal class PipelineJobMessage
+public class PipelineJobMessage
 {
     [JsonPropertyName("depositname")]
     public required string DepositName { get; set; }
-    
+
+    [JsonPropertyName("jobidentifier")]
+    public string? JobIdentifier { get; set; }
+
+    [JsonPropertyName("runuser")]
+    public string? RunUser { get; set; }
+
     public string Type => "PipelineJobMessage";
 } 

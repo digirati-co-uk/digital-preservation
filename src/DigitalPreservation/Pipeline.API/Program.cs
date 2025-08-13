@@ -15,6 +15,7 @@ using Pipeline.API.Middleware;
 using Serilog;
 using Pipeline.API.ApiClients;
 using Pipeline.API.Features;
+using DigitalPreservation.Common.Model.Identity;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -112,10 +113,11 @@ try
     builder.Services
         .AddHostedService<PipelineJobExecutorService>()
         .AddScoped<PipelineJobRunner>()
-        .AddSingleton<IPipelineQueue, InProcessPipelineQueue>()
-        .AddSingleton<IPipelineQueue, SqsPipelineQueue>();
+        .AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
+        //.AddSingleton<IPipelineQueue, SqsPipelineQueue>();
 
     builder.Services.AddSingleton<IPipelineJobStateLogger, PipelineJobStateLogger>();
+    builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
     builder.Services.AddSingleton<IPreservationApiInterface, PreservationApiInterface>();
 
     var app = builder.Build();
@@ -152,11 +154,6 @@ finally
     Log.CloseAndFlush();
 }
 
-static void SetupOptions(IConfiguration configuration,
-    DbContextOptionsBuilder optionsBuilder)
-    => optionsBuilder
-        .UseNpgsql(configuration.GetConnectionString("Postgres")) //ConnectionStringKey
-        .UseSnakeCaseNamingConvention();
 
 // required for WebApplicationFactory
 public partial class Program

@@ -8,6 +8,10 @@ public class ProcessPipelineResult : Resource
     [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(ProcessPipelineResult);
 
+    [JsonPropertyOrder(3)]
+    [JsonPropertyName("jobId")]
+    public string? JobId { get; set; }
+
     /// <summary>
     /// A list of errors encountered. These are error objects, not strings. 
     /// </summary>
@@ -26,8 +30,49 @@ public class ProcessPipelineResult : Resource
     /// <summary>
     /// Timestamp indicating when the API finished processing the job. Will be null/missing until then.
     /// </summary>
+    [JsonPropertyName("dateSubmitted")]
+    [JsonPropertyOrder(610)]
+    public DateTime? DateSubmitted { get; set; }
+
+    /// <summary>
+    /// Timestamp indicating when the API finished processing the job. Will be null/missing until then.
+    /// </summary>
+    [JsonPropertyName("dateBegun")]
+    [JsonPropertyOrder(611)]
+    public DateTime? DateBegun { get; set; }
+
+    /// <summary>
+    /// Timestamp indicating when the API finished processing the job. Will be null/missing until then.
+    /// </summary>
     [JsonPropertyName("dateFinished")]
     [JsonPropertyOrder(610)]
     public DateTime? DateFinished { get; set; }
+
+    /// <summary>
+    /// Timestamp indicating when the API finished processing the job. Will be null/missing until then.
+    /// </summary>
+    [JsonPropertyName("lastUpdated")]
+    [JsonPropertyOrder(610)]
+    public DateTime? LastUpdated { get; set; }
+
+
+    /// <summary>
+    /// Explicitly included for convenience; the deposit the job was started from.
+    /// </summary>
+    [JsonPropertyName("deposit")]
+    [JsonPropertyOrder(100)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Deposit { get; set; }
+
+    /// <summary>
+    /// Also included for convenience, the repository object the changes specified in the job are being applied to
+    /// </summary>
+    [JsonPropertyName("archivalGroup")]
+    [JsonPropertyOrder(510)]
+    public required string ArchivalGroup { get; set; }
+
+    [JsonPropertyOrder(511)]
+    [JsonPropertyName("runUSer")]
+    public string? RunUser { get; set; }
 
 }

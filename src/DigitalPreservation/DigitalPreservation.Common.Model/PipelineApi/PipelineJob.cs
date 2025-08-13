@@ -11,4 +11,12 @@ public class PipelineJob : Resource
     [JsonPropertyName("depositname")]
     [JsonPropertyOrder(520)]
     public string? DepositName { get; set; }
+
+    [JsonPropertyName("jobidentifier")]
+    [JsonPropertyOrder(521)]
+    public string? JobIdentifier { get; set; }
+
+    [JsonPropertyName("runuser")]
+    [JsonPropertyOrder(530)]
+    public string? RunUser { get; set; }
 }

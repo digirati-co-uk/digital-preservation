@@ -22,11 +22,6 @@ public class PreservationContext : DbContext
         return ImportJobs.SingleOrDefault(j => j.StorageImportJobResultId == storageResultUri);
     }
 
-    public PipelineRunJob? GetPipelineJobJobFromPipelineJobResult(Uri storageResultUri)
-    {
-        return PipelineRunJobs.SingleOrDefault(j => j.PipelineJobResultId == storageResultUri);
-    }
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Deposit>(builder =>
