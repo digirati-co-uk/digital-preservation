@@ -2,6 +2,7 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 
 #run as root user
 RUN cd ~
+RUN echo 'install market text' >> installmarker
 RUN apt-get update -y
 RUN apt-get install golang -y
 RUN go install github.com/richardlehane/siegfried/cmd/sf@latest
