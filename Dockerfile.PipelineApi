@@ -16,9 +16,13 @@ RUN dotnet publish "Pipeline.API.csproj" -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 
 #run as root user
-RUN mkdir /usr/install
-RUN cd /usr/install
-RUN echo 'install market text' >> installmarker.txt
+RUN mkdir /usr/process-brunnhilde
+RUN chmod 777 /usr/process-brunnhilde
+RUN touch /etc/cron.daily/folder-cleanup.sh
+RUN echo '#!/bin/sh' >> /etc/cron.daily/folder-cleanup.sh
+RUN echo 'find /usr/process-brunnhilde/* -mtime +7 -exec rm {} \;' >> /etc/cron.daily/folder-cleanup.sh
+RUN chmod +x /etc/cron.daily/folder-cleanup.sh
+
 RUN apt-get update -y
 RUN apt-get install golang -y
 RUN go install github.com/richardlehane/siegfried/cmd/sf@latest
