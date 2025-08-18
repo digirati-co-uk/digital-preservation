@@ -1,4 +1,5 @@
-﻿using Amazon.SimpleNotificationService;
+﻿using Amazon.S3;
+using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Auth;
@@ -23,7 +24,7 @@ Log.Logger = new LoggerConfiguration()
 
 Log.Information("Application starting..");
 
-try
+try 
 {
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog((hostContext, loggerConfiguration)
@@ -114,10 +115,10 @@ try
         .AddHostedService<PipelineJobExecutorService>()
         .AddScoped<PipelineJobRunner>()
         .AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
-        //.AddSingleton<IPipelineQueue, SqsPipelineQueue>();
 
     builder.Services.AddSingleton<IPipelineJobStateLogger, PipelineJobStateLogger>();
     builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
+    builder.Services.AddAWSService<IAmazonS3>();
     builder.Services.AddSingleton<IPreservationApiInterface, PreservationApiInterface>();
 
     var app = builder.Build();

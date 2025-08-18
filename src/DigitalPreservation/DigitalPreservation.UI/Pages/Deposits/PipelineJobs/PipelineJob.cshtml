@@ -121,9 +121,12 @@ ViewData["section"] = "deposits";
                     <dd class="col-sm-9" aria-label="archival group"><a href="/browse/@jobResult.ArchivalGroup">@jobResult.ArchivalGroup.GetPathUnderRoot()</a></dd> @* jobResult.ArchivalGroup.GetPathUnderRoot() *@
 
                      <dt class="col-sm-3">Date Begun</dt>
-                    <dd class="col-sm-9" aria-label="date begun">@jobResult.DateBegun.GetDateDisplay()</dd>
+                    <dd class="col-sm-9" aria-label="date begun">@jobResult.DateSubmitted.GetDateDisplay()</dd>
                     <dt class="col-sm-3">Date Finished</dt>
                     <dd class="col-sm-9" aria-label="date finished">@jobResult.DateFinished.GetDateDisplay()</dd>
+                    
+                    <dt class="col-sm-3">User</dt>
+                    <dd class="col-sm-9" aria-label="date finished">@jobResult.RunUser</dd>
 
                 </dl>
                 }
