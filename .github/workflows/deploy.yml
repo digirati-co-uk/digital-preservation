@@ -161,7 +161,7 @@ jobs:
       - uses: ./.github/actions/ecs-bounce
         name: bounce service
         with:
-          target-ecs-service: ${{ vars.IIIFBUILDER_SERVICE }}
-          target-ecs-cluster: ${{ vars.CLUSTER_NAME }}
+          target-ecs-service: ${{ vars.PIPELINE_SERVICE }}
+          target-ecs-cluster: ${{ vars.EC2_CLUSTER_NAME }}
           wait-for-services: ${{ inputs.wait_services }}
           role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}        
