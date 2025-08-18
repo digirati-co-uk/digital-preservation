@@ -41,7 +41,7 @@ else
     </p>
 
         <h2>Versions</h2>
-        <table class="table table-sm small">
+        <table class="table table-sm small" aria-label="table-versions">
             <thead>
             <tr>
                 <th>OCFL version</th>
@@ -54,10 +54,10 @@ else
             @foreach (var version in Model.StorageMap.AllVersions.OrderByDescending(v => v.MementoDateTime))
             {
                 <tr class="@Model.GetVersionRowClass(version)">
-                    <td><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@version.OcflVersion</a></td>
-                    <td><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@version.MementoTimestamp</a></td>
-                    <td><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@StringUtils.GetLocalDate(version.MementoDateTime)</a></td>
-                    <td>
+                    <td aria-label="td-ocfl-version"><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@version.OcflVersion</a></td>
+                    <td aria-label="td-memento-version"><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@version.MementoTimestamp</a></td>
+                    <td aria-label="td-version-date"><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@StringUtils.GetLocalDate(version.MementoDateTime)</a></td>
+                    <td aria-label="td-version-info">
                         @if (version.Equals(Model.StorageMap.Version))
                         {
                             <text><strong>Currently viewing</strong></text>
@@ -74,7 +74,7 @@ else
 
         <h4>Version @Model.Version.OcflVersion - @StringUtils.GetFriendlyAge(Model.Version.MementoDateTime)</h4>
         <hr/>
-        <table class="table table-sm small">
+        <table class="table table-sm small" aria-label="table-version-files">
             <thead>
             <tr>
                 <th>File path</th>
@@ -87,10 +87,10 @@ else
             @foreach (var fileEntry in Model.StorageMap.Files.OrderBy(kvp => kvp.Key))
             {
                 <tr>
-                    <td>@fileEntry.Key</td>
-                    <td><span title="@fileEntry.Value.Hash">@fileEntry.Value.Hash.Substring(0, 8)</span></td>
-                    <td>@fileEntry.Value.FullPath.Split('/')[0]</td>
-                    <td>@fileEntry.Value.FullPath</td>
+                    <td aria-label="td-path">@fileEntry.Key</td>
+                    <td aria-label="td-hash"><span title="@fileEntry.Value.Hash">@fileEntry.Value.Hash.Substring(0, 8)</span></td>
+                    <td aria-label="td-version">@fileEntry.Value.FullPath.Split('/')[0]</td>
+                    <td aria-label="td-versioned-path">@fileEntry.Value.FullPath</td>
                 </tr>
             }
             </tbody>
