@@ -282,6 +282,10 @@ public class DepositModel(
 
             TempData["Error"] = result.ErrorMessage;
         }
+        else
+        {
+            TempData["Error"] = "Could not bind deposit on lock";
+        }
 
         return Page();
     }
@@ -300,6 +304,10 @@ public class DepositModel(
             }
 
             TempData["Error"] = result.ErrorMessage;
+        }
+        else
+        {
+            TempData["Error"] = "Could not bind deposit on run pipeline";
         }
 
         return Page();
