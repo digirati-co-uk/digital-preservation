@@ -57,28 +57,7 @@ public class DepositJobResultFetcher()
         }
 
         var pipelineJobResults = pipelineJobsResult.Value!;
-        // If there are not too many, get the full - refreshed - details.
-        // see above TODO - ideally they are always up to date because the preservation DB has been updated out of band.
-        var incompleteJobCount = pipelineJobResults.Count(ij => ImportJobStates.IsNotComplete(ij.Status));
-        if (incompleteJobCount < 5)
-        {
-            var processPipelineResults = new List<ProcessPipelineResult>();
-            // There should be only 0 or 1 for UI-launched jobs, but API-launched jobs may have many.
-            foreach (var pipelineJobResult in pipelineJobResults)
-            {
-                if (ImportJobStates.IsNotComplete(pipelineJobResult.Status))
-                {
-                    var ijrResult = await mediator.Send(new GetPipelineJobResult(depositId, pipelineJobResult.Id!.GetSlug()!));
-                    if (ijrResult.Success)
-                    {
-                        processPipelineResults.Add(ijrResult.Value!);
-                        continue;
-                    }
-                }
-                processPipelineResults.Add(pipelineJobResult);
-            }
-            pipelineJobResults = processPipelineResults;
-        }
+
         return Result.OkNotNull(pipelineJobResults);
 
     }
