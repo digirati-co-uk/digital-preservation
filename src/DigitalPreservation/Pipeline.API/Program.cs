@@ -114,7 +114,8 @@ try
     builder.Services
         .AddHostedService<PipelineJobExecutorService>()
         .AddScoped<PipelineJobRunner>()
-        .AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
+        .AddSingleton<IPipelineQueue, InProcessPipelineQueue>()
+        .AddSingleton<IPipelineQueue, SqsPipelineQueue>();
 
     builder.Services.AddSingleton<IPipelineJobStateLogger, PipelineJobStateLogger>();
     builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
