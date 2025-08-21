@@ -94,7 +94,7 @@ public class GetDiffImportJobHandler(
 
         var origin = FolderNames.GetFilesLocation(request.Deposit.Files, workspace.IsBagItLayout);
         var allEncounteredProcessedUris = new List<Uri>();
-        var importContainerResult = combined!.ToContainer(request.Deposit.ArchivalGroup, origin, allEncounteredProcessedUris);
+        var importContainerResult = combined!.ToContainer(request.Deposit.ArchivalGroup, origin, workspace.MetsPath, allEncounteredProcessedUris);
         if (importContainerResult.Failure || importContainerResult.Value is null)
         {
             return Result.FailNotNull<ImportJob>(importContainerResult.ErrorCode ?? ErrorCodes.BadRequest, importContainerResult.ErrorMessage);
