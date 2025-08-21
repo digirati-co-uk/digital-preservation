@@ -155,7 +155,7 @@ public class WorkingFile : WorkingBase
         }
         // What to do if we have MISMATCHED digests?
         // Going to throw an exception for now but come back to this
-        throw new Exception($"Digests for {LocalPath} are not all the same");
+        throw new MetadataException($"Digests for {LocalPath} are not all the same");
     }
 
     public VirusScanMetadata? GetVirusScanMetadata()

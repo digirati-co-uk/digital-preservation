@@ -190,7 +190,7 @@ public class WorkspaceManager(
                 new DeleteItems(IsBagItLayout, deposit.Files!, deleteSelection, combinedResult.Value, deposit.MetsETag!));
             // refresh the file system again
             // need to see how long this operation takes on large deposits
-            await GetFileSystemWorkingDirectory(true);
+            await GetCombinedDirectory(true);
             return deleteResult;
         }
         return Result.FailNotNull<ItemsAffected>(combinedResult.ErrorCode ?? ErrorCodes.UnknownError, combinedResult.ErrorMessage);

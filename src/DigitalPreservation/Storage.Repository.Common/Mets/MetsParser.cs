@@ -60,11 +60,11 @@ public class MetsParser(
             
                 // Need to find the METS. Look for "mets.xml" by preference
                 var firstXmlFile = dir.EnumerateFiles().FirstOrDefault(
-                    f => MetsUtils.IsMetsFile(f.Name, true));
+                    f => MetsUtils.IsMetsFile(f.Name.GetSlug(), true));
                 if (firstXmlFile == null)
                 {
                     firstXmlFile = dir.EnumerateFiles().FirstOrDefault(
-                    f => MetsUtils.IsMetsFile(f.Name, false));
+                        f => MetsUtils.IsMetsFile(f.Name.GetSlug(), false));
                 }
 
                 if (firstXmlFile == null)
@@ -73,11 +73,11 @@ public class MetsParser(
                     if (childDirs is [{ Name: FolderNames.BagItData }]) // one and one only child directory, called data
                     {                
                         firstXmlFile = childDirs[0].EnumerateFiles().FirstOrDefault(
-                            f => MetsUtils.IsMetsFile(f.Name, true));
+                            f => MetsUtils.IsMetsFile(f.Name.GetSlug(), true));
                         if (firstXmlFile == null)
                         {
                             firstXmlFile = childDirs[0].EnumerateFiles().FirstOrDefault(
-                                f => MetsUtils.IsMetsFile(f.Name, false));
+                                f => MetsUtils.IsMetsFile(f.Name.GetSlug(), false));
                         }
                     }
                 }
@@ -99,10 +99,11 @@ public class MetsParser(
                     Delimiter = "/" // first "children" only ... does that return "data/" no?                       
                 };
                 var resp = await s3Client.ListObjectsV2Async(listObjectsReq);
-                var firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, true));
-                if (firstXmlKey != null)
+                var files = resp.S3Objects.Where(s => !s.Key.EndsWith('/')).ToList();
+                var firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), true));
+                if (firstXmlKey == null)
                 {
-                    firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, false));
+                    firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), false));
                 }
                 
                 if (firstXmlKey == null)
@@ -114,10 +115,11 @@ public class MetsParser(
                         Delimiter = "/"                       
                     };
                     resp = await s3Client.ListObjectsV2Async(listObjectsReq);
-                    firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, true));
-                    if (firstXmlKey != null)
+                    files = resp.S3Objects.Where(s => !s.Key.EndsWith('/')).ToList();
+                    firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), true));
+                    if (firstXmlKey == null)
                     {
-                        firstXmlKey = resp.S3Objects.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key, false));
+                        firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), false));
                     }
                 }
 

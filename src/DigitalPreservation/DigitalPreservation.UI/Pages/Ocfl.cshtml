@@ -1,0 +1,140 @@
+﻿@page "{*pathUnderRoot}"
+@using DigitalPreservation.Utils
+@model DigitalPreservation.UI.Pages.Ocfl
+
+@{
+    ViewData["section"] = "browse";
+}
+
+@if (TempData["Error"] != null || Model.Version == null || Model.StorageMap == null)
+{
+    <h1 class="h2">Unable to show storage history</h1>
+    <div class="alert alert-danger" role="alert">
+        <p>@Html.Raw(TempData["Error"])</p>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">📦 Version @Model.Version.OcflVersion of @Model.Title</h1>
+
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
+                <svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit from @Model.Version.OcflVersion</span>
+            </button>
+            <a class="btn btn-sm btn-primary me-2" href="/browse/@Model.PathUnderRoot">
+                📦 Go to Archival Group (@Model.StorageMap.HeadVersion.OcflVersion)
+            </a>
+        </div>
+    </div>
+
+
+    <p>
+        @if (Model.Version.Equals(Model.StorageMap.HeadVersion))
+        {
+            <em>This is the current (head) version.</em>
+        }
+        else
+        {
+            <em>This is a <strong>previous</strong> version.</em>
+        }
+    </p>
+
+        <h2>Versions</h2>
+        <table class="table table-sm small" aria-label="table-versions">
+            <thead>
+            <tr>
+                <th>OCFL version</th>
+                <th>Memento</th>
+                <th>Date</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var version in Model.StorageMap.AllVersions.OrderByDescending(v => v.MementoDateTime))
+            {
+                <tr class="@Model.GetVersionRowClass(version)">
+                    <td aria-label="td-ocfl-version"><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@version.OcflVersion</a></td>
+                    <td aria-label="td-memento-version"><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@version.MementoTimestamp</a></td>
+                    <td aria-label="td-version-date"><a href="/ocfl/@(Model.PathUnderRoot)?version=@version.OcflVersion">@StringUtils.GetLocalDate(version.MementoDateTime)</a></td>
+                    <td aria-label="td-version-info">
+                        @if (version.Equals(Model.StorageMap.Version))
+                        {
+                            <text><strong>Currently viewing</strong></text>
+                        }
+                        @if (version.Equals(Model.StorageMap.HeadVersion))
+                        {
+                            <text> Latest (head) version</text>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <h4>Version @Model.Version.OcflVersion - @StringUtils.GetFriendlyAge(Model.Version.MementoDateTime)</h4>
+        <hr/>
+        <table class="table table-sm small" aria-label="table-version-files">
+            <thead>
+            <tr>
+                <th>File path</th>
+                <th>Hash</th>
+                <th>Version</th>
+                <th>Versioned path</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var fileEntry in Model.StorageMap.Files.OrderBy(kvp => kvp.Key))
+            {
+                <tr>
+                    <td aria-label="td-path">@fileEntry.Key</td>
+                    <td aria-label="td-hash"><span title="@fileEntry.Value.Hash">@fileEntry.Value.Hash.Substring(0, 8)</span></td>
+                    <td aria-label="td-version">@fileEntry.Value.FullPath.Split('/')[0]</td>
+                    <td aria-label="td-versioned-path">@fileEntry.Value.FullPath</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+    <div class="modal fade" id="newDepositModal" tabindex="-1" aria-labelledby="newDepositModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="newDepositModalLabel"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">New Deposit (Export)</span></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form class="single-submit" method="post" asp-page="DepositNew" asp-page-handler="CreateForArchivalGroup">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <p>
+                                Creating a new Deposit for an existing Archival Group.<br/>
+                                <code>@Model.PathUnderRoot</code><br/>
+                                All content of version @Model.Version.OcflVersion will be exported to the Deposit.
+                                
+                                @if (Model.Version.Equals(Model.StorageMap.HeadVersion))
+                                {    
+                                    <div class="alert alert-info" role="alert">
+                                        <p>You are exporting the latest version of this resource.</p>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="alert alert-warning" role="alert">
+                                        <p>You are <strong>not</strong> exporting the latest version of this resource.</p>
+                                    </div>
+                                }
+                                
+                            </p>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <input type="hidden" name="archivalGroupPath" value="@Model.PathUnderRoot"/>
+                        <input type="hidden" name="archivalGroupVersion" value="@Model.Version.OcflVersion"/>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#box-seam"/></svg><span class="ms-2">Export version to Deposit</span></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}

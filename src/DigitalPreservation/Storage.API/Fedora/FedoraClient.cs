@@ -43,7 +43,7 @@ internal class FedoraClient(
         
         if (typeRes.Value == nameof(ArchivalGroup))
         {
-            var agResult = await GetPopulatedArchivalGroup(pathUnderFedoraRoot!, null, transaction);
+            var agResult = await GetPopulatedArchivalGroup(pathUnderFedoraRoot!, transaction);
             if (agResult.Success)
             {
                 return Result.Ok(agResult.Value as PreservedResource);
@@ -55,7 +55,7 @@ internal class FedoraClient(
         PreservedResource? resource = null;
         if (typeRes.Value == nameof(Binary))
         {
-            var binary = await GetResourceInternal<Binary>(uri, transaction);
+            var binary = await GetResourceInternal<Binary>(uri, mementoVersion: null, transaction);
             if(storageMap != null && binary != null)
             {
                 PopulateOrigin(storageMap, binary);
@@ -65,7 +65,7 @@ internal class FedoraClient(
         
         else if (typeRes.Value == nameof(Container))
         {
-            // this is also true for archival group so test this last
+            // this is also true for an archival group so test this last
             var container = await GetPopulatedContainer(
                 uri, 
                 isArchivalGroup: false, 
@@ -84,20 +84,72 @@ internal class FedoraClient(
         return Result.Ok(resource);
     }
 
-    public async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(string pathUnderFedoraRoot, string? version = null, Transaction? transaction = null)
+    public async Task<Result<PreservedResource?>> GetResourceLightweight(
+        string? pathUnderFedoraRoot, string? version = null, Transaction? transaction = null)
     {
+        var typeRes = await GetResourceType(pathUnderFedoraRoot, transaction);
+        switch (typeRes.Value)
+        {
+            case nameof(RepositoryTypes.Tombstone):
+                return Result.Fail<PreservedResource>(ErrorCodes.Tombstone, "Resource has Gone");
+            case null:
+                return Result.ConvertFail<string?, PreservedResource?>(typeRes);
+        }
+        
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
-        return await GetPopulatedArchivalGroup(uri, version);
+        string? mementoVersion = version;
+        if (version != null && version.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+        {
+            if (typeRes.Value == nameof(ArchivalGroup))
+            {
+                var versions = await GetFedoraVersions(uri);
+                var storageMap = await GetCacheableStorageMap(uri, version, true);
+                MergeVersions(versions!, storageMap.AllVersions);
+                mementoVersion = versions!.Single(v => v.OcflVersion == version).MementoTimestamp;
+            }
+            else
+            {
+                return Result.Fail<PreservedResource>(ErrorCodes.BadRequest,
+                    "OCFL version format ('v1', 'v2', etc.) is only supported on Archival Groups. You can use Memento version.");
+            }
+        }
+
+        PreservedResource? resource = null;
+
+        switch (typeRes.Value)
+        {
+            case nameof(ArchivalGroup):
+                resource = await GetResourceInternal<ArchivalGroup>(uri, mementoVersion, transaction);
+                break;
+            case nameof(Container):
+                resource = await GetResourceInternal<Container>(uri, mementoVersion, transaction);
+                break;
+            case nameof(Binary):
+                resource = await GetResourceInternal<Binary>(uri, mementoVersion, transaction);
+                break;
+        }
+
+        if (resource != null)
+        {
+            return Result.Ok(resource);
+        }
+        return Result.Fail<PreservedResource>(ErrorCodes.UnknownError, "Could not find resource.");
     }
 
-    private async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(Uri uri, string? version = null)
+    private async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(string pathUnderFedoraRoot, Transaction? transaction = null)
+    {
+        var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
+        return await GetPopulatedArchivalGroup(uri);
+    }
+
+    private async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(Uri uri)
     {
         var versions = await GetFedoraVersions(uri);
         if (versions == null)
         {
             return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"No versions found for {uri}");
         }
-        var storageMap = await GetCacheableStorageMap(uri, version, true);
+        var storageMap = await GetCacheableStorageMap(uri, null, true);
         logger.LogInformation("Obtained StorageMap; Root: {root}, ObjectPath: {objectPath}", storageMap.Root, storageMap.ObjectPath);
         MergeVersions(versions, storageMap.AllVersions);
 
@@ -121,11 +173,12 @@ internal class FedoraClient(
         return Result.Ok(archivalGroup);
     }
     
-    private async Task<T?> GetResourceInternal<T>(Uri uri, Transaction? transaction = null) where T : Resource
+    private async Task<T?> GetResourceInternal<T>(Uri uri, string? mementoVersion = null, Transaction? transaction = null) where T : Resource
     {
         var isBinary = typeof(T) == typeof(Binary);
         var reqUri = isBinary ? uri.MetadataUri() : uri;
-        var request = MakeHttpRequestMessage(reqUri, HttpMethod.Get)
+        var request = MakeHttpRequestMessage(
+                reqUri.AtVersion(mementoVersion), HttpMethod.Get)
             .InTransaction(transaction)
             .ForJsonLd(); 
         var response = await httpClient.SendAsync(request);
@@ -151,39 +204,51 @@ internal class FedoraClient(
         var req = new HttpRequestMessage(HttpMethod.Head, uri)
             .InTransaction(transaction);
         req.Headers.Accept.Clear();
-        var headResponse = await httpClient.SendAsync(req);
-        if (headResponse.IsSuccessStatusCode)
+        var response = await httpClient.SendAsync(req);
+        var typeName = GetTypeName(response);
+        if (typeName.HasText())
         {
-            string? typeName;
-            if (headResponse.HasArchivalGroupTypeHeader())
+            return Result.Ok(typeName);
+        }
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Fail<string?>(ErrorCodes.UnknownError, response.ReasonPhrase ?? "Unknown Type");
+        }
+        var message = await response.Content.ReadAsStringAsync();
+        return Result.Fail<string?>(ErrorCodes.GetErrorCode((int?)response.StatusCode), message);
+    }
+
+    private static string? GetTypeName(HttpResponseMessage response)
+    {
+        string? typeName = null;
+        if (response.IsSuccessStatusCode)
+        {
+            if (response.HasArchivalGroupTypeHeader())
             {
                 typeName = nameof(ArchivalGroup);
             }
-            else if (headResponse.HasBinaryTypeHeader())
+            else if (response.HasBinaryTypeHeader())
             {
                 typeName = nameof(Binary);
             }
-            else if (headResponse.HasBasicContainerTypeHeader())
+            else if (response.HasBasicContainerTypeHeader())
             {
                 typeName = nameof(Container);
             }
-            else
-            {
-                return Result.Fail<string?>(ErrorCodes.UnknownError, headResponse.ReasonPhrase ?? "Unknown Type");
-            }
-            if (typeName.HasText())
-            {
-                return Result.Ok(typeName);
-            }
         }
-
-        if (headResponse.IsTombstone())
+        if (response.IsTombstone())
         {
-            return Result.Ok(RepositoryTypes.Tombstone);
+            typeName = RepositoryTypes.Tombstone;
         }
 
-        var message = await headResponse.Content.ReadAsStringAsync();
-        return Result.Fail<string?>(ErrorCodes.GetErrorCode((int?)headResponse.StatusCode), message);
+        return typeName;
+    }
+
+
+    private async Task<Result<ObjectVersion>> GetArchivalGroupVersion(Uri uri, Transaction? transaction)
+    {
+        var sm = await GetCacheableStorageMap(uri, version: null, refresh: true);
+        return Result.OkNotNull(sm.HeadVersion);
     }
     
     public async Task<Result<string?>> GetResourceType(string? pathUnderFedoraRoot, Transaction? transaction = null)
@@ -192,12 +257,19 @@ internal class FedoraClient(
         return await GetResourceType(uri, transaction);
     }
 
+    public async Task<Result<ObjectVersion>> GetArchivalGroupVersion(string? pathUnderFedoraRoot, Transaction? transaction = null)
+    {
+        var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
+        return await GetArchivalGroupVersion(uri, transaction);
+    }
+
+
     public async Task<Result<ArchivalGroup?>> GetValidatedArchivalGroupForImportJob(string pathUnderFedoraRoot, Transaction? transaction = null)
     {
         var info = await GetResourceType(pathUnderFedoraRoot, transaction);
         if (info is { Success: true, Value: nameof(ArchivalGroup) })
         {
-            var ag = await GetPopulatedArchivalGroup(pathUnderFedoraRoot, null, transaction);
+            var ag = await GetPopulatedArchivalGroup(pathUnderFedoraRoot, transaction);
             return ag;
         }
         if (info.ErrorCode == ErrorCodes.NotFound)
@@ -416,7 +488,7 @@ internal class FedoraClient(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Could not deserialise Fedora response for new Container");;
+            logger.LogError(ex, "Could not deserialise Fedora response for new Container");
         }
         if (containerResponse == null)
         {
@@ -616,7 +688,7 @@ internal class FedoraClient(
     }
 
     /// <summary>
-    /// For deleting resources within AGs
+    /// For deleting resources within AGs.
     /// It still works outside AGs but will leave tombstones behind (correctly)
     /// 
     /// The DeleteContainerOutsideOfArchivalGroup is used for additionally specifying a purge
@@ -819,7 +891,7 @@ internal class FedoraClient(
         // Make a map of the IDs
         Dictionary<string, JsonElement> dict = containerAndContained.ToDictionary(x => x.GetProperty("@id").GetString()!);
 
-        // Get the contains property which may be a single value or an array
+        // Get the "contains" property which may be a single value or an array
         var idsFromContainmentPredicate = GetIdsFromContainsProperty(containerAndContained[0]);
         idsFromContainmentPredicate.Sort();
         logger.LogDebug("idsFromContainmentPredicate has {childCount} child items.", idsFromContainmentPredicate.Count);
@@ -1011,12 +1083,12 @@ internal class FedoraClient(
         var content = await response.Content.ReadAsStringAsync();
 
         using var jDoc = JsonDocument.Parse(content);
-        var childIds = GetIdsFromContainsProperty(jDoc.RootElement);
+        var versionIds = GetIdsFromContainsProperty(jDoc.RootElement);
         // We could go and request each of these.
         // But... the Fedora API gives the created and lastModified date of the original, not the version, when you ask for a versioned response.
         // Is that a bug?
         // We're not going to learn anything more than we would by parsing the memento path elements - which is TERRIBLY non-REST-y
-        return childIds
+        return versionIds
             .Select(id => id.Split('/').Last())
             .Select(p => new ObjectVersion { MementoTimestamp = p, MementoDateTime = p.DateTimeFromMementoTimestamp() })
             .OrderBy(ov => ov.MementoTimestamp)

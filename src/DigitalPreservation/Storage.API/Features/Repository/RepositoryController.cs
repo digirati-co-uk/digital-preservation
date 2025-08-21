@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Net;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
@@ -19,10 +20,38 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> Browse([FromRoute] string? path)
+    public async Task<IActionResult> Browse(
+        [FromRoute] string? path,
+        [FromQuery] string? view = null,
+        [FromQuery] string? version = null)
     {
+        if (view == null && version == null)
+        {
+            // Almost all requests on repository paths will take this form
+            var result = await mediator.Send(new GetResourceFromFedora(path));
+            return this.StatusResponseFromResult(result);
+        }
+        // We want a specific version, and/or just the lightweight view
+        return await ViewLightweightResource(path, view, version);
+    }
+    
+    private async Task<IActionResult> ViewLightweightResource(
+        string? path,
+        string? view = null,
+        string? version = null)
+    {
+        if (view != ViewValues.Lightweight)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = (int)HttpStatusCode.BadRequest,
+                Title = "Unsupported view",
+                Detail = "View " + view + " is not a valid value."
+            };
+            return BadRequest(problem);
+        }
        
-        var result = await mediator.Send(new GetResourceFromFedora(path));
+        var result = await mediator.Send(new GetResourceFromFedoraLightweight(path, version));
         return this.StatusResponseFromResult(result);
     }
     

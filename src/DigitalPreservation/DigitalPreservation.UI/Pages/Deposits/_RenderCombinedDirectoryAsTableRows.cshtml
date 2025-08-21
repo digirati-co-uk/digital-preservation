@@ -21,10 +21,11 @@ File is in both
 -->
 @if (combinedDirectory.LocalPath.HasText())
 {
+    var isMetadata = FolderNames.IsMetadata(combinedDirectory.LocalPath);
     depth = combinedDirectory.LocalPath.Split('/').Length;
     string where = combinedDirectory.Whereabouts.ToString().ToLowerInvariant();
                    <tr class="deposit-row @("where-" + where)" 
-        data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts">
+        data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@isMetadata">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
             {
@@ -34,7 +35,7 @@ File is in both
             }
         </td>
         <td class="dep-actions">
-            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && combinedDirectory.LocalPath != FolderNames.Metadata)
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !isMetadata)
             {
                 <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#newFolderModal" aria-label="new folder">
                     <svg class="bi"><use xlink:href="#folder-plus"/></svg>
@@ -82,13 +83,15 @@ File is in both
 }
 @foreach (var file in combinedDirectory.Files)
 {
+    
+    var isMetadata = FolderNames.IsMetadata(file.LocalPath!);
     if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem)
     {
         continue; // this file is hidden
     }
     string where = file.Whereabouts.ToString().ToLowerInvariant();
     <tr class="deposit-row @("where-" + where)" 
-        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts">
+        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-metadata="@isMetadata">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && file.LocalPath != "mets.xml")
             {

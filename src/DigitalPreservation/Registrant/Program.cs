@@ -55,7 +55,7 @@ class Program
         var storageApi = new StorageApiClient(
             GetHttpClient("https://storage-dev.dlip.digirati.io"),
             GetLogger<StorageApiClient>());
-        var archivalGroupResult = await storageApi.GetArchivalGroup(archivalGroupPath, null);
+        var archivalGroupResult = await storageApi.GetArchivalGroup(archivalGroupPath);
         if (archivalGroupResult.Failure || archivalGroupResult.Value == null)
         {
             Console.WriteLine("Archive group " + archivalGroupPath + " could not be found.");

@@ -33,6 +33,10 @@ public static class FolderNames
 
     public static bool IsMetadata(string localPath)
     {
-        return localPath.StartsWith($"{BagItData}/{Metadata}/") || localPath.StartsWith($"{Metadata}/");
+        return 
+            localPath.StartsWith($"{BagItData}/{Metadata}/") || 
+            localPath.StartsWith($"{Metadata}/") || 
+            localPath == $"{BagItData}/{Metadata}" || 
+            localPath == Metadata;
     }
 }
