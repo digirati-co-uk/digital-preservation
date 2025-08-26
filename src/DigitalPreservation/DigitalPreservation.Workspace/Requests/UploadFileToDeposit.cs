@@ -80,7 +80,7 @@ public class UploadFileToDepositHandler(
                 {
                     LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
                     ContentType = request.ContentType,
-                    Digest = request.Checksum,
+                    Digest = request.Checksum.ToLowerInvariant(),
                     Size = request.Size,
                     Name = request.DepositFileName,
                     Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885

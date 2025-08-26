@@ -96,7 +96,7 @@ public class MetadataReader : IMetadataReader
                 metadataList.Add(new DigestMetadata
                 {
                     Source = "BagIt",
-                    Digest = kvp.Value,
+                    Digest = kvp.Value.ToLowerInvariant(),
                     Timestamp = timestamp
                 });
             }
@@ -149,7 +149,7 @@ public class MetadataReader : IMetadataReader
             metadataList.Add(new FileFormatMetadata
             {
                 Source = source,
-                Digest = file.Sha256,
+                Digest = file.Sha256?.ToLowerInvariant(),
                 Size = file.Filesize,
                 PronomKey = file.Matches[0].Id,
                 FormatName = file.Matches[0].Format,
