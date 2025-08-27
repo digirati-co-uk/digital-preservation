@@ -7,6 +7,7 @@ using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
+using Microsoft.OpenApi.Models;
 using Serilog;
 using Storage.API.Data;
 using Storage.API.Features.Export;
@@ -82,6 +83,68 @@ try
             }
         });
 
+
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new OpenApiInfo { Title = "Storage API", Version = "v1" });
+
+        if (useAuthFeatureFlag)
+        {
+
+            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.ApiKey,
+                Scheme = "Bearer",
+                Description = "Bearer token add:   'Bearer <your token>'  "
+            });
+            
+            c.AddSecurityRequirement(new OpenApiSecurityRequirement()
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        },
+                        Scheme = "oauth2",
+                        Name = "Bearer",
+                        In = ParameterLocation.Header,
+
+                    },
+                    new List<string>()
+                }
+            });
+        }
+
+        c.AddSecurityDefinition("X-Client-Identity", new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.ApiKey,
+            In = ParameterLocation.Header,
+            Name = "X-Client-Identity",
+            Description = "client identity header for machine to machine calls"
+        });
+
+        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.SecurityScheme,
+                        Id = "X-Client-Identity"
+                    }
+                },
+                []
+            }
+        });
+    });
+
+
     if (useLocalHostedServiceForImport)
     {
         builder.Services
@@ -124,6 +187,12 @@ try
         app.UseAuthentication();
         app.UseAuthorization();
     }
+
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Storage API");
+    });
 
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Storage: Hello World!");
