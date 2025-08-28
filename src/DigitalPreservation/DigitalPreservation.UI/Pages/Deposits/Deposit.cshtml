@@ -156,6 +156,13 @@ ViewData["section"] = "deposits";
             <p>This Deposit is locked by @Model.Deposit!.LockedBy?.GetSlug()</p>
         </div>
     }
+    @if (TempData["MisMatchCount"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
  </div>
 
 @if(Model.Deposit != null)
@@ -212,9 +219,8 @@ ViewData["section"] = "deposits";
                 @if (Model.Deposit.Status != DepositStates.Exporting)
                 {                
                     var combinedResult = await Model.WorkspaceManager.GetCombinedDirectory();
-                    if (combinedResult is { Success: true, Value: not null })
+                    if (Model.RootCombinedDirectory != null)
                     {
-                        var rootCombinedDirectory = combinedResult.Value;
                         <div class="table-responsive small">
                             <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
                                 <thead>
@@ -240,7 +246,7 @@ ViewData["section"] = "deposits";
                                     </tr>
                                 }
                                 @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(rootCombinedDirectory,
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(Model.RootCombinedDirectory,
                                         Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
                                         Model.Deposit.Active, IsLockedByOtherUser(), 
                                         Model.WorkspaceManager.RootAccessRestrictions,
@@ -253,13 +259,13 @@ ViewData["section"] = "deposits";
                         </div>
                         <p><small>
                             @{
-                                var totals = rootCombinedDirectory.GetSizeTotals();
+                                var totals = Model.RootCombinedDirectory.GetSizeTotals();
                             }
                             @totals.TotalFileCount <text> files in </text> @totals.TotalDirectoryCount <text> directories.</text><br/>
                             @StringUtils.FormatFileSize(totals.TotalSizeInDeposit, withSpace: true, fallbackIfNull: " - ") <text> in Deposit, </text>
                             @StringUtils.FormatFileSize(totals.TotalSizeInMets, withSpace: true, fallbackIfNull: " - ") <text> in METS, </text>
                             @StringUtils.FormatFileSize(totals.TotalSize, withSpace: true, fallbackIfNull: " - ") <text> Overall. </text><br/>
-                            Deposit structure built @(combinedResult.Value.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
+                            Deposit structure built @(Model.RootCombinedDirectory.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
                         </small></p>
                     }
                     else
@@ -802,6 +808,9 @@ ViewData["section"] = "deposits";
             if (row.getAttribute("data-whereabouts") === "Deposit"){
                 itemSelector.checked = true;
             }
+            if (row.getAttribute("data-mismatches")?.toLowerCase() === "true"){
+                itemSelector.checked = true;
+            }
         }
     });
 
@@ -892,7 +901,7 @@ ViewData["section"] = "deposits";
                 const relativePath = row.getAttribute("data-path");
                 if (relativePath && (type === "directory" || type === "file")){
                     const whereabouts = row.getAttribute("data-whereabouts");
-                    if(whereabouts === "Deposit"){
+                    if(whereabouts === "Deposit" || whereabouts === "Both"){
                         const item = {
                             path: relativePath,
                             isDir: (type === "directory"),

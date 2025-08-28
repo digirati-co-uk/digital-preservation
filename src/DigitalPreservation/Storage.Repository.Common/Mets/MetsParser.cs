@@ -546,6 +546,7 @@ public class MetsParser(
                             {
                                 premisMetadata = new FileFormatMetadata
                                 {
+                                    Digest = digest,
                                     Source = MetsManager.Mets,
                                     PronomKey = key,
                                     FormatName = name

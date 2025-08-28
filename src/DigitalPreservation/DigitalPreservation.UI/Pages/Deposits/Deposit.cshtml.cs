@@ -27,6 +27,8 @@ public class DepositModel(
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
+    
+    public CombinedDirectory? RootCombinedDirectory { get; set; }
     public Deposit? Deposit { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
 
@@ -55,6 +57,20 @@ public class DepositModel(
                 if (testArchivalGroupResult.Failure)
                 {
                     ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
+                }
+            }
+
+            if (Deposit.Status != DepositStates.Exporting)
+            {
+                var combinedResult = await WorkspaceManager.GetCombinedDirectory();
+                if (combinedResult is { Success: true, Value: not null })
+                {
+                    RootCombinedDirectory = combinedResult.Value;
+                    var mismatches = RootCombinedDirectory.GetMisMatches();
+                    if (mismatches.Count != 0)
+                    {
+                        TempData["MisMatchCount"] = mismatches.Count;
+                    }
                 }
             }
         }

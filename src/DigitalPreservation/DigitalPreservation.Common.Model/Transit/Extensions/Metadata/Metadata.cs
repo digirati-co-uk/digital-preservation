@@ -7,6 +7,7 @@ namespace DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 [JsonDerivedType(typeof(ExifMetadata), typeDiscriminator: "ExifMetadata")]
 [JsonDerivedType(typeof(DigestMetadata), typeDiscriminator: "DigestMetadata")]
 [JsonDerivedType(typeof(VirusScanMetadata), typeDiscriminator: "VirusScanMetadata")]
+[JsonDerivedType(typeof(ToolOutput), typeDiscriminator: "ToolOutput")]
 public abstract class Metadata : IMetadata
 {
     [JsonPropertyName("source")]

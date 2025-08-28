@@ -484,6 +484,10 @@ public class MetsManager(
                     }
                     premisXml = PremisManager.GetXmlElement(premisType, true);
                     amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
+                    if (patchPremis.ContentType.HasText() && patchPremis.ContentType != ContentTypes.NotIdentified)
+                    {
+                        file.Mimetype = patchPremis.ContentType;
+                    }
                 }
                 else if (workingBase is WorkingDirectory workingDirectory)
                 {
