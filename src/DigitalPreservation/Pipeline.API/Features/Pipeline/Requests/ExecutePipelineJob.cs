@@ -286,7 +286,7 @@ public class ProcessPipelineJobHandler(
         deleteSelection.Items = itemsForDeletion;
 
         //TODO: add proper identity
-        var resultDelete = await WorkspaceManager.DeleteItems(deleteSelection, "user identity");
+        var resultDelete = await WorkspaceManager.DeleteItems(deleteSelection, "zz_libplaywrighttest@leeds.ac.uk");
 
 
         if (!resultDelete.Success)
@@ -378,7 +378,7 @@ public class ProcessPipelineJobHandler(
 
         logger.LogInformation($"BrunnhildeFolderName {BrunnhildeFolderName}");
         logger.LogInformation($"di.Name {di.Name} context {context}");
-        var result = await WorkspaceManager.CreateFolder(di.Name, context.ToString(), false, "BM_testDirectory@digirati.com", true);
+        var result = await WorkspaceManager.CreateFolder(di.Name, context.ToString(), false, "zz_libplaywrighttest@leeds.ac.uk", true);
 
         if (!result.Success)
         {
@@ -459,7 +459,7 @@ public class ProcessPipelineJobHandler(
                 new FileExtensionContentTypeProvider().TryGetContentType(fi.Name, out var contentType);
 
                 var result = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, fi.Name, checksum,
-                    fi.Name, contentType, contextPath, "BM_testUpload@digirati.com");
+                    fi.Name, contentType, contextPath, "zz_libplaywrighttest@leeds.ac.uk");
 
                 if (!result.Success)
                 {
