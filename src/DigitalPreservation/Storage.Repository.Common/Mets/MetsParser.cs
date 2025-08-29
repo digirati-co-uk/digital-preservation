@@ -222,7 +222,7 @@ public class MetsParser(
                         ContentType = "application/xml",
                         LocalPath = fi.Name, // because mets must be in the root
                         Name = fi.Name,
-                        Digest = Checksum.Sha256FromFile(fi)
+                        Digest = Checksum.Sha256FromFile(fi)?.ToLowerInvariant()
                     };
                 }
 
@@ -249,7 +249,7 @@ public class MetsParser(
                 }
                 
                 var s3Stream = await s3Client.GetObjectStreamAsync(fileS3Uri.Bucket, fileS3Uri.Key, null);
-                var digest = Checksum.Sha256FromStream(s3Stream);
+                var digest = Checksum.Sha256FromStream(s3Stream)?.ToLowerInvariant();
                 var name = fileS3Uri.Key.GetSlug(); // because mets is in root - whether apparent (BagIt) or real
                 return new WorkingFile
                 {
