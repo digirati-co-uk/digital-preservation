@@ -11,6 +11,7 @@ namespace Storage.API.Features.Fedora;
 [Route("[controller]")]
 public class FedoraController(IMediator mediator) : Controller
 {
+    [HttpGet]
     public async Task<IActionResult> FedoraCheck()
     {
         var res = await mediator.Send(new VerifyFedoraRunning());
