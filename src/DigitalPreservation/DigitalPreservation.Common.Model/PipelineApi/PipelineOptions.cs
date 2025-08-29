@@ -3,4 +3,5 @@ public class PipelineOptions
 {
     public const string PipelineJob = "PipelineJob";
     public required string PipelineJobTopicArn { get; set; }
+    public required string PipelineJobQueue { get; set; }
 }

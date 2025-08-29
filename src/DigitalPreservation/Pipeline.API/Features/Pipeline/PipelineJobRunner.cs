@@ -6,10 +6,10 @@ namespace Pipeline.API.Features.Pipeline;
 
 public class PipelineJobRunner(
     ILogger<PipelineJobRunner> logger,
-    IMediator mediator,
-    IPipelineJobStateLogger pipelineJobStateLogger)
+    IMediator mediator)
 {
-    public async Task Execute(PipelineJobMessage jobIdAndDepositName, CancellationToken cancellationToken) //job identifier goes in here
+    //TODO: return status result
+    public async Task Execute(PipelineJobMessage jobIdAndDepositName, CancellationToken cancellationToken)
     {
         var jobId = jobIdAndDepositName.JobIdentifier;
         var depositId = jobIdAndDepositName.DepositName;
@@ -24,13 +24,21 @@ public class PipelineJobRunner(
         try
         {
             logger.LogInformation($"Sending execute pipeline job for the deposit {depositId} and job id {jobId}");
-            await pipelineJobStateLogger.LogJobState(jobId, depositId, runUser, PipelineJobStates.Waiting);
+
+            var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobId, PipelineJobStates.Waiting,
+                runUser ?? "PipelineApi"), cancellationToken);
+
+            if (pipelineJobsResult?.Value?.Errors is { Length: 0 })
+                logger.LogInformation($"Job {jobId} Waiting status logged");
+
             var executeResult = await mediator.Send(new ExecutePipelineJob(jobId, depositId, runUser), cancellationToken);
 
             if (executeResult.Success)
             {
                 logger.LogInformation($"Successfully sent execute pipeline job for the deposit {depositId} and job id {jobId}");
             }
+
+            //TODO: log errors in pipeline run jobs db table make ure retun from pipeline job has erros
         }
         catch (Exception e)
         {

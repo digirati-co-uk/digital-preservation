@@ -5,6 +5,7 @@ using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Storage;
+using Microsoft.AspNetCore.Mvc;
 using Storage.Repository.Common;
 
 namespace Preservation.Client;
@@ -80,4 +81,6 @@ public interface IPreservationApiClient
 
     Task<Result<ProcessPipelineResult>> GetPipelineJobResult(string depositId, string pipelineJobResultId,
         CancellationToken cancellationToken);
+
+    Task<Result<LogPipelineStatusResult>> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit, CancellationToken cancellationToken);
 }

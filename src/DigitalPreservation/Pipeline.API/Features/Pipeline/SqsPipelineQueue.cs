@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using Amazon;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
@@ -36,63 +35,30 @@ public class SqsPipelineQueue(
     public async ValueTask<PipelineJobMessage?> DequeueRequest(CancellationToken cancellationToken) 
     {
         PipelineJobMessage? messageModel = null;
-        IEnumerable<Subscription>? queues = new List<Subscription>();
 
-        try
+        var queue = options.Value.PipelineJobQueue;
+        logger.LogInformation($"About to check queue {queue} for messages");
+        var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queue, cancellationToken);
+        var queueUrlValue = queueUrlResponse.QueueUrl;
+
+        var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
         {
-            var subs = await snsClient.ListSubscriptionsByTopicAsync(
-                new ListSubscriptionsByTopicRequest
-                {
-                    TopicArn = options.Value.PipelineJobTopicArn
-                }, cancellationToken);
+            QueueUrl = queueUrlValue,
+            WaitTimeSeconds = 10,
+            MaxNumberOfMessages = 1
+        }, cancellationToken);
 
-            queues = subs.Subscriptions.Where(x => x.Protocol.ToLower() == "sqs");
-        }
-        catch (Exception ex)
+        foreach (var message in response.Messages!)
         {
-            logger.LogError(ex, ex.Message);
-        }
+            if (cancellationToken.IsCancellationRequested) return messageModel;
+            logger.LogDebug("Received SQS message {messageBody}", message.Body);
 
-        foreach (var queue in queues)
-        {
-            var queueNameValue = Arn.Parse(queue.Endpoint).Resource;
-            logger.LogInformation($"About to check queue {queueNameValue} for messages");
+            messageModel = GetMessageModel(message, queue);
+            if (messageModel != null && !messageModel.DepositName.HasText()) 
+                return messageModel;
 
-            try
-            {
-                var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queueNameValue, cancellationToken);
-                var queueUrlValue = queueUrlResponse.QueueUrl;
-
-                var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
-                {
-                    QueueUrl = queueUrlValue,
-                    WaitTimeSeconds = 10,
-                    MaxNumberOfMessages = 1
-                }, cancellationToken);
-
-                var messageCount = response.Messages?.Count ?? 0;
-
-                if (messageCount <= 0) continue;
-
-                foreach (var message in response.Messages!)
-                {
-                    if (cancellationToken.IsCancellationRequested) return messageModel;
-                    logger.LogDebug("Received SQS message {messageBody}", message.Body);
-
-                    messageModel = GetMessageModel(message, queueNameValue);
-                    if (messageModel.DepositName.HasText())
-                    {
-                        await DeleteMessage(message, queueUrlValue, cancellationToken);
-                        return messageModel;
-                    }
-
-                    return messageModel;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error in listen loop for queue {Queue}", queueNameValue);
-            }
+            await DeleteMessage(message, queueUrlValue, cancellationToken);
+            return messageModel;
 
         }
 

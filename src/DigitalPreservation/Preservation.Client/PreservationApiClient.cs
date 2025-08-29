@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Json;
+using System.Threading;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;
@@ -9,6 +10,7 @@ using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using LeedsDlipServices.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -549,5 +551,28 @@ internal class PreservationApiClient(
             logger.LogError(e, e.Message);
             return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.UnknownError, e.Message);
         }
+    }
+
+    public async Task<Result<LogPipelineStatusResult>> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = new Uri("/Deposits/pipeline-status", UriKind.Relative);
+            var response = await preservationHttpClient.PostAsJsonAsync(uri, pipelineDeposit, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return Result.OkNotNull(new LogPipelineStatusResult { Status = ""});
+            }
+
+            return await response.ToFailNotNullResult<LogPipelineStatusResult>("Unable to update pipeline status.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, ex.Message);
+            return Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, ex.Message);
+        }
+
+
     }
 }

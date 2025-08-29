@@ -111,7 +111,7 @@ public class WorkspaceManager(
 
 
     public async Task<Result<CreateFolderResult>> CreateFolder(
-        string newFolderName, string? newFolderContext, bool contextIsFile, string? callerIdentity)
+        string newFolderName, string? newFolderContext, bool contextIsFile, string? callerIdentity, bool refreshDirectory = false)
     {
         var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
@@ -123,7 +123,7 @@ public class WorkspaceManager(
         {
             newFolderContext = newFolderContext.GetParent();
         }
-        var combinedResult = await GetCombinedDirectory();
+        var combinedResult = await GetCombinedDirectory(refreshDirectory);
         if (combinedResult is not { Success: true, Value: not null })
         {
             return Result.FailNotNull<CreateFolderResult>(combinedResult.ErrorCode!, combinedResult.ErrorMessage);
@@ -236,11 +236,11 @@ public class WorkspaceManager(
                 ErrorCodes.BadRequest, $"Folder path {parentDirectory} could not be found.");
         }
 
-        if (!(parentDirectory.LocalPath == FolderNames.Objects || parentDirectory.LocalPath!.StartsWith($"{FolderNames.Objects}/")))
-        {
-            return Result.FailNotNull<SingleFileUploadResult>(
-                ErrorCodes.BadRequest, "Uploaded files must go in or below the objects folder.");
-        }
+        //if (!(parentDirectory.LocalPath == FolderNames.Objects || parentDirectory.LocalPath!.StartsWith($"{FolderNames.Objects}/")))
+        //{
+        //    return Result.FailNotNull<SingleFileUploadResult>(
+        //        ErrorCodes.BadRequest, "Uploaded files must go in or below the objects folder.");
+        //}
 
         var slug = PreservedResource.MakeValidSlug(sourceFileName);
         if (parentDirectory.Directories.Any(d => d.LocalPath!.GetSlug() == slug) ||
