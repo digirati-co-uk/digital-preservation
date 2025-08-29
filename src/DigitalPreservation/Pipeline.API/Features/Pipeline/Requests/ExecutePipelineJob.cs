@@ -89,6 +89,10 @@ public class ProcessPipelineJobHandler(
 
         var (metadataPath, metadataProcessPath, objectPath) = GetFilePaths(depositName);
 
+        logger.LogInformation($"Metadata folder value: {metadataPath}");
+        logger.LogInformation($"Metadata process folder value: {metadataProcessPath}");
+        logger.LogInformation($"Object folder path value: {objectPath}");
+
         var start = new ProcessStartInfo
         {
             FileName = brunnhildeOptions.Value.PathToPython,
@@ -101,8 +105,11 @@ public class ProcessPipelineJobHandler(
         using var reader = process?.StandardOutput;
         var result = reader?.ReadToEnd();
 
-        if (!string.IsNullOrEmpty("result") && result.Contains("Brunnhilde characterization complete.")) //TODO: && result.Contains("Brunnhilde characterization complete.")
+        logger.LogInformation($"Brunnhilde result {result?.Substring(0,300)}");
+
+        if (!string.IsNullOrEmpty(result) && result.Contains("Brunnhilde characterization complete.")) //TODO: && result.Contains("Brunnhilde characterization complete.")
         {
+            logger.LogInformation($"Brunnhilde creation successful");
             var metadataPathForProcess = $"{processFolder}{separator}{depositName}{separator}metadata";
 
             var depositPath = $"{mountPath}{separator}{depositName}";
@@ -128,7 +135,7 @@ public class ProcessPipelineJobHandler(
             }
 
             var releaseLockResult = await preservationApiClient.ReleaseDepositLock(deposit, new CancellationToken());
-
+            logger.LogInformation($"releaseLockResult: {releaseLockResult.Success}");
             if (releaseLockResult is { Failure: true })
             {
 
@@ -154,8 +161,6 @@ public class ProcessPipelineJobHandler(
         string metadataProcessPath;
         var objectPath = $"{mountPath}{separator}{depositName}{separator}{objectFolder}";
 
-        logger.LogInformation($"Object folder path value: {objectPath}");
-
         if (WorkspaceManager.IsBagItLayout)
         {
             metadataPath = $"{mountPath}{separator}{depositName}{separator}data{separator}metadata";
@@ -168,9 +173,6 @@ public class ProcessPipelineJobHandler(
         }
 
         //get paths for processing method
-
-        logger.LogInformation($"Metadata folder value: {metadataPath}");
-        logger.LogInformation($"Metadata process folder value: {metadataProcessPath}");
 
         if (!Directory.Exists(objectPath))
         {
@@ -288,14 +290,16 @@ public class ProcessPipelineJobHandler(
             var context = new StringBuilder();
             context.Append(WorkspaceManager.IsBagItLayout ? "data/metadata" : "metadata");
 
+            logger.LogInformation($"context {context.ToString()}");
+
             //Now Create all of the directories
-            List<Result<CreateFolderResult>> createSubFolderResult = new List<Result<CreateFolderResult>>();
+            List<Result<CreateFolderResult>?> createSubFolderResult = new List<Result<CreateFolderResult>?>();
             foreach (var dirPath in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
             {
                 createSubFolderResult.Add(await CreateMetadataSubFolderOnS3(depositId, dirPath));
             }
 
-            List<Result<SingleFileUploadResult>> uploadFileResult = new List<Result<SingleFileUploadResult>>();
+            List<Result<SingleFileUploadResult>?> uploadFileResult = new List<Result<SingleFileUploadResult>?>();
             //Copy all the files & Replaces any files with the same name
             foreach (var filePath in Directory.GetFiles(sourcePath, "*.*", SearchOption.AllDirectories))
             {
@@ -313,7 +317,7 @@ public class ProcessPipelineJobHandler(
         return (null, null);
     }
 
-    private async Task<Result<CreateFolderResult>> CreateMetadataSubFolderOnS3(string depositId, string dirPath)
+    private async Task<Result<CreateFolderResult>?> CreateMetadataSubFolderOnS3(string depositId, string dirPath)
     {
         var context = new StringBuilder();
 
@@ -342,14 +346,16 @@ public class ProcessPipelineJobHandler(
         if (di.Parent.Name.ToLower() == BrunnhildeFolderName && !context.ToString().Contains($"/{BrunnhildeFolderName}")) //TODO
             context.Append($"/{BrunnhildeFolderName}");
 
+        var result = await WorkspaceManager.CreateFolder(di.Name, context.ToString(), false, "BM_testDirectory@digirati.com", true);
+        
+        logger.LogInformation($"Result created {result?.Value?.Created} Result context {result?.Value?.Context}");
         //TODO: add run user
-        return await WorkspaceManager.CreateFolder(di.Name, context.ToString(), false, "BM_testDirectory@digirati.com", true);
-
+        return result ?? null;
 
     }
 
     //TODO: return result
-    private async Task<Result<SingleFileUploadResult>> UploadFileToDepositOnS3(string depositId, string filePath, string sourcePath)
+    private async Task<Result<SingleFileUploadResult>?> UploadFileToDepositOnS3(string depositId, string filePath, string sourcePath)
     {
         var context = new StringBuilder();
 
@@ -372,7 +378,9 @@ public class ProcessPipelineJobHandler(
 
         var checksum = Checksum.Sha256FromFile(fi);
         var stream = GetFileStream(filePath);
-        return await UploadFileToBucketDeposit(depositId, stream, filePath, contextPath, checksum);
+        var result = await UploadFileToBucketDeposit(depositId, stream, filePath, contextPath, checksum);
+        logger.LogInformation($"uploaded file {result?.Value?.Uploaded} with context {result?.Value?.Context}");
+        return result ?? null;
     }
 
     private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(string id, Stream stream, string filePath, string contextPath,string checksum)
