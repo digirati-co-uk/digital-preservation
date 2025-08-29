@@ -326,7 +326,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         return new CombinedDirectory(DirectoryInDeposit, DirectoryInMets, relativePath);
     }
     
-    public Result<Container> ToContainer(Uri repositoryUri, Uri origin, List<Uri>? uris = null)
+    public Result<Container> ToContainer(Uri repositoryUri, Uri origin, string? metsXmlPath, List<Uri>? uris = null)
     {
         uris?.Add(repositoryUri);
         var container = new Container
@@ -341,6 +341,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
             var childResult = combinedDirectory.ToContainer(
                  repositoryUri.AppendEscapedSlug(slug.EscapeForUriNoHashes()), // For Fedora
                  origin.AppendEscapedSlug(slug.EscapeForUri()), // Regular S3 URI
+                 metsXmlPath,
                  uris);
              if (childResult is { Success: true, Value: not null })
              {
@@ -367,8 +368,17 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
             var contentType = combinedFile.GetSingleContentType();
             if (contentType is null)
             {
-                return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
-                    $"File {combinedFile.LocalPath} has different content types in deposit and mets - " + string.Join(", ", combinedFile.GetAllContentTypes()));
+                if (combinedFile.LocalPath == metsXmlPath)
+                {
+                    // It is OK for the METS file to have a discrepancy - we default it to application/xml,
+                    // but it might have been uploaded as text/xml (for example)
+                    contentType = combinedFile.FileInMets?.ContentType ?? combinedFile.FileInDeposit?.ContentType;
+                }
+                else
+                {
+                    return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
+                        $"File {combinedFile.LocalPath} has different content types in deposit and mets - " + string.Join(", ", combinedFile.GetAllContentTypes()));
+                }
             }
 
             var digest = combinedFile.GetSingleDigest();

@@ -13,12 +13,14 @@ namespace Preservation.API.Features.Storage;
 [Route("[controller]")]
 public class StorageController(IMediator mediator) : Controller
 {
+    [HttpGet]
     public async Task<IActionResult> StorageCheck()
     {
         var res = await mediator.Send(new VerifyStorageRunning());
         return new OkObjectResult(res);
     }
-    
+
+    [HttpGet]
     [Route("check-s3")]
     public async Task<IActionResult> S3Check()
     {
@@ -27,7 +29,8 @@ public class StorageController(IMediator mediator) : Controller
             new VerifyS3Reachable(ConnectivityCheckResult.PreservationApiReadS3));
         return new OkObjectResult(res);
     }
-    
+
+    [HttpGet]
     [Route("check-storage-s3")]
     public async Task<IActionResult> S3StorageCheck()
     {
