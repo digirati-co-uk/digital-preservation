@@ -31,8 +31,7 @@ public class DeleteItems(
 
 public class DeleteItemsHandler(
     IAmazonS3 s3Client,
-    IMetsManager metsManager,
-    ILogger logger) : IRequestHandler<DeleteItems, Result<ItemsAffected>>
+    IMetsManager metsManager) : IRequestHandler<DeleteItems, Result<ItemsAffected>>
 {
     public async Task<Result<ItemsAffected>> Handle(DeleteItems request, CancellationToken cancellationToken)
     { 
@@ -46,11 +45,9 @@ public class DeleteItemsHandler(
             if (metsResult is { Success: true, Value: not null })
             {
                 mets = metsResult.Value;
-                logger.LogInformation(" Got METS in workspace DeleteItems");
             }
             else
             {
-                logger.LogInformation(" Didnt get METS in workspace DeleteItems");
                 return Result.FailNotNull<ItemsAffected>(
                     metsResult.ErrorCode ?? ErrorCodes.UnknownError, metsResult.ErrorMessage);
             }
@@ -147,7 +144,6 @@ public class DeleteItemsHandler(
                                     // Here we remove the item from the deposit-files path of the combined filesystem
                                     // If there is no METS counterpart, we delete the combined resource as well.
                                     deletedFromDepositFiles = true;
-                                    logger.LogInformation(" Was able to delete folders and files");
                                 }
                                 else
                                 {
@@ -155,8 +151,6 @@ public class DeleteItemsHandler(
                                         ResultHelpers.FailNotNullFromAwsStatusCode<ItemsAffected>(
                                             response.HttpStatusCode, "Could not delete object from S3.",
                                             dor.GetS3Uri());
-
-                                    logger.LogInformation($" dor.GetS3Uri() {dor.GetS3Uri()}  Status code {response.HttpStatusCode} Was NOT able to delete folders and files");
                                 }
                             }
                             else
