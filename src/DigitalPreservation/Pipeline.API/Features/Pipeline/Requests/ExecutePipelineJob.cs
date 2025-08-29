@@ -10,6 +10,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Workspace;
 using MediatR;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
 using Preservation.Client;
@@ -53,7 +54,6 @@ public class ProcessPipelineJobHandler(
                 return Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not publish pipeline job for job id {jobId} and deposit {depositId} as could not find the deposit ");
 
             WorkspaceManager = workspaceManagerFactory.Create(deposit);
-            //await pipelineJobStateLogger.LogJobState(jobId, depositId, runUser, PipelineJobStates.Running);
 
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobId, PipelineJobStates.Running,
                 runUser ?? "PipelineApi"), cancellationToken);
@@ -109,21 +109,27 @@ public class ProcessPipelineJobHandler(
 
         if (!string.IsNullOrEmpty(result) && result.Contains("Brunnhilde characterization complete.")) //TODO: && result.Contains("Brunnhilde characterization complete.")
         {
+
             logger.LogInformation($"Brunnhilde creation successful");
             var metadataPathForProcess = $"{processFolder}{separator}{depositName}{separator}metadata";
 
             var depositPath = $"{mountPath}{separator}{depositName}";
             await DeleteBrunnhildeFoldersAndFiles(depositName, metadataPath, depositPath);
+
+            logger.LogInformation($"metadataPathForProcess after brunnhilde process {metadataPathForProcess}");
+            logger.LogInformation($"depositName after brunnhilde process {depositName}");
             var (createFolderResultList, uploadFilesResultList) = await UploadFilesToMetadataRecursively(depositName, metadataPathForProcess, depositPath);
 
             //TODO: log all the results using createFolderResultList, uploadFilesResultList
 
+
             //1. Clean up process deposit folder
-            if (Directory.Exists(metadataPathForProcess))
-            {
-                var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
-                Directory.Delete(metadataPathForProcessDelete, true);
-            }
+            //TODO: put back in
+            //if (Directory.Exists(metadataPathForProcess))
+            //{
+            //    var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
+            //    Directory.Delete(metadataPathForProcessDelete, true);
+            //}
 
             var response = await preservationApiClient.GetDeposit(depositName);
             var deposit = response.Value;
@@ -207,12 +213,15 @@ public class ProcessPipelineJobHandler(
 
         foreach (var filePath in Directory.GetFiles(metadataPath, "*.*", SearchOption.AllDirectories))
         {
+            logger.LogInformation($" filepath {filePath} in DeleteBrunnhildeFoldersAndFiles");
             if (!filePath.Contains(BrunnhildeFolderName))
                 continue;
 
             var relativePath = Path.GetRelativePath(
                 depositPath,
                 filePath).Replace(@"\", "/").ToLower();
+
+            logger.LogInformation($"relative path in get files {relativePath} in DeleteBrunnhildeFoldersAndFiles");
 
             await DeleteFolderOrFile(depositId, relativePath, false);
         }
@@ -230,6 +239,8 @@ public class ProcessPipelineJobHandler(
             var relativePath = Path.GetRelativePath(
                 depositPath,
                 dirPath).Replace(@"\", "/").ToLower();
+
+            logger.LogInformation($"relative path in dir {relativePath} in  DeleteBrunnhildeFoldersAndFiles");
 
             //delete brunnhilde folder on its own
             if (relativePath == $"{metadataContext}/{BrunnhildeFolderName}") 
@@ -296,6 +307,7 @@ public class ProcessPipelineJobHandler(
             List<Result<CreateFolderResult>?> createSubFolderResult = new List<Result<CreateFolderResult>?>();
             foreach (var dirPath in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
             {
+                logger.LogInformation($"dir path {dirPath}");
                 createSubFolderResult.Add(await CreateMetadataSubFolderOnS3(depositId, dirPath));
             }
 
@@ -303,9 +315,19 @@ public class ProcessPipelineJobHandler(
             //Copy all the files & Replaces any files with the same name
             foreach (var filePath in Directory.GetFiles(sourcePath, "*.*", SearchOption.AllDirectories))
             {
+                logger.LogInformation($"file path {filePath}");
                 uploadFileResult.Add(await UploadFileToDepositOnS3(depositId, filePath, sourcePath));
             }
 
+            foreach (var subFolder in createSubFolderResult)
+            {
+                logger.LogInformation($"subFolder.ErrorMessage {subFolder?.ErrorMessage} hdfsdf, subFolder?.Value?.Context {subFolder?.Value?.Context} bdalsdka subFolder?.Value?.Created {subFolder?.Value?.Created} hghhjhjsd ");
+            }
+
+            foreach (var uploadFile in uploadFileResult)
+            {
+                logger.LogInformation($" uploadFile.Value.Context {uploadFile?.Value?.Context}");
+            }
             //TODO: return 2 results in a Tuple
             return (createSubFolderResult, uploadFileResult);
         }
@@ -346,9 +368,11 @@ public class ProcessPipelineJobHandler(
         if (di.Parent.Name.ToLower() == BrunnhildeFolderName && !context.ToString().Contains($"/{BrunnhildeFolderName}")) //TODO
             context.Append($"/{BrunnhildeFolderName}");
 
+        logger.LogInformation($"BrunnhildeFolderName {BrunnhildeFolderName}");
+        logger.LogInformation($"di.Name {di.Name} context {context}");
         var result = await WorkspaceManager.CreateFolder(di.Name, context.ToString(), false, "BM_testDirectory@digirati.com", true);
         
-        logger.LogInformation($"Result created {result?.Value?.Created} Result context {result?.Value?.Context}");
+        logger.LogInformation($"Result created {result?.Value?.Created} blah Result context {result?.Value?.Context} blah1");
         //TODO: add run user
         return result ?? null;
 
