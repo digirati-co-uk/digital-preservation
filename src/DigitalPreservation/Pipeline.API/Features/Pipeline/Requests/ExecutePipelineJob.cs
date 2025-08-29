@@ -288,6 +288,14 @@ public class ProcessPipelineJobHandler(
         //TODO: add proper identity
         var resultDelete = await WorkspaceManager.DeleteItems(deleteSelection, "user identity");
 
+
+        if (!resultDelete.Success)
+        {
+            logger.LogError($"Error code for relative path {relativePath}: {resultDelete.ErrorCode}");
+            logger.LogError($"Error message for relative path {relativePath}: {resultDelete.ErrorMessage}");
+            logger.LogError($"Error failure for relative path {relativePath}: {resultDelete.Failure}");
+        }
+
         itemsForDeletion.Clear();
         deleteSelection.Items.Clear();
     }
@@ -371,8 +379,14 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation($"BrunnhildeFolderName {BrunnhildeFolderName}");
         logger.LogInformation($"di.Name {di.Name} context {context}");
         var result = await WorkspaceManager.CreateFolder(di.Name, context.ToString(), false, "BM_testDirectory@digirati.com", true);
-        
-        logger.LogInformation($"Result created {result?.Value?.Created} blah Result context {result?.Value?.Context} blah1");
+
+        if (!result.Success)
+        {
+            logger.LogError($"Error code for dir path {dirPath}: {result.ErrorCode}");
+            logger.LogError($"Error message for dir path {dirPath}: {result.ErrorMessage}");
+            logger.LogError($"Error failure for dir path {dirPath}: {result.Failure}");
+        }
+        //logger.LogInformation($"Result created {result?.Value?.Created} blah Result context {result?.Value?.Context} blah1");
         //TODO: add run user
         return result ?? null;
 
@@ -403,7 +417,18 @@ public class ProcessPipelineJobHandler(
         var checksum = Checksum.Sha256FromFile(fi);
         var stream = GetFileStream(filePath);
         var result = await UploadFileToBucketDeposit(depositId, stream, filePath, contextPath, checksum);
-        logger.LogInformation($"uploaded file {result?.Value?.Uploaded} with context {result?.Value?.Context}");
+
+        if (!result.Success)
+        {
+            logger.LogError($"Error code for dir path {filePath}: {result.ErrorCode}");
+            logger.LogError($"Error message for dir path {filePath}: {result.ErrorMessage}");
+            logger.LogError($"Error failure for dir path {filePath}: {result.Failure}");
+        }
+        else
+        {
+            logger.LogInformation($"uploaded file {result?.Value?.Uploaded} with context {result?.Value?.Context}");
+        }
+
         return result ?? null;
     }
 
@@ -435,6 +460,13 @@ public class ProcessPipelineJobHandler(
 
                 var result = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, fi.Name, checksum,
                     fi.Name, contentType, contextPath, "BM_testUpload@digirati.com");
+
+                if (!result.Success)
+                {
+                    logger.LogError($"Error code for file path {filePath}: {result.ErrorCode}");
+                    logger.LogError($"Error message for file path {filePath}: {result.ErrorMessage}");
+                    logger.LogError($"Error failure for file path {filePath}: {result.Failure}");
+                }
 
                 return result;
             }
