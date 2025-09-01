@@ -128,11 +128,12 @@ public class ProcessPipelineJobHandler(
             //TODO: log all the results using createFolderResultList, uploadFilesResultList
 
             //1. Clean up process deposit folder
-            if (Directory.Exists(metadataPathForProcess))
-            {
-                var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
-                Directory.Delete(metadataPathForProcessDelete, true);
-            }
+            //TODO: add bavk in
+            //if (Directory.Exists(metadataPathForProcess))
+            //{
+            //    var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
+            //    Directory.Delete(metadataPathForProcessDelete, true);
+            //}
 
             var response = await preservationApiClient.GetDeposit(depositName);
             var deposit = response.Value;
@@ -298,7 +299,7 @@ public class ProcessPipelineJobHandler(
 
         if (!resultDelete.Success)
         {
-            logger.LogError($"Error code for relative path {relativePath}: {resultDelete.ErrorCode}");
+            logger.LogError($"DELETE ITEMS: Error code for relative path {relativePath}: {resultDelete.ErrorCode}");
             logger.LogError($"Error message for relative path {relativePath}: {resultDelete.ErrorMessage}");
             logger.LogError($"Error failure for relative path {relativePath}: {resultDelete.Failure}");
         }
@@ -329,7 +330,7 @@ public class ProcessPipelineJobHandler(
 
             foreach (var filePath in Directory.GetFiles(sourcePath, "*.*", SearchOption.AllDirectories))
             {
-                logger.LogInformation($"file path {filePath}");
+                logger.LogInformation($"Upload file path {filePath}");
                 uploadFileResult.Add(await UploadFileToDepositOnS3(depositId, filePath, sourcePath, runUser ?? "PipelineApi"));
             }
 
