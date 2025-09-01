@@ -151,4 +151,13 @@ public static class UriX
     // {
     //     return s.Replace(HashReplacement, "#");
     // }
+
+    public static bool UnescapedEquals(this Uri? u1, Uri? u2)
+    {
+        var compare = Uri.Compare(u1, u2, 
+            UriComponents.AbsoluteUri, 
+            UriFormat.Unescaped,
+            StringComparison.InvariantCulture);
+        return compare == 0;
+    }
 }
