@@ -101,7 +101,7 @@ public class MetsParser(
                 var resp = await s3Client.ListObjectsV2Async(listObjectsReq);
                 var files = resp.S3Objects.Where(s => !s.Key.EndsWith('/')).ToList();
                 var firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), true));
-                if (firstXmlKey != null)
+                if (firstXmlKey == null)
                 {
                     firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), false));
                 }
@@ -117,9 +117,9 @@ public class MetsParser(
                     resp = await s3Client.ListObjectsV2Async(listObjectsReq);
                     files = resp.S3Objects.Where(s => !s.Key.EndsWith('/')).ToList();
                     firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), true));
-                    if (firstXmlKey != null)
+                    if (firstXmlKey == null)
                     {
-                        firstXmlKey =files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), false));
+                        firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), false));
                     }
                 }
 

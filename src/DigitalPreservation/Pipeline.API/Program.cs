@@ -1,22 +1,21 @@
 ﻿using Amazon.S3;
 using Amazon.SimpleNotificationService;
-using Amazon.SQS;
 using DigitalPreservation.CommonApiClient;
-using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
-using MediatR;
-using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Pipeline.API;
 using Pipeline.API.Config;
 using Pipeline.API.Features.Pipeline;
 using Pipeline.API.Middleware;
 using Serilog;
-using Pipeline.API.ApiClients;
-using Pipeline.API.Features;
 using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Workspace;
+using Preservation.Client;
+using Storage.Repository.Common.Mets;
+using Storage.Repository.Common;
+using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -51,10 +50,11 @@ try
         .AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining<Program>();
-            cfg.RegisterServicesFromAssemblyContaining<IRequest>();
-            cfg.RegisterServicesFromAssemblyContaining<IAmazonSQS>();
             cfg.RegisterServicesFromAssemblyContaining<IAmazonSimpleNotificationService>();
-        });
+            cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+            cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
+        })
+        .AddMachinePreservationClient(builder.Configuration, "PipelineAPI" );
 
 
     builder.Services
@@ -117,10 +117,13 @@ try
         .AddSingleton<IPipelineQueue, InProcessPipelineQueue>()
         .AddSingleton<IPipelineQueue, SqsPipelineQueue>();
 
-    builder.Services.AddSingleton<IPipelineJobStateLogger, PipelineJobStateLogger>();
     builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
     builder.Services.AddAWSService<IAmazonS3>();
-    builder.Services.AddSingleton<IPreservationApiInterface, PreservationApiInterface>();
+
+    builder.Services.AddStorageAwsAccess(builder.Configuration);
+    builder.Services.AddSingleton<IMetsParser, MetsParser>();
+    builder.Services.AddSingleton<IMetsManager, MetsManager>();
+    builder.Services.AddSingleton<WorkspaceManagerFactory>();
 
     var app = builder.Build();
     app

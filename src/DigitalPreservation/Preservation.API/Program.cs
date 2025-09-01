@@ -20,6 +20,8 @@ using LeedsDlipServices.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.PipelineApi;
+using Microsoft.OpenApi.Models;
+
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -94,6 +96,67 @@ try
     }
 
 
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new OpenApiInfo { Title = "Preservation API", Version = "v1" });
+
+        if (useAuthFeatureFlag)
+        {
+
+            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.ApiKey,
+                Scheme = "Bearer",
+                Description = "Bearer token add:   'Bearer <your token>'  "
+            });
+
+            c.AddSecurityRequirement(new OpenApiSecurityRequirement()
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        },
+                        Scheme = "oauth2",
+                        Name = "Bearer",
+                        In = ParameterLocation.Header,
+
+                    },
+                    new List<string>()
+                }
+            });
+        }
+
+        c.AddSecurityDefinition("X-Client-Identity", new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.ApiKey,
+            In = ParameterLocation.Header,
+            Name = "X-Client-Identity",
+            Description = "client identity header for machine to machine calls"
+        });
+
+        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.SecurityScheme,
+                        Id = "X-Client-Identity"
+                    }
+                },
+                []
+            }
+        });
+    });
+
+
     builder.Services
         .AddHostedService<StorageImportJobsService>()
         .AddScoped<StorageImportJobsProcessor>();
@@ -115,8 +178,14 @@ try
         app.UseAuthentication();
         app.UseAuthorization();
     }
-    
-    
+
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Storage API");
+    });
+
+
     // TODO - remove this, only used for initial setup
     app.MapGet("/", () => "Preservation: Hello World!");
     app.MapGet("/test", (IConfiguration configuration) => $"Config value 'TestVal': {configuration["TestVal"]} ");

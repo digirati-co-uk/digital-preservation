@@ -10,6 +10,7 @@ using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
 using System.Diagnostics;
 using DigitalPreservation.Common.Model.Results;
+using Preservation.Client;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -21,8 +22,8 @@ public class PipelineController(
     ILogger<PipelineController> logger,
     IOptions<StorageOptions> storageOptions,
     IOptions<BrunnhildeOptions> brunnhildeOptions,
-    IPipelineJobStateLogger pipelineJobStateLogger,
-    IIdentityMinter identityMinter) : Controller
+    IIdentityMinter identityMinter,
+    IPreservationApiClient preservationApiClient) : Controller
 {
     private readonly List<string> files = [];
 
@@ -32,11 +33,19 @@ public class PipelineController(
     public async Task<IActionResult> ExecutePipelineJob([FromBody] PipelineJob pipelineJob,
         CancellationToken cancellationToken = default)
     {
+        if(pipelineJob.DepositName == null)
+            return this.StatusResponseFromResult(null, 400);
+
+        var response = await preservationApiClient.GetDeposit(pipelineJob.DepositName, cancellationToken);
+        var deposit = response.Value;
+
         var jobIdentifier = identityMinter.MintIdentity(nameof(PipelineJob));
 
-        if (pipelineJob.DepositName != null)
-            await pipelineJobStateLogger.LogJobState(jobIdentifier, pipelineJob.DepositName, pipelineJob.RunUser,
-                PipelineJobStates.Waiting);
+        var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(pipelineJob.DepositName, jobIdentifier, PipelineJobStates.Waiting,
+            pipelineJob.RunUser ?? "PipelineApi"), cancellationToken);
+
+        if(pipelineJobsResult?.Value?.Errors is { Length: 0 })
+            logger.LogInformation($"Job {jobIdentifier} status Waiting logged");
 
         pipelineJob.JobIdentifier = jobIdentifier;
 
