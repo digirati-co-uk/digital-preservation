@@ -114,22 +114,20 @@ public class ProcessPipelineJobHandler(
             var metadataPathForProcess = $"{processFolder}{separator}{depositName}{separator}metadata";
 
             var depositPath = $"{mountPath}{separator}{depositName}";
-            await DeleteBrunnhildeFoldersAndFiles(depositName, metadataPath, depositPath);
+            await DeleteBrunnhildeFoldersAndFiles(depositName, metadataPath, depositPath, runUser);
 
             logger.LogInformation($"metadataPathForProcess after brunnhilde process {metadataPathForProcess}");
             logger.LogInformation($"depositName after brunnhilde process {depositName}");
-            var (createFolderResultList, uploadFilesResultList) = await UploadFilesToMetadataRecursively(depositName, metadataPathForProcess, depositPath);
+            var (createFolderResultList, uploadFilesResultList) = await UploadFilesToMetadataRecursively(depositName, metadataPathForProcess, depositPath, runUser ?? "PipelineApi");
 
             //TODO: log all the results using createFolderResultList, uploadFilesResultList
 
-
             //1. Clean up process deposit folder
-            //TODO: put back in
-            //if (Directory.Exists(metadataPathForProcess))
-            //{
-            //    var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
-            //    Directory.Delete(metadataPathForProcessDelete, true);
-            //}
+            if (Directory.Exists(metadataPathForProcess))
+            {
+                var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
+                Directory.Delete(metadataPathForProcessDelete, true);
+            }
 
             var response = await preservationApiClient.GetDeposit(depositName);
             var deposit = response.Value;
@@ -144,7 +142,7 @@ public class ProcessPipelineJobHandler(
             logger.LogInformation($"releaseLockResult: {releaseLockResult.Success}");
             if (releaseLockResult is { Failure: true })
             {
-
+                logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
             }
 
             //TODO: handle result above 
@@ -152,7 +150,7 @@ public class ProcessPipelineJobHandler(
                 runUser ?? "PipelineApi"));
 
             if (pipelineJobsResult?.Value?.Errors is { Length: 0 })
-                logger.LogInformation($"Job {jobIdentifier} Completed status logged");
+                logger.LogInformation($"Job {jobIdentifier} and deposit {depositName} pipeline run Completed status logged");
         }
 
     }
@@ -197,7 +195,7 @@ public class ProcessPipelineJobHandler(
     }
 
     //TODO: add a response to this
-    private async Task DeleteBrunnhildeFoldersAndFiles(string depositId, string metadataPath, string depositPath)
+    private async Task DeleteBrunnhildeFoldersAndFiles(string depositId, string metadataPath, string depositPath, string? runUser)
     {
         //get deposit to create workspace manager
         var response = await preservationApiClient.GetDeposit(depositId);
@@ -223,7 +221,7 @@ public class ProcessPipelineJobHandler(
 
             logger.LogInformation($"relative path in get files {relativePath} in DeleteBrunnhildeFoldersAndFiles");
 
-            await DeleteFolderOrFile(depositId, relativePath, false);
+            await DeleteFolderOrFile(depositId, relativePath, false, runUser);
         }
 
         var metadataContext = "metadata";
@@ -246,15 +244,15 @@ public class ProcessPipelineJobHandler(
             if (relativePath == $"{metadataContext}/{BrunnhildeFolderName}") 
                 continue;
 
-            await DeleteFolderOrFile(depositId, relativePath, true);
+            await DeleteFolderOrFile(depositId, relativePath, true, runUser);
         }
 
         //delete Brunnhilde folder last
-        await DeleteFolderOrFile(depositId, $"{metadataContext}/{BrunnhildeFolderName}", true);
+        await DeleteFolderOrFile(depositId, $"{metadataContext}/{BrunnhildeFolderName}", true, runUser);
 
     }
 
-    private async Task DeleteFolderOrFile(string depositId, string relativePath, bool isDirectory)
+    private async Task DeleteFolderOrFile(string depositId, string relativePath, bool isDirectory, string? runUser)
     {
         var itemsForDeletion = new List<MinimalItem>();
         var deleteSelection = new DeleteSelection
@@ -286,7 +284,7 @@ public class ProcessPipelineJobHandler(
         deleteSelection.Items = itemsForDeletion;
 
         //TODO: add proper identity
-        var resultDelete = await WorkspaceManager.DeleteItems(deleteSelection, "zz_libplaywrighttest@leeds.ac.uk");
+        var resultDelete = await WorkspaceManager.DeleteItems(deleteSelection, runUser ?? "PipelineApi");
 
 
         if (!resultDelete.Success)
@@ -302,7 +300,7 @@ public class ProcessPipelineJobHandler(
 
     
     //TODO: return results
-    private async Task<(List<Result<CreateFolderResult>> createSubFolderResult, List<Result<SingleFileUploadResult>> uploadFileResult)> UploadFilesToMetadataRecursively(string depositId, string sourcePath, string depositPath)
+    private async Task<(List<Result<CreateFolderResult>> createSubFolderResult, List<Result<SingleFileUploadResult>> uploadFileResult)> UploadFilesToMetadataRecursively(string depositId, string sourcePath, string depositPath, string? runUser)
     {
         try
         {
@@ -316,7 +314,7 @@ public class ProcessPipelineJobHandler(
             foreach (var dirPath in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
             {
                 logger.LogInformation($"dir path {dirPath}");
-                createSubFolderResult.Add(await CreateMetadataSubFolderOnS3(depositId, dirPath));
+                createSubFolderResult.Add(await CreateMetadataSubFolderOnS3(depositId, dirPath, runUser));
             }
 
             List<Result<SingleFileUploadResult>?> uploadFileResult = new List<Result<SingleFileUploadResult>?>();
@@ -324,12 +322,12 @@ public class ProcessPipelineJobHandler(
             foreach (var filePath in Directory.GetFiles(sourcePath, "*.*", SearchOption.AllDirectories))
             {
                 logger.LogInformation($"file path {filePath}");
-                uploadFileResult.Add(await UploadFileToDepositOnS3(depositId, filePath, sourcePath));
+                uploadFileResult.Add(await UploadFileToDepositOnS3(depositId, filePath, sourcePath, runUser ?? "PipelineApi"));
             }
 
             foreach (var subFolder in createSubFolderResult)
             {
-                logger.LogInformation($"subFolder.ErrorMessage {subFolder?.ErrorMessage} hdfsdf, subFolder?.Value?.Context {subFolder?.Value?.Context} bdalsdka subFolder?.Value?.Created {subFolder?.Value?.Created} hghhjhjsd ");
+                logger.LogInformation($"subFolder.ErrorMessage {subFolder?.ErrorMessage} , subFolder?.Value?.Context {subFolder?.Value?.Context} subFolder?.Value?.Created {subFolder?.Value?.Created} hghhjhjsd ");
             }
 
             foreach (var uploadFile in uploadFileResult)
@@ -347,7 +345,7 @@ public class ProcessPipelineJobHandler(
         return (null, null);
     }
 
-    private async Task<Result<CreateFolderResult>?> CreateMetadataSubFolderOnS3(string depositId, string dirPath)
+    private async Task<Result<CreateFolderResult>?> CreateMetadataSubFolderOnS3(string depositId, string dirPath, string? runUser)
     {
         var context = new StringBuilder();
 
@@ -378,7 +376,7 @@ public class ProcessPipelineJobHandler(
 
         logger.LogInformation($"BrunnhildeFolderName {BrunnhildeFolderName}");
         logger.LogInformation($"di.Name {di.Name} context {context}");
-        var result = await WorkspaceManager.CreateFolder(di.Name, context.ToString(), false, "zz_libplaywrighttest@leeds.ac.uk", true);
+        var result = await WorkspaceManager.CreateFolder(di.Name, context.ToString(), false, runUser ?? "PipelineApi", true);
 
         if (!result.Success)
         {
@@ -393,7 +391,7 @@ public class ProcessPipelineJobHandler(
     }
 
     //TODO: return result
-    private async Task<Result<SingleFileUploadResult>?> UploadFileToDepositOnS3(string depositId, string filePath, string sourcePath)
+    private async Task<Result<SingleFileUploadResult>?> UploadFileToDepositOnS3(string depositId, string filePath, string sourcePath, string? runUser)
     {
         var context = new StringBuilder();
 
@@ -410,13 +408,19 @@ public class ProcessPipelineJobHandler(
 
         var fi = new FileInfo(filePath);
 
+        if (fi.Directory == null)
+        {
+
+            return null;
+        }
+            
         var contextPath = metadataContext + "/" + Path.GetRelativePath(
             sourcePath,
             fi.Directory.FullName).Replace(@"\", "/");
 
         var checksum = Checksum.Sha256FromFile(fi);
         var stream = GetFileStream(filePath);
-        var result = await UploadFileToBucketDeposit(depositId, stream, filePath, contextPath, checksum);
+        var result = await UploadFileToBucketDeposit(depositId, stream, filePath, contextPath, checksum, runUser ?? "PipelineApi");
 
         if (!result.Success)
         {
@@ -432,7 +436,8 @@ public class ProcessPipelineJobHandler(
         return result ?? null;
     }
 
-    private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(string id, Stream stream, string filePath, string contextPath,string checksum)
+    private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(string id, Stream stream, string filePath, string contextPath, string checksum, 
+        string runUser)
     {
         //TODO: Get Deposit from Pres API using id
         var response = await preservationApiClient.GetDeposit(id);
@@ -441,45 +446,31 @@ public class ProcessPipelineJobHandler(
         if (deposit == null)
         {
             logger.LogError($" Could not retrieve deposit for {id} and could not unlock");
-            return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError,
-                "deposit is null so cant upload file");
+            return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError, "deposit is null so cant upload file");
         }
 
-        //TODO: get checksum from filepath fileinfo
-        //TODO: check if bagit
-        if (deposit != null)
+        var workspaceManager = workspaceManagerFactory.Create(deposit);
+
+        var fi = new FileInfo(filePath);
+
+        try
         {
-            var workspaceManager = workspaceManagerFactory.Create(deposit);
-            var fileSystemResult = await workspaceManager.GetFileSystemWorkingDirectory(true);
+            new FileExtensionContentTypeProvider().TryGetContentType(fi.Name, out var contentType);
 
-            var fi = new FileInfo(filePath); //file.LocalPath
+            var result = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, runUser);
 
-            try
-            {
-                new FileExtensionContentTypeProvider().TryGetContentType(fi.Name, out var contentType);
+            if (result.Success) return result;
 
-                var result = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, fi.Name, checksum,
-                    fi.Name, contentType, contextPath, "zz_libplaywrighttest@leeds.ac.uk");
+            logger.LogError($"Error code for file path {filePath}: {result.ErrorCode}");
+            logger.LogError($"Error message for file path {filePath}: {result.ErrorMessage}");
+            logger.LogError($"Error failure for file path {filePath}: {result.Failure}");
 
-                if (!result.Success)
-                {
-                    logger.LogError($"Error code for file path {filePath}: {result.ErrorCode}");
-                    logger.LogError($"Error message for file path {filePath}: {result.ErrorMessage}");
-                    logger.LogError($"Error failure for file path {filePath}: {result.Failure}");
-                }
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError, ex.Message);
-            }
-
+            return result;
         }
-
-        return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError,
-            "deposit is null so cant upload file");
-
+        catch (Exception ex)
+        {
+            return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError, ex.Message);
+        }
     }
 
     public static Stream GetFileStream(string filePath)
