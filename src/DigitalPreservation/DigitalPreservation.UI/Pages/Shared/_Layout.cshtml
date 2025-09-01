@@ -74,9 +74,18 @@
             </button>
         </li>
     </ul>
-    <div id="navbarSearch" class="navbar-search w-100 collapse.show"> @* collapse *@
-        <input class="form-control w-100 rounded-0 border-0" type="text" placeholder="Search" aria-label="Search">
-    </div>
+    
+    @{
+
+        if (!Context.Request.Path.StartsWithSegments("/Search"))
+        {
+                <form asp-page="/Search" method="get" class="form-search">
+                <div id="navbarSearch" class="navbar-search w-100 collapse.show"> @* collapse *@
+                    <input name="text" class="form-control w-100 rounded-0 border-0" type="text" placeholder="Search" aria - label="Search">
+                </div >
+            </form>
+        }
+    }
 
     <span class="px-2 py-2" href="/"><img src="/img/uol-logo.svg" style="height:90%" alt="University of Leeds logo"></span>
     
@@ -106,6 +115,9 @@
                         </li>
                         <li class="nav-item">
                             <dlip-nav-link href="/integrations" label="Integrations" icon-id="puzzle" active-icon-id="puzzle-fill" section="integrations" active-section="@ViewData["section"]"></dlip-nav-link>
+                        </li>
+                        <li class="nav-item">
+                            <dlip-nav-link href="/search" label="Search" icon-id="search" active-icon-id="search" section="search" active-section="@ViewData["section"]"></dlip-nav-link>
                         </li>
                     </ul>
 

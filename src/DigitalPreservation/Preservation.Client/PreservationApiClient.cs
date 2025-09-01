@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
@@ -18,6 +19,23 @@ internal class PreservationApiClient(
     ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
     private readonly HttpClient preservationHttpClient = httpClient;
+
+
+
+    public async Task<Result<SearchCollection?>> Search(string text, int? page, int? pageSize, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var uri = new Uri($"/search?text={Uri.EscapeDataString(text)}&pageNumber={page}&pageSize={pageSize}", UriKind.Relative);
+            var response = await preservationHttpClient.GetFromJsonAsync<SearchCollection>(uri);
+            return Result.OkNotNull(response);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
 
     public async Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken)
     {
@@ -487,4 +505,5 @@ internal class PreservationApiClient(
             };
         }
     }
+
 }

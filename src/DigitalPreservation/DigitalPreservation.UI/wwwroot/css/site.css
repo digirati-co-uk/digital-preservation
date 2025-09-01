@@ -1,4 +1,4 @@
-/* Original Razor Template CSS */
+﻿/* Original Razor Template CSS */
 
 /*html {*/
 /*  font-size: 14px;*/
@@ -211,4 +211,12 @@ tr.where-deposit td {
 }
 tr.where-both td {
     color: var(bs-body-color);
+}
+
+.form-search {
+    min-width: 50%;
+}
+
+.form-search-input {
+    min-width: 400px
 }

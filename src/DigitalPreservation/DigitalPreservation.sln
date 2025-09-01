@@ -1,5 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36327.8 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Storage.API", "Storage.API\Storage.API.csproj", "{7D9BB221-AF76-4F99-A9E6-0676DC0039DD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Preservation.API", "Preservation.API\Preservation.API.csproj", "{D23A6FAF-43E2-432A-B44E-56C1FC82EC9D}"
@@ -147,6 +150,9 @@ Global
 		{1B782935-0CF0-45DE-92E6-36C1586CC0E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1B782935-0CF0-45DE-92E6-36C1586CC0E7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E045329F-268B-4E69-8C2A-82B2CBEB9014} = {2FF7269F-F433-41F9-84BF-EAA8CFCFFCF5}
 		{476FB8C8-C5F6-4136-B448-8EF53FA55526} = {2FF7269F-F433-41F9-84BF-EAA8CFCFFCF5}
@@ -154,5 +160,8 @@ Global
 		{5D647B6D-FEB4-4948-B120-7800BC4852F9} = {2FF7269F-F433-41F9-84BF-EAA8CFCFFCF5}
 		{3F17B16D-4D15-45D3-96F7-083D8CF17656} = {2FF7269F-F433-41F9-84BF-EAA8CFCFFCF5}
 		{CCA94442-F814-490B-9416-445F9AF8B060} = {2FF7269F-F433-41F9-84BF-EAA8CFCFFCF5}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3AF3C130-831C-453E-A4E6-DBC9E59713DE}
 	EndGlobalSection
 EndGlobal

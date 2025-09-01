@@ -20,7 +20,7 @@ public static class GuardX
     {
         if (argument == null)
         {
-            throw new ArgumentNullException(argName);
+          //  throw new ArgumentNullException(argName);
         }
 
         return argument;

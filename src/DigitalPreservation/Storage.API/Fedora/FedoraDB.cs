@@ -1,6 +1,8 @@
 ﻿using Dapper;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Utils;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Npgsql;
 using Storage.API.Fedora.Model;
 
@@ -23,7 +25,7 @@ public class FedoraDB
     {
         DefaultTypeMap.MatchNamesWithUnderscores = true;
     }
-    
+
     public FedoraDB(
         Converters converters,
         string? connectionString,
@@ -36,6 +38,7 @@ public class FedoraDB
             logger.LogInformation("Fedora connection string is empty, marking DB not available.");
             return;
         }
+
         this.converters = converters;
         try
         {
@@ -44,25 +47,27 @@ public class FedoraDB
             {
                 Available = true;
                 containmentQuery =
-                    " select containment.fedora_id, created, modified, content_size, mime_type, rdf_type_id " + 
-                    " from containment inner join simple_search on containment.fedora_id=simple_search.fedora_id " + 
-                    " left join search_resource_rdf_type on simple_search.id=search_resource_rdf_type.resource_id " + 
+                    " select containment.fedora_id, created, modified, content_size, mime_type, rdf_type_id " +
+                    " from containment inner join simple_search on containment.fedora_id=simple_search.fedora_id " +
+                    " left join search_resource_rdf_type on simple_search.id=search_resource_rdf_type.resource_id " +
                     " where containment.parent=@parent and rdf_type_id in " + searchTypeIds + " " +
                     " order by containment.fedora_id ";
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Fedora connection string is provided, but not able to read Fedora DB, marking DB not available.");
+            logger.LogError(ex,
+                "Fedora connection string is provided, but not able to read Fedora DB, marking DB not available.");
         }
     }
 
     private string GetTypesInClause()
     {
         var knownTypes = GetConnection().Query<RdfType>("SELECT id, rdf_type_uri FROM search_rdf_type").ToList();
-        
+
         basicContainer = knownTypes.Single(t => t.RdfTypeUri == "http://www.w3.org/ns/ldp#BasicContainer").Id;
-        fedoraArchivalGroup = knownTypes.Single(t => t.RdfTypeUri == "http://fedora.info/definitions/v4/repository#ArchivalGroup").Id;
+        fedoraArchivalGroup = knownTypes
+            .Single(t => t.RdfTypeUri == "http://fedora.info/definitions/v4/repository#ArchivalGroup").Id;
         leedsArchivalGroup = knownTypes.Single(t => t.RdfTypeUri == "http://purl.org/dc/dcmitype/Collection").Id;
         binary = knownTypes.Single(t => t.RdfTypeUri == "http://fedora.info/definitions/v4/repository#Binary").Id;
 
@@ -92,9 +97,10 @@ public class FedoraDB
                 collapsed.Add(current);
                 fedoraId = rowWithType.FedoraId;
             }
+
             current!.RdfTypeIds.Add(rowWithType.RdfTypeId);
         }
-        
+
         var container = new Container();
         foreach (var rowWithType in collapsed)
         {
@@ -132,7 +138,72 @@ public class FedoraDB
                 throw new NotSupportedException($"Fedora type {rowWithType.FedoraId} is not supported");
             }
         }
+
         return container;
+    }
+
+    public async Task<SearchResultFedora[]> GetSimpleSearch(string text, int? page = 0, int? pageSize = 50)
+    {
+        if (page < 0 || pageSize < 1 || pageSize > 500)
+        {
+            throw new ArgumentOutOfRangeException("Page and pageSize must be positive, pageSize below 500");
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new ArgumentException("Text must be provided");
+        }
+
+        var likeText = "%" + text.Trim() + "%";
+
+        var sql = """
+                  SELECT S.fedora_id, created, modified, content_size, mime_type
+                  FROM containment AS C
+                  INNER JOIN simple_search AS S on C.fedora_id = S.fedora_id
+                  WHERE S.fedora_id ILIKE @text
+                  AND mime_type is not null
+                  ORDER BY created DESC
+                  LIMIT  @pageSize
+                  OFFSET @offset
+                  """;
+        var dBquery = await GetConnection()
+            .QueryAsync<SearchRowWithType>(sql, new { text = likeText, pageSize, offset = pageSize * page });
+
+        var results = dBquery.Select(s => new SearchResultFedora()
+        {
+            ContentSize = s.ContentSize,
+            Created = s.Created,
+            FedoraId = s.FedoraId,
+            LastModified = s.Modified,
+            Mime_Type = s.MimeType ?? ""
+        }).ToArray();
+
+        return results;
+    }
+
+
+
+    public async Task<int?> GetSearchCount(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new ArgumentException("Text must be provided");
+        }
+
+        var likeText = "%" + text.Trim() + "%";
+
+        var sql = """
+                  SELECT Count(*)
+                  FROM containment AS C
+                  INNER JOIN simple_search AS S on C.fedora_id = S.fedora_id
+                  WHERE S.fedora_id ILIKE @text
+                  AND mime_type is not null
+                  """;
+        var count = await GetConnection()
+            .QuerySingleAsync<int>(sql, new { text = likeText });
+
+        return count;
+
     }
 }
 

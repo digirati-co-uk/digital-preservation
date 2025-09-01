@@ -1,0 +1,119 @@
+﻿@page "{*pathUnderRoot}"
+@model DigitalPreservation.UI.Pages.SearchModel
+
+
+@{
+    ViewData["section"] = "search";
+
+    var results = Model.SearchModelData;
+    var text = results?.text ?? string.Empty;
+    var pages = results?.FedoraSearch?.Total / results?.FedoraSearch?.PageSize;
+
+    if (pages is not null)
+    {
+        if ((results?.FedoraSearch?.Total % results?.FedoraSearch?.PageSize) > 0)
+        {
+            pages++;
+        }
+    }
+
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <form method="post" class="form-search">
+            <input id="text" name="text" class="input btn-sm btn-outline-primary me-2 form-search-input" value="@text" type="@text" placeholder="search text" aria-label="Search">
+
+            <button id="search_btn" type="submit" class="btn btn-sm btn-outline-primary me-2"
+                    asp-page-handler="Search"
+                    data-bs-theme-value="dark" aria-pressed="false">
+                Search
+            </button>
+            </form>
+        </div>
+    </div>
+
+
+    if (results?.FedoraSearch is null)
+        return;
+
+    <h3>Fedora</h3>
+
+    <div id="search_results">
+        <p>@results.FedoraSearch?.Total records found</p>
+        <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
+            <thead>
+            <tr>
+                <th scope="col">View</th>
+                <th scope="col">FedoraId</th>
+                <th scope="col">Created</th>
+                <th scope="col">LastModified</th>
+                <th scope="col">bytes</th>
+                <th scope="col">Mime</th>
+            </tr>
+            </thead>
+            <tbody>
+
+                @{
+                    foreach (var result in results?.FedoraSearch?.Results)
+                    {
+                        var fullPath = result.FedoraId.Replace("info:fedora", "/browse");
+
+                        <tr>
+                            <td>
+                                <a href="@fullPath" target="_blank">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
+                                        <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5" />
+                                        <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z" />
+                                    </svg>
+                                </a>
+                            </td>
+                            <td>
+                                @result.FedoraId
+                             <td>
+                                @result.Created
+                            </td>
+                            <td>
+                                @result.LastModified
+                            </td>
+                            <td>
+                                @result.ContentSize
+                            </td>
+                            <td>
+                                @result.Mime_Type
+                            </td>
+                        </tr>
+                    }
+                }
+<tbody>
+        </table>
+    </div>
+
+    <div page></div>
+
+
+    if (pages > 1)
+    {
+    <form method="post">
+        <input id="text" name="text" type="hidden" value="@text" />
+
+        @for (var i = 0; i < pages; i++)
+        {
+            <button name="page" type="submit" class="btn btn-sm "
+                    asp-page-handler="PageChange"
+                    data-bs-theme-value="dark"
+                    value="@i"
+                    disabled="@(results?.FedoraSearch?.Page == i ? " disabled" : null)"
+                    aria-pressed="false">
+                @(i + 1)
+            </button>
+
+            if (i > 18)
+            {
+                <span>...</span>
+                break;
+            }
+        }
+    </form>
+    }
+}
+
