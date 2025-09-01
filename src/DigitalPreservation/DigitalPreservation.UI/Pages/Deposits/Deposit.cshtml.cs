@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using Amazon.S3.Util;
-using Azure.Core;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -66,10 +65,13 @@ public class DepositModel(
                 if (combinedResult is { Success: true, Value: not null })
                 {
                     RootCombinedDirectory = combinedResult.Value;
-                    var mismatches = RootCombinedDirectory.GetMisMatches();
-                    if (mismatches.Count != 0)
+                    if (WorkspaceManager.Editable)
                     {
-                        TempData["MisMatchCount"] = mismatches.Count;
+                        var mismatches = RootCombinedDirectory.GetMisMatches();
+                        if (mismatches.Count != 0)
+                        {
+                            TempData["MisMatchCount"] = mismatches.Count;
+                        }
                     }
                 }
             }

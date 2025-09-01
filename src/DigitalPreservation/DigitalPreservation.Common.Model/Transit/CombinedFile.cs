@@ -70,24 +70,34 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         }
         
         // (temp) do this just for FileFormatMetadata initially
-        
-        if (DepositFileFormatMetadata!.FormatName != MetsFileFormatMetadata!.FormatName)
+        if (DepositFileFormatMetadata != null && MetsFileFormatMetadata != null)
         {
-            misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "FormatName", DepositFileFormatMetadata.FormatName, MetsFileFormatMetadata.FormatName));
+            // not a mismatch if one or other doesn't have any metadata yet
+            if (DepositFileFormatMetadata.FormatName != MetsFileFormatMetadata.FormatName)
+            {
+                misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "FormatName",
+                    DepositFileFormatMetadata.FormatName, MetsFileFormatMetadata.FormatName));
+            }
+
+            if (DepositFileFormatMetadata!.PronomKey != MetsFileFormatMetadata!.PronomKey)
+            {
+                misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "PronomKey",
+                    DepositFileFormatMetadata.PronomKey, MetsFileFormatMetadata.PronomKey));
+            }
+
+            if (DepositFileFormatMetadata!.ContentType != FileInMets.ContentType)
+            {
+                misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "ContentType",
+                    DepositFileFormatMetadata.ContentType, FileInMets.ContentType));
+            }
+
+            if (DepositFileFormatMetadata!.Digest != MetsFileFormatMetadata!.Digest)
+            {
+                misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "Digest", DepositFileFormatMetadata.Digest,
+                    MetsFileFormatMetadata.Digest));
+            }
         }
-        if (DepositFileFormatMetadata!.PronomKey != MetsFileFormatMetadata!.PronomKey)
-        {
-            misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "PronomKey", DepositFileFormatMetadata.PronomKey, MetsFileFormatMetadata.PronomKey));
-        }
-        if (DepositFileFormatMetadata!.ContentType != FileInMets.ContentType)
-        {
-            misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "ContentType", DepositFileFormatMetadata.ContentType, FileInMets.ContentType));
-        }
-        if (DepositFileFormatMetadata!.Digest != MetsFileFormatMetadata!.Digest)
-        {
-            misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "Digest", DepositFileFormatMetadata.Digest, MetsFileFormatMetadata.Digest));
-        }
-        
+
         return misMatches;
     }
 
@@ -148,23 +158,48 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     }
 
     private FileFormatMetadata? cachedDepositFileFormatMetadata;
-
+    private bool haveScannedDepositFileFormatMetadata;
     /// <summary>
     /// We use the deposit file format metadata multiple times, so let's cache it
     /// </summary>
     /// <returns></returns>
-    public FileFormatMetadata? DepositFileFormatMetadata => cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
-    
-    
+    public FileFormatMetadata? DepositFileFormatMetadata
+    {
+        get
+        {
+            if (haveScannedDepositFileFormatMetadata)
+            {
+                return cachedDepositFileFormatMetadata;
+            }
+            cachedDepositFileFormatMetadata = fileInDeposit?.GetFileFormatMetadata();
+            haveScannedDepositFileFormatMetadata = true;
+            return cachedDepositFileFormatMetadata;
+        }
+    }
+
+
     private FileFormatMetadata? cachedMetsFileFormatMetadata;
+    private bool haveScannedMetsFileFormatMetadata;
 
     /// <summary>
     /// We use the deposit file format metadata multiple times, so let's cache it
     /// </summary>
     /// <returns></returns>
-    public FileFormatMetadata? MetsFileFormatMetadata =>
-        cachedMetsFileFormatMetadata ??= fileInMets?.GetFileFormatMetadata();
-    
+    public FileFormatMetadata? MetsFileFormatMetadata
+    {
+        get
+        {
+            if (haveScannedMetsFileFormatMetadata)
+            {
+                return cachedMetsFileFormatMetadata;
+            }
+
+            cachedMetsFileFormatMetadata = fileInMets?.GetFileFormatMetadata();
+            haveScannedMetsFileFormatMetadata = true;
+            return cachedMetsFileFormatMetadata;
+        }
+    }
+
     public long GetSingleSize()
     {
         long size;
