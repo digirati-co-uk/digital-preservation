@@ -181,6 +181,10 @@ table.plain-link-table a {
     }
 }
 
+.deposit-table td:nth-child(1)  {
+    white-space: nowrap;
+}
+
 tr.deposit-row.table-active td {
     color: darkblue;
     font-weight: bold;

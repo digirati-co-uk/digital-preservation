@@ -1,5 +1,6 @@
 ﻿@using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Transit
+@using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.Utils
 @using Storage.Repository.Common
 @model CombinedDirectoryRecursionWrapper
@@ -90,14 +91,24 @@ File is in both
         continue; // this file is hidden
     }
     string where = file.Whereabouts.ToString().ToLowerInvariant();
+    bool mismatches = file.MisMatches.Any();
     <tr class="deposit-row @("where-" + where)" 
-        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-metadata="@isMetadata">
+        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-mismatches="@mismatches" data-metadata="@isMetadata">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && file.LocalPath != "mets.xml")
             {
                 <input class="form-check-input item-selector item-file" type="checkbox" 
                        value="@file.LocalPath" id="@("is-" + Model.RowCounter.Count)">
-                <label class="form-check-label" for="@("is-" + Model.RowCounter.Count++)">@file.Whereabouts</label>
+                @if (mismatches)
+                {
+                    <label title="@file.MisMatches.First()" class="form-check-label text-danger" for="@("is-" + Model.RowCounter.Count++)">
+                        <strong>@file.Whereabouts <svg class="bi"><use xlink:href="#exclamation-triangle"/></svg></strong>
+                    </label>
+                }
+                else
+                {
+                    <label class="form-check-label" for="@("is-" + Model.RowCounter.Count++)">@file.Whereabouts</label>
+                }
             }
         </td>
         <td class="dep-actions">
@@ -108,6 +119,18 @@ File is in both
                 @if (file.LocalPath.HasText() && file.LocalPath == Model.MetsPath)
                 {
                     <a target="_blank" href="@(Context.Request.Path + "/mets")"><strong>@Model.MetsPath.GetSlug()</strong></a>
+                }
+                else if (isMetadata)
+                {
+                    var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
+                    if (toolOutput != null && toolOutput.Content.HasText())
+                    {
+                        <a target="_blank" href="@(Context.Request.Path + "/tool-output/" + file.LocalPath)"><strong>@file.GetName()</strong></a>
+                    }
+                    else
+                    {
+                        @file.GetName()
+                    }
                 }
                 else
                 {
@@ -136,7 +159,7 @@ File is in both
                 @contentType
             }
         </td>
-        <td aria-label="pronom" title="@(file.GetCachedDepositFileFormatMetadata()?.FormatName ?? "(no PRONOM format")">@(file.GetCachedDepositFileFormatMetadata()?.PronomKey ?? "-")</td>
+        <td aria-label="pronom" title="@(file.DepositFileFormatMetadata?.FormatName ?? "(no PRONOM format")">@(file.DepositFileFormatMetadata?.PronomKey ?? "-")</td>
         <td aria-label="virus">@virusMetadata?.GetDisplay()</td>
     </tr>
 } 

@@ -429,7 +429,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 var size = combinedFile.FileInDeposit.Size;
                 if (size is null or <= 0)
                 {
-                    size = combinedFile.GetCachedDepositFileFormatMetadata()?.Size;
+                    size = combinedFile.DepositFileFormatMetadata?.Size;
                 }
                 totals.TotalSizeInDeposit += size ?? 0;
                 if (size is > 0)
@@ -453,6 +453,30 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         foreach (var childDirectory in combinedDirectory.Directories)
         {
             AddBinariesToTotals(childDirectory, totals);
+        }
+    }
+
+    public List<string> GetMisMatches()
+    {
+        var mismatches = new List<string>();
+        AddMisMatches(mismatches);
+        return mismatches;
+    }
+
+
+    private void AddMisMatches(List<string> localPaths)
+    {
+        foreach (var combinedFile in Files)
+        {
+            if (combinedFile.MisMatches.Count != 0)
+            {
+                localPaths.Add(combinedFile.LocalPath!);
+            }
+        }
+
+        foreach (var combinedDirectory in Directories)
+        {
+            combinedDirectory.AddMisMatches(localPaths);
         }
     }
 }

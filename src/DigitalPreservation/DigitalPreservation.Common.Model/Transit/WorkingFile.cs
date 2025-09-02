@@ -43,6 +43,10 @@ public class WorkingFile : WorkingBase
     }
 
     // TODO - how to spread this out to each specific class, so this doesn't know about implementations of Metadata
+    /// <summary>
+    /// Create a single FileFormatMetadata object from potentially more than one source (eg two different tools that ran)
+    /// </summary>
+    /// <returns></returns>
     public FileFormatMetadata? GetFileFormatMetadata()
     {
         var fileFormatMetadata = Metadata
@@ -126,6 +130,7 @@ public class WorkingFile : WorkingBase
             }
         }
         
+        // There is only one, or none
         return fileFormatMetadata.SingleOrDefault();
     }
 
