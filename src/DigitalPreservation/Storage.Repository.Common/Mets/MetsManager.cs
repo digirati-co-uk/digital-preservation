@@ -600,7 +600,9 @@ public class MetsManager(
         }
         else
         {
-            return Result.Fail(ErrorCodes.BadRequest, "Cannot upload a file into a nonexistent directory");
+            var message = "Could not edit METS because not all parts of the path '" + testPath +
+                          "' have been added to METS.";
+            return Result.Fail(ErrorCodes.BadRequest, message);
         }
 
         return Result.Ok();
