@@ -251,19 +251,24 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         return null;
     }
 
-    public string? GetSingleDigest()
+    public List<string> GetDistinctDigests()
     {
         var distinctDigests = new List<string?>
         {
             fileInMets?.Digest,
             DepositFileFormatMetadata?.Digest,
             fileInDeposit?.Digest
-        }.Where(digest => digest.HasText()).Distinct().ToList();
-        if (distinctDigests.Count == 1)
-        {
-            return distinctDigests.Single();
-        }
-        return null;
+        }.Where(digest => digest.HasText())
+            .Distinct()
+            .Select(digest => digest!) // flip to non-nullable
+            .ToList();
+        return distinctDigests;
+    }
+
+    public string? GetSingleDigest()
+    {
+        var distinctDigests = GetDistinctDigests();
+        return distinctDigests.Count == 1 ? distinctDigests.Single() : null;
     }
 
     public string? GetName()

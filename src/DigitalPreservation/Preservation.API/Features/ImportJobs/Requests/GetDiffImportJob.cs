@@ -172,7 +172,14 @@ public class GetDiffImportJobHandler(
         {
             var relativeLocalPath = container.Id!.LocalPath.RemoveStart(agLocalPathWithSlash)!.UnEscapePathElementsNoHashes();
             var metsDirectory = combined.FindDirectory(relativeLocalPath)?.DirectoryInMets; 
-            if (metsDirectory is not null && metsDirectory.Name.HasText())
+            
+            if (metsDirectory is null)
+            {
+                var message = $"Could not find folder {relativeLocalPath} in METS file.";
+                logger.LogWarning(message);
+                return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
+            }
+            if (metsDirectory.Name.HasText())
             {
                 container.Name = metsDirectory.Name;
             }
