@@ -258,7 +258,7 @@ public class GetDiffImportJobHandler(
         }
         
         importJob.BinariesToAdd.AddRange(sourceBinaries.Where(
-            sourceBinary => !allExistingBinaries.Exists(b => b.Id == sourceBinary.Id)));
+            sourceBinary => !allExistingBinaries.Exists(b => b.Id.UnescapedEquals(sourceBinary.Id))));
 
         foreach (var binary in allExistingBinaries)
         {
@@ -272,10 +272,10 @@ public class GetDiffImportJobHandler(
         }
         
         foreach(var sourceBinary in sourceBinaries.Where(
-                    sb => !importJob.BinariesToAdd.Exists(b => b.Id == sb.Id)))
+                    sb => !importJob.BinariesToAdd.Exists(b => b.Id.UnescapedEquals(sb.Id))))
         {
             // files not already put in FilesToAdd
-            var existingBinary = allExistingBinaries.Single(eb => eb.Id == sourceBinary.Id);
+            var existingBinary = allExistingBinaries.Single(eb => eb.Id.UnescapedEquals(sourceBinary.Id));
             if (string.IsNullOrEmpty(existingBinary.Digest) || string.IsNullOrEmpty(sourceBinary.Digest))
             {
                 throw new Exception("Missing digest on existing binary in diff operation for " + existingBinary.Id);
@@ -290,10 +290,10 @@ public class GetDiffImportJobHandler(
         importJob.BinariesToRename.AddRange(sourceBinaries.Where(BinaryHasDifferentName));
 
         importJob.ContainersToAdd.AddRange(sourceContainers.Where(
-            sc => !allExistingContainers.Exists(existingContainer => existingContainer.Id == sc.Id)));
+            sc => !allExistingContainers.Exists(existingContainer => existingContainer.Id.UnescapedEquals(sc.Id))));
 
         importJob.ContainersToDelete.AddRange(allExistingContainers.Where(
-            existingContainer => !sourceContainers.Exists(sc => sc.Id == existingContainer.Id)));
+            existingContainer => !sourceContainers.Exists(sc => sc.Id.UnescapedEquals(existingContainer.Id))));
         
         importJob.ContainersToRename.AddRange(sourceContainers.Where(ContainerHasDifferentName));
 
@@ -301,13 +301,13 @@ public class GetDiffImportJobHandler(
 
         bool BinaryHasDifferentName(Binary sourceBinary)
         {
-            var existing = allExistingBinaries.SingleOrDefault(b => b.Id == sourceBinary.Id);
+            var existing = allExistingBinaries.SingleOrDefault(b => b.Id.UnescapedEquals(sourceBinary.Id));
             return existing != null && existing.Name != sourceBinary.Name;
         }
         
         bool ContainerHasDifferentName(Container sourceContainer)
         {
-            var existing = allExistingContainers.SingleOrDefault(c => c.Id == sourceContainer.Id);
+            var existing = allExistingContainers.SingleOrDefault(c => c.Id.UnescapedEquals(sourceContainer.Id));
             return existing != null && existing.Name != sourceContainer.Name;
         }
     }
