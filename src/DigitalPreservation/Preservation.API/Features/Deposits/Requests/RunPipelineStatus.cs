@@ -11,13 +11,14 @@ using Preservation.API.Data.Entities;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class RunPipelineStatus(string id, string? depositId, string status, ClaimsPrincipal user, string? runUser) : IRequest<Result>
+public class RunPipelineStatus(string id, string? depositId, string status, ClaimsPrincipal user, string? runUser, string? errors) : IRequest<Result>
 {
     public readonly ClaimsPrincipal User = user;
     public string Id { get; } = id;
     public string? DepositId { get; } = depositId;
     public string Status { get; set; } = status;
     public string? RunUser { get; set; } = runUser;
+    public string? Errors { get; set; } = errors;
 }
 
 public class RunPipelineStatusHandler(
@@ -44,7 +45,8 @@ public class RunPipelineStatusHandler(
             Status = request.Status,
             Deposit = deposit.MintedId,
             LastUpdated = DateTime.UtcNow,
-            RunUser = request.RunUser
+            RunUser = request.RunUser,
+            Errors = request.Errors
         };
 
 
@@ -62,6 +64,12 @@ public class RunPipelineStatusHandler(
             case PipelineJobStates.Completed:
                 entity.DateFinished = DateTime.UtcNow;
                 entity.Status = request.Status;
+                dbContext.PipelineRunJobs.Update(entity);
+                break;
+            case PipelineJobStates.CompletedWithErrors:
+                entity.DateFinished = DateTime.UtcNow;
+                entity.Status = request.Status;
+                entity.Errors = request.Errors;
                 dbContext.PipelineRunJobs.Update(entity);
                 break;
         }

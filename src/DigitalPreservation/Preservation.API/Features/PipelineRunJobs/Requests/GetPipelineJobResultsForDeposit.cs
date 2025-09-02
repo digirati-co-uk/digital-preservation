@@ -1,10 +1,8 @@
-﻿using DigitalPreservation.Common.Model.Import;
-using DigitalPreservation.Common.Model.Results;
+﻿using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Preservation.API.Data;
-using System.Text.Json;
+using DigitalPreservation.Common.Model;
 using Microsoft.EntityFrameworkCore;
-using Preservation.API.Features.ImportJobs.Requests;
 using DigitalPreservation.Common.Model.PipelineApi;
 
 namespace Preservation.API.Features.PipelineRunJobs.Requests;
@@ -24,9 +22,19 @@ public class GetPipelineJobResultsForDepositHandler(
             .ToListAsync(cancellationToken);
 
         var results = new List<ProcessPipelineResult>();
+        
 
         foreach (var pipelineJob in pipelineJobEntities)
         {
+            var errors = new List<Error>();
+            if (!string.IsNullOrEmpty(pipelineJob.Errors))
+            {
+                errors.Add(new Error
+                {
+                    Message = pipelineJob.Errors
+                });
+            }
+
             results.Add(
                 new ProcessPipelineResult
                 {
@@ -36,15 +44,11 @@ public class GetPipelineJobResultsForDepositHandler(
                     Deposit = pipelineJob.Deposit,
                     DateBegun = pipelineJob.DateSubmitted,
                     DateFinished = pipelineJob.DateFinished,
-                    RunUser = pipelineJob.RunUser
+                    RunUser = pipelineJob.RunUser,
+                    Errors = errors.Any() ? errors.ToArray<Error>() : null 
                 });
         }
 
-        //TODO: map above to process pipeline result
-        //var importJobs = pipelineJobEntities
-        //    .Select(j => JsonSerializer.Deserialize<ProcessPipelineResult>(j.PipelineJobJson)) //TODO: change type here
-        //    .OfType<ProcessPipelineResult>()
-        //    .ToList();
         return Result.OkNotNull(results);
     }
 }

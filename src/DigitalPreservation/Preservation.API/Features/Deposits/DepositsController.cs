@@ -315,7 +315,7 @@ public class DepositsController(
     [ProducesResponseType(401)]
     public async Task<IActionResult> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit)
     {
-        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit.Id, pipelineDeposit.DepositId , pipelineDeposit.Status, User, pipelineDeposit.RunUser)); 
+        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit.Id, pipelineDeposit.DepositId , pipelineDeposit.Status, User, pipelineDeposit.RunUser, pipelineDeposit.Errors)); 
 
         return this.StatusResponseFromResult(runPipelineStatusResult, successStatusCode: 204);
     }
