@@ -1,13 +1,10 @@
 ﻿using System.Net;
-using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Core.Web;
-using DigitalPreservation.Core.Web.Headers;
-using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Repository.Requests;
-using Storage.Repository.Common.Mets;
+
 
 namespace Preservation.API.Features.Search;
 

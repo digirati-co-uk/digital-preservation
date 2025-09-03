@@ -39,6 +39,15 @@ public class SearchModel(IMediator mediator) : PageModel
 
     private async Task GetResults(string text, int page = 0, int pageSize = 50)
     {
+        ModelState.Clear();
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            ModelState.AddModelError("Search", "Please enter search text");
+            SearchModelData = new SearchCollection();
+            return;
+        }
+
         var searchResults = await mediator.Send(new SearchRequest(text, page, pageSize));
         var result = searchResults.Value ?? new SearchCollection();
         
