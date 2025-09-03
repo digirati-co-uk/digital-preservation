@@ -1,7 +1,4 @@
-﻿using System.Diagnostics;
-using System.Text;
-using Amazon.S3;
-using Amazon.S3.Model;
+﻿using Amazon.S3;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
@@ -14,6 +11,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
 using Preservation.Client;
+using System.Diagnostics;
+using System.Text;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -159,6 +158,8 @@ public class ProcessPipelineJobHandler(
 
             if (pipelineJobsResult?.Value?.Errors is { Length: 0 })
                 logger.LogInformation($"Job {jobIdentifier} and deposit {depositName} pipeline run Completed status logged");
+
+            await AddObjectsToMETS(depositName, depositPath, runUser);
         }
         else
         {
@@ -543,5 +544,65 @@ public class ProcessPipelineJobHandler(
             throw ex;
         }
 
+    }
+
+    private async Task AddObjectsToMETS(string depositName, string depositPath, string runUser)
+    {
+        var (metadataPath, metadataProcessPath, objectPath) = await GetFilePaths(depositName);
+        var minimalItems = new List<MinimalItem>();
+
+        var response = await preservationApiClient.GetDeposit(depositName);
+        var deposit = response.Value;
+
+        if (deposit == null)
+        {
+            logger.LogError($" Could not retrieve deposit for {depositName}");
+            return;
+        }
+
+        var workspaceManager = workspaceManagerFactory.Create(deposit);
+
+        await workspaceManager.GetCombinedDirectory(true);
+
+        if (workspaceManager.IsBagItLayout)
+            depositPath += "/data";
+
+        foreach (var filePath in Directory.GetFiles(objectPath, "*.*", SearchOption.AllDirectories))
+        {
+            var relativePath = Path.GetRelativePath(
+                depositPath,
+                filePath).Replace(@"\", "/");
+
+            minimalItems.Add(
+                new MinimalItem 
+                {
+                    RelativePath = relativePath,
+                    IsDirectory = false,
+                    Whereabouts = Whereabouts.Both
+                });
+
+        }
+
+        var combinedResult = await workspaceManager.GetCombinedDirectory(true);
+        if (combinedResult is not { Success: true, Value: not null })
+        {
+             logger.LogError("Could not read deposit file system.");   
+        }
+        var wbsToAdd = new List<WorkingBase>();
+        var contentRoot = combinedResult.Value;
+
+        foreach (var item in minimalItems)
+        {
+            WorkingBase? wbToAdd = item.IsDirectory
+                ? contentRoot?.FindDirectory(item.RelativePath)?.DirectoryInDeposit?.ToRootLayout()
+                : contentRoot?.FindFile(item.RelativePath)?.FileInDeposit?.ToRootLayout();
+
+            if (wbToAdd != null)
+            {
+                wbsToAdd.Add(wbToAdd);
+            }
+        }
+
+        await workspaceManager.AddItemsToMets(wbsToAdd, runUser);
     }
 }
