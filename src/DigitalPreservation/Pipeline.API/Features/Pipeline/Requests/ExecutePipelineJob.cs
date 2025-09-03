@@ -38,6 +38,7 @@ public class ProcessPipelineJobHandler(
 {
     private WorkspaceManager WorkspaceManager { get; set; }
     private const string BrunnhildeFolderName = "brunnhilde";
+    private readonly string[] filesToIgnore = ["tree.txt"];
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
         var jobId = request.JobIdentifier;
@@ -355,7 +356,6 @@ public class ProcessPipelineJobHandler(
             };
 
             //Now Create all of the directories
-
             foreach (var dirPath in Directory.GetDirectories(sourcePathForDirectories, "*", SearchOption.AllDirectories))
             {
                 logger.LogInformation($"dir path {dirPath}");
@@ -367,6 +367,10 @@ public class ProcessPipelineJobHandler(
             foreach (var filePath in Directory.GetFiles(sourcePathForFiles, "*.*", SearchOption.AllDirectories))
             {
                 logger.LogInformation($"Upload file path {filePath}");
+
+                if (filesToIgnore.Any(filePath.Contains))
+                    continue;
+                
                 uploadFileResult.Add(await UploadFileToDepositOnS3(depositId, filePath, sourcePathForFiles, runUser ?? "PipelineApi"));
             }
 
