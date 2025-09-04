@@ -1,28 +1,51 @@
 ﻿@page "/deposits/{id}"
 @using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.PipelineApi
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
+@using DigitalPreservation.UI.TagHelpers
 @using DigitalPreservation.Utils
+@using Microsoft.AspNetCore.Mvc.TagHelpers
 @model DepositModel
 
 @functions {
-    
+
     private bool IsLockedByOtherUser()
     {
         return Model.Deposit?.LockedBy != null && Model.Deposit.LockedBy.GetSlug() != User.GetCallerIdentity();
     }
-    
+
     private bool CanBeWorkedOn()
     {
         if (IsLockedByOtherUser()) return false;
         return Model.Deposit is { Active: true } && Model.Deposit.Status != DepositStates.Exporting;
     }
+
+    private (List<ProcessPipelineResult>? jobs, bool jobRunning) PipelineJobs()
+    {
+        var id = Model?.Deposit?.Id?.GetSlug();
+
+        if (!string.IsNullOrEmpty(id))
+        {
+            var jobs = Model?.GetPipelineJobResults().Result;
+            var latestJobs = jobs?.Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= DateTime.Now.Date && x.Deposit == id).OrderByDescending(x => x.DateBegun).Take(1);
+
+            var status = latestJobs?.FirstOrDefault()?.Status;
+            var jobRunning = !string.IsNullOrEmpty(status) && PipelineJobStates.IsNotComplete(status);
+
+            return (jobs, jobRunning);
+        }
+
+        return ([], false);
+
+    }
 }
 @{
-ViewData["Title"] = Model.GetDisplayTitle();
-ViewData["section"] = "deposits";
+    var (jobs, jobRunning) = PipelineJobs();
+    ViewData["Title"] = Model.GetDisplayTitle();
+    ViewData["section"] = "deposits";
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -45,7 +68,7 @@ ViewData["section"] = "deposits";
                         @if (Model.Deposit?.LockedBy != null)
                         {
                             <li>
-                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
+                                <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
                                     <svg class="bi"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
                                 </button>
                             </li>
@@ -53,24 +76,24 @@ ViewData["section"] = "deposits";
                         else
                         {
                             <li>
-                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="Lock">
+                                <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="Lock">
                                     <svg class="bi"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
                                 </button>
                             </li>
                         }
                         
                         <li>
-                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
+                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
                                 <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
+                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
                                 <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
+                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
                                 <svg class="bi"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
                             </button>
                         </li>
@@ -82,17 +105,17 @@ ViewData["section"] = "deposits";
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <button class="dropdown-item text-primary" type="button" id="selectNonMets">
+                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="selectNonMets">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-primary" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
+                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
                                 <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-danger" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
+                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
                             </button>
                         </li>
@@ -104,7 +127,7 @@ ViewData["section"] = "deposits";
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
                                 <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
                             </button>
                         </li>
@@ -163,7 +186,15 @@ ViewData["section"] = "deposits";
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
- </div>
+    
+    @if (jobRunning)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <p>This deposit has a metadata pipeline being run by @Model.Deposit!.LockedBy?.GetSlug() . <br/> 
+                Please refresh for status updates</p>
+        </div>
+    }
+</div>
 
 @if(Model.Deposit != null)
 {
@@ -364,14 +395,14 @@ ViewData["section"] = "deposits";
                         </div>
                     }
                 }
-                
+
                 <hr/>
-                
-                
+
+
                 <h3>Pipeline Jobs</h3>
 
                 @{
-                    var pipelineJobResults = await Model.GetPipelineJobResults();
+                    var pipelineJobResults = jobs;
                     if (pipelineJobResults.Count == 0)
                     {
                         <p>There are no submitted pipeline jobs for this Deposit.</p>
