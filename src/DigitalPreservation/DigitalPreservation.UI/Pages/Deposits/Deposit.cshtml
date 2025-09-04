@@ -187,7 +187,7 @@
         </div>
     }
     
-    @if (jobRunning)
+    @if (jobRunning && TempData["Valid"] == null)
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <p>This deposit has a metadata pipeline being run by @Model.Deposit!.LockedBy?.GetSlug() . <br/> 

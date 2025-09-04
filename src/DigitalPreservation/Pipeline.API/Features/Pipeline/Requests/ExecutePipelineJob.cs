@@ -74,10 +74,22 @@ public class ProcessPipelineJobHandler(
 
             return Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not publish pipeline job for job id {jobId} and deposit {depositId}: " + ex.Message);
         }
+        finally
+        {
+            CleanupProcessFolder(depositId);
+        }
 
         return Result.Ok();
     }
-    
+
+    private void CleanupProcessFolder(string depositName)
+    {
+        var processFolder = brunnhildeOptions.Value.ProcessFolder;
+        var separator = brunnhildeOptions.Value.DirectorySeparator;
+        var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
+        Directory.Delete(metadataPathForProcessDelete, true);
+    }
+
     private async Task ExecuteBrunnhilde(string jobIdentifier, string depositName, string? runUser)
     {
         var mountPath = storageOptions.Value.FileMountPath;
@@ -125,22 +137,14 @@ public class ProcessPipelineJobHandler(
             logger.LogInformation($"depositName after brunnhilde process {depositName}");
             var (createFolderResultList, uploadFilesResultList) = await UploadFilesToMetadataRecursively(depositName, metadataPathForProcessDirectories, metadataPathForProcessFiles, depositPath, runUser ?? "PipelineApi");
 
-            //TODO: log all the results using createFolderResultList, uploadFilesResultList
             foreach (var folderResult in createFolderResultList)
             {
-                logger.LogInformation($"{folderResult?.Value?.Context} Success: {folderResult?.Success}");
+                logger.LogInformation($"{folderResult?.Value?.Context} upload Success: {folderResult?.Success}");
             }
 
             foreach (var uploadFileResult in uploadFilesResultList)
             {
-                logger.LogInformation($"{uploadFileResult?.Value?.Context} Success: {uploadFileResult?.Success}");
-            }
-
-            //1. Clean up process deposit folder
-            if (Directory.Exists(metadataPathForProcessDirectories))
-            {
-                var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
-                Directory.Delete(metadataPathForProcessDelete, true);
+                logger.LogInformation($"{uploadFileResult?.Value?.Context} upload Success: {uploadFileResult?.Success}");
             }
 
             var response = await preservationApiClient.GetDeposit(depositName);
@@ -474,6 +478,7 @@ public class ProcessPipelineJobHandler(
             logger.LogInformation($"uploaded file {result?.Value?.Uploaded} with context {result?.Value?.Context}");
         }
 
+        await stream.DisposeAsync();
         return result ?? null;
     }
 
