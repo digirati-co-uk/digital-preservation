@@ -43,7 +43,7 @@
             //Show first tab with results
             fedHasRecs = results?.FedoraSearch?.Results?.Any() ?? false;
             depHasRecs = !fedHasRecs && (results?.DepositSearch?.Deposits?.Any() ?? false);
-            identHasRec = !depHasRecs && results?.Identifier is not null;
+            identHasRec = !fedHasRecs && !depHasRecs && results?.Identifier is not null;
             break;
 
     }
