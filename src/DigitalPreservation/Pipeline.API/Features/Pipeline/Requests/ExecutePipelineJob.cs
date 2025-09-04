@@ -77,7 +77,6 @@ public class ProcessPipelineJobHandler(
             CleanupProcessFolder(depositId);
         }
 
-        return Result.Ok();
     }
 
     private void CleanupProcessFolder(string depositName)
@@ -96,6 +95,22 @@ public class ProcessPipelineJobHandler(
         var processFolder = brunnhildeOptions.Value.ProcessFolder;
 
         var (metadataPath, metadataProcessPath, objectPath) = await GetFilePaths(depositName);
+
+        if (!Directory.Exists(objectPath))
+        {
+            logger.LogError($"Deposit {depositName} folder and contents could not be found at {objectPath}");
+            logger.LogInformation($"Metadata folder");
+
+            var response = await preservationApiClient.GetDeposit(depositName);
+            var deposit = response.Value;
+
+            processPipelineResult = new ProcessPipelineResult
+            {
+                Status = "CompletedWithErrors",
+                Errors = [new Error { Message = $" Could not retrieve deposit for {depositName} and could not unlock" }],
+                ArchivalGroup = deposit?.ArchivalGroupName ?? string.Empty,
+            };
+        }
 
         logger.LogInformation($"Metadata folder value: {metadataPath}");
         logger.LogInformation($"Metadata process folder value: {metadataProcessPath}");
@@ -253,12 +268,6 @@ public class ProcessPipelineJobHandler(
             objectPath = $"{mountPath}{separator}{depositName}{separator}{objectFolder}";
         }
 
-        if (!Directory.Exists(objectPath))
-        {
-            logger.LogError($"Deposit {depositName} folder and contents could not be found at {objectPath}");
-            logger.LogInformation($"Metadata folder");
-            return (string.Empty, string.Empty, string.Empty);
-        }
 
         if (!Directory.Exists(processFolder))
             Directory.CreateDirectory(processFolder);
