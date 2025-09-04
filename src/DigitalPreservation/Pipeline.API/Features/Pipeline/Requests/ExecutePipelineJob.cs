@@ -7,7 +7,6 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Workspace;
 using MediatR;
 using Microsoft.AspNetCore.StaticFiles;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
 using Preservation.Client;
@@ -70,7 +69,6 @@ public class ProcessPipelineJobHandler(
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobId, PipelineJobStates.CompletedWithErrors,
                 runUser ?? "PipelineApi"), cancellationToken);
 
-            //TODO: record errors
             if (pipelineJobsResult?.Value?.Errors is { Length: 0 })
                 logger.LogInformation($"Job {jobId} Running status CompletedWithErrors logged");
 
@@ -79,8 +77,7 @@ public class ProcessPipelineJobHandler(
 
         return Result.Ok();
     }
-     
-    //TODO: break this down
+    
     private async Task ExecuteBrunnhilde(string jobIdentifier, string depositName, string? runUser)
     {
         var mountPath = storageOptions.Value.FileMountPath;
@@ -129,6 +126,15 @@ public class ProcessPipelineJobHandler(
             var (createFolderResultList, uploadFilesResultList) = await UploadFilesToMetadataRecursively(depositName, metadataPathForProcessDirectories, metadataPathForProcessFiles, depositPath, runUser ?? "PipelineApi");
 
             //TODO: log all the results using createFolderResultList, uploadFilesResultList
+            foreach (var folderResult in createFolderResultList)
+            {
+                logger.LogInformation($"{folderResult?.Value?.Context} Success: {folderResult?.Success}");
+            }
+
+            foreach (var uploadFileResult in uploadFilesResultList)
+            {
+                logger.LogInformation($"{uploadFileResult?.Value?.Context} Success: {uploadFileResult?.Success}");
+            }
 
             //1. Clean up process deposit folder
             if (Directory.Exists(metadataPathForProcessDirectories))
@@ -153,7 +159,6 @@ public class ProcessPipelineJobHandler(
                 logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
             }
 
-            //TODO: handle result above 
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.Completed,
                 runUser ?? "PipelineApi"));
 
@@ -214,8 +219,6 @@ public class ProcessPipelineJobHandler(
             objectPath = $"{mountPath}{separator}{depositName}{separator}{objectFolder}";
         }
 
-        //get paths for processing method
-
         if (!Directory.Exists(objectPath))
         {
             logger.LogError($"Deposit {depositName} folder and contents could not be found at {objectPath}");
@@ -267,16 +270,10 @@ public class ProcessPipelineJobHandler(
 
         var metadataContext = "metadata";
 
-        //if (WorkspaceManager.IsBagItLayout)
-        //    metadataContext = "data/metadata";
-
         foreach (var dirPath in Directory.GetDirectories(metadataPath, "*", SearchOption.AllDirectories))
         {
             if (!dirPath.Contains(BrunnhildeFolderName))
                 continue;
-
-            //if (WorkspaceManager.IsBagItLayout)
-            //    depositPath += "/data";
 
             var relativePath = Path.GetRelativePath(
                 depositPath,
@@ -290,7 +287,6 @@ public class ProcessPipelineJobHandler(
             await DeleteFolderOrFile(depositId, relativePath, true, runUser);
         }
 
-        //delete Brunnhilde folder last
         await DeleteFolderOrFile(depositId, $"{metadataContext}/{BrunnhildeFolderName}", true, runUser);
 
     }
@@ -339,17 +335,16 @@ public class ProcessPipelineJobHandler(
     }
 
     
-    private async Task<(List<Result<CreateFolderResult>> createSubFolderResult, List<Result<SingleFileUploadResult>> uploadFileResult)> UploadFilesToMetadataRecursively(string depositId, string sourcePathForDirectories, string sourcePathForFiles, string depositPath, string? runUser)
+    private async Task<(List<Result<CreateFolderResult>?> createSubFolderResult, List<Result<SingleFileUploadResult>?> uploadFileResult)> UploadFilesToMetadataRecursively(string depositId, string sourcePathForDirectories, string sourcePathForFiles, string depositPath, string? runUser)
     {
         try
         {
             var context = new StringBuilder();
             context.Append("metadata");
-            //context.Append(WorkspaceManager.IsBagItLayout ? "data/metadata" : "metadata");
 
-            logger.LogInformation($"context {context.ToString()}");
+            logger.LogInformation($"context {context}");
 
-            ////create Brunnhilde folder first
+            //create Brunnhilde folder first
             var createSubFolderResult = new List<Result<CreateFolderResult>?> 
             { 
                 await CreateMetadataSubFolderOnS3(depositId, sourcePathForDirectories, runUser, true) 
@@ -383,7 +378,7 @@ public class ProcessPipelineJobHandler(
             {
                 logger.LogInformation($" uploadFile.Value.Context {uploadFile?.Value?.Context}");
             }
-            //TODO: return 2 results in a Tuple
+
             return (createSubFolderResult, uploadFileResult);
         }
         catch (Exception ex)
@@ -398,17 +393,12 @@ public class ProcessPipelineJobHandler(
     {
         var context = new StringBuilder();
 
-        var metadataContext = $"metadata";
-
-        //this is all folders under metadata or data/metadata
-        //if (WorkspaceManager.IsBagItLayout && !brunnhildeFolder)
-        //    metadataContext = "data/metadata";
+        var metadataContext = "metadata";
 
         context.Append(metadataContext);
 
         var di = new DirectoryInfo(dirPath);
 
-        //source path is metadata - need bruunhilde folder
         var response = await preservationApiClient.GetDeposit(depositId);
         var deposit = response.Value;
 
@@ -433,13 +423,11 @@ public class ProcessPipelineJobHandler(
             logger.LogError($"Error message for dir path {dirPath}: {result.ErrorMessage}");
             logger.LogError($"Error failure for dir path {dirPath}: {result.Failure}");
         }
-        //logger.LogInformation($"Result created {result?.Value?.Created} blah Result context {result?.Value?.Context} blah1");
-        //TODO: add run user
-        return result ?? null;
+
+        return result;
 
     }
 
-    //TODO: return result
     private async Task<Result<SingleFileUploadResult>?> UploadFileToDepositOnS3(string depositId, string filePath, string sourcePath, string? runUser)
     {
         var context = new StringBuilder();
@@ -492,7 +480,6 @@ public class ProcessPipelineJobHandler(
     private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(string id, Stream stream, string filePath, string contextPath, string checksum, 
         string runUser)
     {
-        //TODO: Get Deposit from Pres API using id
         var response = await preservationApiClient.GetDeposit(id);
         var deposit = response.Value;
 
@@ -524,13 +511,11 @@ public class ProcessPipelineJobHandler(
 
     public static Stream GetFileStream(string filePath)
     {
-        //TODO: close the stream??
-        Stream result;
         try
         {
             if (File.Exists(filePath))
             {
-                result = File.OpenRead(filePath);
+                Stream result = File.OpenRead(filePath);
                 if (result.Length > 0)
                 {
                     result.Seek(0, SeekOrigin.Begin);
