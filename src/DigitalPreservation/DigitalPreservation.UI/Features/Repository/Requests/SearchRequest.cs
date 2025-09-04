@@ -10,9 +10,7 @@ public class SearchRequest(string text, int page = 0, int pageSize = 50, SearchT
     public string Text { get; } = text;
     public int Page { get; } = page;
     public int PageSize { get; } = pageSize;
-
     public SearchType Type { get; } = type;
-
     public int OtherPage { get; } = otherpage;
 }
 
@@ -21,7 +19,7 @@ public class SearchRequestHandler(IPreservationApiClient preservationApiClient)
 {
     public async Task<Result<SearchCollection?>> Handle(SearchRequest request, CancellationToken cancellationToken)
     {
-        return await preservationApiClient.Search(request.Text, request.Page, request.PageSize, request.Type, request.OtherPage);
+        return await preservationApiClient.Search(request.Text, request.Page, request.PageSize, request.Type, request.OtherPage, cancellationToken);
     }
 }
 

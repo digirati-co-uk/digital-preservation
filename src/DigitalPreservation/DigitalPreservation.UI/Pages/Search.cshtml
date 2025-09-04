@@ -2,36 +2,13 @@
 @using DigitalPreservation.Common.Model.Search
 @model DigitalPreservation.UI.Pages.SearchModel
 
-
 @{
     ViewData["section"] = "search";
 
     var results = Model.SearchModelData;
     var text = results?.text ?? string.Empty;
-    var pages = results?.FedoraSearch?.Total / results?.FedoraSearch?.PageSize;
-
-    // if (pages is not null)
-    // {
-    //     if ((results?.FedoraSearch?.Total % results?.FedoraSearch?.PageSize) > 0)
-    //     {
-    //         pages++;
-    //     }
-    // }
-
-    // if (Model.ModelState.ErrorCount > 0)
-    // {
-    //     <div class="alert alert-danger" role="alert">
-    //         <h4 class="alert-heading">There were some errors with your submission</h4>
-    //         <ul>
-    //             @foreach (var error in Model.ModelState.Values.SelectMany(v => v.Errors))
-    //             {
-    //                 <li>@error.ErrorMessage</li>
-    //             }
-    //         </ul>
-    //     </div>
-    // }
-
-    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+   
+   <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
 
         <div class="btn-toolbar mb-2 mb-md-0">
             <form method="post" class="form-search">
@@ -45,15 +22,14 @@
             </form>
         </div>
     </div>
-
-
+    
 
     var fedHasRecs = false;
     var depHasRecs = false;
     var identHasRec = false;
 
     //return to paged tab if set
-    switch (Model.SearchModelData.SearchType)
+    switch (Model.SearchModelData!.SearchType)
     {
         case SearchType.Fedora:
             fedHasRecs = true;
@@ -80,40 +56,34 @@
     var depActive = depHasRecs ? "active" : "";
     var identActive = identHasRec ? "active" : "";
 
+    var hideIdentCount = !(@results?.DepositSearch?.Total is null && @results?.FedoraSearch?.Total is null & @results?.Identifier is null);
+    var identCount = @results?.Identifier != null ? "1" : "0";
+    var desCount = results?.DepositSearch?.Total?.ToString() ?? "0";
+    var fedCount = results?.FedoraSearch?.Total?.ToString() ?? "0";
 
-
-    <div class="container  my-5 container-search">
+   
+     <div class="container  my-5 container-search">
         <ul class="nav nav-tabs" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link @fedActive" id="fedora-tab-btn" data-bs-toggle="tab" data-bs-target="#fedora-tab"
                         type="button" role="tab" aria-controls="fedora-tab-btn"
                         aria-selected="@fedHasRecs">
-                    Fedora <sub>@results?.FedoraSearch?.Total</sub>
+                    Fedora <sub>@(hideIdentCount? fedCount : "")</sub>
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link @depActive" id="deposit-tab-btn" data-bs-toggle="tab" data-bs-target="#deposit-tab"
                         type="button" role="tab" aria-controls="deposit-tab-btn" aria-selected="@depHasRecs">
-                    Deposit <sub>@results?.DepositSearch?.Total</sub>
+                    Deposit <sub>@(hideIdentCount? desCount : "")</sub>
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link @identActive" id="contact-tab-btn" data-bs-toggle="tab" data-bs-target="#identifier-tab"
                         type="button" role="tab" aria-controls="identifier-tab-btn" aria-selected="@identHasRec">
-                    Identifier <sub>@(identHasRec ? 1 : 0)</sub>
+                    Identifier <sub>@(hideIdentCount ?  identCount : "")</sub>
                 </button>
             </li>
         </ul>
-
-
-
-
-        @if (results?.FedoraSearch is null)
-            return;
-
-
-
-
 
         @*************  Fedora Search Results  *************@
         <div class="tab-content mt-3" id="myTabContent">
@@ -121,7 +91,7 @@
                 <h3>Fedora</h3>
 
                 <div id="search_results">
-                    <p>@results.FedoraSearch?.Total records found</p>
+                    <p>@results!.FedoraSearch?.Total records found</p>
                     <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
                         <thead>
                         <tr>
@@ -136,34 +106,39 @@
                         <tbody>
 
                         @{
-                            foreach (var result in results?.FedoraSearch?.Results)
-                            {
-                                var fullPath = result.FedoraId.Replace("info:fedora", "/browse");
 
-                                <tr>
-                                    <td>
-                                        <a href="@fullPath" target="_blank">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
-                                                <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5"/>
-                                                <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z"/>
-                                            </svg>
-                                        </a>
-                                    </td>
-                                    <td>
-                                    @result.FedoraId
-                                    <td>
-                                        @result.Created
-                                    </td>
-                                    <td>
-                                        @result.LastModified
-                                    </td>
-                                    <td>
-                                        @result.ContentSize
-                                    </td>
-                                    <td>
-                                        @result.Mime_Type
-                                    </td>
-                                </tr>
+                            if (results.FedoraSearch?.Results is not null)
+                            {
+                                foreach (var result in results.FedoraSearch?.Results!)
+                                {
+                                    var fullPath = result.FedoraId.Replace("info:fedora", "/browse");
+
+                                    <tr>
+                                        <td aria-label="td-fedora-link">
+                                            <a href="@fullPath" target="_blank">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
+                                                    <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5"/>
+                                                    <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z"/>
+                                                </svg>
+                                            </a>
+                                        </td>
+                                        <td aria-label="td-fedoraid">
+                                            @result.FedoraId
+                                        </td>
+                                        <td aria-label="td-path">
+                                            @result.Created
+                                        </td>
+                                         <td aria-label="td-fedora-lastmodified">
+                                            @result.LastModified
+                                        </td>
+                                        <td aria-label="td-fedora-contentSize">
+                                            @result.ContentSize
+                                        </td>
+                                        <td aria-label="td-fedora-mime-type" >
+                                            @result.Mime_Type
+                                        </td>
+                                    </tr>
+                                }
                             }
                         }
                         <tbody>
@@ -176,9 +151,7 @@
                 {
                     @await Component.InvokeAsync("Pager", new { values = Model.FedoraPagerValues })
                 }
-
             </div>
-
             
 
             @*************  Deposit Search Results  *************@
@@ -203,44 +176,47 @@
                         </thead>
                         <tbody>
 
-                            @{
-                                foreach (var result in results.DepositSearch?.Deposits ?? [])
+                        @{
+                                if (results.DepositSearch?.Deposits is not null)
                                 {
-                                    var labelId = result.Id?.ToString().Split("/").Last();
-                                    var localPath = $"/deposits/{labelId}";
+                                    foreach (var result in results.DepositSearch?.Deposits ?? [])
+                                    {
+                                        var labelId = result.Id?.ToString().Split("/").Last();
+                                        var localPath = $"/deposits/{labelId}";
 
-                                    <tr>
-                                        <td>
-                                            <a href="@localPath" target="_blank">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
-                                                    <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5"/>
-                                                    <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z"/>
-                                                </svg>
-                                            </a>
-                                        </td>
-                                        <td>
-                                            @labelId
-                                        </td>
-                                        <td>
-                                            @result.Status
-                                        </td>
-                                        <td>
+                                        <tr>
+                                            <td aria-label="td-deposits-link">
+                                                <a href="@localPath" target="_blank">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
+                                                        <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5"/>
+                                                        <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z"/>
+                                                    </svg>
+                                                </a>
+                                            </td>
+                                            <td aria-label="td-deposits-labelid">
+                                                @labelId
+                                            </td>
+                                            <td aria-label="td-deposits-status">
+                                                @result.Status
+                                            </td>
+                                            <td aria-label="td-deposits-ArchivalGroupName">
                                             @result.ArchivalGroupName
-                                        <td>
-                                            @result.SubmissionText
-                                        </td>
-                                        <td>
-                                            @result.Files
-                                        </td>
-                                        <td>
-                                            @result.Created
-                                        </td>
-                                        <td>
-                                            @result.CreatedBy?.ToString().Split("/").Last()
-                                        </td>
-                                    </tr>
+                                            <td aria-label="td-deposits-SubmissionText">
+                                                @result.SubmissionText
+                                            </td>
+                                            <td aria-label="td-deposits-files">
+                                                @result.Files
+                                            </td>
+                                            <td aria-label="td-deposits-created">
+                                                @result.Created
+                                            </td>
+                                            <td aria-label="td-deposits-createdby">
+                                                @result.CreatedBy?.ToString().Split("/").Last()
+                                            </td>
+                                        </tr>
+                                    }
                                 }
-                            }
+                        }
                         <tbody>
                     </table>
                 </div>
@@ -256,7 +232,7 @@
             <div class="tab-pane @identTabShow" id="identifier-tab" role="tabpanel" aria-labelledby="identifier-tab">
 
                 <h2 class="mb-3">Identifier</h2>
-                @if (results?.Identifier is not null)
+                @if (results.Identifier is not null)
                 {
                     <div>
                         <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
@@ -269,47 +245,49 @@
                             <tbody>
                             <tr>
                                 <td>Id</td>
-                                <td>@results.Identifier.Id</td>
+                                    <td aria-label="td-identifier-id">@results.Identifier.Id</td>
                             </tr>
                             <tr>
                                 <td>Title</td>
-                                <td>@results.Identifier.Title</td>
+                                    <td aria-label="td-identifier-title">@results.Identifier.Title</td>
                             </tr>
                             <tr>
-                                <td>Cat Irn</td> 
-                                <td>@results.Identifier.CatIrn</td>
+                                <td>Cat Irn</td>
+                                    <td aria-label="td-identifier-CatIrn">@results.Identifier.CatIrn</td>
                             </tr>
                             <tr>
-                                <td>Catalogue Api Uri <sup>1</sup></td> 
-                                <td>@results.Identifier.CatalogueApiUri</td>
+                                <td>Catalogue Api Uri <sup>1</sup></td>
+                                    <td aria-label="td-identifier-CatalogueApiUri">@results.Identifier.CatalogueApiUri</td>
                             </tr>
 
                             <tr>
-                                <td>Created</td> 
-                                <td>@results.Identifier.Created</td>
+                                <td>Created</td>
+                                    <td aria-label="td-identifier-id">@results.Identifier.Created</td>
                             </tr>
                             <tr>
-                                <td>Description</td> 
-                                <td>@results.Identifier.Desc</td>
+                                <td>Description</td>
+                                    <td aria-label="td-identifier-Desc">@results.Identifier.Desc</td>
                             </tr>
                             <tr>
-                                <td>EP id</td> 
-                                <td>@results.Identifier.EPid</td>
+                                <td>EP id</td>
+                                    <td aria-label="td-identifier-EPid">@results.Identifier.EPid</td>
                             </tr>
 
                             <tr>
                                     <td>Manifest Uri <sup>1</sup></td>
-                                    <td>@results.Identifier.ManifestUri</td>
+                                    <td aria-label="td-identifier-ManifestUri">@results.Identifier.ManifestUri</td>
                             </tr>
                             <tr>
                                 <td>RepositoryUri <sup>1</sup></td>
                                 <td>@results.Identifier.RepositoryUri</td>
                             </tr>
                             <tr>
-                                <td>Status</td> <td>@results.Identifier.Status</td>
+                                <td>Status</td>
+                                    <td aria-label="td-identifier-status">@results.Identifier.Status</td>
                             </tr>
                             <tr>
-                                <td>Updated</td> <td>@results.Identifier.Updated</td>
+                                <td>Updated</td>
+                                    <td aria-label="td-identifier-Updated">@results.Identifier.Updated</td>
                             </tr>
 
                             <tbody>

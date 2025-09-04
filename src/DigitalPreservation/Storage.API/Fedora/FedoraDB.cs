@@ -2,7 +2,6 @@
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Utils;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Npgsql;
 using Storage.API.Fedora.Model;
 
@@ -142,11 +141,16 @@ public class FedoraDB
         return container;
     }
 
-    public async Task<SearchResultFedora[]> GetSimpleSearch(string text, int? page = 0, int? pageSize = 50)
+    public async Task<SearchResultFedora[]> GetSimpleSearch(string text, int? page = 0, int? pageSize = 20)
     {
-        if (page < 0 || pageSize < 1 || pageSize > 500)
+        if (page < 0)
         {
-            throw new ArgumentOutOfRangeException("Page and pageSize must be positive, pageSize below 500");
+            throw new ArgumentOutOfRangeException(nameof(page), "page must be greater than 0 " );
+        }
+
+        if ( pageSize is < 1 or > 500)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageSize), "pageSize must be between 1 and 500");
         }
 
         if (string.IsNullOrWhiteSpace(text))
@@ -166,10 +170,10 @@ public class FedoraDB
                   LIMIT  @pageSize
                   OFFSET @offset
                   """;
-        var dBquery = await GetConnection()
+        var query = await GetConnection()
             .QueryAsync<SearchRowWithType>(sql, new { text = likeText, pageSize, offset = pageSize * page });
 
-        var results = dBquery.Select(s => new SearchResultFedora()
+        var results = query.Select(s => new SearchResultFedora()
         {
             ContentSize = s.ContentSize,
             Created = s.Created,

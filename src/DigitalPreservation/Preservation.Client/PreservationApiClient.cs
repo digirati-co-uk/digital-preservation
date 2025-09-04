@@ -19,15 +19,14 @@ internal class PreservationApiClient(
     ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
     private readonly HttpClient preservationHttpClient = httpClient;
-
-
+    
 
     public async Task<Result<SearchCollection?>> Search(string text, int? page, int? pageSize, SearchType type, int otherPage, CancellationToken cancellationToken = default)
     {
         try
         {
             var uri = new Uri($"/search?text={Uri.EscapeDataString(text)}&pageNumber={page}&pageSize={pageSize}&type={type}&otherPage={otherPage}", UriKind.Relative);
-            var response = await preservationHttpClient.GetFromJsonAsync<SearchCollection>(uri);
+            var response = await preservationHttpClient.GetFromJsonAsync<SearchCollection>(uri, cancellationToken: cancellationToken);
             return Result.OkNotNull(response);
         }
         catch (Exception e)

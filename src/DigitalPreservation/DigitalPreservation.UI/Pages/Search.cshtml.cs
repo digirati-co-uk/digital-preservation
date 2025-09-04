@@ -5,17 +5,17 @@ using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+
 
 
 namespace DigitalPreservation.UI.Pages;
 
 public class SearchModel(IMediator mediator) : PageModel
 {
-    private const int DefaultPageSize = 5;
+    private const int DefaultPageSize = 20;
 
     [BindProperty(SupportsGet=true)]
-    public SearchCollection SearchModelData { get; set; } // = new SearchCollection();
+    public SearchCollection? SearchModelData { get; set; } // = new SearchCollection();
 
 
     [BindProperty(SupportsGet=true)]
@@ -25,89 +25,101 @@ public class SearchModel(IMediator mediator) : PageModel
     [BindProperty(SupportsGet=true)]
     public PagerValues? FedoraPagerValues { get; set; }
 
-    private async Task UpdatePageValues()
+    private void UpdatePageValues()
     {
         var depositIndex = 1;
         var fedoraIndex = 1;
 
-        if (SearchModelData.DepositSearch is not null)
+        if (SearchModelData?.DepositSearch is not null)
         {
             var dVal = SearchModelData.DepositSearch.Page;
             depositIndex = (dVal ?? 0) + 1;
         }
-        if (SearchModelData.FedoraSearch is not null)
+        if (SearchModelData?.FedoraSearch is not null)
         {
             var dVal = SearchModelData.FedoraSearch.Page;
             fedoraIndex = (dVal ?? 0) + 1;
         }
-
-
-        if (SearchModelData.DepositSearch is not null)
+        
+        if (SearchModelData?.DepositSearch is not null)
         {
             DepositPagerValues
                 = new PagerValues(
                     new QueryString(
-                        $"?handler=PageChange&type={SearchType.Deposits}&otherpage={fedoraIndex}&text={SearchModelData.text?.EscapeForUri()}"),
+                        $"?handler=PageChange&type={SearchType.Deposits}&otherPage={fedoraIndex}&text={SearchModelData.text?.EscapeForUri()}"),
                     SearchModelData.DepositSearch.Total ?? 0,
-                    SearchModelData.DepositSearch.PageSize ?? 50);
-
-            DepositPagerValues!.Index = SearchModelData.DepositSearch.Page.Value + 1;
+                    SearchModelData.DepositSearch.PageSize ?? 50)
+                {
+                    Index = depositIndex
+                };
         }
 
-        if (SearchModelData.FedoraSearch is not null)
+        if (SearchModelData?.FedoraSearch is not null)
         {
             FedoraPagerValues
                 = new PagerValues(
                     new QueryString(
-                        $"?handler=PageChange&type={SearchType.Fedora}&otherpage={depositIndex}&text={SearchModelData.text?.EscapeForUri()}"),
+                        $"?handler=PageChange&type={SearchType.Fedora}&otherPage={depositIndex}&text={SearchModelData.text?.EscapeForUri()}"),
                     SearchModelData.FedoraSearch.Total ?? 0,
-                    SearchModelData.FedoraSearch.PageSize ?? 50);
-
-            FedoraPagerValues!.Index = SearchModelData.FedoraSearch.Page.Value + 1;
-        }
-        
-    }
-
-
-    public async Task OnGet(string text)
-    {
-        if (!string.IsNullOrWhiteSpace(text))
-        {
-            // Default to first page with default page size
-            await GetResults(text, 1, SearchType.All,DefaultPageSize);
+                    SearchModelData.FedoraSearch.PageSize ?? 50)
+                {
+                    Index = fedoraIndex
+                };
         }
     }
     
-
-    public async Task OnPostSearchAsync(string text, int page = 1, int pageSize = DefaultPageSize)
-    {
+    public async Task OnGet(string text) =>
+        await GetResults(text);
+    
+    public async Task OnPostSearchAsync(string text, int page = 1, int pageSize = DefaultPageSize) =>
         await GetResults(text, page, SearchType.All, pageSize);
-    }
+    
 
-    public async Task OnGetPageChangeAsync([FromQuery] int page, [FromQuery] string text, [FromQuery] int otherpage,  [FromQuery] SearchType type)
-    {
-        await GetResults(text, page, type, DefaultPageSize, otherpage);
-    }
+    public async Task OnGetPageChangeAsync([FromQuery] int page, [FromQuery] string text, [FromQuery] int otherPage,  [FromQuery] SearchType type) =>
+        await GetResults(text, page, type, DefaultPageSize, otherPage);
+    
 
-
-    private async Task GetResults(string text, int page = 1, SearchType type = SearchType.All, int pageSize = DefaultPageSize, int otherpage = 0)
+    private async Task GetResults(string text, int page = 1, SearchType type = SearchType.All, int pageSize = DefaultPageSize, int otherPage = 0)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
             return;
         }
 
+        await Validation(text, page, type, pageSize, otherPage);
+
         var defaultPage = page > 0 ? page - 1 : page;
-        var searchResults = await mediator.Send(new SearchRequest(text, defaultPage, pageSize, type, otherpage - 1));
+        var defaultOther = otherPage > 0 ? otherPage - 1 : otherPage;
+        var searchResults = await mediator.Send(new SearchRequest(text, defaultPage, pageSize, type, defaultOther));
         var result = searchResults.Value ?? new SearchCollection();
         result.SearchType = type;
-
         result.text = text; 
         SearchModelData = result;
         
-        await UpdatePageValues();
-
+        UpdatePageValues();
     }
 
-}
 
+    private Task Validation(string text, int page, SearchType type , int pageSize, int otherPage)
+    {
+        if(text.Length > 500)
+        {
+            throw new ArgumentOutOfRangeException(nameof(text), "Search text too long, 500 max.");
+        }
+
+        if (page < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(page), "Page number must be positive.");
+        }
+        if (otherPage < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(otherPage), "OtherPage number must be positive.");
+        }
+        if (pageSize is <= 1 or > 500)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageSize), "PageSize only between 1 and 500.");
+        }
+
+        return Task.CompletedTask;
+    }
+}

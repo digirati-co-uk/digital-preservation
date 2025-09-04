@@ -6,13 +6,11 @@ using MediatR;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
 using Storage.Client;
-using System.Threading;
-
 
 
 namespace Preservation.API.Features.Repository.Requests;
 
-public class SearchRequest(string text, int page = 0, int pageSize = 50, SearchType type = SearchType.All, int otherPage = 0) : IRequest<Result<SearchCollection?>>
+public class SearchRequest(string text, int page = 0, int pageSize = 20, SearchType type = SearchType.All, int otherPage = 0) : IRequest<Result<SearchCollection?>>
 {
     public string Text { get; } = text;
     public int Page { get; } = page;
@@ -32,16 +30,10 @@ public class SearchRequestHandler(
     public async Task<Result<SearchCollection?>> Handle(SearchRequest request, CancellationToken cancellationToken)
     {
         var returnValue = new SearchCollection();
-        SearchCollectiveFedora? fedoraResult = null;
-        Identifier? identifier = null;
-        SearchCollectiveDeposit? depositSearch = null;
-
-
-        fedoraResult = await GetFedoraResults(request);
-        depositSearch = await GetDeposits(request);
-        identifier = await GetIdentifier(request, cancellationToken);
-
-         
+        var fedoraResult = await GetFedoraResults(request);
+        var identifier = await GetIdentifier(request, cancellationToken);
+        var depositSearch = await GetDeposits(request);
+        
         returnValue.FedoraSearch = fedoraResult;
         returnValue.DepositSearch = depositSearch;
         returnValue.Identifier = identifier;
@@ -53,11 +45,7 @@ public class SearchRequestHandler(
     {
         var page = request.Type is SearchType.Fedora or SearchType.All ? request.Page : request.OtherPage;
         var fedoraResult = await storageApiClient.FedoraSearch(request.Text, page, request.PageSize);
-        if (fedoraResult is { Success: true, Value: not null })
-        {
-            return fedoraResult.Value;
-        }
-        return null;
+        return fedoraResult is { Success: true, Value: not null } ? fedoraResult.Value : null;
     }
 
     private async Task<Identifier?> GetIdentifier(SearchRequest request, CancellationToken cancellationToken)
@@ -69,15 +57,10 @@ public class SearchRequestHandler(
             Value = request.Text
         };
         var identityResult = await identityService.GetIdentityBySchema(sv, cancellationToken);
-        if (identityResult is { Success: true, Value: not null })
-        {
-            var record = identityResult.Value;
-            return resourceMutator.MutateIdentityRecord(identityResult.Value);
-        }
-        return null;
+        return identityResult is { Success: true, Value: not null } ? resourceMutator.MutateIdentityRecord(identityResult.Value) : null;
     }
 
-    private async Task<SearchCollectiveDeposit?> GetDeposits(SearchRequest request)
+    private Task<SearchCollectiveDeposit?> GetDeposits(SearchRequest request)
     {
         var page = request.Type is SearchType.Deposits or SearchType.All ? request.Page : request.OtherPage;
         var depositsDb = dbContext.Deposits
@@ -91,7 +74,7 @@ public class SearchRequestHandler(
         
         if (!depositsDb.Any())
         {
-            return null;
+            return Task.FromResult<SearchCollectiveDeposit?>(null);
         }
   
         var count = dbContext.Deposits
@@ -110,6 +93,6 @@ public class SearchRequestHandler(
             Total = count
         };
 
-        return result;
+        return Task.FromResult(result)!;
     }
 }
