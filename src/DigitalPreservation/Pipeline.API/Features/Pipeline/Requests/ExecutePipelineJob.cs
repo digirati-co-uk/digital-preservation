@@ -57,10 +57,8 @@ public class ProcessPipelineJobHandler(
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobId, PipelineJobStates.Running,
                 runUser ?? "PipelineApi"), cancellationToken);
 
-            if (pipelineJobsResult?.Value?.Errors is { Length: 0 })
-                logger.LogInformation($"Job {jobId} Running status logged");
-
-            await ExecuteBrunnhilde(jobId, request.DepositName, runUser);
+            var result = await ExecuteBrunnhilde(jobId, request.DepositName, runUser);
+            return result?.Status == PipelineJobStates.Completed ? Result.Ok() : Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not complete pipeline run {result?.Errors?.FirstOrDefault()?.Message}");
         }
         catch (Exception ex)
         {
@@ -90,8 +88,9 @@ public class ProcessPipelineJobHandler(
         Directory.Delete(metadataPathForProcessDelete, true);
     }
 
-    private async Task ExecuteBrunnhilde(string jobIdentifier, string depositName, string? runUser)
+    private async Task<ProcessPipelineResult?> ExecuteBrunnhilde(string jobIdentifier, string depositName, string? runUser)
     {
+        ProcessPipelineResult? processPipelineResult = null;
         var mountPath = storageOptions.Value.FileMountPath;
         var separator = brunnhildeOptions.Value.DirectorySeparator;
         var processFolder = brunnhildeOptions.Value.ProcessFolder;
@@ -135,6 +134,7 @@ public class ProcessPipelineJobHandler(
             logger.LogInformation($"metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}");
             logger.LogInformation($"metadataPathForProcessDirectories after brunnhilde process {metadataPathForProcessDirectories}");
             logger.LogInformation($"depositName after brunnhilde process {depositName}");
+
             var (createFolderResultList, uploadFilesResultList) = await UploadFilesToMetadataRecursively(depositName, metadataPathForProcessDirectories, metadataPathForProcessFiles, depositPath, runUser ?? "PipelineApi");
 
             foreach (var folderResult in createFolderResultList)
@@ -153,7 +153,16 @@ public class ProcessPipelineJobHandler(
             if (deposit == null)
             {
                 logger.LogError($" Could not retrieve deposit for {depositName} and could not unlock");
-                return;
+
+                var pipelineJobsSendResult = await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.CompletedWithErrors,
+                    runUser ?? "PipelineApi", $" Could not retrieve deposit for {depositName} and could not unlock"));
+
+                processPipelineResult = new ProcessPipelineResult
+                {
+                    Status = "CompletedWithErrors",
+                    Errors = [ new Error { Message = $" Could not retrieve deposit for {depositName} and could not unlock" }],
+                    ArchivalGroup = deposit?.ArchivalGroupName ?? string.Empty,
+                };
             }
 
             var releaseLockResult = await preservationApiClient.ReleaseDepositLock(deposit, new CancellationToken());
@@ -170,6 +179,12 @@ public class ProcessPipelineJobHandler(
                 logger.LogInformation($"Job {jobIdentifier} and deposit {depositName} pipeline run Completed status logged");
 
             await AddObjectsToMETS(depositName, depositPath, runUser);
+
+            processPipelineResult = new ProcessPipelineResult
+            {
+                Status = "Completed",
+                ArchivalGroup = deposit?.ArchivalGroupName ?? string.Empty,
+            };
         }
         else
         {
@@ -179,7 +194,16 @@ public class ProcessPipelineJobHandler(
             if (deposit == null)
             {
                 logger.LogError($" Could not retrieve deposit for {depositName} and could not unlock");
-                return;
+
+                var pipelineJobsSendResult = await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.CompletedWithErrors,
+                    runUser ?? "PipelineApi", $" Could not retrieve deposit for {depositName} and could not unlock"));
+
+                processPipelineResult = new ProcessPipelineResult
+                {
+                    Status = "CompletedWithErrors",
+                    Errors = [new Error { Message = $" Could not retrieve deposit for {depositName} and could not unlock" }],
+                    ArchivalGroup = deposit?.ArchivalGroupName ?? string.Empty,
+                };
             }
 
             var releaseLockResult = await preservationApiClient.ReleaseDepositLock(deposit, new CancellationToken());
@@ -192,9 +216,15 @@ public class ProcessPipelineJobHandler(
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.CompletedWithErrors,
                 runUser ?? "PipelineApi", "Issue producing Brunnhilde files."));
 
-            if (pipelineJobsResult?.Value?.Errors is { Length: 0 })
-                logger.LogInformation($"Job {jobIdentifier} and deposit {depositName} pipeline run Completed With errors status logged");
+            processPipelineResult = new ProcessPipelineResult
+            {
+                Status = "CompletedWithErrors",
+                ArchivalGroup = deposit?.ArchivalGroupName ?? string.Empty,
+                Errors = [new Error { Message = "Issue producing Brunnhilde files." }],
+            };
         }
+
+        return processPipelineResult;
 
     }
 
