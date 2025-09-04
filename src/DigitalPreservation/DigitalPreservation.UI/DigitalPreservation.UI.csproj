@@ -5,7 +5,7 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
-
+   
     <ItemGroup>
       <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
       <PackageReference Include="AWSSDK.SecurityToken" Version="3.7.400.20" />
@@ -26,6 +26,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <AdditionalFiles Include="Views\Shared\Components\PagerTwo\Default.cshtml" />
       <AdditionalFiles Include="Views\Shared\Components\Pager\Default.cshtml" />
     </ItemGroup>
 

@@ -10,26 +10,26 @@
     var text = results?.text ?? string.Empty;
     var pages = results?.FedoraSearch?.Total / results?.FedoraSearch?.PageSize;
 
-    if (pages is not null)
-    {
-        if ((results?.FedoraSearch?.Total % results?.FedoraSearch?.PageSize) > 0)
-        {
-            pages++;
-        }
-    }
+    // if (pages is not null)
+    // {
+    //     if ((results?.FedoraSearch?.Total % results?.FedoraSearch?.PageSize) > 0)
+    //     {
+    //         pages++;
+    //     }
+    // }
 
-    if (Model.ModelState.ErrorCount > 0)
-    {
-        <div class="alert alert-danger" role="alert">
-            <h4 class="alert-heading">There were some errors with your submission</h4>
-            <ul>
-                @foreach (var error in Model.ModelState.Values.SelectMany(v => v.Errors))
-                {
-                    <li>@error.ErrorMessage</li>
-                }
-            </ul>
-        </div>
-    }
+    // if (Model.ModelState.ErrorCount > 0)
+    // {
+    //     <div class="alert alert-danger" role="alert">
+    //         <h4 class="alert-heading">There were some errors with your submission</h4>
+    //         <ul>
+    //             @foreach (var error in Model.ModelState.Values.SelectMany(v => v.Errors))
+    //             {
+    //                 <li>@error.ErrorMessage</li>
+    //             }
+    //         </ul>
+    //     </div>
+    // }
 
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
 
@@ -47,11 +47,31 @@
     </div>
 
 
-    //Show first tab with results
-    var fedHasRecs = results?.FedoraSearch?.Results?.Any() ?? false;
-    var depHasRecs = !fedHasRecs && (results?.DepositSearch?.Deposits?.Any() ?? false);
-    var identHasRec = !depHasRecs && results?.Identifier is not null;
 
+    var fedHasRecs = false;
+    var depHasRecs = false;
+    var identHasRec = false;
+
+    //return to paged tab if set
+    switch (Model.SearchModelData.SearchType)
+    {
+        case SearchType.Fedora:
+            fedHasRecs = true;
+            break;
+
+        case SearchType.Deposits:
+            depHasRecs = true;
+            break;
+
+        default:
+            //Show first tab with results
+            fedHasRecs = results?.FedoraSearch?.Results?.Any() ?? false;
+            depHasRecs = !fedHasRecs && (results?.DepositSearch?.Deposits?.Any() ?? false);
+            identHasRec = !depHasRecs && results?.Identifier is not null;
+            break;
+
+    }
+    
     var fedoraTabShow = fedHasRecs ? "active show" : "fade";
     var depositTabShow = depHasRecs ? "active show" : "fade";
     var identTabShow = identHasRec ? "active show" : "fade";
@@ -152,30 +172,11 @@
 
                 <div page></div>
 
-               @if (pages > 1)
+                @if (Model.FedoraPagerValues != null && Model.SearchModelData?.FedoraSearch?.Total > 0)
                 {
-                <form method="post">
-                    <input id="text" name="text" type="hidden" value="@text"/>
-
-                    @for (var i = 0; i < pages; i++)
-                    {
-                        <button name="page" type="submit" class="btn btn-sm "
-                                asp-page-handler="PageChange"
-                                data-bs-theme-value="dark"
-                                value="@i"
-                                disabled="@(results?.FedoraSearch?.Page == i ? " disabled" : null)"
-                                aria-pressed="false">
-                            @(i + 1)
-                        </button>
-
-                        if (i > 18)
-                        {
-                            <span>...</span>
-                            break;
-                        }
-                    }
-                </form>
+                    @await Component.InvokeAsync("Pager", new { values = Model.FedoraPagerValues })
                 }
+
             </div>
 
             
@@ -243,7 +244,10 @@
                         <tbody>
                     </table>
                 </div>
-
+                @if (Model.DepositPagerValues != null && Model.SearchModelData?.DepositSearch?.Total > 0)
+                { 
+                    @await Component.InvokeAsync("PagerTwo", new { values = Model.DepositPagerValues })
+                }
 
                 @*************  Deposit Search Results END *************@
             </div>

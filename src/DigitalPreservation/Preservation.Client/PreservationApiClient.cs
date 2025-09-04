@@ -22,11 +22,11 @@ internal class PreservationApiClient(
 
 
 
-    public async Task<Result<SearchCollection?>> Search(string text, int? page, int? pageSize, CancellationToken cancellationToken = default)
+    public async Task<Result<SearchCollection?>> Search(string text, int? page, int? pageSize, SearchType type, int otherPage, CancellationToken cancellationToken = default)
     {
         try
         {
-            var uri = new Uri($"/search?text={Uri.EscapeDataString(text)}&pageNumber={page}&pageSize={pageSize}", UriKind.Relative);
+            var uri = new Uri($"/search?text={Uri.EscapeDataString(text)}&pageNumber={page}&pageSize={pageSize}&type={type}&otherPage={otherPage}", UriKind.Relative);
             var response = await preservationHttpClient.GetFromJsonAsync<SearchCollection>(uri);
             return Result.OkNotNull(response);
         }

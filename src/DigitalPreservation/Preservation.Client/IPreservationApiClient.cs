@@ -74,6 +74,6 @@ public interface IPreservationApiClient
     Task<ConnectivityCheckResult?> CanTalkToS3(CancellationToken cancellationToken);
     Task<ConnectivityCheckResult?> CanSeeThatStorageCanTalkToS3(CancellationToken cancellationToken);
 
-    Task<Result<SearchCollection?>> Search(string text, int? page = 0, int? pageSize = 50, CancellationToken cancellationToken = default);
+    Task<Result<SearchCollection?>> Search(string text, int? page = 0, int? pageSize = 50, SearchType type = SearchType.All, int otherPage = 0, CancellationToken cancellationToken = default);
 
 }

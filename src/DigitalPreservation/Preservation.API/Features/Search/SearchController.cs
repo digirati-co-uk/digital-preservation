@@ -21,7 +21,10 @@ public class SearchController(IMediator mediator) : Controller
     public async Task<ActionResult<SearchCollection?>> Search(
         string text,
         int? pageNumber = 0,
-        int? pageSize = 50)
+        int? pageSize = 50,
+        SearchType type = SearchType.All,
+        int? otherPage = 0
+        )
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -45,7 +48,7 @@ public class SearchController(IMediator mediator) : Controller
             return BadRequest(problem);
         }
 
-        var result = await mediator.Send(new SearchRequest(text, pageNumber.Value, pageSize.Value));
+        var result = await mediator.Send(new SearchRequest(text, pageNumber.Value, pageSize.Value, type, otherPage.Value));
 
         return this.StatusResponseFromResult(result);
     }
