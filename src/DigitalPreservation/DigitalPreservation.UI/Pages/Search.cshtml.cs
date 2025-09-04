@@ -12,7 +12,7 @@ namespace DigitalPreservation.UI.Pages;
 
 public class SearchModel(IMediator mediator) : PageModel
 {
-    private const int DefaultPageSize = 5;
+    private const int DefaultPageSize = 20;
 
     [BindProperty(SupportsGet=true)]
     public SearchCollection? SearchModelData { get; set; } // = new SearchCollection();
