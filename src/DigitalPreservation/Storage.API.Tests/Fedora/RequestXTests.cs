@@ -15,12 +15,9 @@ public class RequestXTests
         
         // Assert
         ((StringContent)msg.Content!).ReadAsStringAsync().Result.Should()
-            .Be($"""
-                 PREFIX dc: <http://purl.org/dc/elements/1.1/>
-                 <> dc:title "Simple name" .
-                 """);
+            .Be("PREFIX dc: <http://purl.org/dc/elements/1.1/>\r\n<> dc:title \"Simple name\" .");
     }
-    
+
     [Fact]
     public void Single_Rdf_Statement_Dodgy_Name()
     {
@@ -29,12 +26,10 @@ public class RequestXTests
 
         // Act
         msg.WithName("Barth Bridge. Original drawing used in \"The Yorkshire Dales\" (1956), page 156");
-        
+
         // Assert
         ((StringContent)msg.Content!).ReadAsStringAsync().Result.Should()
-            .Be($"""
-                 PREFIX dc: <http://purl.org/dc/elements/1.1/>
-                 <> dc:title "Barth Bridge. Original drawing used in \"The Yorkshire Dales\" (1956), page 156" .
-                 """);
+            .Be(
+                "PREFIX dc: <http://purl.org/dc/elements/1.1/>\r\n<> dc:title \"Barth Bridge. Original drawing used in \\\"The Yorkshire Dales\\\" (1956), page 156\" .");
     }
 }
