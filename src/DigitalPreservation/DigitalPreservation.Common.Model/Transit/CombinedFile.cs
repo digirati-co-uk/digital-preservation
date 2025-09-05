@@ -1,6 +1,4 @@
-﻿using System.ComponentModel;
-using System.Reflection;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
@@ -171,7 +169,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             {
                 return cachedDepositFileFormatMetadata;
             }
-            cachedDepositFileFormatMetadata = fileInDeposit?.GetFileFormatMetadata();
+            cachedDepositFileFormatMetadata = FileInDeposit?.GetFileFormatMetadata();
             haveScannedDepositFileFormatMetadata = true;
             return cachedDepositFileFormatMetadata;
         }
@@ -194,7 +192,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                 return cachedMetsFileFormatMetadata;
             }
 
-            cachedMetsFileFormatMetadata = fileInMets?.GetFileFormatMetadata();
+            cachedMetsFileFormatMetadata = FileInMets?.GetFileFormatMetadata();
             haveScannedMetsFileFormatMetadata = true;
             return cachedMetsFileFormatMetadata;
         }
@@ -205,9 +203,9 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         long size;
         var distinctSizes = new List<long?>
         {
-            fileInMets?.Size ?? 0,
+            FileInMets?.Size ?? 0,
             DepositFileFormatMetadata?.Size,
-            fileInDeposit?.Size
+            FileInDeposit?.Size
         }.Where(s => s is > 0).Distinct().ToList();
         if (distinctSizes.Count != 1)
         {
@@ -225,9 +223,9 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     {
         return
         [
-            fileInMets?.ContentType,
+            FileInMets?.ContentType,
             DepositFileFormatMetadata?.ContentType,
-            fileInDeposit?.ContentType
+            FileInDeposit?.ContentType
         ];
     }
     
@@ -255,9 +253,9 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     {
         var distinctDigests = new List<string?>
         {
-            fileInMets?.Digest,
+            FileInMets?.Digest,
             DepositFileFormatMetadata?.Digest,
-            fileInDeposit?.Digest
+            FileInDeposit?.Digest
         }.Where(digest => digest.HasText())
             .Distinct()
             .Select(digest => digest!) // flip to non-nullable
@@ -273,6 +271,6 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
     public string? GetName()
     {
-        return fileInMets?.Name ?? fileInDeposit?.Name ?? fileInMets?.GetSlug() ?? fileInDeposit?.GetSlug();
+        return FileInMets?.Name ?? FileInDeposit?.Name ?? FileInMets?.GetSlug() ?? FileInDeposit?.GetSlug();
     }
 }

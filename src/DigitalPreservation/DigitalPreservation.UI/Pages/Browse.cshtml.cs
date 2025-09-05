@@ -55,7 +55,7 @@ public class BrowseModel(
         if (Resource != null && CachedArchivalGroup != null)
         {
             Resource.PartOf = CachedArchivalGroup.Id;
-            version = CachedArchivalGroup.Version?.OcflVersion;
+            version = CachedArchivalGroup.Version!.OcflVersion!;
             await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
         }
         if(
@@ -189,7 +189,7 @@ public class BrowseModel(
         
         // The METS file reflects the original layout
 
-        var localPath = GetLocalPath(Resource);
+        var localPath = GetLocalPath(Resource!);
         if (Resource is Container)
         {
             WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath, create:false);
