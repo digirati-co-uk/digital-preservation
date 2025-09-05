@@ -40,7 +40,7 @@ public class DepositModel(
     {
         await BindDeposit(id, readFromStorage, writeToStorage);
     }
-    
+
     private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
     {
         Id = id;
@@ -322,7 +322,7 @@ public class DepositModel(
             var result1 = await mediator.Send(new RunPipeline(Deposit!, runUser)); 
             if (result.Success && result1.Success)
             {
-                TempData["Valid"] = "Deposit locked and pipeline run";
+                TempData["Valid"] = "Deposit locked and pipeline running";
             }
             else
             {

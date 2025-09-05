@@ -1,5 +1,4 @@
-﻿using DigitalPreservation.Common.Model.Import;
-using DigitalPreservation.Common.Model.PipelineApi;
+﻿using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
 using Preservation.Client;

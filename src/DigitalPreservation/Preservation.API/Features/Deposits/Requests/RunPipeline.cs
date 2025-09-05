@@ -31,9 +31,15 @@ public class RunPipelineHandler(
     public async Task<Result> Handle(RunPipeline request, CancellationToken cancellationToken)
     {
         var entity = await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == request.Id, cancellationToken);
+
         if (entity == null)
         {
             return Result.Fail(ErrorCodes.NotFound, "No deposit for ID " + request.Id);
+        }
+
+        if (entity.LockedBy is not null && entity.LockedBy != request.RunUser)
+        {
+            return Result.Fail(ErrorCodes.Conflict, "Deposit is locked by " + entity.LockedBy);
         }
 
         var topicArn = pipelineOptions.Value.PipelineJobTopicArn;
