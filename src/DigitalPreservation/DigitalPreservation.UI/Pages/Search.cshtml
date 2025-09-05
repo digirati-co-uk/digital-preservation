@@ -5,10 +5,14 @@
 @{
     ViewData["section"] = "search";
 
+    
+
     var results = Model.SearchModelData;
     var text = results?.text ?? string.Empty;
+
+
    
-   <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
 
         <div class="btn-toolbar mb-2 mb-md-0">
             <form method="post" class="form-search">
@@ -22,7 +26,21 @@
             </form>
         </div>
     </div>
-    
+
+    if (Model.ModelState.ErrorCount > 0)
+    {
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading">There were some errors with your submission</h4>
+            <ul>
+                @foreach (var error in Model.ModelState.Values.SelectMany(v => v.Errors))
+                {
+                    <li>@error.ErrorMessage</li>
+                }
+            </ul>
+        </div>
+        return;
+    }
+
 
     var fedHasRecs = false;
     var depHasRecs = false;
@@ -61,6 +79,7 @@
     var desCount = results?.DepositSearch?.Total?.ToString() ?? "0";
     var fedCount = results?.FedoraSearch?.Total?.ToString() ?? "0";
 
+
    
      <div class="container  my-5 container-search">
         <ul class="nav nav-tabs" id="myTab" role="tablist">
@@ -84,6 +103,7 @@
                 </button>
             </li>
         </ul>
+
 
         @*************  Fedora Search Results  *************@
         <div class="tab-content mt-3" id="myTabContent">

@@ -81,22 +81,37 @@ public class SearchModel(IMediator mediator) : PageModel
 
     private async Task GetResults(string text, int page = 1, SearchType type = SearchType.All, int pageSize = DefaultPageSize, int otherPage = 0)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        try
         {
+            ModelState.Clear();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            await Validation(text, page, type, pageSize, otherPage);
+
+            if (!ModelState.IsValid)
+            {
+                return;
+            }
+
+            var defaultPage = page > 0 ? page - 1 : page;
+            var defaultOther = otherPage > 0 ? otherPage - 1 : otherPage;
+            var searchResults = await mediator.Send(new SearchRequest(text, defaultPage, pageSize, type, defaultOther));
+            var result = searchResults.Value ?? new SearchCollection();
+            result.SearchType = type;
+            result.text = text;
+            SearchModelData = result;
+
+            UpdatePageValues();
+        }
+        catch (Exception e)
+        {
+            ModelState.AddModelError(nameof(text), e.Message);
             return;
         }
-
-        await Validation(text, page, type, pageSize, otherPage);
-
-        var defaultPage = page > 0 ? page - 1 : page;
-        var defaultOther = otherPage > 0 ? otherPage - 1 : otherPage;
-        var searchResults = await mediator.Send(new SearchRequest(text, defaultPage, pageSize, type, defaultOther));
-        var result = searchResults.Value ?? new SearchCollection();
-        result.SearchType = type;
-        result.text = text; 
-        SearchModelData = result;
-        
-        UpdatePageValues();
     }
 
 
@@ -104,20 +119,20 @@ public class SearchModel(IMediator mediator) : PageModel
     {
         if(text.Length > 500)
         {
-            throw new ArgumentOutOfRangeException(nameof(text), "Search text too long, 500 max.");
+            ModelState.AddModelError(nameof(text), "Search text too long, 500 max.");
         }
 
         if (page < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(page), "Page number must be positive.");
+            ModelState.AddModelError(nameof(page), "Page number must be positive.");
         }
         if (otherPage < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(otherPage), "OtherPage number must be positive.");
+            ModelState.AddModelError(nameof(otherPage), "OtherPage number must be positive.");
         }
         if (pageSize is <= 1 or > 500)
         {
-            throw new ArgumentOutOfRangeException(nameof(pageSize), "PageSize only between 1 and 500.");
+            ModelState.AddModelError(nameof(pageSize), "Page size must be between 1 and 500.");
         }
 
         return Task.CompletedTask;
