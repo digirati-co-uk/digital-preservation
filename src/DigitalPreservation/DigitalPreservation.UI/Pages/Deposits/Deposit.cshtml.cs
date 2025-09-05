@@ -100,13 +100,13 @@ public class DepositModel(
                 var details = result.Value!;
                 TempData["Created"] = details.Created;
                 TempData["Context"] = details.Context;
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
-        
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
     
     
@@ -237,13 +237,14 @@ public class DepositModel(
                 var details = result.Value!;
                 TempData["Uploaded"] = details.Uploaded;
                 TempData["Context"] = details.Context;
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
 
     }
     // This is only for small files! one at a time.
@@ -260,13 +261,14 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "View of storage has been updated.";
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
 
 
@@ -278,13 +280,15 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "Storage validation succeeded. The Deposit File System file reflects S3 content.";
-                return Redirect($"/deposits/{id}");
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
             }
 
-            TempData["Error"] = result.ErrorMessage;
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
     
     public async Task<IActionResult> OnPostLock([FromRoute] string id)
@@ -295,17 +299,18 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "Deposit locked.";
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
         else
         {
             TempData["Error"] = "Could not bind deposit on lock";
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
 
     public async Task<IActionResult> OnPostRunPipeline([FromRoute] string id)
@@ -318,17 +323,18 @@ public class DepositModel(
             if (result.Success && result1.Success)
             {
                 TempData["Valid"] = "Deposit locked and pipeline run";
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
         else
         {
             TempData["Error"] = "Could not bind deposit on run pipeline";
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
 
     public async Task<IActionResult> OnPostReleaseLock([FromRoute] string id)
@@ -339,13 +345,14 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "Lock released.";
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
 
 
@@ -430,13 +437,14 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["AccessConditionsUpdated"] = "Access Restrictions and Rights Statement updated.";
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
 
 
