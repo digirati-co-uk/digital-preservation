@@ -477,10 +477,6 @@ public class ProcessPipelineJobHandler(
 
         var metadataContext = $"metadata";
 
-        //this is all folders under metadata or data/metadata
-        //if (WorkspaceManager.IsBagItLayout)
-        //    metadataContext = "data/metadata";
-
         context.Append(metadataContext);
 
         if (!filePath.Contains(BrunnhildeFolderName))
@@ -490,7 +486,6 @@ public class ProcessPipelineJobHandler(
 
         if (fi.Directory == null)
         {
-
             return null;
         }
             
