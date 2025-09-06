@@ -558,7 +558,7 @@ internal class PreservationApiClient(
 
             if (response.IsSuccessStatusCode)
             {
-                return Result.OkNotNull(new LogPipelineStatusResult { Status = ""});
+                return Result.OkNotNull(new LogPipelineStatusResult { Status = "Success", JobId = pipelineDeposit.Id });
             }
 
             return await response.ToFailNotNullResult<LogPipelineStatusResult>("Unable to update pipeline status.");

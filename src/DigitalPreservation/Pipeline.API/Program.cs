@@ -1,5 +1,6 @@
 ﻿using Amazon.S3;
 using Amazon.SimpleNotificationService;
+using Amazon.SQS;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
@@ -11,6 +12,7 @@ using Pipeline.API.Middleware;
 using Serilog;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Workspace;
 using Preservation.Client;
 using Storage.Repository.Common.Mets;
@@ -40,6 +42,9 @@ try
     builder.Services.Configure<BrunnhildeOptions>(
         builder.Configuration.GetSection("BrunnhildeOptions"));
 
+    builder.Services.Configure<PipelineOptions>(
+        builder.Configuration.GetSection("PipelineOptions"));
+
     //Add TokenScope
     builder.Services.AddSingleton<ITokenScope>(x =>
         new TokenScope(builder.Configuration.GetSection("AzureAd:ScopeUri").Value));
@@ -56,10 +61,12 @@ try
         })
         .AddMachinePreservationClient(builder.Configuration, "PipelineAPI" );
 
+    builder.Services
+        .AddAWSService<IAmazonSQS>()
+        .AddAWSService<IAmazonSimpleNotificationService>();
 
     builder.Services
         .AddMemoryCache()
-        .AddPipeline(builder.Configuration)
         .AddControllers();
 
     builder.Services.AddHealthChecks();
@@ -70,7 +77,6 @@ try
         // Ref: https://stackoverflow.com/questions/51142845/no-authenticationscheme-was-specified-and-there-was-no-defaultforbidscheme-foun
         options.DefaultChallengeScheme = "LeedsScheme";
         options.DefaultForbidScheme = "LeedsScheme";
-        options.AddScheme<LeedsSchemeHandler>("LeedsScheme", "Leeds's Pipeline API Challenge Scheme");
     });
 
     builder.Services.AddTransient<ApiKeyMiddleware>();
@@ -103,13 +109,6 @@ try
     builder.Configuration.GetSection("TokenProvider").Bind(accessTokenProviderOptions);
     builder.Services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
     builder.Services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
-
-    builder.Services.AddHttpClient("PreservationApi", (provider, httpClient) =>
-    {
-        httpClient.BaseAddress = new Uri(provider.GetService<IConfiguration>().GetConnectionString("PreservationApiBaseUrl"));
-        httpClient.DefaultRequestHeaders.Add("x-client-identity", "PipelineApi");
-    });
-
 
     builder.Services
         .AddHostedService<PipelineJobExecutorService>()

@@ -1,11 +1,12 @@
-﻿using Amazon.S3;
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
@@ -29,15 +30,15 @@ public class ProcessPipelineJobHandler(
     IMediator mediator,
     IOptions<StorageOptions> storageOptions,
     IOptions<BrunnhildeOptions> brunnhildeOptions,
-    IAmazonS3 s3Client,
     WorkspaceManagerFactory workspaceManagerFactory,
-    IPreservationApiClient preservationApiClient
-    ) : IRequestHandler<ExecutePipelineJob, Result>
+    IPreservationApiClient preservationApiClient) : IRequestHandler<ExecutePipelineJob, Result>
 
 {
-    private WorkspaceManager WorkspaceManager { get; set; }
+    //private WorkspaceManager WorkspaceManager { get; set; } = workspaceManager;
     private const string BrunnhildeFolderName = "brunnhilde";
     private readonly string[] filesToIgnore = ["tree.txt"];
+    private WorkspaceManager? workspaceManagerWorker;
+
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
         var jobId = request.JobIdentifier;
@@ -52,7 +53,7 @@ public class ProcessPipelineJobHandler(
             if(deposit == null)
                 return Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not publish pipeline job for job id {jobId} and deposit {depositId} as could not find the deposit ");
 
-            WorkspaceManager = workspaceManagerFactory.Create(deposit);
+            workspaceManagerWorker = workspaceManagerFactory.Create(deposit);
 
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobId, PipelineJobStates.Running,
                 runUser ?? "PipelineApi"), cancellationToken);
@@ -65,7 +66,7 @@ public class ProcessPipelineJobHandler(
             logger.LogError(ex, $" Caught error in PipelineJob handler for job id {jobId} and deposit {depositId}");
 
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobId, PipelineJobStates.CompletedWithErrors,
-                runUser ?? "PipelineApi"), cancellationToken);
+                runUser ?? "PipelineApi", ex.Message), cancellationToken);
 
             if (pipelineJobsResult?.Value?.Errors is { Length: 0 })
                 logger.LogInformation($"Job {jobId} Running status CompletedWithErrors logged");
@@ -89,7 +90,6 @@ public class ProcessPipelineJobHandler(
 
     private async Task<ProcessPipelineResult?> ExecuteBrunnhilde(string jobIdentifier, string depositName, string? runUser)
     {
-        ProcessPipelineResult? processPipelineResult = null;
         var mountPath = storageOptions.Value.FileMountPath;
         var separator = brunnhildeOptions.Value.DirectorySeparator;
         var processFolder = brunnhildeOptions.Value.ProcessFolder;
@@ -104,7 +104,7 @@ public class ProcessPipelineJobHandler(
             var response = await preservationApiClient.GetDeposit(depositName);
             var deposit = response.Value;
 
-            processPipelineResult = new ProcessPipelineResult
+            return new ProcessPipelineResult
             {
                 Status = "CompletedWithErrors",
                 Errors = [new Error { Message = $" Could not retrieve deposit for {depositName} and could not unlock" }],
@@ -126,7 +126,26 @@ public class ProcessPipelineJobHandler(
 
         using var process = Process.Start(start);
         using var reader = process?.StandardOutput;
-        var result = await reader?.ReadToEndAsync();
+
+        if (reader == null)
+        {
+            var response = await preservationApiClient.GetDeposit(depositName);
+            var deposit = response.Value;
+
+            logger.LogError($" Issue executing Brunnhilde process as the reader is null");
+
+            await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.CompletedWithErrors,
+                runUser ?? "PipelineApi", $" Issue executing Brunnhilde process as the reader is null"));
+
+            return new ProcessPipelineResult
+            {
+                Status = "CompletedWithErrors",
+                Errors = [new Error { Message = $" Issue executing Brunnhilde process as the reader is null for {depositName} and job id {jobIdentifier}" }],
+                ArchivalGroup = deposit?.ArchivalGroupName ?? string.Empty,
+            };
+        }
+
+        var result = await reader.ReadToEndAsync();
 
         var brunnhildeExecutionSuccess = result?.Contains("Brunnhilde characterization complete.");
 
@@ -135,15 +154,15 @@ public class ProcessPipelineJobHandler(
         if (!string.IsNullOrEmpty(result) && result.Contains("Brunnhilde characterization complete."))
         {
             logger.LogInformation($"Brunnhilde creation successful");
-            await WorkspaceManager.GetCombinedDirectory(true);
+            await workspaceManagerWorker.GetCombinedDirectory(true);
 
             var depositPath = $"{mountPath}{separator}{depositName}";
             await DeleteBrunnhildeFoldersAndFiles(depositName, metadataPath, depositPath, runUser);
 
-            var metadataPathForProcessFiles = WorkspaceManager.IsBagItLayout ? $"{processFolder}{separator}{depositName}{separator}data{separator}metadata"  //{separator}{BrunnhildeFolderName}
+            var metadataPathForProcessFiles = workspaceManagerWorker.IsBagItLayout ? $"{processFolder}{separator}{depositName}{separator}data{separator}metadata"  //{separator}{BrunnhildeFolderName}
                 : $"{processFolder}{separator}{depositName}{separator}metadata";
                                                                                  
-            var metadataPathForProcessDirectories = WorkspaceManager.IsBagItLayout ? $"{processFolder}{separator}{depositName}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}"  //{separator}{BrunnhildeFolderName}
+            var metadataPathForProcessDirectories = workspaceManagerWorker.IsBagItLayout ? $"{processFolder}{separator}{depositName}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}"  //{separator}{BrunnhildeFolderName}
                 : $"{processFolder}{separator}{depositName}{separator}metadata{separator}{BrunnhildeFolderName}"; //               
 
             logger.LogInformation($"metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}");
@@ -161,7 +180,6 @@ public class ProcessPipelineJobHandler(
             {
                 logger.LogInformation($"{uploadFileResult?.Value?.Context} upload Success: {uploadFileResult?.Success}");
             }
-
             var response = await preservationApiClient.GetDeposit(depositName);
             var deposit = response.Value;
 
@@ -169,10 +187,10 @@ public class ProcessPipelineJobHandler(
             {
                 logger.LogError($" Could not retrieve deposit for {depositName} and could not unlock");
 
-                var pipelineJobsSendResult = await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.CompletedWithErrors,
+                await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.CompletedWithErrors,
                     runUser ?? "PipelineApi", $" Could not retrieve deposit for {depositName} and could not unlock"));
 
-                processPipelineResult = new ProcessPipelineResult
+                return new ProcessPipelineResult
                 {
                     Status = "CompletedWithErrors",
                     Errors = [ new Error { Message = $" Could not retrieve deposit for {depositName} and could not unlock" }],
@@ -193,9 +211,9 @@ public class ProcessPipelineJobHandler(
             if (pipelineJobsResult?.Value?.Errors is { Length: 0 })
                 logger.LogInformation($"Job {jobIdentifier} and deposit {depositName} pipeline run Completed status logged");
 
-            await AddObjectsToMETS(depositName, depositPath, runUser);
+            await AddObjectsToMETS(depositName, depositPath, runUser ?? "PipelineApi");
 
-            processPipelineResult = new ProcessPipelineResult
+            return new ProcessPipelineResult
             {
                 Status = "Completed",
                 ArchivalGroup = deposit?.ArchivalGroupName ?? string.Empty,
@@ -210,10 +228,13 @@ public class ProcessPipelineJobHandler(
             {
                 logger.LogError($" Could not retrieve deposit for {depositName} and could not unlock");
 
-                var pipelineJobsSendResult = await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.CompletedWithErrors,
+               var logJobsResult = await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.CompletedWithErrors,
                     runUser ?? "PipelineApi", $" Could not retrieve deposit for {depositName} and could not unlock"));
 
-                processPipelineResult = new ProcessPipelineResult
+               if (logJobsResult.Failure)
+                   logger.LogError($"Could not record CompletedWithErrors status for deposit {depositName} job {jobIdentifier}");
+
+                return new ProcessPipelineResult
                 {
                     Status = "CompletedWithErrors",
                     Errors = [new Error { Message = $" Could not retrieve deposit for {depositName} and could not unlock" }],
@@ -231,16 +252,16 @@ public class ProcessPipelineJobHandler(
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositName, jobIdentifier, PipelineJobStates.CompletedWithErrors,
                 runUser ?? "PipelineApi", "Issue producing Brunnhilde files."));
 
-            processPipelineResult = new ProcessPipelineResult
+            if(pipelineJobsResult.Failure)
+                logger.LogError($"Could not record CompletedWithErrors status for deposit {depositName} job {jobIdentifier}");
+
+            return new ProcessPipelineResult
             {
                 Status = "CompletedWithErrors",
                 ArchivalGroup = deposit?.ArchivalGroupName ?? string.Empty,
                 Errors = [new Error { Message = "Issue producing Brunnhilde files." }],
             };
         }
-
-        return processPipelineResult;
-
     }
 
     private async Task<(string, string, string)> GetFilePaths(string depositName)
@@ -253,9 +274,9 @@ public class ProcessPipelineJobHandler(
         string metadataProcessPath;
         string objectPath;
 
-        await WorkspaceManager.GetCombinedDirectory(true);
+        await workspaceManagerWorker.GetCombinedDirectory(true);
 
-        if (WorkspaceManager.IsBagItLayout)
+        if (workspaceManagerWorker.IsBagItLayout)
         {
             metadataPath = $"{mountPath}{separator}{depositName}{separator}data{separator}metadata";
             metadataProcessPath = $"{processFolder}{separator}{depositName}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}";
@@ -278,7 +299,6 @@ public class ProcessPipelineJobHandler(
         return (metadataPath, metadataProcessPath, objectPath);
     }
 
-    //TODO: add a response to this
     private async Task DeleteBrunnhildeFoldersAndFiles(string depositId, string metadataPath, string depositPath, string? runUser)
     {
         //get deposit to create workspace manager
@@ -291,9 +311,9 @@ public class ProcessPipelineJobHandler(
             return;
         }
 
-        await WorkspaceManager.GetCombinedDirectory(true);
+        await workspaceManagerWorker.GetCombinedDirectory(true);
 
-        if (WorkspaceManager.IsBagItLayout)
+        if (workspaceManagerWorker.IsBagItLayout)
             depositPath += "/data";
 
         foreach (var filePath in Directory.GetFiles(metadataPath, "*.*", SearchOption.AllDirectories))
@@ -360,11 +380,11 @@ public class ProcessPipelineJobHandler(
             return;
         }
 
-        WorkspaceManager = workspaceManagerFactory.Create(deposit);
+        workspaceManagerWorker = workspaceManagerFactory.Create(deposit);
 
         deleteSelection.Items = itemsForDeletion;
 
-        var resultDelete = await WorkspaceManager.DeleteItems(deleteSelection, runUser ?? "PipelineApi");
+        var resultDelete = await workspaceManagerWorker.DeleteItems(deleteSelection, runUser ?? "PipelineApi");
 
         if (!resultDelete.Success)
         {
@@ -422,14 +442,19 @@ public class ProcessPipelineJobHandler(
                 logger.LogInformation($" uploadFile.Value.Context {uploadFile?.Value?.Context}");
             }
 
-            return (createSubFolderResult, uploadFileResult);
+            if (createSubFolderResult.Any() && uploadFileResult.Any())
+            {
+                return (createSubFolderResult, uploadFileResult);
+            }
+
         }
         catch (Exception ex)
         {
             logger.LogError(ex, $" Caught error in copy files recursively from {sourcePathForFiles} to {depositPath}");
         }
 
-        return (null, null);
+        return ((List<Result<CreateFolderResult>?> createSubFolderResult, List<Result<SingleFileUploadResult>?> uploadFileResult))(Enumerable.Empty<Result<CreateFolderResult>>(), Enumerable.Empty<Result<SingleFileUploadResult>>());
+
     }
 
     private async Task<Result<CreateFolderResult>?> CreateMetadataSubFolderOnS3(string depositId, string dirPath, string? runUser, bool brunnhildeFolder = false)
@@ -451,14 +476,14 @@ public class ProcessPipelineJobHandler(
             return null;
         }
 
-        WorkspaceManager = workspaceManagerFactory.Create(deposit);
+        workspaceManagerWorker = workspaceManagerFactory.Create(deposit);
 
-        if (di.Parent.Name.ToLower() == BrunnhildeFolderName && !context.ToString().Contains($"/{BrunnhildeFolderName}")) //TODO
+        if (di.Parent?.Name.ToLower() == BrunnhildeFolderName && !context.ToString().Contains($"/{BrunnhildeFolderName}")) //TODO
             context.Append($"/{BrunnhildeFolderName}");
 
         logger.LogInformation($"BrunnhildeFolderName {BrunnhildeFolderName}");
         logger.LogInformation($"di.Name {di.Name} context {context}");
-        var result = await WorkspaceManager.CreateFolder(di.Name, context.ToString(), false, runUser ?? "PipelineApi", true);
+        var result = await workspaceManagerWorker.CreateFolder(di.Name, context.ToString(), false, runUser ?? "PipelineApi", true);
 
         if (!result.Success)
         {
@@ -497,6 +522,10 @@ public class ProcessPipelineJobHandler(
             context.Append($"/{BrunnhildeFolderName}");
 
         var checksum = Checksum.Sha256FromFile(fi);
+
+        if (string.IsNullOrEmpty(checksum))
+            return null;
+
         var stream = GetFileStream(filePath);
         var result = await UploadFileToBucketDeposit(depositId, stream, filePath, contextPath, checksum, runUser ?? "PipelineApi");
 
@@ -534,11 +563,12 @@ public class ProcessPipelineJobHandler(
 
         try
         {
-            new FileExtensionContentTypeProvider().TryGetContentType(fi.Name, out var contentType);
+            MimeTypes.TryGetMimeType(filePath.GetSlug(), out var contentType);
 
-            var result = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, runUser);
+            if(string.IsNullOrEmpty(contentType))
+                return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError, "Could not find file content type");
 
-            if (result.Success) return result;
+            var result = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, runUser, true);
 
             return result;
         }
@@ -550,28 +580,14 @@ public class ProcessPipelineJobHandler(
 
     public static Stream GetFileStream(string filePath)
     {
-        try
+        if (!File.Exists(filePath)) throw new Exception($"{filePath} file not found.");
+        Stream result = File.OpenRead(filePath);
+        if (result.Length > 0)
         {
-            if (File.Exists(filePath))
-            {
-                Stream result = File.OpenRead(filePath);
-                if (result.Length > 0)
-                {
-                    result.Seek(0, SeekOrigin.Begin);
-                }
-
-                return result;
-            }
-            else
-            {
-                throw new Exception($"{filePath} file not found.");
-            }
-        }
-        catch (Exception ex)
-        {
-            throw ex;
+            result.Seek(0, SeekOrigin.Begin);
         }
 
+        return result;
     }
 
     private async Task AddObjectsToMETS(string depositName, string depositPath, string runUser)

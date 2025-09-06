@@ -61,7 +61,7 @@ public static class ServiceCollectionX
                 client.BaseAddress = preservationOptions.Root.ThrowIfNull(nameof(preservationOptions.Root));
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                client.DefaultRequestHeaders.Add("x-client-identity","PipelineApi");
+                client.DefaultRequestHeaders.Add("X-Client-Identity", "PipelineApi");
                 client.Timeout = TimeSpan.FromMinutes(preservationOptions.TimeoutMinutes);
             })
             .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(60), 60)

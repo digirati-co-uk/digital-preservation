@@ -215,7 +215,7 @@ public class WorkspaceManager(
 
 
     public async Task<Result<SingleFileUploadResult>> UploadSingleSmallFile(
-        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity)
+        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity, bool allowFilesOutsideObjects = false)
     {
         var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
@@ -236,11 +236,11 @@ public class WorkspaceManager(
                 ErrorCodes.BadRequest, $"Folder path {parentDirectory} could not be found.");
         }
 
-        //if (!(parentDirectory.LocalPath == FolderNames.Objects || parentDirectory.LocalPath!.StartsWith($"{FolderNames.Objects}/")))
-        //{
-        //    return Result.FailNotNull<SingleFileUploadResult>(
-        //        ErrorCodes.BadRequest, "Uploaded files must go in or below the objects folder.");
-        //}
+        if (!(parentDirectory.LocalPath == FolderNames.Objects || parentDirectory.LocalPath!.StartsWith($"{FolderNames.Objects}/")) && !allowFilesOutsideObjects)
+        {
+            return Result.FailNotNull<SingleFileUploadResult>(
+                ErrorCodes.BadRequest, "Uploaded files must go in or below the objects folder.");
+        }
 
         var slug = PreservedResource.MakeValidSlug(sourceFileName);
         if (parentDirectory.Directories.Any(d => d.LocalPath!.GetSlug() == slug) ||

@@ -8,15 +8,15 @@ public class PipelineJob : Resource
     [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(PipelineJob);
 
-    [JsonPropertyName("depositname")]
+    [JsonPropertyName("depositName")]
     [JsonPropertyOrder(520)]
     public string? DepositName { get; set; }
 
-    [JsonPropertyName("jobidentifier")]
+    [JsonPropertyName("jobIdentifier")]
     [JsonPropertyOrder(521)]
     public string? JobIdentifier { get; set; }
 
-    [JsonPropertyName("runuser")]
+    [JsonPropertyName("runUser")]
     [JsonPropertyOrder(530)]
     public string? RunUser { get; set; }
 }

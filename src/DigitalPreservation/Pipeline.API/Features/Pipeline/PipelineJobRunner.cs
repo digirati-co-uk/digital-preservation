@@ -35,10 +35,12 @@ public class PipelineJobRunner(
 
             if (executeResult.Success)
             {
-                logger.LogInformation($"Successfully sent execute pipeline job for the deposit {depositId} and job id {jobId} because of {executeResult.ErrorMessage}");
+                logger.LogInformation($"Successfully sent execute pipeline job for the deposit {depositId} and job id {jobId} ");
+                return;
+
             }
 
-            logger.LogError($"Could not successfully send execute pipeline job for the deposit {depositId} and job id {jobId}");
+            logger.LogError($"Could not successfully send execute pipeline job for the deposit {depositId} and job id {jobId} because of {executeResult.ErrorMessage}");
 
             //TODO: log errors in pipeline run jobs db table make ure retun from pipeline job has erros
         }

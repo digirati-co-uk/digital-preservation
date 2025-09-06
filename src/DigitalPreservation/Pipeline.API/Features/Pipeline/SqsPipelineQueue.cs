@@ -8,7 +8,7 @@ using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
-using Pipeline.API.Aws;
+using Storage.Repository.Common.Aws;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -80,7 +80,7 @@ public class SqsPipelineQueue(
             {
                 if (string.IsNullOrEmpty(pipelineJobMessage.JobIdentifier))
                 {
-                    pipelineJobMessage.JobIdentifier = identityMinter.MintIdentity(nameof(PipelineJob));
+                    pipelineJobMessage.JobIdentifier = identityMinter.MintIdentity("PipelineJob");
                 }
 
                 return pipelineJobMessage;
