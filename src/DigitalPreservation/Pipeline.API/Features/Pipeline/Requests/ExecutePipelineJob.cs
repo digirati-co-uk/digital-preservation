@@ -63,7 +63,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, $" Caught error in PipelineJob handler for job id {jobId} and deposit {depositId}");
+            logger.LogError(ex, $" Caught error in PipelineJob handler for job id {jobId} and deposit {depositId} {ex.Message}");
 
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobId, PipelineJobStates.CompletedWithErrors,
                 runUser ?? "PipelineApi", ex.Message), cancellationToken);
