@@ -59,11 +59,13 @@ public class ProcessPipelineJobHandler(
                 runUser ?? "PipelineApi"), cancellationToken);
 
             var result = await ExecuteBrunnhilde(jobId, request.DepositName, runUser);
+
+            logger.LogInformation($"Execute Brunnhilde result {result?.Status} {result?.Errors} ");
             return result?.Status == PipelineJobStates.Completed ? Result.Ok() : Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not complete pipeline run {result?.Errors?.FirstOrDefault()?.Message}");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, $" Caught error in PipelineJob handler for job id {jobId} and deposit {depositId} {ex.Message}");
+            logger.LogError(ex, $" Caught error in PipelineJob handler for job id {jobId} and deposit {depositId} blah {ex.Message} {ex.InnerException} {ex.StackTrace} blah");
 
             var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobId, PipelineJobStates.CompletedWithErrors,
                 runUser ?? "PipelineApi", ex.Message), cancellationToken);
