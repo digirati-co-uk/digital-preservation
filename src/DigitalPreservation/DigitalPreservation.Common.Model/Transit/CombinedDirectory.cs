@@ -381,8 +381,14 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 }
             }
 
-            var digest = combinedFile.GetSingleDigest();
-            if (digest is null)
+            var digests = combinedFile.GetDistinctDigests();
+            if (digests.Count == 0)
+            {
+                return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
+                    $"File {combinedFile.LocalPath} has no digest information in either METS, metadata or Deposit file attributes.");
+            }
+
+            if (digests.Count > 1)
             {
                 return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
                     $"File {combinedFile.LocalPath} has different digests in deposit and mets");
@@ -395,7 +401,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 Id = binaryId,
                 Name = name, 
                 ContentType = contentType,
-                Digest = digest,
+                Digest = digests[0],
                 Size = size,
                 Origin = origin.AppendEscapedSlug(slug.EscapeForUri())  // We'll need to unescape this back to a key
             });

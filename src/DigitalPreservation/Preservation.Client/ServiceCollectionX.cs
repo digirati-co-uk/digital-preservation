@@ -34,7 +34,7 @@ public static class ServiceCollectionX
             })
             .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(60), 60)
             .AddHttpMessageHandler<TimingHandler>()
-            .AddHttpMessageHandler<AuthTokenInjector>();
+            .AddHttpMessageHandler<AuthTokenInjector>(); 
 
         return serviceCollection;
     }
