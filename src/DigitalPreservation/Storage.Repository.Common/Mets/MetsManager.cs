@@ -468,6 +468,16 @@ public class MetsManager(
                     if (amdSec == null)
                     {
                         logger.LogError($"Could not find amdSec with Id {fileId}", file.Admid[0]);
+                        logger.LogInformation("div:");
+                        logger.LogInformation(div.ToString());
+                        logger.LogInformation("fileId: " + fileId);
+                        logger.LogInformation("file:");
+                        logger.LogInformation(file.ToString());
+                        logger.LogInformation("fileAdmId:");
+                        foreach (var admid in file.Admid)
+                        {
+                            logger.LogInformation(admid);
+                        }
                         logger.LogInformation("Known AMD SECs:");
                         foreach (var amdSecTemp in fullMets.Mets.AmdSec)
                         {
