@@ -45,7 +45,7 @@ public class ProcessPipelineJobHandler(
     /// <param name="depositId"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    private async Task<Result<WorkspaceManager>> GetWorkspaceManager(string depositId, CancellationToken cancellationToken = default)
+    private async Task<Result<WorkspaceManager>> GetWorkspaceManager(string depositId, bool refresh, CancellationToken cancellationToken = default)
     {
         var response = await preservationApiClient.GetDeposit(depositId, cancellationToken);
         if (response.Failure || response.Value == null)
@@ -54,7 +54,7 @@ public class ProcessPipelineJobHandler(
                 $"Could not process pipeline job for job id {jobIdentifier} and deposit {depositId} as could not find the deposit.");
         }
         var deposit = response.Value;
-        var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit);
+        var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit, refresh);
         return Result.OkNotNull(workspaceManager);
     }
     
@@ -64,7 +64,7 @@ public class ProcessPipelineJobHandler(
         jobIdentifier = request.JobIdentifier;
         runUser = request.RunUser ?? "PipelineApi";
         
-        var workspaceResult = await GetWorkspaceManager(request.DepositId, cancellationToken);
+        var workspaceResult = await GetWorkspaceManager(request.DepositId, true, cancellationToken);
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)
         {
             return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError, 
@@ -402,7 +402,7 @@ public class ProcessPipelineJobHandler(
     private async Task<Result<CreateFolderResult>?> CreateMetadataSubFolderOnS3(string depositId, string dirPath)
     {
         // This is a content-changing operation
-        var workspaceResult = await GetWorkspaceManager(depositId);
+        var workspaceResult = await GetWorkspaceManager(depositId, true);
         var workspaceManager = workspaceResult.Value!;
         
         var context = new StringBuilder();
@@ -487,7 +487,7 @@ public class ProcessPipelineJobHandler(
             if(string.IsNullOrEmpty(contentType))
                 return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError, "Could not find file content type");
 
-            var workspaceManagerResult = await GetWorkspaceManager(depositId);
+            var workspaceManagerResult = await GetWorkspaceManager(depositId, true);
             var result = await workspaceManagerResult.Value!. UploadSingleSmallFile(
                 stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, runUser!, true);
 
@@ -518,7 +518,7 @@ public class ProcessPipelineJobHandler(
     /// <param name="depositPath"></param>
     private async Task AddObjectsToMets(string depositId, string depositPath)
     {
-        var workspaceManagerResult = await GetWorkspaceManager(depositId);
+        var workspaceManagerResult = await GetWorkspaceManager(depositId, true);
         var workspaceManager = workspaceManagerResult.Value!;
         var (_, _, objectPath) = GetFilePaths(workspaceManager);
         var minimalItems = new List<MinimalItem>();
