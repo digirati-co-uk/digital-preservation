@@ -464,27 +464,11 @@ public class MetsManager(
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
                     }
 
-                    var amdSec = fullMets.Mets.AmdSec.SingleOrDefault(a => a.Id == file.Admid[0]);
-                    if (amdSec == null)
-                    {
-                        logger.LogError($"Could not find amdSec with Id {fileId}", file.Admid[0]);
-                        logger.LogInformation("div:");
-                        logger.LogInformation(div.ToString());
-                        logger.LogInformation("fileId: " + fileId);
-                        logger.LogInformation("file:");
-                        logger.LogInformation(file.ToString());
-                        logger.LogInformation("fileAdmId:");
-                        foreach (var admid in file.Admid)
-                        {
-                            logger.LogInformation(admid);
-                        }
-                        logger.LogInformation("Known AMD SECs:");
-                        foreach (var amdSecTemp in fullMets.Mets.AmdSec)
-                        {
-                            logger.LogInformation(amdSecTemp.Id);
-                        }
-                        throw new InvalidOperationException($"Could not find amdSec with Id {file.Admid[0]}");
-                    }
+                    // TODO: This is a quick fix to get round the problem of spaces in XML IDs.
+                    // We need to not have any spaces in XML IDs, which means we need to escape them 
+                    // in a reversible way (replacing with _ won't do)
+                    var fileAdmId = string.Join(' ', file.Admid);
+                    var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
                     FileFormatMetadata patchPremis;
                     try

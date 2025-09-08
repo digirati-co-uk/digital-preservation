@@ -20,27 +20,30 @@ public class WorkspaceManager(
 {
     public List<string> Warnings { get; } = [];
 
-    public bool IsBagItLayout { get; set; }
-    public bool HasValidFiles { get; set; }
-    public string? MetsPath { get; set; }
-    public bool Editable { get; set; }
-    public string? MetsName { get; set; }
+    public Deposit Deposit => deposit;
+
+    public string? DepositSlug => Deposit.Id?.GetSlug();
+    public bool IsBagItLayout { get; private set; }
+    public bool HasValidFiles { get; private set; }
+    public string? MetsPath { get; private set; }
+    public bool Editable { get; private set; }
+    public string? MetsName { get; private set; }
     
     // TODO: In phase 2, replace these with always an operation on a CombinedDirectory -> METS Directory, including the workspace root.
-    public List<string> RootAccessRestrictions { get; set; } = [];
-    public Uri? RootRightsStatement { get; set; }
+    public List<string> RootAccessRestrictions { get; private set; } = [];
+    public Uri? RootRightsStatement { get; private set; }
     
     
     public async Task<Result> SetAccessConditions(List<string> rootAccessRestrictions, Uri? rootRightsStatement)
     {
-        var result = await mediator.Send(new SetRootAccessConditions(deposit.Files!, deposit.MetsETag!, rootAccessRestrictions, rootRightsStatement));
+        var result = await mediator.Send(new SetRootAccessConditions(Deposit.Files!, Deposit.MetsETag!, rootAccessRestrictions, rootRightsStatement));
         return result;
     }
 
     public async Task<Result<WorkingDirectory?>> GetFileSystemWorkingDirectory(bool refresh = false)
     {
         var readFilesResult = await mediator.Send(new GetWorkingDirectory(
-            deposit.Files!, refresh, refresh, deposit.LastModified));
+            Deposit.Files!, refresh, refresh, Deposit.LastModified));
         if (readFilesResult is not { Success: true, Value: not null })
         {
             Warnings.Add("Could not read working directory: " + readFilesResult.CodeAndMessage());
@@ -93,7 +96,7 @@ public class WorkspaceManager(
         
     private async Task<MetsFileWrapper?> GetMetsWrapper()
     {
-        var result = await metsParser.GetMetsFileWrapper(deposit.Files!, true);
+        var result = await metsParser.GetMetsFileWrapper(Deposit.Files!, true);
         if (result is { Success: true, Value: not null })
         {
             var metsWrapper = result.Value;
@@ -112,7 +115,7 @@ public class WorkspaceManager(
     public async Task<Result<CreateFolderResult>> CreateFolder(
         string newFolderName, string? newFolderContext, bool contextIsFile, string? callerIdentity, bool refreshDirectory = false)
     {
-        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
+        var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
             return Result.FailNotNull<CreateFolderResult>(ErrorCodes.Unauthorized,
@@ -144,7 +147,7 @@ public class WorkspaceManager(
         }
 
         var createFolderResult = await mediator.Send(new CreateFolder(
-            IsBagItLayout, deposit.Files!, newFolderName, slug, newFolderContext, deposit.MetsETag!));
+            IsBagItLayout, Deposit.Files!, newFolderName, slug, newFolderContext, Deposit.MetsETag!));
         if (createFolderResult.Success)
         {
             var result = new CreateFolderResult
@@ -162,7 +165,7 @@ public class WorkspaceManager(
 
     public async Task<Result<ItemsAffected>> DeleteItems(DeleteSelection deleteSelection, string callerIdentity)
     {
-        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
+        var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
             return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
@@ -180,13 +183,13 @@ public class WorkspaceManager(
                 "No items to delete.");
         }
         
-        deleteSelection.Deposit = deposit.Id;
+        deleteSelection.Deposit = Deposit.Id;
         
         var combinedResult = await GetCombinedDirectory(true);
         if (combinedResult is { Success: true, Value: not null })
         {
             var deleteResult = await mediator.Send(
-                new DeleteItems(IsBagItLayout, deposit.Files!, deleteSelection, combinedResult.Value, deposit.MetsETag!));
+                new DeleteItems(IsBagItLayout, Deposit.Files!, deleteSelection, combinedResult.Value, Deposit.MetsETag!));
             // refresh the file system again
             // need to see how long this operation takes on large deposits
             await GetCombinedDirectory(true);
@@ -197,7 +200,7 @@ public class WorkspaceManager(
 
     public async Task<Result<ItemsAffected>> AddItemsToMets(List<WorkingBase> items, string callerIdentity)
     {
-        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
+        var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
             return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
@@ -209,7 +212,7 @@ public class WorkspaceManager(
                 "No items to add to METS.");
         }
         
-        var addToMetsResult = await mediator.Send(new AddItemsToMets(deposit.Files!, items, deposit.MetsETag!));
+        var addToMetsResult = await mediator.Send(new AddItemsToMets(Deposit.Files!, items, Deposit.MetsETag!));
         return addToMetsResult;
     }
 
@@ -217,7 +220,7 @@ public class WorkspaceManager(
     public async Task<Result<SingleFileUploadResult>> UploadSingleSmallFile(
         Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity, bool allowFilesOutsideObjects = false)
     {
-        var otherLockOwner = deposit.GetOtherLockOwner(callerIdentity);
+        var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
             return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.Unauthorized,
@@ -252,7 +255,7 @@ public class WorkspaceManager(
 
         var uploadFileResult = await mediator.Send(new UploadFileToDeposit(
             IsBagItLayout,
-            deposit.Files!,
+            Deposit.Files!,
             context,
             slug,
             stream,
@@ -260,7 +263,7 @@ public class WorkspaceManager(
             checksum,
             fileName,
             contentType,
-            deposit.MetsETag!));
+            Deposit.MetsETag!));
         if (uploadFileResult.Success)
         {
             var result = new SingleFileUploadResult
@@ -278,16 +281,16 @@ public class WorkspaceManager(
     public async Task<Result> RebuildDepositFileSystem()
     {
         var readS3Result = await mediator.Send(new GetWorkingDirectory(
-                deposit.Files!, true, true));
+                Deposit.Files!, true, true));
         return readS3Result;
     }
     
     public async Task<Result> ValidateDepositFileSystem()
     {       
         var readS3Result = await mediator.Send(new GetWorkingDirectory(
-            deposit.Files!, true, false));
+            Deposit.Files!, true, false));
         var readJsonResult = await mediator.Send(new GetWorkingDirectory(
-            deposit.Files!, false, false));
+            Deposit.Files!, false, false));
 
         if (readS3Result.Value == null)
         {
