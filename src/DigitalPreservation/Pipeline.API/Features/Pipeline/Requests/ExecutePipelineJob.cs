@@ -125,6 +125,25 @@ public class ProcessPipelineJobHandler(
         var separator = brunnhildeOptions.Value.DirectorySeparator;
         var processFolder = brunnhildeOptions.Value.ProcessFolder;
 
+        if (!Directory.Exists(mountPath))
+        {
+            logger.LogError($"S3 mount path could not be found at {mountPath}");
+
+            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+            logger.LogInformation($"releaseLockResult: {releaseLockResult.Success}");
+            if (releaseLockResult is { Failure: true })
+            {
+                logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+            }
+
+            return new ProcessPipelineResult
+            {
+                Status = PipelineJobStates.CompletedWithErrors,
+                Errors = [new Error { Message = $"S3 mount path could not be found at {mountPath}" }],
+                ArchivalGroup = workspaceManager.Deposit.ArchivalGroupName ?? string.Empty,
+            };
+        }
+
         var (metadataPath, metadataProcessPath, objectPath) = GetFilePaths(workspaceManager);
 
         if (!Directory.Exists(objectPath))
