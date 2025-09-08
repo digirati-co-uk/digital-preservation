@@ -121,7 +121,7 @@ public class ProcessPipelineJobHandler(
         var separator = brunnhildeOptions.Value.DirectorySeparator;
         var processFolder = brunnhildeOptions.Value.ProcessFolder;
 
-        var (metadataPath, metadataProcessPath, objectPath) = await GetFilePaths(workspaceManager);
+        var (metadataPath, metadataProcessPath, objectPath) = GetFilePaths(workspaceManager);
 
         if (!Directory.Exists(objectPath))
         {
@@ -262,7 +262,7 @@ public class ProcessPipelineJobHandler(
         }
     }
 
-    private async Task<(string, string, string)> GetFilePaths(WorkspaceManager workspaceManager)
+    private (string, string, string) GetFilePaths(WorkspaceManager workspaceManager)
     {
         var depositId = workspaceManager.DepositSlug;
         var mountPath = storageOptions.Value.FileMountPath;
@@ -272,8 +272,6 @@ public class ProcessPipelineJobHandler(
         string metadataPath;
         string metadataProcessPath;
         string objectPath;
-
-        await workspaceManager.GetCombinedDirectory(true);
 
         if (workspaceManager.IsBagItLayout)
         {
@@ -301,7 +299,7 @@ public class ProcessPipelineJobHandler(
     private async Task<Result<ItemsAffected>> DeleteBrunnhildeFoldersAndFiles(WorkspaceManager workspaceManager)
     {
         // This is an expensive operation (refresh=true):
-        var root = await workspaceManager.GetCombinedDirectory(true);
+        var root = await workspaceManager.RefreshCombinedDirectory();
         
         var (directories, files) = root.Value!.Flatten();
         var deleteSelection = new DeleteSelection
@@ -522,7 +520,7 @@ public class ProcessPipelineJobHandler(
     {
         var workspaceManagerResult = await GetWorkspaceManager(depositId);
         var workspaceManager = workspaceManagerResult.Value!;
-        var (_, _, objectPath) = await GetFilePaths(workspaceManager);
+        var (_, _, objectPath) = GetFilePaths(workspaceManager);
         var minimalItems = new List<MinimalItem>();
 
         if (workspaceManager.IsBagItLayout)
@@ -544,7 +542,7 @@ public class ProcessPipelineJobHandler(
 
         }
 
-        var combinedResult = await workspaceManager.GetCombinedDirectory(true);
+        var combinedResult = await workspaceManager.RefreshCombinedDirectory();
         if (combinedResult is not { Success: true, Value: not null })
         {
              logger.LogError("Could not read deposit file system.");   

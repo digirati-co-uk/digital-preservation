@@ -61,7 +61,7 @@ public class DepositModel(
 
             if (Deposit.Status != DepositStates.Exporting)
             {
-                var combinedResult = await WorkspaceManager.GetCombinedDirectory();
+                var combinedResult = WorkspaceManager.GetRootCombinedDirectory();
                 if (combinedResult is { Success: true, Value: not null })
                 {
                     RootCombinedDirectory = combinedResult.Value;
@@ -150,7 +150,7 @@ public class DepositModel(
         if (await BindDeposit(id))
         {
             var minimalItems = JsonSerializer.Deserialize<List<MinimalItem>>(addToMetsObject)!;
-            var combinedResult = await WorkspaceManager.GetCombinedDirectory(true);
+            var combinedResult = await WorkspaceManager.RefreshCombinedDirectory();
             if (combinedResult is not { Success: true, Value: not null })
             {
                 TempData["Error"] = "Could not read deposit file system.";

@@ -2,6 +2,7 @@
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
@@ -189,9 +190,9 @@ public class DepositsController(
         var depositResult = await mediator.Send(new GetDeposit(id));
         if (depositResult is { Success: true, Value: not null })
         {
-            var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
-            var workingDirectoryResult = await workspaceManager.GetCombinedDirectory(refresh);
-            return this.StatusResponseFromResult(workingDirectoryResult);
+            var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value, refresh);
+            var result = workspaceManager.GetRootCombinedDirectory();
+            return this.StatusResponseFromResult(result);
         }
         return this.StatusResponseFromResult(depositResult);
     }

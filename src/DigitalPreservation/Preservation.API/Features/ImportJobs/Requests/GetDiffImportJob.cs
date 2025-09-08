@@ -76,8 +76,8 @@ public class GetDiffImportJobHandler(
             }
         }
         
-        var workspace = await workspaceManagerFactory.CreateAsync(request.Deposit);
-        var combinedResult = await workspace.GetCombinedDirectory(true);
+        var workspace = await workspaceManagerFactory.CreateAsync(request.Deposit, true);
+        var combinedResult = workspace.GetRootCombinedDirectory();
         if (combinedResult is not { Success: true, Value: not null })
         {
             return Result.FailNotNull<ImportJob>(combinedResult.ErrorCode!, combinedResult.ErrorMessage);

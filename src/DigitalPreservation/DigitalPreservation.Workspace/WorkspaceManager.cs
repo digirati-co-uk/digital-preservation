@@ -51,7 +51,21 @@ public class WorkspaceManager(
         return readFilesResult;
     }
     
-    public async Task<Result<CombinedDirectory?>> GetCombinedDirectory(bool refresh = false)
+    
+    private Result<CombinedDirectory?>? rootCombinedDirectoryResult;
+
+    public Result<CombinedDirectory?> GetRootCombinedDirectory()
+    {
+        return rootCombinedDirectoryResult!;
+    }
+
+    public async Task<Result<CombinedDirectory?>> RefreshCombinedDirectory()
+    {
+        rootCombinedDirectoryResult = await GetCombinedDirectory(true);
+        return rootCombinedDirectoryResult;
+    }
+    
+    private async Task<Result<CombinedDirectory?>> GetCombinedDirectory(bool refresh = false)
     {
         var metsWrapper = await GetMetsWrapper(); // what if there is no METS?
         var fileSystemResult = await GetFileSystemWorkingDirectory(refresh);
@@ -405,8 +419,8 @@ public class WorkspaceManager(
         return Result.Ok();
     }
 
-    public async Task InitialiseAsync()
+    public async Task InitialiseAsync(bool refresh = false)
     {
-        await GetCombinedDirectory();
+        await GetCombinedDirectory(refresh);
     }
 }
