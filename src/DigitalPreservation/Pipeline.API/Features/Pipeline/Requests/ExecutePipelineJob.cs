@@ -84,6 +84,13 @@ public class ProcessPipelineJobHandler(
         {
             logger.LogError(ex, $"Caught error in PipelineJob handler for job id {request.JobIdentifier} and deposit {request.DepositId}");
 
+            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceResult.Value.Deposit, CancellationToken.None);
+            logger.LogInformation($"releaseLockResult: {releaseLockResult.Success}");
+            if (releaseLockResult is { Failure: true })
+            {
+                logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+            }
+
             var pipelineJobsResult = await mediator.Send(
                 new LogPipelineJobStatus(request.DepositId, request.JobIdentifier, PipelineJobStates.CompletedWithErrors, runUser, ex.Message), cancellationToken);
 
@@ -119,6 +126,14 @@ public class ProcessPipelineJobHandler(
         if (!Directory.Exists(objectPath))
         {
             logger.LogError($"Deposit {depositId} folder and contents could not be found at {objectPath}");
+
+            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+            logger.LogInformation($"releaseLockResult: {releaseLockResult.Success}");
+            if (releaseLockResult is { Failure: true })
+            {
+                logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+            }
+
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
