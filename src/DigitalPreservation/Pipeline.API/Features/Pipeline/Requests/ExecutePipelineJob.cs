@@ -54,7 +54,7 @@ public class ProcessPipelineJobHandler(
                 $"Could not process pipeline job for job id {jobIdentifier} and deposit {depositId} as could not find the deposit.");
         }
         var deposit = response.Value;
-        var workspaceManager = workspaceManagerFactory.Create(deposit);
+        var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit);
         return Result.OkNotNull(workspaceManager);
     }
     
