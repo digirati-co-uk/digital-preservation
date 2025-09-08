@@ -421,6 +421,6 @@ public class WorkspaceManager(
 
     public async Task InitialiseAsync(bool refresh = false)
     {
-        await GetCombinedDirectory(refresh);
+        rootCombinedDirectoryResult = await GetCombinedDirectory(refresh);
     }
 }
