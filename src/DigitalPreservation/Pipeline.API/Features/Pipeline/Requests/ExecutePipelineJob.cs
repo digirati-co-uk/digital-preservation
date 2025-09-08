@@ -55,6 +55,10 @@ public class ProcessPipelineJobHandler(
         }
         var deposit = response.Value;
         var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit, refresh);
+        foreach (var warning in workspaceManager.Warnings)
+        {
+            logger.LogWarning(warning);
+        }
         return Result.OkNotNull(workspaceManager);
     }
     
