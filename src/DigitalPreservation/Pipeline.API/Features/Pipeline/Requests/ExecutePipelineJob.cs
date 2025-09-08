@@ -114,7 +114,7 @@ public class ProcessPipelineJobHandler(
         var separator = brunnhildeOptions.Value.DirectorySeparator;
         var processFolder = brunnhildeOptions.Value.ProcessFolder;
 
-        var (metadataPath, metadataProcessPath, objectPath) = GetFilePaths(workspaceManager);
+        var (metadataPath, metadataProcessPath, objectPath) = await GetFilePaths(workspaceManager);
 
         if (!Directory.Exists(objectPath))
         {
@@ -247,7 +247,7 @@ public class ProcessPipelineJobHandler(
         }
     }
 
-    private (string, string, string) GetFilePaths(WorkspaceManager workspaceManager)
+    private async Task<(string, string, string)> GetFilePaths(WorkspaceManager workspaceManager)
     {
         var depositId = workspaceManager.DepositSlug;
         var mountPath = storageOptions.Value.FileMountPath;
@@ -257,6 +257,8 @@ public class ProcessPipelineJobHandler(
         string metadataPath;
         string metadataProcessPath;
         string objectPath;
+
+        await workspaceManager.GetCombinedDirectory(true);
 
         if (workspaceManager.IsBagItLayout)
         {
@@ -505,7 +507,7 @@ public class ProcessPipelineJobHandler(
     {
         var workspaceManagerResult = await GetWorkspaceManager(depositId);
         var workspaceManager = workspaceManagerResult.Value!;
-        var (_, _, objectPath) = GetFilePaths(workspaceManager);
+        var (_, _, objectPath) = await GetFilePaths(workspaceManager);
         var minimalItems = new List<MinimalItem>();
 
         if (workspaceManager.IsBagItLayout)
