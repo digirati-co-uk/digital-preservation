@@ -405,4 +405,8 @@ public class WorkspaceManager(
         return Result.Ok();
     }
 
+    public async Task InitialiseAsync()
+    {
+        await GetCombinedDirectory();
+    }
 }

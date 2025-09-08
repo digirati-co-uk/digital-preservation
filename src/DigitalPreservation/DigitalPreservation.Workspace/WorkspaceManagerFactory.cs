@@ -8,9 +8,10 @@ namespace DigitalPreservation.Workspace;
 
 public class WorkspaceManagerFactory(IMediator mediator, IMetsParser metsParser)
 {
-    public WorkspaceManager Create(Deposit deposit)
+    public async Task<WorkspaceManager> CreateAsync(Deposit deposit)
     {
-        return new WorkspaceManager(deposit, mediator, metsParser);
+        var workspaceManager = new WorkspaceManager(deposit, mediator, metsParser);
+        await workspaceManager.InitialiseAsync();
+        return workspaceManager;
     }
-    
 }

@@ -97,7 +97,7 @@ public class DepositsController(
             }
         }
 
-        var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+        var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
         var filesystemResult = await workspaceManager.GetFileSystemWorkingDirectory(refresh: true);
         if (filesystemResult is not { Success: true, Value: not null })
         {
@@ -139,7 +139,7 @@ public class DepositsController(
             var eTag = Request.Headers.IfMatch.FirstOrDefault();
             if (eTag.HasText() && eTag == deposit.MetsETag)
             {
-                var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+                var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
                 var deleteResult = await workspaceManager.DeleteItems(deleteSelection, User.GetCallerIdentity());
                 return this.StatusResponseFromResult(deleteResult);
             }
@@ -164,7 +164,7 @@ public class DepositsController(
         var depositResult = await mediator.Send(new GetDeposit(id));
         if (depositResult is { Success: true, Value: not null })
         {
-            var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+            var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
             var workingDirectoryResult = await workspaceManager.GetFileSystemWorkingDirectory(refresh);
             return this.StatusResponseFromResult(workingDirectoryResult);
         }
@@ -189,7 +189,7 @@ public class DepositsController(
         var depositResult = await mediator.Send(new GetDeposit(id));
         if (depositResult is { Success: true, Value: not null })
         {
-            var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+            var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
             var workingDirectoryResult = await workspaceManager.GetCombinedDirectory(refresh);
             return this.StatusResponseFromResult(workingDirectoryResult);
         }

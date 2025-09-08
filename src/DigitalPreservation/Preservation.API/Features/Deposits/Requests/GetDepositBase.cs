@@ -64,7 +64,7 @@ public class GetDepositBase(
 
                 if (wasExportingAndNowFinished)
                 {
-                    var workspaceManager = workspaceManagerFactory.Create(deposit);
+                    var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit);
                     await workspaceManager.GetCombinedDirectory(refresh: true);
                 }
                 return Result.Ok(deposit);

@@ -48,7 +48,7 @@ public class DepositModel(
         if (getDepositResult.Success)
         {
             Deposit = getDepositResult.Value!;
-            WorkspaceManager = workspaceManagerFactory.Create(Deposit);
+            WorkspaceManager = await workspaceManagerFactory.CreateAsync(Deposit);
             
             if (!Deposit.ArchivalGroupExists && Deposit.ArchivalGroup != null && Deposit.ArchivalGroup.GetPathUnderRoot().HasText())
             {
