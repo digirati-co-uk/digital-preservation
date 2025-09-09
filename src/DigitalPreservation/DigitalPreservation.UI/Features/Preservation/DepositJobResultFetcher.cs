@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.Utils;
@@ -17,7 +18,7 @@ public class DepositJobResultFetcher()
         {
             return importJobsResult;
         }
-        
+
         var importJobResults = importJobsResult.Value!;
         // If there are not too many, get the full - refreshed - details.
         // see above TODO - ideally they are always up to date because the preservation DB has been updated out of band.
@@ -42,6 +43,22 @@ public class DepositJobResultFetcher()
             importJobResults = updatedImportJobResults;
         }
         return Result.OkNotNull(importJobResults);
+
+    }
+
+    // This gets the preservation API's view, which is not necessarily up to date.
+    // TODO: The preservation API should listen for result completion and update these behind the scenes
+    public static async Task<Result<List<ProcessPipelineResult>>> GetPipelineJobResults(string depositId, IMediator mediator)
+    {
+        var pipelineJobsResult = await mediator.Send(new GetPipelineJobsResults(depositId));
+        if (pipelineJobsResult.Failure)
+        {
+            return pipelineJobsResult;
+        }
+
+        var pipelineJobResults = pipelineJobsResult.Value!;
+
+        return Result.OkNotNull(pipelineJobResults);
 
     }
 }

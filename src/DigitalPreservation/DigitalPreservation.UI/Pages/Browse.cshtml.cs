@@ -46,16 +46,18 @@ public class BrowseModel(
     public Dictionary<string, List<ImportJobResult>> ImportJobResultsForNewDeposits { get; set; } = new();
 
     
-    public async Task<IActionResult> OnGet(string? pathUnderRoot, [FromQuery] string? view, [FromQuery] string? version)
+    public async Task<IActionResult> OnGet(string? pathUnderRoot, [FromQuery] string? view)
     {
+        string? version = null;
         PathUnderRoot = pathUnderRoot;
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
-        Resource = await TryGetResourceFromCachedArchivalGroup(pathUnderRoot, version);
+        Resource = await TryGetResourceFromCachedArchivalGroup(pathUnderRoot);
         if (Resource != null && CachedArchivalGroup != null)
         {
             Resource.PartOf = CachedArchivalGroup.Id;
+            version = CachedArchivalGroup.Version!.OcflVersion!;
+            await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
         }
-        await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
         if(
             view != ViewValues.Mets && 
             CachedArchivalGroup != null && 
@@ -107,7 +109,7 @@ public class BrowseModel(
                 
                 if (view == ViewValues.Mets)
                 {
-                    var metsResult = await preservationApiClient.GetMetsStream(resourcePath, version);
+                    var metsResult = await preservationApiClient.GetMetsStream(resourcePath);
                     if (metsResult is { Item1: not null, Item2: not null })
                     {
                         return File(metsResult.Item1, metsResult.Item2);
@@ -150,21 +152,15 @@ public class BrowseModel(
         return Page();
     }
 
-    private async Task TrySetWorkingFileAndDirectoryFromMets(string? pathUnderRoot, string? version)
+    private async Task TrySetWorkingFileAndDirectoryFromMets(string? pathUnderRoot, string version)
     {
-        if (CachedArchivalGroup == null || Resource == null)
-        {
-            logger.LogInformation("Not a resource we can get from CachedArchivalGroup");
-            return;
-        }
-        var agResourcePath = CachedArchivalGroup.Id!.AbsolutePath;
+        var agResourcePath = CachedArchivalGroup!.Id!.AbsolutePath;
         
-        var headCacheKey = $"METS-{agResourcePath}?version=";
-        var cacheKey     = $"{headCacheKey}{version ?? ""}";
+        var cacheKey = $"METS-{agResourcePath}?version={version}";
         var metsWrapper = memoryCache.TryGetValue(cacheKey, out MetsFileWrapper? wrapper) ? wrapper : null;
         if (metsWrapper == null)
         {
-            var metsResult = await preservationApiClient.GetMetsStream(agResourcePath, version);
+            var metsResult = await preservationApiClient.GetMetsStream(agResourcePath);
             if (metsResult is { Item1: not null, Item2: not null })
             {
                 try
@@ -175,17 +171,6 @@ public class BrowseModel(
                     {
                         metsWrapper = result.Value;
                         memoryCache.Set(cacheKey, metsWrapper, TimeSpan.FromMinutes(3));
-                        if (cacheKey != headCacheKey)
-                        {
-                            // a specific version was requested, but if it's the latest, cache it under the headCacheKey
-                            var latest = CachedArchivalGroup.Versions!.OrderBy(v => v.MementoTimestamp).Last();
-                            if (CachedArchivalGroup.Version!.OcflVersion == latest.OcflVersion)
-                            {
-                                logger.LogInformation("Setting headCacheKey {headCacheKey} for original cacheKey {cacheKey}",
-                                    headCacheKey, cacheKey);
-                                memoryCache.Set(headCacheKey, metsWrapper, TimeSpan.FromMinutes(3));
-                            }
-                        }
                     }
                 }
                 catch (Exception e)
@@ -204,7 +189,7 @@ public class BrowseModel(
         
         // The METS file reflects the original layout
 
-        var localPath = GetLocalPath(Resource);
+        var localPath = GetLocalPath(Resource!);
         if (Resource is Container)
         {
             WorkingDirectory = MetsWorkingDirectory.FindDirectory(localPath, create:false);
@@ -228,7 +213,7 @@ public class BrowseModel(
             .RemoveStart("/");
     }
 
-    private async Task<PreservedResource?> TryGetResourceFromCachedArchivalGroup(string? pathUnderRoot, string? version)
+    private async Task<PreservedResource?> TryGetResourceFromCachedArchivalGroup(string? pathUnderRoot)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot}";
         if (pathUnderRoot is null or "/" or "")
@@ -246,8 +231,7 @@ public class BrowseModel(
         var testPath = pathUnderRoot;
         while (testPath.HasText() && testPath != "/" && testPath.Contains('/'))
         {
-            var headCacheKey = $"AG-{testPath}?version=";
-            var cacheKey = $"{headCacheKey}{version ?? ""}";
+            var cacheKey = CacheKey(testPath);
             logger.LogInformation("Seeing if there is an Archival Group in the cache for {cacheKey}", cacheKey);
             CachedArchivalGroup = memoryCache.TryGetValue(cacheKey, out ArchivalGroup? archivalGroup) ? archivalGroup : null;
             if (CachedArchivalGroup != null)
@@ -260,6 +244,7 @@ public class BrowseModel(
 
         if (CachedArchivalGroup != null && Request.Headers.CacheControl == "no-cache")
         {
+            // A hard-refresh from the client will force a rebuild of the cached version
             CachedArchivalGroup = null;
         }
 
@@ -302,22 +287,9 @@ public class BrowseModel(
                 if (archivalGroupToBeCached != null)
                 {
                     var agPathUnderRoot = archivalGroupToBeCached.GetPathUnderRoot();
-                    var headCacheKey = $"AG-{agPathUnderRoot}?version=";
-                    var cacheKey = $"{headCacheKey}{version ?? ""}";
-                    // If we now have an archival group, cache it with a key that uses the version (including version=(blank))
-                    memoryCache.Set(cacheKey, archivalGroupToBeCached, TimeSpan.FromMinutes(3));
-                    // Inspect the archival group. If it's the latest version, and we haven't already cached it at version=(blank),
-                    if (cacheKey != headCacheKey)
-                    {
-                        // a specific version was requested, but if it's the latest, cache it under the headCacheKey
-                        var latest = archivalGroupToBeCached.Versions!.OrderBy(v => v.MementoTimestamp).Last();
-                        if (archivalGroupToBeCached.Version!.OcflVersion == latest.OcflVersion)
-                        {
-                            logger.LogInformation("Setting headCacheKey {headCacheKey} for original cacheKey {cacheKey}",
-                                headCacheKey, cacheKey);
-                            memoryCache.Set(headCacheKey, archivalGroupToBeCached, TimeSpan.FromMinutes(3));
-                        }
-                    }
+                    // The Storage API caches archival groups for a long time, because they are by definition immutable.
+                    // But we can still avoid requesting huge AGs on every request by caching here for a short time.
+                    memoryCache.Set(CacheKey(agPathUnderRoot!), archivalGroupToBeCached, TimeSpan.FromMinutes(3));
                     CachedArchivalGroup = archivalGroupToBeCached;
                 }
             }
@@ -352,6 +324,8 @@ public class BrowseModel(
                 localPath, CachedArchivalGroup.Id!.AbsolutePath);
         }
         return resourceInAg;
+
+        string CacheKey(string s) => $"AG-UI-{s}";
     }
 
     private async Task GetJobsForActiveDeposits()

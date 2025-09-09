@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Amazon.SimpleNotificationService;
@@ -7,7 +7,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
-using Storage.API.Aws;
+using Storage.Repository.Common.Aws;
 
 namespace Storage.API.Features.Import;
 

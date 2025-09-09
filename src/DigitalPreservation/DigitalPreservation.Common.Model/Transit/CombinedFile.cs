@@ -39,47 +39,67 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     {
         FileInMets = null;
     }
-    
-    public FileMisMatch<string>? GetNameMisMatch()
+
+    private List<FileMisMatch>? fileMisMatches;
+
+    /// <summary>
+    /// Discrepancies between the metadata in the METS file and metadata derived from the contents of the deposit,
+    /// in particular tool outputs.
+    /// </summary>
+    public List<FileMisMatch> MisMatches => fileMisMatches ??= GenerateMisMatches();
+
+    private List<FileMisMatch> GenerateMisMatches()
     {
-        if (FileInDeposit is null || FileInMets is null)
+        List<FileMisMatch> misMatches = [];
+        if (FileInDeposit == null || FileInMets == null)
         {
-            return null;
+            // mismatches are only when both are present
+            return misMatches; 
+        }
+
+        if (FolderNames.IsMetadata(LocalPath!))
+        {
+            return misMatches;
+        }
+
+        if (LocalPath == "mets.xml")
+        {
+            return misMatches;
         }
         
-        return new FileMisMatch<string>(FileInDeposit.Name, FileInMets.Name);
-    }
-    
-    public FileMisMatch<string>? GetDigestMisMatch()
-    {
-        if (FileInDeposit is null || FileInMets is null)
+        // (temp) do this just for FileFormatMetadata initially
+        if (DepositFileFormatMetadata != null && MetsFileFormatMetadata != null)
         {
-            return null;
+            // not a mismatch if one or other doesn't have any metadata yet
+            if (DepositFileFormatMetadata.FormatName != MetsFileFormatMetadata.FormatName)
+            {
+                misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "FormatName",
+                    DepositFileFormatMetadata.FormatName, MetsFileFormatMetadata.FormatName));
+            }
+
+            if (DepositFileFormatMetadata!.PronomKey != MetsFileFormatMetadata!.PronomKey)
+            {
+                misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "PronomKey",
+                    DepositFileFormatMetadata.PronomKey, MetsFileFormatMetadata.PronomKey));
+            }
+
+            if (DepositFileFormatMetadata!.ContentType != FileInMets.ContentType)
+            {
+                misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "ContentType",
+                    DepositFileFormatMetadata.ContentType, FileInMets.ContentType));
+            }
+
+            if (DepositFileFormatMetadata!.Digest != MetsFileFormatMetadata!.Digest)
+            {
+                misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "Digest", DepositFileFormatMetadata.Digest,
+                    MetsFileFormatMetadata.Digest));
+            }
         }
-        
-        return new FileMisMatch<string>(FileInDeposit.Digest, FileInMets.Digest);
+
+        return misMatches;
     }
-    
-    public FileMisMatch<long?>? GetSizeMisMatch()
-    {
-        if (FileInDeposit is null || FileInMets is null)
-        {
-            return null;
-        }
-        
-        return new FileMisMatch<long?>(FileInDeposit.Size, FileInMets.Size);
-    }
-    
-    public FileMisMatch<string>? GetContentTypeMisMatch()
-    {
-        if (FileInDeposit is null || FileInMets is null)
-        {
-            return null;
-        }
-        
-        return new FileMisMatch<string>(FileInDeposit.ContentType, FileInMets.ContentType);
-    }
-    
+
+
     public Whereabouts Whereabouts
     {
         get
@@ -107,10 +127,17 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         }
     }
 
-    public class FileMisMatch<T>(T? valueInDeposit, T? valueInMets)
+    public class FileMisMatch(string type, string field, string? valueInDeposit, string? valueInMets)
     {
-        public T? ValueInDeposit = valueInDeposit;
-        public T? ValueInMets = valueInMets;
+        public string MetadataType { get; } = type;
+        public string Field { get; } = field;
+        public string? ValueInDeposit { get; } = valueInDeposit;
+        public string? ValueInMets { get; } = valueInMets;
+
+        public override string ToString()
+        {
+            return $"{Field}: {ValueInDeposit} => {ValueInMets} ({MetadataType})";
+        }
     }
 
     public VirusScanMetadata? GetVirusMetadata()
@@ -129,22 +156,56 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     }
 
     private FileFormatMetadata? cachedDepositFileFormatMetadata;
-
-    public FileFormatMetadata? GetCachedDepositFileFormatMetadata()
+    private bool haveScannedDepositFileFormatMetadata;
+    /// <summary>
+    /// We use the deposit file format metadata multiple times, so let's cache it
+    /// </summary>
+    /// <returns></returns>
+    public FileFormatMetadata? DepositFileFormatMetadata
     {
-        cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
-        return cachedDepositFileFormatMetadata;
+        get
+        {
+            if (haveScannedDepositFileFormatMetadata)
+            {
+                return cachedDepositFileFormatMetadata;
+            }
+            cachedDepositFileFormatMetadata = FileInDeposit?.GetFileFormatMetadata();
+            haveScannedDepositFileFormatMetadata = true;
+            return cachedDepositFileFormatMetadata;
+        }
     }
-    
+
+
+    private FileFormatMetadata? cachedMetsFileFormatMetadata;
+    private bool haveScannedMetsFileFormatMetadata;
+
+    /// <summary>
+    /// We use the deposit file format metadata multiple times, so let's cache it
+    /// </summary>
+    /// <returns></returns>
+    public FileFormatMetadata? MetsFileFormatMetadata
+    {
+        get
+        {
+            if (haveScannedMetsFileFormatMetadata)
+            {
+                return cachedMetsFileFormatMetadata;
+            }
+
+            cachedMetsFileFormatMetadata = FileInMets?.GetFileFormatMetadata();
+            haveScannedMetsFileFormatMetadata = true;
+            return cachedMetsFileFormatMetadata;
+        }
+    }
+
     public long GetSingleSize()
     {
-        cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
         long size;
         var distinctSizes = new List<long?>
         {
-            fileInMets?.Size ?? 0,
-            cachedDepositFileFormatMetadata?.Size,
-            fileInDeposit?.Size
+            FileInMets?.Size ?? 0,
+            DepositFileFormatMetadata?.Size,
+            FileInDeposit?.Size
         }.Where(s => s is > 0).Distinct().ToList();
         if (distinctSizes.Count != 1)
         {
@@ -162,15 +223,14 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     {
         return
         [
-            fileInMets?.ContentType,
-            cachedDepositFileFormatMetadata?.ContentType,
-            fileInDeposit?.ContentType
+            FileInMets?.ContentType,
+            DepositFileFormatMetadata?.ContentType,
+            FileInDeposit?.ContentType
         ];
     }
     
     public string? GetSingleContentType()
     {
-        cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
         var distinctContentTypes = GetAllContentTypes().Where(ct => ct.HasText()).Distinct().ToList();
         if (distinctContentTypes.Count > 1)
         {
@@ -189,24 +249,28 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         return null;
     }
 
-    public string? GetSingleDigest()
+    public List<string> GetDistinctDigests()
     {
-        cachedDepositFileFormatMetadata ??= fileInDeposit?.GetFileFormatMetadata();
         var distinctDigests = new List<string?>
         {
-            fileInMets?.Digest,
-            cachedDepositFileFormatMetadata?.Digest,
-            fileInDeposit?.Digest
-        }.Where(digest => digest.HasText()).Distinct().ToList();
-        if (distinctDigests.Count == 1)
-        {
-            return distinctDigests.Single();
-        }
-        return null;
+            FileInMets?.Digest,
+            DepositFileFormatMetadata?.Digest,
+            FileInDeposit?.Digest
+        }.Where(digest => digest.HasText())
+            .Distinct()
+            .Select(digest => digest!) // flip to non-nullable
+            .ToList();
+        return distinctDigests;
+    }
+
+    public string? GetSingleDigest()
+    {
+        var distinctDigests = GetDistinctDigests();
+        return distinctDigests.Count == 1 ? distinctDigests.Single() : null;
     }
 
     public string? GetName()
     {
-        return fileInMets?.Name ?? fileInDeposit?.Name ?? fileInMets?.GetSlug() ?? fileInDeposit?.GetSlug();
+        return FileInMets?.Name ?? FileInDeposit?.Name ?? FileInMets?.GetSlug() ?? FileInDeposit?.GetSlug();
     }
 }

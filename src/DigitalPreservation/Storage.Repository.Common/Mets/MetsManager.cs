@@ -2,6 +2,7 @@
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
+using Amazon.Runtime.Internal.Util;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
@@ -14,12 +15,14 @@ using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
+using Microsoft.Extensions.Logging;
 using Checksum = DigitalPreservation.Utils.Checksum;
 using File = System.IO.File;
 
 namespace Storage.Repository.Common.Mets;
 
 public class MetsManager(
+    ILogger<MetsManager> logger,
     IMetsParser metsParser, 
     IAmazonS3 s3Client) : IMetsManager
 {
@@ -362,7 +365,7 @@ public class MetsManager(
         return EditMets(null, deletePath, fullMets);
     }
 
-    private static Result EditMets(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
+    private Result EditMets(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
     {
         // Add workingBase to METS
         // This is where our non-opaque phys structmap IDs come into play.
@@ -461,7 +464,11 @@ public class MetsManager(
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
                     }
 
-                    var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]);
+                    // TODO: This is a quick fix to get round the problem of spaces in XML IDs.
+                    // We need to not have any spaces in XML IDs, which means we need to escape them 
+                    // in a reversible way (replacing with _ won't do)
+                    var fileAdmId = string.Join(' ', file.Admid);
+                    var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
                     FileFormatMetadata patchPremis;
                     try
@@ -484,6 +491,10 @@ public class MetsManager(
                     }
                     premisXml = PremisManager.GetXmlElement(premisType, true);
                     amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
+                    if (patchPremis.ContentType.HasText() && patchPremis.ContentType != ContentTypes.NotIdentified)
+                    {
+                        file.Mimetype = patchPremis.ContentType;
+                    }
                 }
                 else if (workingBase is WorkingDirectory workingDirectory)
                 {
@@ -600,7 +611,9 @@ public class MetsManager(
         }
         else
         {
-            return Result.Fail(ErrorCodes.BadRequest, "Cannot upload a file into a nonexistent directory");
+            var message = "Could not edit METS because not all parts of the path '" + testPath +
+                          "' have been added to METS.";
+            return Result.Fail(ErrorCodes.BadRequest, message);
         }
 
         return Result.Ok();

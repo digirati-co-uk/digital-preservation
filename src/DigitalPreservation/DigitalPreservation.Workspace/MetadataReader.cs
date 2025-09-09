@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
+﻿using System.Net.Mime;
+using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
@@ -12,13 +13,12 @@ public class MetadataReader : IMetadataReader
     private readonly Uri rootUri;
     private Uri workingRootUri;
 
-    private Dictionary<string, string>? BagItSha256Values;
+    private Dictionary<string, string>? bagItSha256Values;
     private SiegfriedOutput? siegfriedSiegfriedOutput;
     private SiegfriedOutput? brunnhildeSiegfriedOutput;
     private List<string> infectedFiles = [];
-    private string? brunnhildeHtml = null;
     
-    private Dictionary<string, List<Metadata>> metadataByFiles =  new();
+    private readonly Dictionary<string, List<Metadata>> metadataByFiles =  new();
 
     public static async Task<MetadataReader> Create(IStorage storage, Uri rootUri)
     {
@@ -75,28 +75,36 @@ public class MetadataReader : IMetadataReader
             var brunnhildeHtmlResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("report.html"));
             if (brunnhildeHtmlResult is { Success: true, Value: not null })
             {
-                brunnhildeHtml = await GetTextFromStream(brunnhildeHtmlResult.Value);
+                var brunnhildeHtml = await GetTextFromStream(brunnhildeHtmlResult.Value);
+                GetMetadataList("metadata/brunnhilde/report.html").Add(
+                    new ToolOutput
+                    {
+                        Source = "Brunnhilde",
+                        Timestamp = timestamp,
+                        Content = brunnhildeHtml,
+                        ContentType = "text/html"
+                    });
             }
         }
         
         // when parsing files with paths, find the common origin and look for objects/ and metadata/
         string? bagItCommonParent;
-        if (BagItSha256Values is { Count: > 0 })
+        if (bagItSha256Values is { Count: > 0 })
         {
             // Bagit paths are made AFTER bagging, example:
             // data/objects/nyc/DSCF0969.JPG
-            bagItCommonParent = StringUtils.GetCommonParent(BagItSha256Values.Keys);
+            bagItCommonParent = StringUtils.GetCommonParent(bagItSha256Values.Keys);
             // => data/objects
             bagItCommonParent = AllowForObjectsAndMetadata(bagItCommonParent);
             // => data
-            foreach (var kvp in BagItSha256Values)
+            foreach (var kvp in bagItSha256Values)
             {
                 var localPath = kvp.Key.RemoveStart(bagItCommonParent).RemoveStart("/");
                 var metadataList = GetMetadataList(localPath!);
                 metadataList.Add(new DigestMetadata
                 {
                     Source = "BagIt",
-                    Digest = kvp.Value,
+                    Digest = kvp.Value.ToLowerInvariant(),
                     Timestamp = timestamp
                 });
             }
@@ -149,7 +157,7 @@ public class MetadataReader : IMetadataReader
             metadataList.Add(new FileFormatMetadata
             {
                 Source = source,
-                Digest = file.Sha256,
+                Digest = file.Sha256?.ToLowerInvariant(),
                 Size = file.Filesize,
                 PronomKey = file.Matches[0].Id,
                 FormatName = file.Matches[0].Format,
@@ -299,13 +307,13 @@ public class MetadataReader : IMetadataReader
     private async Task ReadBagItSha256(Stream stream)
     {
         var txt = await GetTextFromStream(stream);
-        BagItSha256Values = new Dictionary<string, string>();
+        bagItSha256Values = new Dictionary<string, string>();
         foreach (var line in txt.Split('\n'))
         {
             var parts = line.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 2)
             {
-                BagItSha256Values.Add(parts[1], parts[0]);
+                bagItSha256Values.Add(parts[1], parts[0]);
             }
         }
     }

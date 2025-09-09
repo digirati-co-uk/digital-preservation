@@ -1,6 +1,8 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
@@ -96,7 +98,7 @@ public class DepositsController(
             }
         }
 
-        var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+        var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
         var filesystemResult = await workspaceManager.GetFileSystemWorkingDirectory(refresh: true);
         if (filesystemResult is not { Success: true, Value: not null })
         {
@@ -138,7 +140,7 @@ public class DepositsController(
             var eTag = Request.Headers.IfMatch.FirstOrDefault();
             if (eTag.HasText() && eTag == deposit.MetsETag)
             {
-                var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+                var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
                 var deleteResult = await workspaceManager.DeleteItems(deleteSelection, User.GetCallerIdentity());
                 return this.StatusResponseFromResult(deleteResult);
             }
@@ -163,7 +165,7 @@ public class DepositsController(
         var depositResult = await mediator.Send(new GetDeposit(id));
         if (depositResult is { Success: true, Value: not null })
         {
-            var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
+            var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
             var workingDirectoryResult = await workspaceManager.GetFileSystemWorkingDirectory(refresh);
             return this.StatusResponseFromResult(workingDirectoryResult);
         }
@@ -188,9 +190,9 @@ public class DepositsController(
         var depositResult = await mediator.Send(new GetDeposit(id));
         if (depositResult is { Success: true, Value: not null })
         {
-            var workspaceManager = workspaceManagerFactory.Create(depositResult.Value);
-            var workingDirectoryResult = await workspaceManager.GetCombinedDirectory(refresh);
-            return this.StatusResponseFromResult(workingDirectoryResult);
+            var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value, refresh);
+            var result = workspaceManager.GetRootCombinedDirectory();
+            return this.StatusResponseFromResult(result);
         }
         return this.StatusResponseFromResult(depositResult);
     }
@@ -295,8 +297,28 @@ public class DepositsController(
         var deleteDepositLockResult = await mediator.Send(new DeleteDepositLock(id, User));
         return this.StatusResponseFromResult(deleteDepositLockResult, successStatusCode: 204);
     }
-    
 
 
-    
+    [HttpPost("{id}/pipeline", Name = "RunPipeline")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> RunPipeline([FromRoute] string id, [FromQuery] string? runUser)
+    {
+        var runPipelineResult = await mediator.Send(new RunPipeline(id, User, runUser));
+        return this.StatusResponseFromResult(runPipelineResult, successStatusCode: 204);
+    }
+
+
+    [HttpPost("pipeline-status", Name = "LogPipelineRunStatus")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(401)]
+    public async Task<IActionResult> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit)
+    {
+        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit.Id, pipelineDeposit.DepositId , pipelineDeposit.Status ?? string.Empty, User, pipelineDeposit.RunUser, pipelineDeposit.Errors)); 
+
+        return this.StatusResponseFromResult(runPipelineStatusResult, successStatusCode: 204);
+    }
+
 }

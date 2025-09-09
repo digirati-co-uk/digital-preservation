@@ -18,7 +18,10 @@ using DigitalPreservation.Core.Auth;
 using LeedsDlipServices;
 using LeedsDlipServices.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Amazon.SimpleNotificationService;
+using DigitalPreservation.Common.Model.PipelineApi;
 using Microsoft.OpenApi.Models;
+
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -35,6 +38,9 @@ try
             .Enrich.FromLogContext()
             .Enrich.WithCorrelationId());
 
+    builder.Services.Configure<PipelineOptions>(
+        builder.Configuration.GetSection("PipelineOptions"));
+
     //Auth enabled flag
     var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
 
@@ -46,6 +52,8 @@ try
             .EnableTokenAcquisitionToCallDownstreamApi()
             .AddInMemoryTokenCaches();
     }
+
+    builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
 
 
     builder.Services

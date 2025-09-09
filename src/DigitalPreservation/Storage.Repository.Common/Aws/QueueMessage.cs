@@ -1,8 +1,8 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using Amazon.SQS.Model;
 
-namespace Storage.API.Aws;
+namespace Storage.Repository.Common.Aws;
 
 public class QueueMessage
 {

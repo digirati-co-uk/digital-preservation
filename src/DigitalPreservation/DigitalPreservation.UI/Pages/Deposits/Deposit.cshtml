@@ -1,28 +1,51 @@
 ﻿@page "/deposits/{id}"
 @using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.PipelineApi
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
+@using DigitalPreservation.UI.TagHelpers
 @using DigitalPreservation.Utils
+@using Microsoft.AspNetCore.Mvc.TagHelpers
 @model DepositModel
 
 @functions {
-    
+
     private bool IsLockedByOtherUser()
     {
         return Model.Deposit?.LockedBy != null && Model.Deposit.LockedBy.GetSlug() != User.GetCallerIdentity();
     }
-    
+
     private bool CanBeWorkedOn()
     {
         if (IsLockedByOtherUser()) return false;
         return Model.Deposit is { Active: true } && Model.Deposit.Status != DepositStates.Exporting;
     }
+
+    private (List<ProcessPipelineResult>? jobs, bool jobRunning) PipelineJobs()
+    {
+        var id = Model?.Deposit?.Id?.GetSlug();
+
+        if (!string.IsNullOrEmpty(id))
+        {
+            var jobs = Model?.GetPipelineJobResults().Result;
+            var latestJobs = jobs?.Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= DateTime.Now.Date && x.Deposit == id).OrderByDescending(x => x.DateBegun).Take(1);
+
+            var status = latestJobs?.FirstOrDefault()?.Status;
+            var jobRunning = !string.IsNullOrEmpty(status) && PipelineJobStates.IsNotComplete(status);
+
+            return (jobs, jobRunning);
+        }
+
+        return ([], false);
+
+    }
 }
 @{
-ViewData["Title"] = Model.GetDisplayTitle();
-ViewData["section"] = "deposits";
+    var (jobs, jobRunning) = PipelineJobs();
+    ViewData["Title"] = Model.GetDisplayTitle();
+    ViewData["section"] = "deposits";
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -45,7 +68,7 @@ ViewData["section"] = "deposits";
                         @if (Model.Deposit?.LockedBy != null)
                         {
                             <li>
-                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
+                                <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
                                     <svg class="bi"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
                                 </button>
                             </li>
@@ -53,18 +76,24 @@ ViewData["section"] = "deposits";
                         else
                         {
                             <li>
-                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="Lock">
+                                <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="Lock">
                                     <svg class="bi"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
                                 </button>
                             </li>
                         }
+                        
                         <li>
-                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
+                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
+                                <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
                                 <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-primary" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
+                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
                                 <svg class="bi"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
                             </button>
                         </li>
@@ -76,17 +105,17 @@ ViewData["section"] = "deposits";
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <button class="dropdown-item text-primary" type="button" id="selectNonMets">
+                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="selectNonMets">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-primary" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
+                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
                                 <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
                             </button>
                         </li>
                         <li>
-                            <button class="dropdown-item text-danger" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
+                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
                             </button>
                         </li>
@@ -98,7 +127,7 @@ ViewData["section"] = "deposits";
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
                                 <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
                             </button>
                         </li>
@@ -150,7 +179,22 @@ ViewData["section"] = "deposits";
             <p>This Deposit is locked by @Model.Deposit!.LockedBy?.GetSlug()</p>
         </div>
     }
- </div>
+    @if (TempData["MisMatchCount"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    
+    @if (jobRunning && TempData["Valid"] == null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <p>This deposit has a metadata pipeline being run by @Model.Deposit!.LockedBy?.GetSlug() . <br/> 
+                Please refresh for status updates</p>
+        </div>
+    }
+</div>
 
 @if(Model.Deposit != null)
 {
@@ -205,10 +249,8 @@ ViewData["section"] = "deposits";
                 
                 @if (Model.Deposit.Status != DepositStates.Exporting)
                 {                
-                    var combinedResult = await Model.WorkspaceManager.GetCombinedDirectory();
-                    if (combinedResult is { Success: true, Value: not null })
+                    if (Model.RootCombinedDirectory != null)
                     {
-                        var rootCombinedDirectory = combinedResult.Value;
                         <div class="table-responsive small">
                             <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
                                 <thead>
@@ -234,7 +276,7 @@ ViewData["section"] = "deposits";
                                     </tr>
                                 }
                                 @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(rootCombinedDirectory,
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(Model.RootCombinedDirectory,
                                         Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
                                         Model.Deposit.Active, IsLockedByOtherUser(), 
                                         Model.WorkspaceManager.RootAccessRestrictions,
@@ -247,13 +289,13 @@ ViewData["section"] = "deposits";
                         </div>
                         <p><small>
                             @{
-                                var totals = rootCombinedDirectory.GetSizeTotals();
+                                var totals = Model.RootCombinedDirectory.GetSizeTotals();
                             }
                             @totals.TotalFileCount <text> files in </text> @totals.TotalDirectoryCount <text> directories.</text><br/>
                             @StringUtils.FormatFileSize(totals.TotalSizeInDeposit, withSpace: true, fallbackIfNull: " - ") <text> in Deposit, </text>
                             @StringUtils.FormatFileSize(totals.TotalSizeInMets, withSpace: true, fallbackIfNull: " - ") <text> in METS, </text>
                             @StringUtils.FormatFileSize(totals.TotalSize, withSpace: true, fallbackIfNull: " - ") <text> Overall. </text><br/>
-                            Deposit structure built @(combinedResult.Value.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
+                            Deposit structure built @(Model.RootCombinedDirectory.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
                         </small></p>
                     }
                     else
@@ -353,6 +395,61 @@ ViewData["section"] = "deposits";
                     }
                 }
 
+                <hr/>
+
+
+                <h3>Pipeline Jobs</h3>
+
+                @{
+                    var pipelineJobResults = jobs;
+                    if (pipelineJobResults is { Count: 0 })
+                    {
+                        <p>There are no submitted pipeline jobs for this Deposit.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive small">
+                            <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
+                                <thead>
+                                <tr>
+                                    <th scope="col">JobId</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Begun</th>
+                                    <th scope="col">Finished</th>
+                                    <th scope="col">User</th>
+                                    <th scope="col">Errors</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @if (pipelineJobResults != null)
+                        {
+                            foreach (var result in pipelineJobResults)
+                            {
+                                <tr>
+                                    <td>@result.JobId</td>
+                                    <td>@result.Status</td>
+                                    <td>@result.DateBegun.GetDateDisplay()</td>
+                                    <td>@result.DateFinished.GetDateDisplay()</td>
+                                    <td>@result.RunUser</td>
+                                    <td class="text-danger">
+
+                                        @if (result.Errors != null && result.Errors.Any())
+                                        {
+                                            foreach (var line in result.Errors.Select(e => e.Message))
+                                            {
+                                                <p>@line</p>
+                                            }
+                                        }
+
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        </tbody>
+                            </table>
+                        </div>
+                    }
+                }
             </div>
             
             @* START OF SIDE INFO PANEL *@
@@ -744,6 +841,9 @@ ViewData["section"] = "deposits";
             if (row.getAttribute("data-whereabouts") === "Deposit"){
                 itemSelector.checked = true;
             }
+            if (row.getAttribute("data-mismatches")?.toLowerCase() === "true"){
+                itemSelector.checked = true;
+            }
         }
     });
 
@@ -834,7 +934,7 @@ ViewData["section"] = "deposits";
                 const relativePath = row.getAttribute("data-path");
                 if (relativePath && (type === "directory" || type === "file")){
                     const whereabouts = row.getAttribute("data-whereabouts");
-                    if(whereabouts === "Deposit"){
+                    if(whereabouts === "Deposit" || whereabouts === "Both"){
                         const item = {
                             path: relativePath,
                             isDir: (type === "directory"),

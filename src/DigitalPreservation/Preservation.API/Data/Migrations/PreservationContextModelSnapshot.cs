@@ -246,6 +246,61 @@ namespace Preservation.API.Data.Migrations
 
                     b.ToTable("import_jobs", (string)null);
                 });
+
+            modelBuilder.Entity("Preservation.API.Data.Entities.PipelineRunJob", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ArchivalGroup")
+                        .HasColumnType("text")
+                        .HasColumnName("archival_group");
+
+                    b.Property<DateTime?>("DateBegun")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("date_begun");
+
+                    b.Property<DateTime?>("DateFinished")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("date_finished");
+
+                    b.Property<DateTime?>("DateSubmitted")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("date_submitted");
+
+                    b.Property<string>("Deposit")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("deposit");
+
+                    b.Property<string>("Errors")
+                        .HasColumnType("text")
+                        .HasColumnName("errors");
+
+                    b.Property<DateTime>("LastUpdated")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated");
+
+                    b.Property<string>("PipelineJobJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("pipeline_job_json");
+
+                    b.Property<string>("RunUser")
+                        .HasColumnType("text")
+                        .HasColumnName("run_user");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_pipeline_run_jobs");
+
+                    b.ToTable("pipeline_run_jobs", (string)null);
+                });
 #pragma warning restore 612, 618
         }
     }
