@@ -34,12 +34,12 @@ public class RunPipelineHandler(
 
         if (entity == null)
         {
-            return Result.Fail(ErrorCodes.NotFound, "No deposit for ID " + request.Id);
+            return Result.Fail(ErrorCodes.NotFound, "Could not run pipeline because could not find no deposit for ID " + request.Id);
         }
 
         if (entity.LockedBy is not null && entity.LockedBy != request.RunUser)
         {
-            return Result.Fail(ErrorCodes.Conflict, "Deposit is locked by " + entity.LockedBy);
+            return Result.Fail(ErrorCodes.Conflict, $"Could not run pipeline because the deposit {request.Id} is locked by " + entity.LockedBy);
         }
 
         var topicArn = pipelineOptions.Value.PipelineJobTopicArn;
