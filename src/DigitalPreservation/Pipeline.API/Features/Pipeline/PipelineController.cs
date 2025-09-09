@@ -86,7 +86,7 @@ public class PipelineController(
         return await Task.FromResult(model);
     }
 
-    private void ProcessDirectory(string targetDirectory)
+    private void ProcessDirectory(string? targetDirectory)
     {
         // Process the list of files found in the directory.
         string[] fileEntries = Directory.GetFiles(targetDirectory);
@@ -95,16 +95,16 @@ public class PipelineController(
                 files.Add(fileName);
 
         // Recurse into subdirectories of this directory.
-        string[] subdirectoryEntries = Directory.GetDirectories(targetDirectory);
+        string?[] subdirectoryEntries = Directory.GetDirectories(targetDirectory);
 
-        foreach (string subdirectory in subdirectoryEntries)
+        foreach (string? subdirectory in subdirectoryEntries)
         {
             ProcessDirectory(subdirectory);
         }
 
     }
 
-    private async Task<string?> GetWorkingDirectory(string targetDirectory)
+    private async Task<string?> GetWorkingDirectory(string? targetDirectory)
     {
         try
         {
@@ -135,7 +135,7 @@ public class PipelineController(
 
     }
 
-    private string GetDf(string targetDirectory)
+    private string GetDf(string? targetDirectory)
     {
         return Bash(GetDiskSpace(), targetDirectory);
     }
@@ -145,7 +145,7 @@ public class PipelineController(
         return string.Join(" ", "df");
     }
 
-    private string Bash(string cmd, string targetDirectory)
+    private string Bash(string cmd, string? targetDirectory)
     {
         var escapedArgs = cmd.Replace("\"", "\\\"");
 

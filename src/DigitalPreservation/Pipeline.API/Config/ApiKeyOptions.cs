@@ -1,8 +1,7 @@
-﻿namespace Pipeline.API.Config
+﻿namespace Pipeline.API.Config;
+
+public class ApiKeyOptions
 {
-    public class ApiKeyOptions
-    {
-        public string ApiKey { get; set; }
-        public string ApiHeaderName { get; set; }
-    }
+    public string? ApiKey { get; set; }
+    public string? ApiHeaderName { get; set; }
 }

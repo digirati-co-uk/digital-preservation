@@ -1,7 +1,6 @@
-﻿namespace Pipeline.API.Config
+﻿namespace Pipeline.API.Config;
+
+public class StorageOptions
 {
-    public class StorageOptions
-    {
-        public string FileMountPath { get; set; }
-    }
+    public string? FileMountPath { get; set; }
 }

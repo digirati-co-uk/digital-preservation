@@ -310,8 +310,8 @@ public class ProcessPipelineJobHandler(
         }
 
 
-        if (!Directory.Exists(processFolder))
-            Directory.CreateDirectory(processFolder);
+        if (!Directory.Exists(processFolder) && processFolder != null)
+                Directory.CreateDirectory(processFolder);
 
         if (!Directory.Exists(metadataProcessPath))
             Directory.CreateDirectory(metadataProcessPath);

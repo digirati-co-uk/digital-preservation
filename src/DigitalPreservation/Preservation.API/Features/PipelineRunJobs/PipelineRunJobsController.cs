@@ -11,8 +11,7 @@ namespace Preservation.API.Features.PipelineRunJobs;
 
 [Route("deposits/{depositId}/[controller]")]
 [ApiController]
-public class PipelineRunJobsController(ILogger<ImportJobsController> logger,
-    IMediator mediator) : Controller
+public class PipelineRunJobsController(IMediator mediator) : Controller
 {
 
     [HttpGet("results", Name = "GetPipelineJobResults")]
