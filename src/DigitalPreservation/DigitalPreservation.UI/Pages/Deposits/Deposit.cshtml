@@ -1,6 +1,5 @@
 ﻿@page "/deposits/{id}"
 @using DigitalPreservation.Common.Model
-@using DigitalPreservation.Common.Model.PipelineApi
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.Core.Auth
@@ -24,9 +23,9 @@
     }
 }
 @{
-    var (jobs, jobRunning, recentlyCompletedJob) = Model.PipelineJobsRunning();
+    var(jobs, jobRunning, _) = Model.PipelineJobsRunning();
 
-    if (jobRunning || recentlyCompletedJob)
+    if (jobRunning)
     {
         TempData.Remove("MisMatchCount");
     }
@@ -325,7 +324,7 @@
                     }
                     else
                     {
-                        <a class="btn btn-sm btn-primary me-2" role="button" href="/deposits/@Model.Id/importjobs/diff">
+                        <a class="btn btn-sm btn-primary me-2 @(!jobRunning ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
                             <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
                         </a>
                         <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">
