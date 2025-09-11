@@ -533,7 +533,7 @@ public class DepositModel(
             if(dateFinished == null)
                 return (jobs, jobRunning, false);
 
-            var recentlyCompleted = ((DateTime.UtcNow - dateFinished.Value).TotalMinutes) <= 5;
+            var recentlyCompleted = ((DateTime.UtcNow - dateFinished.Value).TotalMinutes) <= 10;
             return (jobs, jobRunning, recentlyCompleted);
         }
 

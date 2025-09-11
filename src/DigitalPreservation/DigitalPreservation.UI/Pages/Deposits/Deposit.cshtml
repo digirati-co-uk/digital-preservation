@@ -270,7 +270,8 @@
                                         Model.Deposit.Active, IsLockedByOtherUser(), 
                                         Model.WorkspaceManager.RootAccessRestrictions,
                                         Model.WorkspaceManager.RootRightsStatement,
-                                        new Counter());
+                                        new Counter(),
+                                        jobRunning || recentlyCompletedJob);
                                     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
                                 }
                                 </tbody>

@@ -91,7 +91,7 @@ File is in both
         continue; // this file is hidden
     }
     string where = file.Whereabouts.ToString().ToLowerInvariant();
-    bool mismatches = file.MisMatches.Any();
+    bool mismatches = file.MisMatches.Any() && !Model.PipelineJobRunningOrRecentRun;
     <tr class="deposit-row @("where-" + where)" 
         data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-mismatches="@mismatches" data-metadata="@isMetadata">
         <td aria-label="select-row">
