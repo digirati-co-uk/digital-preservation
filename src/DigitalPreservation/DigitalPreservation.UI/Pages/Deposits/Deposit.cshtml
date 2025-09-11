@@ -22,28 +22,9 @@
         if (IsLockedByOtherUser()) return false;
         return Model.Deposit is { Active: true } && Model.Deposit.Status != DepositStates.Exporting;
     }
-
-    private (List<ProcessPipelineResult>? jobs, bool jobRunning) PipelineJobs()
-    {
-        var id = Model?.Deposit?.Id?.GetSlug();
-
-        if (!string.IsNullOrEmpty(id))
-        {
-            var jobs = Model?.GetPipelineJobResults().Result;
-            var latestJobs = jobs?.Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= DateTime.Now.Date && x.Deposit == id).OrderByDescending(x => x.DateBegun).Take(1);
-
-            var status = latestJobs?.FirstOrDefault()?.Status;
-            var jobRunning = !string.IsNullOrEmpty(status) && PipelineJobStates.IsNotComplete(status);
-
-            return (jobs, jobRunning);
-        }
-
-        return ([], false);
-
-    }
 }
 @{
-    var (jobs, jobRunning) = PipelineJobs();
+    var (jobs, jobRunning, recentlyCompletedJob) = Model.PipelineJobsRunning();
     ViewData["Title"] = Model.GetDisplayTitle();
     ViewData["section"] = "deposits";
 }
@@ -173,13 +154,15 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
+
     @if (IsLockedByOtherUser())
     {
         <div class="alert alert-danger" role="alert">
             <p>This Deposit is locked by @Model.Deposit!.LockedBy?.GetSlug()</p>
         </div>
     }
-    @if (!jobRunning && TempData["MisMatchCount"] != null)
+
+    @if (!jobRunning && !recentlyCompletedJob && TempData["MisMatchCount"] != null)
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
