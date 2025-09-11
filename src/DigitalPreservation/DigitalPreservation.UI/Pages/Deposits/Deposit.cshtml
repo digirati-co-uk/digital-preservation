@@ -25,6 +25,12 @@
 }
 @{
     var (jobs, jobRunning, recentlyCompletedJob) = Model.PipelineJobsRunning();
+
+    if (jobRunning || recentlyCompletedJob)
+    {
+        TempData.Remove("MisMatchCount");
+    }
+
     ViewData["Title"] = Model.GetDisplayTitle();
     ViewData["section"] = "deposits";
 }
@@ -162,7 +168,7 @@
         </div>
     }
 
-    @if (!jobRunning && !recentlyCompletedJob && TempData["MisMatchCount"] != null)
+    @if (TempData["MisMatchCount"] != null)
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
