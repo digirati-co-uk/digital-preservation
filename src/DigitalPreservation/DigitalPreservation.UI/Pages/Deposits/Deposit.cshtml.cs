@@ -323,7 +323,7 @@ public class DepositModel(
             if (result.Success && result1.Success)
             {
                 TempData["Valid"] = "Deposit locked and pipeline running";
-                //TempData["MisMatchCount"] = null; //will be recalculated as METS is refreshed with pipeline run
+                TempData.Remove("MisMatchCount"); //will be recalculated as METS is refreshed with pipeline run
             }
             else
             {

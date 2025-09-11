@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using Azure.Core;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.Results;
@@ -184,9 +185,18 @@ public class ProcessPipelineJobHandler(
         {
             logger.LogError("Issue executing Brunnhilde process: process?.StandardOutput is null");
 
+            logger.LogError($"Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}");
+
+            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+            logger.LogInformation($"releaseLockResult: {releaseLockResult.Success}");
+            if (releaseLockResult is { Failure: true })
+            {
+                logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+            }
+
             await mediator.Send(new LogPipelineJobStatus(
                 depositId, jobIdentifier!, PipelineJobStates.CompletedWithErrors,
-                runUser!, $" Issue executing Brunnhilde process as the reader is null"));
+                runUser!, " Issue executing Brunnhilde process as the reader is null"));
 
             return new ProcessPipelineResult
             {
