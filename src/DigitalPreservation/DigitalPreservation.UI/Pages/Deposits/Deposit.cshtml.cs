@@ -1,5 +1,4 @@
-﻿using System.Text.Json;
-using Amazon.S3.Util;
+﻿using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -16,13 +15,16 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
+using System.Text.Json;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
 public class DepositModel(
     IMediator mediator, 
     IOptions<PreservationOptions> options,
-    WorkspaceManagerFactory workspaceManagerFactory) : PageModel
+    WorkspaceManagerFactory workspaceManagerFactory,
+    IPreservationApiClient preservationApiClient,
+    ILogger<DepositModel> logger) : PageModel
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
@@ -511,6 +513,40 @@ public class DepositModel(
         }
 
         return "#";
+    }
+
+    public async Task CleanupPipelineRunsForDeposit(List<ProcessPipelineResult>? jobs)
+    {
+        if (jobs == null)
+            return;
+
+        foreach (var job in jobs)
+        {
+            if (job.Status == PipelineJobStates.Running && job.DateBegun <= DateTime.Now.Date)
+            {
+                //Set to completedWithErrors
+                //TODO: send pipelineJobStatus
+
+                if (string.IsNullOrEmpty(job.JobId))
+                    continue;
+
+                var pipelineDeposit = new PipelineDeposit
+                {
+                    Id = job.JobId,
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    DepositId = job.Deposit,
+                    RunUser = job.RunUser,
+                    Errors = "Cleaned up as previous processing did not complete"
+                };
+
+                var logResult = await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, new CancellationToken());
+
+                if (logResult.Failure)
+                    logger.LogError(
+                        "Could not record CompletedWithErrors status for deposit {depositId} job {jobIdentifier}", job.Deposit, job.JobId);
+            }
+        }
+
     }
 }
 
