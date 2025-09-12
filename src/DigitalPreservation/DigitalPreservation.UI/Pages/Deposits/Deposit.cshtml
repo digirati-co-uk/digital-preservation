@@ -23,7 +23,7 @@
     }
 }
 @{
-    var(jobs, jobRunning, _) = Model.PipelineJobsRunning();
+    var(jobs, jobRunning) = Model.PipelineJobsRunning();
 
     if (jobRunning)
     {

@@ -515,7 +515,7 @@ public class DepositModel(
         return "#";
     }
 
-    public (List<ProcessPipelineResult>? jobs, bool jobRunning, bool recentlyCompletedJob) PipelineJobsRunning()
+    public (List<ProcessPipelineResult>? jobs, bool jobRunning) PipelineJobsRunning()
     {
         var id = Deposit?.Id?.GetSlug();
 
@@ -525,20 +525,16 @@ public class DepositModel(
             var latestJobs = jobs?.Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= DateTime.Now.Date && x.Deposit == id).OrderByDescending(x => x.DateBegun).Take(1);
 
             if(latestJobs == null)
-                return ([], false, false);
+                return ([], false);
 
             var latestJobResults = latestJobs.ToList();
             var status = latestJobResults.FirstOrDefault()?.Status;
             var jobRunning = !string.IsNullOrEmpty(status) && PipelineJobStates.IsNotComplete(status);
-            var dateFinished = latestJobResults.FirstOrDefault()?.DateFinished;
-            if(dateFinished == null)
-                return (jobs, jobRunning, false);
 
-            var recentlyCompleted = ((DateTime.UtcNow - dateFinished.Value).TotalMinutes) <= 10;
-            return (jobs, jobRunning, recentlyCompleted);
+            return (jobs, jobRunning);
         }
 
-        return ([], false, false);
+        return ([], false);
 
     }
 }
