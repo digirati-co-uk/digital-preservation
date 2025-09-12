@@ -381,8 +381,14 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 }
             }
 
-            var digest = combinedFile.GetSingleDigest();
-            if (digest is null)
+            var digests = combinedFile.GetDistinctDigests();
+            if (digests.Count == 0)
+            {
+                return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
+                    $"File {combinedFile.LocalPath} has no digest information in either METS, metadata or Deposit file attributes.");
+            }
+
+            if (digests.Count > 1)
             {
                 return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
                     $"File {combinedFile.LocalPath} has different digests in deposit and mets");
@@ -395,7 +401,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 Id = binaryId,
                 Name = name, 
                 ContentType = contentType,
-                Digest = digest,
+                Digest = digests[0],
                 Size = size,
                 Origin = origin.AppendEscapedSlug(slug.EscapeForUri())  // We'll need to unescape this back to a key
             });
@@ -429,7 +435,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 var size = combinedFile.FileInDeposit.Size;
                 if (size is null or <= 0)
                 {
-                    size = combinedFile.GetCachedDepositFileFormatMetadata()?.Size;
+                    size = combinedFile.DepositFileFormatMetadata?.Size;
                 }
                 totals.TotalSizeInDeposit += size ?? 0;
                 if (size is > 0)
@@ -453,6 +459,30 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         foreach (var childDirectory in combinedDirectory.Directories)
         {
             AddBinariesToTotals(childDirectory, totals);
+        }
+    }
+
+    public List<string> GetMisMatches()
+    {
+        var mismatches = new List<string>();
+        AddMisMatches(mismatches);
+        return mismatches;
+    }
+
+
+    private void AddMisMatches(List<string> localPaths)
+    {
+        foreach (var combinedFile in Files)
+        {
+            if (combinedFile.MisMatches.Count != 0)
+            {
+                localPaths.Add(combinedFile.LocalPath!);
+            }
+        }
+
+        foreach (var combinedDirectory in Directories)
+        {
+            combinedDirectory.AddMisMatches(localPaths);
         }
     }
 }

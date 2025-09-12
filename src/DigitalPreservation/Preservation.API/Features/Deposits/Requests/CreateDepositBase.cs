@@ -173,8 +173,7 @@ public class CreateDepositBase(
                 // refresh the file system
                 // The async export will do this at the end of its run, if we exported.
                 // But here we didn't, so just do a quick update (it won't take long)
-                var workspaceManager = workspaceManagerFactory.Create(createdDeposit);
-                await workspaceManager.GetCombinedDirectory(true);
+                await workspaceManagerFactory.CreateAsync(createdDeposit, true);
             }
             
             return Result.Ok(createdDeposit);

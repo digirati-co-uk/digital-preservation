@@ -79,7 +79,7 @@ try
     builder.Services
         .AddHttpContextAccessor()
         .ConfigureForwardedHeaders()
-        .AddPreservationClient(builder.Configuration, "DigitalPreservation UI")
+        .AddDownstreamPreservationClient(builder.Configuration, "DigitalPreservation UI")
         .AddIdentityServiceClient(builder.Configuration)
         .AddMvpCatalogueClient(builder.Configuration)
         .AddMediatR(cfg =>

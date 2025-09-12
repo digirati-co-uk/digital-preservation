@@ -3,6 +3,7 @@ using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
@@ -25,6 +26,8 @@ public class DepositModel(
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
+    
+    public CombinedDirectory? RootCombinedDirectory { get; set; }
     public Deposit? Deposit { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
 
@@ -37,7 +40,7 @@ public class DepositModel(
     {
         await BindDeposit(id, readFromStorage, writeToStorage);
     }
-    
+
     private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
     {
         Id = id;
@@ -45,7 +48,7 @@ public class DepositModel(
         if (getDepositResult.Success)
         {
             Deposit = getDepositResult.Value!;
-            WorkspaceManager = workspaceManagerFactory.Create(Deposit);
+            WorkspaceManager = await workspaceManagerFactory.CreateAsync(Deposit);
             
             if (!Deposit.ArchivalGroupExists && Deposit.ArchivalGroup != null && Deposit.ArchivalGroup.GetPathUnderRoot().HasText())
             {
@@ -53,6 +56,23 @@ public class DepositModel(
                 if (testArchivalGroupResult.Failure)
                 {
                     ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
+                }
+            }
+
+            if (Deposit.Status != DepositStates.Exporting)
+            {
+                var combinedResult = WorkspaceManager.GetRootCombinedDirectory();
+                if (combinedResult is { Success: true, Value: not null })
+                {
+                    RootCombinedDirectory = combinedResult.Value;
+                    if (WorkspaceManager.Editable)
+                    {
+                        var mismatches = RootCombinedDirectory.GetMisMatches();
+                        if (mismatches.Count != 0)
+                        {
+                            TempData["MisMatchCount"] = mismatches.Count;
+                        }
+                    }
                 }
             }
         }
@@ -80,13 +100,13 @@ public class DepositModel(
                 var details = result.Value!;
                 TempData["Created"] = details.Created;
                 TempData["Context"] = details.Context;
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
-        
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
     
     
@@ -130,7 +150,7 @@ public class DepositModel(
         if (await BindDeposit(id))
         {
             var minimalItems = JsonSerializer.Deserialize<List<MinimalItem>>(addToMetsObject)!;
-            var combinedResult = await WorkspaceManager.GetCombinedDirectory(true);
+            var combinedResult = await WorkspaceManager.RefreshCombinedDirectory();
             if (combinedResult is not { Success: true, Value: not null })
             {
                 TempData["Error"] = "Could not read deposit file system.";
@@ -217,13 +237,14 @@ public class DepositModel(
                 var details = result.Value!;
                 TempData["Uploaded"] = details.Uploaded;
                 TempData["Context"] = details.Context;
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
 
     }
     // This is only for small files! one at a time.
@@ -240,14 +261,16 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "View of storage has been updated.";
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
+
 
     public async Task<IActionResult> OnPostValidateStorage([FromRoute] string id)
     {
@@ -257,13 +280,15 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "Storage validation succeeded. The Deposit File System file reflects S3 content.";
-                return Redirect($"/deposits/{id}");
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
             }
 
-            TempData["Error"] = result.ErrorMessage;
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
     
     public async Task<IActionResult> OnPostLock([FromRoute] string id)
@@ -274,13 +299,42 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "Deposit locked.";
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
+        }
+        else
+        {
+            TempData["Error"] = "Could not bind deposit on lock";
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
+    }
+
+    public async Task<IActionResult> OnPostRunPipeline([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var runUser = User.GetCallerIdentity();
+            var result = await mediator.Send(new LockDeposit(Deposit!));
+            var result1 = await mediator.Send(new RunPipeline(Deposit!, runUser)); 
+            if (result.Success && result1.Success)
+            {
+                TempData["Valid"] = "Deposit locked and pipeline running";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
+        }
+        else
+        {
+            TempData["Error"] = "Could not bind deposit on run pipeline";
+        }
+
+        return Redirect($"/deposits/{id}");
     }
 
     public async Task<IActionResult> OnPostReleaseLock([FromRoute] string id)
@@ -291,13 +345,14 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["Valid"] = "Lock released.";
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
 
 
@@ -382,13 +437,14 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData["AccessConditionsUpdated"] = "Access Restrictions and Rights Statement updated.";
-                return Redirect($"/deposits/{id}");
             }
-
-            TempData["Error"] = result.ErrorMessage;
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
         }
 
-        return Page();
+        return Redirect($"/deposits/{id}");
     }
 
 
@@ -419,6 +475,19 @@ public class DepositModel(
         {
             var importJobResults = fetchResultsResult.Value!;
             return importJobResults;
+        }
+
+        TempData["Error"] = fetchResultsResult.CodeAndMessage();
+        return [];
+    }
+
+    public async Task<List<ProcessPipelineResult>> GetPipelineJobResults()
+    {
+        var fetchResultsResult = await DepositJobResultFetcher.GetPipelineJobResults(Id, mediator);
+        if (fetchResultsResult.Success)
+        {
+            var pipelineJobResults = fetchResultsResult.Value!;
+            return pipelineJobResults;
         }
 
         TempData["Error"] = fetchResultsResult.CodeAndMessage();

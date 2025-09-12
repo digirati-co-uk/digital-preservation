@@ -1,7 +1,9 @@
 ﻿using System.Net.Http.Json;
+using System.Threading;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Search;
@@ -9,6 +11,7 @@ using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using LeedsDlipServices.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 
@@ -56,6 +59,17 @@ internal class PreservationApiClient(
             return Result.Ok();
         }
         return await response.ToFailResult("Unable to remove lock");
+    }
+
+    public async Task<Result> RunPipeline(Deposit deposit, string? runUser, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/pipeline" + (!string.IsNullOrEmpty(runUser) ? $"?runUser={runUser}" : ""), UriKind.Relative);
+        var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+        return await response.ToFailResult("Unable to run pipeline");
     }
 
     public async Task<OrderedCollection?> GetOrderedCollection(string stream)
@@ -428,13 +442,9 @@ internal class PreservationApiClient(
         return (null, null);
     }
 
-    public async Task<(Stream?, string?)> GetMetsStream(string archivalGrouprepositoryPath, string? version, CancellationToken cancellationToken)
+    public async Task<(Stream?, string?)> GetMetsStream(string archivalGrouprepositoryPath, CancellationToken cancellationToken)
     {
         var queryString = "?view=mets";
-        if (version.HasText())
-        {
-            queryString += "&version=" + version;
-        }
         var uri = new Uri(archivalGrouprepositoryPath + queryString, UriKind.Relative);
         var req = new HttpRequestMessage(HttpMethod.Get, uri);
         var response = await preservationHttpClient.SendAsync(req, cancellationToken);
@@ -505,4 +515,78 @@ internal class PreservationApiClient(
         }
     }
 
+
+    public async Task<Result<List<ProcessPipelineResult>>> GetPipelineJobResultsForDeposit(string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            //var uri = new Uri($"/deposits/{depositId}/importJobs/results", UriKind.Relative);
+            var uri = new Uri($"/deposits/{depositId}/PipelineRunJobs/results", UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var jobResults = await response.Content.ReadFromJsonAsync<List<ProcessPipelineResult>>(cancellationToken: cancellationToken);
+                if (jobResults is not null)
+                {
+                    return Result.OkNotNull(jobResults);
+                }
+                return Result.FailNotNull<List<ProcessPipelineResult>>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<List<ProcessPipelineResult>>("Unable to get import job results");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<List<ProcessPipelineResult>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<ProcessPipelineResult>> GetPipelineJobResult(string depositId, string pipelineJobId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = new Uri($"/deposits/{depositId}/pipelineJobs/results/{pipelineJobId}", UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var jobResult = await response.Content.ReadFromJsonAsync<ProcessPipelineResult>(cancellationToken: cancellationToken);
+                if (jobResult is not null)
+                {
+                    return Result.OkNotNull(jobResult);
+                }
+                return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<ProcessPipelineResult>("Unable to get import job result");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<LogPipelineStatusResult>> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = new Uri("/Deposits/pipeline-status", UriKind.Relative);
+            var response = await preservationHttpClient.PostAsJsonAsync(uri, pipelineDeposit, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return Result.OkNotNull(new LogPipelineStatusResult { Status = "Success", JobId = pipelineDeposit.Id });
+            }
+
+            return await response.ToFailNotNullResult<LogPipelineStatusResult>("Unable to update pipeline status.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, ex.Message);
+            return Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, ex.Message);
+        }
+
+
+    }
 }

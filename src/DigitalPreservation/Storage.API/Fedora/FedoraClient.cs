@@ -1059,16 +1059,38 @@ internal class FedoraClient(
         }
     }
     
-    private static void PopulateOrigin(StorageMap storageMap, Binary binary)
+    private void PopulateOrigin(StorageMap storageMap, Binary binary)
     {
         if (storageMap.StorageType == StorageTypes.S3)
         {
             // Fedora replaces spaces in the key with actual "%20" strings that I don't think are escape sequences
             // e4267807db7270096340540b93834d3c47d56c964d5b5b27fa9a398fde52165e: "v1/content/objects/awkward/7%20ways%20to%20celebrate%20-_-percent-23-_-WomensHistoryMonth%20💜%20And%20a%20sneak%20peek%20at%20SICK%20new%20art.htm"
-            var storageMapFilePath = storageMap.Hashes[binary.Digest!];
-            // "v1/content/objects/awkward/7%20ways%20to%20celebrate%20-_-percent-23-_-WomensHistoryMonth%20💜%20And%20a%20sneak%20peek%20at%20SICK%20new%20art.htm"
-            var backToUriSafe = storageMapFilePath.EscapePathElements(); // because those %20s are really there!
-            binary.Origin = new Uri($"s3://{storageMap.Root}/{storageMap.ObjectPath}/{backToUriSafe}");
+            var storageMapKey = binary.Digest!;
+            if (storageMap.Hashes.TryGetValue(storageMapKey, out var storageMapFilePath))
+            {
+                // "v1/content/objects/awkward/7%20ways%20to%20celebrate%20-_-percent-23-_-WomensHistoryMonth%20💜%20And%20a%20sneak%20peek%20at%20SICK%20new%20art.htm"
+                var backToUriSafe = storageMapFilePath.EscapePathElements(); // because those %20s are really there!
+                binary.Origin = new Uri($"s3://{storageMap.Root}/{storageMap.ObjectPath}/{backToUriSafe}");
+            }
+            else
+            {
+                if (storageMap.Hashes.TryGetValue(storageMapKey.ToLowerInvariant(), out var storageMapFilePathFromLoweredHash))
+                {
+                    // Do we want to consider this valid? Fedora reports the hash given at ingest time on the API,
+                    // which is valid if upper case, but the OCFL has a lower case hash always.
+                    // So they are equivalent as SHA256 hashes but not as strings/keys.
+                    // We could allow this and just do the same as above, but for now I will throw:
+                    logger.LogError("Binary has a non-lowercase (but valid) SHA256 hash for {file}: {hash}", 
+                        storageMapFilePathFromLoweredHash, storageMapKey);
+                    throw new NotSupportedException(
+                        $"Binary has a non-lowercase (but valid) SHA256 hash for {storageMapFilePathFromLoweredHash}: {storageMapKey}");
+                }
+
+                logger.LogError("StorageMap has no entry for hash: {hash}, expected for binary {binaryId}", 
+                    storageMapKey, binary.Id);
+                throw new NotSupportedException(
+                    $"StorageMap has no entry for hash: {storageMapKey}, expected for binary {binary.Id}");
+            }
         }
         // filesystem later
     }

@@ -144,3 +144,24 @@ jobs:
           target-ecs-cluster: ${{ vars.CLUSTER_NAME }}
           wait-for-services: ${{ inputs.wait_services }}
           role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}
+
+  deploy-pipeline-api-builder:
+    if: (inputs.deploy_dotnet == 'true')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ecr-retag
+        name: retag image
+        with:
+          source-image: ${{ vars.ECR_PREFIX }}/dlip-pres-pipeline-api 
+          source-tag: ${{ inputs.image_tag }}
+          target-tag: ${{ inputs.target_env }}
+          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+      - uses: ./.github/actions/ecs-bounce
+        name: bounce service
+        with:
+          target-ecs-service: ${{ vars.PIPELINE_SERVICE }}
+          target-ecs-cluster: ${{ vars.EC2_CLUSTER_NAME }}
+          wait-for-services: ${{ inputs.wait_services }}
+          role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}        
