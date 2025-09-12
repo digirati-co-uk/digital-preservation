@@ -82,15 +82,15 @@ public class ProcessPipelineJobHandler(
 
             var result = await ExecuteBrunnhilde(workspaceResult.Value);
             
-            logger.LogInformation($"Execute Brunnhilde result {result?.Status} {result?.Errors} ");
+            logger.LogInformation("Execute Brunnhilde result {status} and any errors {errors} ", result?.Status, result?.Errors);
             return result?.Status == PipelineJobStates.Completed ? Result.Ok() : Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not complete pipeline run {result?.Errors?.FirstOrDefault()?.Message}");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Caught error in PipelineJob handler for job id {request.JobIdentifier} and deposit {request.DepositId}", request.JobIdentifier, request.DepositId);
+            logger.LogError(ex, "Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}", request.JobIdentifier, request.DepositId);
 
             var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceResult.Value.Deposit, CancellationToken.None);
-            logger.LogInformation("releaseLockResult: {releaseLockResult.Success}", releaseLockResult.Success);
+            logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
             if (releaseLockResult is { Failure: true })
             {
                 logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
@@ -100,7 +100,7 @@ public class ProcessPipelineJobHandler(
                 new LogPipelineJobStatus(request.DepositId, request.JobIdentifier, PipelineJobStates.CompletedWithErrors, runUser, ex.Message), cancellationToken);
 
             if (pipelineJobsResult.Value?.Errors is { Length: 0 })
-                logger.LogInformation("Job {request.JobIdentifier} Running status CompletedWithErrors logged", request.JobIdentifier);
+                logger.LogInformation("Job {jobIdentifier} Running status CompletedWithErrors logged", request.JobIdentifier);
 
             return Result.FailNotNull<Result>(ErrorCodes.UnknownError, 
                 $"Could not publish pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: " + ex.Message);
@@ -131,7 +131,7 @@ public class ProcessPipelineJobHandler(
             logger.LogError("S3 mount path could not be found at {mountPath}", mountPath);
 
             var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
-            logger.LogInformation("releaseLockResult: {releaseLockResult.Success}", releaseLockResult.Success);
+            logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
             if (releaseLockResult is { Failure: true })
             {
                 logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
@@ -152,7 +152,7 @@ public class ProcessPipelineJobHandler(
             logger.LogError("Deposit {depositId} folder and contents could not be found at {objectPath}", depositId, objectPath);
 
             var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
-            logger.LogInformation("releaseLockResult: {releaseLockResult.Success}", releaseLockResult.Success);
+            logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
             if (releaseLockResult is { Failure: true })
             {
                 logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
@@ -188,7 +188,7 @@ public class ProcessPipelineJobHandler(
             logger.LogError("Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}", jobIdentifier, depositId);
 
             var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
-            logger.LogInformation("releaseLockResult: {releaseLockResult.Success}", releaseLockResult.Success);
+            logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
             if (releaseLockResult is { Failure: true })
             {
                 logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
@@ -251,7 +251,7 @@ public class ProcessPipelineJobHandler(
             }
             
             var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
-            logger.LogInformation("releaseLockResult: {releaseLockResult.Success}", releaseLockResult.Success);
+            logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
             if (releaseLockResult is { Failure: true })
             {
                 logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
@@ -274,7 +274,7 @@ public class ProcessPipelineJobHandler(
         else
         {
             var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
-            logger.LogInformation("releaseLockResult: {releaseLockResult.Success}", releaseLockResult.Success);
+            logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
             if (releaseLockResult is { Failure: true })
             {
                 logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
@@ -415,7 +415,7 @@ public class ProcessPipelineJobHandler(
 
             foreach (var uploadFile in uploadFileResult)
             {
-                logger.LogInformation(" uploadFile.Value.Context {uploadFile?.Value?.Context}", uploadFile?.Value?.Context);
+                logger.LogInformation(" uploadFile.Value.Context {context}", uploadFile?.Value?.Context);
             }
 
             if (createSubFolderResult.Any() && uploadFileResult.Any())
@@ -451,9 +451,9 @@ public class ProcessPipelineJobHandler(
 
         if (!result.Success)
         {
-            logger.LogError("Error code for dir path {dirPath}: {result.ErrorCode}", dirPath, result.ErrorCode);
-            logger.LogError("Error message for dir path {dirPath}: {result.ErrorMessage}", dirPath, result.ErrorMessage);
-            logger.LogError("Error failure for dir path {dirPath}: {result.Failure}", dirPath, result.Failure);
+            logger.LogError("Error code for dir path {dirPath}: {errorCode}", dirPath, result.ErrorCode);
+            logger.LogError("Error message for dir path {dirPath}: {errorMessage}", dirPath, result.ErrorMessage);
+            logger.LogError("Error failure for dir path {dirPath}: {failure}", dirPath, result.Failure);
         }
 
         return result;
@@ -493,13 +493,13 @@ public class ProcessPipelineJobHandler(
 
         if (!result.Success)
         {
-            logger.LogError("Error code for file path {filePath}: {result.ErrorCode}", filePath, result.ErrorCode);
-            logger.LogError("Error message for file path {filePath}: {result.ErrorMessage}", filePath, result.ErrorMessage);
-            logger.LogError("Error failure for file path {filePath}: {result.Failure}", filePath, result.Failure);
+            logger.LogError("Error code for file path {filePath}: {errorCode}", filePath, result.ErrorCode);
+            logger.LogError("Error message for file path {filePath}: {errorMessage}", filePath, result.ErrorMessage);
+            logger.LogError("Error failure for file path {filePath}: {failure}", filePath, result.Failure);
         }
         else
         {
-            logger.LogInformation("uploaded file {result.Value?.Uploaded} with context {result.Value?.Context}", result.Value?.Uploaded, result.Value?.Context);
+            logger.LogInformation("uploaded file {uploaded} with context {context}", result.Value?.Uploaded, result.Value?.Context);
         }
 
         await stream.DisposeAsync();
