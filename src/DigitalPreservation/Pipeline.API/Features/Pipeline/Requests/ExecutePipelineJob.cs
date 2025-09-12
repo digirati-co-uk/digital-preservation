@@ -637,8 +637,6 @@ public class ProcessPipelineJobHandler(
 
     private async Task CleanupPipelineRunsForDeposit(string depositId)
     {
-        //Do tidy up on the fly
-        //TODO: get all jobs in processing older than a day old - update status to CompletedWithErrors
         var depositPipelineResults = await preservationApiClient.GetPipelineJobResultsForDeposit(depositId, new CancellationToken());
 
         if(depositPipelineResults.Value == null)
@@ -648,8 +646,6 @@ public class ProcessPipelineJobHandler(
         {
             if (jobResult.Status == PipelineJobStates.Running && jobResult.DateBegun <= DateTime.Now.Date)
             {
-                //Set to completedWithErrors
-                //TODO: send pipelineJobStatus
 
                 if (string.IsNullOrEmpty(jobResult.JobId))
                     continue;
