@@ -1,5 +1,4 @@
-﻿using System.Text.Json;
-using Amazon.S3.Util;
+﻿using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -16,6 +15,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
+using System.Text.Json;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -61,6 +61,7 @@ public class DepositModel(
 
             if (Deposit.Status != DepositStates.Exporting)
             {
+                await WorkspaceManager.RefreshCombinedDirectory(); //refresh
                 var combinedResult = WorkspaceManager.GetRootCombinedDirectory();
                 if (combinedResult is { Success: true, Value: not null })
                 {
@@ -323,6 +324,7 @@ public class DepositModel(
             if (result.Success && result1.Success)
             {
                 TempData["Valid"] = "Deposit locked and pipeline running";
+                TempData.Remove("MisMatchCount"); //will be recalculated as METS is refreshed with pipeline run
             }
             else
             {
@@ -511,6 +513,29 @@ public class DepositModel(
         }
 
         return "#";
+    }
+
+    public (List<ProcessPipelineResult>? jobs, bool jobRunning) PipelineJobsRunning()
+    {
+        var id = Deposit?.Id?.GetSlug();
+
+        if (!string.IsNullOrEmpty(id))
+        {
+            var jobs = GetPipelineJobResults().Result;
+            var latestJobs = jobs?.Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= DateTime.Now.Date && x.Deposit == id).OrderByDescending(x => x.DateBegun).Take(1);
+
+            if(latestJobs == null)
+                return ([], false);
+
+            var latestJobResults = latestJobs.ToList();
+            var status = latestJobResults.FirstOrDefault()?.Status;
+            var jobRunning = !string.IsNullOrEmpty(status) && PipelineJobStates.IsNotComplete(status);
+
+            return (jobs, jobRunning);
+        }
+
+        return ([], false);
+
     }
 }
 
