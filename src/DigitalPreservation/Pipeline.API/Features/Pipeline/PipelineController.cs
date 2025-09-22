@@ -66,9 +66,10 @@ public class PipelineController(
 
             if (string.IsNullOrEmpty(depositFilesModel.DepositNameOrPath))
             {
-                model.Errors.Add("Deposit name or path is null");
+                model.Errors.Add("DepositNameOrPath is null or empty");
                 return await Task.FromResult(model);
             }
+
             var allDirectories =
                 Directory.GetDirectories(depositFilesModel.DepositNameOrPath, "*", SearchOption.AllDirectories);
 
@@ -96,6 +97,7 @@ public class PipelineController(
     {
         if(string.IsNullOrEmpty(targetDirectory))
             return;
+
         // Process the list of files found in the directory.
         string[] fileEntries = Directory.GetFiles(targetDirectory);
         foreach (string fileName in fileEntries)

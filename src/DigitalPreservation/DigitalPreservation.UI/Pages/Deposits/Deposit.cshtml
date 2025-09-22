@@ -23,10 +23,17 @@
     }
 }
 @{
-    var (jobs, jobRunning, _) = Model.PipelineJobsRunning();
-    await Model.CleanupPipelineRunsForDeposit(jobs);
     ViewData["Title"] = Model.GetDisplayTitle();
     ViewData["section"] = "deposits";
+
+    var (jobs, jobRunning, _) = Model.PipelineJobsRunning();
+    await Model.CleanupPipelineRunsForDeposit(jobs);
+
+    if (jobRunning)
+    {
+        TempData.Remove("MisMatchCount");
+    }
+
     var pipelineRunStarted = jobRunning || (TempData["Valid"] != null && TempData["Valid"]!.ToString()!.ToLower().Contains("deposit locked and pipeline running"));
 }
 
@@ -126,20 +133,20 @@
 </div>
 
 <div>
-    @if (TempData["Error"] != null)
+    @if (!jobRunning && TempData["Error"] != null)
     {
         <div class="alert alert-danger" role="alert">
             <p>@Html.Raw(TempData["Error"])</p>
         </div>
     }
-    @if (TempData["Deleted"] != null)
+    @if (!jobRunning && TempData["Deleted"] != null)
     {
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         <p>@Html.Raw(TempData["Deleted"])</p>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     }
-    @if (TempData["Updated"] != null)
+    @if (!jobRunning && TempData["Updated"] != null)
     {
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         <p>@Html.Raw(TempData["Updated"])</p>
@@ -153,19 +160,21 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     }
-    @if (TempData["AccessConditionsUpdated"] != null)
+    @if (!jobRunning && TempData["AccessConditionsUpdated"] != null)
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["AccessConditionsUpdated"])</p>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
+
     @if (IsLockedByOtherUser())
     {
         <div class="alert alert-danger" role="alert">
             <p>This Deposit is locked by @Model.Deposit!.LockedBy?.GetSlug()</p>
         </div>
     }
+
     @if (!pipelineRunStarted && TempData["MisMatchCount"] != null)
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -323,7 +332,7 @@
                     }
                     else
                     {
-                        <a class="btn btn-sm btn-primary me-2" role="button" href="/deposits/@Model.Id/importjobs/diff">
+                        <a class="btn btn-sm btn-primary me-2 @(!jobRunning ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
                             <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
                         </a>
                         <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">
@@ -396,7 +405,7 @@
                     else
                     {
                         <div class="table-responsive small">
-                            <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
+                            <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-pipeline-jobs">
                                 <thead>
                                 <tr>
                                     <th scope="col">JobId</th>
@@ -413,12 +422,12 @@
                             foreach (var result in pipelineJobResults)
                             {
                                 <tr>
-                                    <td>@result.JobId</td>
-                                    <td>@result.Status</td>
-                                    <td>@result.DateBegun.GetDateDisplay()</td>
-                                    <td>@result.DateFinished.GetDateDisplay()</td>
-                                    <td>@result.RunUser</td>
-                                    <td class="text-danger">
+                                    <td aria-label="td-job-id">@result.JobId</td>
+                                    <td aria-label="td-status">@result.Status</td>
+                                    <td aria-label="td-date-begun">@result.DateBegun.GetDateDisplay()</td>
+                                    <td aria-label="td-date-finished">@result.DateFinished.GetDateDisplay()</td>
+                                    <td aria-label="td-run-user">@result.RunUser</td>
+                                    <td aria-label="td-errors" class="text-danger">
 
                                         @if (result.Errors != null && result.Errors.Any())
                                         {

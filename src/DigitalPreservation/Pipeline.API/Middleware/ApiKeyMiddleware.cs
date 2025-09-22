@@ -24,6 +24,7 @@ public class ApiKeyMiddleware(IOptions<ApiKeyOptions> apiKeyOptions) : IMiddlewa
             apiKeyValid = extractedApiKey == apiKey;
         }
 
+
         context.Items.Add(new(ApiContextObjectName, apiKeyValid));
 
         await next(context);

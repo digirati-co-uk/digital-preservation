@@ -65,6 +65,7 @@ public class DepositModel(
 
             if (Deposit.Status != DepositStates.Exporting)
             {
+                await WorkspaceManager.RefreshCombinedDirectory(); //refresh
                 var combinedResult = WorkspaceManager.GetRootCombinedDirectory();
                 if (combinedResult is { Success: true, Value: not null })
                 {
@@ -330,6 +331,7 @@ public class DepositModel(
             if (result.Success && result1.Success)
             {
                 TempData["Valid"] = "Deposit locked and pipeline run message sent.";
+                TempData.Remove("MisMatchCount"); //will be recalculated as METS is refreshed with pipeline run
             }
             else
             {
@@ -546,6 +548,7 @@ public class DepositModel(
         return "#";
     }
 
+
     public (List<ProcessPipelineResult>? jobs, bool jobRunning, string latestJobId) PipelineJobsRunning()
     {
         var id = Deposit?.Id?.GetSlug();
@@ -599,7 +602,6 @@ public class DepositModel(
                         "Could not record CompletedWithErrors status for deposit {depositId} job {jobIdentifier}", job.Deposit, job.JobId);
             }
         }
-
     }
 }
 
