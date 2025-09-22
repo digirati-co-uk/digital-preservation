@@ -303,9 +303,9 @@ public class DepositsController(
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
-    public async Task<IActionResult> RunPipeline([FromRoute] string id, [FromQuery] string? runUser)
+    public async Task<IActionResult> RunPipeline([FromRoute] string id, [FromQuery] string? runUser, [FromQuery] string? jobId)
     {
-        var runPipelineResult = await mediator.Send(new RunPipeline(id, User, runUser));
+        var runPipelineResult = await mediator.Send(new RunPipeline(id, User, runUser, jobId));
         return this.StatusResponseFromResult(runPipelineResult, successStatusCode: 204);
     }
 

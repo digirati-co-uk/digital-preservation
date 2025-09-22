@@ -1,23 +1,24 @@
-﻿using System.Security.Claims;
+﻿using Amazon.SimpleNotificationService;
+using Amazon.SimpleNotificationService.Model;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.Results;
-using DigitalPreservation.Core.Auth;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Preservation.API.Data;
-using Amazon.SimpleNotificationService;
-using Amazon.SimpleNotificationService.Model;
 using Microsoft.Extensions.Options;
+using Preservation.API.Data;
+using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DigitalPreservation.Common.Model.PipelineApi;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class RunPipeline(string id, ClaimsPrincipal user, string? runUser) : IRequest<Result>
+public class RunPipeline(string id, ClaimsPrincipal user, string? runUser, string? jobId) : IRequest<Result>
 {
     public readonly ClaimsPrincipal User = user;
     public string Id { get; } = id;
+    public string? JobId { get; set; } = jobId;
     public string? RunUser { get; set; } = runUser;
 
 }
@@ -43,9 +44,12 @@ public class RunPipelineHandler(
         }
 
         var topicArn = pipelineOptions.Value.PipelineJobTopicArn;
-        var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { DepositName = request.Id, RunUser = request.RunUser});
+
+        var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { DepositName = request.Id, JobIdentifier = request.JobId, RunUser = request.RunUser});
         var pubRequest = new PublishRequest(topicArn, pipelineJobMessage);
+
         var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
+
         logger.LogDebug(
             "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
             response.HttpStatusCode, request.Id, response.MessageId);
@@ -54,10 +58,14 @@ public class RunPipelineHandler(
     }
 }
 
+//TODO: put job id into the pipeline into the class
 internal class PipelineJobMessage
 {
     [JsonPropertyName("depositname")]
     public required string DepositName { get; set; }
+
+    [JsonPropertyName("jobidentifier")]
+    public string? JobIdentifier { get; set; }
 
     [JsonPropertyName("runuser")]
     public string? RunUser { get; set; }

@@ -11,10 +11,18 @@ public class ApiKeyMiddleware(IOptions<ApiKeyOptions> apiKeyOptions) : IMiddlewa
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
-        var apiKeyValid = context.Request.Headers.TryGetValue(headerName, out var extractedApiKey);
+        bool apiKeyValid;
 
-        if (extractedApiKey != apiKey)
+        if (string.IsNullOrEmpty(headerName))
+        {
             apiKeyValid = false;
+        }
+        else
+        {
+            context.Request.Headers.TryGetValue(headerName, out var extractedApiKey);
+
+            apiKeyValid = extractedApiKey == apiKey;
+        }
 
         context.Items.Add(new(ApiContextObjectName, apiKeyValid));
 

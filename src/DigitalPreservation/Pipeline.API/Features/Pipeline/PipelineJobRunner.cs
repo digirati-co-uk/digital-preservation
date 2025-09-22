@@ -25,12 +25,6 @@ public class PipelineJobRunner(
         {
             logger.LogInformation($"Sending execute pipeline job for the deposit {depositId} and job id {jobId}");
 
-            var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobId, PipelineJobStates.Waiting,
-                runUser ?? "PipelineApi"), cancellationToken);
-
-            if (pipelineJobsResult?.Value?.Errors is { Length: 0 })
-                logger.LogInformation($"Job {jobId} Waiting status logged");
-
             var executeResult = await mediator.Send(new ExecutePipelineJob(jobId, depositId, runUser), cancellationToken);
 
             if (executeResult.Success)
@@ -41,8 +35,6 @@ public class PipelineJobRunner(
             }
 
             logger.LogError($"Could not successfully send execute pipeline job for the deposit {depositId} and job id {jobId} because of {executeResult.ErrorMessage}");
-
-            //TODO: log errors in pipeline run jobs db table make ure retun from pipeline job has erros
         }
         catch (Exception e)
         {
