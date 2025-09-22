@@ -38,6 +38,13 @@ RUN brunnhilde.py -V
 RUN apt-get install clamav clamav-freshclam -y 
 RUN freshclam
 
+# Update tools cron job
+RUN touch /etc/cron.daily/toolupdate.sh
+RUN echo '#!/bin/sh' >> /etc/cron.daily/toolupdate.sh
+RUN echo 'sf -update' >> /etc/cron.daily/toolupdate.sh
+RUN echo 'freshclam' >> /etc/cron.daily/toolupdate.sh
+RUN echo 'pip3 install --upgrade brunnhilde' >> /etc/cron.daily/toolupdate.sh
+RUN chmod +x /etc/cron.daily/toolupdate.sh
 
 
 LABEL org.opencontainers.image.source=https://github.com/uol-dlip/digital-preservation
