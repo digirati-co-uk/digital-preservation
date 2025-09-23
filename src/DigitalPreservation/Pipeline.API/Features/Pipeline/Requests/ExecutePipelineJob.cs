@@ -398,6 +398,18 @@ public class ProcessPipelineJobHandler(
                 };
             }
 
+            var pipelineJobsResult = await mediator.Send(
+                new LogPipelineJobStatus(depositId, jobIdentifier!, PipelineJobStates.MetadataCreated, runUser!));
+
+            if (pipelineJobsResult.Value?.Errors is { Length: 0 })
+                logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run metadataCreated status logged",
+                    jobIdentifier, depositId);
+
+            var metsResult = await AddObjectsToMets(depositId, depositPath);
+
+            if(metsResult.Failure)
+                logger.LogInformation("Issue adding objects to METS in pipeline run: {error}", metsResult.ErrorMessage);
+
             var releaseLockResult =
                 await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
             logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
@@ -407,23 +419,18 @@ public class ProcessPipelineJobHandler(
                 logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
             }
 
-            //check for force complete
-            var pipelineJobsResult = await mediator.Send(
+            var pipelineJobsResult1 = await mediator.Send(
                 new LogPipelineJobStatus(depositId, jobIdentifier!, PipelineJobStates.Completed, runUser!));
 
-            if (pipelineJobsResult.Value?.Errors is { Length: 0 })
+            if (pipelineJobsResult1.Value?.Errors is { Length: 0 })
                 logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run Completed status logged",
                     jobIdentifier, depositId);
-
-
-            await AddObjectsToMets(depositId, depositPath);
 
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.Completed,
                 ArchivalGroup = workspaceManager.Deposit.ArchivalGroupName ?? string.Empty,
             };
-
 
         }
         else
@@ -773,7 +780,7 @@ public class ProcessPipelineJobHandler(
     /// </summary>
     /// <param name="depositId"></param>
     /// <param name="depositPath"></param>
-    private async Task AddObjectsToMets(string depositId, string depositPath)
+    private async Task<Result<ItemsAffected>> AddObjectsToMets(string depositId, string depositPath)
     {
         var workspaceManagerResult = await GetWorkspaceManager(depositId, true);
         var workspaceManager = workspaceManagerResult.Value!;
@@ -820,8 +827,7 @@ public class ProcessPipelineJobHandler(
             }
         }
 
-        await workspaceManager.AddItemsToMets(wbsToAdd, runUser!);
-        await workspaceManager.RefreshCombinedDirectory();
+        return await workspaceManager.AddItemsToMets(wbsToAdd, runUser!);
     }
 
     private async Task CleanupPipelineRunsForDeposit(string depositId)
