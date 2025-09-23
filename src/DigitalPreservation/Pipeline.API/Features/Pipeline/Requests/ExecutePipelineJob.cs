@@ -821,6 +821,7 @@ public class ProcessPipelineJobHandler(
         }
 
         await workspaceManager.AddItemsToMets(wbsToAdd, runUser!);
+        await workspaceManager.RefreshCombinedDirectory();
     }
 
     private async Task CleanupPipelineRunsForDeposit(string depositId)
