@@ -64,7 +64,7 @@
 
     <ul class="navbar-nav flex-row d-md-none">
         <li class="nav-item text-nowrap">
-            <button class="nav-link px-3 text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSearch" aria-controls="navbarSearch" aria-expanded="false" aria-label="Toggle search">
+            <button class="nav-link px-3 text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSearchForm" aria-controls="navbarSearch" aria-expanded="false" aria-label="Toggle search">
                 <svg class="bi"><use xlink:href="#search"/></svg>
             </button>
         </li>
@@ -73,10 +73,14 @@
                 <svg class="bi"><use xlink:href="#list"/></svg>
             </button>
         </li>
-    </ul>
-    <div id="navbarSearch" class="navbar-search w-100 collapse.show"> @* collapse *@
-        <input class="form-control w-100 rounded-0 border-0" type="text" placeholder="Search" aria-label="Search">
-    </div>
+    </ul>    
+    
+    <form id="navbarSearchForm" asp-page="/Search" method="get" class="form-search">
+        <div id="navbarSearch" class="navbar-search w-100 collapse.show"> @* collapse *@
+            <input name="text" class="form-control w-100 rounded-3 border-2" type="text" placeholder="Search" aria-label="Search"
+                   value="@(Context.Request.Query["text"])">
+        </div >
+    </form>
 
     <span class="px-2 py-2" href="/"><img src="/img/uol-logo.svg" style="height:90%" alt="University of Leeds logo"></span>
     

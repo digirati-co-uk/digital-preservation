@@ -1,8 +1,9 @@
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Common.Model.Storage;
 using Storage.Repository.Common;
 
@@ -55,6 +56,8 @@ public interface IStorageApiClient
     Task<ConnectivityCheckResult?> CanSeeS3(CancellationToken cancellationToken = default);
     Task<Result> DeleteContainer(string path, bool requestPurge, CancellationToken cancellationToken);
     Task<Result<Export>> GetExport(Uri entityExportResultUri);
+
+    Task<Result<SearchCollectiveFedora?>> FedoraSearch(string text, int? page = 0, int? pageSize = 50);
     
     
     /// <summary>

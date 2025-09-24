@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Common.Model.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Storage.Repository.Common;
@@ -75,7 +76,7 @@ public interface IPreservationApiClient
     Task<ConnectivityCheckResult?> IsAlive(CancellationToken cancellationToken = default);
     Task<ConnectivityCheckResult?> CanTalkToS3(CancellationToken cancellationToken);
     Task<ConnectivityCheckResult?> CanSeeThatStorageCanTalkToS3(CancellationToken cancellationToken);
-
+    Task<Result<SearchCollection?>> Search(string text, int? page = 0, int? pageSize = 50, SearchType type = SearchType.All, int otherPage = 0, CancellationToken cancellationToken = default);
     Task<Result<List<ProcessPipelineResult>>> GetPipelineJobResultsForDeposit(string depositId,
         CancellationToken cancellationToken);
 

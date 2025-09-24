@@ -1,8 +1,11 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Utils;
+using LeedsDlipServices.Identity;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using DepositEntity = Preservation.API.Data.Entities.Deposit; 
 
 namespace Preservation.API.Mutation;
@@ -276,6 +279,23 @@ public class ResourceMutator(
             MutateStorageResource(binary);
         }
     }
+
+    public Identifier MutateIdentityRecord(IdentityRecord record) =>
+      new()
+        {
+            Id = record.Id,
+            EPid = record.EPid,
+            Created = record.Created is null ? null : Convert.ToDateTime(record.Created),
+            Updated = record.Updated is null ? null : Convert.ToDateTime(record.Updated),
+            CatIrn = record.CatIrn,
+            Desc = record.Desc,
+            Status = record.Status,
+            Title = record.Title,
+            CatalogueApiUri = record.CatalogueApiUri,
+            ManifestUri = record.ManifestUri,
+            RepositoryUri = record.RepositoryUri
+        };
+    
 }
 
 public class MutatorOptions

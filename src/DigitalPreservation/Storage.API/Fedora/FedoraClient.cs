@@ -1,7 +1,8 @@
-using System.Net;
+﻿using System.Net;
 using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Caching.Memory;
@@ -1188,5 +1189,37 @@ internal class FedoraClient(
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Delete);
         var response = await httpClient.SendAsync(req);
         tx.StatusCode = response.StatusCode;
+    }
+
+
+    public async Task<Result<SearchCollectiveFedora?>> GetBasicSearchResults(
+        string text, 
+        int? page, 
+        int? pageSize,
+        CancellationToken cancellationToken)
+    {
+
+        var result = new SearchCollectiveFedora()
+        {
+            Page = page,
+            PageSize = pageSize,
+        };
+
+        var count = await fedoraDB.GetSearchCount(text) ?? 0;
+        
+        if (count == 0)
+        {
+            result.Total = 0;
+            result.Results = [];
+        }
+        else
+        {
+            var searchResult = await fedoraDB.GetSimpleSearch(text, page, pageSize) ?? [];
+            result.Total = count;
+            result.Results = searchResult;
+            result.Count = searchResult.Length;
+        }
+
+        return Result.Ok(result);
     }
 }

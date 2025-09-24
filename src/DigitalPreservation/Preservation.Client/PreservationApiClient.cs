@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
@@ -21,6 +22,22 @@ internal class PreservationApiClient(
     ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
     private readonly HttpClient preservationHttpClient = httpClient;
+    
+
+    public async Task<Result<SearchCollection?>> Search(string text, int? page, int? pageSize, SearchType type, int otherPage, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var uri = new Uri($"/search?text={Uri.EscapeDataString(text)}&pageNumber={page}&pageSize={pageSize}&type={type}&otherPage={otherPage}", UriKind.Relative);
+            var response = await preservationHttpClient.GetFromJsonAsync<SearchCollection>(uri, cancellationToken: cancellationToken);
+            return Result.OkNotNull(response);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
 
     public async Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken)
     {
@@ -497,6 +514,7 @@ internal class PreservationApiClient(
             };
         }
     }
+
 
     public async Task<Result<List<ProcessPipelineResult>>> GetPipelineJobResultsForDeposit(string depositId, CancellationToken cancellationToken)
     {
