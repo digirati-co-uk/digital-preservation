@@ -1,6 +1,7 @@
 ﻿using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -22,7 +23,10 @@ namespace DigitalPreservation.UI.Pages.Deposits;
 public class DepositModel(
     IMediator mediator, 
     IOptions<PreservationOptions> options,
-    WorkspaceManagerFactory workspaceManagerFactory) : PageModel
+    WorkspaceManagerFactory workspaceManagerFactory,
+    IPreservationApiClient preservationApiClient,
+    ILogger<DepositModel> logger,
+    IIdentityMinter identityMinter) : PageModel
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
@@ -318,12 +322,15 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
+            //SET job id here
+            var jobId = identityMinter.MintIdentity("PipelineJob");
             var runUser = User.GetCallerIdentity();
             var result = await mediator.Send(new LockDeposit(Deposit!));
-            var result1 = await mediator.Send(new RunPipeline(Deposit!, runUser)); 
+            var result1 = await mediator.Send(new RunPipeline(Deposit!, runUser, jobId, id));
+
             if (result.Success && result1.Success)
             {
-                TempData["Valid"] = "Deposit locked and pipeline running";
+                TempData["Valid"] = "Deposit locked and pipeline run message sent.";
                 TempData.Remove("MisMatchCount"); //will be recalculated as METS is refreshed with pipeline run
             }
             else
@@ -334,6 +341,32 @@ public class DepositModel(
         else
         {
             TempData["Error"] = "Could not bind deposit on run pipeline";
+        }
+
+        return Redirect($"/deposits/{id}");
+    }
+
+    //ForceCompletePipelineRun
+    public async Task<IActionResult> OnPostForceCompletePipelineRun([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var runUser = User.GetCallerIdentity();
+            var (_, _, jobId) = PipelineJobsRunning();
+            var result = await mediator.Send(new ReleaseLock(Deposit!));
+            var result1 = await mediator.Send(new ForceCompletePipeline(Deposit!, runUser, jobId, id));
+            if (result.Success && result1.Success)
+            {
+                TempData["Valid"] = "Force complete of pipeline succeeded and lock released.";
+            }
+            else
+            {
+                TempData["Error"] = result1.ErrorMessage;
+            }
+        }
+        else
+        {
+            TempData["Error"] = "Could not bind deposit on force complete of pipeline";
         }
 
         return Redirect($"/deposits/{id}");
@@ -515,7 +548,8 @@ public class DepositModel(
         return "#";
     }
 
-    public (List<ProcessPipelineResult>? jobs, bool jobRunning) PipelineJobsRunning()
+
+    public (List<ProcessPipelineResult>? jobs, bool jobRunning, string latestJobId) PipelineJobsRunning()
     {
         var id = Deposit?.Id?.GetSlug();
 
@@ -524,18 +558,50 @@ public class DepositModel(
             var jobs = GetPipelineJobResults().Result;
             var latestJobs = jobs?.Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= DateTime.Now.Date && x.Deposit == id).OrderByDescending(x => x.DateBegun).Take(1);
 
-            if(latestJobs == null)
-                return ([], false);
+            if (latestJobs == null)
+                return ([], false, string.Empty);
 
             var latestJobResults = latestJobs.ToList();
-            var status = latestJobResults.FirstOrDefault()?.Status;
+            var latestJob = latestJobResults.FirstOrDefault();
+            var status = latestJob?.Status;
+            var jobId  = latestJob?.JobId;
             var jobRunning = !string.IsNullOrEmpty(status) && PipelineJobStates.IsNotComplete(status);
 
-            return (jobs, jobRunning);
+            return (jobs, jobRunning, jobId ?? string.Empty);
         }
 
-        return ([], false);
+        return ([], false, string.Empty);
 
+    }
+
+    public async Task CleanupPipelineRunsForDeposit(List<ProcessPipelineResult>? jobs)
+    {
+        if (jobs == null)
+            return;
+
+        foreach (var job in jobs)
+        {
+            if (job.Status == PipelineJobStates.Running && job.DateBegun <= DateTime.Now.Date)
+            {
+                if (string.IsNullOrEmpty(job.JobId))
+                    continue;
+
+                var pipelineDeposit = new PipelineDeposit
+                {
+                    Id = job.JobId,
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    DepositId = job.Deposit,
+                    RunUser = job.RunUser,
+                    Errors = "Cleaned up as previous processing did not complete"
+                };
+
+                var logResult = await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, new CancellationToken());
+
+                if (logResult.Failure)
+                    logger.LogError(
+                        "Could not record CompletedWithErrors status for deposit {depositId} job {jobIdentifier}", job.Deposit, job.JobId);
+            }
+        }
     }
 }
 

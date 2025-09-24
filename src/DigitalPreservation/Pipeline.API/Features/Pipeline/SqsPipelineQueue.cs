@@ -1,6 +1,4 @@
-﻿using System.Text.Json;
-using System.Text.Json.Serialization;
-using Amazon.SimpleNotificationService;
+﻿using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
@@ -8,7 +6,10 @@ using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
+using Preservation.Client;
 using Storage.Repository.Common.Aws;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -17,7 +18,8 @@ public class SqsPipelineQueue(
     IAmazonSimpleNotificationService snsClient,
     IAmazonSQS sqsClient,
     IOptions<PipelineOptions> options,
-    IIdentityMinter identityMinter) : IPipelineQueue
+    IIdentityMinter identityMinter,
+    IPreservationApiClient preservationApiClient) : IPipelineQueue
 {
     private string? topicArn;
 
@@ -53,7 +55,7 @@ public class SqsPipelineQueue(
             if (cancellationToken.IsCancellationRequested) return messageModel;
             logger.LogDebug("Received SQS message {messageBody}", message.Body);
 
-            messageModel = GetMessageModel(message, queue);
+            messageModel = await GetMessageModel(message, queue);
             if (messageModel != null && !messageModel.DepositName.HasText()) 
                 return messageModel;
 
@@ -65,7 +67,7 @@ public class SqsPipelineQueue(
         return messageModel;
     }
 
-    private PipelineJobMessage? GetMessageModel(Message message, string queue)
+    private async Task<PipelineJobMessage?> GetMessageModel(Message message, string queue)
     {
         try
         {
@@ -78,9 +80,21 @@ public class SqsPipelineQueue(
             var pipelineJobMessage = queueMessage.GetMessageContents<PipelineJobMessage>();
             if (pipelineJobMessage != null)
             {
+                var depositPipelineResults = await preservationApiClient.GetPipelineJobResultsForDeposit(pipelineJobMessage.DepositName, new CancellationToken());
+                
                 if (string.IsNullOrEmpty(pipelineJobMessage.JobIdentifier))
                 {
                     pipelineJobMessage.JobIdentifier = identityMinter.MintIdentity("PipelineJob");
+                }
+
+                if (depositPipelineResults.Value != null)
+                {
+                    var job = depositPipelineResults.Value.FirstOrDefault(x => x.JobId == pipelineJobMessage.JobIdentifier && x.Status == PipelineJobStates.CompletedWithErrors);
+                    if (job != null)
+                    {
+                        //job has been forced to complete
+                        return null;
+                    }
                 }
 
                 return pipelineJobMessage;

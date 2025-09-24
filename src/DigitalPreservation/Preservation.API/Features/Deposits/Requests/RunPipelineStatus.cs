@@ -61,6 +61,10 @@ public class RunPipelineStatusHandler(
                 entity.Status = request.Status;
                 dbContext.PipelineRunJobs.Update(entity);
                 break;
+            case PipelineJobStates.MetadataCreated:
+                entity.Status = request.Status;
+                dbContext.PipelineRunJobs.Update(entity);
+                break;
             case PipelineJobStates.Completed:
                 entity.DateFinished = DateTime.UtcNow;
                 entity.Status = request.Status;

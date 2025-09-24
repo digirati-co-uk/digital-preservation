@@ -3,6 +3,7 @@ public class PipelineJobStates
 {
     public const string Waiting = "waiting";
     public const string Running = "processing";
+    public const string MetadataCreated = "metadataCreated";
     public const string Completed = "completed";
     public const string CompletedWithErrors = "completedWithErrors";
 

@@ -62,7 +62,7 @@ public interface IPreservationApiClient
     Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken);
     Task<Result> ReleaseDepositLock(Deposit deposit, CancellationToken cancellationToken);
 
-    Task<Result> RunPipeline(Deposit deposit, string? runUser, CancellationToken cancellationToken);
+    Task<Result> RunPipeline(Deposit deposit, string? runUser, string jobId, CancellationToken cancellationToken);
     Task<OrderedCollection?> GetOrderedCollection(string stream);
     Task<OrderedCollectionPage?> GetOrderedCollectionPage(string stream, int index);
     

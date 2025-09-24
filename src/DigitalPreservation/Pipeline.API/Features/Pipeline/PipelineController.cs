@@ -63,6 +63,7 @@ public class PipelineController(
 
         try
         {
+
             if (string.IsNullOrEmpty(depositFilesModel.DepositNameOrPath))
             {
                 model.Errors.Add("DepositNameOrPath is null or empty");
@@ -94,7 +95,7 @@ public class PipelineController(
 
     private void ProcessDirectory(string? targetDirectory)
     {
-        if (string.IsNullOrEmpty(targetDirectory))
+        if(string.IsNullOrEmpty(targetDirectory))
             return;
 
         // Process the list of files found in the directory.

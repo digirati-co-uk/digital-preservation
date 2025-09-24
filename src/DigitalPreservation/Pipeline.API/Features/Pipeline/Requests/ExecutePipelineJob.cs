@@ -1,6 +1,7 @@
 ﻿using Azure.Core;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -12,6 +13,7 @@ using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -38,7 +40,7 @@ public class ProcessPipelineJobHandler(
     private string? jobIdentifier;
     private string? runUser;
 
-    
+
     /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
     /// (e.g., GetCombinedDirectory(true))
@@ -46,64 +48,98 @@ public class ProcessPipelineJobHandler(
     /// <param name="depositId"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    private async Task<Result<WorkspaceManager>> GetWorkspaceManager(string depositId, bool refresh, CancellationToken cancellationToken = default)
+    private async Task<Result<WorkspaceManager>> GetWorkspaceManager(string depositId, bool refresh,
+        CancellationToken cancellationToken = default)
     {
         var response = await preservationApiClient.GetDeposit(depositId, cancellationToken);
         if (response.Failure || response.Value == null)
         {
-            return Result.FailNotNull<WorkspaceManager>(response.ErrorCode ?? ErrorCodes.UnknownError, 
+            return Result.FailNotNull<WorkspaceManager>(response.ErrorCode ?? ErrorCodes.UnknownError,
                 $"Could not process pipeline job for job id {jobIdentifier} and deposit {depositId} as could not find the deposit.");
         }
+
         var deposit = response.Value;
         var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit, refresh);
         foreach (var warning in workspaceManager.Warnings)
         {
             logger.LogWarning(warning);
         }
+
         return Result.OkNotNull(workspaceManager);
     }
-    
-    
+
+
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
         jobIdentifier = request.JobIdentifier;
         runUser = request.RunUser ?? "PipelineApi";
-        
+        //var forceCompleted = await CheckIfForceComplete(request.DepositId, jobIdentifier);
+
+        await CleanupPipelineRunsForDeposit(request.DepositId);
+
         var workspaceResult = await GetWorkspaceManager(request.DepositId, true, cancellationToken);
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)
         {
-            return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError, 
+            return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError,
                 $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId} as could not find the deposit.");
         }
+
         try
         {
+            if (await CheckIfForceComplete(request.DepositId, jobIdentifier))
+            {
+                var releaseLockResult =
+                    await preservationApiClient.ReleaseDepositLock(workspaceResult.Value.Deposit,
+                        CancellationToken.None);
+                logger.LogInformation($"releaseLockResult: {releaseLockResult.Success}");
+                if (releaseLockResult is { Failure: true })
+                {
+                    logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+                }
+
+                return Result.FailNotNull<Result>(ErrorCodes.UnknownError,
+                    $"Pipeline job run {jobIdentifier} for deposit {request.DepositId} has been force completed.");
+            }
+
+
             await mediator.Send(new LogPipelineJobStatus(
                 request.DepositId, request.JobIdentifier, PipelineJobStates.Running, runUser), cancellationToken);
 
             var result = await ExecuteBrunnhilde(workspaceResult.Value);
-            
-            logger.LogInformation("Execute Brunnhilde result {status} and any errors {errors} ", result?.Status, result?.Errors);
-            return result?.Status == PipelineJobStates.Completed ? Result.Ok() : Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not complete pipeline run {result?.Errors?.FirstOrDefault()?.Message}");
+
+            logger.LogInformation("Execute Brunnhilde result test {status} {errors} ", result?.Status, result?.Errors);
+            return result?.Status == PipelineJobStates.Completed
+                ? Result.Ok()
+                : Result.FailNotNull<Result>(ErrorCodes.UnknownError,
+                    $"Could not complete pipeline run {result?.Errors?.FirstOrDefault()?.Message}");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}", request.JobIdentifier, request.DepositId);
+            logger.LogError(ex,
+                "Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}",
+                request.JobIdentifier, request.DepositId);
 
-            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceResult.Value.Deposit, CancellationToken.None);
+            var releaseLockResult =
+                await preservationApiClient.ReleaseDepositLock(workspaceResult.Value.Deposit, CancellationToken.None);
             logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
+
             if (releaseLockResult is { Failure: true })
             {
-                logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
+                logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged",
+                    jobIdentifier);
             }
 
             var pipelineJobsResult = await mediator.Send(
-                new LogPipelineJobStatus(request.DepositId, request.JobIdentifier, PipelineJobStates.CompletedWithErrors, runUser, ex.Message), cancellationToken);
+                new LogPipelineJobStatus(request.DepositId, request.JobIdentifier,
+                    PipelineJobStates.CompletedWithErrors, runUser, ex.Message), cancellationToken);
 
             if (pipelineJobsResult.Value?.Errors is { Length: 0 })
-                logger.LogInformation("Job {jobIdentifier} Running status CompletedWithErrors logged", request.JobIdentifier);
+                logger.LogInformation("Job {jobIdentifier} Running status CompletedWithErrors logged",
+                    request.JobIdentifier);
 
-            return Result.FailNotNull<Result>(ErrorCodes.UnknownError, 
-                $"Could not publish pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: " + ex.Message);
+            return Result.FailNotNull<Result>(ErrorCodes.UnknownError,
+                $"Could not publish pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: " +
+                ex.Message);
         }
         finally
         {
@@ -130,11 +166,14 @@ public class ProcessPipelineJobHandler(
         {
             logger.LogError("S3 mount path could not be found at {mountPath}", mountPath);
 
-            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
-            logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
-            if (releaseLockResult is { Failure: true })
+            var releaseLockResult1 =
+                await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+            logger.LogInformation("releaseLockResult: {success}", releaseLockResult1.Success);
+
+            if (releaseLockResult1 is { Failure: true })
             {
-                logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
+                logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged",
+                    jobIdentifier);
             }
 
             return new ProcessPipelineResult
@@ -149,13 +188,17 @@ public class ProcessPipelineJobHandler(
 
         if (!Directory.Exists(objectPath))
         {
-            logger.LogError("Deposit {depositId} folder and contents could not be found at {objectPath}", depositId, objectPath);
+            logger.LogError("Deposit {depositId} folder and contents could not be found at {objectPath}", depositId,
+                objectPath);
 
-            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
-            logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
-            if (releaseLockResult is { Failure: true })
+            var releaseLockResult1 =
+                await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+            logger.LogInformation("releaseLockResult: {success}", releaseLockResult1.Success);
+
+            if (releaseLockResult1 is { Failure: true })
             {
-                logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
+                logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged",
+                    jobIdentifier);
             }
 
             return new ProcessPipelineResult
@@ -170,10 +213,32 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation("Metadata process folder value: {metadataProcessPath}", metadataProcessPath);
         logger.LogInformation("Object folder path value: {objectPath}", objectPath);
 
+        if (!string.IsNullOrEmpty(jobIdentifier) && await CheckIfForceComplete(depositId, jobIdentifier))
+        {
+            var releaseLockResult1 =
+                await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+            logger.LogInformation($"releaseLockResult: {releaseLockResult1.Success}");
+            if (releaseLockResult1 is { Failure: true })
+            {
+                logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+            }
+
+            return new ProcessPipelineResult
+            {
+                Status = PipelineJobStates.CompletedWithErrors,
+                Errors =
+                [
+                    new Error { Message = $"Pipeline job run {jobIdentifier} for {depositId} was force completed" }
+                ],
+                ArchivalGroup = workspaceManager.Deposit.ArchivalGroupName ?? string.Empty,
+            };
+        }
+
         var start = new ProcessStartInfo
         {
             FileName = brunnhildeOptions.Value.PathToPython,
-            Arguments = $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ",
+            Arguments =
+                $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ",
             UseShellExecute = false,
             RedirectStandardOutput = true
         };
@@ -185,13 +250,16 @@ public class ProcessPipelineJobHandler(
         {
             logger.LogError("Issue executing Brunnhilde process: process?.StandardOutput is null");
 
-            logger.LogError("Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}", jobIdentifier, depositId);
+            logger.LogError("Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}",
+                jobIdentifier, depositId);
 
-            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
-            logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
-            if (releaseLockResult is { Failure: true })
+            var releaseLockResult1 =
+                await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+            logger.LogInformation("releaseLockResult: {success}", releaseLockResult1.Success);
+            if (releaseLockResult1 is { Failure: true })
             {
-                logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
+                logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged",
+                    jobIdentifier);
             }
 
             await mediator.Send(new LogPipelineJobStatus(
@@ -201,7 +269,14 @@ public class ProcessPipelineJobHandler(
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
-                Errors = [new Error { Message = $" Issue executing Brunnhilde process as the reader is null for {depositId} and job id {jobIdentifier}" }],
+                Errors =
+                [
+                    new Error
+                    {
+                        Message =
+                            $" Issue executing Brunnhilde process as the reader is null for {depositId} and job id {jobIdentifier}"
+                    }
+                ],
                 ArchivalGroup = workspaceManager.Deposit.ArchivalGroupName ?? string.Empty
             };
         }
@@ -214,77 +289,168 @@ public class ProcessPipelineJobHandler(
         {
             logger.LogInformation("Brunnhilde creation successful");
             var depositPath = $"{mountPath}{separator}{depositId}";
-            
+
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
+            if (!string.IsNullOrEmpty(jobIdentifier) && await CheckIfForceComplete(depositId, jobIdentifier))
+            {
+                var releaseLockResult1 =
+                    await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+                logger.LogInformation($"releaseLockResult: {releaseLockResult1.Success}");
+                if (releaseLockResult1 is { Failure: true })
+                {
+                    logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+                }
+
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors =
+                    [
+                        new Error { Message = $"Pipeline job run {jobIdentifier} for {depositId} was force completed" }
+                    ],
+                    ArchivalGroup = workspaceManager.Deposit.ArchivalGroupName ?? string.Empty,
+                };
+            }
+
             var deleteBrunnhildeResult = await DeleteBrunnhildeFoldersAndFiles(workspaceManager);
             if (deleteBrunnhildeResult.Failure)
             {
                 logger.LogInformation("Brunnhilde deletion failed: " + deleteBrunnhildeResult.CodeAndMessage());
                 // Do we just go ahead anyway?
             }
-            
+
             // Now our workspaceManager is out of date, because METS has been modified.
             // So we can't use it again for further *content modifications*.
             // But we can use it for other properties, e.g. workspaceManager.IsBagItLayout won't have changed.
 
-            var metadataPathForProcessFiles = workspaceManager.IsBagItLayout ? $"{processFolder}{separator}{depositId}{separator}data{separator}metadata"  //{separator}{BrunnhildeFolderName}
+            var metadataPathForProcessFiles = workspaceManager.IsBagItLayout
+                ? $"{processFolder}{separator}{depositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
                 : $"{processFolder}{separator}{depositId}{separator}metadata";
-                                                                                 
-            var metadataPathForProcessDirectories = workspaceManager.IsBagItLayout ? $"{processFolder}{separator}{depositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}"  //{separator}{BrunnhildeFolderName}
+
+            var metadataPathForProcessDirectories = workspaceManager.IsBagItLayout
+                ? $"{processFolder}{separator}{depositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}" //{separator}{BrunnhildeFolderName}
                 : $"{processFolder}{separator}{depositId}{separator}metadata{separator}{BrunnhildeFolderName}"; //               
 
-            logger.LogInformation("metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}", metadataPathForProcessFiles);
-            logger.LogInformation("metadataPathForProcessDirectories after brunnhilde process {metadataPathForProcessDirectories}", metadataPathForProcessDirectories);
+            logger.LogInformation("metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}",
+                metadataPathForProcessFiles);
+            logger.LogInformation(
+                "metadataPathForProcessDirectories after brunnhilde process {metadataPathForProcessDirectories}",
+                metadataPathForProcessDirectories);
             logger.LogInformation("depositName after brunnhilde process {depositId}", depositId);
 
+            if (!string.IsNullOrEmpty(jobIdentifier) && await CheckIfForceComplete(depositId, jobIdentifier))
+            {
+                var releaseLockResult1 =
+                    await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+                logger.LogInformation($"releaseLockResult: {releaseLockResult1.Success}");
+                if (releaseLockResult1 is { Failure: true })
+                {
+                    logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+                }
+
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors =
+                    [
+                        new Error { Message = $"Pipeline job run {jobIdentifier} for {depositId} was force completed" }
+                    ],
+                    ArchivalGroup = workspaceManager.Deposit.ArchivalGroupName ?? string.Empty,
+                };
+
+            }
+
             var (createFolderResultList, uploadFilesResultList) = await UploadFilesToMetadataRecursively(
-                depositId, metadataPathForProcessDirectories, metadataPathForProcessFiles, depositPath);
-            
+                depositId, metadataPathForProcessDirectories, metadataPathForProcessFiles, depositPath,
+                workspaceManager);
+
             foreach (var folderResult in createFolderResultList)
             {
-                logger.LogInformation("{context} upload Success: {success}", folderResult?.Value?.Context, folderResult?.Success);
+                logger.LogInformation("{context} upload Success: {success}", folderResult?.Value?.Context,
+                    folderResult?.Success);
             }
 
             foreach (var uploadFileResult in uploadFilesResultList)
             {
-                logger.LogInformation("{context} upload Success: {success}", uploadFileResult?.Value?.Context, uploadFileResult?.Success);
+                logger.LogInformation("{context} upload Success: {success}", uploadFileResult?.Value?.Context,
+                    uploadFileResult?.Success);
             }
-            
-            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+
+            if (!string.IsNullOrEmpty(jobIdentifier) && await CheckIfForceComplete(depositId, jobIdentifier))
+            {
+                var releaseLockResult1 =
+                    await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+                logger.LogInformation($"releaseLockResult: {releaseLockResult1.Success}");
+
+                if (releaseLockResult1 is { Failure: true })
+                {
+                    logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+                }
+
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors =
+                    [
+                        new Error { Message = $"Pipeline job run {jobIdentifier} for {depositId} was force completed" }
+                    ],
+                    ArchivalGroup = workspaceManager.Deposit.ArchivalGroupName ?? string.Empty,
+                };
+            }
+
+            var pipelineJobsResult = await mediator.Send(
+                new LogPipelineJobStatus(depositId, jobIdentifier!, PipelineJobStates.MetadataCreated, runUser!));
+
+            if (pipelineJobsResult.Value?.Errors is { Length: 0 })
+                logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run metadataCreated status logged",
+                    jobIdentifier, depositId);
+
+            var metsResult = await AddObjectsToMets(depositId, depositPath);
+
+            if(metsResult.Failure)
+                logger.LogInformation("Issue adding objects to METS in pipeline run: {error}", metsResult.ErrorMessage);
+
+            var releaseLockResult =
+                await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
             logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
+
             if (releaseLockResult is { Failure: true })
             {
                 logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
             }
 
-            var pipelineJobsResult = await mediator.Send(
+            var pipelineJobsResult1 = await mediator.Send(
                 new LogPipelineJobStatus(depositId, jobIdentifier!, PipelineJobStates.Completed, runUser!));
 
-            if (pipelineJobsResult.Value?.Errors is { Length: 0 })
-                logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run Completed status logged", jobIdentifier, depositId);
-
-            await AddObjectsToMets(depositId, depositPath);
+            if (pipelineJobsResult1.Value?.Errors is { Length: 0 })
+                logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run Completed status logged",
+                    jobIdentifier, depositId);
 
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.Completed,
                 ArchivalGroup = workspaceManager.Deposit.ArchivalGroupName ?? string.Empty,
             };
+
         }
         else
         {
-            var releaseLockResult = await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+            var releaseLockResult =
+                await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
             logger.LogInformation("releaseLockResult: {success}", releaseLockResult.Success);
+
             if (releaseLockResult is { Failure: true })
             {
                 logger.LogError("Could not release lock for Job {jobIdentifier} Completed status logged", jobIdentifier);
             }
 
-            var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobIdentifier!, PipelineJobStates.CompletedWithErrors,
+            var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobIdentifier!,
+                PipelineJobStates.CompletedWithErrors,
                 runUser!, "Issue producing Brunnhilde files."));
 
-            if(pipelineJobsResult.Failure)
-                logger.LogError("Could not record CompletedWithErrors status for deposit {depositId} job {jobIdentifier}", depositId, jobIdentifier);
+            if (pipelineJobsResult.Failure)
+                logger.LogError("Could not record CompletedWithErrors status for deposit {depositId} job {jobIdentifier}",
+                    depositId, jobIdentifier);
 
             return new ProcessPipelineResult
             {
@@ -293,6 +459,7 @@ public class ProcessPipelineJobHandler(
                 Errors = [new Error { Message = "Issue producing Brunnhilde files." }],
             };
         }
+
     }
 
     private (string, string, string) GetFilePaths(WorkspaceManager workspaceManager)
@@ -309,19 +476,21 @@ public class ProcessPipelineJobHandler(
         if (workspaceManager.IsBagItLayout)
         {
             metadataPath = $"{mountPath}{separator}{depositId}{separator}data{separator}metadata";
-            metadataProcessPath = $"{processFolder}{separator}{depositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}";
+            metadataProcessPath =
+                $"{processFolder}{separator}{depositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}";
             objectPath = $"{mountPath}{separator}{depositId}{separator}data{separator}{objectFolder}";
         }
         else
         {
             metadataPath = $"{mountPath}{separator}{depositId}{separator}metadata";
-            metadataProcessPath = $"{processFolder}{separator}{depositId}{separator}metadata{separator}{BrunnhildeFolderName}";
+            metadataProcessPath =
+                $"{processFolder}{separator}{depositId}{separator}metadata{separator}{BrunnhildeFolderName}";
             objectPath = $"{mountPath}{separator}{depositId}{separator}{objectFolder}";
         }
 
 
         if (!Directory.Exists(processFolder) && processFolder != null)
-                Directory.CreateDirectory(processFolder);
+            Directory.CreateDirectory(processFolder);
 
         if (!Directory.Exists(metadataProcessPath))
             Directory.CreateDirectory(metadataProcessPath);
@@ -333,7 +502,7 @@ public class ProcessPipelineJobHandler(
     {
         // This is an expensive operation (refresh=true):
         var root = await workspaceManager.RefreshCombinedDirectory();
-        
+
         var (directories, files) = root.Value!.Flatten();
         var deleteSelection = new DeleteSelection
         {
@@ -355,6 +524,7 @@ public class ProcessPipelineJobHandler(
                 });
             }
         }
+
         foreach (var file in files)
         {
             if (file.LocalPath!.StartsWith(testPath))
@@ -367,32 +537,62 @@ public class ProcessPipelineJobHandler(
                 });
             }
         }
-        
+
         var resultDelete = await workspaceManager.DeleteItems(deleteSelection, runUser!);
         return resultDelete;
     }
 
-    
-    private async Task<(List<Result<CreateFolderResult>?> createSubFolderResult, List<Result<SingleFileUploadResult>?> uploadFileResult)> UploadFilesToMetadataRecursively(
-        string depositId, string sourcePathForDirectories, string sourcePathForFiles, string depositPath)
+
+    private async Task<(List<Result<CreateFolderResult>?> createSubFolderResult, List<Result<SingleFileUploadResult>?>
+            uploadFileResult)> UploadFilesToMetadataRecursively(
+            string depositId, string sourcePathForDirectories, string sourcePathForFiles, string depositPath, WorkspaceManager workspaceManager)
     {
         try
         {
+            if (!string.IsNullOrEmpty(jobIdentifier) && await CheckIfForceComplete(depositId, jobIdentifier))
+            {
+                var releaseLockResult1 =
+                    await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+                logger.LogInformation($"releaseLockResult: {releaseLockResult1.Success}");
+                if (releaseLockResult1 is { Failure: true })
+                {
+                    logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+                }
+
+                return (createSubFolderResult: [], uploadFileResult: []);
+            }
+
             var context = new StringBuilder();
             context.Append("metadata");
 
             logger.LogInformation($"context {context}");
 
             //create Brunnhilde folder first
-            var createSubFolderResult = new List<Result<CreateFolderResult>?> 
-            { 
-                await CreateMetadataSubFolderOnS3(depositId, sourcePathForDirectories) 
-            };
+            var createSubFolderResult = new List<Result<CreateFolderResult>?>
+                {
+                    await CreateMetadataSubFolderOnS3(depositId, sourcePathForDirectories)
+                };
 
             //Now Create all of the directories
-            foreach (var dirPath in Directory.GetDirectories(sourcePathForDirectories, "*", SearchOption.AllDirectories))
+            foreach (var dirPath in
+                     Directory.GetDirectories(sourcePathForDirectories, "*", SearchOption.AllDirectories))
             {
                 logger.LogInformation("dir path {dirPath}", dirPath);
+
+                if (!string.IsNullOrEmpty(jobIdentifier) && await CheckIfForceComplete(depositId, jobIdentifier))
+                {
+                    var releaseLockResult1 =
+                        await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit,
+                            CancellationToken.None);
+                    logger.LogInformation($"releaseLockResult: {releaseLockResult1.Success}");
+                    if (releaseLockResult1 is { Failure: true })
+                    {
+                        logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+                    }
+
+                    return (createSubFolderResult: [], uploadFileResult: []);
+                }
+
                 createSubFolderResult.Add(await CreateMetadataSubFolderOnS3(depositId, dirPath));
             }
 
@@ -404,13 +604,27 @@ public class ProcessPipelineJobHandler(
 
                 if (filesToIgnore.Any(filePath.Contains))
                     continue;
-                
-                uploadFileResult.Add(await UploadFileToDepositOnS3(depositId, filePath, sourcePathForFiles));
+
+                if (!string.IsNullOrEmpty(jobIdentifier) && await CheckIfForceComplete(depositId, jobIdentifier))
+                {
+                    var releaseLockResult1 =
+                        await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+                    logger.LogInformation($"releaseLockResult: {releaseLockResult1.Success}");
+                    if (releaseLockResult1 is { Failure: true })
+                    {
+                        logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+                    }
+
+                    return (createSubFolderResult: [], uploadFileResult: []);
+                }
+
+                uploadFileResult.Add(await UploadFileToDepositOnS3(depositId, filePath, sourcePathForFiles, workspaceManager));
             }
 
             foreach (var subFolder in createSubFolderResult)
             {
-                logger.LogInformation($"subFolder.ErrorMessage {subFolder?.ErrorMessage} , subFolder?.Value?.Context {subFolder?.Value?.Context} subFolder?.Value?.Created {subFolder?.Value?.Created}");
+                logger.LogInformation(
+                    $"subFolder.ErrorMessage {subFolder?.ErrorMessage} , subFolder?.Value?.Context {subFolder?.Value?.Context} subFolder?.Value?.Created {subFolder?.Value?.Created}");
             }
 
             foreach (var uploadFile in uploadFileResult)
@@ -437,12 +651,13 @@ public class ProcessPipelineJobHandler(
         // This is a content-changing operation
         var workspaceResult = await GetWorkspaceManager(depositId, true);
         var workspaceManager = workspaceResult.Value!;
-        
+
         var context = new StringBuilder();
         var metadataContext = "metadata";
         context.Append(metadataContext);
         var di = new DirectoryInfo(dirPath);
-        if (di.Parent?.Name.ToLower() == BrunnhildeFolderName && !context.ToString().Contains($"/{BrunnhildeFolderName}")) //TODO
+        if (di.Parent?.Name.ToLower() == BrunnhildeFolderName &&
+            !context.ToString().Contains($"/{BrunnhildeFolderName}")) //TODO
             context.Append($"/{BrunnhildeFolderName}");
 
         logger.LogInformation("BrunnhildeFolderName {BrunnhildeFolderName}", BrunnhildeFolderName);
@@ -459,11 +674,25 @@ public class ProcessPipelineJobHandler(
         return result;
     }
 
-    private async Task<Result<SingleFileUploadResult>?> UploadFileToDepositOnS3(string depositId, string filePath, string sourcePath)
+    private async Task<Result<SingleFileUploadResult>?> UploadFileToDepositOnS3(string depositId, string filePath,
+        string sourcePath, WorkspaceManager workspaceManager)
     {
         var context = new StringBuilder();
         var metadataContext = "metadata";
         context.Append(metadataContext);
+
+        if (!string.IsNullOrEmpty(jobIdentifier) && await CheckIfForceComplete(depositId, jobIdentifier))
+        {
+            var releaseLockResult1 =
+                await preservationApiClient.ReleaseDepositLock(workspaceManager.Deposit, CancellationToken.None);
+            logger.LogInformation($"releaseLockResult: {releaseLockResult1.Success}");
+            if (releaseLockResult1 is { Failure: true })
+            {
+                logger.LogError($"Could not release lock for Job {jobIdentifier} Completed status logged");
+            }
+
+            return null;
+        }
 
         if (!filePath.Contains(BrunnhildeFolderName))
             return null;
@@ -474,12 +703,13 @@ public class ProcessPipelineJobHandler(
         {
             return null;
         }
-            
+
         var contextPath = metadataContext + "/" + Path.GetRelativePath(
             sourcePath,
             fi.Directory.FullName).Replace(@"\", "/");
 
-        if (fi.Directory.Name.ToLower() == BrunnhildeFolderName && !context.ToString().Contains($"/{BrunnhildeFolderName}")) 
+        if (fi.Directory.Name.ToLower() == BrunnhildeFolderName &&
+            !context.ToString().Contains($"/{BrunnhildeFolderName}"))
             context.Append($"/{BrunnhildeFolderName}");
 
         var checksum = Checksum.Sha256FromFile(fi);
@@ -511,17 +741,18 @@ public class ProcessPipelineJobHandler(
     {
         // This is potentially expensive as it needs a NEW WorkspaceManager each time
         // TODO: We need a batch operation on WorkspaceManager to upload a set of small files.
-        
+
         var fi = new FileInfo(filePath);
         try
         {
             MimeTypes.TryGetMimeType(filePath.GetSlug(), out var contentType);
 
-            if(string.IsNullOrEmpty(contentType))
-                return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError, "Could not find file content type");
+            if (string.IsNullOrEmpty(contentType))
+                return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError,
+                    "Could not find file content type");
 
             var workspaceManagerResult = await GetWorkspaceManager(depositId, true);
-            var result = await workspaceManagerResult.Value!. UploadSingleSmallFile(
+            var result = await workspaceManagerResult.Value!.UploadSingleSmallFile(
                 stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, runUser!, true);
 
             return result;
@@ -549,7 +780,7 @@ public class ProcessPipelineJobHandler(
     /// </summary>
     /// <param name="depositId"></param>
     /// <param name="depositPath"></param>
-    private async Task AddObjectsToMets(string depositId, string depositPath)
+    private async Task<Result<ItemsAffected>> AddObjectsToMets(string depositId, string depositPath)
     {
         var workspaceManagerResult = await GetWorkspaceManager(depositId, true);
         var workspaceManager = workspaceManagerResult.Value!;
@@ -566,7 +797,7 @@ public class ProcessPipelineJobHandler(
                 filePath).Replace(@"\", "/");
 
             minimalItems.Add(
-                new MinimalItem 
+                new MinimalItem
                 {
                     RelativePath = relativePath,
                     IsDirectory = false,
@@ -578,8 +809,9 @@ public class ProcessPipelineJobHandler(
         var combinedResult = await workspaceManager.RefreshCombinedDirectory();
         if (combinedResult is not { Success: true, Value: not null })
         {
-             logger.LogError("Could not read deposit file system.");   
+            logger.LogError("Could not read deposit file system.");
         }
+
         var wbsToAdd = new List<WorkingBase>();
         var contentRoot = combinedResult.Value;
 
@@ -595,6 +827,43 @@ public class ProcessPipelineJobHandler(
             }
         }
 
-        await workspaceManager.AddItemsToMets(wbsToAdd, runUser!);
+        return await workspaceManager.AddItemsToMets(wbsToAdd, runUser!);
     }
+
+    private async Task CleanupPipelineRunsForDeposit(string depositId)
+    {
+        var depositPipelineResults = await preservationApiClient.GetPipelineJobResultsForDeposit(depositId, new CancellationToken());
+
+        if (depositPipelineResults.Value == null)
+            return;
+
+        foreach (var jobResult in depositPipelineResults.Value)
+        {
+            if (jobResult.Status == PipelineJobStates.Running && jobResult.DateBegun <= DateTime.Now.Date)
+            {
+
+                if (string.IsNullOrEmpty(jobResult.JobId))
+                    continue;
+                var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(depositId, jobResult.JobId,
+                    PipelineJobStates.CompletedWithErrors,
+                    runUser!, "Issue producing Brunnhilde files."));
+
+                if (pipelineJobsResult.Failure)
+                    logger.LogError(
+                        $"Could not record CompletedWithErrors status for deposit {depositId} job {jobIdentifier}");
+            }
+        }
+    }
+
+    private async Task<bool> CheckIfForceComplete(string depositId, string jobId)
+    {
+        var depositPipelineResults = await preservationApiClient.GetPipelineJobResultsForDeposit(depositId, new CancellationToken());
+
+        if (depositPipelineResults.Value == null) return false;
+        var job = depositPipelineResults.Value.FirstOrDefault(x => x.JobId == jobId && x.Status == PipelineJobStates.CompletedWithErrors);
+        return job != null;
+    }
+
 }
+
+

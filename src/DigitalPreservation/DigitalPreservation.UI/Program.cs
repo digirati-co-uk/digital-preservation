@@ -1,21 +1,22 @@
-﻿using DigitalPreservation.CommonApiClient;
+﻿using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Workspace;
 using LeedsDlipServices;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
 using Preservation.Client;
 using Serilog;
 using Storage.Repository.Common;
-using Storage.Repository.Common.S3;
-using Microsoft.Identity.Web.UI;
 using Storage.Repository.Common.Mets;
+using Storage.Repository.Common.S3;
 
 
 
@@ -69,7 +70,6 @@ try
     builder.Services.AddTransient<SessionTimeoutAsyncPageFilter>();
     builder.Services.AddSession();
 
-
     //Add TokenScope
     builder.Services.AddSingleton<ITokenScope>(x =>
         new TokenScope(builder.Configuration.GetSection("AzureAd:ScopeUri").Value));
@@ -95,8 +95,8 @@ try
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks();
 
-
     builder.Services.AddControllers();
+    builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
 
     var app = builder.Build();
     app

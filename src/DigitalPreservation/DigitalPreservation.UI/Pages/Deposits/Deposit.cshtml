@@ -23,15 +23,18 @@
     }
 }
 @{
-    var(jobs, jobRunning) = Model.PipelineJobsRunning();
+    ViewData["Title"] = Model.GetDisplayTitle();
+    ViewData["section"] = "deposits";
+
+    var (jobs, jobRunning, _) = Model.PipelineJobsRunning();
+    await Model.CleanupPipelineRunsForDeposit(jobs);
 
     if (jobRunning)
     {
         TempData.Remove("MisMatchCount");
     }
 
-    ViewData["Title"] = Model.GetDisplayTitle();
-    ViewData["section"] = "deposits";
+    var pipelineRunStarted = jobRunning || (TempData["Valid"] != null && TempData["Valid"]!.ToString()!.ToLower().Contains("deposit locked and pipeline running"));
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -54,7 +57,7 @@
                         @if (Model.Deposit?.LockedBy != null)
                         {
                             <li>
-                                <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
+                                <button disabled="@pipelineRunStarted" class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
                                     <svg class="bi"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
                                 </button>
                             </li>
@@ -62,24 +65,29 @@
                         else
                         {
                             <li>
-                                <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="Lock">
+                                <button disabled="@pipelineRunStarted" class="dropdown-item text-primary" type="submit" asp-page-handler="Lock">
                                     <svg class="bi"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
                                 </button>
                             </li>
                         }
                         
                         <li>
-                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
+                            <button disabled="@pipelineRunStarted" class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
                                 <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
                             </button>
                         </li>
                         <li>
-                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
+                            <button disabled="@(!pipelineRunStarted)" class="dropdown-item text-primary" type="submit" asp-page-handler="ForceCompletePipelineRun">
+                                <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button disabled="@pipelineRunStarted" class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
                                 <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
                             </button>
                         </li>
                         <li>
-                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
+                            <button disabled="@pipelineRunStarted" class="dropdown-item text-primary" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
                                 <svg class="bi"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
                             </button>
                         </li>
@@ -91,17 +99,17 @@
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="selectNonMets">
+                            <button @(!pipelineRunStarted ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="selectNonMets">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
                             </button>
                         </li>
                         <li>
-                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
+                            <button @(!pipelineRunStarted ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
                                 <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
                             </button>
                         </li>
                         <li>
-                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
+                            <button @(!pipelineRunStarted ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
                             </button>
                         </li>
@@ -113,7 +121,7 @@
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                            <button @(!pipelineRunStarted ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
                                 <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
                             </button>
                         </li>
@@ -167,7 +175,7 @@
         </div>
     }
 
-    @if (TempData["MisMatchCount"] != null)
+    @if (!pipelineRunStarted && TempData["MisMatchCount"] != null)
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
