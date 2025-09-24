@@ -179,7 +179,7 @@ public class FedoraDB
             Created = s.Created,
             FedoraId = s.FedoraId,
             LastModified = s.Modified,
-            Mime_Type = s.MimeType ?? ""
+            MimeType = s.MimeType ?? ""
         }).ToArray();
 
         return results;

@@ -1,5 +1,6 @@
 ﻿@page "{*pathUnderRoot}"
 @using DigitalPreservation.Common.Model.Search
+@using DigitalPreservation.Utils
 @model DigitalPreservation.UI.Pages.SearchModel
 
 @{
@@ -96,11 +97,11 @@
                         <thead>
                         <tr>
                             <th scope="col">View</th>
-                            <th scope="col">FedoraId</th>
+                            <th scope="col">Fedora Id</th>
                             <th scope="col">Created</th>
-                            <th scope="col">LastModified</th>
-                            <th scope="col">bytes</th>
-                            <th scope="col">Mime</th>
+                            <th scope="col">Modified</th>
+                            <th scope="col">Size</th>
+                            <th scope="col">Content Type</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -132,10 +133,10 @@
                                             @result.LastModified
                                         </td>
                                         <td aria-label="td-fedora-contentSize">
-                                            @result.ContentSize
+                                            @StringUtils.FormatFileSize(result.ContentSize, withSpace: true, fallbackIfNull: " - ")
                                         </td>
                                         <td aria-label="td-fedora-mime-type" >
-                                            @result.Mime_Type
+                                            @result.MimeType
                                         </td>
                                     </tr>
                                 }

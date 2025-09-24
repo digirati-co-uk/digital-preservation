@@ -1,6 +1,5 @@
-﻿
+﻿namespace DigitalPreservation.Common.Model.Search;
 
-namespace DigitalPreservation.Common.Model.Search;
 public class SearchCollectiveFedora
 {
     public int? Total { get; set; } = 0;

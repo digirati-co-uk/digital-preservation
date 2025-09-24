@@ -1,13 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
+﻿namespace DigitalPreservation.Common.Model.Identity;
 
-namespace DigitalPreservation.Common.Model.Identity;
 /// <summary>
 /// Create for Simple search results from Identity API
+/// 
+/// This avoids having a direct reference in the UI csproj to the Leeds-specific csproj LeedsDlipServices...
+/// ...but it's still a Leeds-specific class conceptually. So we need a way of mixing in custom features into
+/// a generic preservation platform.
 /// </summary>
 public class Identifier
 {

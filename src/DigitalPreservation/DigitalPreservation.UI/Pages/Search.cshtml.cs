@@ -69,7 +69,7 @@ public class SearchModel(IMediator mediator) : PageModel
     }
     
     public async Task OnGet(string text) =>
-        await GetResults(text);
+        await GetResults(text.Trim());
     
     public async Task OnPostSearchAsync(string text, int page = 1, int pageSize = DefaultPageSize) =>
         await GetResults(text, page, SearchType.All, pageSize);
