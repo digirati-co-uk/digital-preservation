@@ -5,27 +5,7 @@
 @{
     ViewData["section"] = "search";
 
-    
-
     var results = Model.SearchModelData;
-    var text = results?.text ?? string.Empty;
-
-
-   
-    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-
-        <div class="btn-toolbar mb-2 mb-md-0">
-            <form method="post" class="form-search">
-                <input id="text" name="text" class="input btn-sm btn-outline-primary me-2 form-search-input" value="@text" type="@text" placeholder="search text" aria-label="Search">
-
-                <button id="search_btn" type="submit" class="btn btn-sm btn-outline-primary me-2"
-                        asp-page-handler="Search"
-                        data-bs-theme-value="dark" aria-pressed="false">
-                    Search
-                </button>
-            </form>
-        </div>
-    </div>
 
     if (Model.ModelState.ErrorCount > 0)
     {
@@ -81,7 +61,7 @@
 
 
    
-     <div class="container  my-5 container-search">
+     <div class="container my-5 container-search">
         <ul class="nav nav-tabs" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link @fedActive" id="fedora-tab-btn" data-bs-toggle="tab" data-bs-target="#fedora-tab"

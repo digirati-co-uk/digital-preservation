@@ -110,7 +110,6 @@ public class SearchModel(IMediator mediator) : PageModel
         catch (Exception e)
         {
             ModelState.AddModelError(nameof(text), e.Message);
-            return;
         }
     }
 
