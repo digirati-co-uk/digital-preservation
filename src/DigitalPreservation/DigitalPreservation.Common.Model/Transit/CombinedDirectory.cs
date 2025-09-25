@@ -422,37 +422,67 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         {
             totals.TotalDirectoryCount++;
         }
+        else
+        {
+            if (combinedDirectory.LocalPath.HasText())
+            {
+                // ignore for root
+                totals.Messages.Add($"Skipping {combinedDirectory.LocalPath} in total directory count");
+            }
+        }
         foreach (var combinedFile in combinedDirectory.Files)
         {
             if (combinedFile.LocalPath!.StartsWith("__"))
             {
+                totals.Messages.Add($"Skipping {combinedFile.LocalPath}");
                 continue; // We need IStorage.DepositFileSystem but we'd have to reference Storage.Repository.Common
             }
             totals.TotalFileCount++;
+            long depositSize = -1;
+            long metsSize = -1;
             var addedToTotal = false;
             if (combinedFile.FileInDeposit != null)
             {
-                var size = combinedFile.FileInDeposit.Size;
-                if (size is null or <= 0)
+                depositSize = combinedFile.FileInDeposit.Size ?? 0;
+                if (depositSize <= 0)
                 {
-                    size = combinedFile.DepositFileFormatMetadata?.Size;
+                    depositSize = combinedFile.DepositFileFormatMetadata?.Size ?? 0;
                 }
-                totals.TotalSizeInDeposit += size ?? 0;
-                if (size is > 0)
+                totals.TotalSizeInDeposit += depositSize;
+                if (depositSize > 0)
                 {
-                    totals.TotalSize += size.Value;
+                    totals.TotalSize += depositSize;
                     addedToTotal = true;
+                    totals.Messages.Add($"{combinedFile.LocalPath} has {depositSize} bytes in Deposit");
+                }
+                else
+                {
+                    totals.Messages.Add($"Could not find size from FileInDeposit for {combinedFile.LocalPath}");
                 }
             }
 
             if (combinedFile.FileInMets != null)
             {
-                var metsSize = combinedFile.FileInMets.Size ?? 0;
+                metsSize = combinedFile.FileInMets.Size ?? 0;
                 totals.TotalSizeInMets += metsSize;
                 if(!addedToTotal)
                 {
                     totals.TotalSize += metsSize;
                 }
+
+                if (metsSize <= 0)
+                {
+                    totals.Messages.Add($"Could not find size from FileInMets for {combinedFile.LocalPath}");
+                }
+                else
+                {
+                    totals.Messages.Add($"{combinedFile.LocalPath} has {metsSize} bytes in METS");
+                }
+            }
+
+            if (metsSize > 0 && depositSize > 0 && metsSize != depositSize)
+            {
+                totals.Discrepancies[combinedFile.LocalPath] = new Tuple<long, long>(depositSize, metsSize);
             }
         }
         
@@ -494,4 +524,7 @@ public class FileSizeTotals
     public long TotalSize { get; set; }
     public long TotalSizeInDeposit { get; set; }
     public long TotalSizeInMets { get; set; }
+    public readonly List<string> Messages = [];
+   
+    public Dictionary<string, Tuple<long, long>> Discrepancies { get; set; } = new();
 }

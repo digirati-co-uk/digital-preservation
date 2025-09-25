@@ -292,7 +292,31 @@
                             @StringUtils.FormatFileSize(totals.TotalSizeInMets, withSpace: true, fallbackIfNull: " - ") <text> in METS, </text>
                             @StringUtils.FormatFileSize(totals.TotalSize, withSpace: true, fallbackIfNull: " - ") <text> Overall. </text><br/>
                             Deposit structure built @(Model.RootCombinedDirectory.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
+                       
+                            @{
+                                if (Request.Query["showCalculation"] == "true")
+                                {
+                                    <br/><span>----</span>
+                                    foreach (var msg in totals.Messages)
+                                    {
+                                        <br/>@msg
+                                    }
+                                }
+                            
+                            } 
                         </small></p>
+                        if (totals.Discrepancies.Count > 0)
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                <p>Discrepancies in file sizes</p>
+                                <ul>
+                                    @foreach (var discrepancy in totals.Discrepancies)
+                                    {
+                                        <li>@discrepancy.Key : Deposit=@discrepancy.Value.Item1, METS=@discrepancy.Value.Item2</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
                     }
                     else
                     {
