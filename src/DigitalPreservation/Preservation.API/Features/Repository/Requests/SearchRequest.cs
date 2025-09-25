@@ -50,13 +50,17 @@ public class SearchRequestHandler(
 
     private async Task<Identifier?> GetIdentifier(SearchRequest request, CancellationToken cancellationToken)
     {
-        // Identifier search
+        // Identifier search get first matchind Id or CatIRN
         var sv = new SchemaAndValue()
         {
             Schema = "pid",
             Value = request.Text
         };
         var identityResult = await identityService.GetIdentityBySchema(sv, cancellationToken);
+
+        if (identityResult.Value is null)
+            identityResult = await identityService.GetIdentityByCatIrn(request.Text, cancellationToken);
+
         return identityResult is { Success: true, Value: not null } ? resourceMutator.MutateIdentityRecord(identityResult.Value) : null;
     }
 
