@@ -37,8 +37,4 @@
       <ProjectReference Include="..\Storage.Client\Storage.Client.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Features\Search\Requests\" />
-    </ItemGroup>
-
 </Project>

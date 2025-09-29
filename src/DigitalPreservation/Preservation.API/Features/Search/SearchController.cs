@@ -4,6 +4,7 @@ using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Repository.Requests;
+using Preservation.API.Features.Search.Requests;
 
 
 namespace Preservation.API.Features.Search;
@@ -16,8 +17,8 @@ public class SearchController(IMediator mediator) : Controller
     
     [HttpGet(Name = "Search")]
     [ProducesResponseType<SearchCollection>(200, "application/json")]
-    [ProducesResponseType(400)]
-    [ProducesResponseType(401)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<ActionResult<SearchCollection?>> Search(
         string text,
         int pageNumber = 0,
