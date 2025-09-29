@@ -24,8 +24,8 @@ public class ImportJobsController(
 {    
     [HttpGet("diff", Name = "GetDiffImportJob")]
     [ProducesResponseType<ImportJob>(200, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> GetDiffImportJob([FromRoute] string depositId)
     {
         var depositResult = await mediator.Send(new GetDeposit(depositId));
@@ -70,10 +70,11 @@ public class ImportJobsController(
     }
 
     [HttpPost(Name = "ExecuteImportJob")]
-    [ProducesResponseType<ImportJobResult>(200, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(409)]
+    [ProducesResponseType<ImportJobResult>(201, "application/json")]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
     public async Task<IActionResult> ExecuteImportJob([FromRoute] string depositId, [FromBody] ImportJob importJob,
         CancellationToken cancellationToken)
     {
@@ -138,9 +139,9 @@ public class ImportJobsController(
     
     [HttpGet("results", Name = "GetImportJobResults")]
     [ProducesResponseType<List<ImportJobResult>>(200, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    public async Task<IActionResult> GetImportJobResult([FromRoute] string depositId)
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    public async Task<IActionResult> GetImportJobResults([FromRoute] string depositId)
     {
         var result = await mediator.Send(new GetImportJobResultsForDeposit(depositId));
         return this.StatusResponseFromResult(result);
@@ -154,7 +155,10 @@ public class ImportJobsController(
     /// <param name="importJobId">Unique import job identifier</param>
     /// <param name="cancellationToken"></param>
     /// <returns>Status of ImportJobResult</returns>
-    [HttpGet("results/{importJobId}")]
+    [HttpGet("results/{importJobId}", Name = "GetImportJobResult")]
+    [ProducesResponseType<ImportJobResult>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> GetImportJobResult([FromRoute] string depositId, [FromRoute] string importJobId,
         CancellationToken cancellationToken)
     {
