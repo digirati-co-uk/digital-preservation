@@ -68,26 +68,27 @@ public class SearchRequestHandler(
     {
         var page = request.Type is SearchType.Deposits or SearchType.All ? request.Page : request.OtherPage;
         var depositsDb = dbContext.Deposits
-            .Where(d => d.ArchivalGroupName!.Contains(request.Text) ||
-                        (d.SubmissionText!.Contains(request.Text) ||
-                         (d.ArchivalGroupPathUnderRoot!.Contains(request.Text)) ||
-                         (d.MintedId == request.Text)
-                        ))
+            .Where(d =>
+                d.ArchivalGroupName!.ToLower().Contains(request.Text.ToLower()) ||
+                d.SubmissionText!.ToLower().Contains(request.Text.ToLower()) ||
+                d.ArchivalGroupPathUnderRoot!.ToLower().Contains(request.Text.ToLower()) ||
+                d.MintedId.ToLower().Contains(request.Text.ToLower())
+            )
+            .OrderByDescending(o => o.Created)
             .Skip(page * request.PageSize)
             .Take(request.PageSize).ToList();
-        
+
         if (!depositsDb.Any())
         {
             return Task.FromResult<SearchCollectiveDeposit?>(null);
         }
-  
-        var count = dbContext.Deposits
-            .Count(d => d.ArchivalGroupName!.Contains(request.Text) ||
-                        (d.SubmissionText!.Contains(request.Text) ||
-                         (d.ArchivalGroupPathUnderRoot!.Contains(request.Text)) ||
-                         (d.MintedId == request.Text)
-                        ));
 
+        var count = dbContext.Deposits
+            .Count(d => d.ArchivalGroupName!.ToLower().Contains(request.Text.ToLower()) ||
+                        (d.SubmissionText!.ToLower().Contains(request.Text.ToLower()) ||
+                         (d.ArchivalGroupPathUnderRoot!.ToLower().Contains(request.Text.ToLower())) ||
+                         (d.MintedId.ToLower().Contains(request.Text.ToLower()))
+                        ));
 
         var result = new SearchCollectiveDeposit()
         {
