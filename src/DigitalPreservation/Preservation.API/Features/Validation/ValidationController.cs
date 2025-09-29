@@ -11,10 +11,9 @@ public class ValidationController(IStorageApiClient storageApiClient) : Controll
 {    
     [HttpGet("archivalgroup/{*archivalGroupPath}", Name ="TestArchivalGroupPath")]
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(400)]
-    [ProducesResponseType(409)]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
     public async Task<IActionResult> TestArchivalGroupPath(string archivalGroupPath)
     {
         var result = await storageApiClient.TestArchivalGroupPath(archivalGroupPath);

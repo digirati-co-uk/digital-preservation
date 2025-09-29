@@ -10,6 +10,7 @@ namespace Preservation.API.Features.Storage;
 /// Temporary for connectivity check only
 /// </summary>
 [ApiController]
+[ApiExplorerSettings(IgnoreApi = true)]
 [Route("[controller]")]
 public class StorageController(IMediator mediator) : Controller
 {
