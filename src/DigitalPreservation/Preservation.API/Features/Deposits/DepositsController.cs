@@ -318,10 +318,7 @@ public class DepositsController(
 
 
     [HttpPost("pipeline-status", Name = "LogPipelineRunStatus")]
-    [ProducesResponseType<ProblemDetails>(400, "application/json")]
-    [ProducesResponseType<ProblemDetails>(404, "application/json")]
-    [ProducesResponseType<ProblemDetails>(401, "application/json")]
-    [ProducesResponseType<ProblemDetails>(409, "application/json")]
+    [ApiExplorerSettings(IgnoreApi = true)] // for internal use
     public async Task<IActionResult> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit)
     {
         var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit.Id, pipelineDeposit.DepositId , pipelineDeposit.Status ?? string.Empty, User, pipelineDeposit.RunUser, pipelineDeposit.Errors)); 
