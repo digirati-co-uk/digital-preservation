@@ -69,7 +69,7 @@ public class ProcessPipelineResult : Resource
     /// </summary>
     [JsonPropertyName("archivalGroup")]
     [JsonPropertyOrder(510)]
-    public required string? ArchivalGroup { get; set; }
+    public string? ArchivalGroup { get; set; }
 
     [JsonPropertyOrder(511)]
     [JsonPropertyName("runUSer")]

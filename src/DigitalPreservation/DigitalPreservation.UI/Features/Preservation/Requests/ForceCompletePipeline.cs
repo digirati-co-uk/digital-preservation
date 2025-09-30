@@ -1,18 +1,18 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using System.Security.Claims;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PipelineApi;
-using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core.Auth;
 using MediatR;
 using Preservation.Client;
 
 namespace DigitalPreservation.UI.Features.Preservation.Requests;
 
-public class ForceCompletePipeline(Deposit deposit, string runUser, string jobId, string depositId) : IRequest<Result>
+public class ForceCompletePipeline(string jobId, string depositId, ClaimsPrincipal user) : IRequest<Result>
 {
-    public Deposit Deposit { get; } = deposit;
-    public string? RunUser { get; set; } = runUser;
     public string? JobId { get; set; } = jobId;
     public string? DepositId { get; set; } = depositId;
+    public ClaimsPrincipal User { get; } = user;
 }
 
 public class ForceCompletePipelineHandler(IPreservationApiClient preservationApiClient) : IRequestHandler<ForceCompletePipeline, Result>
@@ -28,8 +28,7 @@ public class ForceCompletePipelineHandler(IPreservationApiClient preservationApi
             Id = request.JobId,
             Status = PipelineJobStates.CompletedWithErrors,
             DepositId = request.DepositId,
-            RunUser = request.RunUser,
-            Errors = "Forced completion of this pipeline run."
+            Errors = request.User.GetCallerIdentity() +  " forced completion of this pipeline run."
         };
 
         return await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, cancellationToken);

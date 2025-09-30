@@ -61,15 +61,9 @@ internal class PreservationApiClient(
         return await response.ToFailResult("Unable to remove lock");
     }
 
-    public async Task<Result> RunPipeline(Deposit deposit, string? runUser, string jobId, CancellationToken cancellationToken)
+    public async Task<Result> RunPipeline(Deposit deposit, CancellationToken cancellationToken)
     {
-        var queryString = $"?jobId={jobId}";
-
-        if (!string.IsNullOrEmpty(runUser))
-        {
-            queryString += $"&runUser={runUser}";
-        }
-        var uri = new Uri(deposit.Id!.AbsolutePath + "/pipeline" + queryString, UriKind.Relative);
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/pipeline", UriKind.Relative);
         var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
         if (response.IsSuccessStatusCode)
         {

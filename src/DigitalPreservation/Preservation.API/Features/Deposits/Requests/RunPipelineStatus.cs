@@ -1,24 +1,19 @@
 ﻿using System.Security.Claims;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
-using DigitalPreservation.Core.Auth;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Preservation.API.Data;
-using System.Text.Json;
 using DigitalPreservation.Common.Model.PipelineApi;
-using Preservation.API.Data.Entities;
+using DigitalPreservation.Core.Auth;
+using DigitalPreservation.Utils;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class RunPipelineStatus(string id, string? depositId, string status, ClaimsPrincipal user, string? runUser, string? errors) : IRequest<Result>
+public class RunPipelineStatus(PipelineDeposit pipelineDeposit, ClaimsPrincipal user) : IRequest<Result>
 {
-    public readonly ClaimsPrincipal User = user;
-    public string Id { get; } = id;
-    public string? DepositId { get; } = depositId;
-    public string Status { get; set; } = status;
-    public string? RunUser { get; set; } = runUser;
-    public string? Errors { get; set; } = errors;
+    public PipelineDeposit PipelineDeposit { get; } = pipelineDeposit;
+    public ClaimsPrincipal User { get; } = user;
 }
 
 public class RunPipelineStatusHandler(
@@ -27,56 +22,39 @@ public class RunPipelineStatusHandler(
 {
     public async Task<Result> Handle(RunPipelineStatus request, CancellationToken cancellationToken)
     {
-        var deposit =
-            await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == request.DepositId, cancellationToken);
+        var deposit = await dbContext.Deposits.SingleOrDefaultAsync(
+            d => d.MintedId == request.PipelineDeposit.DepositId, cancellationToken);
 
         if (deposit == null)
         {
-            return Result.Fail(ErrorCodes.NotFound, "No deposit for deposit id " + request.DepositId);
+            return Result.Fail(ErrorCodes.NotFound, "No deposit for deposit id " + request.PipelineDeposit.DepositId);
         }
-        var callerIdentity = request.User.GetCallerIdentity();
+        var entity = await dbContext.PipelineRunJobs.SingleAsync(
+            d => d.Deposit == request.PipelineDeposit.DepositId && d.Id == request.PipelineDeposit.Id, cancellationToken);
 
-        var entity = await dbContext.PipelineRunJobs.SingleOrDefaultAsync(
-            d => d.Deposit == request.DepositId && d.Id == request.Id, cancellationToken) ?? new PipelineRunJob
-        {
-            ArchivalGroup = deposit.ArchivalGroupName,
-            PipelineJobJson = JsonSerializer.Serialize(request),
-            Id = request.Id,
-            Status = request.Status,
-            Deposit = deposit.MintedId,
-            LastUpdated = DateTime.UtcNow,
-            RunUser = request.RunUser,
-            Errors = request.Errors
-        };
-
-
-        switch (request.Status)
+        switch (request.PipelineDeposit.Status)
         {
             case PipelineJobStates.Waiting:
-                entity.DateSubmitted = DateTime.UtcNow;
-                dbContext.PipelineRunJobs.Add(entity);
+                // The PipelineRunJob must already exist
                 break;
             case PipelineJobStates.Running:
                 entity.DateBegun = DateTime.UtcNow;
-                entity.Status = request.Status;
-                dbContext.PipelineRunJobs.Update(entity);
                 break;
             case PipelineJobStates.MetadataCreated:
-                entity.Status = request.Status;
-                dbContext.PipelineRunJobs.Update(entity);
                 break;
             case PipelineJobStates.Completed:
                 entity.DateFinished = DateTime.UtcNow;
-                entity.Status = request.Status;
-                dbContext.PipelineRunJobs.Update(entity);
                 break;
             case PipelineJobStates.CompletedWithErrors:
                 entity.DateFinished = DateTime.UtcNow;
-                entity.Status = request.Status;
-                entity.Errors = request.Errors;
-                dbContext.PipelineRunJobs.Update(entity);
+                entity.Errors = request.PipelineDeposit.Errors;
                 break;
         }
+        if (request.PipelineDeposit.Status.HasText())
+        {
+            entity.Status = request.PipelineDeposit.Status;
+        }
+        dbContext.PipelineRunJobs.Update(entity);
 
         try
         {
@@ -89,7 +67,8 @@ public class RunPipelineStatusHandler(
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
         }
 
-        logger.LogInformation("Pipeline job " + entity.Id + " was run by " + callerIdentity);
+        var callerIdentity = request.User.GetCallerIdentity();
+        logger.LogInformation("Pipeline job " + entity.Id + " was updated by " + callerIdentity);
         return Result.Ok();
     }
 }

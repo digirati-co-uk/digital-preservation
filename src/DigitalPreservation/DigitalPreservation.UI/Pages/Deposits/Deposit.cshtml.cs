@@ -326,7 +326,7 @@ public class DepositModel(
             var jobId = identityMinter.MintIdentity("PipelineJob");
             var runUser = User.GetCallerIdentity();
             var result = await mediator.Send(new LockDeposit(Deposit!));
-            var result1 = await mediator.Send(new RunPipeline(Deposit!, runUser, jobId, id));
+            var result1 = await mediator.Send(new RunPipeline(Deposit!));
 
             if (result.Success && result1.Success)
             {
@@ -351,10 +351,9 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
-            var runUser = User.GetCallerIdentity();
             var (_, _, jobId) = PipelineJobsRunning();
             var result = await mediator.Send(new ReleaseLock(Deposit!));
-            var result1 = await mediator.Send(new ForceCompletePipeline(Deposit!, runUser, jobId, id));
+            var result1 = await mediator.Send(new ForceCompletePipeline(jobId, id, User));
             if (result.Success && result1.Success)
             {
                 TempData["Valid"] = "Force complete of pipeline succeeded and lock released.";
@@ -595,7 +594,7 @@ public class DepositModel(
                     Errors = "Cleaned up as previous processing did not complete"
                 };
 
-                var logResult = await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, new CancellationToken());
+                var logResult = await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
 
                 if (logResult.Failure)
                     logger.LogError(
