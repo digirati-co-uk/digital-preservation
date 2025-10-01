@@ -68,10 +68,10 @@ public class SearchModel(IMediator mediator) : PageModel
         }
     }
     
-    public async Task OnGet(string text) =>
-        await GetResults(text.Trim());
+    public async Task OnGet(string? text = "") =>
+        await GetResults(text?.Trim());
     
-    public async Task OnPostSearchAsync(string text, int page = 1, int pageSize = DefaultPageSize) =>
+    public async Task OnPostSearchAsync(string? text, int page = 1, int pageSize = DefaultPageSize) =>
         await GetResults(text, page, SearchType.All, pageSize);
     
 
@@ -79,7 +79,7 @@ public class SearchModel(IMediator mediator) : PageModel
         await GetResults(text, page, type, DefaultPageSize, otherPage);
     
 
-    private async Task GetResults(string text, int page = 1, SearchType type = SearchType.All, int pageSize = DefaultPageSize, int otherPage = 0)
+    private async Task GetResults(string? text, int page = 1, SearchType type = SearchType.All, int pageSize = DefaultPageSize, int otherPage = 0)
     {
         try
         {
@@ -87,6 +87,7 @@ public class SearchModel(IMediator mediator) : PageModel
 
             if (string.IsNullOrWhiteSpace(text))
             {
+                SearchModelData = new SearchCollection();
                 return;
             }
 
