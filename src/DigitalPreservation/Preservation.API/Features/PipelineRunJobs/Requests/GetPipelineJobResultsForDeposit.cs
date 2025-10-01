@@ -19,6 +19,7 @@ public class GetPipelineJobResultsForDepositHandler(
     {
         var pipelineJobEntities = await dbContext.PipelineRunJobs
             .Where(j => j.Deposit == request.DepositId)
+            .OrderBy(j => j.DateSubmitted)
             .ToListAsync(cancellationToken);
 
         var results = new List<ProcessPipelineResult>();

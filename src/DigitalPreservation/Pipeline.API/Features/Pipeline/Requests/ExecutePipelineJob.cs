@@ -106,14 +106,20 @@ public class ProcessPipelineJobHandler(
             Errors = errors
         };
         var updateResult = await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, cancellationToken);
-        if (updateResult.Value?.Errors is { Length: 0 })
+
+        if (updateResult is { Success: true, Value: not null } && errors.IsNullOrWhiteSpace())
         {
             logger.LogInformation("Job {jobIdentifier} status updated: {status}", jobId, status);
         }
+        else if (updateResult is { Success: true } && errors.HasText())
+        {
+            logger.LogError("Updated pipeline job {jobIdentifier} to status: {status}, recording errors {errors}", 
+                jobId, status, errors);
+        }
         else
         {
-            logger.LogError("Failed to update job {jobIdentifier} status: {status}; {error}", 
-                jobId, status, updateResult.CodeAndMessage());
+            logger.LogError("Failed to update job {jobIdentifier} status: {status}; {error}, was trying to log errors: {errors}", 
+                jobId, status, updateResult.CodeAndMessage(), errors);
         }
         return updateResult;
     }
