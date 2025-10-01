@@ -330,9 +330,6 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
-            //SET job id here
-            var jobId = identityMinter.MintIdentity("PipelineJob");
-            var runUser = User.GetCallerIdentity();
             var result = await mediator.Send(new LockDeposit(Deposit!));
             var result1 = await mediator.Send(new RunPipeline(Deposit!));
 
