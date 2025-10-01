@@ -67,10 +67,8 @@ public class DepositModel(
                     ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
                 }
             }
-
-            var (jobs, runningJob) = await GetCleanedPipelineJobsRunning();
-            PipelineJobResults = jobs;
-            RunningPipelineJob = runningJob;
+            
+            (PipelineJobResults, RunningPipelineJob) = await GetCleanedPipelineJobsRunning();
 
             if (Deposit.Status != DepositStates.Exporting)
             {
