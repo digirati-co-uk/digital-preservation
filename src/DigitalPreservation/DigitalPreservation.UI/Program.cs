@@ -96,7 +96,6 @@ try
         .AddUIHealthChecks();
 
     builder.Services.AddControllers();
-    builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
 
     var app = builder.Build();
     app

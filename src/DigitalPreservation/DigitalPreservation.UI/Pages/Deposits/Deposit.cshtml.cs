@@ -1,7 +1,6 @@
 ﻿using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
-using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -24,9 +23,7 @@ public class DepositModel(
     IMediator mediator, 
     IOptions<PreservationOptions> options,
     WorkspaceManagerFactory workspaceManagerFactory,
-    IPreservationApiClient preservationApiClient,
-    ILogger<DepositModel> logger,
-    IIdentityMinter identityMinter) : PageModel
+    IPreservationApiClient preservationApiClient) : PageModel
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
