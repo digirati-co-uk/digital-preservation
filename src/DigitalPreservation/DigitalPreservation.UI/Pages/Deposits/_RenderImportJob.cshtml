@@ -11,11 +11,11 @@
     <dd class="col-sm-9" aria-label="archival group">
         @if (Model.IsUpdate)
         {
-            <a href="/browse/@Model.ArchivalGroup.GetPathUnderRoot()">@Model.ArchivalGroup.GetPathUnderRoot()</a>
+            <a href="/browse/@Model.ArchivalGroup.GetPathUnderRoot()">@Model.ArchivalGroup.GetPathUnderRoot(true)</a>
         }
         else
         {
-            <span><svg class="bi"><use xlink:href="#file-arrow-up"/></svg></span> @Model.ArchivalGroup.GetPathUnderRoot()
+            <span><svg class="bi"><use xlink:href="#file-arrow-up"/></svg></span> @Model.ArchivalGroup.GetPathUnderRoot(true)
         }
     </dd>
     <dt class="col-sm-3">Archival Group Name</dt>
@@ -30,7 +30,7 @@
             @foreach (var container in Model.ContainersToAdd)
             {
                 <li>
-                    <svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()
+                    <svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot(true)
                 </li>
             }
         </ul>
@@ -41,7 +41,7 @@
             @foreach (var binary in Model.BinariesToAdd)
             {
                 <li>
-                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()
+                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)
                 </li>
             }
         </ul>
@@ -52,7 +52,7 @@
             @foreach (var binary in Model.BinariesToPatch)
             {
                 <li>
-                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()
+                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)
                 </li>
             }
         </ul>
@@ -63,7 +63,7 @@
             @foreach (var container in Model.ContainersToDelete)
             {
                 <li>
-                    <svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()
+                    <svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot(true)
                 </li>
             }
         </ul>
@@ -74,7 +74,7 @@
             @foreach (var binary in Model.BinariesToDelete)
             {
                 <li>
-                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()
+                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)
                 </li>
             }
         </ul>
@@ -85,7 +85,7 @@
             @foreach (var container in Model.ContainersToRename)
             {
                 <li>
-                    <svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()
+                    <svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot(true)
                 </li>
             }
         </ul>
@@ -95,7 +95,7 @@
         <ul class="list-unstyled">
             @foreach (var binary in Model.BinariesToRename)
             {
-                <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()
+                <svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot(true)
             }
         </ul>
     </dd>

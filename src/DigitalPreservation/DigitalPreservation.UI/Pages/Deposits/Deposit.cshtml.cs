@@ -69,7 +69,6 @@ public class DepositModel(
 
             if (Deposit.Status != DepositStates.Exporting)
             {
-                await WorkspaceManager.RefreshCombinedDirectory(); //refresh
                 var combinedResult = WorkspaceManager.GetRootCombinedDirectory();
                 if (combinedResult is { Success: true, Value: not null })
                 {
