@@ -2,6 +2,7 @@
 using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Preservation.API.Features.Ocfl.Requests;
 
 namespace Preservation.API.Features.Ocfl;
 
@@ -11,8 +12,9 @@ public class OcflController(IMediator mediator) : Controller
 {
 
     [HttpGet("storagemap/{*path}", Name = "GetStorageMap")]
-    [Produces<StorageMap>]
-    [Produces("application/json")]
+    [ProducesResponseType<StorageMap>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> GetStorageMap(
         [FromRoute] string path,
         [FromQuery] string? version = null,

@@ -7,8 +7,7 @@ using Preservation.API.Data;
 using Preservation.API.Mutation;
 using Storage.Client;
 
-
-namespace Preservation.API.Features.Repository.Requests;
+namespace Preservation.API.Features.Search.Requests;
 
 public class SearchRequest(string text, int page = 0, int pageSize = 20, SearchType type = SearchType.All, int otherPage = 0) : IRequest<Result<SearchCollection?>>
 {

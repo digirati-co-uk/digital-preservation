@@ -14,15 +14,15 @@ public static class ErrorCodes
         
     public static string GetErrorCode(int? statusCode)
     {
-        string errorCode = statusCode switch
+        var errorCode = statusCode switch
         {
-            404 => ErrorCodes.NotFound,
-            401 or 403 => ErrorCodes.Unauthorized,
-            400 => ErrorCodes.BadRequest,
-            409 => ErrorCodes.Conflict,
-            422 => ErrorCodes.Unprocessable,
-            410 => ErrorCodes.Tombstone,
-            _ => ErrorCodes.UnknownError
+            404 => NotFound,
+            401 or 403 => Unauthorized,
+            400 => BadRequest,
+            409 => Conflict,
+            422 => Unprocessable,
+            410 => Tombstone,
+            _ => UnknownError
         };
         return errorCode;
     }
