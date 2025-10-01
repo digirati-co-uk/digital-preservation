@@ -34,6 +34,10 @@ public class DepositModel(
     public CombinedDirectory? RootCombinedDirectory { get; set; }
     public Deposit? Deposit { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
+    
+    // NB there is no equivalent ImportJobResults at the Model level because we lazily load it
+    // Whereas for pipeline jobs we need to know if there are any up front.
+    public List<ProcessPipelineResult> PipelineJobResults { get; set; } = [];
 
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
 
@@ -351,7 +355,7 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
-            var (_, _, jobId) = PipelineJobsRunning();
+            var (_, _, jobId) = await GetCleanedPipelineJobsRunning();
             var result = await mediator.Send(new ReleaseLock(Deposit!));
             var result1 = await mediator.Send(new ForceCompletePipeline(jobId, id, User));
             if (result.Success && result1.Success)
@@ -548,59 +552,40 @@ public class DepositModel(
     }
 
 
-    public (List<ProcessPipelineResult>? jobs, bool jobRunning, string latestJobId) PipelineJobsRunning()
+    public async Task<(List<ProcessPipelineResult>? jobs, bool jobRunning, string latestJobId)> GetCleanedPipelineJobsRunning()
     {
-        var id = Deposit?.Id?.GetSlug();
+            var allJobs = GetPipelineJobResults().Result;
+            var oneDayAgo = DateTime.Now.Subtract(TimeSpan.FromDays(1));
+            var longRunningUnfinishedJobs = allJobs
+                .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < oneDayAgo && x.Deposit == Id)
+                .Where(x => PipelineJobStates.IsNotComplete(x.Status))
+                .ToList();
 
-        if (!string.IsNullOrEmpty(id))
-        {
-            var jobs = GetPipelineJobResults().Result;
-            var latestJobs = jobs?.Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= DateTime.Now.Date && x.Deposit == id).OrderByDescending(x => x.DateBegun).Take(1);
-
-            if (latestJobs == null)
-                return ([], false, string.Empty);
-
-            var latestJobResults = latestJobs.ToList();
-            var latestJob = latestJobResults.FirstOrDefault();
-            var status = latestJob?.Status;
-            var jobId  = latestJob?.JobId;
-            var jobRunning = !string.IsNullOrEmpty(status) && PipelineJobStates.IsNotComplete(status);
-
-            return (jobs, jobRunning, jobId ?? string.Empty);
-        }
-
-        return ([], false, string.Empty);
-
-    }
-
-    public async Task CleanupPipelineRunsForDeposit(List<ProcessPipelineResult>? jobs)
-    {
-        if (jobs == null)
-            return;
-
-        foreach (var job in jobs)
-        {
-            if (job.Status == PipelineJobStates.Running && job.DateBegun <= DateTime.Now.Date)
+            foreach (var job in longRunningUnfinishedJobs)
             {
-                if (string.IsNullOrEmpty(job.JobId))
-                    continue;
-
                 var pipelineDeposit = new PipelineDeposit
                 {
-                    Id = job.JobId,
+                    Id = job.JobId!,
                     Status = PipelineJobStates.CompletedWithErrors,
                     DepositId = job.Deposit,
                     RunUser = job.RunUser,
                     Errors = "Cleaned up as previous processing did not complete"
                 };
 
-                var logResult = await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
-
-                if (logResult.Failure)
-                    logger.LogError(
-                        "Could not record CompletedWithErrors status for deposit {depositId} job {jobIdentifier}", job.Deposit, job.JobId);
+                await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
             }
-        }
+            
+            var latestJob = allJobs
+                .Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= oneDayAgo && x.Deposit == Id)
+                .OrderByDescending(x => x.DateBegun)
+                .FirstOrDefault();
+
+            if (latestJob == null)
+            {
+                return (allJobs, false, string.Empty);
+            }
+
+            return (allJobs, PipelineJobStates.IsNotComplete(latestJob.Status), latestJob.JobId ?? string.Empty);
     }
 }
 

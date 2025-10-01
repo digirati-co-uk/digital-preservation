@@ -520,7 +520,6 @@ internal class PreservationApiClient(
     {
         try
         {
-            //var uri = new Uri($"/deposits/{depositId}/importJobs/results", UriKind.Relative);
             var uri = new Uri($"/deposits/{depositId}/PipelineRunJobs/results", UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
