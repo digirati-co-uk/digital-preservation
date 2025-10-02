@@ -1,8 +1,6 @@
-﻿using System.Text.Json;
-using DigitalPreservation.Common.Model.DepositHelpers;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
-using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
