@@ -72,7 +72,7 @@ public class ProcessPipelineResult : Resource
     public string? ArchivalGroup { get; set; }
 
     [JsonPropertyOrder(511)]
-    [JsonPropertyName("runUSer")]
+    [JsonPropertyName("runUser")]
     public string? RunUser { get; set; }
 
 }
