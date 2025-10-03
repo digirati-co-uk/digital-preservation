@@ -58,6 +58,7 @@ public class ImportJob : Resource
     /// Always provided when you ask the API to generate an ImportJob as a diff and the ArchivalGroup already exists.
     /// May be null for a new object
     /// </summary>
+    [JsonPropertyName("sourceVersion")]
     [JsonPropertyOrder(540)]
     public ObjectVersion? SourceVersion { get; set; }  // TODO - name of this thing
 
