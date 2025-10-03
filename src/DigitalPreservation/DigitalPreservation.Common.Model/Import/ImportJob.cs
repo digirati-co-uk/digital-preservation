@@ -68,6 +68,7 @@ public class ImportJob : Resource
     /// permitted set. The name property of the container may be any UTF-8 characters, and can be used to preserve an
     /// original directory name.
     /// </summary>
+    [JsonPropertyName("containersToAdd")]
     [JsonPropertyOrder(610)]
     public List<Container> ContainersToAdd { get; set; } = [];
 
@@ -79,6 +80,7 @@ public class ImportJob : Resource
     /// cannot be obtained by the API from METS file information or from S3 metadata. All API-generated jobs will
     /// include this field. 
     /// </summary>
+    [JsonPropertyName("binariesToAdd")]
     [JsonPropertyOrder(620)]
     public List<Binary> BinariesToAdd { get; set; } = [];
 
@@ -86,12 +88,14 @@ public class ImportJob : Resource
     /// A list of containers to remove. id is the only required property. The Containers must either be already empty,
     /// or only contain Binaries mentioned in the binariesToDelete property of the same ImportJob.
     /// </summary>
+    [JsonPropertyName("containersToDelete")]
     [JsonPropertyOrder(630)]
     public List<Container> ContainersToDelete { get; set; } = [];
 
     /// <summary>
     /// A list of binaries to remove. id is the only required property.
     /// </summary>
+    [JsonPropertyName("binariesToDelete")]
     [JsonPropertyOrder(640)]
     public List<Binary> BinariesToDelete { get; set; } = [];
 
@@ -102,6 +106,7 @@ public class ImportJob : Resource
     /// supplied name. The location must be an S3 key within the Deposit. The digest is only required if the SHA256
     /// cannot be obtained by the API from METS file information or from S3 metadata.
     /// </summary>
+    [JsonPropertyName("binariesToPatch")]
     [JsonPropertyOrder(650)]
     public List<Binary> BinariesToPatch { get; set; } = [];
     
