@@ -230,7 +230,8 @@ public class ResourceMutator(
             LastModified = entity.LastUpdated,
             LastModifiedBy = GetAgentUri(entity.RunUser),
             RunUser = entity.RunUser,
-            Errors = errors.Count != 0 ? errors.ToArray<Error>() : null
+            Errors = errors.Count != 0 ? errors.ToArray<Error>() : null,
+            Deposit = entity.Deposit
         };
         return processPipelineResult;
     }
