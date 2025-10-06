@@ -581,11 +581,11 @@ public class MetsParser(
                         Size = size,
                         Name = label ?? parts[^1],
                         Metadata = [
-                            new VirusScanMetadata
-                            {
-                                Source = MetsManager.Mets, 
-                                HasVirus = false
-                            },
+                            //new VirusScanMetadata
+                            //{
+                            //    Source = MetsManager.Mets, 
+                            //    HasVirus = false
+                            //},
                             new StorageMetadata 
                             {
                                 Source = MetsManager.Mets, 

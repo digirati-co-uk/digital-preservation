@@ -134,8 +134,6 @@ public class WorkingFile : WorkingBase
         return fileFormatMetadata.SingleOrDefault();
     }
 
-
-
     public DigestMetadata? GetDigestMetadata()
     {
         var digestMetadata = Metadata

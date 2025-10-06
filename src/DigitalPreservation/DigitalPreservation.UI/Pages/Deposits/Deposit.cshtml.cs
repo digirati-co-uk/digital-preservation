@@ -357,7 +357,6 @@ public class DepositModel(
         return Redirect($"/deposits/{id}");
     }
 
-
     public async Task<IActionResult> OnPostDeleteDeposit([FromRoute] string id)
     {
         var result = await mediator.Send(new DeleteDeposit(id));

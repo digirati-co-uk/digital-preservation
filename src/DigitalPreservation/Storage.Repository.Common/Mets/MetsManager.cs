@@ -549,6 +549,7 @@ public class MetsManager(
                 };
                 div.Div.Add(childItemDiv);
                 FileFormatMetadata premisFile;
+                VirusScanMetadata virusScanMetadata;
                 try
                 {
                     premisFile = GetFileFormatMetadata(workingFile, operationPath);
@@ -557,6 +558,18 @@ public class MetsManager(
                 {
                     return Result.Fail(ErrorCodes.BadRequest, mex.Message);
                 }
+
+
+                try
+                {
+                    virusScanMetadata = GetVirusScanMetadata(workingFile, operationPath);
+                }
+                catch (MetadataException mex)
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, mex.Message);
+                }
+
+
                 fullMets.Mets.FileSec.FileGrp[0].File.Add(
                     new FileType
                     {
@@ -570,7 +583,7 @@ public class MetsManager(
                             } 
                         }
                     });
-                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
+                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId, "digiprovMD_ClamAV", virusScanMetadata));
             }
             else if (workingBase is WorkingDirectory workingDirectory)
             {
@@ -648,6 +661,39 @@ public class MetsManager(
             OriginalName = originalName, // workingFile.LocalPath
             StorageLocation = null // storageLocation
         };
+    }
+
+    private static VirusScanMetadata GetVirusScanMetadata(WorkingFile workingFile, string originalName)
+    {
+        // This will throw if mismatches
+        //var digestMetadata = workingFile.GetDigestMetadata();
+
+        var virusScanMetadata = workingFile.GetVirusScanMetadata();
+        if (virusScanMetadata != null)
+        {
+            //if (fileFormatMetadata.OriginalName.IsNullOrWhiteSpace())
+            //{
+            //    fileFormatMetadata.OriginalName = originalName;
+            //}
+            // if (fileFormatMetadata.StorageLocation == null)
+            // {
+            //     fileFormatMetadata.StorageLocation = storageLocation;
+            // }
+            return virusScanMetadata;
+        }
+
+        //// no metadata available
+        //return new Metadata
+        //{
+        //    Source = Mets,
+        //    ContentType = workingFile.ContentType,
+        //    Digest = digestMetadata?.Digest ?? workingFile.Digest,
+        //    Size = workingFile.Size,
+        //    OriginalName = originalName, // workingFile.LocalPath
+        //    StorageLocation = null // storageLocation
+        //};
+
+        return null;
     }
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()
@@ -741,10 +787,11 @@ public class MetsManager(
     }
     
     
-    private static AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId)
+    private static AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null) //TODO: digiprovMD_ClamAV_timestmp
     {
         var premis = PremisManager.Create(premisFile);
         var xElement = PremisManager.GetXmlElement(premis, true);
+
         var amdSec = new AmdSecType
         {
             Id = admId,
@@ -759,8 +806,24 @@ public class MetsManager(
                         XmlData = new MdSecTypeMdWrapXmlData { Any = { xElement }}
                     }
                 }
-            }
+            },
         };
+
+        if (virusScanMetadata == null) return amdSec;
+
+        var digiProvMd = PremisEventManager.Create(virusScanMetadata);
+        var xVirusElement = PremisEventManager.GetXmlElement(digiProvMd);
+
+        amdSec.DigiprovMd.Add(new MdSecType
+        {
+            Id = digiprovId,
+            MdWrap = new MdSecTypeMdWrap
+            {
+                Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
+                XmlData = new MdSecTypeMdWrapXmlData { Any = { xVirusElement } } //TODO: digi prov md element
+            }
+        });
+
         return amdSec;
     }
 

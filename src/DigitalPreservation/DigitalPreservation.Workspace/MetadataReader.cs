@@ -1,8 +1,10 @@
 ﻿using System.Net.Mime;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
+using DigitalPreservation.XmlGen.Mods.V3;
 using Storage.Repository.Common;
 
 namespace DigitalPreservation.Workspace;
@@ -16,7 +18,7 @@ public class MetadataReader : IMetadataReader
     private Dictionary<string, string>? bagItSha256Values;
     private SiegfriedOutput? siegfriedSiegfriedOutput;
     private SiegfriedOutput? brunnhildeSiegfriedOutput;
-    private List<string> infectedFiles = [];
+    private List<VirusModel> infectedFiles = [];
     
     private readonly Dictionary<string, List<Metadata>> metadataByFiles =  new();
 
@@ -137,7 +139,12 @@ public class MetadataReader : IMetadataReader
         {
             // the parent of the first instance of /metadata or /metadata/
             // the parent of the first instance of /objects or /objects/
-            brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles);
+            //TODO: put below line back in
+            //TODO: pull out filepaths
+            var s = infectedFiles.Select(s => s.Filepath);
+            brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(s);
+            brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
+            AddVirusScanMetadata(infectedFiles, brunnhildeAvCommonPrefix, "ClamAv", timestamp);
             // ?? not done yet
         }
 
@@ -162,6 +169,24 @@ public class MetadataReader : IMetadataReader
                 PronomKey = file.Matches[0].Id,
                 FormatName = file.Matches[0].Format,
                 ContentType = file.Matches[0].Mime,
+                Timestamp = timestamp
+            });
+        }
+    }
+
+    private void AddVirusScanMetadata(List<VirusModel> infectedFiles, string commonParent, string source, DateTime timestamp)
+    {
+        // this is the new method
+        //TODO: source ClamAv
+        foreach (var file in infectedFiles)
+        {
+            var localPath = file.Filepath.RemoveStart(commonParent).RemoveStart("/"); // check this!
+            var metadataList = GetMetadataList(localPath!);
+            metadataList.Add(new VirusScanMetadata
+            {
+                Source = source,
+                HasVirus = true,
+                VirusFound = file.VirusFound,
                 Timestamp = timestamp
             });
         }
@@ -227,11 +252,45 @@ public class MetadataReader : IMetadataReader
         }
     }
 
-    private async Task<List<string>> ReadInfectedFilePaths(Stream stream)
+    private async Task<List<VirusModel>> ReadInfectedFilePaths(Stream stream)
     {
         var txt = await GetTextFromStream(stream);
         // TODO - actually parse this once we have an infected example
-        return [];
+        var result = ConvertClamResultStringToJson(txt);
+        var model = new List<VirusModel>();
+        foreach (var fileVirus in result.Hits)
+        {
+            var virusStringSplit = fileVirus.Split(':'); //model
+            model.Add(new VirusModel
+            {
+                Filepath = virusStringSplit[0],
+                VirusFound = virusStringSplit[1]
+            });
+        }
+        return model;
+    }
+
+    public static ClamScanResult ConvertClamResultStringToJson(string clamResultStr)
+    {
+        // Split the string by newlines and filter out any empty entries
+        var clamResultList = clamResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        // Find the index of the scan summary marker
+        int resultsMarker = clamResultList.IndexOf("----------- SCAN SUMMARY -----------");
+
+        if (resultsMarker == -1)
+        {
+            // Return an empty result if the marker is not found
+            return new ClamScanResult { Hits = [], Summary = [] };
+        }
+
+        // Get the hits (lines before the marker)
+        var hitList = clamResultList.Take(resultsMarker).ToList();
+
+        // Get the summary (lines after the marker)
+        var summaryList = clamResultList.Skip(resultsMarker + 1).ToList();
+
+        return new ClamScanResult { Hits = hitList, Summary = summaryList };
     }
 
     private async Task<SiegfriedOutput?> ParseSiegfriedOutput(Uri siegfriedUri)
@@ -338,4 +397,17 @@ public class MetadataReader : IMetadataReader
             workingBase.Metadata = metadataList;
         }
     }
+}
+
+// Define a class to represent the JSON output structure
+public class ClamScanResult
+{
+    public List<string> Hits { get; set; }
+    public List<string> Summary { get; set; }
+}
+
+public class VirusModel
+{
+    public string Filepath { get; set; }
+    public string VirusFound { get; set; }
 }
