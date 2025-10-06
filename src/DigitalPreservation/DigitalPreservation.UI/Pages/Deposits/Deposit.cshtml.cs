@@ -574,15 +574,26 @@ public class DepositModel(
             .Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= oneDayAgo && x.Deposit == Id)
             .OrderByDescending(x => x.DateBegun)
             .FirstOrDefault();
-        
-        if (latestJob == null)
+
+        var latestWaitingJob = allJobs
+            .Where(x => x.Created.HasValue && x.Created.Value >= oneDayAgo && x.Deposit == Id)
+            .OrderByDescending(x => x.Created)
+            .FirstOrDefault();
+
+        if (latestJob == null && latestWaitingJob == null)
         {
             return (allJobs, null);
         }
+
         ProcessPipelineResult? runningJob = null;
-        if (PipelineJobStates.IsNotComplete(latestJob.Status))
+        if (latestJob != null && PipelineJobStates.IsNotComplete(latestJob.Status))
         {
             runningJob = latestJob; 
+        }
+
+        if (latestWaitingJob != null && PipelineJobStates.IsNotComplete(latestWaitingJob.Status))
+        {
+            runningJob = latestWaitingJob;
         }
 
         return (allJobs, runningJob);
