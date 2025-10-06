@@ -671,27 +671,8 @@ public class MetsManager(
         var virusScanMetadata = workingFile.GetVirusScanMetadata();
         if (virusScanMetadata != null)
         {
-            //if (fileFormatMetadata.OriginalName.IsNullOrWhiteSpace())
-            //{
-            //    fileFormatMetadata.OriginalName = originalName;
-            //}
-            // if (fileFormatMetadata.StorageLocation == null)
-            // {
-            //     fileFormatMetadata.StorageLocation = storageLocation;
-            // }
             return virusScanMetadata;
         }
-
-        //// no metadata available
-        //return new Metadata
-        //{
-        //    Source = Mets,
-        //    ContentType = workingFile.ContentType,
-        //    Digest = digestMetadata?.Digest ?? workingFile.Digest,
-        //    Size = workingFile.Size,
-        //    OriginalName = originalName, // workingFile.LocalPath
-        //    StorageLocation = null // storageLocation
-        //};
 
         return null;
     }
