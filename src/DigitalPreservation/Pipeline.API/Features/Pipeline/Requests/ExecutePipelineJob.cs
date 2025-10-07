@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
@@ -11,7 +12,7 @@ using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
 using System.Text;
-using DigitalPreservation.Common.Model.PreservationApi;
+using System.Threading;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -139,15 +140,18 @@ public class ProcessPipelineJobHandler(
         var workspace = workspaceResult.Value;
         try
         {
-            if (await CheckIfForceComplete(request, workspace.Deposit, cancellationToken))
+            var (forceComplete, _) = await CheckIfForceComplete(request, workspace.Deposit, cancellationToken);
+            if (forceComplete)
             {
                 return Result.FailNotNull<Result>(ErrorCodes.UnknownError,
                     $"Pipeline job run {request.JobIdentifier} for deposit {request.DepositId} has been force completed.");
             }
-            
+
             await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
             var result = await ExecuteBrunnhilde(request, workspace, cancellationToken);
-            await UpdateJobStatus(request, result.Status, result.Errors, cancellationToken);
+
+            if(!result.CleanupProcessJob)
+                await UpdateJobStatus(request, result.Status, result.Errors, cancellationToken);
 
             logger.LogInformation("Execute Brunnhilde result test {status} {errors} ", result.Status, result.Errors);
             return result.Status == PipelineJobStates.Completed
@@ -228,13 +232,25 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation("Metadata process folder value: {metadataProcessPath}", metadataProcessPath);
         logger.LogInformation("Object folder path value: {objectPath}", objectPath);
 
-        if (await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken))
+        var (forceComplete, cleanupProcessJob) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
+
+        if (forceComplete)
         {
+            if (!cleanupProcessJob)
+            {
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" }]
+                };
+            }
+
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
-                Errors = [ new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" } ]
-            };
+                Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
+                CleanupProcessJob = true
+            }; ;
         }
 
         var start = new ProcessStartInfo
@@ -274,13 +290,24 @@ public class ProcessPipelineJobHandler(
             logger.LogInformation("Brunnhilde creation successful");
             var depositPath = $"{mountPath}{separator}{request.DepositId}";
 
+            var (forceCompleteOnSuccess, cleanupProcessJobOnSuccess) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
-            if (await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken))
+            if (forceCompleteOnSuccess)
             {
+                if (!cleanupProcessJobOnSuccess)
+                {
+                    return new ProcessPipelineResult
+                    {
+                        Status = PipelineJobStates.CompletedWithErrors,
+                        Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" }]
+                    };
+                }
+
                 return new ProcessPipelineResult
                 {
                     Status = PipelineJobStates.CompletedWithErrors,
-                    Errors = [ new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" } ]
+                    Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
+                    CleanupProcessJob = true
                 };
             }
 
@@ -310,12 +337,24 @@ public class ProcessPipelineJobHandler(
                 metadataPathForProcessDirectories);
             logger.LogInformation("depositName after brunnhilde process {depositId}", request.DepositId);
 
-            if (await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken))
+            var (forceCompleteAfterDelete, cleanupProcessJobAfterDelete) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
+            // At this point we have not modified the METS file, the ETag for this workspace is still valid
+            if (forceCompleteAfterDelete)
             {
+                if (!cleanupProcessJobAfterDelete)
+                {
+                    return new ProcessPipelineResult
+                    {
+                        Status = PipelineJobStates.CompletedWithErrors,
+                        Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" }]
+                    };
+                }
+
                 return new ProcessPipelineResult
                 {
                     Status = PipelineJobStates.CompletedWithErrors,
-                    Errors = [ new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" } ]
+                    Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
+                    CleanupProcessJob = true
                 };
             }
 
@@ -335,12 +374,25 @@ public class ProcessPipelineJobHandler(
                     uploadFileResult?.Success);
             }
 
-            if (await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken))
+
+            var (forceCompleteAfterUploads, cleanupProcessJobAfterUploads) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
+            // At this point we have not modified the METS file, the ETag for this workspace is still valid
+            if (forceCompleteAfterUploads)
             {
+                if (!cleanupProcessJobAfterUploads)
+                {
+                    return new ProcessPipelineResult
+                    {
+                        Status = PipelineJobStates.CompletedWithErrors,
+                        Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" }]
+                    };
+                }
+
                 return new ProcessPipelineResult
                 {
                     Status = PipelineJobStates.CompletedWithErrors,
-                    Errors = [ new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" } ]
+                    Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
+                    CleanupProcessJob = true
                 };
             }
 
@@ -465,7 +517,10 @@ public class ProcessPipelineJobHandler(
     {
         try
         {
-            if (await CheckIfForceComplete(request, deposit, cancellationToken))
+
+            var (forceCompleteBeforeUpload, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+            // At this point we have not modified the METS file, the ETag for this workspace is still valid
+            if (forceCompleteBeforeUpload)
             {
                 return (createSubFolderResult: [], uploadFileResult: []);
             }
@@ -485,10 +540,13 @@ public class ProcessPipelineJobHandler(
             foreach (var dirPath in Directory.GetDirectories(sourcePathForDirectories, "*", SearchOption.AllDirectories))
             {
                 logger.LogInformation("dir path {dirPath}", dirPath);
-                if (await CheckIfForceComplete(request, deposit, cancellationToken))
+                var (forceCompleteDirectoryUpload, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+                // At this point we have not modified the METS file, the ETag for this workspace is still valid
+                if (forceCompleteDirectoryUpload)
                 {
                     return (createSubFolderResult: [], uploadFileResult: []);
                 }
+
                 createSubFolderResult.Add(await CreateMetadataSubFolderOnS3(request, dirPath));
             }
 
@@ -499,11 +557,14 @@ public class ProcessPipelineJobHandler(
                 logger.LogInformation("Upload file path {filePath}", filePath);
                 if (filesToIgnore.Any(filePath.Contains))
                     continue;
- 
-                if (await CheckIfForceComplete(request, deposit, cancellationToken))
+
+                var (forceCompleteFileUpload, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+                // At this point we have not modified the METS file, the ETag for this workspace is still valid
+                if (forceCompleteFileUpload)
                 {
                     return (createSubFolderResult: [], uploadFileResult: []);
                 }
+
                 uploadFileResult.Add(await UploadFileToDepositOnS3(request, filePath, sourcePathForFiles, deposit, cancellationToken));
             }
 
@@ -568,7 +629,9 @@ public class ProcessPipelineJobHandler(
         var metadataContext = "metadata";
         context.Append(metadataContext);
 
-        if (await CheckIfForceComplete(request, deposit, cancellationToken))
+        var (forceCompleteUploadS3, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+
+        if (forceCompleteUploadS3)
         {
             return null;
         }
@@ -739,22 +802,26 @@ public class ProcessPipelineJobHandler(
     }
 
 
-    private async Task<bool> CheckIfForceComplete(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
+    private async Task<(bool, bool)> CheckIfForceComplete(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
         var depositPipelineResults = await preservationApiClient.GetPipelineJobResultsForDeposit(
             request.DepositId, CancellationToken.None);
 
-        if (depositPipelineResults.Value == null) return false;
+        if (depositPipelineResults.Value == null) return (false, false);
         var job = depositPipelineResults.Value.FirstOrDefault(
             x => x.JobId == request.JobIdentifier && x.Status == PipelineJobStates.CompletedWithErrors);
         var forceComplete = job != null;
+
+        //TODO: check if job is cleanup process job
+        var cleanupProcessJob = job is { Errors: not null } &&
+                                job.Errors.Any(x => x.Message.Contains("Cleaned up as previous processing did not complete"));
         
         if (forceComplete)
         {
             await TryReleaseLock(request, deposit, cancellationToken);
         }
 
-        return forceComplete;
+        return (forceComplete, cleanupProcessJob);
     }
 
     private async Task<Result> TryReleaseLock(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)

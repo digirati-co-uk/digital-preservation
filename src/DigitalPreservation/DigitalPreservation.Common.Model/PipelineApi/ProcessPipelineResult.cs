@@ -61,4 +61,8 @@ public class ProcessPipelineResult : Resource
     [JsonPropertyName("runUser")]
     public string? RunUser { get; set; }
 
+    [JsonPropertyOrder(512)]
+    [JsonPropertyName("cleanupProcessJob")]
+    public bool CleanupProcessJob { get; set; } = false;
+
 }

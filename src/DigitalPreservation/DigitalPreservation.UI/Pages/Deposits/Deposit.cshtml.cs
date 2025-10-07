@@ -551,11 +551,19 @@ public class DepositModel(
     public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetCleanedPipelineJobsRunning()
     {
         var allJobs = GetPipelineJobResults().Result;
-        var oneDayAgo = DateTime.Now.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
+        var oneDayAgo = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
         var longRunningUnfinishedJobs = allJobs
             .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < oneDayAgo && x.Deposit == Id)
             .Where(x => PipelineJobStates.IsNotComplete(x.Status))
             .ToList();
+
+        var longRunningUnfinishedWaitingJobs = allJobs
+            .Where(x => x.Created.HasValue && x.Created.Value < oneDayAgo && x.Deposit == Id)
+            .Where(x => PipelineJobStates.IsNotComplete(x.Status))
+            .ToList();
+
+
+        longRunningUnfinishedJobs.AddRange(longRunningUnfinishedWaitingJobs);
 
         foreach (var job in longRunningUnfinishedJobs)
         {
