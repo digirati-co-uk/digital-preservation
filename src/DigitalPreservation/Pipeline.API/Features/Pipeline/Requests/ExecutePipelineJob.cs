@@ -820,7 +820,6 @@ public class ProcessPipelineJobHandler(
             x => x.JobId == request.JobIdentifier && x.Status == PipelineJobStates.CompletedWithErrors);
         var forceComplete = job != null;
 
-        //TODO: check if job is cleanup process job
         var cleanupProcessJob = job is { Errors: not null } &&
                                 job.Errors.Any(x => x.Message.Contains("Cleaned up as previous processing did not complete"));
         

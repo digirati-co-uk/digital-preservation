@@ -576,6 +576,7 @@ public class DepositModel(
                 Errors = "Cleaned up as previous processing did not complete"
             };
 
+            var result = await mediator.Send(new ReleaseLock(Deposit!));
             await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
         }
         
