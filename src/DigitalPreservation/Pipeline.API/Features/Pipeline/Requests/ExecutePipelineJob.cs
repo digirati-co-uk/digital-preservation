@@ -236,6 +236,7 @@ public class ProcessPipelineJobHandler(
 
         if (forceComplete)
         {
+            await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
             if (!cleanupProcessJob)
             {
                 return new ProcessPipelineResult
@@ -250,7 +251,7 @@ public class ProcessPipelineJobHandler(
                 Status = PipelineJobStates.CompletedWithErrors,
                 Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
                 CleanupProcessJob = true
-            }; ;
+            }; 
         }
 
         var start = new ProcessStartInfo
@@ -294,6 +295,7 @@ public class ProcessPipelineJobHandler(
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
             if (forceCompleteOnSuccess)
             {
+                await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
                 if (!cleanupProcessJobOnSuccess)
                 {
                     return new ProcessPipelineResult
@@ -341,6 +343,7 @@ public class ProcessPipelineJobHandler(
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
             if (forceCompleteAfterDelete)
             {
+                await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
                 if (!cleanupProcessJobAfterDelete)
                 {
                     return new ProcessPipelineResult
@@ -379,6 +382,7 @@ public class ProcessPipelineJobHandler(
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
             if (forceCompleteAfterUploads)
             {
+                await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
                 if (!cleanupProcessJobAfterUploads)
                 {
                     return new ProcessPipelineResult
@@ -522,6 +526,7 @@ public class ProcessPipelineJobHandler(
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
             if (forceCompleteBeforeUpload)
             {
+                await TryReleaseLock(request, deposit, cancellationToken);
                 return (createSubFolderResult: [], uploadFileResult: []);
             }
 
@@ -544,6 +549,7 @@ public class ProcessPipelineJobHandler(
                 // At this point we have not modified the METS file, the ETag for this workspace is still valid
                 if (forceCompleteDirectoryUpload)
                 {
+                    await TryReleaseLock(request, deposit, cancellationToken);
                     return (createSubFolderResult: [], uploadFileResult: []);
                 }
 
@@ -562,6 +568,7 @@ public class ProcessPipelineJobHandler(
                 // At this point we have not modified the METS file, the ETag for this workspace is still valid
                 if (forceCompleteFileUpload)
                 {
+                    await TryReleaseLock(request, deposit, cancellationToken);
                     return (createSubFolderResult: [], uploadFileResult: []);
                 }
 
@@ -633,6 +640,7 @@ public class ProcessPipelineJobHandler(
 
         if (forceCompleteUploadS3)
         {
+            await TryReleaseLock(request, deposit, cancellationToken);
             return null;
         }
 
