@@ -23,7 +23,8 @@ public class DepositModel(
     IMediator mediator, 
     IOptions<PreservationOptions> options,
     WorkspaceManagerFactory workspaceManagerFactory,
-    IPreservationApiClient preservationApiClient) : PageModel
+    IPreservationApiClient preservationApiClient,
+    IOptions<PipelineOptions> pipelineOptions) : PageModel
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
@@ -550,7 +551,7 @@ public class DepositModel(
     public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetCleanedPipelineJobsRunning()
     {
         var allJobs = GetPipelineJobResults().Result;
-        var oneDayAgo = DateTime.Now.Subtract(TimeSpan.FromDays(1));
+        var oneDayAgo = DateTime.Now.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
         var longRunningUnfinishedJobs = allJobs
             .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < oneDayAgo && x.Deposit == Id)
             .Where(x => PipelineJobStates.IsNotComplete(x.Status))
@@ -591,7 +592,7 @@ public class DepositModel(
             runningJob = latestJob; 
         }
 
-        if (latestWaitingJob != null && PipelineJobStates.IsNotComplete(latestWaitingJob.Status))
+        if (runningJob == null && latestWaitingJob != null && PipelineJobStates.IsNotComplete(latestWaitingJob.Status))
         {
             runningJob = latestWaitingJob;
         }
