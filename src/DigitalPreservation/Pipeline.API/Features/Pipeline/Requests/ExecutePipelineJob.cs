@@ -275,8 +275,14 @@ public class ProcessPipelineJobHandler(
         m_TokensCatalog.Add(MonitorForceCompleteId, tokenSourceForceComplete);
         var cancellationTokenMonitorForceComplete = tokenSourceForceComplete.Token;
 
-        await Task.WhenAll(RunProcessAsync(objectPath, metadataProcessPath, cancellationTokenBrunnhilde), MonitorForceComplete(request, workspaceManager.Deposit, cancellationTokenMonitorForceComplete));
- 
+        try
+        {
+            await Task.WhenAll(RunProcessAsync(objectPath, metadataProcessPath, cancellationTokenBrunnhilde), MonitorForceComplete(request, workspaceManager.Deposit, cancellationTokenMonitorForceComplete));
+        }
+        catch (Exception e)
+        {
+            var s = e.Message;
+        }
 
         if (_streamReader == null)
         {
@@ -287,14 +293,37 @@ public class ProcessPipelineJobHandler(
 
             await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
 
+            var (forceCompleteStreamReader, cleanupProcessJobStreamReader) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
+            if (forceCompleteStreamReader)
+            {
+                await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+                if (!cleanupProcessJobStreamReader)
+                {
+                    logger.LogInformation("Exited as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
+                    return new ProcessPipelineResult
+                    {
+                        Status = PipelineJobStates.CompletedWithErrors,
+                        Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" }]
+                    };
+                }
+
+                logger.LogInformation("Exited as the pipeline job run has been cleaned up as previous processing did not complete {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, request.DepositId);
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
+                    CleanupProcessJob = true
+                };
+            }
+
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
-                Errors = [ new Error { Message = $" Issue executing Brunnhilde process as StandardOutput is null for {request.DepositId} and job id {request.JobIdentifier}" } ]
+                Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} has issue with Brunnhilde output stream reader being null" }]
             };
         }
 
-        var result = await _streamReader.ReadToEndAsync(cancellationToken);
+        var result = await _streamReader!.ReadToEndAsync(cancellationToken);
         _streamReader = null;
         var brunnhildeExecutionSuccess = result.Contains("Brunnhilde characterization complete.");
         logger.LogInformation("Brunnhilde result success: {brunnhildeExecutionSuccess}", brunnhildeExecutionSuccess);
@@ -898,9 +927,8 @@ public class ProcessPipelineJobHandler(
 
         if (cancelToken.IsCancellationRequested)
         {
-            if (process.HasExited != true)
+            if (!process.HasExited)
             {
-                //process.WaitForExit();
                 cancelToken.Register(process.Kill);
             }
         }
@@ -932,8 +960,21 @@ public class ProcessPipelineJobHandler(
             var (forceComplete, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
             if (forceComplete)
             {
-                var process = Process.GetProcessById(_processId);
-                process.Kill();
+                _streamReader = null;
+
+                try
+                {
+                    var process = Process.GetProcessById(_processId);
+
+                    if (!process.HasExited)
+                        process.Kill();
+                }
+                catch (Exception e)
+                {
+                    await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
+                    await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
+                }
+
                 await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
                 await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
             }
