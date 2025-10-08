@@ -17,6 +17,8 @@ public class PipelineJobExecutorService(
             if (transaction == null || !transaction.DepositName.HasText()) continue; 
             using var scope = serviceScopeFactory.CreateScope();
             var processor = scope.ServiceProvider.GetRequiredService<PipelineJobRunner>();
+
+            logger.LogInformation("About to execute the pipeline run for deposit {deposit}", transaction.DepositName);
             await processor.Execute(transaction, cancellationToken);
         }
     }

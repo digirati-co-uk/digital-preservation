@@ -143,11 +143,15 @@ public class ProcessPipelineJobHandler(
             var (forceComplete, _) = await CheckIfForceComplete(request, workspace.Deposit, cancellationToken);
             if (forceComplete)
             {
+                logger.LogInformation("Pipeline job run {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
+                
                 return Result.FailNotNull<Result>(ErrorCodes.UnknownError,
                     $"Pipeline job run {request.JobIdentifier} for deposit {request.DepositId} has been force completed.");
             }
 
             await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
+
+            logger.LogInformation("About to execute Brunnhilde for pipeline job run {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
             var result = await ExecuteBrunnhilde(request, workspace, cancellationToken);
 
             if(!result.CleanupProcessJob)
@@ -239,6 +243,7 @@ public class ProcessPipelineJobHandler(
             await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
             if (!cleanupProcessJob)
             {
+                logger.LogInformation("Exited as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
                 return new ProcessPipelineResult
                 {
                     Status = PipelineJobStates.CompletedWithErrors,
@@ -246,6 +251,7 @@ public class ProcessPipelineJobHandler(
                 };
             }
 
+            logger.LogInformation("Exited as the pipeline job run has been cleaned up as previous processing did not complete {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, request.DepositId);
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
@@ -298,6 +304,7 @@ public class ProcessPipelineJobHandler(
                 await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
                 if (!cleanupProcessJobOnSuccess)
                 {
+                    logger.LogInformation("Exited as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
                     return new ProcessPipelineResult
                     {
                         Status = PipelineJobStates.CompletedWithErrors,
@@ -305,6 +312,7 @@ public class ProcessPipelineJobHandler(
                     };
                 }
 
+                logger.LogInformation("Exited as the pipeline job run has been cleaned up as previous processing did not complete {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, request.DepositId);
                 return new ProcessPipelineResult
                 {
                     Status = PipelineJobStates.CompletedWithErrors,
@@ -346,6 +354,7 @@ public class ProcessPipelineJobHandler(
                 await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
                 if (!cleanupProcessJobAfterDelete)
                 {
+                    logger.LogInformation("Exited as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
                     return new ProcessPipelineResult
                     {
                         Status = PipelineJobStates.CompletedWithErrors,
@@ -353,6 +362,7 @@ public class ProcessPipelineJobHandler(
                     };
                 }
 
+                logger.LogInformation("Exited as the pipeline job run has been cleaned up as previous processing did not complete {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, request.DepositId);
                 return new ProcessPipelineResult
                 {
                     Status = PipelineJobStates.CompletedWithErrors,
@@ -385,6 +395,7 @@ public class ProcessPipelineJobHandler(
                 await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
                 if (!cleanupProcessJobAfterUploads)
                 {
+                    logger.LogInformation("Exited as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
                     return new ProcessPipelineResult
                     {
                         Status = PipelineJobStates.CompletedWithErrors,
@@ -392,6 +403,7 @@ public class ProcessPipelineJobHandler(
                     };
                 }
 
+                logger.LogInformation("Exited as the pipeline job run has been cleaned up as previous processing did not complete {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, request.DepositId);
                 return new ProcessPipelineResult
                 {
                     Status = PipelineJobStates.CompletedWithErrors,
@@ -527,6 +539,7 @@ public class ProcessPipelineJobHandler(
             if (forceCompleteBeforeUpload)
             {
                 await TryReleaseLock(request, deposit, cancellationToken);
+                logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                 return (createSubFolderResult: [], uploadFileResult: []);
             }
 
@@ -550,6 +563,7 @@ public class ProcessPipelineJobHandler(
                 if (forceCompleteDirectoryUpload)
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
+                    logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                     return (createSubFolderResult: [], uploadFileResult: []);
                 }
 
@@ -569,6 +583,7 @@ public class ProcessPipelineJobHandler(
                 if (forceCompleteFileUpload)
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
+                    logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                     return (createSubFolderResult: [], uploadFileResult: []);
                 }
 
@@ -640,6 +655,7 @@ public class ProcessPipelineJobHandler(
 
         if (forceCompleteUploadS3)
         {
+            logger.LogInformation("Exited UploadFileToDepositOnS3() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
             await TryReleaseLock(request, deposit, cancellationToken);
             return null;
         }
