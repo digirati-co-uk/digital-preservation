@@ -296,7 +296,7 @@ public class ProcessPipelineJobHandler(
             var (forceCompleteStreamReader, cleanupProcessJobStreamReader) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
             if (forceCompleteStreamReader)
             {
-                await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+                //await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
                 if (!cleanupProcessJobStreamReader)
                 {
                     logger.LogInformation("Exited as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
@@ -323,7 +323,9 @@ public class ProcessPipelineJobHandler(
             };
         }
 
-        var result = await _streamReader!.ReadToEndAsync(cancellationToken);
+
+        logger.LogInformation("_streamReader {streamReader}",_streamReader);
+        var result = await _streamReader.ReadToEndAsync(CancellationToken.None);
         _streamReader = null;
         var brunnhildeExecutionSuccess = result.Contains("Brunnhilde characterization complete.");
         logger.LogInformation("Brunnhilde result success: {brunnhildeExecutionSuccess}", brunnhildeExecutionSuccess);
