@@ -12,7 +12,6 @@ using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
 using System.Text;
-using System.Threading;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -36,6 +35,10 @@ public class ProcessPipelineJobHandler(
 {
     private const string BrunnhildeFolderName = "brunnhilde";
     private readonly string[] filesToIgnore = ["tree.txt"];
+    private StreamReader? _streamReader;
+    private Guid BrunnhildeProcessId = Guid.Parse("6BFB4FE2-E17E-423C-A889-426A0ADF4DF1");
+    private Guid MonitorForceCompleteId = Guid.Parse("97BD55BA-B039-460F-BDC9-34DAD57920C5");
+    private Dictionary<Guid, CancellationTokenSource> m_TokensCatalog = new();
 
     /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
@@ -151,7 +154,7 @@ public class ProcessPipelineJobHandler(
 
             await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
 
-            logger.LogInformation("About to execute Brunnhilde for pipeline job run {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
+            logger.LogInformation("About to execute Brunnhilde for pipeline job run {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
             var result = await ExecuteBrunnhilde(request, workspace, cancellationToken);
 
             if(!result.CleanupProcessJob)
@@ -260,19 +263,19 @@ public class ProcessPipelineJobHandler(
             }; 
         }
 
-        var start = new ProcessStartInfo
-        {
-            FileName = brunnhildeOptions.Value.PathToPython,
-            Arguments =
-                $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ",
-            UseShellExecute = false,
-            RedirectStandardOutput = true
-        };
+        //var timer = new Timer()
+        var tokenSourceBrunnhilde = new CancellationTokenSource();
+        m_TokensCatalog.Add(BrunnhildeProcessId, tokenSourceBrunnhilde);
+        var cancellationTokenBrunnhilde = tokenSourceBrunnhilde.Token;
 
-        using var process = Process.Start(start);
-        using var reader = process?.StandardOutput;
+        var tokenSourceForceComplete = new CancellationTokenSource();
+        m_TokensCatalog.Add(MonitorForceCompleteId, tokenSourceForceComplete);
+        var cancellationTokenMonitorForceComplete = tokenSourceForceComplete.Token;
 
-        if (reader == null)
+        await Task.WhenAll(RunProcessAsync(objectPath, metadataProcessPath, cancellationTokenBrunnhilde), MonitorForceComplete(request, workspaceManager.Deposit, cancellationTokenMonitorForceComplete));
+ 
+
+        if (_streamReader == null)
         {
             logger.LogError("Issue executing Brunnhilde process: process?.StandardOutput is null");
 
@@ -288,7 +291,8 @@ public class ProcessPipelineJobHandler(
             };
         }
 
-        var result = await reader.ReadToEndAsync(cancellationToken);
+        var result = await _streamReader.ReadToEndAsync(cancellationToken);
+        _streamReader = null;
         var brunnhildeExecutionSuccess = result.Contains("Brunnhilde characterization complete.");
         logger.LogInformation("Brunnhilde result success: {brunnhildeExecutionSuccess}", brunnhildeExecutionSuccess);
 
@@ -858,6 +862,60 @@ public class ProcessPipelineJobHandler(
         }
 
         return releaseLockResult;
+    }
+
+    private async Task<int> RunProcessAsync(string objectPath, string metadataProcessPath, CancellationToken cancellationToken) //, string args
+    {
+        using var process = new Process();
+        process.StartInfo.FileName = brunnhildeOptions.Value.PathToPython;
+        process.StartInfo.Arguments = $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
+        process.StartInfo.UseShellExecute = false;
+        process.StartInfo.RedirectStandardOutput = true;
+        process.EnableRaisingEvents = true;
+        return await RunProcessAsync(process, cancellationToken).ConfigureAwait(false);
+    }
+
+    // This method is used only for internal function call.
+    private async Task<int> RunProcessAsync(Process process, CancellationToken cancelToken)
+    {
+        var tcs = new TaskCompletionSource<int>();
+        
+        process.Exited += (s, ea) => tcs.SetResult((process.ExitCode));
+        process.OutputDataReceived += (s, ea) => Console.WriteLine(ea.Data);
+        process.ErrorDataReceived += (s, ea) => Console.WriteLine("ERR: " + ea.Data);
+
+        var started = process.Start();
+        if (!started)
+        {
+            //you may allow for the process to be re-used (started = false) 
+            //but I'm not sure about the guarantees of the Exited event in such a case
+            await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
+            await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
+            throw new InvalidOperationException("Could not start process: " + process);
+        }
+
+        _streamReader = process?.StandardOutput;
+
+        if (_streamReader != null)
+        {
+            await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
+            await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
+        }
+
+        return tcs.Task.Id;
+    }
+
+    private async Task MonitorForceComplete(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var (forceComplete, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+            if (forceComplete)
+            {
+                await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
+                await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
+            }
+        }
     }
 }
 
