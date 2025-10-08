@@ -12,6 +12,7 @@ using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -39,6 +40,8 @@ public class ProcessPipelineJobHandler(
     private Guid BrunnhildeProcessId = Guid.Parse("6BFB4FE2-E17E-423C-A889-426A0ADF4DF1");
     private Guid MonitorForceCompleteId = Guid.Parse("97BD55BA-B039-460F-BDC9-34DAD57920C5");
     private Dictionary<Guid, CancellationTokenSource> m_TokensCatalog = new();
+
+    private int _processId;
 
     /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
@@ -872,6 +875,8 @@ public class ProcessPipelineJobHandler(
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.RedirectStandardOutput = true;
         process.EnableRaisingEvents = true;
+
+        //var name = Process.GetCurrentProcess().ProcessName;
         return await RunProcessAsync(process, cancellationToken).ConfigureAwait(false);
     }
 
@@ -885,6 +890,21 @@ public class ProcessPipelineJobHandler(
         process.ErrorDataReceived += (s, ea) => Console.WriteLine("ERR: " + ea.Data);
 
         var started = process.Start();
+
+        if (started)
+        {
+            _processId = process.Id;
+        }
+
+        if (cancelToken.IsCancellationRequested)
+        {
+            if (process.HasExited != true)
+            {
+                //process.WaitForExit();
+                cancelToken.Register(process.Kill);
+            }
+        }
+
         if (!started)
         {
             //you may allow for the process to be re-used (started = false) 
@@ -912,6 +932,8 @@ public class ProcessPipelineJobHandler(
             var (forceComplete, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
             if (forceComplete)
             {
+                var process = Process.GetProcessById(_processId);
+                process.Kill();
                 await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
                 await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
             }
