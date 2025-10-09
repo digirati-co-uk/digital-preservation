@@ -297,17 +297,6 @@ public class ProcessPipelineJobHandler(
 
             _streamReader = process?.StandardOutput;
 
-            //var processTimer = new System.Timers.Timer(3000);
-            ProcessTimer.Elapsed += (sender, e) => CheckIfProcessRunning(sender, e, request, workspaceManager.Deposit, cancellationToken);
-            //processTimer.Elapsed += CheckIfProcessRunning;
-            ProcessTimer.AutoReset = true;
-            ProcessTimer.Enabled = true;
-
-
-            //var taskAll = Task.WhenAll(RunProcessAsync(objectPath, metadataProcessPath, cancellationTokenBrunnhilde), MonitorForceComplete(request, workspaceManager.Deposit, cancellationTokenMonitorForceComplete));
-            //await taskAll;
-
-            //logger.LogInformation("Execute Pipeline Job TaskAll status {taskStatus}", taskAll.Status);
         }
         catch (Exception e)
         {
@@ -439,9 +428,31 @@ public class ProcessPipelineJobHandler(
                 };
             }
 
-            var (createFolderResultList, uploadFilesResultList) = await UploadFilesToMetadataRecursively(
+            var (createFolderResultList, uploadFilesResultList, forceCompleteUpload, forceCompleteUploadCleanupProcess) = await UploadFilesToMetadataRecursively(
                 request, metadataPathForProcessDirectories, metadataPathForProcessFiles, depositPath,
                 workspaceManager.Deposit, cancellationToken);
+
+            if (forceCompleteUpload || forceCompleteUploadCleanupProcess)
+            {
+                await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+                if (!forceCompleteUploadCleanupProcess)
+                {
+                    logger.LogInformation("Exited as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId} has been force completed.", request.JobIdentifier, request.DepositId);
+                    return new ProcessPipelineResult
+                    {
+                        Status = PipelineJobStates.CompletedWithErrors,
+                        Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed" }]
+                    };
+                }
+
+                logger.LogInformation("Exited as the pipeline job run has been cleaned up as previous processing did not complete {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, request.DepositId);
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
+                    CleanupProcessJob = true
+                };
+            }
 
             foreach (var folderResult in createFolderResultList)
             {
@@ -594,7 +605,7 @@ public class ProcessPipelineJobHandler(
 
     private async Task<(
         List<Result<CreateFolderResult>?> createSubFolderResult, 
-        List<Result<SingleFileUploadResult>?>uploadFileResult)> UploadFilesToMetadataRecursively(
+        List<Result<SingleFileUploadResult>?>uploadFileResult, bool forceComplete, bool cleanupProcess)> UploadFilesToMetadataRecursively(
             ExecutePipelineJob request, 
             string sourcePathForDirectories, string sourcePathForFiles, string depositPath, 
             Deposit deposit, CancellationToken cancellationToken)
@@ -602,13 +613,13 @@ public class ProcessPipelineJobHandler(
         try
         {
 
-            var (forceCompleteBeforeUpload, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+            var (forceCompleteBeforeUpload, cleanupProcessBeforeUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
-            if (forceCompleteBeforeUpload)
+            if (forceCompleteBeforeUpload || cleanupProcessBeforeUpload)
             {
                 await TryReleaseLock(request, deposit, cancellationToken);
                 logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
-                return (createSubFolderResult: [], uploadFileResult: []);
+                return (createSubFolderResult: [], uploadFileResult: [], forceCompleteBeforeUpload, cleanupProcessBeforeUpload);
             }
 
             var context = new StringBuilder();
@@ -626,13 +637,13 @@ public class ProcessPipelineJobHandler(
             foreach (var dirPath in Directory.GetDirectories(sourcePathForDirectories, "*", SearchOption.AllDirectories))
             {
                 logger.LogInformation("dir path {dirPath}", dirPath);
-                var (forceCompleteDirectoryUpload, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+                var (forceCompleteDirectoryUpload, cleanupProcessDirectoryUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
                 // At this point we have not modified the METS file, the ETag for this workspace is still valid
-                if (forceCompleteDirectoryUpload)
+                if (forceCompleteDirectoryUpload || cleanupProcessDirectoryUpload)
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
                     logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
-                    return (createSubFolderResult: [], uploadFileResult: []);
+                    return (createSubFolderResult: [], uploadFileResult: [], forceCompleteDirectoryUpload, cleanupProcessDirectoryUpload);
                 }
 
                 createSubFolderResult.Add(await CreateMetadataSubFolderOnS3(request, dirPath));
@@ -646,16 +657,24 @@ public class ProcessPipelineJobHandler(
                 if (filesToIgnore.Any(filePath.Contains))
                     continue;
 
-                var (forceCompleteFileUpload, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+                var (forceCompleteFileUpload, cleanupProcessFileUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
                 // At this point we have not modified the METS file, the ETag for this workspace is still valid
-                if (forceCompleteFileUpload)
+                if (forceCompleteFileUpload || cleanupProcessFileUpload)
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
                     logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
-                    return (createSubFolderResult: [], uploadFileResult: []);
+                    return (createSubFolderResult: [], uploadFileResult: [], forceCompleteFileUpload, cleanupProcessFileUpload);
                 }
 
-                uploadFileResult.Add(await UploadFileToDepositOnS3(request, filePath, sourcePathForFiles, deposit, cancellationToken));
+                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFiles, deposit, cancellationToken);
+                if (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess)
+                {
+                    await TryReleaseLock(request, deposit, cancellationToken);
+                    logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
+                    return (createSubFolderResult: [], uploadFileResult: [], uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess);
+                }
+
+                uploadFileResult.Add(uploadFileToS3Result);
             }
 
             foreach (var subFolder in createSubFolderResult)
@@ -671,16 +690,17 @@ public class ProcessPipelineJobHandler(
 
             if (createSubFolderResult.Any() && uploadFileResult.Any())
             {
-                return (createSubFolderResult, uploadFileResult);
+                return (createSubFolderResult, uploadFileResult, false, false);
             }
 
         }
         catch (Exception ex)
         {
             logger.LogError(ex, " Caught error in copy files recursively from {sourcePathForFiles} to {depositPath}", sourcePathForFiles, depositPath);
+            return (createSubFolderResult: [], uploadFileResult: [], false, false);
         }
 
-        return (createSubFolderResult: [], uploadFileResult: []);
+        return (createSubFolderResult: [], uploadFileResult: [], false, false);
     }
 
     private async Task<Result<CreateFolderResult>?> CreateMetadataSubFolderOnS3(ExecutePipelineJob request, string dirPath)
@@ -712,30 +732,30 @@ public class ProcessPipelineJobHandler(
         return result;
     }
 
-    private async Task<Result<SingleFileUploadResult>?> UploadFileToDepositOnS3(ExecutePipelineJob request, string filePath,
+    private async Task<(Result<SingleFileUploadResult>?, bool, bool)> UploadFileToDepositOnS3(ExecutePipelineJob request, string filePath,
         string sourcePath, Deposit deposit, CancellationToken cancellationToken)
     {
         var context = new StringBuilder();
         var metadataContext = "metadata";
         context.Append(metadataContext);
 
-        var (forceCompleteUploadS3, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+        var (forceCompleteUploadS3, cleanupProcessUploadS3) = await CheckIfForceComplete(request, deposit, cancellationToken);
 
-        if (forceCompleteUploadS3)
+        if (forceCompleteUploadS3 || cleanupProcessUploadS3)
         {
             logger.LogInformation("Exited UploadFileToDepositOnS3() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
             await TryReleaseLock(request, deposit, cancellationToken);
-            return null;
+            return (null, forceCompleteUploadS3, cleanupProcessUploadS3);
         }
 
         if (!filePath.Contains(BrunnhildeFolderName))
-            return null;
+            return (null, false, false);
 
         var fi = new FileInfo(filePath);
 
         if (fi.Directory == null)
         {
-            return null;
+            return (null, false, false);
         }
 
         var contextPath = metadataContext + "/" + Path.GetRelativePath(
@@ -749,7 +769,7 @@ public class ProcessPipelineJobHandler(
         var checksum = Checksum.Sha256FromFile(fi);
 
         if (string.IsNullOrEmpty(checksum))
-            return null;
+            return (null, false, false);
 
         var stream = GetFileStream(filePath);
         var result = await UploadFileToBucketDeposit(request, stream, filePath, contextPath, checksum);
@@ -767,7 +787,7 @@ public class ProcessPipelineJobHandler(
         }
 
         await stream.DisposeAsync();
-        return result;
+        return (result, false, false);
     }
 
     private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(
@@ -1021,7 +1041,7 @@ public class ProcessPipelineJobHandler(
             if (forceComplete)
             {
                 _streamReader = null;
-
+                
                 try
                 {
                     var process = Process.GetProcessById(_processId);
