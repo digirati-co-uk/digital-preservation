@@ -45,7 +45,7 @@ public class ProcessPipelineJobHandler(
     private Dictionary<Guid, CancellationTokenSource> m_TokensCatalog = new();
 
     private int _processId;
-    private System.Timers.Timer ProcessTimer = new System.Timers.Timer(3000);
+    private readonly System.Timers.Timer ProcessTimer = new(3000);
 
     /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
@@ -271,13 +271,13 @@ public class ProcessPipelineJobHandler(
         }
 
         //var timer = new Timer()
-        var tokenSourceBrunnhilde = new CancellationTokenSource();
-        m_TokensCatalog.Add(BrunnhildeProcessId, tokenSourceBrunnhilde);
-        var cancellationTokenBrunnhilde = tokenSourceBrunnhilde.Token;
+        //var tokenSourceBrunnhilde = new CancellationTokenSource();
+        //m_TokensCatalog.Add(BrunnhildeProcessId, tokenSourceBrunnhilde);
+        //var cancellationTokenBrunnhilde = tokenSourceBrunnhilde.Token;
 
-        var tokenSourceForceComplete = new CancellationTokenSource();
-        m_TokensCatalog.Add(MonitorForceCompleteId, tokenSourceForceComplete);
-        var cancellationTokenMonitorForceComplete = tokenSourceForceComplete.Token;
+        //var tokenSourceForceComplete = new CancellationTokenSource();
+        //m_TokensCatalog.Add(MonitorForceCompleteId, tokenSourceForceComplete);
+        //var cancellationTokenMonitorForceComplete = tokenSourceForceComplete.Token;
 
         try
         {
@@ -317,7 +317,7 @@ public class ProcessPipelineJobHandler(
 
         if (_streamReader == null)
         {
-            logger.LogError("Issue executing Brunnhilde process: process?.StandardOutput is null");
+            logger.LogError("Steam reader is null Issue executing Brunnhilde process: process?.StandardOutput is null");
 
             logger.LogError("Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}",
                 request.JobIdentifier, request.DepositId);
@@ -942,7 +942,7 @@ public class ProcessPipelineJobHandler(
     }
 
     // This method is used only for internal function call.
-    private async Task<int> RunProcessAsync(Process process, CancellationToken cancelToken)
+    private Task<int> RunProcessAsync(Process process, CancellationToken cancelToken)
     {
         var tcs = new TaskCompletionSource<int>();
         
@@ -982,7 +982,7 @@ public class ProcessPipelineJobHandler(
             //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
         }
 
-        return tcs.Task.Id;
+        return tcs.Task;
     }
 
     private async Task MonitorForceComplete(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
@@ -1020,7 +1020,7 @@ public class ProcessPipelineJobHandler(
             var (forceComplete, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
             if (forceComplete)
             {
-                //_streamReader = null;
+                _streamReader = null;
 
                 try
                 {
