@@ -45,7 +45,7 @@ public class ProcessPipelineJobHandler(
     private Dictionary<Guid, CancellationTokenSource> m_TokensCatalog = new();
 
     private int _processId;
-    private readonly System.Timers.Timer ProcessTimer = new(3000);
+    private readonly System.Timers.Timer ProcessTimer = new(10000);
 
     /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
@@ -139,6 +139,7 @@ public class ProcessPipelineJobHandler(
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
         //await CleanupPipelineRunsForDeposit(request);
+        await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
 
         var workspaceResult = await GetWorkspaceManager(request, true, cancellationToken);
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)
@@ -148,6 +149,7 @@ public class ProcessPipelineJobHandler(
         }
 
         var workspace = workspaceResult.Value;
+
         try
         {
             var (forceComplete, _) = await CheckIfForceComplete(request, workspace.Deposit, cancellationToken);
@@ -158,8 +160,6 @@ public class ProcessPipelineJobHandler(
                 return Result.FailNotNull<Result>(ErrorCodes.UnknownError,
                     $"Pipeline job run {request.JobIdentifier} for deposit {request.DepositId} has been force completed.");
             }
-
-            await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
 
             logger.LogInformation("About to execute Brunnhilde for pipeline job run {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
             var result = await ExecuteBrunnhilde(request, workspace, cancellationToken);
@@ -294,6 +294,12 @@ public class ProcessPipelineJobHandler(
             {
                 _processId = process.Id;
             }
+
+            //var processTimer = new System.Timers.Timer(3000);
+            ProcessTimer.Elapsed += (sender, e) => CheckIfProcessRunning(sender, e, request, workspaceManager.Deposit, cancellationToken);
+            //processTimer.Elapsed += CheckIfProcessRunning;
+            ProcessTimer.AutoReset = true;
+            ProcessTimer.Enabled = true;
 
             _streamReader = process?.StandardOutput;
 
@@ -1045,22 +1051,23 @@ public class ProcessPipelineJobHandler(
                 try
                 {
                     var process = Process.GetProcessById(_processId);
+                    Process[] pname = Process.GetProcessesByName(process.ProcessName);
 
-                    if (!process.HasExited)
+                    if (pname.Length > 0 && !process.HasExited)
                         process.Kill();
 
                     ProcessTimer.Stop();
+                    ProcessTimer.Enabled = false;
                 }
                 catch (Exception e)
                 {
-                    //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
-                    //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
                     ProcessTimer.Stop();
+                    ProcessTimer.Enabled = false;
                 }
 
-                //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
-                //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
+
                 ProcessTimer.Stop();
+                ProcessTimer.Enabled = false;
             }
         }
         catch (Exception e)
