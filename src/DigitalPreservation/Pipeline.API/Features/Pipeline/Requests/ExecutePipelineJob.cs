@@ -138,7 +138,7 @@ public class ProcessPipelineJobHandler(
     
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
-        await CleanupPipelineRunsForDeposit(request);
+        //await CleanupPipelineRunsForDeposit(request);
 
         var workspaceResult = await GetWorkspaceManager(request, true, cancellationToken);
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)
