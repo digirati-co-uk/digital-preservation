@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using Azure.Core;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -7,12 +8,14 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
+using System.Timers;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -42,6 +45,7 @@ public class ProcessPipelineJobHandler(
     private Dictionary<Guid, CancellationTokenSource> m_TokensCatalog = new();
 
     private int _processId;
+    private System.Timers.Timer ProcessTimer = new System.Timers.Timer(3000);
 
     /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
@@ -277,7 +281,19 @@ public class ProcessPipelineJobHandler(
 
         try
         {
-            await Task.WhenAll(RunProcessAsync(objectPath, metadataProcessPath, cancellationTokenBrunnhilde), MonitorForceComplete(request, workspaceManager.Deposit, cancellationTokenMonitorForceComplete));
+            var runProcessResult = await RunProcessAsync(objectPath, metadataProcessPath, cancellationToken);
+            
+            //var processTimer = new System.Timers.Timer(3000);
+            ProcessTimer.Elapsed += (sender, e) => CheckIfProcessRunning(sender, e, request, workspaceManager.Deposit, cancellationToken);
+            //processTimer.Elapsed += CheckIfProcessRunning;
+            ProcessTimer.AutoReset = true;
+            ProcessTimer.Enabled = true;
+
+
+            //var taskAll = Task.WhenAll(RunProcessAsync(objectPath, metadataProcessPath, cancellationTokenBrunnhilde), MonitorForceComplete(request, workspaceManager.Deposit, cancellationTokenMonitorForceComplete));
+            //await taskAll;
+
+            //logger.LogInformation("Execute Pipeline Job TaskAll status {taskStatus}", taskAll.Status);
         }
         catch (Exception e)
         {
@@ -916,9 +932,9 @@ public class ProcessPipelineJobHandler(
     {
         var tcs = new TaskCompletionSource<int>();
         
-        process.Exited += (s, ea) => tcs.SetResult((process.ExitCode));
-        process.OutputDataReceived += (s, ea) => Console.WriteLine(ea.Data);
-        process.ErrorDataReceived += (s, ea) => Console.WriteLine("ERR: " + ea.Data);
+        //process.Exited += (s, ea) => tcs.SetResult((process.ExitCode));
+        //process.OutputDataReceived += (s, ea) => Console.WriteLine(ea.Data);
+        //process.ErrorDataReceived += (s, ea) => Console.WriteLine("ERR: " + ea.Data);
 
         var started = process.Start();
 
@@ -940,7 +956,7 @@ public class ProcessPipelineJobHandler(
             //you may allow for the process to be re-used (started = false) 
             //but I'm not sure about the guarantees of the Exited event in such a case
             await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
-            await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
+            //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
             throw new InvalidOperationException("Could not start process: " + process);
         }
 
@@ -949,7 +965,7 @@ public class ProcessPipelineJobHandler(
         if (_streamReader != null)
         {
             await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
-            await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
+            //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
         }
 
         return tcs.Task.Id;
@@ -980,6 +996,43 @@ public class ProcessPipelineJobHandler(
                 await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
                 await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
             }
+        }
+    }
+
+    private async void CheckIfProcessRunning(object? source, ElapsedEventArgs eventArgs, ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var (forceComplete, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
+            if (forceComplete)
+            {
+                _streamReader = null;
+
+                try
+                {
+                    var process = Process.GetProcessById(_processId);
+
+                    if (!process.HasExited)
+                        process.Kill();
+
+                    ProcessTimer.Stop();
+                }
+                catch (Exception e)
+                {
+                    //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
+                    //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
+                    ProcessTimer.Stop();
+                }
+
+                //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
+                //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
+                ProcessTimer.Stop();
+            }
+        }
+        catch (Exception e)
+        {
+            //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
+            //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
         }
     }
 }
