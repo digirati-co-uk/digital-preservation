@@ -281,8 +281,20 @@ public class ProcessPipelineJobHandler(
 
         try
         {
-            var runProcessResult = await RunProcessAsync(objectPath, metadataProcessPath, cancellationToken);
-            
+            //var runProcessResult = await RunProcessAsync(objectPath, metadataProcessPath, cancellationToken);
+
+            using var process = new Process();
+            process.StartInfo.FileName = brunnhildeOptions.Value.PathToPython;
+            process.StartInfo.Arguments = $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.RedirectStandardOutput = true;
+            var started = process.Start();
+
+            if (started)
+            {
+                _processId = process.Id;
+            }
+
             //var processTimer = new System.Timers.Timer(3000);
             ProcessTimer.Elapsed += (sender, e) => CheckIfProcessRunning(sender, e, request, workspaceManager.Deposit, cancellationToken);
             //processTimer.Elapsed += CheckIfProcessRunning;
@@ -297,6 +309,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception e)
         {
+            logger.LogError(e, "Error thrown running the process and timer");
             var s = e.Message;
         }
 
@@ -955,7 +968,7 @@ public class ProcessPipelineJobHandler(
         {
             //you may allow for the process to be re-used (started = false) 
             //but I'm not sure about the guarantees of the Exited event in such a case
-            await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
+            //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
             //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
             throw new InvalidOperationException("Could not start process: " + process);
         }
@@ -964,7 +977,7 @@ public class ProcessPipelineJobHandler(
 
         if (_streamReader != null)
         {
-            await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
+            //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
             //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
         }
 
