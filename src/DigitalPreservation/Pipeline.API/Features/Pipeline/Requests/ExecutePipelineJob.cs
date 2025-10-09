@@ -295,6 +295,8 @@ public class ProcessPipelineJobHandler(
                 _processId = process.Id;
             }
 
+            _streamReader = process?.StandardOutput;
+
             //var processTimer = new System.Timers.Timer(3000);
             ProcessTimer.Elapsed += (sender, e) => CheckIfProcessRunning(sender, e, request, workspaceManager.Deposit, cancellationToken);
             //processTimer.Elapsed += CheckIfProcessRunning;
@@ -351,7 +353,6 @@ public class ProcessPipelineJobHandler(
                 Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} has issue with Brunnhilde output stream reader being null" }]
             };
         }
-
 
         logger.LogInformation("_streamReader {streamReader}",_streamReader);
         var result = await _streamReader.ReadToEndAsync(CancellationToken.None);
@@ -1019,7 +1020,7 @@ public class ProcessPipelineJobHandler(
             var (forceComplete, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
             if (forceComplete)
             {
-                _streamReader = null;
+                //_streamReader = null;
 
                 try
                 {
