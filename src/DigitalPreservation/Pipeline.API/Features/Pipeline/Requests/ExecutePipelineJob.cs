@@ -40,9 +40,6 @@ public class ProcessPipelineJobHandler(
     private const string BrunnhildeFolderName = "brunnhilde";
     private readonly string[] filesToIgnore = ["tree.txt"];
     private StreamReader? _streamReader;
-    private Guid BrunnhildeProcessId = Guid.Parse("6BFB4FE2-E17E-423C-A889-426A0ADF4DF1");
-    private Guid MonitorForceCompleteId = Guid.Parse("97BD55BA-B039-460F-BDC9-34DAD57920C5");
-    private Dictionary<Guid, CancellationTokenSource> m_TokensCatalog = new();
 
     private int _processId;
     private readonly System.Timers.Timer ProcessTimer = new(10000);
@@ -270,15 +267,6 @@ public class ProcessPipelineJobHandler(
             }; 
         }
 
-        //var timer = new Timer()
-        //var tokenSourceBrunnhilde = new CancellationTokenSource();
-        //m_TokensCatalog.Add(BrunnhildeProcessId, tokenSourceBrunnhilde);
-        //var cancellationTokenBrunnhilde = tokenSourceBrunnhilde.Token;
-
-        //var tokenSourceForceComplete = new CancellationTokenSource();
-        //m_TokensCatalog.Add(MonitorForceCompleteId, tokenSourceForceComplete);
-        //var cancellationTokenMonitorForceComplete = tokenSourceForceComplete.Token;
-
         try
         {
             //var runProcessResult = await RunProcessAsync(objectPath, metadataProcessPath, cancellationToken);
@@ -288,10 +276,14 @@ public class ProcessPipelineJobHandler(
             process.StartInfo.Arguments = $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardOutput = true;
+
+            logger.LogInformation("Brunnhilde process about to be started {date}", DateTime.Now);
             var started = process.Start();
+
 
             if (started)
             {
+                logger.LogInformation("Brunnhilde process started {date}", DateTime.Now);
                 _processId = process.Id;
             }
 
