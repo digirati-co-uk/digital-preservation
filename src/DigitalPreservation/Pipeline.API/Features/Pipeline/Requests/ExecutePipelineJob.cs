@@ -954,91 +954,6 @@ public class ProcessPipelineJobHandler(
         return releaseLockResult;
     }
 
-    private async Task<int> RunProcessAsync(string objectPath, string metadataProcessPath, CancellationToken cancellationToken) //, string args
-    {
-        using var process = new Process();
-        process.StartInfo.FileName = brunnhildeOptions.Value.PathToPython;
-        process.StartInfo.Arguments = $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
-        process.StartInfo.UseShellExecute = false;
-        process.StartInfo.RedirectStandardOutput = true;
-        process.EnableRaisingEvents = true;
-
-        //var name = Process.GetCurrentProcess().ProcessName;
-        return await RunProcessAsync(process, cancellationToken).ConfigureAwait(false);
-    }
-
-    // This method is used only for internal function call.
-    private Task<int> RunProcessAsync(Process process, CancellationToken cancelToken)
-    {
-        var tcs = new TaskCompletionSource<int>();
-        
-        //process.Exited += (s, ea) => tcs.SetResult((process.ExitCode));
-        //process.OutputDataReceived += (s, ea) => Console.WriteLine(ea.Data);
-        //process.ErrorDataReceived += (s, ea) => Console.WriteLine("ERR: " + ea.Data);
-
-        var started = process.Start();
-
-        if (started)
-        {
-            _processId = process.Id;
-        }
-
-        if (cancelToken.IsCancellationRequested)
-        {
-            if (!process.HasExited)
-            {
-                cancelToken.Register(process.Kill);
-            }
-        }
-
-        if (!started)
-        {
-            //you may allow for the process to be re-used (started = false) 
-            //but I'm not sure about the guarantees of the Exited event in such a case
-            //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
-            //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
-            throw new InvalidOperationException("Could not start process: " + process);
-        }
-
-        _streamReader = process?.StandardOutput;
-
-        if (_streamReader != null)
-        {
-            //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
-            //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
-        }
-
-        return tcs.Task;
-    }
-
-    private async Task MonitorForceComplete(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var (forceComplete, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
-            if (forceComplete)
-            {
-                _streamReader = null;
-
-                try
-                {
-                    var process = Process.GetProcessById(_processId);
-
-                    if (!process.HasExited)
-                        process.Kill();
-                }
-                catch (Exception e)
-                {
-                    await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
-                    await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
-                }
-
-                await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
-                await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
-            }
-        }
-    }
-
     private async void CheckIfProcessRunning(object? source, ElapsedEventArgs eventArgs, ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
         try
@@ -1047,7 +962,8 @@ public class ProcessPipelineJobHandler(
             if (forceComplete)
             {
                 _streamReader = null;
-                
+                logger.LogInformation("This job {jobId} was force completed and thus attempting kill the Brunnhilde process", request.JobIdentifier);
+
                 try
                 {
                     var process = Process.GetProcessById(_processId);
@@ -1056,11 +972,13 @@ public class ProcessPipelineJobHandler(
                     if (pname.Length > 0 && !process.HasExited)
                         process.Kill();
 
+                    logger.LogInformation("Process killed for job id {jobId}", request.JobIdentifier);
                     ProcessTimer.Stop();
                     ProcessTimer.Enabled = false;
                 }
                 catch (Exception e)
                 {
+                    logger.LogError(e, "Attempted to kill process for job {jobId}", request.JobIdentifier);
                     ProcessTimer.Stop();
                     ProcessTimer.Enabled = false;
                 }
@@ -1072,6 +990,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception e)
         {
+            logger.LogError(e, "CheckIfProcessRunning has thrown an exception.");
             //await m_TokensCatalog[BrunnhildeProcessId].CancelAsync();
             //await m_TokensCatalog[MonitorForceCompleteId].CancelAsync();
         }
