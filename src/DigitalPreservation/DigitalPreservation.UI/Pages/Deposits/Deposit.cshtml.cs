@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
+using DigitalPreservation.Common.Model.Identity;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -25,8 +26,6 @@ public class DepositModel(
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
     IOptions<PipelineOptions> pipelineOptions,
-    ILogger<DepositModel> logger,
-    IIdentityMinter identityMinter,
     IConfiguration configuration) : PageModel
 {
     public required string Id { get; set; }
