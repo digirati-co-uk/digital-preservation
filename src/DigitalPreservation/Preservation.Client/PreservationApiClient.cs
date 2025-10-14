@@ -61,15 +61,9 @@ internal class PreservationApiClient(
         return await response.ToFailResult("Unable to remove lock");
     }
 
-    public async Task<Result> RunPipeline(Deposit deposit, string? runUser, string jobId, CancellationToken cancellationToken)
+    public async Task<Result> RunPipeline(Deposit deposit, CancellationToken cancellationToken)
     {
-        var queryString = $"?jobId={jobId}";
-
-        if (!string.IsNullOrEmpty(runUser))
-        {
-            queryString += $"&runUser={runUser}";
-        }
-        var uri = new Uri(deposit.Id!.AbsolutePath + "/pipeline" + queryString, UriKind.Relative);
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/pipeline", UriKind.Relative);
         var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
         if (response.IsSuccessStatusCode)
         {
@@ -526,8 +520,7 @@ internal class PreservationApiClient(
     {
         try
         {
-            //var uri = new Uri($"/deposits/{depositId}/importJobs/results", UriKind.Relative);
-            var uri = new Uri($"/deposits/{depositId}/PipelineRunJobs/results", UriKind.Relative);
+            var uri = new Uri($"/deposits/{depositId}/pipelinerunjobs", UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
             if (response.IsSuccessStatusCode)
@@ -539,7 +532,7 @@ internal class PreservationApiClient(
                 }
                 return Result.FailNotNull<List<ProcessPipelineResult>>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<List<ProcessPipelineResult>>("Unable to get import job results");
+            return await response.ToFailNotNullResult<List<ProcessPipelineResult>>("Unable to get pipeline run job results");
         }
         catch (Exception e)
         {
@@ -552,7 +545,7 @@ internal class PreservationApiClient(
     {
         try
         {
-            var uri = new Uri($"/deposits/{depositId}/pipelineJobs/results/{pipelineJobId}", UriKind.Relative);
+            var uri = new Uri($"/deposits/{depositId}/pipelinerunjobs/{pipelineJobId}", UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
             if (response.IsSuccessStatusCode)
@@ -564,7 +557,7 @@ internal class PreservationApiClient(
                 }
                 return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<ProcessPipelineResult>("Unable to get import job result");
+            return await response.ToFailNotNullResult<ProcessPipelineResult>("Unable to get pipeline run job result");
         }
         catch (Exception e)
         {
