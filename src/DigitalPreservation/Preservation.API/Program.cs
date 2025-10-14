@@ -19,7 +19,6 @@ using LeedsDlipServices;
 using LeedsDlipServices.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Amazon.SimpleNotificationService;
-using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using Microsoft.OpenApi.Models;
 
@@ -69,7 +68,6 @@ try
         .AddStorageAwsAccess(builder.Configuration)
         .AddStorageClient(builder.Configuration, "Preservation-API")
         .AddIdentityServiceClient(builder.Configuration)
-        .AddSingleton<IIdentityMinter, IdentityMinter>()
         .AddMvpCatalogueClient(builder.Configuration)
         .AddResourceMutator(builder.Configuration)
         .AddSingleton<IMetsParser, MetsParser>()
