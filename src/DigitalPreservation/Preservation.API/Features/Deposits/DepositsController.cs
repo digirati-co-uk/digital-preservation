@@ -1,6 +1,8 @@
-﻿using DigitalPreservation.Common.Model.DepositHelpers;
+﻿using System.Text.Json;
+using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
@@ -308,9 +310,9 @@ public class DepositsController(
     [ProducesResponseType<ProblemDetails>(404, "application/json")]
     [ProducesResponseType<ProblemDetails>(401, "application/json")]
     [ProducesResponseType<ProblemDetails>(409, "application/json")]
-    public async Task<IActionResult> RunPipeline([FromRoute] string id)
+    public async Task<IActionResult> RunPipeline([FromRoute] string id, [FromQuery] string? runUser, [FromQuery] string? jobId)
     {
-        var runPipelineResult = await mediator.Send(new RunPipeline(id, User));
+        var runPipelineResult = await mediator.Send(new RunPipeline(id, User, runUser, jobId));
         return this.StatusResponseFromResult(runPipelineResult, successStatusCode: 204);
     }
 
@@ -319,7 +321,7 @@ public class DepositsController(
     [ApiExplorerSettings(IgnoreApi = true)] // for internal use
     public async Task<IActionResult> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit)
     {
-        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit, User)); 
+        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit.Id, pipelineDeposit.DepositId , pipelineDeposit.Status ?? string.Empty, User, pipelineDeposit.RunUser, pipelineDeposit.Errors)); 
 
         return this.StatusResponseFromResult(runPipelineStatusResult, successStatusCode: 204);
     }
