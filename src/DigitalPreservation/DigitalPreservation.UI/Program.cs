@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
@@ -55,7 +56,7 @@ try
 
 
     builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options => options.Events = new RejectSessionCookieWhenAccountNotInCacheEvents());
-    
+    builder.Services.Configure<PipelineOptions>(builder.Configuration.GetSection("PipelineOptions"));
     // <ms_docref_add_default_controller_for_sign-in-out>
     builder.Services.AddRazorPages().AddMvcOptions(options =>
     {
@@ -96,7 +97,6 @@ try
         .AddUIHealthChecks();
 
     builder.Services.AddControllers();
-    builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
 
     var app = builder.Build();
     app

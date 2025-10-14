@@ -30,13 +30,6 @@ public class ProcessPipelineResult : Resource
     /// <summary>
     /// Timestamp indicating when the API finished processing the job. Will be null/missing until then.
     /// </summary>
-    [JsonPropertyName("dateSubmitted")]
-    [JsonPropertyOrder(610)]
-    public DateTime? DateSubmitted { get; set; }
-
-    /// <summary>
-    /// Timestamp indicating when the API finished processing the job. Will be null/missing until then.
-    /// </summary>
     [JsonPropertyName("dateBegun")]
     [JsonPropertyOrder(611)]
     public DateTime? DateBegun { get; set; }
@@ -47,13 +40,6 @@ public class ProcessPipelineResult : Resource
     [JsonPropertyName("dateFinished")]
     [JsonPropertyOrder(610)]
     public DateTime? DateFinished { get; set; }
-
-    /// <summary>
-    /// Timestamp indicating when the API finished processing the job. Will be null/missing until then.
-    /// </summary>
-    [JsonPropertyName("lastUpdated")]
-    [JsonPropertyOrder(610)]
-    public DateTime? LastUpdated { get; set; }
 
 
     /// <summary>
@@ -67,12 +53,16 @@ public class ProcessPipelineResult : Resource
     /// <summary>
     /// Also included for convenience, the repository object the changes specified in the job are being applied to
     /// </summary>
-    [JsonPropertyName("archivalGroup")]
+    [JsonPropertyName("archivalGroupName")]
     [JsonPropertyOrder(510)]
-    public required string? ArchivalGroup { get; set; }
+    public string? ArchivalGroupName { get; set; }
 
     [JsonPropertyOrder(511)]
-    [JsonPropertyName("runUSer")]
+    [JsonPropertyName("runUser")]
     public string? RunUser { get; set; }
+
+    [JsonPropertyOrder(512)]
+    [JsonPropertyName("cleanupProcessJob")]
+    public bool CleanupProcessJob { get; set; } = false;
 
 }
