@@ -26,7 +26,8 @@ public class DepositModel(
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
     ILogger<DepositModel> logger,
-    IIdentityMinter identityMinter) : PageModel
+    IIdentityMinter identityMinter,
+    IConfiguration configuration) : PageModel
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
@@ -36,6 +37,8 @@ public class DepositModel(
     public string? ArchivalGroupTestWarning { get; set; }
 
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
+
+    public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
 
     public async Task OnGet(
         [FromRoute] string id,
