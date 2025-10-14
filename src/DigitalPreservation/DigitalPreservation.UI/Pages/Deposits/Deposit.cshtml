@@ -71,16 +71,20 @@
                             </li>
                         }
                         
-                        <li>
-                            <button disabled="@pipelineRunStarted" class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
-                                <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
-                            </button>
-                        </li>
-                        <li>
-                            <button disabled="@(!pipelineRunStarted)" class="dropdown-item text-primary" type="submit" asp-page-handler="ForceCompletePipelineRun">
-                                <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
-                            </button>
-                        </li>
+                        @if (!Model.HidePipeline)
+                        {
+                            <li>
+                                <button disabled="@pipelineRunStarted" class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
+                                    <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button disabled="@(!pipelineRunStarted)" class="dropdown-item text-primary" type="submit" asp-page-handler="ForceCompletePipelineRun">
+                                    <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
+                                </button>
+                            </li>
+                        }
+
                         <li>
                             <button disabled="@pipelineRunStarted" class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
                                 <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
