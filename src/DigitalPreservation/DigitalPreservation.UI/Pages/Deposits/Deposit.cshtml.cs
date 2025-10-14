@@ -24,7 +24,10 @@ public class DepositModel(
     IOptions<PreservationOptions> options,
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
-    IOptions<PipelineOptions> pipelineOptions) : PageModel
+    IOptions<PipelineOptions> pipelineOptions,
+    ILogger<DepositModel> logger,
+    IIdentityMinter identityMinter,
+    IConfiguration configuration) : PageModel
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
@@ -39,6 +42,8 @@ public class DepositModel(
     public ProcessPipelineResult? RunningPipelineJob { get; set; }
 
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
+
+    public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
 
     public async Task OnGet(
         [FromRoute] string id,
