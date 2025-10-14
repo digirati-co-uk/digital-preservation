@@ -3,14 +3,11 @@ using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using Pipeline.API.Config;
 using Pipeline.API.Features.Pipeline.Models;
 using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
 using System.Diagnostics;
 using DigitalPreservation.Common.Model.Results;
-using Preservation.Client;
 
 namespace Pipeline.API.Features.Pipeline;
 

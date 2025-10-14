@@ -26,6 +26,8 @@ public class SqsPipelineQueue(
     public async ValueTask QueueRequest(string jobIdentifier, string depositName, string? runUser, CancellationToken cancellationToken)
     {
         topicArn = options.Value.PipelineJobTopicArn;
+
+        logger.LogInformation("Message queued for deposit {deposit} and job id {jobId}", depositName, jobIdentifier);
         var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { JobIdentifier = jobIdentifier, DepositName = depositName, RunUser = runUser});
         var request = new PublishRequest(topicArn, pipelineJobMessage);
         var response = await snsClient.PublishAsync(request, cancellationToken);
@@ -38,33 +40,43 @@ public class SqsPipelineQueue(
     {
         PipelineJobMessage? messageModel = null;
 
-        var queue = options.Value.PipelineJobQueue;
-        logger.LogInformation($"About to check queue {queue} for messages");
-        var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queue, cancellationToken);
-        var queueUrlValue = queueUrlResponse.QueueUrl;
-
-        var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+        try
         {
-            QueueUrl = queueUrlValue,
-            WaitTimeSeconds = 10,
-            MaxNumberOfMessages = 1
-        }, cancellationToken);
+            var queue = options.Value.PipelineJobQueue;
 
-        foreach (var message in response.Messages!)
-        {
-            if (cancellationToken.IsCancellationRequested) return messageModel;
-            logger.LogDebug("Received SQS message {messageBody}", message.Body);
+            logger.LogInformation($"About to check queue {queue} for messages");
+            var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queue, cancellationToken);
+            var queueUrlValue = queueUrlResponse.QueueUrl;
 
-            messageModel = await GetMessageModel(message, queue);
-            if (messageModel != null && !messageModel.DepositName.HasText()) 
+            var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+            {
+                QueueUrl = queueUrlValue,
+                WaitTimeSeconds = 10,
+                MaxNumberOfMessages = 1
+            }, cancellationToken);
+
+            foreach (var message in response.Messages!)
+            {
+                if (cancellationToken.IsCancellationRequested) return messageModel;
+                logger.LogDebug("Received SQS message {messageBody}", message.Body);
+
+                messageModel = await GetMessageModel(message, queue);
+                if (messageModel != null && !messageModel.DepositName.HasText())
+                    return messageModel;
+
+                await DeleteMessage(message, queueUrlValue, cancellationToken);
                 return messageModel;
 
-            await DeleteMessage(message, queueUrlValue, cancellationToken);
-            return messageModel;
+            }
 
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, $"Error in DequeueRequest {e.Message}");
         }
 
         return messageModel;
+
     }
 
     private async Task<PipelineJobMessage?> GetMessageModel(Message message, string queue)

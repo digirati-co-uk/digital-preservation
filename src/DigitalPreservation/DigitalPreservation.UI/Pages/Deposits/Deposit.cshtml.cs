@@ -1,7 +1,6 @@
 ﻿using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
-using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -17,6 +16,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
+using DigitalPreservation.Common.Model.Identity;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -25,8 +25,7 @@ public class DepositModel(
     IOptions<PreservationOptions> options,
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
-    ILogger<DepositModel> logger,
-    IIdentityMinter identityMinter,
+    IOptions<PipelineOptions> pipelineOptions,
     IConfiguration configuration) : PageModel
 {
     public required string Id { get; set; }
@@ -35,6 +34,11 @@ public class DepositModel(
     public CombinedDirectory? RootCombinedDirectory { get; set; }
     public Deposit? Deposit { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
+    
+    // NB there is no equivalent ImportJobResults at the Model level because we lazily load it
+    // Whereas for pipeline jobs we need to know if there are any up front.
+    public List<ProcessPipelineResult> PipelineJobResults { get; set; } = [];
+    public ProcessPipelineResult? RunningPipelineJob { get; set; }
 
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
 
@@ -65,6 +69,8 @@ public class DepositModel(
                     ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
                 }
             }
+            
+            (PipelineJobResults, RunningPipelineJob) = await GetCleanedPipelineJobsRunning();
 
             if (Deposit.Status != DepositStates.Exporting)
             {
@@ -324,11 +330,8 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
-            //SET job id here
-            var jobId = identityMinter.MintIdentity("PipelineJob");
-            var runUser = User.GetCallerIdentity();
             var result = await mediator.Send(new LockDeposit(Deposit!));
-            var result1 = await mediator.Send(new RunPipeline(Deposit!, runUser, jobId, id));
+            var result1 = await mediator.Send(new RunPipeline(Deposit!));
 
             if (result.Success && result1.Success)
             {
@@ -351,12 +354,10 @@ public class DepositModel(
     //ForceCompletePipelineRun
     public async Task<IActionResult> OnPostForceCompletePipelineRun([FromRoute] string id)
     {
-        if (await BindDeposit(id))
+        if (await BindDeposit(id) && RunningPipelineJob?.JobId != null)
         {
-            var runUser = User.GetCallerIdentity();
-            var (_, _, jobId) = PipelineJobsRunning();
             var result = await mediator.Send(new ReleaseLock(Deposit!));
-            var result1 = await mediator.Send(new ForceCompletePipeline(Deposit!, runUser, jobId, id));
+            var result1 = await mediator.Send(new ForceCompletePipeline(RunningPipelineJob.JobId, id, User));
             if (result.Success && result1.Success)
             {
                 TempData["Valid"] = "Force complete of pipeline succeeded and lock released.";
@@ -551,59 +552,65 @@ public class DepositModel(
     }
 
 
-    public (List<ProcessPipelineResult>? jobs, bool jobRunning, string latestJobId) PipelineJobsRunning()
+    public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetCleanedPipelineJobsRunning()
     {
-        var id = Deposit?.Id?.GetSlug();
+        var allJobs = GetPipelineJobResults().Result;
+        var oneDayAgo = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
+        var longRunningUnfinishedJobs = allJobs
+            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < oneDayAgo && x.Deposit == Id)
+            .Where(x => PipelineJobStates.IsNotComplete(x.Status))
+            .ToList();
 
-        if (!string.IsNullOrEmpty(id))
+        var longRunningUnfinishedWaitingJobs = allJobs
+            .Where(x => x.Created.HasValue && x.Created.Value < oneDayAgo && x.Deposit == Id)
+            .Where(x => PipelineJobStates.IsNotComplete(x.Status))
+            .ToList();
+
+
+        longRunningUnfinishedJobs.AddRange(longRunningUnfinishedWaitingJobs);
+
+        foreach (var job in longRunningUnfinishedJobs)
         {
-            var jobs = GetPipelineJobResults().Result;
-            var latestJobs = jobs?.Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= DateTime.Now.Date && x.Deposit == id).OrderByDescending(x => x.DateBegun).Take(1);
-
-            if (latestJobs == null)
-                return ([], false, string.Empty);
-
-            var latestJobResults = latestJobs.ToList();
-            var latestJob = latestJobResults.FirstOrDefault();
-            var status = latestJob?.Status;
-            var jobId  = latestJob?.JobId;
-            var jobRunning = !string.IsNullOrEmpty(status) && PipelineJobStates.IsNotComplete(status);
-
-            return (jobs, jobRunning, jobId ?? string.Empty);
-        }
-
-        return ([], false, string.Empty);
-
-    }
-
-    public async Task CleanupPipelineRunsForDeposit(List<ProcessPipelineResult>? jobs)
-    {
-        if (jobs == null)
-            return;
-
-        foreach (var job in jobs)
-        {
-            if (job.Status == PipelineJobStates.Running && job.DateBegun <= DateTime.Now.Date)
+            var pipelineDeposit = new PipelineDeposit
             {
-                if (string.IsNullOrEmpty(job.JobId))
-                    continue;
+                Id = job.JobId!,
+                Status = PipelineJobStates.CompletedWithErrors,
+                DepositId = job.Deposit,
+                RunUser = job.RunUser,
+                Errors = "Cleaned up as previous processing did not complete"
+            };
 
-                var pipelineDeposit = new PipelineDeposit
-                {
-                    Id = job.JobId,
-                    Status = PipelineJobStates.CompletedWithErrors,
-                    DepositId = job.Deposit,
-                    RunUser = job.RunUser,
-                    Errors = "Cleaned up as previous processing did not complete"
-                };
-
-                var logResult = await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, new CancellationToken());
-
-                if (logResult.Failure)
-                    logger.LogError(
-                        "Could not record CompletedWithErrors status for deposit {depositId} job {jobIdentifier}", job.Deposit, job.JobId);
-            }
+            var result = await mediator.Send(new ReleaseLock(Deposit!));
+            await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
         }
+        
+        var latestJob = allJobs
+            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= oneDayAgo && x.Deposit == Id)
+            .OrderByDescending(x => x.DateBegun)
+            .FirstOrDefault();
+
+        var latestWaitingJob = allJobs
+            .Where(x => x.Created.HasValue && x.Created.Value >= oneDayAgo && x.Deposit == Id)
+            .OrderByDescending(x => x.Created)
+            .FirstOrDefault();
+
+        if (latestJob == null && latestWaitingJob == null)
+        {
+            return (allJobs, null);
+        }
+
+        ProcessPipelineResult? runningJob = null;
+        if (latestJob != null && PipelineJobStates.IsNotComplete(latestJob.Status))
+        {
+            runningJob = latestJob; 
+        }
+
+        if (runningJob == null && latestWaitingJob != null && PipelineJobStates.IsNotComplete(latestWaitingJob.Status))
+        {
+            runningJob = latestWaitingJob;
+        }
+
+        return (allJobs, runningJob);
     }
 }
 
