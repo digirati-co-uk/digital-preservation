@@ -38,7 +38,7 @@ public class DepositModel(
 
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
 
-    public bool HidePipeline => configuration.GetValue<bool>("FeatureFlags:HidePipeline");
+    public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
 
     public async Task OnGet(
         [FromRoute] string id,

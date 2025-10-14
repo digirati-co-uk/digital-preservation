@@ -70,8 +70,8 @@
                                 </button>
                             </li>
                         }
-                        
-                        @if (!Model.HidePipeline)
+
+                        @if (Model.ShowPipeline)
                         {
                             <li>
                                 <button disabled="@pipelineRunStarted" class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
