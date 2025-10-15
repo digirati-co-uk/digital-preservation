@@ -69,7 +69,7 @@ public class DepositModel(
                     ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
                 }
             }
-            
+
             (PipelineJobResults, RunningPipelineJob) = await GetCleanedPipelineJobsRunning();
 
             if (Deposit.Status != DepositStates.Exporting)
@@ -562,7 +562,7 @@ public class DepositModel(
             .ToList();
 
         var longRunningUnfinishedWaitingJobs = allJobs
-            .Where(x => x.Created.HasValue && x.Created.Value < oneDayAgo && x.Deposit == Id)
+            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value < oneDayAgo && x.Deposit == Id)
             .Where(x => PipelineJobStates.IsNotComplete(x.Status))
             .ToList();
 
@@ -581,16 +581,27 @@ public class DepositModel(
             };
 
             var result = await mediator.Send(new ReleaseLock(Deposit!));
+            if (result.Success && Deposit != null)
+            {
+                Deposit.LockDate = null;
+                Deposit.LockedBy = null;
+            }
             await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
         }
-        
+
+        if (longRunningUnfinishedJobs.Any())
+        {
+            //refresh as all jobs have been sent
+            allJobs = GetPipelineJobResults().Result;
+        }
+
         var latestJob = allJobs
             .Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= oneDayAgo && x.Deposit == Id)
             .OrderByDescending(x => x.DateBegun)
             .FirstOrDefault();
 
         var latestWaitingJob = allJobs
-            .Where(x => x.Created.HasValue && x.Created.Value >= oneDayAgo && x.Deposit == Id)
+            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value >= oneDayAgo && x.Deposit == Id)
             .OrderByDescending(x => x.Created)
             .FirstOrDefault();
 
