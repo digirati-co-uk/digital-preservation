@@ -1,3 +1,4 @@
+# Comment
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY ["src/DigitalPreservation/DigitalPreservation.UI/DigitalPreservation.UI.csproj", "DigitalPreservation.UI/"]
