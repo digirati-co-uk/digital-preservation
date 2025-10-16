@@ -16,7 +16,6 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
-using DigitalPreservation.Common.Model.Identity;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -232,6 +231,11 @@ public class DepositModel(
         {
             newFileContext = newFileContext.GetParent();
         }
+
+        var slug = PreservedResource.MakeValidSlug(depositFile[0].FileName);
+
+        if(string.IsNullOrWhiteSpace(depositFileContentType) && MimeTypes.TryGetMimeType(slug, out var foundMimeType))
+            depositFileContentType = foundMimeType;
 
         if (await BindDeposit(id))
         {
