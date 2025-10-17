@@ -66,7 +66,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         {
             return misMatches;
         }
-        
+
         // (temp) do this just for FileFormatMetadata initially
         if (DepositFileFormatMetadata != null && MetsFileFormatMetadata != null)
         {
@@ -83,7 +83,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     DepositFileFormatMetadata.PronomKey, MetsFileFormatMetadata.PronomKey));
             }
 
-            if (DepositFileFormatMetadata!.ContentType != FileInMets.ContentType)
+            if ((DepositFileFormatMetadata!.ContentType ?? FileInDeposit.ContentType) != FileInMets.ContentType)
             {
                 misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "ContentType",
                     DepositFileFormatMetadata.ContentType, FileInMets.ContentType));
@@ -170,6 +170,10 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                 return cachedDepositFileFormatMetadata;
             }
             cachedDepositFileFormatMetadata = FileInDeposit?.GetFileFormatMetadata();
+
+            if (cachedDepositFileFormatMetadata is { FormatName: null }) cachedDepositFileFormatMetadata.FormatName = "[Not Identified]";
+            if (cachedDepositFileFormatMetadata is { PronomKey: null }) cachedDepositFileFormatMetadata.PronomKey = "dlip/unknown";
+           
             haveScannedDepositFileFormatMetadata = true;
             return cachedDepositFileFormatMetadata;
         }

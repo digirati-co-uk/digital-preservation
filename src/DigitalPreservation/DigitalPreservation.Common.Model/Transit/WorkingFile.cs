@@ -53,9 +53,10 @@ public class WorkingFile : WorkingBase
             .OfType<FileFormatMetadata>()
             .ToList();
 
+        var digestMetadata = GetDigestMetadata();
+
         if (fileFormatMetadata.Count == 0 && FolderNames.IsMetadata(LocalPath))
         {
-            var digestMetadata = GetDigestMetadata();
             // These have not been analysed by file format pipelines
             var syntheticMetadata = new FileFormatMetadata
             {
@@ -72,15 +73,29 @@ public class WorkingFile : WorkingBase
 
             return syntheticMetadata;
         }
-        if (fileFormatMetadata.Count <= 1)
+
+        if (fileFormatMetadata.Count == 0 && !FolderNames.IsMetadata(LocalPath))
+        {
+            return new FileFormatMetadata
+            {
+                Source = "Mets",
+                ContentType = ContentType,
+                Digest = digestMetadata?.Digest ?? Digest,
+                Size = Size,
+                OriginalName = LocalPath, // workingFile.LocalPath
+                StorageLocation = null // storageLocation
+            };
+        }
+
+        if (fileFormatMetadata.Count == 1)
         {
             return fileFormatMetadata.SingleOrDefault();
         }
 
         var pronomKeys = fileFormatMetadata
-            .Where(m => m.PronomKey.HasText())
-            .Select(m => m.PronomKey!)
-            .ToList();
+                .Where(m => m.PronomKey.HasText())
+                .Select(m => m.PronomKey!)
+                .ToList();
         var contentTypes = fileFormatMetadata
             .Where(m => m.ContentType.HasText())
             .Select(m => m.ContentType!)
