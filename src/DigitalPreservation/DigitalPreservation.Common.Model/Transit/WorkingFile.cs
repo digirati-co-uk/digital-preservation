@@ -76,7 +76,7 @@ public class WorkingFile : WorkingBase
 
         if (fileFormatMetadata.Count == 0 && !FolderNames.IsMetadata(LocalPath))
         {
-            return new FileFormatMetadata
+            var objectFileFormatMetadata = new FileFormatMetadata
             {
                 Source = "Mets",
                 ContentType = ContentType,
@@ -85,6 +85,13 @@ public class WorkingFile : WorkingBase
                 OriginalName = LocalPath, // workingFile.LocalPath
                 StorageLocation = null // storageLocation
             };
+
+            if (ContentType == "application/octet-stream" && MimeTypes.TryGetMimeType(LocalPath.GetSlug(), out var foundMimeType))
+            {
+                objectFileFormatMetadata.ContentType = foundMimeType;
+            }
+
+            return objectFileFormatMetadata;
         }
 
         if (fileFormatMetadata.Count == 1)

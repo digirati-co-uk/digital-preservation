@@ -202,6 +202,10 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             }
 
             cachedMetsFileFormatMetadata = FileInMets?.GetFileFormatMetadata();
+
+            if (cachedMetsFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedMetsFileFormatMetadata?.Digest))
+                cachedMetsFileFormatMetadata!.Digest = FileInMets?.Digest ?? "All empty Digest";
+
             haveScannedMetsFileFormatMetadata = true;
             return cachedMetsFileFormatMetadata;
         }
