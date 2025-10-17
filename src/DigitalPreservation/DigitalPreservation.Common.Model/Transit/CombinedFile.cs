@@ -172,8 +172,8 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             cachedDepositFileFormatMetadata = FileInDeposit?.GetFileFormatMetadata();
 
 
-            if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.FormatName))
-                cachedDepositFileFormatMetadata!.FormatName = "Blah";
+            if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.ContentType))
+                cachedDepositFileFormatMetadata!.ContentType = !string.IsNullOrWhiteSpace(FileInDeposit!.ContentType) ? FileInDeposit.ContentType : "All empty";
             if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.FormatName))
                 cachedDepositFileFormatMetadata!.FormatName = "[Not Identified]";
             if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.PronomKey))
