@@ -176,7 +176,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                 cachedDepositFileFormatMetadata!.ContentType = !string.IsNullOrWhiteSpace(FileInDeposit!.ContentType) ? FileInDeposit.ContentType : "All empty";
             if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.FormatName))
                 cachedDepositFileFormatMetadata!.FormatName = "[Not Identified]";
-            if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.PronomKey))
+            if (cachedDepositFileFormatMetadata != null && (string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.PronomKey) ||  cachedDepositFileFormatMetadata.PronomKey.ToLower().Trim() == "unknown"))
                     cachedDepositFileFormatMetadata!.PronomKey = "dlip/unknown";
 
             haveScannedDepositFileFormatMetadata = true;
