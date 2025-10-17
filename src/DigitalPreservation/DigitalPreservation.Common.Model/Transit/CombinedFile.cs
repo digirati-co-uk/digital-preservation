@@ -171,9 +171,11 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             }
             cachedDepositFileFormatMetadata = FileInDeposit?.GetFileFormatMetadata();
 
-            if (cachedDepositFileFormatMetadata is { FormatName: null }) cachedDepositFileFormatMetadata.FormatName = "[Not Identified]";
-            if (cachedDepositFileFormatMetadata is { PronomKey: null }) cachedDepositFileFormatMetadata.PronomKey = "dlip/unknown";
-           
+            if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.FormatName))
+                cachedDepositFileFormatMetadata!.FormatName = "[Not Identified]";
+            if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.PronomKey))
+                    cachedDepositFileFormatMetadata!.PronomKey = "dlip/unknown";
+
             haveScannedDepositFileFormatMetadata = true;
             return cachedDepositFileFormatMetadata;
         }
