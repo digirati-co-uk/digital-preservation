@@ -16,11 +16,11 @@ public class AccessTokenProvider : IAccessTokenProvider
     private readonly ILogger<AccessTokenProvider> logger;
 
 
-    public  AccessTokenProvider(ILogger<AccessTokenProvider> logger, IAccessTokenProviderOptions? options)
+    public AccessTokenProvider(ILogger<AccessTokenProvider> logger, IAccessTokenProviderOptions? options)
     {
         this.options = options;
         memoryCache = new MemoryCache(new MemoryCacheOptions());
-        logger = logger;
+        this.logger = logger;
     }
 
     public async Task<string?> GetAccessToken()
@@ -61,13 +61,17 @@ public class AccessTokenProvider : IAccessTokenProvider
         
         var client = new HttpClient();
         var request = new HttpRequestMessage(HttpMethod.Post, 
-            $"https://login.microsoftonline.com/{options.TenantId}/oauth2/token");
+            $"https://login.microsoftonline.com/{options?.TenantId}/oauth2/token");
         var collection = new List<KeyValuePair<string, string>>();
         collection.Add(new("grant_type", "client_credentials"));
-        collection.Add(new("client_id", options.ClientId ));
-        collection.Add(new("client_secret", options.ClientSecret));
-        collection.Add(new("scope", $"api://{options.ClientId}/.default"));
-        collection.Add(new("resource", $"api://{options.ClientId}"));
+        if (options is { ClientId: not null })
+        {
+            collection.Add(new("client_id", options.ClientId));
+            if (options.ClientSecret != null) collection.Add(new("client_secret", options.ClientSecret));
+            collection.Add(new("scope", $"api://{options.ClientId}/.default"));
+            collection.Add(new("resource", $"api://{options.ClientId}"));
+        }
+
         var content = new FormUrlEncodedContent(collection);
         request.Content = content;
         var response = await client.SendAsync(request);
