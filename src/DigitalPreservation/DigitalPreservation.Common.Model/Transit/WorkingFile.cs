@@ -70,6 +70,11 @@ public class WorkingFile : WorkingBase
                 syntheticMetadata.ContentType = foundMimeType;
             }
 
+            if (FolderNames.IsMetadata(LocalPath))
+            {
+                syntheticMetadata.PronomKey = "-";
+            }
+
             return syntheticMetadata;
         }
 
