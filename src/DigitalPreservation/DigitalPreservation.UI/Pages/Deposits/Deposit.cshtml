@@ -69,12 +69,12 @@
                         @if (Model.ShowPipeline)
                         {
                             <li>
-                                <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
+                                <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="RunPipeline">
                                     <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
                                 </button>
                             </li>
                             <li>
-                                <button disabled="@(!jobRunning)" class="dropdown-item text-primary" type="submit" asp-page-handler="ForceCompletePipelineRun">
+                                <button disabled="@(!jobRunning)" class="dropdown-item @(!jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ForceCompletePipelineRun">
                                     <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
                                 </button>
                             </li>
