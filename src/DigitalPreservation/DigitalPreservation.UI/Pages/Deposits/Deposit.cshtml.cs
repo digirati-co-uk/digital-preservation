@@ -555,14 +555,14 @@ public class DepositModel(
     public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetCleanedPipelineJobsRunning()
     {
         var allJobs = GetPipelineJobResults().Result;
-        var oneDayAgo = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
+        var cutoffDate = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
         var longRunningUnfinishedJobs = allJobs
-            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < oneDayAgo && x.Deposit == Id)
+            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < cutoffDate && x.Deposit == Id)
             .Where(x => PipelineJobStates.IsNotComplete(x.Status))
             .ToList();
 
         var longRunningUnfinishedWaitingJobs = allJobs
-            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value < oneDayAgo && x.Deposit == Id)
+            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value < cutoffDate && x.Deposit == Id)
             .Where(x => PipelineJobStates.IsNotComplete(x.Status))
             .ToList();
 
@@ -596,12 +596,12 @@ public class DepositModel(
         }
 
         var latestJob = allJobs
-            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= oneDayAgo && x.Deposit == Id)
+            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= cutoffDate && x.Deposit == Id)
             .OrderByDescending(x => x.DateBegun)
             .FirstOrDefault();
 
         var latestWaitingJob = allJobs
-            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value >= oneDayAgo && x.Deposit == Id)
+            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value >= cutoffDate && x.Deposit == Id)
             .OrderByDescending(x => x.Created)
             .FirstOrDefault();
 
