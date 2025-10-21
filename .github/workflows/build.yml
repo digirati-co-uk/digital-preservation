@@ -59,7 +59,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: powershell
         run: |
-          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation" /o:"digirati" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" #sensitive info, do not log
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation/src/DigitalPreservation" /o:"digirati" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" #sensitive info, do not log
           dotnet build
           ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" #sensitive info, do not log
 
