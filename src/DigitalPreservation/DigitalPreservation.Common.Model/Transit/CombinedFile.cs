@@ -66,7 +66,6 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         {
             return misMatches;
         }
-
         // (temp) do this just for FileFormatMetadata initially
         if (DepositFileFormatMetadata != null && MetsFileFormatMetadata != null)
         {
@@ -169,7 +168,6 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             {
                 return cachedDepositFileFormatMetadata;
             }
-
             cachedDepositFileFormatMetadata = FileInDeposit?.GetFileFormatMetadata();
             haveScannedDepositFileFormatMetadata = true;
             return cachedDepositFileFormatMetadata;

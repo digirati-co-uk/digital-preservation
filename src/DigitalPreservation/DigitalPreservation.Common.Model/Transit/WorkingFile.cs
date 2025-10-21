@@ -72,7 +72,6 @@ public class WorkingFile : WorkingBase
 
             return syntheticMetadata;
         }
-
         if (fileFormatMetadata.Count <= 1)
         {
             return fileFormatMetadata.SingleOrDefault();
@@ -130,7 +129,6 @@ public class WorkingFile : WorkingBase
                 };
             }
         }
-
         // There is only one, or none
         return fileFormatMetadata.SingleOrDefault();
     }
