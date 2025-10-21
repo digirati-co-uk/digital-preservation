@@ -53,7 +53,7 @@ public class WorkingFile : WorkingBase
             .OfType<FileFormatMetadata>()
             .ToList();
 
-        if (fileFormatMetadata.Count == 0)
+        if (fileFormatMetadata.Count == 0 && FolderNames.IsMetadata(LocalPath))
         {
             var digestMetadata = GetDigestMetadata();
             // These have not been analysed by file format pipelines
@@ -68,11 +68,6 @@ public class WorkingFile : WorkingBase
             if (ContentType == "application/octet-stream" && MimeTypes.TryGetMimeType(LocalPath.GetSlug(), out var foundMimeType))
             {
                 syntheticMetadata.ContentType = foundMimeType;
-            }
-
-            if (FolderNames.IsMetadata(LocalPath))
-            {
-                syntheticMetadata.PronomKey = "-";
             }
 
             return syntheticMetadata;

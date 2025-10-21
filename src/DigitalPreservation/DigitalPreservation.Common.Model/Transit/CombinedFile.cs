@@ -83,7 +83,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     DepositFileFormatMetadata.PronomKey, MetsFileFormatMetadata.PronomKey));
             }
 
-            if ((DepositFileFormatMetadata!.ContentType ?? FileInDeposit.ContentType) != FileInMets.ContentType)
+            if (DepositFileFormatMetadata!.ContentType != FileInMets.ContentType)
             {
                 misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "ContentType",
                     DepositFileFormatMetadata.ContentType, FileInMets.ContentType));
@@ -169,16 +169,8 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             {
                 return cachedDepositFileFormatMetadata;
             }
+
             cachedDepositFileFormatMetadata = FileInDeposit?.GetFileFormatMetadata();
-
-
-            if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.ContentType))
-                cachedDepositFileFormatMetadata!.ContentType = !string.IsNullOrWhiteSpace(FileInDeposit!.ContentType) ? FileInDeposit.ContentType : "All empty";
-            if (cachedDepositFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.FormatName))
-                cachedDepositFileFormatMetadata!.FormatName = "[Not Identified]";
-            if (cachedDepositFileFormatMetadata != null && (string.IsNullOrWhiteSpace(cachedDepositFileFormatMetadata?.PronomKey) ||  cachedDepositFileFormatMetadata.PronomKey.ToLower().Trim() == "unknown"))
-                    cachedDepositFileFormatMetadata!.PronomKey = "dlip/unknown";
-
             haveScannedDepositFileFormatMetadata = true;
             return cachedDepositFileFormatMetadata;
         }
@@ -202,10 +194,6 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             }
 
             cachedMetsFileFormatMetadata = FileInMets?.GetFileFormatMetadata();
-
-            if (cachedMetsFileFormatMetadata != null && string.IsNullOrWhiteSpace(cachedMetsFileFormatMetadata?.Digest))
-                cachedMetsFileFormatMetadata!.Digest = FileInMets?.Digest ?? "All empty Digest";
-
             haveScannedMetsFileFormatMetadata = true;
             return cachedMetsFileFormatMetadata;
         }
