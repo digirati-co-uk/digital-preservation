@@ -43,6 +43,8 @@ public class DepositModel(
 
     public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
 
+    public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
+
     public async Task OnGet(
         [FromRoute] string id,
         [FromQuery] bool readFromStorage = false,
@@ -79,11 +81,15 @@ public class DepositModel(
                     RootCombinedDirectory = combinedResult.Value;
                     if (WorkspaceManager.Editable)
                     {
-                        var mismatches = RootCombinedDirectory.GetMisMatches();
+                        var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
+
                         if (mismatches.Count != 0)
                         {
                             TempData["MisMatchCount"] = mismatches.Count;
                         }
+
+                        FileMisMatches = detailedMismatches;
+
                     }
                 }
             }
