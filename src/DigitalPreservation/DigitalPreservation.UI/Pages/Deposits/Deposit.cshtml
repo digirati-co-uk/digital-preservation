@@ -178,9 +178,49 @@
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
+            
+            @{
+                var lastFileName = string.Empty;
+                var differencesString = string.Empty;
+                }
+            <!--ADD IN EXTRA INFORMATION AND DISPLAY MORE INFO ON MISMATCHES-->
+            @foreach (var detailMismatch in Model.FileMisMatches)
+            {
+                foreach (var fileMismatch in detailMismatch.Item1)
+                {
+                    switch (fileMismatch.Field.ToLower())
+                    {
+                        case "contenttype":
+                            differencesString += " Content type;";
+                            @* <p>Content type is different</p> *@
+                            break;
+                        case "pronomkey":
+                            differencesString += " Pronom key;";
+                            @* <p>Pronom key is different</p> *@
+                            break;
+                        case "formatname":
+                            differencesString += " Format name;";
+                            @* <p>Format name is different</p> *@
+                            break;
+                        case "digest":
+                            differencesString += " Digest;";
+                            @* <p>Format name is different</p> *@
+                            break;
+                        default:
+                            <p>undocumented difference</p>
+                            break;
+                    }
+                }
+                <p>@detailMismatch.Item2 (Differences: @differencesString)</p>
+                differencesString = string.Empty;
+            }
+            
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+
+
     }
+
     
     @if (jobRunning && TempData["Valid"] == null)
     {

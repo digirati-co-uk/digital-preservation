@@ -16,7 +16,6 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
-using DigitalPreservation.Common.Model.Identity;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -43,6 +42,8 @@ public class DepositModel(
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
 
     public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
+
+    public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
 
     public async Task OnGet(
         [FromRoute] string id,
@@ -80,11 +81,15 @@ public class DepositModel(
                     RootCombinedDirectory = combinedResult.Value;
                     if (WorkspaceManager.Editable)
                     {
-                        var mismatches = RootCombinedDirectory.GetMisMatches();
+                        var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
+
                         if (mismatches.Count != 0)
                         {
                             TempData["MisMatchCount"] = mismatches.Count;
                         }
+
+                        FileMisMatches = detailedMismatches;
+
                     }
                 }
             }
@@ -232,6 +237,11 @@ public class DepositModel(
         {
             newFileContext = newFileContext.GetParent();
         }
+
+        var slug = PreservedResource.MakeValidSlug(depositFile[0].FileName);
+
+        if(string.IsNullOrWhiteSpace(depositFileContentType) && MimeTypes.TryGetMimeType(slug, out var foundMimeType))
+            depositFileContentType = foundMimeType;
 
         if (await BindDeposit(id))
         {

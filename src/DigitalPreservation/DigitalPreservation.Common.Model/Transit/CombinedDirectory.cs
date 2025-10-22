@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
+using static DigitalPreservation.Common.Model.Transit.CombinedFile;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
@@ -492,28 +493,53 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
     }
 
-    public List<string> GetMisMatches()
+    public (List<string>, List<(List<FileMisMatch>, string)>) GetMisMatches()
     {
         var mismatches = new List<string>();
-        AddMisMatches(mismatches);
-        return mismatches;
+        var detailedMisMatches = new List<(List<FileMisMatch>, string)>();
+
+        AddMisMatches(mismatches, detailedMisMatches);
+        return (mismatches, detailedMisMatches);
     }
 
-
-    private void AddMisMatches(List<string> localPaths)
+    private void AddMisMatches(List<string> localPaths, List<(List<FileMisMatch>, string)> detailedMismatches)
     {
         foreach (var combinedFile in Files)
         {
             if (combinedFile.MisMatches.Count != 0)
             {
                 localPaths.Add(combinedFile.LocalPath!);
+                
+                detailedMismatches.Add(new ValueTuple<List<FileMisMatch>, string>
+                {
+                    Item1 = combinedFile.MisMatches,
+                    Item2 = FolderNames.RemovePathPrefix(combinedFile.LocalPath!) ?? string.Empty 
+                }); 
             }
         }
 
         foreach (var combinedDirectory in Directories)
         {
-            combinedDirectory.AddMisMatches(localPaths);
+            combinedDirectory.AddMisMatches(localPaths, detailedMismatches);
         }
+    }
+
+    private List<CombinedFile.FileMisMatch> AddDetailMisMatches()
+    {
+        var s = new List<CombinedFile.FileMisMatch>();
+        foreach (var combinedFile in Files)
+        {
+            if (combinedFile.MisMatches.Count != 0)
+            {
+                //localPaths.Add(combinedFile.LocalPath!);
+                foreach (var m in combinedFile.MisMatches)
+                {
+                    s.Add(m);
+                }
+            }
+        }
+
+        return s;
     }
 }
 
