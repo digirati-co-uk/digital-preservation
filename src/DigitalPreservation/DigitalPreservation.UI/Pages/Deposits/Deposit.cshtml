@@ -180,9 +180,8 @@
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
             
             @{
-                var lastFileName = string.Empty;
-                var differencesString = string.Empty;
-                }
+                List<string> mismatchMessages = [];
+            }
             <!--ADD IN EXTRA INFORMATION AND DISPLAY MORE INFO ON MISMATCHES-->
             @foreach (var detailMismatch in Model.FileMisMatches)
             {
@@ -191,28 +190,27 @@
                     switch (fileMismatch.Field.ToLower())
                     {
                         case "contenttype":
-                            differencesString += " Content type;";
-                            @* <p>Content type is different</p> *@
+                            mismatchMessages.Add("Content type");
                             break;
                         case "pronomkey":
-                            differencesString += " Pronom key;";
-                            @* <p>Pronom key is different</p> *@
+                            mismatchMessages.Add("Pronom key");
                             break;
                         case "formatname":
-                            differencesString += " Format name;";
-                            @* <p>Format name is different</p> *@
+                            mismatchMessages.Add("Format name");
                             break;
                         case "digest":
-                            differencesString += " Digest;";
-                            @* <p>Format name is different</p> *@
+                            mismatchMessages.Add("Digest");
                             break;
                         default:
-                            <p>undocumented difference</p>
+                            mismatchMessages.Add("undocumented difference");
                             break;
                     }
                 }
+
+                var differencesString = String.Join(", ", mismatchMessages.Select(x => x.ToString()).ToArray());
                 <p>@detailMismatch.Item2 (Differences: @differencesString)</p>
-                differencesString = string.Empty;
+
+                mismatchMessages.Clear();
             }
             
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
