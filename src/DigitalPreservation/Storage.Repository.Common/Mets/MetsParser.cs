@@ -603,7 +603,21 @@ public class MetsParser(
                     if (premisMetadata != null)
                     {
                         file.Metadata.Add(premisMetadata);
+
+                        //if (file.LocalPath.ToLower().Contains("test_virus"))
+                        //{
+                        //    //TODO: get this from the XML like FileFormatMetadata
+                        //    var testVirusMetadata = new VirusScanMetadata
+                        //    {
+                        //        Source = "Blah",
+                        //        VirusFound = "EICAR test in METS Parser",
+                        //        HasVirus = true
+                        //    };
+
+                        //    file.Metadata.Add(testVirusMetadata);
+                        //}
                     }
+
                     mets.Files.Add(file);
 
                     // We only know the "on disk" paths of folders from file paths in flocat

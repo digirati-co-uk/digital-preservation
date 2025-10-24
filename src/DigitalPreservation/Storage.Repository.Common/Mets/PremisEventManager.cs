@@ -9,8 +9,12 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
 using System.Xml.Serialization;
+using DigitalPreservation.Utils;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
+
 public static class PremisEventManager
 {
     private static readonly XmlSerializerNamespaces Namespaces;
@@ -55,6 +59,58 @@ public static class PremisEventManager
         eventComplexType.EventOutcomeInformation.Add(eventOutcomeInformationComplexType);
 
         return eventComplexType;
+    }
+
+    public static void Patch(EventComplexType eventComplexType, VirusScanMetadata virusScanMetadata) //EventComplexType eventComplexType,
+    {
+        //virusScanMetadata is the update
+        if (eventComplexType.EventType == null)
+        {
+            eventComplexType.EventType = new StringPlusAuthority
+            {
+                Value = "virus check"
+            };
+
+        }
+
+        if (string.IsNullOrWhiteSpace(eventComplexType.EventDateTime))
+        {
+            eventComplexType.EventDateTime = DateTime.UtcNow.ToLongDateString();
+        }
+
+        if (!eventComplexType.EventDetailInformation.Any())
+        {
+            var eventDetailInformationComplexType = new EventDetailInformationComplexType
+            {
+                //TODO: build this string up from virus definitions - Use Clamscan to get the virus definition
+                EventDetail = "program=\"ClamAV (clamd)\"; version=\"ClamAV 1.2.2\"; virusDefinitions=\"27182/Sun Feb 11 09:33:24 2024\"" //TODO: placeholder
+            };
+
+            eventComplexType.EventDetailInformation.Add(eventDetailInformationComplexType);
+        }
+
+        if (!eventComplexType.EventOutcomeInformation.Any()) //TODO: OR changed
+        {
+            var eventOutcomeInformationComplexType = new EventOutcomeInformationComplexType
+            {
+                EventOutcome = new StringPlusAuthority
+                {
+                    Value = virusScanMetadata.HasVirus ? "Fail" : "Success" //TODO: check this
+                },
+                EventOutcomeDetail = { new EventOutcomeDetailComplexType
+                {
+                    EventOutcomeDetailNote = virusScanMetadata.VirusFound//"/home/brian/Test/data/objects/virus_test_file.txt: Eicar-Signature FOUND"
+                } }
+            };
+
+            eventComplexType.EventOutcomeInformation.Add(eventOutcomeInformationComplexType);
+        }
+
+        //if (premis.Object.FirstOrDefault(po => po is File) is not File file)
+        //{
+        //    file = new File();
+        //    premis.Object.Add(file);
+        //}
     }
 
     public static string Serialise(EventComplexType eventComplexType)

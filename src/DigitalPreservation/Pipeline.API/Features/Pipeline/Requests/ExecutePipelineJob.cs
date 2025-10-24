@@ -37,7 +37,7 @@ public class ProcessPipelineJobHandler(
     private readonly string[] filesToIgnore = ["tree.txt"];
     private string? jobIdentifier;
     private string? runUser;
-
+    private bool exitAddObjectsToMets = false;
     
     /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
@@ -264,6 +264,8 @@ public class ProcessPipelineJobHandler(
                 logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run Completed status logged", jobIdentifier, depositId);
 
             await AddObjectsToMets(depositId, depositPath);
+
+            //await AddObjectsToMets(depositId, depositPath);
 
             return new ProcessPipelineResult
             {

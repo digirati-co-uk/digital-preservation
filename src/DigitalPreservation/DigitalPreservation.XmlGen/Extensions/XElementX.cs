@@ -55,5 +55,15 @@ public static class XElementX
         return des as PremisComplexType;
 
     }
-    
+
+    public static EventComplexType? GetEventComplexType(this XmlElement rawEventComplexTypeXml)
+    {
+        XmlNode nodeToRead = rawEventComplexTypeXml;
+        var serializer = new XmlSerializer(typeof(EventComplexType));
+        using var xmlNodeReader = new XmlNodeReader(nodeToRead);
+        var des = serializer.Deserialize(xmlNodeReader);
+        return des as EventComplexType;
+    }
+
+
 }
