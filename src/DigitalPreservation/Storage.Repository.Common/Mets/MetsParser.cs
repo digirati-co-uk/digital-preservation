@@ -501,28 +501,37 @@ public class MetsParser(
                     string? originalName = null;
                     Uri? storageLocation = null;
                     FileFormatMetadata? premisMetadata = null;
+                    VirusScanMetadata? virusScanMetadata = null;
                     if (!haveUsedAdmIdAlready)
                     {
-                        var techMd = xMets.Descendants(XNames.MetsTechMD).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
-                        if(techMd == null)
+                        var techMd = xMets.Descendants(XNames.MetsTechMD)
+                            .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
+
+                        if (techMd == null)
                         {
                             // Archivematica does it this way
-                            techMd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
+                            techMd = xMets.Descendants(XNames.MetsAmdSec)
+                                .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
                         }
+
+
                         var fixity = techMd!.Descendants(XNames.PremisFixity).SingleOrDefault();
                         if (fixity != null)
                         {
-                            var algorithm = fixity.Element(XNames.PremisMessageDigestAlgorithm)?.Value?.ToLowerInvariant().Replace("-", "");
+                            var algorithm = fixity.Element(XNames.PremisMessageDigestAlgorithm)?.Value
+                                ?.ToLowerInvariant().Replace("-", "");
                             if (algorithm == "sha256")
                             {
                                 digest = fixity.Element(XNames.PremisMessageDigest)?.Value;
                             }
                         }
+
                         var sizeEl = techMd.Descendants(XNames.PremisSize).SingleOrDefault();
                         if (sizeEl != null)
                         {
                             long.TryParse(sizeEl.Value, out size);
                         }
+
                         originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
                         var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
                         if (storageUri != null)
@@ -536,6 +545,7 @@ public class MetsParser(
                                 logger.LogError(e, "Unable to parse storage location {storageUri}", storageUri);
                             }
                         }
+
                         haveUsedAdmIdAlready = true;
                         var format = techMd.Descendants(XNames.PremisFormat).SingleOrDefault();
                         if (format != null)
@@ -561,7 +571,31 @@ public class MetsParser(
                             FormatName = "[Not Identified]"
                         };
                     }
-                    var parts = flocat.Split('/');
+
+                var digiprovMd = xMets.Descendants(XNames.MetsDigiprovMD).SingleOrDefault(t => t.Attribute("ID")!.Value.ToLower().Contains("digiprovmd_clamav"));
+
+                var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();
+                if (virusEvent != null)
+                {
+                    var eventDatetime = virusEvent.Descendants(XNames.PremisEventDateTime).SingleOrDefault();
+                    var eventOutcomeInformation = virusEvent.Descendants(XNames.PremisEventOutcomeInformation).SingleOrDefault();
+                    XElement? eventOutcomeDetailNote = null;
+                    var eventOutcomeDetail = eventOutcomeInformation?.Descendants(XNames.PremisEventOutcomeDetail).SingleOrDefault();
+                    if (eventOutcomeDetail != null)
+                    {
+                        eventOutcomeDetailNote = eventOutcomeDetail.Descendants(XNames.PremisEventOutcomeDetailNote).SingleOrDefault();
+                    }
+
+                    virusScanMetadata = new VirusScanMetadata
+                    {
+                        Source = "ClamAV",
+                        HasVirus = true,
+                        VirusFound = eventOutcomeDetailNote != null ? eventOutcomeDetailNote.Value : string.Empty,
+                        Timestamp = Convert.ToDateTime(eventDatetime != null ? eventDatetime.Value : DateTime.UtcNow)
+                    };
+                }
+
+                var parts = flocat.Split('/');
                     if (string.IsNullOrEmpty(mimeType))
                     {
                         // In the real version, we would have got this from Siegfried for born-digital archives
@@ -581,11 +615,6 @@ public class MetsParser(
                         Size = size,
                         Name = label ?? parts[^1],
                         Metadata = [
-                            //new VirusScanMetadata
-                            //{
-                            //    Source = MetsManager.Mets, 
-                            //    HasVirus = false
-                            //},
                             new StorageMetadata 
                             {
                                 Source = MetsManager.Mets, 
@@ -603,19 +632,11 @@ public class MetsParser(
                     if (premisMetadata != null)
                     {
                         file.Metadata.Add(premisMetadata);
+                    }
 
-                        //if (file.LocalPath.ToLower().Contains("test_virus"))
-                        //{
-                        //    //TODO: get this from the XML like FileFormatMetadata
-                        //    var testVirusMetadata = new VirusScanMetadata
-                        //    {
-                        //        Source = "Blah",
-                        //        VirusFound = "EICAR test in METS Parser",
-                        //        HasVirus = true
-                        //    };
-
-                        //    file.Metadata.Add(testVirusMetadata);
-                        //}
+                    if (virusScanMetadata != null)
+                    {
+                        file.Metadata.Add(virusScanMetadata);
                     }
 
                     mets.Files.Add(file);

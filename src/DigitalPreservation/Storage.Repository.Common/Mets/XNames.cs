@@ -21,6 +21,7 @@ public static class XNames
     public static readonly XName MetsFLocat = mets + "FLocat";
     public static readonly XName MetsTechMD = mets + "techMD";
     public static readonly XName MetsRightsMD = mets + "rightsMD";
+    public static readonly XName MetsDigiprovMD = mets + "digiprovMD";
 
     public static readonly XNamespace mods = "http://www.loc.gov/mods/v3";
     public static readonly XName ModsTitle = mods + "title";
@@ -69,6 +70,12 @@ public static class XNames
     public static readonly XName PremisLicenseNote = premis + "licenseNote";
     public static readonly XName PremisCopyrightNote = premis + "copyrightNote";
     public static readonly XName PremisCopyrightStatus = premis + "copyrightStatus";
+    public static readonly XName PremisEvent = premis + "event";
+    public static readonly XName PremisEventType = premis + "eventType";
+    public static readonly XName PremisEventDateTime = premis + "eventDateTime";
+    public static readonly XName PremisEventOutcomeInformation = premis + "eventOutcomeInformation";
+    public static readonly XName PremisEventOutcomeDetail = premis + "eventOutcomeDetail";
+    public static readonly XName PremisEventOutcomeDetailNote = premis + "eventOutcomeDetailNote";
 
     public static readonly XName PremisFixity = premis + "fixity";
     public static readonly XName PremisMessageDigestAlgorithm = premis + "messageDigestAlgorithm";
