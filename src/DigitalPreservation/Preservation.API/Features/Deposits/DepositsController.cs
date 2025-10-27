@@ -1,8 +1,6 @@
-﻿using System.Text.Json;
-using DigitalPreservation.Common.Model.DepositHelpers;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
-using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
@@ -25,9 +23,9 @@ public class DepositsController(
     ) : Controller
 {
     [HttpGet(Name = "ListDeposits")]
-    [ProducesResponseType<List<Deposit>>(200, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ProducesResponseType<DepositQueryPage>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> ListDeposits([FromQuery] DepositQuery? query) // 
     {
         var result = await mediator.Send(new GetDeposits(query));
@@ -37,8 +35,8 @@ public class DepositsController(
     
     [HttpGet("{id}", Name = "GetDeposit")]
     [ProducesResponseType<Deposit>(200, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> GetDeposit([FromRoute] string id)
     {
         var result = await mediator.Send(new GetDeposit(id));
@@ -48,8 +46,8 @@ public class DepositsController(
     
     [HttpGet("{id}/mets", Name = "GetDepositWithMets")]
     [ProducesResponseType(200)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> GetDepositMets([FromRoute] string id)
     {
         var wrapper = await mediator.Send(new GetDepositWithMets(id));
@@ -70,9 +68,11 @@ public class DepositsController(
 
 
     [HttpPost("{id}/mets", Name = "AddDepositItemsToMets")]
-    [ProducesResponseType(200)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ProducesResponseType<ItemsAffected>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
     public async Task<IActionResult> AddItemsToMets([FromRoute] string id, [FromBody] List<string> localPaths)
     {
         // we can't use default serialisation here
@@ -127,11 +127,13 @@ public class DepositsController(
     }
     
     
-    [HttpPost("{id}/mets/delete", Name = "DeleteFromDeposit")]
-    [ProducesResponseType(200)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    public async Task<IActionResult> DeleteItemsToMets([FromRoute] string id, [FromBody] DeleteSelection deleteSelection)
+    [HttpPost("{id}/mets/delete", Name = "DeleteItems")]
+    [ProducesResponseType<ItemsAffected>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
+    public async Task<IActionResult> DeleteItems([FromRoute] string id, [FromBody] DeleteSelection deleteSelection)
     {
         var depositResult = await mediator.Send(new GetDeposit(id));
         if (depositResult is { Success: true, Value: not null })
@@ -157,9 +159,9 @@ public class DepositsController(
     }
     
     [HttpGet("{id}/filesystem", Name = "GetWorkingDirectory")]
-    [ProducesResponseType(200)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ProducesResponseType<WorkingDirectory>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> GetFileSystem([FromRoute] string id, [FromQuery] bool refresh = false)
     {
         var depositResult = await mediator.Send(new GetDeposit(id));
@@ -182,9 +184,7 @@ public class DepositsController(
     /// <param name="refresh"></param>
     /// <returns></returns>
     [HttpGet("{id}/combined", Name = "GetCombinedDirectory")]
-    [ProducesResponseType(200)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> GetCombinedDirectory([FromRoute] string id, [FromQuery] bool refresh = false)
     {
         var depositResult = await mediator.Send(new GetDeposit(id));
@@ -199,9 +199,10 @@ public class DepositsController(
         
     [HttpPatch("{id}", Name = "PatchDeposit")]
     [ProducesResponseType<Deposit>(200, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(400)]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
     public async Task<IActionResult> PatchDeposit([FromRoute] string id, [FromBody] Deposit deposit)
     {
         var result = await mediator.Send(new GetDeposit(id));
@@ -218,9 +219,9 @@ public class DepositsController(
     
     [HttpDelete("{id}", Name = "DeleteDeposit")]
     [ProducesResponseType(204)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(400)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
     public async Task<IActionResult> DeleteDeposit([FromRoute] string id)
     {
         var result = await mediator.Send(new DeleteDeposit(id, User));
@@ -230,9 +231,10 @@ public class DepositsController(
     
     [HttpPost(Name = "CreateDeposit")]
     [ProducesResponseType<Deposit>(201, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(400)]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
     public async Task<IActionResult> CreateDeposit([FromBody] Deposit deposit)
     {
         var result = await mediator.Send(new CreateDeposit(deposit, false, User));
@@ -246,9 +248,10 @@ public class DepositsController(
     
     [HttpPost("from-identifier", Name = "CreateDepositFromIdentifier")]
     [ProducesResponseType<Deposit>(201, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(400)]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
     public async Task<IActionResult> CreateDepositFromIdentifier([FromBody] SchemaAndValue schemaAndValue)
     {
         var result = await mediator.Send(new CreateDepositFromIdentifier(schemaAndValue, User));
@@ -262,9 +265,10 @@ public class DepositsController(
     
     [HttpPost("export", Name = "Export")]
     [ProducesResponseType<Deposit>(201, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(400)]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
     public async Task<IActionResult> ExportArchivalGroup([FromBody] Deposit deposit)
     {
         var result = await mediator.Send(new CreateDeposit(deposit, true, User));
@@ -278,9 +282,8 @@ public class DepositsController(
     
     [HttpPost("{id}/lock", Name = "CreateLock")]
     [ProducesResponseType(204)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(409)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> CreateLock([FromRoute] string id, [FromQuery] bool force = false)
     {
         var lockDepositResult = await mediator.Send(new LockDeposit(id, force, User));
@@ -290,8 +293,8 @@ public class DepositsController(
     
     [HttpDelete("{id}/lock", Name = "DeleteLock")]
     [ProducesResponseType(204)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> DeleteLock([FromRoute] string id)
     {
         var deleteDepositLockResult = await mediator.Send(new DeleteDepositLock(id, User));
@@ -301,22 +304,22 @@ public class DepositsController(
 
     [HttpPost("{id}/pipeline", Name = "RunPipeline")]
     [ProducesResponseType(204)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    public async Task<IActionResult> RunPipeline([FromRoute] string id, [FromQuery] string? runUser)
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
+    public async Task<IActionResult> RunPipeline([FromRoute] string id)
     {
-        var runPipelineResult = await mediator.Send(new RunPipeline(id, User, runUser));
+        var runPipelineResult = await mediator.Send(new RunPipeline(id, User));
         return this.StatusResponseFromResult(runPipelineResult, successStatusCode: 204);
     }
 
 
     [HttpPost("pipeline-status", Name = "LogPipelineRunStatus")]
-    [ProducesResponseType(204)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ApiExplorerSettings(IgnoreApi = true)] // for internal use
     public async Task<IActionResult> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit)
     {
-        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit.Id, pipelineDeposit.DepositId , pipelineDeposit.Status ?? string.Empty, User, pipelineDeposit.RunUser, pipelineDeposit.Errors)); 
+        var runPipelineStatusResult = await mediator.Send(new RunPipelineStatus(pipelineDeposit, User)); 
 
         return this.StatusResponseFromResult(runPipelineStatusResult, successStatusCode: 204);
     }

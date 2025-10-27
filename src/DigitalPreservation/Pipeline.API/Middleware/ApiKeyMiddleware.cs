@@ -15,17 +15,17 @@ public class ApiKeyMiddleware(IOptions<ApiKeyOptions> apiKeyOptions) : IMiddlewa
 
         if (string.IsNullOrEmpty(headerName))
         {
-            context.Items.Add(new(ApiContextObjectName, false));
+            apiKeyValid = false;
         }
         else
         {
-            apiKeyValid = context.Request.Headers.TryGetValue(headerName, out var extractedApiKey);
+            context.Request.Headers.TryGetValue(headerName, out var extractedApiKey);
 
-            if (extractedApiKey != apiKey)
-                apiKeyValid = false;
-
-            context.Items.Add(new(ApiContextObjectName, apiKeyValid));
+            apiKeyValid = extractedApiKey == apiKey;
         }
+
+
+        context.Items.Add(new(ApiContextObjectName, apiKeyValid));
 
         await next(context);
     }

@@ -22,7 +22,10 @@ namespace DigitalPreservation.UI.Pages.Deposits;
 public class DepositModel(
     IMediator mediator, 
     IOptions<PreservationOptions> options,
-    WorkspaceManagerFactory workspaceManagerFactory) : PageModel
+    WorkspaceManagerFactory workspaceManagerFactory,
+    IPreservationApiClient preservationApiClient,
+    IOptions<PipelineOptions> pipelineOptions,
+    IConfiguration configuration) : PageModel
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
@@ -30,8 +33,17 @@ public class DepositModel(
     public CombinedDirectory? RootCombinedDirectory { get; set; }
     public Deposit? Deposit { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
+    
+    // NB there is no equivalent ImportJobResults at the Model level because we lazily load it
+    // Whereas for pipeline jobs we need to know if there are any up front.
+    public List<ProcessPipelineResult> PipelineJobResults { get; set; } = [];
+    public ProcessPipelineResult? RunningPipelineJob { get; set; }
 
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
+
+    public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
+
+    public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
 
     public async Task OnGet(
         [FromRoute] string id,
@@ -59,20 +71,25 @@ public class DepositModel(
                 }
             }
 
+            (PipelineJobResults, RunningPipelineJob) = await GetCleanedPipelineJobsRunning();
+
             if (Deposit.Status != DepositStates.Exporting)
             {
-                await WorkspaceManager.RefreshCombinedDirectory(); //refresh
                 var combinedResult = WorkspaceManager.GetRootCombinedDirectory();
                 if (combinedResult is { Success: true, Value: not null })
                 {
                     RootCombinedDirectory = combinedResult.Value;
                     if (WorkspaceManager.Editable)
                     {
-                        var mismatches = RootCombinedDirectory.GetMisMatches();
+                        var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
+
                         if (mismatches.Count != 0)
                         {
                             TempData["MisMatchCount"] = mismatches.Count;
                         }
+
+                        FileMisMatches = detailedMismatches;
+
                     }
                 }
             }
@@ -221,6 +238,11 @@ public class DepositModel(
             newFileContext = newFileContext.GetParent();
         }
 
+        var slug = PreservedResource.MakeValidSlug(depositFile[0].FileName);
+
+        if(string.IsNullOrWhiteSpace(depositFileContentType) && MimeTypes.TryGetMimeType(slug, out var foundMimeType))
+            depositFileContentType = foundMimeType;
+
         if (await BindDeposit(id))
         {
             var result = await WorkspaceManager.UploadSingleSmallFile(
@@ -318,12 +340,12 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
-            var runUser = User.GetCallerIdentity();
             var result = await mediator.Send(new LockDeposit(Deposit!));
-            var result1 = await mediator.Send(new RunPipeline(Deposit!, runUser)); 
+            var result1 = await mediator.Send(new RunPipeline(Deposit!));
+
             if (result.Success && result1.Success)
             {
-                TempData["Valid"] = "Deposit locked and pipeline running";
+                TempData["Valid"] = "Deposit locked and pipeline run message sent.";
                 TempData.Remove("MisMatchCount"); //will be recalculated as METS is refreshed with pipeline run
             }
             else
@@ -334,6 +356,30 @@ public class DepositModel(
         else
         {
             TempData["Error"] = "Could not bind deposit on run pipeline";
+        }
+
+        return Redirect($"/deposits/{id}");
+    }
+
+    //ForceCompletePipelineRun
+    public async Task<IActionResult> OnPostForceCompletePipelineRun([FromRoute] string id)
+    {
+        if (await BindDeposit(id) && RunningPipelineJob?.JobId != null)
+        {
+            var result = await mediator.Send(new ReleaseLock(Deposit!));
+            var result1 = await mediator.Send(new ForceCompletePipeline(RunningPipelineJob.JobId, id, User));
+            if (result.Success && result1.Success)
+            {
+                TempData["Valid"] = "Force complete of pipeline succeeded and lock released.";
+            }
+            else
+            {
+                TempData["Error"] = result1.ErrorMessage;
+            }
+        }
+        else
+        {
+            TempData["Error"] = "Could not bind deposit on force complete of pipeline";
         }
 
         return Redirect($"/deposits/{id}");
@@ -514,27 +560,77 @@ public class DepositModel(
         return "#";
     }
 
-    public (List<ProcessPipelineResult>? jobs, bool jobRunning) PipelineJobsRunning()
+
+    public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetCleanedPipelineJobsRunning()
     {
-        var id = Deposit?.Id?.GetSlug();
+        var allJobs = GetPipelineJobResults().Result;
+        var cutoffDate = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
+        var longRunningUnfinishedJobs = allJobs
+            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < cutoffDate && x.Deposit == Id)
+            .Where(x => PipelineJobStates.IsNotComplete(x.Status))
+            .ToList();
 
-        if (!string.IsNullOrEmpty(id))
+        var longRunningUnfinishedWaitingJobs = allJobs
+            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value < cutoffDate && x.Deposit == Id)
+            .Where(x => PipelineJobStates.IsNotComplete(x.Status))
+            .ToList();
+
+
+        longRunningUnfinishedJobs.AddRange(longRunningUnfinishedWaitingJobs);
+
+        foreach (var job in longRunningUnfinishedJobs)
         {
-            var jobs = GetPipelineJobResults().Result;
-            var latestJobs = jobs?.Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= DateTime.Now.Date && x.Deposit == id).OrderByDescending(x => x.DateBegun).Take(1);
+            var pipelineDeposit = new PipelineDeposit
+            {
+                Id = job.JobId!,
+                Status = PipelineJobStates.CompletedWithErrors,
+                DepositId = job.Deposit,
+                RunUser = job.RunUser,
+                Errors = "Cleaned up as previous processing did not complete"
+            };
 
-            if(latestJobs == null)
-                return ([], false);
-
-            var latestJobResults = latestJobs.ToList();
-            var status = latestJobResults.FirstOrDefault()?.Status;
-            var jobRunning = !string.IsNullOrEmpty(status) && PipelineJobStates.IsNotComplete(status);
-
-            return (jobs, jobRunning);
+            var result = await mediator.Send(new ReleaseLock(Deposit!));
+            if (result.Success && Deposit != null)
+            {
+                Deposit.LockDate = null;
+                Deposit.LockedBy = null;
+            }
+            await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
         }
 
-        return ([], false);
+        if (longRunningUnfinishedJobs.Any())
+        {
+            //refresh as all jobs have been sent
+            allJobs = GetPipelineJobResults().Result;
+        }
 
+        var latestJob = allJobs
+            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= cutoffDate && x.Deposit == Id)
+            .OrderByDescending(x => x.DateBegun)
+            .FirstOrDefault();
+
+        var latestWaitingJob = allJobs
+            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value >= cutoffDate && x.Deposit == Id)
+            .OrderByDescending(x => x.Created)
+            .FirstOrDefault();
+
+        if (latestJob == null && latestWaitingJob == null)
+        {
+            return (allJobs, null);
+        }
+
+        ProcessPipelineResult? runningJob = null;
+        if (latestJob != null && PipelineJobStates.IsNotComplete(latestJob.Status))
+        {
+            runningJob = latestJob; 
+        }
+
+        if (runningJob == null && latestWaitingJob != null && PipelineJobStates.IsNotComplete(latestWaitingJob.Status))
+        {
+            runningJob = latestWaitingJob;
+        }
+
+        return (allJobs, runningJob);
     }
 }
 

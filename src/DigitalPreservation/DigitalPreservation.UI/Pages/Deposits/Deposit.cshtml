@@ -4,9 +4,7 @@
 @using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
-@using DigitalPreservation.UI.TagHelpers
 @using DigitalPreservation.Utils
-@using Microsoft.AspNetCore.Mvc.TagHelpers
 @model DepositModel
 
 @functions {
@@ -23,15 +21,15 @@
     }
 }
 @{
-    var(jobs, jobRunning) = Model.PipelineJobsRunning();
-
-    if (jobRunning)
-    {
-        TempData.Remove("MisMatchCount");
-    }
-
     ViewData["Title"] = Model.GetDisplayTitle();
     ViewData["section"] = "deposits";
+
+    var jobRunning = false;
+    if (Model.RunningPipelineJob != null)
+    {
+        TempData.Remove("MisMatchCount");
+        jobRunning = true;
+    }
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -54,7 +52,7 @@
                         @if (Model.Deposit?.LockedBy != null)
                         {
                             <li>
-                                <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="ReleaseLock">
+                                <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ReleaseLock">
                                     <svg class="bi"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
                                 </button>
                             </li>
@@ -62,24 +60,33 @@
                         else
                         {
                             <li>
-                                <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="Lock">
+                                <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="Lock">
                                     <svg class="bi"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
                                 </button>
                             </li>
                         }
-                        
+
+                        @if (Model.ShowPipeline)
+                        {
+                            <li>
+                                <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="RunPipeline">
+                                    <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button disabled="@(!jobRunning)" class="dropdown-item @(!jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ForceCompletePipelineRun">
+                                    <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
+                                </button>
+                            </li>
+                        }
+
                         <li>
-                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="RunPipeline">
-                                <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
-                            </button>
-                        </li>
-                        <li>
-                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="ValidateStorage">
+                            <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ValidateStorage">
                                 <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
                             </button>
                         </li>
                         <li>
-                            <button disabled="@jobRunning" class="dropdown-item text-primary" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
+                            <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
                                 <svg class="bi"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
                             </button>
                         </li>
@@ -91,17 +98,17 @@
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="selectNonMets">
+                            <button @(jobRunning ? " disabled=disabled" : "") class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="button" id="selectNonMets">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
                             </button>
                         </li>
                         <li>
-                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-primary" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
+                            <button @(jobRunning ? " disabled=disabled" : "") class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
                                 <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
                             </button>
                         </li>
                         <li>
-                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
+                            <button @(jobRunning ? " disabled=disabled" : "") class="dropdown-item @(jobRunning ? "text-secondary" : "text-danger")" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
                                 <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
                             </button>
                         </li>
@@ -113,7 +120,7 @@
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
-                            <button @(!jobRunning ? "" : " disabled=disabled") class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                            <button @(jobRunning ? " disabled=disabled" : "") class="dropdown-item @(jobRunning ? "text-secondary" : "text-danger")" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
                                 <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
                             </button>
                         </li>
@@ -167,13 +174,51 @@
         </div>
     }
 
-    @if (TempData["MisMatchCount"] != null)
+    @if (!jobRunning && TempData["MisMatchCount"] != null)
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
+            
+            @{
+                List<string> mismatchMessages = [];
+            }
+            <!--ADD IN EXTRA INFORMATION AND DISPLAY MORE INFO ON MISMATCHES-->
+            @foreach (var detailMismatch in Model.FileMisMatches)
+            {
+                foreach (var fileMismatch in detailMismatch.Item1)
+                {
+                    switch (fileMismatch.Field.ToLower())
+                    {
+                        case "contenttype":
+                            mismatchMessages.Add("Content type");
+                            break;
+                        case "pronomkey":
+                            mismatchMessages.Add("Pronom key");
+                            break;
+                        case "formatname":
+                            mismatchMessages.Add("Format name");
+                            break;
+                        case "digest":
+                            mismatchMessages.Add("Digest");
+                            break;
+                        default:
+                            mismatchMessages.Add("undocumented difference");
+                            break;
+                    }
+                }
+
+                var differencesString = String.Join(", ", mismatchMessages.Select(x => x.ToString()).ToArray());
+                <p>@detailMismatch.Item2 (Differences: @differencesString)</p>
+
+                mismatchMessages.Clear();
+            }
+            
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+
+
     }
+
     
     @if (jobRunning && TempData["Valid"] == null)
     {
@@ -284,7 +329,31 @@
                             @StringUtils.FormatFileSize(totals.TotalSizeInMets, withSpace: true, fallbackIfNull: " - ") <text> in METS, </text>
                             @StringUtils.FormatFileSize(totals.TotalSize, withSpace: true, fallbackIfNull: " - ") <text> Overall. </text><br/>
                             Deposit structure built @(Model.RootCombinedDirectory.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
+                       
+                            @{
+                                if (Request.Query["showCalculation"] == "true")
+                                {
+                                    <br/><span>----</span>
+                                    foreach (var msg in totals.Messages)
+                                    {
+                                        <br/>@msg
+                                    }
+                                }
+                            
+                            } 
                         </small></p>
+                        if (totals.Discrepancies.Count > 0)
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                <p>Discrepancies in file sizes</p>
+                                <ul>
+                                    @foreach (var discrepancy in totals.Discrepancies)
+                                    {
+                                        <li>@discrepancy.Key : Deposit=@discrepancy.Value.Item1, METS=@discrepancy.Value.Item2</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
                     }
                     else
                     {
@@ -389,8 +458,7 @@
                 <h3>Pipeline Jobs</h3>
 
                 @{
-                    var pipelineJobResults = jobs;
-                    if (pipelineJobResults is { Count: 0 })
+                    if (Model.PipelineJobResults is { Count: 0 })
                     {
                         <p>There are no submitted pipeline jobs for this Deposit.</p>
                     }
@@ -409,31 +477,30 @@
                                 </tr>
                                 </thead>
                                 <tbody>
-                                @if (pipelineJobResults != null)
-                        {
-                            foreach (var result in pipelineJobResults)
-                            {
-                                <tr>
-                                    <td aria-label="td-job-id">@result.JobId</td>
-                                    <td aria-label="td-status">@result.Status</td>
-                                    <td aria-label="td-date-begun">@result.DateBegun.GetDateDisplay()</td>
-                                    <td aria-label="td-date-finished">@result.DateFinished.GetDateDisplay()</td>
-                                    <td aria-label="td-run-user">@result.RunUser</td>
-                                    <td aria-label="td-errors" class="text-danger">
+                                @{
+                                    foreach (var result in Model.PipelineJobResults)
+                                    {
+                                        <tr>
+                                            <td aria-label="td-job-id">@result.JobId</td>
+                                            <td aria-label="td-status">@result.Status</td>
+                                            <td aria-label="td-date-begun">@result.DateBegun.GetDateDisplay()</td>
+                                            <td aria-label="td-date-finished">@result.DateFinished.GetDateDisplay()</td>
+                                            <td aria-label="td-run-user">@result.RunUser</td>
+                                            <td aria-label="td-errors" class="text-danger">
 
-                                        @if (result.Errors != null && result.Errors.Any())
-                                        {
-                                            foreach (var line in result.Errors.Select(e => e.Message))
-                                            {
-                                                <p>@line</p>
-                                            }
-                                        }
+                                                @if (result.Errors != null && result.Errors.Any())
+                                                {
+                                                    foreach (var line in result.Errors.Select(e => e.Message))
+                                                    {
+                                                        <p>@line</p>
+                                                    }
+                                                }
 
-                                    </td>
-                                </tr>
-                            }
-                        }
-                        </tbody>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                </tbody>
                             </table>
                         </div>
                     }

@@ -21,10 +21,9 @@ public class MetsManagerWithPremis
 
         var factory = serviceProvider.GetService<ILoggerFactory>();
         var parserLogger = factory!.CreateLogger<MetsParser>();
-        var managerLogger = factory!.CreateLogger<MetsManager>();
         var s3Client = new Mock<IAmazonS3>().Object;
         parser = new MetsParser(s3Client, parserLogger);
-        metsManager = new MetsManager(managerLogger, parser, s3Client);
+        metsManager = new MetsManager(parser, s3Client);
     }
     
     

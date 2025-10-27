@@ -26,7 +26,7 @@ public class GetDepositsHandler(
         try
         {
             IQueryable<DepositEntity> queryable;
-            int total = 0;
+            int total;
             
             if (request.Query is null || request.Query.NoTerms())
             {

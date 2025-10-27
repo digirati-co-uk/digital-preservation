@@ -22,7 +22,6 @@ using File = System.IO.File;
 namespace Storage.Repository.Common.Mets;
 
 public class MetsManager(
-    ILogger<MetsManager> logger,
     IMetsParser metsParser, 
     IAmazonS3 s3Client) : IMetsManager
 {

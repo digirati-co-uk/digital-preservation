@@ -1,6 +1,4 @@
-﻿using System.Text.Json;
-using System.Text.Json.Serialization;
-using Amazon.SimpleNotificationService;
+﻿using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
@@ -8,7 +6,10 @@ using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
+using Preservation.Client;
 using Storage.Repository.Common.Aws;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -17,13 +18,16 @@ public class SqsPipelineQueue(
     IAmazonSimpleNotificationService snsClient,
     IAmazonSQS sqsClient,
     IOptions<PipelineOptions> options,
-    IIdentityMinter identityMinter) : IPipelineQueue
+    IIdentityMinter identityMinter,
+    IPreservationApiClient preservationApiClient) : IPipelineQueue
 {
     private string? topicArn;
 
     public async ValueTask QueueRequest(string jobIdentifier, string depositName, string? runUser, CancellationToken cancellationToken)
     {
         topicArn = options.Value.PipelineJobTopicArn;
+
+        logger.LogInformation("Message queued for deposit {deposit} and job id {jobId}", depositName, jobIdentifier);
         var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { JobIdentifier = jobIdentifier, DepositName = depositName, RunUser = runUser});
         var request = new PublishRequest(topicArn, pipelineJobMessage);
         var response = await snsClient.PublishAsync(request, cancellationToken);
@@ -36,36 +40,46 @@ public class SqsPipelineQueue(
     {
         PipelineJobMessage? messageModel = null;
 
-        var queue = options.Value.PipelineJobQueue;
-        logger.LogInformation($"About to check queue {queue} for messages");
-        var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queue, cancellationToken);
-        var queueUrlValue = queueUrlResponse.QueueUrl;
-
-        var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+        try
         {
-            QueueUrl = queueUrlValue,
-            WaitTimeSeconds = 10,
-            MaxNumberOfMessages = 1
-        }, cancellationToken);
+            var queue = options.Value.PipelineJobQueue;
 
-        foreach (var message in response.Messages!)
-        {
-            if (cancellationToken.IsCancellationRequested) return messageModel;
-            logger.LogDebug("Received SQS message {messageBody}", message.Body);
+            logger.LogInformation($"About to check queue {queue} for messages");
+            var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queue, cancellationToken);
+            var queueUrlValue = queueUrlResponse.QueueUrl;
 
-            messageModel = GetMessageModel(message, queue);
-            if (messageModel != null && !messageModel.DepositName.HasText()) 
+            var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+            {
+                QueueUrl = queueUrlValue,
+                WaitTimeSeconds = 10,
+                MaxNumberOfMessages = 1
+            }, cancellationToken);
+
+            foreach (var message in response.Messages!)
+            {
+                if (cancellationToken.IsCancellationRequested) return messageModel;
+                logger.LogDebug("Received SQS message {messageBody}", message.Body);
+
+                messageModel = await GetMessageModel(message, queue);
+                if (messageModel != null && !messageModel.DepositName.HasText())
+                    return messageModel;
+
+                await DeleteMessage(message, queueUrlValue, cancellationToken);
                 return messageModel;
 
-            await DeleteMessage(message, queueUrlValue, cancellationToken);
-            return messageModel;
+            }
 
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, $"Error in DequeueRequest {e.Message}");
         }
 
         return messageModel;
+
     }
 
-    private PipelineJobMessage? GetMessageModel(Message message, string queue)
+    private async Task<PipelineJobMessage?> GetMessageModel(Message message, string queue)
     {
         try
         {
@@ -78,9 +92,21 @@ public class SqsPipelineQueue(
             var pipelineJobMessage = queueMessage.GetMessageContents<PipelineJobMessage>();
             if (pipelineJobMessage != null)
             {
+                var depositPipelineResults = await preservationApiClient.GetPipelineJobResultsForDeposit(pipelineJobMessage.DepositName, new CancellationToken());
+                
                 if (string.IsNullOrEmpty(pipelineJobMessage.JobIdentifier))
                 {
                     pipelineJobMessage.JobIdentifier = identityMinter.MintIdentity("PipelineJob");
+                }
+
+                if (depositPipelineResults.Value != null)
+                {
+                    var job = depositPipelineResults.Value.FirstOrDefault(x => x.JobId == pipelineJobMessage.JobIdentifier && x.Status == PipelineJobStates.CompletedWithErrors);
+                    if (job != null)
+                    {
+                        //job has been forced to complete
+                        return null;
+                    }
                 }
 
                 return pipelineJobMessage;

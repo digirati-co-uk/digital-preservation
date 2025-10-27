@@ -3,7 +3,7 @@ using DigitalPreservation.Common.Model.Storage;
 using MediatR;
 using Storage.Client;
 
-namespace Preservation.API.Features.Ocfl;
+namespace Preservation.API.Features.Ocfl.Requests;
 
 public class GetStorageMap(string archivalGroupPathUnderRoot, string? version) : IRequest<Result<StorageMap>>
 {

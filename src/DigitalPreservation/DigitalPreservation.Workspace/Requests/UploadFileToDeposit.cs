@@ -97,7 +97,22 @@ public class UploadFileToDepositHandler(
                 }
                 return Result.Generify<WorkingFile?>(saveResult);
             }
-            return Result.Fail<WorkingFile>(ErrorCodes.BadRequest, $"Checksum on server did not match submitted checksum: server-calculated: {respChecksum}, submitted: {request.Checksum}");
+            // The file we just saved in the Deposit does not the same checksum we think it should have.
+            // We need to delete the file from the Deposit (see Azure 105199)
+            var checksumMessage =
+                $"Checksum on server did not match submitted checksum: server-calculated: {respChecksum}, submitted: {request.Checksum}";
+            var deleteRequest = new DeleteObjectRequest
+            {
+                BucketName = s3Uri.Bucket,
+                Key = fullKey
+            };
+            var deleteResponse = await s3Client.DeleteObjectAsync(deleteRequest, cancellationToken);
+            if (deleteResponse.HttpStatusCode == HttpStatusCode.NoContent)
+            {
+                return Result.Fail<WorkingFile>(ErrorCodes.BadRequest, checksumMessage);
+            }
+            return Result.Fail<WorkingFile>(ErrorCodes.BadRequest, 
+                checksumMessage + " - and could not delete object from Deposit: " + fullKey.RemoveStart(s3Uri.Key)!);
         }
         catch (AmazonS3Exception s3E)
         {

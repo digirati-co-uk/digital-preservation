@@ -3,14 +3,11 @@ using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using Pipeline.API.Config;
 using Pipeline.API.Features.Pipeline.Models;
 using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
 using System.Diagnostics;
 using DigitalPreservation.Common.Model.Results;
-using Preservation.Client;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -63,6 +60,7 @@ public class PipelineController(
 
         try
         {
+
             if (string.IsNullOrEmpty(depositFilesModel.DepositNameOrPath))
             {
                 model.Errors.Add("DepositNameOrPath is null or empty");
@@ -94,7 +92,7 @@ public class PipelineController(
 
     private void ProcessDirectory(string? targetDirectory)
     {
-        if (string.IsNullOrEmpty(targetDirectory))
+        if(string.IsNullOrEmpty(targetDirectory))
             return;
 
         // Process the list of files found in the directory.

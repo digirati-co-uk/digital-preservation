@@ -1,9 +1,14 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
-using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Utils;
+using LeedsDlipServices.Identity;
 using Microsoft.Extensions.Options;
-using DepositEntity = Preservation.API.Data.Entities.Deposit; 
+using Preservation.API.Data.Entities;
+using Deposit = DigitalPreservation.Common.Model.PreservationApi.Deposit;
+using DepositEntity = Preservation.API.Data.Entities.Deposit;
+using ImportJob = DigitalPreservation.Common.Model.Import.ImportJob;
 
 namespace Preservation.API.Mutation;
 
@@ -201,6 +206,46 @@ public class ResourceMutator(
         return deposits.Select(MutateDeposit).ToList();
     }
     
+        
+    public ProcessPipelineResult MutatePipelineRunJob(PipelineRunJob entity)
+    {            
+        var errors = new List<Error>();
+        if (!string.IsNullOrEmpty(entity.Errors))
+        {
+            errors.Add(new Error
+            {
+                Message = entity.Errors
+            });
+        }
+        var processPipelineResult = new ProcessPipelineResult
+        {
+            Id = GetProcessPipelineResultUri(entity.Deposit, entity.Id),
+            JobId = entity.Id,
+            ArchivalGroupName = entity.ArchivalGroup,
+            Status = entity.Status,
+            Created = entity.DateSubmitted,
+            DateBegun = entity.DateBegun,
+            DateFinished = entity.DateFinished,
+            CreatedBy = GetAgentUri(entity.RunUser),
+            LastModified = entity.LastUpdated,
+            LastModifiedBy = GetAgentUri(entity.RunUser),
+            RunUser = entity.RunUser,
+            Errors = errors.Count != 0 ? errors.ToArray<Error>() : null,
+            Deposit = entity.Deposit
+        };
+        return processPipelineResult;
+    }
+    
+    private Uri GetProcessPipelineResultUri(string depositId, string jobId)
+    {
+        return new Uri($"{preservationHost}/{Deposit.BasePathElement}/{depositId}/pipelinerunjobs/{jobId}");
+    }
+    
+    public List<ProcessPipelineResult> MutatePipelineRunJobs(IEnumerable<PipelineRunJob> pipelineRunJobs)
+    {
+        return pipelineRunJobs.Select(MutatePipelineRunJob).ToList();
+    }
+    
     public void MutatePreservationImportJob(ImportJob preservationImportJob)
     {
         MutatePreservationBaseUris(preservationImportJob);
@@ -276,6 +321,23 @@ public class ResourceMutator(
             MutateStorageResource(binary);
         }
     }
+
+    public Identifier MutateIdentityRecord(IdentityRecord record) =>
+      new()
+        {
+            Id = record.Id,
+            EPid = record.EPid,
+            Created = record.Created is null ? null : Convert.ToDateTime(record.Created),
+            Updated = record.Updated is null ? null : Convert.ToDateTime(record.Updated),
+            CatIrn = record.CatIrn,
+            Desc = record.Desc,
+            Status = record.Status,
+            Title = record.Title,
+            CatalogueApiUri = record.CatalogueApiUri,
+            ManifestUri = record.ManifestUri,
+            RepositoryUri = record.RepositoryUri
+        };
+    
 }
 
 public class MutatorOptions

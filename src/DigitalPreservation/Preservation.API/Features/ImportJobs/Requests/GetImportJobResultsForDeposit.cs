@@ -19,6 +19,7 @@ public class GetImportJobResultsForDepositHandler(
     {
         var importJobEntities = await dbContext.ImportJobs
             .Where(j => j.Deposit == request.DepositId)
+            .OrderBy(j => j.DateSubmitted)
             .ToListAsync(cancellationToken);
         var importJobs = importJobEntities
             .Select(j => JsonSerializer.Deserialize<ImportJobResult>(j.LatestPreservationApiResultJson))

@@ -19,7 +19,7 @@ public class RepositoryController(IMediator mediator) : Controller
     [ProducesResponseType<Container>(200, "application/json")]
     [ProducesResponseType<Binary>(200, "application/json")]
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
-    [ProducesResponseType(400)]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     [ProducesResponseType(410)]
@@ -103,9 +103,9 @@ public class RepositoryController(IMediator mediator) : Controller
     
     [HttpPut(Name = "CreateContainer")]
     [ProducesResponseType<Container>(201, "application/json")]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(409)]
-    [ProducesResponseType(400)]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
     public async Task<ActionResult> CreateContainer([FromRoute] string? path = null, [FromBody] Container? container = null)
     {
         string? name = null;
@@ -120,9 +120,9 @@ public class RepositoryController(IMediator mediator) : Controller
 
     [HttpDelete(Name = "DeleteContainer")]
     [ProducesResponseType(204)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(410)]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(410, "application/json")]
     public async Task<ActionResult> DeleteContainer([FromRoute] string path, [FromQuery] bool purge)
     {
         var result = await mediator.Send(new DeleteContainer(Request.Path, purge));

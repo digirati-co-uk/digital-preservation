@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.Export;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
@@ -27,6 +28,8 @@ public class StorageApiClient(
     ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger), IStorageApiClient
 {
     private readonly HttpClient storageHttpClient = httpClient;
+
+ 
 
     public async Task<Result<Stream>> GetBinaryStream(string path)
     {
@@ -264,6 +267,23 @@ public class StorageApiClient(
             {
                 Name = ConnectivityCheckResult.StorageApiReadS3, Success = false
             };
+        }
+    }
+
+
+    public async Task<Result<SearchCollectiveFedora?>> FedoraSearch(string text, int? page = 0, int? pageSize = 50)
+    {
+        try
+        {
+            var res = await storageHttpClient.GetFromJsonAsync<SearchCollectiveFedora>($"/FedoraSearch?text={text}&page={page}&pageSize={pageSize}");
+            return Result.Ok(res);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error occured while checking if API is alive");
+            return Result.Fail<SearchCollectiveFedora?>(ErrorCodes.UnknownError, ex.Message);
+
+
         }
     }
 }

@@ -10,9 +10,8 @@ namespace Preservation.API.Features.Agents;
 public class AgentsController(IMediator mediator) : Controller
 {
     [HttpGet(Name = "ListAgents")]
-    [ProducesResponseType<List<string>>(200, "application/json")]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
+    [ProducesResponseType<List<Uri>>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> ListAgents() // 
     {
         var result = await mediator.Send(new GetAgents());
