@@ -35,12 +35,12 @@ public static class PremisEventManager
             {
                 Value = "virus check"
             },
-            EventDateTime = DateTime.Now.ToLongDateString() //TODO: this is a placeholder
+            EventDateTime = DateTime.Now.ToLongDateString()
         };
 
         var eventDetailInformationComplexType = new EventDetailInformationComplexType
         {
-            EventDetail = "program=\"ClamAV (clamd)\"; version=\"ClamAV 1.2.2\"; virusDefinitions=\"27182/Sun Feb 11 09:33:24 2024\"" //TODO: placeholder
+            EventDetail = virusScanMetadata.VirusDefinition
         };
 
         var eventOutcomeInformationComplexType = new EventOutcomeInformationComplexType
@@ -51,7 +51,7 @@ public static class PremisEventManager
             },
             EventOutcomeDetail = { new EventOutcomeDetailComplexType
             {
-                EventOutcomeDetailNote = "/home/brian/Test/data/objects/virus_test_file.txt: Eicar-Signature FOUND"
+                EventOutcomeDetailNote = virusScanMetadata.VirusFound
             } }
         };
 

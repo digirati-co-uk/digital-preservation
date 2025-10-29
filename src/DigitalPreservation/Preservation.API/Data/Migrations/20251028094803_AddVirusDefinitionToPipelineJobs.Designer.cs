@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Preservation.API.Data;
@@ -11,9 +12,11 @@ using Preservation.API.Data;
 namespace Preservation.API.Data.Migrations
 {
     [DbContext(typeof(PreservationContext))]
-    partial class PreservationContextModelSnapshot : ModelSnapshot
+    [Migration("20251028094803_AddVirusDefinitionToPipelineJobs")]
+    partial class AddVirusDefinitionToPipelineJobs
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

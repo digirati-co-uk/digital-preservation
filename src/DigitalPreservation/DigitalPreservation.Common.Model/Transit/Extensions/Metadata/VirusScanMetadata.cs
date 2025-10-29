@@ -9,8 +9,12 @@ public class VirusScanMetadata : Metadata
     public bool HasVirus { get; set; }
 
     [JsonPropertyName("virusFound")]
-    [JsonPropertyOrder(110)]
+    [JsonPropertyOrder(111)]
     public string VirusFound { get; set; }
+
+    [JsonPropertyName("virusDefinition")]
+    [JsonPropertyOrder(112)]
+    public string VirusDefinition { get; set; }
 
     public string GetDisplay()
     {

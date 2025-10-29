@@ -293,297 +293,328 @@ public class MetsParser(
                 throw new NotSupportedException(file.Scheme + " not supported");
         }
     }
-    
-    
-        public void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
+
+
+    public void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
+    {
+        var modsScope = xMets.Descendants(XNames.mods + "mods").FirstOrDefault();
+        // EPrints mods is not wrapped in a <mods:mods> element
+        if (modsScope == null)
         {
-            var modsScope = xMets.Descendants(XNames.mods + "mods").FirstOrDefault();
-            // EPrints mods is not wrapped in a <mods:mods> element
-            if (modsScope == null)
+            modsScope = xMets.Root;
+        }
+
+        var modsTitle = modsScope?.Descendants(XNames.mods + "title").FirstOrDefault()?.Value;
+        var modsName = modsScope?.Descendants(XNames.mods + "name").FirstOrDefault()?.Value;
+        string? name = modsTitle ?? modsName;
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            mets.Name = name;
+        }
+
+        var rootAccessConditions = modsScope?.Descendants(XNames.mods + "accessCondition").ToList();
+        if (rootAccessConditions is { Count: > 0 })
+        {
+            foreach (var accessCondition in rootAccessConditions)
             {
-                modsScope = xMets.Root;
-            }
-            var modsTitle = modsScope?.Descendants(XNames.mods + "title").FirstOrDefault()?.Value;
-            var modsName = modsScope?.Descendants(XNames.mods + "name").FirstOrDefault()?.Value;
-            string? name = modsTitle ?? modsName;
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                mets.Name = name;
-            }
-            var rootAccessConditions = modsScope?.Descendants(XNames.mods + "accessCondition").ToList();
-            if (rootAccessConditions is { Count: > 0 })
-            {
-                foreach (var accessCondition in rootAccessConditions)
+                var acType = accessCondition.Attribute("type")?.Value;
+                if (acType is IMetsManager.RestrictionOnAccess or "status") // status is Goobi access cond
                 {
-                    var acType = accessCondition.Attribute("type")?.Value;
-                    if (acType is IMetsManager.RestrictionOnAccess or "status") // status is Goobi access cond
+                    if (accessCondition.Value.HasText())
                     {
-                        if (accessCondition.Value.HasText())
-                        {
-                            mets.RootAccessConditions.Add(accessCondition.Value);
-                        }
+                        mets.RootAccessConditions.Add(accessCondition.Value);
                     }
-                    else if (acType is IMetsManager.UseAndReproduction) // Goobi might have different
+                }
+                else if (acType is IMetsManager.UseAndReproduction) // Goobi might have different
+                {
+                    if (accessCondition.Value.HasText() && mets.RootRightsStatement is null)
                     {
-                        if (accessCondition.Value.HasText() && mets.RootRightsStatement is null)
+                        try
                         {
-                            try
-                            {
-                                mets.RootRightsStatement = new Uri(accessCondition.Value);
-                            }
-                            catch (Exception e)
-                            {
-                                logger.LogError(e, "Unable to parse rights statement {accessCondition}", accessCondition.Value);;
-                            }
+                            mets.RootRightsStatement = new Uri(accessCondition.Value);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.LogError(e, "Unable to parse rights statement {accessCondition}",
+                                accessCondition.Value);
+                            ;
                         }
                     }
                 }
             }
+        }
 
-            var agent = xMets.Descendants(XNames.mets + "agent").FirstOrDefault();
-            if (agent is not null)
-            {
-                mets.Agent = agent.Descendants(XNames.mets + "name").FirstOrDefault()?.Value;
-            }
-            
+        var agent = xMets.Descendants(XNames.mets + "agent").FirstOrDefault();
+        if (agent is not null)
+        {
+            mets.Agent = agent.Descendants(XNames.mets + "name").FirstOrDefault()?.Value;
+        }
 
-            // There may be more than one, and they may or may not be qualified as physical or logical
-            XElement? physicalStructMap = null;
-            foreach (var sm in xMets.Descendants(XNames.MetsStructMap))
+
+        // There may be more than one, and they may or may not be qualified as physical or logical
+        XElement? physicalStructMap = null;
+        foreach (var sm in xMets.Descendants(XNames.MetsStructMap))
+        {
+            var typeAttr = sm.Attribute("TYPE");
+            if (typeAttr?.Value != null)
             {
-                var typeAttr = sm.Attribute("TYPE");
-                if (typeAttr?.Value != null)
+                if (typeAttr.Value.ToLowerInvariant() == "physical")
                 {
-                    if (typeAttr.Value.ToLowerInvariant() == "physical")
-                    {
-                        physicalStructMap = sm;
-                        break;
-                    }
-                    if (typeAttr.Value.ToLowerInvariant() == "logical")
-                    {
-                        continue;
-                    }
-                }
-                if (physicalStructMap == null)
-                {
-                    // This may get overwritten if we find a better one in the loop
-                    // EPRints METS files structMap don't have type
                     physicalStructMap = sm;
+                    break;
+                }
+
+                if (typeAttr.Value.ToLowerInvariant() == "logical")
+                {
+                    continue;
                 }
             }
 
             if (physicalStructMap == null)
             {
-                throw new NotSupportedException("METS file must have a physical structMap");
+                // This may get overwritten if we find a better one in the loop
+                // EPRints METS files structMap don't have type
+                physicalStructMap = sm;
             }
-
-            // Now walk down the structMap
-            // Each div either contains 1 (or sometimes more) mets:fptr, or it contains child DIVs.
-            // If a DIV containing a mets:fptr has a LABEL (not ORDERLABEL) then that is the name of the file
-            // If those DIVs have TYPE="Directory" and a LABEL, that gives us the name of the directory.
-            // We need to see the path of the file, too.
-
-            // A DIV TYPE="Directory" should never directly contain a file
-
-            // GOOBI METS at Wellcome contain images and ALTO in the same DIV; the ADM_ID is for the Image not the ALTO.
-            // Not sure how to be formal about that.
-
-            var parent = physicalStructMap;
-            var fileSec = xMets.Descendants(XNames.MetsFileSec).Single();
-
-            // This relies on all directories having labels not just some
-            Stack<string> directoryLabels = new();
-
-            ProcessChildStructDivs(mets, xMets, parent, fileSec, directoryLabels);
-            
-            // We should now have a flat list of WorkingFile, and a set of WorkingDirectories, with correct names
-            // if supplied. Now assign the files to their directories.
-
-            foreach (var file in mets.Files)
-            {
-                var folder = mets.PhysicalStructure!.FindDirectory(file.LocalPath.GetParent(), false);
-                if (folder is null)
-                {
-                    throw new Exception("Our folder logic is wrong");
-                }
-                folder.Files.Add(file);
-            }
-
         }
 
-        private void ProcessChildStructDivs(MetsFileWrapper mets, XDocument xMets, XElement parent, XElement fileSec, Stack<string> directoryLabels)
+        if (physicalStructMap == null)
         {
-            // We want to create MetsFileWrapper::PhysicalStructure (WorkingDirectories and WorkingFiles).
-            // We can traverse the physical structmap, finding div type=Directory and div type=File
-            // But we have a problem - if a directory has no files in it, we don't know the path of that 
-            // directory. If it has grandchildren we can eventually populate it. But if not we will have
-            // to rely on the AMD premis:originalName as the local path.
-            foreach (var div in parent.Elements(XNames.MetsDiv))
+            throw new NotSupportedException("METS file must have a physical structMap");
+        }
+
+        // Now walk down the structMap
+        // Each div either contains 1 (or sometimes more) mets:fptr, or it contains child DIVs.
+        // If a DIV containing a mets:fptr has a LABEL (not ORDERLABEL) then that is the name of the file
+        // If those DIVs have TYPE="Directory" and a LABEL, that gives us the name of the directory.
+        // We need to see the path of the file, too.
+
+        // A DIV TYPE="Directory" should never directly contain a file
+
+        // GOOBI METS at Wellcome contain images and ALTO in the same DIV; the ADM_ID is for the Image not the ALTO.
+        // Not sure how to be formal about that.
+
+        var parent = physicalStructMap;
+        var fileSec = xMets.Descendants(XNames.MetsFileSec).Single();
+
+        // This relies on all directories having labels not just some
+        Stack<string> directoryLabels = new();
+
+        ProcessChildStructDivs(mets, xMets, parent, fileSec, directoryLabels);
+
+        // We should now have a flat list of WorkingFile, and a set of WorkingDirectories, with correct names
+        // if supplied. Now assign the files to their directories.
+
+        foreach (var file in mets.Files)
+        {
+            var folder = mets.PhysicalStructure!.FindDirectory(file.LocalPath.GetParent(), false);
+            if (folder is null)
             {
-                var type = div.Attribute("TYPE")?.Value.ToLowerInvariant();
-                var label = div.Attribute("LABEL")?.Value;
-                if (type == "directory")
+                throw new Exception("Our folder logic is wrong");
+            }
+
+            folder.Files.Add(file);
+        }
+
+    }
+
+    private void ProcessChildStructDivs(MetsFileWrapper mets, XDocument xMets, XElement parent, XElement fileSec,
+        Stack<string> directoryLabels)
+    {
+        // We want to create MetsFileWrapper::PhysicalStructure (WorkingDirectories and WorkingFiles).
+        // We can traverse the physical structmap, finding div type=Directory and div type=File
+        // But we have a problem - if a directory has no files in it, we don't know the path of that 
+        // directory. If it has grandchildren we can eventually populate it. But if not we will have
+        // to rely on the AMD premis:originalName as the local path.
+        foreach (var div in parent.Elements(XNames.MetsDiv))
+        {
+            var type = div.Attribute("TYPE")?.Value.ToLowerInvariant();
+            var label = div.Attribute("LABEL")?.Value;
+            if (type == "directory")
+            {
+                if (string.IsNullOrEmpty(label))
                 {
-                    if (string.IsNullOrEmpty(label))
+                    throw new NotSupportedException("If a mets:div has type Directory, it must have a label");
+                }
+
+                directoryLabels.Push(label);
+                var admId = div.Attribute("ADMID")?.Value;
+                if (admId.HasText())
+                {
+                    // TODO - put these andSecs into a dictionary - have done in Python version
+                    var amd = xMets.Descendants(XNames.MetsAmdSec)
+                        .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
+                    if (amd != null)
                     {
-                        throw new NotSupportedException("If a mets:div has type Directory, it must have a label");
-                    }
-                    directoryLabels.Push(label);
-                    var admId = div.Attribute("ADMID")?.Value;
-                    if (admId.HasText())
-                    {
-                        // TODO - put these andSecs into a dictionary - have done in Python version
-                        var amd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
-                        if (amd != null)
+                        var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
+                        Uri? storageLocation = null;
+                        var storageUri = amd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
+                        if (storageUri != null)
                         {
-                            var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
-                            Uri? storageLocation = null;
-                            var storageUri = amd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
-                            if (storageUri != null)
+                            storageLocation = new Uri(storageUri);
+                        }
+
+                        if (originalName != null)
+                        {
+                            // Only in this scenario can we create a directory
+                            var workingDirectory = mets.PhysicalStructure!.FindDirectory(originalName, true);
+                            if (workingDirectory!.Name.IsNullOrWhiteSpace())
                             {
-                                storageLocation = new Uri(storageUri);
-                            }
-                            if (originalName != null)
-                            {
-                                // Only in this scenario can we create a directory
-                                var workingDirectory = mets.PhysicalStructure!.FindDirectory(originalName, true);
-                                if (workingDirectory!.Name.IsNullOrWhiteSpace())
+                                var nameFromPath = originalName.GetSlug();
+                                var nameFromLabel = directoryLabels.Any() ? directoryLabels.Pop() : null;
+                                workingDirectory.Name = nameFromLabel ?? nameFromPath;
+                                workingDirectory.LocalPath = originalName;
+                                workingDirectory.MetsExtensions = new MetsExtensions
                                 {
-                                    var nameFromPath = originalName.GetSlug();
-                                    var nameFromLabel = directoryLabels.Any() ? directoryLabels.Pop() : null;
-                                    workingDirectory.Name = nameFromLabel ?? nameFromPath;
-                                    workingDirectory.LocalPath = originalName;
-                                    workingDirectory.MetsExtensions = new MetsExtensions
+                                    AdmId = admId,
+                                    PhysDivId = div.Attribute("ID")?.Value,
+                                    AccessCondition = "Open"
+                                };
+                                workingDirectory.Metadata =
+                                [
+                                    new StorageMetadata
                                     {
-                                        AdmId = admId,
-                                        PhysDivId = div.Attribute("ID")?.Value,
-                                        AccessCondition = "Open"
-                                    };
-                                    workingDirectory.Metadata =
-                                    [
-                                        new StorageMetadata
-                                        {
-                                            Source = MetsManager.Mets,
-                                            OriginalName = originalName,
-                                            StorageLocation = storageLocation
-                                        }
-                                    ];
-                                }
+                                        Source = MetsManager.Mets,
+                                        OriginalName = originalName,
+                                        StorageLocation = storageLocation
+                                    }
+                                ];
                             }
                         }
                     }
                 }
+            }
 
-                // type may be Directory, we need to match them up to file paths
-                // but there might not be any directories in the structmap, just implied by flocats.
+            // type may be Directory, we need to match them up to file paths
+            // but there might not be any directories in the structmap, just implied by flocats.
 
-                // build all the files first on one pass then re=parse to make directories?
+            // build all the files first on one pass then re=parse to make directories?
 
-                bool haveUsedAdmIdAlready = false;
-                foreach (var fptr in div.Elements(XNames.MetsFptr))
+            bool haveUsedAdmIdAlready = false;
+            foreach (var fptr in div.Elements(XNames.MetsFptr))
+            {
+                var admId = div.Attribute("ADMID")?.Value;
+                // Goobi METS has the ADMID on the mets:div. But that means we can use it only once!
+                // Going to make an assumption for now that the first encountered mets:fptr is the one that gets the ADMID
+                // - this is true for Goobi at Wellcome. But in reality we'd need a stricter check than that.
+
+                var fileId = fptr.Attribute("FILEID")!.Value;
+                var fileEl = fileSec.Descendants(XNames.MetsFile).Single(f => f.Attribute("ID")!.Value == fileId);
+                var mimeType =
+                    fileEl.Attribute("MIMETYPE")
+                        ?.Value; // Archivematica does not have this, have to get it from PRONOM, even reverse lookup
+                var flocat = fileEl.Elements(XNames.MetsFLocat).Single().Attribute(XNames.XLinkHref)!.Value;
+                if (admId == null)
                 {
-                    var admId = div.Attribute("ADMID")?.Value; 
-                    // Goobi METS has the ADMID on the mets:div. But that means we can use it only once!
-                    // Going to make an assumption for now that the first encountered mets:fptr is the one that gets the ADMID
-                    // - this is true for Goobi at Wellcome. But in reality we'd need a stricter check than that.
+                    admId = fileEl.Attribute("ADMID")!
+                        .Value; // EPrints and Archivematica METS have ADMID on the mets:file
+                    haveUsedAdmIdAlready = false;
+                }
 
-                    var fileId = fptr.Attribute("FILEID")!.Value;
-                    var fileEl = fileSec.Descendants(XNames.MetsFile).Single(f => f.Attribute("ID")!.Value == fileId);
-                    var mimeType = fileEl.Attribute("MIMETYPE")?.Value;  // Archivematica does not have this, have to get it from PRONOM, even reverse lookup
-                    var flocat = fileEl.Elements(XNames.MetsFLocat).Single().Attribute(XNames.XLinkHref)!.Value;
-                    if (admId == null)
+                string? digest = null;
+                long size = 0;
+                string? originalName = null;
+                Uri? storageLocation = null;
+                FileFormatMetadata? premisMetadata = null;
+                VirusScanMetadata? virusScanMetadata = null;
+                if (!haveUsedAdmIdAlready)
+                {
+                    var techMd = xMets.Descendants(XNames.MetsTechMD)
+                        .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
+
+                    if (techMd == null)
                     {
-                        admId = fileEl.Attribute("ADMID")!.Value; // EPrints and Archivematica METS have ADMID on the mets:file
-                        haveUsedAdmIdAlready = false;
-                    }
-                    string? digest = null;
-                    long size = 0;
-                    string? originalName = null;
-                    Uri? storageLocation = null;
-                    FileFormatMetadata? premisMetadata = null;
-                    VirusScanMetadata? virusScanMetadata = null;
-                    if (!haveUsedAdmIdAlready)
-                    {
-                        var techMd = xMets.Descendants(XNames.MetsTechMD)
+                        // Archivematica does it this way
+                        techMd = xMets.Descendants(XNames.MetsAmdSec)
                             .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
-
-                        if (techMd == null)
-                        {
-                            // Archivematica does it this way
-                            techMd = xMets.Descendants(XNames.MetsAmdSec)
-                                .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
-                        }
-
-
-                        var fixity = techMd!.Descendants(XNames.PremisFixity).SingleOrDefault();
-                        if (fixity != null)
-                        {
-                            var algorithm = fixity.Element(XNames.PremisMessageDigestAlgorithm)?.Value
-                                ?.ToLowerInvariant().Replace("-", "");
-                            if (algorithm == "sha256")
-                            {
-                                digest = fixity.Element(XNames.PremisMessageDigest)?.Value;
-                            }
-                        }
-
-                        var sizeEl = techMd.Descendants(XNames.PremisSize).SingleOrDefault();
-                        if (sizeEl != null)
-                        {
-                            long.TryParse(sizeEl.Value, out size);
-                        }
-
-                        originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
-                        var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
-                        if (storageUri != null)
-                        {
-                            try
-                            {
-                                storageLocation = new Uri(storageUri);
-                            }
-                            catch (Exception e)
-                            {
-                                logger.LogError(e, "Unable to parse storage location {storageUri}", storageUri);
-                            }
-                        }
-
-                        haveUsedAdmIdAlready = true;
-                        var format = techMd.Descendants(XNames.PremisFormat).SingleOrDefault();
-                        if (format != null)
-                        {
-                            var name = format.Descendants(XNames.PremisFormatName).SingleOrDefault()?.Value;
-                            var key = format.Descendants(XNames.PremisFormatRegistryKey).SingleOrDefault()?.Value;
-                            if (name.HasText() && key.HasText())
-                            {
-                                premisMetadata = new FileFormatMetadata
-                                {
-                                    Digest = digest,
-                                    Source = MetsManager.Mets,
-                                    PronomKey = key,
-                                    FormatName = name
-                                };
-                            }
-                        }
-
-                        premisMetadata ??= new FileFormatMetadata
-                        {
-                            Source = MetsManager.Mets,
-                            PronomKey = "dlip/unknown",
-                            FormatName = "[Not Identified]"
-                        };
                     }
 
-                var digiprovMd = xMets.Descendants(XNames.MetsDigiprovMD).SingleOrDefault(t => t.Attribute("ID")!.Value.ToLower().Contains("digiprovmd_clamav"));
+
+                    var fixity = techMd!.Descendants(XNames.PremisFixity).SingleOrDefault();
+                    if (fixity != null)
+                    {
+                        var algorithm = fixity.Element(XNames.PremisMessageDigestAlgorithm)?.Value
+                            ?.ToLowerInvariant().Replace("-", "");
+                        if (algorithm == "sha256")
+                        {
+                            digest = fixity.Element(XNames.PremisMessageDigest)?.Value;
+                        }
+                    }
+
+                    var sizeEl = techMd.Descendants(XNames.PremisSize).SingleOrDefault();
+                    if (sizeEl != null)
+                    {
+                        long.TryParse(sizeEl.Value, out size);
+                    }
+
+                    originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
+                    var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
+                    if (storageUri != null)
+                    {
+                        try
+                        {
+                            storageLocation = new Uri(storageUri);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.LogError(e, "Unable to parse storage location {storageUri}", storageUri);
+                        }
+                    }
+
+                    haveUsedAdmIdAlready = true;
+                    var format = techMd.Descendants(XNames.PremisFormat).SingleOrDefault();
+                    if (format != null)
+                    {
+                        var name = format.Descendants(XNames.PremisFormatName).SingleOrDefault()?.Value;
+                        var key = format.Descendants(XNames.PremisFormatRegistryKey).SingleOrDefault()?.Value;
+                        if (name.HasText() && key.HasText())
+                        {
+                            premisMetadata = new FileFormatMetadata
+                            {
+                                Digest = digest,
+                                Source = MetsManager.Mets,
+                                PronomKey = key,
+                                FormatName = name
+                            };
+                        }
+                    }
+
+                    premisMetadata ??= new FileFormatMetadata
+                    {
+                        Source = MetsManager.Mets,
+                        PronomKey = "dlip/unknown",
+                        FormatName = "[Not Identified]"
+                    };
+                }
+
+                var digiprovMd = xMets.Descendants(XNames.MetsDigiprovMD).SingleOrDefault(t =>
+                    t.Attribute("ID")!.Value.ToLower()
+                        .Contains($"digiprovmd_clamav_{admId.ToLower()}")); //TODO:working file
 
                 var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();
                 if (virusEvent != null)
                 {
                     var eventDatetime = virusEvent.Descendants(XNames.PremisEventDateTime).SingleOrDefault();
-                    var eventOutcomeInformation = virusEvent.Descendants(XNames.PremisEventOutcomeInformation).SingleOrDefault();
+                    var eventOutcomeInformation = virusEvent.Descendants(XNames.PremisEventOutcomeInformation)
+                        .SingleOrDefault();
+
                     XElement? eventOutcomeDetailNote = null;
-                    var eventOutcomeDetail = eventOutcomeInformation?.Descendants(XNames.PremisEventOutcomeDetail).SingleOrDefault();
+                    var eventOutcomeDetail = eventOutcomeInformation?.Descendants(XNames.PremisEventOutcomeDetail)
+                        .SingleOrDefault();
                     if (eventOutcomeDetail != null)
                     {
-                        eventOutcomeDetailNote = eventOutcomeDetail.Descendants(XNames.PremisEventOutcomeDetailNote).SingleOrDefault();
+                        eventOutcomeDetailNote = eventOutcomeDetail.Descendants(XNames.PremisEventOutcomeDetailNote)
+                            .SingleOrDefault();
+                    }
+
+                    var eventDetailInformation = virusEvent.Descendants(XNames.PremisEventDetailInformation)
+                        .SingleOrDefault();
+
+                    XElement? eventDetail = null;
+                    if (eventDetailInformation != null)
+                    {
+                        eventDetail = eventDetailInformation?.Descendants(XNames.PremisEventDetail)
+                            .SingleOrDefault();
                     }
 
                     virusScanMetadata = new VirusScanMetadata
@@ -591,85 +622,90 @@ public class MetsParser(
                         Source = "ClamAV",
                         HasVirus = true,
                         VirusFound = eventOutcomeDetailNote != null ? eventOutcomeDetailNote.Value : string.Empty,
-                        Timestamp = Convert.ToDateTime(eventDatetime != null ? eventDatetime.Value : DateTime.UtcNow)
+                        Timestamp = Convert.ToDateTime(
+                            eventDatetime != null ? eventDatetime.Value : DateTime.UtcNow),
+                        VirusDefinition = eventDetail != null ? eventDetail.Value : string.Empty
                     };
                 }
 
                 var parts = flocat.Split('/');
-                    if (string.IsNullOrEmpty(mimeType))
+                if (string.IsNullOrEmpty(mimeType))
+                {
+                    // In the real version, we would have got this from Siegfried for born-digital archives
+                    // but we'd still be reading it from the METS file we made.
+                    if (MimeTypes.TryGetMimeType(parts[^1], out var foundMimeType))
                     {
-                        // In the real version, we would have got this from Siegfried for born-digital archives
-                        // but we'd still be reading it from the METS file we made.
-                        if (MimeTypes.TryGetMimeType(parts[^1], out var foundMimeType))
-                        {
-                            logger.LogWarning($"Content Type for {flocat} was deduced from file extension: {foundMimeType}");
-                            mimeType = foundMimeType;
-                        }
+                        logger.LogWarning(
+                            $"Content Type for {flocat} was deduced from file extension: {foundMimeType}");
+                        mimeType = foundMimeType;
                     }
-                    
-                    var file = new WorkingFile
-                    {
-                        ContentType = mimeType ?? ContentTypes.NotIdentified,
-                        LocalPath = flocat,
-                        Digest = digest,
-                        Size = size,
-                        Name = label ?? parts[^1],
-                        Metadata = [
-                            new StorageMetadata 
-                            {
-                                Source = MetsManager.Mets, 
-                                OriginalName = originalName, 
-                                StorageLocation = storageLocation 
-                            }
-                        ],
-                        MetsExtensions = new MetsExtensions
-                        {
-                            AdmId = admId,
-                            PhysDivId = div.Attribute("ID")?.Value,
-                            AccessCondition = "Open"
-                        }
-                    };
-                    if (premisMetadata != null)
-                    {
-                        file.Metadata.Add(premisMetadata);
-                    }
-
-                    if (virusScanMetadata != null)
-                    {
-                        file.Metadata.Add(virusScanMetadata);
-                    }
-
-                    mets.Files.Add(file);
-
-                    // We only know the "on disk" paths of folders from file paths in flocat
-                    // so if we have /folder1/folder2/folder3/file1 where folder2 has no immediate children, we never see it directly.
-                    // But we might see it in mets:div in the structmap]]
-                    if (parts.Length > 0)
-                    {
-                        int walkBack = parts.Length;
-                        while (walkBack > 1)
-                        {
-                            var parentDirectory = string.Join('/', parts[..(walkBack-1)]);
-                            var workingDirectory = mets.PhysicalStructure!.FindDirectory(parentDirectory, true);
-                            if (workingDirectory!.Name.IsNullOrWhiteSpace())
-                            {
-                                var nameFromPath = parts[walkBack-2];
-                                var nameFromLabel = directoryLabels.Any() ? directoryLabels.Pop() : null;
-                                workingDirectory.Name = nameFromLabel ?? nameFromPath;
-                                workingDirectory.LocalPath = parentDirectory;
-                                // This directory _may_ have physId and admId, if it is actually there in the
-                                // METS structure. And if it had premis:originalName we will have already matched it.
-                                // But for third party sources, how do we match it up?
-                            }
-                            walkBack--;
-                        }
-                    }
-
                 }
 
-                ProcessChildStructDivs(mets, xMets, div, fileSec, directoryLabels);
+                var file = new WorkingFile
+                {
+                    ContentType = mimeType ?? ContentTypes.NotIdentified,
+                    LocalPath = flocat,
+                    Digest = digest,
+                    Size = size,
+                    Name = label ?? parts[^1],
+                    Metadata =
+                    [
+                        new StorageMetadata
+                        {
+                            Source = MetsManager.Mets,
+                            OriginalName = originalName,
+                            StorageLocation = storageLocation
+                        }
+                    ],
+                    MetsExtensions = new MetsExtensions
+                    {
+                        AdmId = admId,
+                        PhysDivId = div.Attribute("ID")?.Value,
+                        AccessCondition = "Open"
+                    }
+                };
+                if (premisMetadata != null)
+                {
+                    file.Metadata.Add(premisMetadata);
+                }
+
+                if (virusScanMetadata != null)
+                {
+                    file.Metadata.Add(virusScanMetadata);
+                }
+
+                mets.Files.Add(file);
+
+                // We only know the "on disk" paths of folders from file paths in flocat
+                // so if we have /folder1/folder2/folder3/file1 where folder2 has no immediate children, we never see it directly.
+                // But we might see it in mets:div in the structmap]]
+                if (parts.Length > 0)
+                {
+                    int walkBack = parts.Length;
+                    while (walkBack > 1)
+                    {
+                        var parentDirectory = string.Join('/', parts[..(walkBack - 1)]);
+                        var workingDirectory = mets.PhysicalStructure!.FindDirectory(parentDirectory, true);
+                        if (workingDirectory!.Name.IsNullOrWhiteSpace())
+                        {
+                            var nameFromPath = parts[walkBack - 2];
+                            var nameFromLabel = directoryLabels.Any() ? directoryLabels.Pop() : null;
+                            workingDirectory.Name = nameFromLabel ?? nameFromPath;
+                            workingDirectory.LocalPath = parentDirectory;
+                            // This directory _may_ have physId and admId, if it is actually there in the
+                            // METS structure. And if it had premis:originalName we will have already matched it.
+                            // But for third party sources, how do we match it up?
+                        }
+
+                        walkBack--;
+                    }
+                }
+
             }
+
+            ProcessChildStructDivs(mets, xMets, div, fileSec, directoryLabels);
         }
+    }
 
 
 }

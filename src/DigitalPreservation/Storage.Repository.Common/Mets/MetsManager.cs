@@ -2,7 +2,6 @@
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
-using Amazon.Runtime.Internal.Util;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
@@ -15,7 +14,6 @@ using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
-using Microsoft.Extensions.Logging;
 using Checksum = DigitalPreservation.Utils.Checksum;
 using File = System.IO.File;
 
@@ -510,15 +508,15 @@ public class MetsManager(
                         file.Mimetype = patchPremis.ContentType;
                     }
 
-                    //TODO: var xVirusElement = PremisEventManager.GetXmlElement(digiProvMd);
-
-                    //-------------------------------------------------------------------------------------
-                    //------------------------------------------------------------------------------
                     EventComplexType? virusEventComplexType = null;
                     if (virusPremisXml is not null)
                     {
-                        virusEventComplexType = virusPremisXml.GetEventComplexType()!; //GETEVENTCOmplexType
-                        PremisEventManager.Patch(virusEventComplexType, patchPremisVirus); //Need to patch teh complex type
+                        virusEventComplexType = virusPremisXml.GetEventComplexType()!;
+
+                        if (patchPremisVirus != null)
+                        {
+                            PremisEventManager.Patch(virusEventComplexType, patchPremisVirus);
+                        }
                     }
                     else
                     {
@@ -531,8 +529,7 @@ public class MetsManager(
 
                     if (virusEventComplexType is not null)
                     {
-                        virusPremisXml = PremisEventManager.GetXmlElement(virusEventComplexType); //, true
-                        //amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { virusPremisXml } };
+                        virusPremisXml = PremisEventManager.GetXmlElement(virusEventComplexType);
 
                         if (amdSec.DigiprovMd.Any())
                         {
@@ -542,7 +539,7 @@ public class MetsManager(
                         {
                             amdSec.DigiprovMd.Add(new MdSecType
                             {
-                                Id = "digiprovMD_ClamAV", //digiprovId
+                                Id = $"digiprovMD_ClamAV_{fileAdmId}", //TODO: digiprovId ??????????????
                                 MdWrap = new MdSecTypeMdWrap
                                 {
                                     Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
@@ -639,7 +636,7 @@ public class MetsManager(
                             } 
                         }
                     });
-                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId, "digiprovMD_ClamAV", virusScanMetadata));
+                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId, $"digiprovMD_ClamAV_{admId}", virusScanMetadata));
             }
             else if (workingBase is WorkingDirectory workingDirectory)
             {

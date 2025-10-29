@@ -1,11 +1,9 @@
-﻿using System.Net.Mime;
-using DigitalPreservation.Common.Model.Results;
-using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
+﻿using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
-using DigitalPreservation.XmlGen.Mods.V3;
 using Storage.Repository.Common;
+using System.Diagnostics;
 
 namespace DigitalPreservation.Workspace;
 
@@ -137,15 +135,17 @@ public class MetadataReader : IMetadataReader
         string? brunnhildeAvCommonPrefix;
         if (infectedFiles.Count > 0)
         {
+            var virusDefinitionResult = await storage.GetStream(rootUri.AppendEscapedSlug("virus-definition.txt"));
+            var virusDefinition = string.Empty;
+            if (virusDefinitionResult is { Success: true, Value: not null })
+            {
+                virusDefinition = await GetVirusDefinition(virusDefinitionResult.Value);
+            }
             // the parent of the first instance of /metadata or /metadata/
             // the parent of the first instance of /objects or /objects/
-            //TODO: put below line back in
-            //TODO: pull out filepaths
-            var s = infectedFiles.Select(s => s.Filepath);
-            brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(s);
+            brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
             brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
-            AddVirusScanMetadata(infectedFiles, brunnhildeAvCommonPrefix, "ClamAv", timestamp);
-            // ?? not done yet
+            AddVirusScanMetadata(infectedFiles, brunnhildeAvCommonPrefix, "ClamAv", timestamp, virusDefinition);
         }
 
         
@@ -174,7 +174,7 @@ public class MetadataReader : IMetadataReader
         }
     }
 
-    private void AddVirusScanMetadata(List<VirusModel> infectedFiles, string commonParent, string source, DateTime timestamp)
+    private void AddVirusScanMetadata(List<VirusModel> infectedFiles, string commonParent, string source, DateTime timestamp, string virusDefinition)
     {
         // this is the new method
         //TODO: source ClamAv
@@ -187,9 +187,15 @@ public class MetadataReader : IMetadataReader
                 Source = source,
                 HasVirus = true,
                 VirusFound = file.VirusFound,
-                Timestamp = timestamp
+                Timestamp = timestamp,
+                VirusDefinition = virusDefinition
             });
         }
+    }
+
+    private async Task<string> GetVirusDefinition(Stream stream)
+    {
+        return await GetTextFromStream(stream);
     }
 
     private List<Metadata> GetMetadataList(string localPath)
@@ -255,12 +261,11 @@ public class MetadataReader : IMetadataReader
     private async Task<List<VirusModel>> ReadInfectedFilePaths(Stream stream)
     {
         var txt = await GetTextFromStream(stream);
-        // TODO - actually parse this once we have an infected example
         var result = ConvertClamResultStringToJson(txt);
         var model = new List<VirusModel>();
         foreach (var fileVirus in result.Hits)
         {
-            var virusStringSplit = fileVirus.Split(':'); //model
+            var virusStringSplit = fileVirus.Split(':');
             model.Add(new VirusModel
             {
                 Filepath = virusStringSplit[0],

@@ -1,10 +1,12 @@
-﻿using Azure.Core;
+﻿using Amazon.S3.Model;
+using Azure.Core;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
@@ -12,6 +14,7 @@ using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Timers;
@@ -19,11 +22,12 @@ using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
 
-public class ExecutePipelineJob(string jobIdentifier, string depositId, string? runUser) : IRequest<Result>
+public class ExecutePipelineJob(string jobIdentifier, string depositId, string? runUser, string? virusDefinition = null) : IRequest<Result>
 {
     public string JobIdentifier { get; } = jobIdentifier;
     public string DepositId { get; } = depositId;
     private string? RunUser { get; } = runUser;
+    public string? VirusDefinition { get; set; } = virusDefinition;
     public string GetUserName() => RunUser ?? "PipelineApi";
 }
 
@@ -97,15 +101,15 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<Result<LogPipelineStatusResult>> UpdateJobStatus(
-        ExecutePipelineJob request, string status, string? errors = null, CancellationToken cancellationToken = default)
+        ExecutePipelineJob request, string status, string? errors = null, CancellationToken cancellationToken = default, string? virusDefinition = null)
     {
         var result = await UpdateAnyJobStatus(
-            request.DepositId, request.JobIdentifier, status, request.GetUserName(), errors, cancellationToken);
+            request.DepositId, request.JobIdentifier, status, request.GetUserName(), errors, cancellationToken, request.VirusDefinition);
         return result;
     }
 
     private async Task<Result<LogPipelineStatusResult>> UpdateAnyJobStatus(
-        string depositId, string jobId, string status, string runUser, string? errors = null, CancellationToken cancellationToken = default)
+        string depositId, string jobId, string status, string runUser, string? errors = null, CancellationToken cancellationToken = default, string? virusDefinition = null)
     {
         // Do this directly not by chaining mediatr
         var pipelineDeposit = new PipelineDeposit
@@ -114,7 +118,8 @@ public class ProcessPipelineJobHandler(
             Status = status,
             DepositId = depositId,
             RunUser = runUser,
-            Errors = errors
+            Errors = errors,
+            VirusDefinition = virusDefinition
         };
         var updateResult = await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, cancellationToken);
 
@@ -134,7 +139,6 @@ public class ProcessPipelineJobHandler(
         }
         return updateResult;
     }
-
 
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
@@ -233,7 +237,7 @@ public class ProcessPipelineJobHandler(
             };
         }
 
-        var (metadataPath, metadataProcessPath, objectPath) = GetFilePaths(workspaceManager);
+        var (metadataPath, metadataProcessPath, objectPath, depositPath) = GetFilePaths(workspaceManager);
         if (!Directory.Exists(objectPath))
         {
             var errorMessage = $"Could not find object folder for deposit {request.DepositId}";
@@ -323,7 +327,6 @@ public class ProcessPipelineJobHandler(
         {
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
             logger.LogInformation("Brunnhilde creation successful");
-            var depositPath = $"{mountPath}{separator}{request.DepositId}";
 
             var (forceCompleteOnSuccess, cleanupProcessJobOnSuccess) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
@@ -401,14 +404,18 @@ public class ProcessPipelineJobHandler(
                 logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run metadataCreated status logged",
                     request.JobIdentifier, request.DepositId);
 
+            request.VirusDefinition = GetVirusDefinition(); 
+
+            var virusDefinitionPath = $"{depositPath}{brunnhildeOptions.Value.DirectorySeparator}virus-definition.txt";
+            await File.WriteAllTextAsync(virusDefinitionPath, request.VirusDefinition, CancellationToken.None);
+            await UploadFileToDepositOnS3(request, virusDefinitionPath, null, workspaceManager.Deposit, cancellationToken);
+
             var metsResult = await AddObjectsToMets(request, depositPath);
 
             if (metsResult.Failure)
                 logger.LogInformation("Issue adding objects to METS in pipeline run: {error}", metsResult.ErrorMessage);
 
             await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-
-            //await AddObjectsToMets(depositId, depositPath);
 
             return new ProcessPipelineResult
             {
@@ -433,7 +440,7 @@ public class ProcessPipelineJobHandler(
         };
     }
 
-    private (string, string, string) GetFilePaths(WorkspaceManager workspaceManager)
+    private (string, string, string, string) GetFilePaths(WorkspaceManager workspaceManager)
     {
         var depositId = workspaceManager.DepositSlug;
         var mountPath = storageOptions.Value.FileMountPath;
@@ -444,19 +451,21 @@ public class ProcessPipelineJobHandler(
         string metadataProcessPath;
         string objectPath;
 
+        var depositPath = $"{mountPath}{separator}{depositId}";
+
         if (workspaceManager.IsBagItLayout)
         {
-            metadataPath = $"{mountPath}{separator}{depositId}{separator}data{separator}metadata";
+            metadataPath = $"{depositPath}{separator}data{separator}metadata";
             metadataProcessPath =
                 $"{processFolder}{separator}{depositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}";
-            objectPath = $"{mountPath}{separator}{depositId}{separator}data{separator}{objectFolder}";
+            objectPath = $"{depositPath}{separator}data{separator}{objectFolder}";
         }
         else
         {
-            metadataPath = $"{mountPath}{separator}{depositId}{separator}metadata";
+            metadataPath = $"{depositPath}{separator}metadata";
             metadataProcessPath =
                 $"{processFolder}{separator}{depositId}{separator}metadata{separator}{BrunnhildeFolderName}";
-            objectPath = $"{mountPath}{separator}{depositId}{separator}{objectFolder}";
+            objectPath = $"{depositPath}{separator}{objectFolder}";
         }
 
 
@@ -466,7 +475,7 @@ public class ProcessPipelineJobHandler(
         if (!Directory.Exists(metadataProcessPath))
             Directory.CreateDirectory(metadataProcessPath);
 
-        return (metadataPath, metadataProcessPath, objectPath);
+        return (metadataPath, metadataProcessPath, objectPath, depositPath);
     }
 
     private async Task<Result<ItemsAffected>> DeleteBrunnhildeFoldersAndFiles(
@@ -589,6 +598,8 @@ public class ProcessPipelineJobHandler(
                 uploadFileResult.Add(uploadFileToS3Result);
             }
 
+            //var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFiles, deposit, cancellationToken);
+
             foreach (var subFolder in createSubFolderResult)
             {
                 logger.LogInformation(
@@ -645,7 +656,7 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<(Result<SingleFileUploadResult>?, bool, bool)> UploadFileToDepositOnS3(ExecutePipelineJob request, string filePath,
-        string sourcePath, Deposit deposit, CancellationToken cancellationToken)
+        string? sourcePath, Deposit deposit, CancellationToken cancellationToken)
     {
         var context = new StringBuilder();
         var metadataContext = "metadata";
@@ -660,7 +671,7 @@ public class ProcessPipelineJobHandler(
             return (null, forceCompleteUploadS3, cleanupProcessUploadS3);
         }
 
-        if (!filePath.Contains(BrunnhildeFolderName))
+        if (!filePath.Contains(BrunnhildeFolderName) && !string.IsNullOrWhiteSpace(sourcePath))
             return (null, false, false);
 
         var fi = new FileInfo(filePath);
@@ -670,9 +681,15 @@ public class ProcessPipelineJobHandler(
             return (null, false, false);
         }
 
-        var contextPath = metadataContext + "/" + Path.GetRelativePath(
-            sourcePath,
-            fi.Directory.FullName).Replace(@"\", "/");
+        var contextPath = string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            contextPath = metadataContext + "/" + Path.GetRelativePath(
+                sourcePath,
+                fi.Directory.FullName).Replace(@"\", "/");
+        }
+
 
         if (fi.Directory.Name.ToLower() == BrunnhildeFolderName &&
             !context.ToString().Contains($"/{BrunnhildeFolderName}"))
@@ -703,7 +720,7 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(
-        ExecutePipelineJob request, Stream stream, string filePath, string contextPath, string checksum)
+        ExecutePipelineJob request, Stream stream, string filePath, string? contextPath, string checksum)
     {
         // This is potentially expensive as it needs a NEW WorkspaceManager each time
         // TODO: We need a batch operation on WorkspaceManager to upload a set of small files.
@@ -750,7 +767,7 @@ public class ProcessPipelineJobHandler(
     {
         var workspaceManagerResult = await GetWorkspaceManager(request, true);
         var workspaceManager = workspaceManagerResult.Value!;
-        var (_, _, objectPath) = GetFilePaths(workspaceManager);
+        var (_, _, objectPath, _) = GetFilePaths(workspaceManager);
         var minimalItems = new List<MinimalItem>();
 
         if (workspaceManager.IsBagItLayout)
@@ -789,6 +806,7 @@ public class ProcessPipelineJobHandler(
 
             if (wbToAdd != null)
             {
+                //wbToAdd.Metadata.Where(x => x.)
                 wbsToAdd.Add(wbToAdd);
             }
         }
@@ -817,7 +835,7 @@ public class ProcessPipelineJobHandler(
 
         return (forceComplete, cleanupProcessJob);
     }
-
+    
     private async Task<Result> TryReleaseLock(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
         var releaseLockResult =
@@ -914,6 +932,27 @@ public class ProcessPipelineJobHandler(
             Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
             CleanupProcessJob = true
         };
+    }
+
+    private string GetVirusDefinition()
+    {
+
+        var process = new Process()
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "clamscan",
+                Arguments = "clamscan --version",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                //WorkingDirectory = brunnhildeOptions.Value.ProcessFolder //TODO: test this
+            }
+        };
+        process.Start();
+        string result = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        return result;
     }
 }
 
