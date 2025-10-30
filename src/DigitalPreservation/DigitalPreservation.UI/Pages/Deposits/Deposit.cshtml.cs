@@ -44,6 +44,7 @@ public class DepositModel(
     public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
 
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
+    public List<string> FilesWithViruses { get; set; } = [];
 
     public async Task OnGet(
         [FromRoute] string id,
@@ -89,7 +90,7 @@ public class DepositModel(
                         }
 
                         FileMisMatches = detailedMismatches;
-
+                        FilesWithViruses = RootCombinedDirectory.GetFilesWithVirus();
                     }
                 }
             }

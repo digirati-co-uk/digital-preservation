@@ -502,6 +502,13 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         return (mismatches, detailedMisMatches);
     }
 
+    public List<string> GetFilesWithVirus()
+    {
+        var virusFiles = new List<string>();
+        AddVirusFileNotices(virusFiles);
+        return virusFiles;
+    }
+
     private void AddMisMatches(List<string> localPaths, List<(List<FileMisMatch>, string)> detailedMismatches)
     {
         foreach (var combinedFile in Files)
@@ -521,6 +528,24 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         foreach (var combinedDirectory in Directories)
         {
             combinedDirectory.AddMisMatches(localPaths, detailedMismatches);
+        }
+    }
+
+    private void AddVirusFileNotices(List<string> filesWithVirus)
+    {
+        foreach (var combinedFile in Files)
+        {
+            var virusMetadata = combinedFile.GetVirusMetadata();
+
+            if (virusMetadata is { HasVirus: true })
+            {
+                filesWithVirus.Add(FolderNames.RemovePathPrefix(combinedFile.LocalPath!) ?? string.Empty);
+            }
+        }
+
+        foreach (var combinedDirectory in Directories)
+        {
+            combinedDirectory.AddVirusFileNotices(filesWithVirus);
         }
     }
 }
