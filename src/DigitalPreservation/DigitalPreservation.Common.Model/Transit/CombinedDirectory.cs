@@ -523,24 +523,6 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
             combinedDirectory.AddMisMatches(localPaths, detailedMismatches);
         }
     }
-
-    private List<CombinedFile.FileMisMatch> AddDetailMisMatches()
-    {
-        var s = new List<CombinedFile.FileMisMatch>();
-        foreach (var combinedFile in Files)
-        {
-            if (combinedFile.MisMatches.Count != 0)
-            {
-                //localPaths.Add(combinedFile.LocalPath!);
-                foreach (var m in combinedFile.MisMatches)
-                {
-                    s.Add(m);
-                }
-            }
-        }
-
-        return s;
-    }
 }
 
 public class FileSizeTotals
