@@ -159,6 +159,20 @@ File is in both
             }
         </td>
         <td aria-label="pronom" title="@(file.DepositFileFormatMetadata?.FormatName ?? "(no PRONOM format")">@(file.DepositFileFormatMetadata?.PronomKey ?? "-")</td>
-        <td aria-label="virus">@virusMetadata?.GetDisplay()</td>
+
+        @if (virusMetadata != null)
+        {
+            <td aria-label="virus">
+                <label title="@virusMetadata.VirusFound" aria-label="virus" class="form-check-label text-danger" for="@("is-" + Model.RowCounter.Count++)">
+                    <strong>☣</strong>
+                </label>
+            </td>
+
+        }
+        else
+        {
+            <td aria-label="virus">@virusMetadata?.GetDisplay()</td>
+        }
+
     </tr>
 } 
