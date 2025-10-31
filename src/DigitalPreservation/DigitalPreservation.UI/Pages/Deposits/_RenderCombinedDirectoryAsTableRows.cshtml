@@ -84,11 +84,6 @@ File is in both
 }
 @foreach (var file in combinedDirectory.Files)
 {
-    if ((bool)file.LocalPath?.GetSlug().ToLower().Contains("virus-definition.txt"))
-    {
-        //this file is hidden
-        continue;
-    }
     var isMetadata = FolderNames.IsMetadata(file.LocalPath!);
     if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem)
     {
