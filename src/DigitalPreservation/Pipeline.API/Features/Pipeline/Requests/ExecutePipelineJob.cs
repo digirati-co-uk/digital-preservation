@@ -404,12 +404,6 @@ public class ProcessPipelineJobHandler(
                 logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run metadataCreated status logged",
                     request.JobIdentifier, request.DepositId);
 
-            request.VirusDefinition = GetVirusDefinition(); 
-
-            var virusDefinitionPath = $"{depositPath}{brunnhildeOptions.Value.DirectorySeparator}virus-definition.txt";
-            await File.WriteAllTextAsync(virusDefinitionPath, request.VirusDefinition, CancellationToken.None);
-            await UploadFileToDepositOnS3(request, virusDefinitionPath, null, workspaceManager.Deposit, cancellationToken);
-
             var metsResult = await AddObjectsToMets(request, depositPath);
 
             if (metsResult.Failure)
@@ -936,7 +930,6 @@ public class ProcessPipelineJobHandler(
 
     private string GetVirusDefinition()
     {
-
         var process = new Process()
         {
             StartInfo = new ProcessStartInfo

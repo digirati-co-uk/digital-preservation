@@ -135,12 +135,8 @@ public class MetadataReader : IMetadataReader
         string? brunnhildeAvCommonPrefix;
         if (infectedFiles.Count > 0)
         {
-            var virusDefinitionResult = await storage.GetStream(rootUri.AppendEscapedSlug("virus-definition.txt"));
-            var virusDefinition = string.Empty;
-            if (virusDefinitionResult is { Success: true, Value: not null })
-            {
-                virusDefinition = await GetVirusDefinition(virusDefinitionResult.Value);
-            }
+            var virusDefinition = GetVirusDefinition();
+
             // the parent of the first instance of /metadata or /metadata/
             // the parent of the first instance of /objects or /objects/
             brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
@@ -148,7 +144,6 @@ public class MetadataReader : IMetadataReader
             AddVirusScanMetadata(infectedFiles, brunnhildeAvCommonPrefix, "ClamAv", timestamp, virusDefinition);
         }
 
-        
     }
 
     private void AddFileFormatMetadata(SiegfriedOutput siegfriedOutput, string commonParent, string source, DateTime timestamp)
@@ -191,11 +186,6 @@ public class MetadataReader : IMetadataReader
                 VirusDefinition = virusDefinition
             });
         }
-    }
-
-    private async Task<string> GetVirusDefinition(Stream stream)
-    {
-        return await GetTextFromStream(stream);
     }
 
     private List<Metadata> GetMetadataList(string localPath)
@@ -401,6 +391,33 @@ public class MetadataReader : IMetadataReader
         {
             workingBase.Metadata = metadataList;
         }
+    }
+
+    private string GetVirusDefinition()
+    {
+        try
+        {
+            var process = new Process()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "clamscan",
+                    Arguments = "clamscan --version",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            string result = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            return result;
+        }
+        catch (Exception e)
+        {
+            return string.Empty;
+        }
+
     }
 }
 
