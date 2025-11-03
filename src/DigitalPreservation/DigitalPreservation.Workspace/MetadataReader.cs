@@ -268,7 +268,7 @@ public class MetadataReader : IMetadataReader
         var clamResultList = clamResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
 
         // Find the index of the scan summary marker
-        int resultsMarker = clamResultList.IndexOf("----------- SCAN SUMMARY -----------");
+        var resultsMarker = clamResultList.IndexOf("----------- SCAN SUMMARY -----------");
 
         if (resultsMarker == -1)
         {
