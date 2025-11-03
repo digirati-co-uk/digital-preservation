@@ -47,7 +47,7 @@ public static class PremisEventManager
         {
             EventOutcome = new StringPlusAuthority
             {
-                Value = "Fail"
+                Value = virusScanMetadata.HasVirus ? "Fail" : "Pass"
             },
             EventOutcomeDetail = { new EventOutcomeDetailComplexType
             {
@@ -82,35 +82,28 @@ public static class PremisEventManager
         {
             var eventDetailInformationComplexType = new EventDetailInformationComplexType
             {
-                //TODO: build this string up from virus definitions - Use Clamscan to get the virus definition
-                EventDetail = "program=\"ClamAV (clamd)\"; version=\"ClamAV 1.2.2\"; virusDefinitions=\"27182/Sun Feb 11 09:33:24 2024\"" //TODO: placeholder
+                EventDetail = virusScanMetadata.VirusDefinition
             };
 
             eventComplexType.EventDetailInformation.Add(eventDetailInformationComplexType);
         }
 
-        if (!eventComplexType.EventOutcomeInformation.Any()) //TODO: OR changed
+        if (!eventComplexType.EventOutcomeInformation.Any())
         {
             var eventOutcomeInformationComplexType = new EventOutcomeInformationComplexType
             {
                 EventOutcome = new StringPlusAuthority
                 {
-                    Value = virusScanMetadata.HasVirus ? "Fail" : "Success" //TODO: check this
+                    Value = virusScanMetadata.HasVirus ? "Fail" : "Success"
                 },
                 EventOutcomeDetail = { new EventOutcomeDetailComplexType
                 {
-                    EventOutcomeDetailNote = virusScanMetadata.VirusFound//"/home/brian/Test/data/objects/virus_test_file.txt: Eicar-Signature FOUND"
+                    EventOutcomeDetailNote = virusScanMetadata.VirusFound
                 } }
             };
 
             eventComplexType.EventOutcomeInformation.Add(eventOutcomeInformationComplexType);
         }
-
-        //if (premis.Object.FirstOrDefault(po => po is File) is not File file)
-        //{
-        //    file = new File();
-        //    premis.Object.Add(file);
-        //}
     }
 
     public static string Serialise(EventComplexType eventComplexType)

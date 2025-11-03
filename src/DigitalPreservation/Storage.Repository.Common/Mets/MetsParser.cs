@@ -607,6 +607,9 @@ public class MetsParser(
                             .SingleOrDefault();
                     }
 
+                    var eventOutcome = eventOutcomeInformation?.Descendants(XNames.PremisEventOutcome)
+                        .SingleOrDefault();
+
                     var eventDetailInformation = virusEvent.Descendants(XNames.PremisEventDetailInformation)
                         .SingleOrDefault();
 
@@ -620,7 +623,7 @@ public class MetsParser(
                     virusScanMetadata = new VirusScanMetadata
                     {
                         Source = "ClamAV",
-                        HasVirus = true,
+                        HasVirus = eventOutcome?.Value.ToLower() == "fail",
                         VirusFound = eventOutcomeDetailNote != null ? eventOutcomeDetailNote.Value : string.Empty,
                         Timestamp = Convert.ToDateTime(
                             eventDatetime != null ? eventDatetime.Value : DateTime.UtcNow),

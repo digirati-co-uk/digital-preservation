@@ -133,17 +133,13 @@ public class MetadataReader : IMetadataReader
             AddFileFormatMetadata(brunnhildeSiegfriedOutput, brunnhildeSiegfriedCommonParent, "Brunnhilde", timestamp);
         }
         string? brunnhildeAvCommonPrefix;
-        if (infectedFiles.Count > 0)
-        {
-            var virusDefinition = GetVirusDefinition();
+        var virusDefinition = GetVirusDefinition();
 
-            // the parent of the first instance of /metadata or /metadata/
-            // the parent of the first instance of /objects or /objects/
-            brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
-            brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
-            AddVirusScanMetadata(infectedFiles, brunnhildeAvCommonPrefix, "ClamAv", timestamp, virusDefinition);
-        }
-
+        // the parent of the first instance of /metadata or /metadata/
+        // the parent of the first instance of /objects or /objects/
+        brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
+        brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
+        AddVirusScanMetadata(infectedFiles, brunnhildeAvCommonPrefix, "ClamAv", timestamp, virusDefinition);
     }
 
     private void AddFileFormatMetadata(SiegfriedOutput siegfriedOutput, string commonParent, string source, DateTime timestamp)
@@ -171,20 +167,21 @@ public class MetadataReader : IMetadataReader
 
     private void AddVirusScanMetadata(List<VirusModel> infectedFiles, string commonParent, string source, DateTime timestamp, string virusDefinition)
     {
-        // this is the new method
-        //TODO: source ClamAv
-        foreach (var file in infectedFiles)
+        if (infectedFiles.Any())
         {
-            var localPath = file.Filepath.RemoveStart(commonParent).RemoveStart("/"); // check this!
-            var metadataList = GetMetadataList(localPath!);
-            metadataList.Add(new VirusScanMetadata
+            foreach (var file in infectedFiles)
             {
-                Source = source,
-                HasVirus = true,
-                VirusFound = file.VirusFound,
-                Timestamp = timestamp,
-                VirusDefinition = virusDefinition
-            });
+                var localPath = file.Filepath.RemoveStart(commonParent).RemoveStart("/"); // check this!
+                var metadataList = GetMetadataList(localPath!);
+                metadataList.Add(new VirusScanMetadata
+                {
+                    Source = source,
+                    HasVirus = true,
+                    VirusFound = file.VirusFound,
+                    Timestamp = timestamp,
+                    VirusDefinition = virusDefinition
+                });
+            }
         }
     }
 

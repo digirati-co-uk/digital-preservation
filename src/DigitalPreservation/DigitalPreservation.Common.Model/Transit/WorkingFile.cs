@@ -1,6 +1,7 @@
-﻿using System.Text.Json.Serialization;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
+using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
@@ -163,7 +164,48 @@ public class WorkingFile : WorkingBase
 
     public VirusScanMetadata? GetVirusScanMetadata()
     {
+        var virusScanMetadata = Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
+        if (virusScanMetadata == null && !FolderNames.IsMetadata(LocalPath) && !LocalPath.Contains("mets.xml"))
+        {
+            //only add for objects
+            return new VirusScanMetadata
+            {
+                Source = "ClamAV",
+                VirusFound = string.Empty,
+                VirusDefinition = GetVirusDefinition(),
+                HasVirus = false,
+                Timestamp = DateTime.UtcNow
+            };
+        }
+
         return Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
+    }
+
+    private string GetVirusDefinition()
+    {
+        try
+        {
+            var process = new Process()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "clamscan",
+                    Arguments = "clamscan --version",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            string result = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            return result;
+        }
+        catch (Exception e)
+        {
+            return string.Empty;
+        }
+
     }
 }
 

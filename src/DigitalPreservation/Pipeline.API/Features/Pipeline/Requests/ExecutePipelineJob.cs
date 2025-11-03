@@ -927,26 +927,6 @@ public class ProcessPipelineJobHandler(
             CleanupProcessJob = true
         };
     }
-
-    private string GetVirusDefinition()
-    {
-        var process = new Process()
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "clamscan",
-                Arguments = "clamscan --version",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                //WorkingDirectory = brunnhildeOptions.Value.ProcessFolder //TODO: test this
-            }
-        };
-        process.Start();
-        string result = process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
-        return result;
-    }
 }
 
 

@@ -1,8 +1,4 @@
-﻿using System.Net;
-using System.Text;
-using System.Xml;
-using System.Xml.Serialization;
-using Amazon.S3;
+﻿using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
@@ -14,6 +10,11 @@ using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
+using System.Diagnostics;
+using System.Net;
+using System.Text;
+using System.Xml;
+using System.Xml.Serialization;
 using Checksum = DigitalPreservation.Utils.Checksum;
 using File = System.IO.File;
 
@@ -524,7 +525,6 @@ public class MetsManager(
                         {
                             virusEventComplexType = PremisEventManager.Create(patchPremisVirus);
                         }
-
                     }
 
                     if (virusEventComplexType is not null)
@@ -539,7 +539,7 @@ public class MetsManager(
                         {
                             amdSec.DigiprovMd.Add(new MdSecType
                             {
-                                Id = $"digiprovMD_ClamAV_{fileAdmId}", //TODO: digiprovId ??????????????
+                                Id = $"digiprovMD_ClamAV_{fileAdmId}",
                                 MdWrap = new MdSecTypeMdWrap
                                 {
                                     Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
@@ -727,10 +727,46 @@ public class MetsManager(
             return virusScanMetadata;
         }
 
-        //get from infected files and write
-
+        if (!FolderNames.IsMetadata(workingFile.LocalPath) && workingFile.LocalPath != "mets.xml")
+        {
+            return new VirusScanMetadata
+            {
+                Source = "ClamAV",
+                VirusFound = string.Empty,
+                HasVirus = false,
+                Timestamp = DateTime.UtcNow,
+                VirusDefinition = GetVirusDefinition()
+            };
+        }
 
         return null;
+    }
+
+    private static string GetVirusDefinition()
+    {
+        try
+        {
+            var process = new Process()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "clamscan",
+                    Arguments = "clamscan --version",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            string result = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            return result;
+        }
+        catch (Exception e)
+        {
+            return string.Empty;
+        }
+
     }
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()

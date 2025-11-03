@@ -78,6 +78,7 @@ public static class XNames
     public static readonly XName PremisEventOutcomeDetailNote = premis + "eventOutcomeDetailNote";
     public static readonly XName PremisEventDetailInformation = premis + "eventDetailInformation";
     public static readonly XName PremisEventDetail = premis + "eventDetail";
+    public static readonly XName PremisEventOutcome = premis + "eventOutcome";
 
     public static readonly XName PremisFixity = premis + "fixity";
     public static readonly XName PremisMessageDigestAlgorithm = premis + "messageDigestAlgorithm";
