@@ -3,7 +3,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Storage.Repository.Common;
-using System.Diagnostics;
+using File = DigitalPreservation.Common.Model.ToolOutput.Siegfried.File;
 
 namespace DigitalPreservation.Workspace;
 
@@ -64,10 +64,10 @@ public class MetadataReader : IMetadataReader
         // need to probe for an actual file, not a directory
         var brunnhildeRoot = workingRootUri.AppendEscapedSlug("metadata").AppendEscapedSlug("brunnhilde");
         var brunnhildeProbe = brunnhildeRoot.AppendEscapedSlug("report.html"); // could use a different probe perhaps
+        var brunnhildeAVResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
         if (await storage.Exists(brunnhildeProbe))
         {
             brunnhildeSiegfriedOutput = await ParseSiegfriedOutput(brunnhildeRoot.AppendEscapedSlug("siegfried.csv"));
-            var brunnhildeAVResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
             if (brunnhildeAVResult is { Success: true, Value: not null })
             {
                 infectedFiles = await ReadInfectedFilePaths(brunnhildeAVResult.Value);
@@ -86,8 +86,8 @@ public class MetadataReader : IMetadataReader
                     });
             }
         }
-        
-        // when parsing files with paths, find the common origin and look for objects/ and metadata/
+
+            // when parsing files with paths, find the common origin and look for objects/ and metadata/
         string? bagItCommonParent;
         if (bagItSha256Values is { Count: > 0 })
         {
@@ -120,7 +120,7 @@ public class MetadataReader : IMetadataReader
             // => bc-example-1
             AddFileFormatMetadata(siegfriedSiegfriedOutput, siegfriedSiegfriedCommonParent, "Siegfried", timestamp);
         }
-        string? brunnhildeSiegfriedCommonParent;
+        var brunnhildeSiegfriedCommonParent = string.Empty;
         if (brunnhildeSiegfriedOutput is { Files.Count: > 0 })
         {
             // Siegfried via Brunnhilde might be a full path, example:
@@ -132,14 +132,31 @@ public class MetadataReader : IMetadataReader
             // => bc-example-1
             AddFileFormatMetadata(brunnhildeSiegfriedOutput, brunnhildeSiegfriedCommonParent, "Brunnhilde", timestamp);
         }
-        string? brunnhildeAvCommonPrefix;
-        var virusDefinition = GetVirusDefinition();
+        string brunnhildeAvCommonPrefix;
+        var virusDefinitionRoot = workingRootUri.AppendEscapedSlug("metadata").AppendEscapedSlug("virus-definition").AppendEscapedSlug("virus-definition.txt");
 
-        // the parent of the first instance of /metadata or /metadata/
-        // the parent of the first instance of /objects or /objects/
-        brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
-        brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
-        AddVirusScanMetadata(infectedFiles, brunnhildeAvCommonPrefix, "ClamAv", timestamp, virusDefinition);
+        var virusDefinition = string.Empty;
+        if (await storage.Exists(virusDefinitionRoot) && brunnhildeAVResult is { Success: true, Value: not null })
+        {
+            var virusDefinitionResult = await storage.GetStream(virusDefinitionRoot);
+            if (virusDefinitionResult is { Success: true, Value: not null })
+            {
+                virusDefinition = await GetTextFromStream(virusDefinitionResult.Value);
+                // the parent of the first instance of /metadata or /metadata/
+                // the parent of the first instance of /objects or /objects/
+
+                if (!string.IsNullOrEmpty(virusDefinition))
+                {
+                    brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
+                    brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
+
+                    var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
+                    AddVirusScanMetadata(infectedFiles, brunnhildeFiles, brunnhildeAvCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
+                }
+
+            }
+        }
+
     }
 
     private void AddFileFormatMetadata(SiegfriedOutput siegfriedOutput, string commonParent, string source, DateTime timestamp)
@@ -165,23 +182,51 @@ public class MetadataReader : IMetadataReader
         }
     }
 
-    private void AddVirusScanMetadata(List<VirusModel> infectedFiles, string commonParent, string source, DateTime timestamp, string virusDefinition)
+    private void AddVirusScanMetadata(List<VirusModel> infectedFiles, List<File> objectsFiles, string infectedFilesCommonParent, string siegfriedFilesCommonParent, string source,
+        DateTime timestamp, string virusDefinition)
     {
-        if (infectedFiles.Any())
+        var infectedLocalPaths = new List<string>();
+        foreach (var file in infectedFiles)
         {
-            foreach (var file in infectedFiles)
+            var localPath = file.Filepath.RemoveStart(infectedFilesCommonParent).RemoveStart("/"); // check this!
+            if (localPath != null)
             {
-                var localPath = file.Filepath.RemoveStart(commonParent).RemoveStart("/"); // check this!
-                var metadataList = GetMetadataList(localPath!);
-                metadataList.Add(new VirusScanMetadata
-                {
-                    Source = source,
-                    HasVirus = true,
-                    VirusFound = file.VirusFound,
-                    Timestamp = timestamp,
-                    VirusDefinition = virusDefinition
-                });
+                infectedLocalPaths.Add(localPath);
             }
+
+            var metadataList = GetMetadataList(localPath!);
+            metadataList.Add(new VirusScanMetadata
+            {
+                Source = source,
+                HasVirus = true,
+                VirusFound = file.VirusFound,
+                Timestamp = timestamp,
+                VirusDefinition = virusDefinition
+            });
+        }
+
+        foreach (var file in objectsFiles)
+        {
+            var alreadyVirusScanMetadata = false;
+            if (infectedLocalPaths.Count > 0)
+            {
+                alreadyVirusScanMetadata = infectedLocalPaths.Any(s => file.Filename != null && file.Filename.Contains(s));
+            }
+
+            if (alreadyVirusScanMetadata)
+                continue;
+
+            var localPath = file.Filename.RemoveStart(siegfriedFilesCommonParent).RemoveStart("/"); // check this!
+
+            var metadataList = GetMetadataList(localPath!);
+            metadataList.Add(new VirusScanMetadata
+            {
+                Source = source,
+                HasVirus = false,
+                VirusFound = string.Empty,
+                Timestamp = timestamp,
+                VirusDefinition = virusDefinition
+            });
         }
     }
 
@@ -390,32 +435,32 @@ public class MetadataReader : IMetadataReader
         }
     }
 
-    private string GetVirusDefinition()
-    {
-        try
-        {
-            var process = new Process()
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "clamscan",
-                    Arguments = "clamscan --version",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-            process.Start();
-            string result = process.StandardOutput.ReadToEnd();
-            process.WaitForExit();
-            return result;
-        }
-        catch (Exception e)
-        {
-            return string.Empty;
-        }
+    //private string GetVirusDefinition()
+    //{
+    //    try
+    //    {
+    //        var process = new Process()
+    //        {
+    //            StartInfo = new ProcessStartInfo
+    //            {
+    //                FileName = "clamscan",
+    //                Arguments = "clamscan --version",
+    //                RedirectStandardOutput = true,
+    //                UseShellExecute = false,
+    //                CreateNoWindow = true
+    //            }
+    //        };
+    //        process.Start();
+    //        string result = process.StandardOutput.ReadToEnd();
+    //        process.WaitForExit();
+    //        return result;
+    //    }
+    //    catch (Exception e)
+    //    {
+    //        return string.Empty;
+    //    }
 
-    }
+    //}
 }
 
 // Define a class to represent the JSON output structure

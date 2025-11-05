@@ -727,46 +727,8 @@ public class MetsManager(
             return virusScanMetadata;
         }
 
-        if (!FolderNames.IsMetadata(workingFile.LocalPath) && workingFile.LocalPath != "mets.xml")
-        {
-            return new VirusScanMetadata
-            {
-                Source = "ClamAV",
-                VirusFound = string.Empty,
-                HasVirus = false,
-                Timestamp = DateTime.UtcNow,
-                VirusDefinition = GetVirusDefinition()
-            };
-        }
 
         return null;
-    }
-
-    private static string GetVirusDefinition()
-    {
-        try
-        {
-            var process = new Process()
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "clamscan",
-                    Arguments = "clamscan --version",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-            process.Start();
-            string result = process.StandardOutput.ReadToEnd();
-            process.WaitForExit();
-            return result;
-        }
-        catch (Exception e)
-        {
-            return string.Empty;
-        }
-
     }
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()

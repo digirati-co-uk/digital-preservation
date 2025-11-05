@@ -346,19 +346,24 @@ public class ProcessPipelineJobHandler(
             // So we can't use it again for further *content modifications*.
             // But we can use it for other properties, e.g. workspaceManager.IsBagItLayout won't have changed.
 
-            var metadataPathForProcessFiles = workspaceManager.IsBagItLayout
+            var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
                 ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
                 : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
 
-            var metadataPathForProcessDirectories = workspaceManager.IsBagItLayout
-                ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}" //{separator}{BrunnhildeFolderName}
-                : $"{processFolder}{separator}{request.DepositId}{separator}metadata{separator}{BrunnhildeFolderName}"; //               
+            //var metadataPathForProcessDirectories = workspaceManager.IsBagItLayout
+            //    ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}" //{separator}{BrunnhildeFolderName}
+            //    : $"{processFolder}{separator}{request.DepositId}{separator}metadata{separator}{BrunnhildeFolderName}"; //
+            //
+
+            //var metadataPathForProcessDirectories = workspaceManager.IsBagItLayout
+            //    ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
+            //    : $"{processFolder}{separator}{request.DepositId}{separator}metadata"; //  
 
             logger.LogInformation("metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}",
-                metadataPathForProcessFiles);
+                metadataPathForProcessFilesAndDirectories);
             logger.LogInformation(
                 "metadataPathForProcessDirectories after brunnhilde process {metadataPathForProcessDirectories}",
-                metadataPathForProcessDirectories);
+                metadataPathForProcessFilesAndDirectories);
             logger.LogInformation("depositName after brunnhilde process {depositId}", request.DepositId);
 
             var (forceCompleteAfterDelete, cleanupProcessJobAfterDelete) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
@@ -368,8 +373,15 @@ public class ProcessPipelineJobHandler(
                 return await ForceCompleteReturn(cleanupProcessJobAfterDelete, request, workspaceManager.Deposit, cancellationToken);
             }
 
+            var virusDefinition = GetVirusDefinition();
+            //add virus definition file to metadata folder
+            var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{brunnhildeOptions.Value.DirectorySeparator}virus-definition{brunnhildeOptions.Value.DirectorySeparator}virus-definition.txt";
+
+            Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{brunnhildeOptions.Value.DirectorySeparator}virus-definition");
+            await File.WriteAllTextAsync(virusDefinitionPath, virusDefinition, CancellationToken.None);
+
             var (createFolderResultList, uploadFilesResultList, forceCompleteUpload, forceCompleteUploadCleanupProcess) = await UploadFilesToMetadataRecursively(
-                request, metadataPathForProcessDirectories, metadataPathForProcessFiles, depositPath,
+                request, metadataPathForProcessFilesAndDirectories, depositPath,
                 workspaceManager.Deposit, cancellationToken);
 
             if (forceCompleteUpload || forceCompleteUploadCleanupProcess)
@@ -486,10 +498,10 @@ public class ProcessPipelineJobHandler(
             Deposit = null,
             Items = []
         };
-        var testPath = $"{FolderNames.Metadata}/{BrunnhildeFolderName}";
+        var testPath = $"{FolderNames.Metadata}"; //var testPath = $"{FolderNames.Metadata}/{BrunnhildeFolderName}";
         foreach (var directory in directories)
         {
-            if (directory.LocalPath!.StartsWith(testPath))
+            if (directory.LocalPath!.StartsWith(testPath) && directory.LocalPath.ToLower() != "metadata" )
             {
                 deleteSelection.Items.Add(new MinimalItem
                 {
@@ -522,8 +534,8 @@ public class ProcessPipelineJobHandler(
         List<Result<CreateFolderResult>?> createSubFolderResult,
         List<Result<SingleFileUploadResult>?> uploadFileResult, bool forceComplete, bool cleanupProcess)> UploadFilesToMetadataRecursively(
             ExecutePipelineJob request,
-            string sourcePathForDirectories, string sourcePathForFiles, string depositPath,
-            Deposit deposit, CancellationToken cancellationToken)
+            string sourcePathForFilesAndDirectories, string depositPath,
+            Deposit deposit, CancellationToken cancellationToken) //string sourcePathForFiles, 
     {
         try
         {
@@ -543,13 +555,10 @@ public class ProcessPipelineJobHandler(
             logger.LogInformation($"context {context}");
 
             //create Brunnhilde folder first
-            var createSubFolderResult = new List<Result<CreateFolderResult>?>
-                {
-                    await CreateMetadataSubFolderOnS3(request, sourcePathForDirectories)
-                };
+            var createSubFolderResult = new List<Result<CreateFolderResult>?>();
 
             //Now Create all of the directories
-            foreach (var dirPath in Directory.GetDirectories(sourcePathForDirectories, "*", SearchOption.AllDirectories))
+            foreach (var dirPath in Directory.GetDirectories(sourcePathForFilesAndDirectories, "*", SearchOption.AllDirectories))
             {
                 logger.LogInformation("dir path {dirPath}", dirPath);
                 var (forceCompleteDirectoryUpload, cleanupProcessDirectoryUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
@@ -566,7 +575,7 @@ public class ProcessPipelineJobHandler(
 
             var uploadFileResult = new List<Result<SingleFileUploadResult>?>();
 
-            foreach (var filePath in Directory.GetFiles(sourcePathForFiles, "*.*", SearchOption.AllDirectories))
+            foreach (var filePath in Directory.GetFiles(sourcePathForFilesAndDirectories, "*.*", SearchOption.AllDirectories))
             {
                 logger.LogInformation("Upload file path {filePath}", filePath);
                 if (filesToIgnore.Any(filePath.Contains))
@@ -581,7 +590,7 @@ public class ProcessPipelineJobHandler(
                     return (createSubFolderResult: [], uploadFileResult: [], forceCompleteFileUpload, cleanupProcessFileUpload);
                 }
 
-                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFiles, deposit, cancellationToken);
+                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFilesAndDirectories, deposit, cancellationToken);
                 if (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess)
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
@@ -613,7 +622,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, " Caught error in copy files recursively from {sourcePathForFiles} to {depositPath}", sourcePathForFiles, depositPath);
+            logger.LogError(ex, " Caught error in copy files recursively from {sourcePathForFilesAndDirectories} to {depositPath}", sourcePathForFilesAndDirectories, depositPath);
             return (createSubFolderResult: [], uploadFileResult: [], false, false);
         }
 
@@ -926,6 +935,33 @@ public class ProcessPipelineJobHandler(
             Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
             CleanupProcessJob = true
         };
+    }
+
+    private string GetVirusDefinition()
+    {
+        try
+        {
+            var process = new Process()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "clamscan",
+                    Arguments = "clamscan --version",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            string result = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            return result;
+        }
+        catch (Exception e)
+        {
+            return string.Empty;
+        }
+
     }
 }
 
