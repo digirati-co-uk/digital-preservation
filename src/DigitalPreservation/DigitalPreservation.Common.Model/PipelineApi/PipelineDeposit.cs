@@ -6,6 +6,5 @@ public class PipelineDeposit
     public string? DepositId { get; set; }
     public string? Status { get; set; }
     public string? RunUser { get; set; }
-    public string? VirusDefinition { get; set; }
     public string? Errors { get; set; }
 }

@@ -23,8 +23,7 @@ public class UploadFileToDeposit(
     string checksum, 
     string depositFileName, 
     string contentType,
-    string metsETag,
-    bool fileAtDepositRoot = false) : IRequest<Result<WorkingFile?>>
+    string metsETag) : IRequest<Result<WorkingFile?>>
 {
     public bool IsBagItLayout { get; } = isBagItLayout;
     public Uri RootUri { get; } = rootUri;
@@ -36,7 +35,6 @@ public class UploadFileToDeposit(
     public string DepositFileName { get; } = depositFileName;
     public string ContentType { get; } = contentType;
     public string MetsETag { get; } = metsETag;
-    public bool FileAtDepositRoot { get; set; } = fileAtDepositRoot;
 }
 
 public class UploadFileToDepositHandler(
@@ -48,7 +46,7 @@ public class UploadFileToDepositHandler(
     {
         // TODO: This needs to prevent overlapping calls (repeated requests for the same object, or two uploads trying to update METS)
         var s3Uri = new AmazonS3Uri(request.RootUri);
-        var keyPath = !request.FileAtDepositRoot ? FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent : string.Empty;
+        var keyPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent;
         var fullKey = StringUtils.BuildPath(false, s3Uri.Key, keyPath, request.Slug);
         var req = new PutObjectRequest
         {

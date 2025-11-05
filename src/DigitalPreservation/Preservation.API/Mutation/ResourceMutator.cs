@@ -231,8 +231,7 @@ public class ResourceMutator(
             LastModifiedBy = GetAgentUri(entity.RunUser),
             RunUser = entity.RunUser,
             Errors = errors.Count != 0 ? errors.ToArray<Error>() : null,
-            Deposit = entity.Deposit,
-            VirusDefinition = entity.VirusDefinition
+            Deposit = entity.Deposit
         };
         return processPipelineResult;
     }

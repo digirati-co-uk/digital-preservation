@@ -44,7 +44,6 @@ public class RunPipelineStatusHandler(
                 break;
             case PipelineJobStates.Completed:
                 entity.DateFinished = DateTime.UtcNow;
-                entity.VirusDefinition = request.PipelineDeposit.VirusDefinition;
                 break;
             case PipelineJobStates.CompletedWithErrors:
                 entity.DateFinished = DateTime.UtcNow;

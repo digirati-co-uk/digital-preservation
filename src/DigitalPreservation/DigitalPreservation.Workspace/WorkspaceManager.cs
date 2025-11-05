@@ -277,8 +277,7 @@ public class WorkspaceManager(
             checksum,
             fileName,
             contentType,
-            Deposit.MetsETag!,
-            string.IsNullOrWhiteSpace(context)));
+            Deposit.MetsETag!));
         if (uploadFileResult.Success)
         {
             var result = new SingleFileUploadResult

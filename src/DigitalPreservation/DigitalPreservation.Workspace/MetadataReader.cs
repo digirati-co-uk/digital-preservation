@@ -434,44 +434,17 @@ public class MetadataReader : IMetadataReader
             workingBase.Metadata = metadataList;
         }
     }
-
-    //private string GetVirusDefinition()
-    //{
-    //    try
-    //    {
-    //        var process = new Process()
-    //        {
-    //            StartInfo = new ProcessStartInfo
-    //            {
-    //                FileName = "clamscan",
-    //                Arguments = "clamscan --version",
-    //                RedirectStandardOutput = true,
-    //                UseShellExecute = false,
-    //                CreateNoWindow = true
-    //            }
-    //        };
-    //        process.Start();
-    //        string result = process.StandardOutput.ReadToEnd();
-    //        process.WaitForExit();
-    //        return result;
-    //    }
-    //    catch (Exception e)
-    //    {
-    //        return string.Empty;
-    //    }
-
-    //}
 }
 
 // Define a class to represent the JSON output structure
 public class ClamScanResult
 {
-    public List<string> Hits { get; set; }
-    public List<string> Summary { get; set; }
+    public required List<string> Hits { get; set; }
+    public required List<string> Summary { get; set; }
 }
 
 public class VirusModel
 {
-    public string Filepath { get; set; }
-    public string VirusFound { get; set; }
+    public required string Filepath { get; set; }
+    public required string VirusFound { get; set; }
 }

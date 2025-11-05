@@ -118,8 +118,7 @@ public class ProcessPipelineJobHandler(
             Status = status,
             DepositId = depositId,
             RunUser = runUser,
-            Errors = errors,
-            VirusDefinition = virusDefinition
+            Errors = errors
         };
         var updateResult = await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, cancellationToken);
 
