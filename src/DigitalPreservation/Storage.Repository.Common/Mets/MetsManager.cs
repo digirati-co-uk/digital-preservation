@@ -468,7 +468,7 @@ public class MetsManager(
                     var fileAdmId = string.Join(' ', file.Admid);
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
-                    var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault(); 
+                    var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.ToLower().Contains("digiprovmd_clamav"))?.MdWrap.XmlData.Any?.FirstOrDefault(); 
 
                     FileFormatMetadata patchPremis;
                     VirusScanMetadata? patchPremisVirus;
