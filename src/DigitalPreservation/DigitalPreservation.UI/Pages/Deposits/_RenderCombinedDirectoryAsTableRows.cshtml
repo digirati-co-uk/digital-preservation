@@ -162,7 +162,7 @@ File is in both
 
         @if (virusMetadata is { HasVirus: true })
         {
-            <td aria-label="virus">
+            <td aria-label="td-virus">
                 <label title="@virusMetadata.VirusFound" aria-label="virus" class="form-check-label text-danger" for="@("is-" + Model.RowCounter.Count++)">
                     <strong>☣</strong>
                 </label>
@@ -171,7 +171,7 @@ File is in both
         }
         else
         {
-            <td aria-label="virus">@virusMetadata?.GetDisplay()</td>
+            <td aria-label="td-virus">@virusMetadata?.GetDisplay()</td>
         }
 
     </tr>
