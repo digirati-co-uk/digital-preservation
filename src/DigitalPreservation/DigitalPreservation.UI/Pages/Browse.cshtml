@@ -392,7 +392,7 @@
                                     <td aria-label="td-format" title="@fileFormatMetadata?.FormatName">@fileFormatMetadata?.PronomKey</td>
                                     <td aria-label="td-access">@metsBinary?.MetsExtensions?.AccessCondition</td>
 
-                                    @if (virusMetadata != null)
+                                    @if (virusMetadata is { HasVirus: true })
                                     {
                                         <td aria-label="virus">
                                             <label title="@virusMetadata.VirusFound" aria-label="virus" class="form-check-label text-danger">
