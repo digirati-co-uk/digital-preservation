@@ -136,27 +136,31 @@ public class MetadataReader : IMetadataReader
         var virusDefinitionRoot = workingRootUri.AppendEscapedSlug("metadata").AppendEscapedSlug("virus-definition").AppendEscapedSlug("virus-definition.txt");
 
         var virusDefinition = string.Empty;
-        if (await storage.Exists(virusDefinitionRoot) && brunnhildeAVResult is { Success: true, Value: not null })
+        var virusDefinitionFileExists = await storage.Exists(virusDefinitionRoot);
+        if (virusDefinitionFileExists && brunnhildeAVResult is { Success: true, Value: not null })
         {
             var virusDefinitionResult = await storage.GetStream(virusDefinitionRoot);
             if (virusDefinitionResult is { Success: true, Value: not null })
             {
                 virusDefinition = await GetTextFromStream(virusDefinitionResult.Value);
-                // the parent of the first instance of /metadata or /metadata/
-                // the parent of the first instance of /objects or /objects/
-
-                if (!string.IsNullOrEmpty(virusDefinition))
-                {
-                    brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
-                    brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
-
-                    var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
-                    AddVirusScanMetadata(infectedFiles, brunnhildeFiles, brunnhildeAvCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
-                }
-
             }
         }
 
+        if ((!virusDefinitionFileExists || string.IsNullOrEmpty(virusDefinition)))
+        {
+            var brunnhildeVirusLogResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
+
+            if (brunnhildeVirusLogResult is { Success: true, Value: not null })
+            {
+                virusDefinition = await GetVirusDefinitionFromBrunnhilde(brunnhildeVirusLogResult.Value);
+            }
+        }
+
+        brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
+        brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
+
+        var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
+        AddVirusScanMetadata(infectedFiles, brunnhildeFiles, brunnhildeAvCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
     }
 
     private void AddFileFormatMetadata(SiegfriedOutput siegfriedOutput, string commonParent, string source, DateTime timestamp)
@@ -292,9 +296,9 @@ public class MetadataReader : IMetadataReader
 
     private async Task<List<VirusModel>> ReadInfectedFilePaths(Stream stream)
     {
-        var txt = await GetTextFromStream(stream);
-        var result = ConvertClamResultStringToJson(txt);
+        var result = await GetClamScanOutput(stream);
         var model = new List<VirusModel>();
+
         foreach (var fileVirus in result.Hits)
         {
             var virusStringSplit = fileVirus.Split(':');
@@ -433,6 +437,32 @@ public class MetadataReader : IMetadataReader
         {
             workingBase.Metadata = metadataList;
         }
+    }
+
+    private async Task<ClamScanResult> GetClamScanOutput(Stream stream)
+    {
+        var txt = await GetTextFromStream(stream);
+        var result = ConvertClamResultStringToJson(txt);
+        return result;
+    }
+
+    private async Task<string> GetVirusDefinitionFromBrunnhilde(Stream stream)
+    {
+        var result = await GetClamScanOutput(stream);
+        var knownViruses = string.Empty;
+        var engineVersion = string.Empty;
+
+        foreach (var summaryInfo in result.Summary)
+        {
+            var summaryStringSplit = summaryInfo.Split(':');
+
+            if (summaryStringSplit[0].ToLower() == "known viruses")
+                knownViruses = summaryStringSplit[1];
+            if (summaryStringSplit[0].ToLower() == "engine version")
+                engineVersion = summaryStringSplit[1];
+        }
+
+        return $"ClamAV {engineVersion} Known viruses {knownViruses} ";
     }
 }
 
