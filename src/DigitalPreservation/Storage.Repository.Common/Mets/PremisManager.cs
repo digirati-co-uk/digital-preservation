@@ -71,7 +71,7 @@ public static class PremisManager
 
     }
     
-    public static PremisComplexType Create(FileFormatMetadata premisFile) //put virus scan metadata
+    public static PremisComplexType Create(FileFormatMetadata premisFile)
     {
         var premis = new PremisComplexType();
         var file = new File();

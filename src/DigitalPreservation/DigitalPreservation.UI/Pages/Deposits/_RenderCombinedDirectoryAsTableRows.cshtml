@@ -25,7 +25,8 @@ File is in both
     var isMetadata = FolderNames.IsMetadata(combinedDirectory.LocalPath);
     depth = combinedDirectory.LocalPath.Split('/').Length;
     string where = combinedDirectory.Whereabouts.ToString().ToLowerInvariant();
-                   <tr class="deposit-row @("where-" + where)" 
+    
+    <tr class="deposit-row @("where-" + where)" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@isMetadata">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
@@ -163,7 +164,7 @@ File is in both
         @if (virusMetadata is { HasVirus: true })
         {
             <td aria-label="td-virus">
-                <label title="@virusMetadata.VirusFound" aria-label="virus" class="form-check-label text-danger" for="@("is-" + Model.RowCounter.Count++)">
+                <label title="@virusMetadata.VirusFound" aria-label="virus" class="form-check-label text-danger">
                     <strong>☣</strong>
                 </label>
             </td>

@@ -1,7 +1,6 @@
-﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
-using System.Diagnostics;
-using System.Text.Json.Serialization;
 
 namespace DigitalPreservation.Common.Model.Transit;
 

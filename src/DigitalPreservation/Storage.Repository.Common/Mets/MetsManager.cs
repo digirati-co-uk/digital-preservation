@@ -10,7 +10,6 @@ using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
-using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Xml;
@@ -33,6 +32,7 @@ public class MetsManager(
     private const string MetadataDivId = PhysIdPrefix + FolderNames.Metadata;
     private const string DirectoryType = "Directory";
     private const string ItemType = "Item";
+    private const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
 
     public const string Mets = "METS";
     
@@ -468,11 +468,9 @@ public class MetsManager(
                     var fileAdmId = string.Join(' ', file.Admid);
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
-                    var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.ToLower().Contains("digiprovmd_clamav"))?.MdWrap.XmlData.Any?.FirstOrDefault(); 
+                    var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault(); 
 
                     FileFormatMetadata patchPremis;
-                    VirusScanMetadata? patchPremisVirus;
-
                     try
                     {
                         patchPremis = GetFileFormatMetadata(workingFile, operationPath);
@@ -481,15 +479,8 @@ public class MetsManager(
                     {
                         return Result.Fail(ErrorCodes.BadRequest, mex.Message);
                     }
-
-                    try
-                    {
-                        patchPremisVirus = GetVirusScanMetadata(workingFile, operationPath);
-                    }
-                    catch (MetadataException mex)
-                    {
-                        return Result.Fail(ErrorCodes.BadRequest, mex.Message);
-                    }
+                    
+                    var patchPremisVirus = workingFile.GetVirusScanMetadata();
 
                     PremisComplexType? premisType;
                     if (premisXml is not null)
@@ -539,7 +530,7 @@ public class MetsManager(
                         {
                             amdSec.DigiprovMd.Add(new MdSecType
                             {
-                                Id = $"digiprovMD_ClamAV_{fileAdmId}",
+                                Id = $"{VirusProvEventPrefix}{fileAdmId}",
                                 MdWrap = new MdSecTypeMdWrap
                                 {
                                     Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
@@ -615,7 +606,7 @@ public class MetsManager(
 
                 try
                 {
-                    virusScanMetadata = GetVirusScanMetadata(workingFile, operationPath);
+                    virusScanMetadata = workingFile.GetVirusScanMetadata();
                 }
                 catch (MetadataException mex)
                 {
@@ -636,7 +627,7 @@ public class MetsManager(
                             } 
                         }
                     });
-                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId, $"digiprovMD_ClamAV_{admId}", virusScanMetadata));
+                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId, $"{VirusProvEventPrefix}{admId}", virusScanMetadata));
             }
             else if (workingBase is WorkingDirectory workingDirectory)
             {
@@ -714,21 +705,6 @@ public class MetsManager(
             OriginalName = originalName, // workingFile.LocalPath
             StorageLocation = null // storageLocation
         };
-    }
-
-    private static VirusScanMetadata? GetVirusScanMetadata(WorkingFile workingFile, string originalName)
-    {
-        // This will throw if mismatches
-        //var digestMetadata = workingFile.GetDigestMetadata();
-
-        var virusScanMetadata = workingFile.GetVirusScanMetadata();
-        if (virusScanMetadata != null)
-        {
-            return virusScanMetadata;
-        }
-
-
-        return null;
     }
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()

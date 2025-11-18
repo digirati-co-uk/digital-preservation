@@ -1,12 +1,9 @@
-﻿using Amazon.S3.Model;
-using Azure.Core;
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
@@ -14,20 +11,16 @@ using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
-using System.IO;
 using System.Text;
-using System.Threading;
-using System.Timers;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
 
-public class ExecutePipelineJob(string jobIdentifier, string depositId, string? runUser, string? virusDefinition = null) : IRequest<Result>
+public class ExecutePipelineJob(string jobIdentifier, string depositId, string? runUser) : IRequest<Result>
 {
     public string JobIdentifier { get; } = jobIdentifier;
     public string DepositId { get; } = depositId;
     private string? RunUser { get; } = runUser;
-    public string? VirusDefinition { get; set; } = virusDefinition;
     public string GetUserName() => RunUser ?? "PipelineApi";
 }
 
@@ -101,15 +94,15 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<Result<LogPipelineStatusResult>> UpdateJobStatus(
-        ExecutePipelineJob request, string status, string? errors = null, CancellationToken cancellationToken = default, string? virusDefinition = null)
+        ExecutePipelineJob request, string status, string? errors = null, CancellationToken cancellationToken = default)
     {
         var result = await UpdateAnyJobStatus(
-            request.DepositId, request.JobIdentifier, status, request.GetUserName(), errors, cancellationToken, request.VirusDefinition);
+            request.DepositId, request.JobIdentifier, status, request.GetUserName(), errors, cancellationToken);
         return result;
     }
 
     private async Task<Result<LogPipelineStatusResult>> UpdateAnyJobStatus(
-        string depositId, string jobId, string status, string runUser, string? errors = null, CancellationToken cancellationToken = default, string? virusDefinition = null)
+        string depositId, string jobId, string status, string runUser, string? errors = null, CancellationToken cancellationToken = default)
     {
         // Do this directly not by chaining mediatr
         var pipelineDeposit = new PipelineDeposit
@@ -280,9 +273,9 @@ public class ProcessPipelineJobHandler(
             processId = process.Id;
         }
 
-        streamReader = process?.StandardOutput;
+        streamReader = process.StandardOutput;
 
-        processTimer.Elapsed += (sender, e) => CheckIfProcessRunning(sender, e, request, workspaceManager.Deposit, cancellationTokenMonitor);
+        processTimer.Elapsed += (_, _) => CheckIfProcessRunning(request, workspaceManager.Deposit, cancellationTokenMonitor);
 
         processTimer.AutoReset = true;
         processTimer.Enabled = true;
@@ -312,9 +305,7 @@ public class ProcessPipelineJobHandler(
 
         logger.LogInformation("_streamReader {streamReader}", streamReader);
 
-        var result = string.Empty;
-
-        result = await streamReader.ReadToEndAsync(cancellationTokenBrunnhilde);
+        var result = await streamReader.ReadToEndAsync(cancellationTokenBrunnhilde);
         processId = 0;
         await tokensCatalog[monitorForceCompleteId].CancelAsync();
 
@@ -348,15 +339,6 @@ public class ProcessPipelineJobHandler(
             var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
                 ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
                 : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
-
-            //var metadataPathForProcessDirectories = workspaceManager.IsBagItLayout
-            //    ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}" //{separator}{BrunnhildeFolderName}
-            //    : $"{processFolder}{separator}{request.DepositId}{separator}metadata{separator}{BrunnhildeFolderName}"; //
-            //
-
-            //var metadataPathForProcessDirectories = workspaceManager.IsBagItLayout
-            //    ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
-            //    : $"{processFolder}{separator}{request.DepositId}{separator}metadata"; //  
 
             logger.LogInformation("metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}",
                 metadataPathForProcessFilesAndDirectories);
@@ -556,7 +538,7 @@ public class ProcessPipelineJobHandler(
             //create Brunnhilde folder first
             var createSubFolderResult = new List<Result<CreateFolderResult>?>();
 
-            //Now Create all of the directories
+            //Now Create all the directories
             foreach (var dirPath in Directory.GetDirectories(sourcePathForFilesAndDirectories, "*", SearchOption.AllDirectories))
             {
                 logger.LogInformation("dir path {dirPath}", dirPath);
@@ -808,7 +790,6 @@ public class ProcessPipelineJobHandler(
 
             if (wbToAdd != null)
             {
-                //wbToAdd.Metadata.Where(x => x.)
                 wbsToAdd.Add(wbToAdd);
             }
         }
@@ -851,7 +832,7 @@ public class ProcessPipelineJobHandler(
         return releaseLockResult;
     }
 
-    private async void CheckIfProcessRunning(object? source, ElapsedEventArgs eventArgs, ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
+    private async void CheckIfProcessRunning(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
         try
         {
@@ -888,7 +869,7 @@ public class ProcessPipelineJobHandler(
                 processTimer.Enabled = false;
             }
         }
-        catch (ArgumentException e)
+        catch (ArgumentException)
         {
             logger.LogError("Process is not running for job {jobId} and process id {processId}", request.JobIdentifier, processId);
             processTimer.Stop();
@@ -956,7 +937,7 @@ public class ProcessPipelineJobHandler(
             process.WaitForExit();
             return result;
         }
-        catch (Exception e)
+        catch
         {
             return string.Empty;
         }

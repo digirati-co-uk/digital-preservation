@@ -87,7 +87,7 @@ public class MetadataReader : IMetadataReader
             }
         }
 
-            // when parsing files with paths, find the common origin and look for objects/ and metadata/
+        // when parsing files with paths, find the common origin and look for objects/ and metadata/
         string? bagItCommonParent;
         if (bagItSha256Values is { Count: > 0 })
         {
@@ -146,7 +146,7 @@ public class MetadataReader : IMetadataReader
             }
         }
 
-        if ((!virusDefinitionFileExists || string.IsNullOrEmpty(virusDefinition)))
+        if (!virusDefinitionFileExists || string.IsNullOrEmpty(virusDefinition))
         {
             var brunnhildeVirusLogResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
 
@@ -160,7 +160,7 @@ public class MetadataReader : IMetadataReader
         brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
 
         var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
-        AddVirusScanMetadata(infectedFiles, brunnhildeFiles, brunnhildeAvCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
+        AddVirusScanMetadata(brunnhildeFiles, brunnhildeAvCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
     }
 
     private void AddFileFormatMetadata(SiegfriedOutput siegfriedOutput, string commonParent, string source, DateTime timestamp)
@@ -186,7 +186,7 @@ public class MetadataReader : IMetadataReader
         }
     }
 
-    private void AddVirusScanMetadata(List<VirusModel> infectedFiles, List<File> objectsFiles, string infectedFilesCommonParent, string siegfriedFilesCommonParent, string source,
+    private void AddVirusScanMetadata(List<File> objectsFiles, string infectedFilesCommonParent, string siegfriedFilesCommonParent, string source,
         DateTime timestamp, string virusDefinition)
     {
         var infectedLocalPaths = new List<string>();

@@ -110,7 +110,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     DepositVirusScanMetadata.VirusFound, MetsVirusScanMetadata.VirusFound));
             }
 
-            if (DepositVirusScanMetadata.VirusDefinition.Trim() != MetsVirusScanMetadata.VirusDefinition.Trim())
+            if (DepositVirusScanMetadata.VirusDefinition?.Trim() != MetsVirusScanMetadata.VirusDefinition?.Trim())
             {
                 misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "VirusDefinition",
                     DepositVirusScanMetadata.VirusDefinition, MetsVirusScanMetadata.VirusDefinition));
