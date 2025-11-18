@@ -224,6 +224,9 @@
                         case "virusdefinition":
                             mismatchMessages.Add("Virus definition");
                             break;
+                        case "(missing section)":
+                            mismatchMessages.Add("Missing metadata section: " + (fileMismatch.ValueInDeposit ?? fileMismatch.ValueInMets ?? "not specified"));
+                            break;
                         default:
                             mismatchMessages.Add("undocumented difference");
                             break;

@@ -117,6 +117,13 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             }
         }
 
+        if (DepositVirusScanMetadata != null && MetsVirusScanMetadata == null)
+        {
+            misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "(Missing section)",
+                    "(virus check)", null));
+        }
+        
+
         return misMatches;
     }
 
