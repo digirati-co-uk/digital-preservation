@@ -419,7 +419,7 @@
                     }
                     else
                     {
-                        <a class="btn btn-sm btn-primary me-2 @(!jobRunning ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
+                        <a class="btn btn-sm btn-primary me-2 @(!jobRunning && !(TempData["MisMatchCount"] != null && Convert.ToInt32(TempData["MisMatchCount"]!.ToString()) > 0) ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
                             <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
                         </a>
                         <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">
