@@ -38,7 +38,6 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
         var goodResult = new ItemsAffected();
 
         List<WorkingBase> rootRelativeItems = GetProcessedItems(request.Items);
-
         
         var shallowestFirst = rootRelativeItems
             .OrderBy(item => item.LocalPath.Count(c => c == '/'));

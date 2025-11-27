@@ -60,6 +60,7 @@ public class UploadFileToDepositHandler(
         try
         {
             var response = await s3Client.PutObjectAsync(req, cancellationToken);
+
             var respChecksum = AwsChecksum.FromBase64ToHex(response.ChecksumSHA256);
             if(response is { ChecksumSHA256: not null } && respChecksum == request.Checksum)
             {

@@ -173,6 +173,20 @@
             <p>This Deposit is locked by @Model.Deposit!.LockedBy?.GetSlug()</p>
         </div>
     }
+    
+    @if (!jobRunning && Model.FilesWithViruses.Any())
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <p>Files with viruses</p>
+
+            @foreach (var virusFile in Model.FilesWithViruses)
+            {
+                <p>@virusFile</p>
+            }
+            
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
 
     @if (!jobRunning && TempData["MisMatchCount"] != null)
     {
@@ -182,7 +196,7 @@
             @{
                 List<string> mismatchMessages = [];
             }
-            <!--ADD IN EXTRA INFORMATION AND DISPLAY MORE INFO ON MISMATCHES-->
+
             @foreach (var detailMismatch in Model.FileMisMatches)
             {
                 foreach (var fileMismatch in detailMismatch.Item1)
@@ -200,6 +214,18 @@
                             break;
                         case "digest":
                             mismatchMessages.Add("Digest");
+                            break;
+                        case "hasvirus":
+                            mismatchMessages.Add("Has virus");
+                            break;
+                        case "virusfound":
+                            mismatchMessages.Add("Virus found");
+                            break;
+                        case "virusdefinition":
+                            mismatchMessages.Add("Virus definition");
+                            break;
+                        case "(missing section)":
+                            mismatchMessages.Add("Missing metadata section: " + (fileMismatch.ValueInDeposit ?? fileMismatch.ValueInMets ?? "not specified"));
                             break;
                         default:
                             mismatchMessages.Add("undocumented difference");
@@ -393,7 +419,7 @@
                     }
                     else
                     {
-                        <a class="btn btn-sm btn-primary me-2 @(!jobRunning ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
+                        <a class="btn btn-sm btn-primary me-2 @(!jobRunning && !(TempData["MisMatchCount"] != null && Convert.ToInt32(TempData["MisMatchCount"]!.ToString()) > 0) ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
                             <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
                         </a>
                         <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">

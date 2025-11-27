@@ -8,7 +8,6 @@ public class PipelineJobRunner(
     ILogger<PipelineJobRunner> logger,
     IMediator mediator)
 {
-    //TODO: return status result
     public async Task Execute(PipelineJobMessage jobIdAndDepositName, CancellationToken cancellationToken)
     {
         var jobId = jobIdAndDepositName.JobIdentifier;

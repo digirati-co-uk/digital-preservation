@@ -96,6 +96,34 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             }
         }
 
+        if (DepositVirusScanMetadata != null && MetsVirusScanMetadata != null)
+        {
+            if (DepositVirusScanMetadata.HasVirus != MetsVirusScanMetadata.HasVirus)
+            {
+                misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "HasVirus",
+                    DepositVirusScanMetadata.HasVirus.ToString(), MetsVirusScanMetadata.HasVirus.ToString()));
+            }
+
+            if (DepositVirusScanMetadata.VirusFound != MetsVirusScanMetadata.VirusFound)
+            {
+                misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "VirusFound",
+                    DepositVirusScanMetadata.VirusFound, MetsVirusScanMetadata.VirusFound));
+            }
+
+            if (DepositVirusScanMetadata.VirusDefinition?.Trim() != MetsVirusScanMetadata.VirusDefinition?.Trim())
+            {
+                misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "VirusDefinition",
+                    DepositVirusScanMetadata.VirusDefinition, MetsVirusScanMetadata.VirusDefinition));
+            }
+        }
+
+        if (DepositVirusScanMetadata != null && MetsVirusScanMetadata == null)
+        {
+            misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "(Missing section)",
+                    "(virus check)", null));
+        }
+        
+
         return misMatches;
     }
 
@@ -157,6 +185,8 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
     private FileFormatMetadata? cachedDepositFileFormatMetadata;
     private bool haveScannedDepositFileFormatMetadata;
+    private VirusScanMetadata? cachedDepositVirusScanMetadata;
+    private bool haveScannedDepositVirusScanMetadata;
     /// <summary>
     /// We use the deposit file format metadata multiple times, so let's cache it
     /// </summary>
@@ -175,9 +205,25 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         }
     }
 
+    public VirusScanMetadata? DepositVirusScanMetadata
+    {
+        get
+        {
+            if (haveScannedDepositVirusScanMetadata)
+            {
+                return cachedDepositVirusScanMetadata;
+            }
+            cachedDepositVirusScanMetadata = FileInDeposit?.GetVirusScanMetadata();
+            haveScannedDepositVirusScanMetadata = true;
+            return cachedDepositVirusScanMetadata;
+        }
+    }
+
 
     private FileFormatMetadata? cachedMetsFileFormatMetadata;
     private bool haveScannedMetsFileFormatMetadata;
+    private VirusScanMetadata? cachedMetsVirusScanMetadata;
+    private bool haveScannedMetsVirusScanMetadata;
 
     /// <summary>
     /// We use the deposit file format metadata multiple times, so let's cache it
@@ -195,6 +241,25 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             cachedMetsFileFormatMetadata = FileInMets?.GetFileFormatMetadata();
             haveScannedMetsFileFormatMetadata = true;
             return cachedMetsFileFormatMetadata;
+        }
+    }
+
+    /// <summary>
+    /// We use the METS virus scan metadata multiple times, so let's cache it
+    /// </summary>
+    /// <returns></returns>
+    public VirusScanMetadata? MetsVirusScanMetadata
+    {
+        get
+        {
+            if (haveScannedMetsVirusScanMetadata)
+            {
+                return cachedMetsVirusScanMetadata;
+            }
+
+            cachedMetsVirusScanMetadata = FileInMets?.GetVirusScanMetadata();
+            haveScannedMetsVirusScanMetadata = true;
+            return cachedMetsVirusScanMetadata;
         }
     }
 
