@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 
 namespace DigitalPreservation.Common.Model.Mets;
 
@@ -26,8 +27,22 @@ public interface IMetsManager
     Result DeleteFromMets(FullMets fullMets, string deletePath); // , Uri? storageLocation
     Task<Result> WriteMets(FullMets fullMets);
 
+    [Obsolete]
     List<string> GetRootAccessRestrictions(FullMets fullMets);
+    [Obsolete]
     void SetRootAccessRestrictions(FullMets fullMets, List<string> accessRestrictions);
+    [Obsolete]
     void SetRootRightsStatement(FullMets fullMets, Uri? uri);
+    [Obsolete]
     Uri? GetRootRightsStatement(FullMets fullMets);
+    
+    // Extensions
+    // We don't need getters because this information will be exposed in either WorkingFile/Dir or Logical ... Ranges
+    void SetRecordIdentifier(FullMets mets, string physicalPath, string source, string value);
+    void SetRightsStatement(FullMets mets, string physicalPath, Uri? rightsStatement);
+    void SetAccessRestrictions(FullMets mets, string physicalPath, List<string> accessRestrictions);
+
+
+    void SetStructMap(FullMets mets, LogicalRange logSm);
+    void LinkFile(FullMets mets, string from, string to, Uri role);
 }

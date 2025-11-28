@@ -21,6 +21,10 @@ public class WorkingFile : WorkingBase
     [JsonPropertyName("size")]
     [JsonPropertyOrder(16)]
     public long? Size { get; set; }
+    
+    [JsonPropertyName("links")]
+    [JsonPropertyOrder(50)]
+    public List<FileLink>? Links { get; set; }
 
     public WorkingFile ToRootLayout()
     {

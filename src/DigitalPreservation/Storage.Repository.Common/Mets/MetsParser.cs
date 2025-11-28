@@ -467,8 +467,7 @@ public class MetsParser(
                                 workingDirectory.MetsExtensions = new MetsExtensions
                                 {
                                     AdmId = admId,
-                                    PhysDivId = div.Attribute("ID")?.Value,
-                                    AccessCondition = "Open"
+                                    PhysDivId = div.Attribute("ID")?.Value
                                 };
                                 workingDirectory.Metadata =
                                 [
@@ -663,8 +662,7 @@ public class MetsParser(
                     MetsExtensions = new MetsExtensions
                     {
                         AdmId = admId,
-                        PhysDivId = div.Attribute("ID")?.Value,
-                        AccessCondition = "Open"
+                        PhysDivId = div.Attribute("ID")?.Value
                     }
                 };
                 if (premisMetadata != null)

@@ -18,15 +18,4 @@ public class MetsExtensions
     [JsonPropertyOrder(102)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AdmId { get; set; }
-    
-    [JsonPropertyName("rightsStatement")]
-    [JsonPropertyOrder(103)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? RightsStatement { get; set; }
-    
-    [JsonPropertyName("accessCondition")]
-    [JsonPropertyOrder(104)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? AccessCondition { get; set; }
-    
 }

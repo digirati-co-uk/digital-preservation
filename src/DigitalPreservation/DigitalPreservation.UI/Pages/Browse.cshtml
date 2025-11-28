@@ -390,7 +390,7 @@
                                     var fileFormatMetadata = metsBinary?.GetFileFormatMetadata();
                                     var virusMetadata = metsBinary?.GetVirusScanMetadata();
                                     <td aria-label="td-format" title="@fileFormatMetadata?.FormatName">@fileFormatMetadata?.PronomKey</td>
-                                    <td aria-label="td-access">@metsBinary?.MetsExtensions?.AccessCondition</td>
+                                    <td aria-label="td-access">@string.Join(", ", metsBinary?.AccessRestrictions ?? [])</td>
 
                                     @if (virusMetadata is { HasVirus: true })
                                     {
