@@ -65,4 +65,8 @@ public class ProcessPipelineResult : Resource
     [JsonPropertyName("cleanupProcessJob")]
     public bool CleanupProcessJob { get; set; } = false;
 
+    [JsonPropertyOrder(513)]
+    [JsonPropertyName("virusDefinition")]
+    public string? VirusDefinition { get; set; }
+
 }
