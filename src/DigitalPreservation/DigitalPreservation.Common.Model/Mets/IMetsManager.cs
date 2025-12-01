@@ -27,6 +27,7 @@ public interface IMetsManager
     Result DeleteFromMets(FullMets fullMets, string deletePath); // , Uri? storageLocation
     Task<Result> WriteMets(FullMets fullMets);
 
+    // The following are made obsolete because they are handled by the more general cases below.
     [Obsolete]
     List<string> GetRootAccessRestrictions(FullMets fullMets);
     [Obsolete]

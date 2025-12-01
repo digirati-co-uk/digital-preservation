@@ -13,7 +13,6 @@ namespace XmlGen.Tests.Experimental;
 
 public class ExtendedMets
 {
-    
     private readonly IMetsManager metsManager;
     private readonly MetsParser parser;
     
