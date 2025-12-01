@@ -19,8 +19,8 @@ public class FilePointer
 {
     public required string LocalPath { get; set; } // not WorkingFile, caller can look it up
     public Rectangle? RectRegion { get; set; }
-    public long? BeginTime { get; set; }
-    public long? EndTime { get; set; }
+    public double? BeginTime { get; set; }
+    public double? EndTime { get; set; }
 }
 
 public class Rectangle

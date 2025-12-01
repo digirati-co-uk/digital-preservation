@@ -11,12 +11,12 @@ using Storage.Repository.Common.Mets;
 
 namespace XmlGen.Tests.Experimental;
 
-public class ExtendedMets
+public class WomenOfWestminster
 {
     private readonly IMetsManager metsManager;
     private readonly MetsParser parser;
     
-    public ExtendedMets()
+    public WomenOfWestminster()
     {
         var serviceProvider = new ServiceCollection()
             .AddLogging()
