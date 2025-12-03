@@ -959,7 +959,7 @@ public class ProcessPipelineJobHandler(
                     FileName = exifToolLocation,
                     Arguments = $"exiftool -a {objectPath}",
                     RedirectStandardOutput = true,
-                    UseShellExecute = false, //true
+                    UseShellExecute = false,
                     CreateNoWindow = true
                 }
             };
