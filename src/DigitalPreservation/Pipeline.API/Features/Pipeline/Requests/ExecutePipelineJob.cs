@@ -973,7 +973,7 @@ public class ProcessPipelineJobHandler(
         }
         catch(Exception e)
         {
-            logger.LogError("Issue running exif tool for objects in the object path {ObjectPath}", objectPath);
+            logger.LogError("Issue running exif tool for objects in the object path {ObjectPath} error {Exception}", objectPath, e.Message);
         }
     }
 }
