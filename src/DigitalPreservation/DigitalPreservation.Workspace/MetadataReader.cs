@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Storage.Repository.Common;
+using System.Text;
 using File = DigitalPreservation.Common.Model.ToolOutput.Siegfried.File;
 
 namespace DigitalPreservation.Workspace;
@@ -17,6 +18,7 @@ public class MetadataReader : IMetadataReader
     private SiegfriedOutput? siegfriedSiegfriedOutput;
     private SiegfriedOutput? brunnhildeSiegfriedOutput;
     private List<VirusModel> infectedFiles = [];
+    private List<ExifModel> exifMetadataList = [];
     
     private readonly Dictionary<string, List<Metadata>> metadataByFiles =  new();
 
@@ -65,6 +67,7 @@ public class MetadataReader : IMetadataReader
         var brunnhildeRoot = workingRootUri.AppendEscapedSlug("metadata").AppendEscapedSlug("brunnhilde");
         var brunnhildeProbe = brunnhildeRoot.AppendEscapedSlug("report.html"); // could use a different probe perhaps
         var brunnhildeAVResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
+
         if (await storage.Exists(brunnhildeProbe))
         {
             brunnhildeSiegfriedOutput = await ParseSiegfriedOutput(brunnhildeRoot.AppendEscapedSlug("siegfried.csv"));
@@ -161,6 +164,12 @@ public class MetadataReader : IMetadataReader
 
         var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
         AddVirusScanMetadata(brunnhildeFiles, brunnhildeAvCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
+
+        exifMetadataList = await GetExifOutputForAllFiles();
+
+        brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(exifMetadataList.Select(s => s.Filepath));
+        brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
+        AddExifMetadata(brunnhildeAvCommonPrefix, "Exif", timestamp);
     }
 
     private void AddFileFormatMetadata(SiegfriedOutput siegfriedOutput, string commonParent, string source, DateTime timestamp)
@@ -230,6 +239,22 @@ public class MetadataReader : IMetadataReader
                 VirusFound = string.Empty,
                 Timestamp = timestamp,
                 VirusDefinition = virusDefinition
+            });
+        }
+    }
+
+    private void AddExifMetadata(string exifFilesCommonParent, string source, DateTime timestamp)
+    {
+        foreach (var exifMetadata in exifMetadataList)
+        {
+            var localPath = exifMetadata.Filepath.RemoveStart(exifFilesCommonParent).RemoveStart("/"); // check this!
+
+            var metadataList = GetMetadataList(localPath!);
+            metadataList.Add(new ExifMetadata
+            {
+                Source = source,
+                Timestamp = timestamp,
+                RawToolOutput = exifMetadata.ExifMetadata
             });
         }
     }
@@ -309,6 +334,13 @@ public class MetadataReader : IMetadataReader
             });
         }
         return model;
+    }
+
+    private async Task<ClamScanResult> GetClamScanOutput(Stream stream)
+    {
+        var txt = await GetTextFromStream(stream);
+        var result = ConvertClamResultStringToJson(txt);
+        return result;
     }
 
     public static ClamScanResult ConvertClamResultStringToJson(string clamResultStr)
@@ -439,13 +471,6 @@ public class MetadataReader : IMetadataReader
         }
     }
 
-    private async Task<ClamScanResult> GetClamScanOutput(Stream stream)
-    {
-        var txt = await GetTextFromStream(stream);
-        var result = ConvertClamResultStringToJson(txt);
-        return result;
-    }
-
     private async Task<string> GetVirusDefinitionFromBrunnhilde(Stream stream)
     {
         var result = await GetClamScanOutput(stream);
@@ -464,6 +489,55 @@ public class MetadataReader : IMetadataReader
 
         return $"ClamAV {engineVersion} Known viruses {knownViruses} ";
     }
+
+    private async Task<List<ExifModel>> GetExifOutputForAllFiles()
+    {
+        var metadataRoot = workingRootUri.AppendEscapedSlug("metadata");
+        var exifResult = await storage.GetStream(metadataRoot.AppendEscapedSlug("exif").AppendEscapedSlug("exif_output.txt"));
+
+        if (exifResult.Value == null) return [];
+        var txt = await GetTextFromStream(exifResult.Value);
+        return ConvertExifResultStringToJson(txt);
+
+    }
+
+    public static List<ExifModel> ConvertExifResultStringToJson(string exifResultStr)
+    {
+        var exifResultList = exifResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
+        var result = new List<ExifModel>();
+        
+        var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = string.Empty};
+        var i = 0;
+        var sb = new StringBuilder();
+
+        foreach (var str in exifResultList)
+        {
+            if (str.Contains("========") || str.Contains("directories scanned"))
+            {
+                if (i > 0)
+                {
+                    exifModel.ExifMetadata = sb.ToString();
+                    sb.Clear();
+                    result.Add(exifModel);
+
+                    if (str.Contains("directories scanned"))
+                        break;
+
+                }
+
+                var fileName = str.Replace("========", string.Empty).Trim();
+                exifModel = new ExifModel { Filepath = fileName };
+
+                i++;
+            }
+            else
+            {
+                sb.Append(str);
+            }
+        }
+
+        return result;
+    }
 }
 
 // Define a class to represent the JSON output structure
@@ -477,4 +551,10 @@ public class VirusModel
 {
     public required string Filepath { get; set; }
     public required string VirusFound { get; set; }
+}
+
+public class ExifModel
+{
+    public required string Filepath { get; set; }
+    public string? ExifMetadata { get; set; }
 }
