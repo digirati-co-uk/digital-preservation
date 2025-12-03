@@ -361,6 +361,8 @@ public class ProcessPipelineJobHandler(
             Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{brunnhildeOptions.Value.DirectorySeparator}virus-definition");
             await File.WriteAllTextAsync(virusDefinitionPath, virusDefinition, CancellationToken.None);
 
+            await RunExif(metadataPathForProcessFilesAndDirectories, objectPath);
+
             var (createFolderResultList, uploadFilesResultList, forceCompleteUpload, forceCompleteUploadCleanupProcess) = await UploadFilesToMetadataRecursively(
                 request, metadataPathForProcessFilesAndDirectories, depositPath,
                 workspaceManager.Deposit, cancellationToken);
@@ -479,7 +481,7 @@ public class ProcessPipelineJobHandler(
             Deposit = null,
             Items = []
         };
-        var testPath = $"{FolderNames.Metadata}"; //var testPath = $"{FolderNames.Metadata}/{BrunnhildeFolderName}";
+        var testPath = $"{FolderNames.Metadata}";
         foreach (var directory in directories)
         {
             if (directory.LocalPath!.StartsWith(testPath) && directory.LocalPath.ToLower() != "metadata" )
@@ -942,6 +944,37 @@ public class ProcessPipelineJobHandler(
             return string.Empty;
         }
 
+    }
+
+    private async Task RunExif(string processPath, string objectPath)
+    {
+        var exifToolLocation = brunnhildeOptions.Value.ExifToolLocation;
+
+        try
+        {
+            var process = new Process()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = exifToolLocation,
+                    Arguments = $"exiftool -a {objectPath}",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false, //true
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            var result = await process.StandardOutput.ReadToEndAsync();
+            var exifPath = $"{processPath}\\exif";
+
+            Directory.CreateDirectory(exifPath);
+            await File.WriteAllTextAsync($"{exifPath}\\exif_output.txt", result, CancellationToken.None);
+            await process.WaitForExitAsync();
+        }
+        catch(Exception e)
+        {
+            logger.LogError("Issue running exif tool for objects in the object path {ObjectPath}", objectPath);
+        }
     }
 }
 
