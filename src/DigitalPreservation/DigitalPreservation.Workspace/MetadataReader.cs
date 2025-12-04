@@ -506,9 +506,9 @@ public class MetadataReader : IMetadataReader
         var exifResultList = exifResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
         var result = new List<ExifModel>();
         
-        var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = string.Empty};
+        var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = [] };
         var i = 0;
-        var sb = new StringBuilder();
+        var exifMetadataForFile = new List<KeyValuePair<string, string>>();
 
         foreach (var str in exifResultList)
         {
@@ -516,8 +516,8 @@ public class MetadataReader : IMetadataReader
             {
                 if (i > 0)
                 {
-                    exifModel.ExifMetadata = sb.ToString();
-                    sb.Clear();
+                    exifModel.ExifMetadata.AddRange(exifMetadataForFile);
+                    exifMetadataForFile.Clear();
                     result.Add(exifModel);
 
                     if (str.Contains("directories scanned"))
@@ -532,7 +532,8 @@ public class MetadataReader : IMetadataReader
             }
             else
             {
-                sb.Append(str);
+                var metadataPair = str.Split(":");
+                exifMetadataForFile.Add(new KeyValuePair<string, string> (metadataPair[0].Trim(), metadataPair[1].Trim()));
             }
         }
 
@@ -556,5 +557,5 @@ public class VirusModel
 public class ExifModel
 {
     public required string Filepath { get; set; }
-    public string? ExifMetadata { get; set; }
+    public List<KeyValuePair<string, string>> ExifMetadata { get; set; } = [];
 }
