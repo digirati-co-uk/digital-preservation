@@ -508,7 +508,7 @@ public class MetadataReader : IMetadataReader
         
         var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = [] };
         var i = 0;
-        var exifMetadataForFile = new List<KeyValuePair<string, string>>();
+        var exifMetadataForFile = new Dictionary<string, string>();
 
         foreach (var str in exifResultList)
         {
@@ -516,7 +516,7 @@ public class MetadataReader : IMetadataReader
             {
                 if (i > 0)
                 {
-                    exifModel.ExifMetadata.AddRange(exifMetadataForFile);
+                    exifModel.ExifMetadata = new Dictionary<string, string>(exifMetadataForFile);
                     exifMetadataForFile.Clear();
                     result.Add(exifModel);
 
@@ -533,7 +533,7 @@ public class MetadataReader : IMetadataReader
             else
             {
                 var metadataPair = str.Split(":");
-                exifMetadataForFile.Add(new KeyValuePair<string, string> (metadataPair[0].Trim(), metadataPair[1].Trim()));
+                exifMetadataForFile.Add(metadataPair[0].Trim(), metadataPair[1].Trim());
             }
         }
 
@@ -557,5 +557,6 @@ public class VirusModel
 public class ExifModel
 {
     public required string Filepath { get; set; }
-    public List<KeyValuePair<string, string>> ExifMetadata { get; set; } = [];
+    //public List<KeyValuePair<string, string>> ExifMetadata { get; set; } = [];
+    public Dictionary<string, string> ExifMetadata { get; set; } = [];
 }
