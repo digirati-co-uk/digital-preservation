@@ -166,6 +166,11 @@ public class WorkingFile : WorkingBase
         return Metadata.OfType<VirusScanMetadata>().SingleOrDefault();
     }
 
+    public ExifMetadata? GetExifMetadata()
+    {
+        return Metadata.OfType<ExifMetadata>().SingleOrDefault();
+    }
+
 }
 
 

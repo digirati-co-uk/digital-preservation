@@ -481,16 +481,17 @@ public class MetsManager(
                     }
                     
                     var patchPremisVirus = workingFile.GetVirusScanMetadata();
+                    var patchPremisExif = workingFile.GetExifMetadata();
 
                     PremisComplexType? premisType;
                     if (premisXml is not null)
                     {
                         premisType = premisXml.GetPremisComplexType()!;
-                        PremisManager.Patch(premisType, patchPremis);
+                        PremisManager.Patch(premisType, patchPremis, patchPremisExif);
                     }
                     else
                     {
-                        premisType = PremisManager.Create(patchPremis);
+                        premisType = PremisManager.Create(patchPremis, patchPremisExif);
                     }
                     premisXml = PremisManager.GetXmlElement(premisType, true);
                     amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
@@ -594,6 +595,7 @@ public class MetsManager(
                 div.Div.Add(childItemDiv);
                 FileFormatMetadata premisFile;
                 VirusScanMetadata? virusScanMetadata;
+                ExifMetadata? exifMetadata;
                 try
                 {
                     premisFile = GetFileFormatMetadata(workingFile, operationPath);
@@ -607,6 +609,15 @@ public class MetsManager(
                 try
                 {
                     virusScanMetadata = workingFile.GetVirusScanMetadata();
+                }
+                catch (MetadataException mex)
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, mex.Message);
+                }
+
+                try
+                {
+                    exifMetadata = workingFile.GetExifMetadata();
                 }
                 catch (MetadataException mex)
                 {
@@ -627,7 +638,7 @@ public class MetsManager(
                             } 
                         }
                     });
-                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId, $"{VirusProvEventPrefix}{admId}", virusScanMetadata));
+                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId, $"{VirusProvEventPrefix}{admId}", virusScanMetadata, exifMetadata));
             }
             else if (workingBase is WorkingDirectory workingDirectory)
             {
@@ -798,9 +809,9 @@ public class MetsManager(
     }
     
     
-    private static AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null)
+    private static AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null, ExifMetadata? exifMetadata = null)
     {
-        var premis = PremisManager.Create(premisFile);
+        var premis = PremisManager.Create(premisFile, exifMetadata);
         var xElement = PremisManager.GetXmlElement(premis, true);
 
         var amdSec = new AmdSecType
