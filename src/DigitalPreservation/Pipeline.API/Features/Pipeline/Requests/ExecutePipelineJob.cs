@@ -481,7 +481,7 @@ public class ProcessPipelineJobHandler(
             Deposit = null,
             Items = []
         };
-        var testPath = $"{FolderNames.Metadata}"; //var testPath = $"{FolderNames.Metadata}/{BrunnhildeFolderName}";
+        var testPath = $"{FolderNames.Metadata}";
         foreach (var directory in directories)
         {
             if (directory.LocalPath!.StartsWith(testPath) && directory.LocalPath.ToLower() != "metadata" )
@@ -971,7 +971,7 @@ public class ProcessPipelineJobHandler(
             await File.WriteAllTextAsync($"{exifPath}\\exif_output.txt", result, CancellationToken.None);
             await process.WaitForExitAsync();
         }
-        catch (Exception e)
+        catch(Exception e)
         {
             logger.LogError("Issue running exif tool for objects in the object path {ObjectPath} error {Exception}", objectPath, e.Message);
         }
