@@ -957,7 +957,7 @@ public class ProcessPipelineJobHandler(
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = exifToolLocation,
-                    Arguments = $"exiftool -a {objectPath}",
+                    Arguments = $" -a {objectPath}",
                     RedirectStandardOutput = true,
                     UseShellExecute = false,
                     CreateNoWindow = true
