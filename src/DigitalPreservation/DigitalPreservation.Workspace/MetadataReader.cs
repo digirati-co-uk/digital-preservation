@@ -3,7 +3,6 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Storage.Repository.Common;
-using System.Text;
 using File = DigitalPreservation.Common.Model.ToolOutput.Siegfried.File;
 
 namespace DigitalPreservation.Workspace;
@@ -532,7 +531,11 @@ public class MetadataReader : IMetadataReader
             }
             else
             {
-                var metadataPair = str.Split(":");
+                var metadataPair = str.Split(" :");
+
+                if (exifMetadataForFile.ContainsKey(metadataPair[0].Trim()))
+                    continue;
+
                 exifMetadataForFile.Add(metadataPair[0].Trim(), metadataPair[1].Trim());
             }
         }
