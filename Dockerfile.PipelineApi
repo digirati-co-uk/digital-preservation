@@ -37,6 +37,9 @@ RUN brunnhilde.py -V
 #clam av
 RUN apt-get install clamav clamav-freshclam -y 
 RUN freshclam
+# Exif Tool for metadata extraction
+RUN apt-get install -y exiftool
+
 
 # Update tools cron job
 RUN touch /etc/cron.daily/toolupdate.sh
