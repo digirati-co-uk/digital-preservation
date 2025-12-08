@@ -948,7 +948,9 @@ public class ProcessPipelineJobHandler(
 
     private async Task RunExif(string processPath, string objectPath)
     {
+        logger.LogInformation("About to run exif");
         var exifToolLocation = brunnhildeOptions.Value.ExifToolLocation;
+        logger.LogInformation("Exif tool location {location}", exifToolLocation);
 
         try
         {
@@ -963,9 +965,16 @@ public class ProcessPipelineJobHandler(
                     CreateNoWindow = true
                 }
             };
+
+            logger.LogInformation("object path for exif command {ObjectPath}", objectPath);
+            logger.LogInformation("About to start exif process.");
             process.Start();
             var result = await process.StandardOutput.ReadToEndAsync();
+
+            logger.LogInformation("Exif output result {Result}", result);
             var exifPath = $"{processPath}\\exif";
+
+            logger.LogInformation("Exif output path {OutputPath}", exifPath);
 
             Directory.CreateDirectory(exifPath);
             await File.WriteAllTextAsync($"{exifPath}\\exif_output.txt", result, CancellationToken.None);
