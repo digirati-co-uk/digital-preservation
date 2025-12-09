@@ -537,7 +537,7 @@ public class MetadataReader : IMetadataReader
                 }
                 else
                 {
-                    var metadataPair = str.Split(" :");
+                    var metadataPair = str.Split(":", 2);
 
                     if (exifMetadataForFile.ContainsKey(metadataPair[0].Trim()))
                         continue;
