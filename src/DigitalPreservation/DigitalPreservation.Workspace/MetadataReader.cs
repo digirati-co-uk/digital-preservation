@@ -505,45 +505,53 @@ public class MetadataReader : IMetadataReader
 
     public static List<ExifModel> ConvertExifResultStringToJson(string exifResultStr)
     {
-        var exifResultList = exifResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
-        var result = new List<ExifModel>();
-        
-        var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = [] };
-        var i = 0;
-        var exifMetadataForFile = new Dictionary<string, string>();
-
-        foreach (var str in exifResultList)
+        try
         {
-            if (str.Contains("========") || str.Contains("directories scanned"))
+            var exifResultList = exifResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
+            var result = new List<ExifModel>();
+
+            var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = [] };
+            var i = 0;
+            var exifMetadataForFile = new Dictionary<string, string>();
+
+            foreach (var str in exifResultList)
             {
-                if (i > 0)
+                if (str.Contains("========") || str.Contains("directories scanned"))
                 {
-                    exifModel.ExifMetadata = new Dictionary<string, string>(exifMetadataForFile);
-                    exifMetadataForFile.Clear();
-                    result.Add(exifModel);
+                    if (i > 0)
+                    {
+                        exifModel.ExifMetadata = new Dictionary<string, string>(exifMetadataForFile);
+                        exifMetadataForFile.Clear();
+                        result.Add(exifModel);
 
-                    if (str.Contains("directories scanned"))
-                        break;
+                        if (str.Contains("directories scanned"))
+                            break;
 
+                    }
+
+                    var fileName = str.Replace("========", string.Empty).Trim();
+                    exifModel = new ExifModel { Filepath = fileName };
+
+                    i++;
                 }
+                else
+                {
+                    var metadataPair = str.Split(" :");
 
-                var fileName = str.Replace("========", string.Empty).Trim();
-                exifModel = new ExifModel { Filepath = fileName };
+                    if (exifMetadataForFile.ContainsKey(metadataPair[0].Trim()))
+                        continue;
 
-                i++;
+                    exifMetadataForFile.Add(metadataPair[0].Trim(), metadataPair[1].Trim());
+                }
             }
-            else
-            {
-                var metadataPair = str.Split(" :");
 
-                if (exifMetadataForFile.ContainsKey(metadataPair[0].Trim()))
-                    continue;
-
-                exifMetadataForFile.Add(metadataPair[0].Trim(), metadataPair[1].Trim());
-            }
+            return result;
+        }
+        catch (Exception e)
+        {
+            return [];
         }
 
-        return result;
     }
 }
 
