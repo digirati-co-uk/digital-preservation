@@ -166,6 +166,9 @@ public class MetadataReader : IMetadataReader
 
         exifMetadataList = await GetExifOutputForAllFiles();
 
+        if (!exifMetadataList.Any())
+            return;
+
         brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(exifMetadataList.Select(s => s.Filepath));
         brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
         AddExifMetadata(brunnhildeAvCommonPrefix, "Exif", timestamp);
