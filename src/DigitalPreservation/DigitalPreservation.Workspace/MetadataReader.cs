@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Storage.Repository.Common;
 using File = DigitalPreservation.Common.Model.ToolOutput.Siegfried.File;
+using StringUtils = DigitalPreservation.Utils.StringUtils;
 
 namespace DigitalPreservation.Workspace;
 
@@ -547,7 +548,7 @@ public class MetadataReader : IMetadataReader
 
             return result;
         }
-        catch (Exception e)
+        catch (Exception)
         {
             return [];
         }
@@ -571,6 +572,5 @@ public class VirusModel
 public class ExifModel
 {
     public required string Filepath { get; set; }
-    //public List<KeyValuePair<string, string>> ExifMetadata { get; set; } = [];
     public Dictionary<string, string> ExifMetadata { get; set; } = [];
 }
