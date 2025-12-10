@@ -338,7 +338,6 @@ public static class PremisManager
     {
         try
         {
-            //var document = new XmlDocument();
             var element = document.CreateElement(exifMetdata.Key.Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty));
             element.InnerText = exifMetdata.Value;
             return element;
