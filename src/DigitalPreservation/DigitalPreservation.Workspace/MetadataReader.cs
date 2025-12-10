@@ -3,8 +3,8 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Storage.Repository.Common;
-using System.Text;
 using File = DigitalPreservation.Common.Model.ToolOutput.Siegfried.File;
+using StringUtils = DigitalPreservation.Utils.StringUtils;
 
 namespace DigitalPreservation.Workspace;
 
@@ -166,6 +166,9 @@ public class MetadataReader : IMetadataReader
         AddVirusScanMetadata(brunnhildeFiles, brunnhildeAvCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
 
         exifMetadataList = await GetExifOutputForAllFiles();
+
+        if (!exifMetadataList.Any())
+            return;
 
         brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(exifMetadataList.Select(s => s.Filepath));
         brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
@@ -503,41 +506,53 @@ public class MetadataReader : IMetadataReader
 
     public static List<ExifModel> ConvertExifResultStringToJson(string exifResultStr)
     {
-        var exifResultList = exifResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
-        var result = new List<ExifModel>();
-        
-        var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = [] };
-        var i = 0;
-        var exifMetadataForFile = new Dictionary<string, string>();
-
-        foreach (var str in exifResultList)
+        try
         {
-            if (str.Contains("========") || str.Contains("directories scanned"))
+            var exifResultList = exifResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
+            var result = new List<ExifModel>();
+
+            var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = [] };
+            var i = 0;
+            var exifMetadataForFile = new Dictionary<string, string>();
+
+            foreach (var str in exifResultList)
             {
-                if (i > 0)
+                if (str.Contains("========") || str.Contains("directories scanned"))
                 {
-                    exifModel.ExifMetadata = new Dictionary<string, string>(exifMetadataForFile);
-                    exifMetadataForFile.Clear();
-                    result.Add(exifModel);
+                    if (i > 0)
+                    {
+                        exifModel.ExifMetadata = new Dictionary<string, string>(exifMetadataForFile);
+                        exifMetadataForFile.Clear();
+                        result.Add(exifModel);
 
-                    if (str.Contains("directories scanned"))
-                        break;
+                        if (str.Contains("directories scanned"))
+                            break;
 
+                    }
+
+                    var fileName = str.Replace("========", string.Empty).Trim();
+                    exifModel = new ExifModel { Filepath = fileName };
+
+                    i++;
                 }
+                else
+                {
+                    var metadataPair = str.Split(":", 2);
 
-                var fileName = str.Replace("========", string.Empty).Trim();
-                exifModel = new ExifModel { Filepath = fileName };
+                    if (exifMetadataForFile.ContainsKey(metadataPair[0].Trim()))
+                        continue;
 
-                i++;
+                    exifMetadataForFile.Add(metadataPair[0].Trim(), metadataPair[1].Trim());
+                }
             }
-            else
-            {
-                var metadataPair = str.Split(":");
-                exifMetadataForFile.Add(metadataPair[0].Trim(), metadataPair[1].Trim());
-            }
+
+            return result;
+        }
+        catch (Exception)
+        {
+            return [];
         }
 
-        return result;
     }
 }
 
@@ -557,6 +572,5 @@ public class VirusModel
 public class ExifModel
 {
     public required string Filepath { get; set; }
-    //public List<KeyValuePair<string, string>> ExifMetadata { get; set; } = [];
     public Dictionary<string, string> ExifMetadata { get; set; } = [];
 }
