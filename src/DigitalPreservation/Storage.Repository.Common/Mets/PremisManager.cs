@@ -1,9 +1,11 @@
-﻿using System.Xml;
-using System.Xml.Serialization;
-using DigitalPreservation.Common.Model.Mets;
+﻿using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Premis.V3;
+using System.Collections.ObjectModel;
+using System.Xml;
+using System.Xml.Linq;
+using System.Xml.Serialization;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
@@ -71,7 +73,7 @@ public static class PremisManager
 
     }
     
-    public static PremisComplexType Create(FileFormatMetadata premisFile)
+    public static PremisComplexType Create(FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
     {
         var premis = new PremisComplexType();
         var file = new File();
@@ -87,6 +89,40 @@ public static class PremisManager
                 MessageDigest = premisFile.Digest
             };
             objectCharacteristics.Fixity.Add(fixity);
+        }
+
+        if (exifMetadata != null)
+        {
+            var document = new XmlDocument();
+            var parentCollection = new Collection<XmlElement>();
+            var parentElement = GetXmlElement(new KeyValuePair<string, string>("ExifMetadata", string.Empty), document);
+
+            if (parentElement != null)
+            {
+                if (exifMetadata is { RawToolOutput: not null })
+                {
+                    foreach (var fileExifMetadata in exifMetadata.RawToolOutput)
+                    {
+                        var element = GetXmlElement(fileExifMetadata, document);
+                        if (element != null) parentElement.AppendChild(element);
+                    }
+                }
+
+                parentCollection.Add(parentElement);
+
+                var parentExtension = new ObjectCharacteristicsExtension
+                {
+                    Any = parentCollection
+                };
+
+                objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
+            }
+
+
+            if (premisFile.Size is > 0)
+            {
+                objectCharacteristics.Size = premisFile.Size;
+            }
         }
 
         if (premisFile.Size is > 0)
@@ -135,7 +171,7 @@ public static class PremisManager
         return premis;
     }
 
-    public static void Patch(PremisComplexType premis, FileFormatMetadata premisFile)
+    public static void Patch(PremisComplexType premis, FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
     {
         // This is not just the same as Create because it shouldn't touch any fields existing
         // in the premis:file already, other than those supplied
@@ -151,19 +187,56 @@ public static class PremisManager
             objectCharacteristics = new ObjectCharacteristicsComplexType();
             file.ObjectCharacteristics.Add(objectCharacteristics);
         }
-        
+
         if (premisFile.Digest.HasText())
         {
-            var fixity = objectCharacteristics.Fixity.FirstOrDefault(f => f.MessageDigestAlgorithm.Value?.ToUpperInvariant() == Sha256);
+            var fixity =
+                objectCharacteristics.Fixity.FirstOrDefault(f =>
+                    f.MessageDigestAlgorithm.Value?.ToUpperInvariant() == Sha256);
             if (fixity == null)
             {
                 fixity = new FixityComplexType
                 {
-                    MessageDigestAlgorithm = new MessageDigestAlgorithm{ Value = Sha256 }
+                    MessageDigestAlgorithm = new MessageDigestAlgorithm { Value = Sha256 }
                 };
                 objectCharacteristics.Fixity.Add(fixity);
             }
+
             fixity.MessageDigest = premisFile.Digest;
+        }
+
+        if (exifMetadata != null)
+        {
+            var document = new XmlDocument();
+            var parentCollection = new Collection<XmlElement>();
+            var parentElement = GetXmlElement(new KeyValuePair<string, string>("ExifMetadata", string.Empty), document);
+
+            if (parentElement != null)
+            {
+                foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
+                {
+                    objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
+                }
+
+                if (exifMetadata is { RawToolOutput: not null })
+                {
+                    foreach (var fileExifMetadata in exifMetadata.RawToolOutput)
+                    {
+                        var element = GetXmlElement(fileExifMetadata, document);
+                        if (element != null) parentElement.AppendChild(element);
+                    }
+                }
+
+                parentCollection.Add(parentElement);
+
+                var parentExtension = new ObjectCharacteristicsExtension
+                {
+                    Any = parentCollection
+                };
+
+                objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
+            }
+
         }
 
         if (premisFile.Size is > 0)
@@ -265,6 +338,21 @@ public static class PremisManager
             return doc.DocumentElement?.FirstChild as XmlElement;
         }
         return doc.DocumentElement;
+    }
+
+    public static XmlElement? GetXmlElement(KeyValuePair<string, string> exifMetdata, XmlDocument document)
+    {
+        try
+        {
+            var element = document.CreateElement(exifMetdata.Key.Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty));
+            element.InnerText = exifMetdata.Value;
+            return element;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+
     }
 }
 
