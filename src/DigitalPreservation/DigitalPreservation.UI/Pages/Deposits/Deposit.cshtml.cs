@@ -56,9 +56,6 @@ public class DepositModel(
 
     private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
     {
-        TempData.Remove("Error");
-        TempData.Remove("MisMatchCount");
-
         Id = id;
         var getDepositResult = await mediator.Send(new GetDeposit(id));
         if (getDepositResult.Success)
