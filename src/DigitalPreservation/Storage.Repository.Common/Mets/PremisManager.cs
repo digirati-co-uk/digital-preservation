@@ -334,7 +334,7 @@ public static class PremisManager
         return doc.DocumentElement;
     }
 
-    public static XmlElement GetXmlElement(KeyValuePair<string, string> exifMetdata, XmlDocument document)
+    public static XmlElement? GetXmlElement(KeyValuePair<string, string> exifMetdata, XmlDocument document)
     {
         try
         {
@@ -343,7 +343,7 @@ public static class PremisManager
             element.InnerText = exifMetdata.Value;
             return element;
         }
-        catch (Exception e)
+        catch (Exception)
         {
             return null;
         }
