@@ -97,24 +97,27 @@ public static class PremisManager
             var parentCollection = new Collection<XmlElement>();
             var parentElement = GetXmlElement(new KeyValuePair<string, string>("ExifMetadata", string.Empty), document);
 
-
-            if (exifMetadata is { RawToolOutput: not null })
+            if (parentElement != null)
             {
-                foreach (var fileExifMetadata in exifMetadata.RawToolOutput)
+                if (exifMetadata is { RawToolOutput: not null })
                 {
-                    var element = GetXmlElement(fileExifMetadata, document);
-                    parentElement.AppendChild(element);
+                    foreach (var fileExifMetadata in exifMetadata.RawToolOutput)
+                    {
+                        var element = GetXmlElement(fileExifMetadata, document);
+                        if (element != null) parentElement.AppendChild(element);
+                    }
                 }
+
+                parentCollection.Add(parentElement);
+
+                var parentExtension = new ObjectCharacteristicsExtension
+                {
+                    Any = parentCollection
+                };
+
+                objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
             }
 
-            parentCollection.Add(parentElement);
-
-            var parentExtension = new ObjectCharacteristicsExtension
-            {
-                Any = parentCollection
-            };
-
-            objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
 
             if (premisFile.Size is > 0)
             {
@@ -208,29 +211,32 @@ public static class PremisManager
             var parentCollection = new Collection<XmlElement>();
             var parentElement = GetXmlElement(new KeyValuePair<string, string>("ExifMetadata", string.Empty), document);
 
-            foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
+            if (parentElement != null)
             {
-                //TODO: check if exifMetadata
-                objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
-            }
-
-            if (exifMetadata is { RawToolOutput: not null })
-            {
-                foreach (var fileExifMetadata in exifMetadata.RawToolOutput)
+                foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
                 {
-                    var element = GetXmlElement(fileExifMetadata, document);
-                    parentElement.AppendChild(element);
+                    objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
                 }
+
+                if (exifMetadata is { RawToolOutput: not null })
+                {
+                    foreach (var fileExifMetadata in exifMetadata.RawToolOutput)
+                    {
+                        var element = GetXmlElement(fileExifMetadata, document);
+                        if (element != null) parentElement.AppendChild(element);
+                    }
+                }
+
+                parentCollection.Add(parentElement);
+
+                var parentExtension = new ObjectCharacteristicsExtension
+                {
+                    Any = parentCollection
+                };
+
+                objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
             }
 
-            parentCollection.Add(parentElement);
-
-            var parentExtension = new ObjectCharacteristicsExtension
-            {
-                Any = parentCollection
-            };
-
-            objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
         }
 
         if (premisFile.Size is > 0)
