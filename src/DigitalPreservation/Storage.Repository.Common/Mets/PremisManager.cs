@@ -105,6 +105,27 @@ public static class PremisManager
                     {
                         var element = GetXmlElement(fileExifMetadata, document);
                         if (element != null) parentElement.AppendChild(element);
+
+                        if (fileExifMetadata.Key.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
+                        {
+                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.Value);
+                        }
+
+                        if (fileExifMetadata.Key.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
+                        {
+                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.Value);
+                        }
+
+
+                        if (fileExifMetadata.Key.ToLower().Trim().Replace(" ", string.Empty) == "duration")
+                        {
+                            AddSignificantProperty(file, "Duration", fileExifMetadata.Value);
+                        }
+
+                        if (fileExifMetadata.Key.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
+                        {
+                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.Value);
+                        }
                     }
                 }
 
@@ -118,11 +139,6 @@ public static class PremisManager
                 objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
             }
 
-
-            if (premisFile.Size is > 0)
-            {
-                objectCharacteristics.Size = premisFile.Size;
-            }
         }
 
         if (premisFile.Size is > 0)
@@ -218,12 +234,38 @@ public static class PremisManager
                     objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
                 }
 
+                foreach (var significantPropertiesComplexType in file.SignificantProperties.ToList())
+                {
+                    file.SignificantProperties.Remove(significantPropertiesComplexType);
+                }
+
                 if (exifMetadata is { RawToolOutput: not null })
                 {
                     foreach (var fileExifMetadata in exifMetadata.RawToolOutput)
                     {
                         var element = GetXmlElement(fileExifMetadata, document);
                         if (element != null) parentElement.AppendChild(element);
+
+                        if (fileExifMetadata.Key.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
+                        {
+                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.Value);
+                        }
+
+                        if (fileExifMetadata.Key.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
+                        {
+                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.Value);
+                        }
+
+
+                        if (fileExifMetadata.Key.ToLower().Trim().Replace(" ", string.Empty) == "duration")
+                        {
+                            AddSignificantProperty(file, "Duration", fileExifMetadata.Value);
+                        }
+
+                        if (fileExifMetadata.Key.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
+                        {
+                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.Value);
+                        }
                     }
                 }
 
@@ -282,6 +324,20 @@ public static class PremisManager
             contentLocation.ContentLocationType = new ContentLocationType { Value = "uri" };
             contentLocation.ContentLocationValue = premisFile.StorageLocation.OriginalString;
         }
+    }
+
+    private static void AddSignificantProperty(File file, string propertyName, string metadataValue)
+    {
+        var significantProperties = new SignificantPropertiesComplexType();
+        file.SignificantProperties.Add(significantProperties);
+
+        //TODO: add value to significant properties
+        significantProperties.SignificantPropertiesType = new StringPlusAuthority
+        {
+            Value = propertyName
+        };
+
+        significantProperties.SignificantPropertiesValue.Add(metadataValue);
     }
 
     private static ContentLocationComplexType EnsureContentLocation(File file)
