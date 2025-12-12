@@ -122,7 +122,27 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "(Missing section)",
                     "(virus check)", null));
         }
-        
+
+        //Compare each part of metadata in dictionary with the other
+        if (DepositExifMetadata != null && MetsExifMetadata != null)
+        {
+            if (DepositExifMetadata.RawToolOutput != null && MetsExifMetadata.RawToolOutput != null)
+            {
+                var t = DepositExifMetadata.RawToolOutput.OrderBy(kvp => kvp.Key)
+                    .SequenceEqual(MetsExifMetadata.RawToolOutput.OrderBy(kvp => kvp.Key));
+
+                var mismatches = MetsExifMetadata.RawToolOutput.Where(entry => DepositExifMetadata.RawToolOutput[entry.Key] != entry.Value)
+                    .ToDictionary(entry => entry.Key, entry => entry.Value);
+
+                foreach (var mismatch in mismatches)
+                {
+                    var depositMismatchValue = DepositExifMetadata.RawToolOutput[mismatch.Key];
+                    misMatches.Add(new FileMisMatch(nameof(ExifMetadata), mismatch.Key,
+                        depositMismatchValue, mismatch.Value));
+                }
+            }
+
+        }
 
         return misMatches;
     }
@@ -183,10 +203,27 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         return virusScanMetadata;
     }
 
+    public ExifMetadata? GetExifMetadata()
+    {
+        ExifMetadata? exifMetadata = null;
+        if (FileInDeposit != null)
+        {
+            exifMetadata = FileInDeposit.GetExifMetadata();
+        }
+
+        if (exifMetadata is null && FileInMets != null)
+        {
+            exifMetadata = FileInMets.GetExifMetadata();
+        }
+        return exifMetadata;
+    }
+
     private FileFormatMetadata? cachedDepositFileFormatMetadata;
     private bool haveScannedDepositFileFormatMetadata;
     private VirusScanMetadata? cachedDepositVirusScanMetadata;
     private bool haveScannedDepositVirusScanMetadata;
+    private ExifMetadata? cachedDepositExifMetadata;
+    private bool haveScannedDepositExifMetadata;
     /// <summary>
     /// We use the deposit file format metadata multiple times, so let's cache it
     /// </summary>
@@ -219,11 +256,27 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         }
     }
 
+    public ExifMetadata? DepositExifMetadata
+    {
+        get
+        {
+            if (haveScannedDepositExifMetadata)
+            {
+                return cachedDepositExifMetadata;
+            }
+            cachedDepositExifMetadata = FileInDeposit?.GetExifMetadata();
+            haveScannedDepositExifMetadata = true;
+            return cachedDepositExifMetadata;
+        }
+    }
+
 
     private FileFormatMetadata? cachedMetsFileFormatMetadata;
     private bool haveScannedMetsFileFormatMetadata;
     private VirusScanMetadata? cachedMetsVirusScanMetadata;
     private bool haveScannedMetsVirusScanMetadata;
+    private ExifMetadata? cachedMetsExifMetadata;
+    private bool haveScannedMetsExifMetadata;
 
     /// <summary>
     /// We use the deposit file format metadata multiple times, so let's cache it
@@ -260,6 +313,25 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             cachedMetsVirusScanMetadata = FileInMets?.GetVirusScanMetadata();
             haveScannedMetsVirusScanMetadata = true;
             return cachedMetsVirusScanMetadata;
+        }
+    }
+
+    /// <summary>
+    /// We use the METS virus scan metadata multiple times, so let's cache it
+    /// </summary>
+    /// <returns></returns>
+    public ExifMetadata? MetsExifMetadata
+    {
+        get
+        {
+            if (haveScannedMetsExifMetadata)
+            {
+                return cachedMetsExifMetadata;
+            }
+
+            cachedMetsExifMetadata = FileInMets?.GetExifMetadata();
+            haveScannedMetsExifMetadata = true;
+            return cachedMetsExifMetadata;
         }
     }
 

@@ -195,48 +195,67 @@
             
             @{
                 List<string> mismatchMessages = [];
+                List<string> exifMismatchMessages = [];
             }
 
             @foreach (var detailMismatch in Model.FileMisMatches)
             {
                 foreach (var fileMismatch in detailMismatch.Item1)
                 {
-                    switch (fileMismatch.Field.ToLower())
+                    if (!(fileMismatch.MetadataType.ToLower() == "exifmetadata"))
                     {
-                        case "contenttype":
-                            mismatchMessages.Add("Content type");
-                            break;
-                        case "pronomkey":
-                            mismatchMessages.Add("Pronom key");
-                            break;
-                        case "formatname":
-                            mismatchMessages.Add("Format name");
-                            break;
-                        case "digest":
-                            mismatchMessages.Add("Digest");
-                            break;
-                        case "hasvirus":
-                            mismatchMessages.Add("Has virus");
-                            break;
-                        case "virusfound":
-                            mismatchMessages.Add("Virus found");
-                            break;
-                        case "virusdefinition":
-                            mismatchMessages.Add("Virus definition");
-                            break;
-                        case "(missing section)":
-                            mismatchMessages.Add("Missing metadata section: " + (fileMismatch.ValueInDeposit ?? fileMismatch.ValueInMets ?? "not specified"));
-                            break;
-                        default:
-                            mismatchMessages.Add("undocumented difference");
-                            break;
+                        switch (fileMismatch.Field.ToLower())
+                        {
+                            case "contenttype":
+                                mismatchMessages.Add("Content type");
+                                break;
+                            case "pronomkey":
+                                mismatchMessages.Add("Pronom key");
+                                break;
+                            case "formatname":
+                                mismatchMessages.Add("Format name");
+                                break;
+                            case "digest":
+                                mismatchMessages.Add("Digest");
+                                break;
+                            case "hasvirus":
+                                mismatchMessages.Add("Has virus");
+                                break;
+                            case "virusfound":
+                                mismatchMessages.Add("Virus found");
+                                break;
+                            case "virusdefinition":
+                                mismatchMessages.Add("Virus definition");
+                                break;
+                            case "(missing section)":
+                                mismatchMessages.Add("Missing metadata section: " + (fileMismatch.ValueInDeposit ?? fileMismatch.ValueInMets ?? "not specified"));
+                                break;
+                            default:
+                                mismatchMessages.Add("undocumented difference");
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        exifMismatchMessages.Add(fileMismatch.Field);
                     }
                 }
 
-                var differencesString = String.Join(", ", mismatchMessages.Select(x => x.ToString()).ToArray());
-                <p>@detailMismatch.Item2 (Differences: @differencesString)</p>
+                if (mismatchMessages.Any())
+                {
+                    var differencesString = String.Join(", ", mismatchMessages.Select(x => x.ToString()).ToArray());
+                    <p>@detailMismatch.Item2 (Differences: @differencesString)</p>
 
-                mismatchMessages.Clear();
+                    mismatchMessages.Clear();
+                }
+
+                if (exifMismatchMessages.Any())
+                {
+                    var differencesString = String.Join(", ", exifMismatchMessages.Select(x => x.ToString()).ToArray());
+                    <p>@detailMismatch.Item2 Exif Metadata: (Differences: @differencesString)</p>
+
+                    exifMismatchMessages.Clear();
+                }
             }
             
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>

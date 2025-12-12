@@ -517,6 +517,7 @@ public class MetsParser(
                 Uri? storageLocation = null;
                 FileFormatMetadata? premisMetadata = null;
                 VirusScanMetadata? virusScanMetadata = null;
+                ExifMetadata? exifMetadata = null;
                 if (!haveUsedAdmIdAlready)
                 {
                     var techMd = xMets.Descendants(XNames.MetsTechMD)
@@ -630,6 +631,24 @@ public class MetsParser(
                         VirusDefinition = eventDetail != null ? eventDetail.Value : string.Empty
                     };
                 }
+                
+                var amd = xMets.Descendants(XNames.MetsAmdSec)
+                    .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
+                //TODO: EXIF Metadata 1. Similar for Exif - XNames.MetsDigiprovMD
+                var exifMetadataNode = amd.Descendants("ExifMetadata").SingleOrDefault(); //TODO:working file
+                ///
+                if (exifMetadataNode != null)
+                {
+                    //var lookup = exifMetadataNode.Descendants().ToLookup(x => x.Name.LocalName, x => x.Value);
+                    var exifMetadataDictionary = exifMetadataNode.Descendants().ToDictionary(x => x.Name.LocalName, x => x.Value);
+                    exifMetadata = new ExifMetadata
+                    {
+                        Source = "METS",
+                        Timestamp = DateTime.UtcNow,
+                        RawToolOutput = exifMetadataDictionary
+                    };
+
+                }
 
                 var parts = flocat.Split('/');
                 if (string.IsNullOrEmpty(mimeType))
@@ -675,6 +694,11 @@ public class MetsParser(
                 if (virusScanMetadata != null)
                 {
                     file.Metadata.Add(virusScanMetadata);
+                }
+
+                if (exifMetadata != null)
+                {
+                    file.Metadata.Add(exifMetadata);
                 }
 
                 mets.Files.Add(file);

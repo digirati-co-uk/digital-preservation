@@ -538,11 +538,12 @@ public class MetadataReader : IMetadataReader
                 else
                 {
                     var metadataPair = str.Split(":", 2);
+                    var key = metadataPair[0].Trim().Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty);
 
-                    if (exifMetadataForFile.ContainsKey(metadataPair[0].Trim()))
+                    if (exifMetadataForFile.ContainsKey(key))
                         continue;
 
-                    exifMetadataForFile.Add(metadataPair[0].Trim(), metadataPair[1].Trim());
+                    exifMetadataForFile.Add(key, metadataPair[1].Trim());
                 }
             }
 
