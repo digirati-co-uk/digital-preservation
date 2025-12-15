@@ -632,14 +632,11 @@ public class MetsParser(
                     };
                 }
                 
-                var amd = xMets.Descendants(XNames.MetsAmdSec)
-                    .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
-                //TODO: EXIF Metadata 1. Similar for Exif - XNames.MetsDigiprovMD
-                var exifMetadataNode = amd.Descendants("ExifMetadata").SingleOrDefault(); //TODO:working file
-                ///
+                var amd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
+                var exifMetadataNode = amd?.Descendants("ExifMetadata").SingleOrDefault(); //TODO:working file
+               
                 if (exifMetadataNode != null)
                 {
-                    //var lookup = exifMetadataNode.Descendants().ToLookup(x => x.Name.LocalName, x => x.Value);
                     var exifMetadataDictionary = exifMetadataNode.Descendants().ToDictionary(x => x.Name.LocalName, x => x.Value);
                     exifMetadata = new ExifMetadata
                     {

@@ -123,20 +123,16 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     "(virus check)", null));
         }
 
-        //Compare each part of metadata in dictionary with the other
         if (DepositExifMetadata != null && MetsExifMetadata != null)
         {
             if (DepositExifMetadata.RawToolOutput != null && MetsExifMetadata.RawToolOutput != null)
             {
-                var t = DepositExifMetadata.RawToolOutput.OrderBy(kvp => kvp.Key)
-                    .SequenceEqual(MetsExifMetadata.RawToolOutput.OrderBy(kvp => kvp.Key));
-
                 var mismatches = MetsExifMetadata.RawToolOutput.Where(entry => DepositExifMetadata.RawToolOutput[entry.Key] != entry.Value)
                     .ToDictionary(entry => entry.Key, entry => entry.Value);
 
                 foreach (var mismatch in mismatches)
                 {
-                    var depositMismatchValue = DepositExifMetadata.RawToolOutput[mismatch.Key];
+                    var depositMismatchValue = DepositExifMetadata.RawToolOutput.FirstOrDefault(x => x.Key == mismatch.Key).Value;
                     misMatches.Add(new FileMisMatch(nameof(ExifMetadata), mismatch.Key,
                         depositMismatchValue, mismatch.Value));
                 }
@@ -410,4 +406,15 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     {
         return FileInMets?.Name ?? FileInDeposit?.Name ?? FileInMets?.GetSlug() ?? FileInDeposit?.GetSlug();
     }
+}
+
+public class Person
+{
+    public Person(string firstName, string lastName)
+    {
+        FirstName = firstName;
+        LastName = lastName;
+    }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
 }

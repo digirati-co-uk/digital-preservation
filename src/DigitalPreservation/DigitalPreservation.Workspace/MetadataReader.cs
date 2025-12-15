@@ -540,10 +540,13 @@ public class MetadataReader : IMetadataReader
                     var metadataPair = str.Split(":", 2);
                     var key = metadataPair[0].Trim().Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty);
 
-                    if (exifMetadataForFile.ContainsKey(key))
-                        continue;
+                    var duplicates = exifMetadataForFile.Where(kvp => kvp.Key.StartsWith(key))
+                        .Select(kvp => kvp.Value)
+                        .ToList();
 
-                    exifMetadataForFile.Add(key, metadataPair[1].Trim());
+                    //index duplicates by appending sequential number at the end
+                    exifMetadataForFile.Add(exifMetadataForFile.ContainsKey(key) ? $"{key}{duplicates.Count}" : key,
+                        metadataPair[1].Trim());
                 }
             }
 
@@ -574,4 +577,5 @@ public class ExifModel
 {
     public required string Filepath { get; set; }
     public Dictionary<string, string> ExifMetadata { get; set; } = [];
+    //public List<KeyValuePair<string, string>> ExifMetadata { get; set; } = [];
 }
