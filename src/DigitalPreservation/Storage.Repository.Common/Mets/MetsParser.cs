@@ -295,7 +295,7 @@ public class MetsParser(
     }
 
 
-    public void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
+    private void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
     {
         var modsScope = xMets.Descendants(XNames.mods + "mods").FirstOrDefault();
         // EPrints mods is not wrapped in a <mods:mods> element
@@ -467,7 +467,7 @@ public class MetsParser(
                                 workingDirectory.MetsExtensions = new MetsExtensions
                                 {
                                     AdmId = admId,
-                                    PhysDivId = div.Attribute("ID")?.Value
+                                    DivId = div.Attribute("ID")?.Value
                                 };
                                 workingDirectory.Metadata =
                                 [
@@ -662,7 +662,7 @@ public class MetsParser(
                     MetsExtensions = new MetsExtensions
                     {
                         AdmId = admId,
-                        PhysDivId = div.Attribute("ID")?.Value
+                        DivId = div.Attribute("ID")?.Value
                     }
                 };
                 if (premisMetadata != null)

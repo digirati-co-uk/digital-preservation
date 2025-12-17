@@ -10,15 +10,16 @@ public class LogicalRange : ResourceBase
     [JsonPropertyOrder(0)]
     [JsonPropertyName("id")]
     public required string Id { get; set; }
-    public LogicalRange[]? Ranges { get; set; }
-    public FilePointer[]? Files { get; set; }
+
+    public List<LogicalRange> Ranges { get; set; } = [];
+    public List<FilePointer> Files { get; set; } = [];
     public override required string Type { get; set; }
 }
 
 public class FilePointer
 {
     public required string LocalPath { get; set; } // not WorkingFile, caller can look it up
-    public Rectangle? RectRegion { get; set; }
+    public Rectangle? Region { get; set; }
     public double? BeginTime { get; set; }
     public double? EndTime { get; set; }
 }

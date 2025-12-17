@@ -186,7 +186,7 @@ public class Liddle
             ]
         };
         metsManager.SetStructMap(mets, logSm);
-    
+        
         await metsManager.WriteMets(mets);
     }
     

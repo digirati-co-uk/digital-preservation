@@ -12,7 +12,7 @@ public class MetsExtensions
     [JsonPropertyName("physDivId")]
     [JsonPropertyOrder(101)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? PhysDivId { get; set; }
+    public string? DivId { get; set; }
     
     [JsonPropertyName("admId")]
     [JsonPropertyOrder(102)]

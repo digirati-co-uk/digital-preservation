@@ -39,11 +39,23 @@ public interface IMetsManager
     
     // Extensions
     // We don't need getters because this information will be exposed in either WorkingFile/Dir or Logical ... Ranges
-    void SetRecordIdentifier(FullMets mets, string physicalPath, string source, string value);
-    void SetRightsStatement(FullMets mets, string physicalPath, Uri? rightsStatement);
-    void SetAccessRestrictions(FullMets mets, string physicalPath, List<string> accessRestrictions);
+    // These need to be settable on DIVs in Logical Struct Maps as well as on physical paths.
+    // Both are strings; is it safe for the same method to be used for both?
+    // ...instead of `string physicalPath` it's `string divID` 
+    // `string locator` is either a physical path of a file or directory,
+    // or the "ID" of a mets:Div - usually a logical one but can be a physical one
+    // SetRecordIdentifier(mets, "objects/child-folder", "EMu", "MS 1234/8")
+    // SetRecordIdentifier(mets, "LOG_0003", "EMu", "MS 1234/9")
+    // SetRecordIdentifier(mets, "PHYS_objects/child-folder", "EMu", "MS 1234/8")  // equiv to first one
+    // always look for both, throw an exception if you find both?
+    void SetRecordIdentifier(FullMets mets, string locator, string source, string value);
+    void SetRightsStatement(FullMets mets, string locator, Uri? rightsStatement);
+    void SetAccessRestrictions(FullMets mets, string locator, List<string> accessRestrictions);
 
 
+    // There may be more than one so we need to address them better than this, which assumes only one
+    // address by ID?
     void SetStructMap(FullMets mets, LogicalRange logSm);
+    
     void LinkFile(FullMets mets, string from, string to, Uri role);
 }
