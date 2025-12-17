@@ -525,7 +525,7 @@ namespace DigitalPreservation.XmlGen.Premis.V3
             {
                 return _any;
             }
-            set
+            private set
             {
                 _any = value;
             }

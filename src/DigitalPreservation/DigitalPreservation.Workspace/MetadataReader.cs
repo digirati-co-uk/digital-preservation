@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
@@ -513,7 +514,7 @@ public class MetadataReader : IMetadataReader
 
             var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = [] };
             var i = 0;
-            var exifMetadataForFile = new Dictionary<string, string>();
+            var exifMetadataForFile = new List<ExifTag>();
 
             foreach (var str in exifResultList)
             {
@@ -521,7 +522,7 @@ public class MetadataReader : IMetadataReader
                 {
                     if (i > 0)
                     {
-                        exifModel.ExifMetadata = new Dictionary<string, string>(exifMetadataForFile);
+                        exifModel.ExifMetadata = new List<ExifTag>(exifMetadataForFile);
                         exifMetadataForFile.Clear();
                         result.Add(exifModel);
 
@@ -540,13 +541,11 @@ public class MetadataReader : IMetadataReader
                     var metadataPair = str.Split(":", 2);
                     var key = metadataPair[0].Trim().Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty);
 
-                    var duplicates = exifMetadataForFile.Where(kvp => kvp.Key.StartsWith(key))
-                        .Select(kvp => kvp.Value)
-                        .ToList();
-
-                    //index duplicates by appending sequential number at the end
-                    exifMetadataForFile.Add(exifMetadataForFile.ContainsKey(key) ? $"{key}{duplicates.Count}" : key,
-                        metadataPair[1].Trim());
+                    exifMetadataForFile.Add(new ExifTag
+                    {
+                        TagName = key,
+                        TagValue = metadataPair[1].Trim()
+                    });
                 }
             }
 
@@ -576,6 +575,7 @@ public class VirusModel
 public class ExifModel
 {
     public required string Filepath { get; set; }
-    public Dictionary<string, string> ExifMetadata { get; set; } = [];
+    //public Dictionary<string, string> ExifMetadata { get; set; } = [];
     //public List<KeyValuePair<string, string>> ExifMetadata { get; set; } = [];
+    public List<ExifTag> ExifMetadata { get; set; } = [];
 }

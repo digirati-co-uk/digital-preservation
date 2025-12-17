@@ -3,6 +3,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -637,12 +638,17 @@ public class MetsParser(
                
                 if (exifMetadataNode != null)
                 {
-                    var exifMetadataDictionary = exifMetadataNode.Descendants().ToDictionary(x => x.Name.LocalName, x => x.Value);
+                    var exifMetadataList = new List<ExifTag>();
+                    foreach (var element in exifMetadataNode.Descendants())
+                    {
+                        exifMetadataList.Add(new ExifTag{TagName = element.Name.LocalName , TagValue = element.Value });
+                    }
+
                     exifMetadata = new ExifMetadata
                     {
                         Source = "METS",
                         Timestamp = DateTime.UtcNow,
-                        RawToolOutput = exifMetadataDictionary
+                        RawToolOutput = exifMetadataList
                     };
 
                 }

@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
@@ -127,15 +128,41 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         {
             if (DepositExifMetadata.RawToolOutput != null && MetsExifMetadata.RawToolOutput != null)
             {
-                var mismatches = MetsExifMetadata.RawToolOutput.Where(entry => DepositExifMetadata.RawToolOutput[entry.Key] != entry.Value)
-                    .ToDictionary(entry => entry.Key, entry => entry.Value);
+                var depositExifMetadata = DepositExifMetadata.RawToolOutput;
+                var metsExifMetadata = MetsExifMetadata.RawToolOutput;
 
-                foreach (var mismatch in mismatches)
+                var isEqual = depositExifMetadata.SequenceEqual(metsExifMetadata, new ExifTagComparer());
+
+                if (isEqual) return misMatches;
+
+                var inDepositNotInMets = depositExifMetadata.Except(metsExifMetadata, new ExifTagComparer());
+                var arrayDeposit = inDepositNotInMets.ToArray();
+                var inMetsNotInDeposit = metsExifMetadata.Except(depositExifMetadata, new ExifTagComparer());
+                var arrayMets = inMetsNotInDeposit.ToArray();
+
+                foreach (var exifItemDeposit in arrayDeposit.Select((value, i) => (value, i)))
                 {
-                    var depositMismatchValue = DepositExifMetadata.RawToolOutput.FirstOrDefault(x => x.Key == mismatch.Key).Value;
-                    misMatches.Add(new FileMisMatch(nameof(ExifMetadata), mismatch.Key,
-                        depositMismatchValue, mismatch.Value));
+                    var exifItemDepositTagName = exifItemDeposit.value.TagName;
+                    var exifItemDepositTagValue = exifItemDeposit.value.TagValue;
+                    var depositItemArrayIndex = exifItemDeposit.i;
+
+                    var metsExifItem = arrayMets[depositItemArrayIndex];
+
+                    if (exifItemDepositTagName.ToLower() != metsExifItem.TagName.ToLower()) continue;
+
+                    if (!string.Equals(exifItemDepositTagValue, metsExifItem.TagValue, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName, exifItemDepositTagValue, metsExifItem.TagValue));
+                    }
+
                 }
+
+                var resultDeposit = depositExifMetadata.Where(p => metsExifMetadata.All(p2 => p2.TagName != p.TagName));
+                misMatches.AddRange(resultDeposit.Select(depositField => new FileMisMatch(nameof(ExifMetadata), depositField.TagName, depositField.TagValue, "field does not exist in METS")));
+
+                var resultMets = metsExifMetadata.Where(p => depositExifMetadata.All(p2 => p2.TagName != p.TagName));
+                misMatches.AddRange(resultMets.Select(metsField => new FileMisMatch(nameof(ExifMetadata), metsField.TagName, metsField.TagValue, "field does not exist in deposit")));
+
             }
 
         }
@@ -408,13 +435,33 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     }
 }
 
-public class Person
+public class ExifTagComparer : IEqualityComparer<ExifTag>
 {
-    public Person(string firstName, string lastName)
+    public bool Equals(ExifTag x, ExifTag y)
     {
-        FirstName = firstName;
-        LastName = lastName;
+        //Check whether the compared objects reference the same data. 
+        if (object.ReferenceEquals(x, y))
+            return true;
+
+        //Check whether any of the compared objects is null. 
+        if (object.ReferenceEquals(x, null) || object.ReferenceEquals(y, null))
+            return false;
+
+        return string.Equals(x.TagName, y.TagName, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(x.TagValue, y.TagValue, StringComparison.OrdinalIgnoreCase);
     }
-    public string FirstName { get; set; } = string.Empty;
-    public string LastName { get; set; } = string.Empty;
+
+    public int GetHashCode(ExifTag exifTag)
+    {
+        //Check whether the object is null 
+        if (object.ReferenceEquals(exifTag, null))
+            return 0;
+
+        //Get hash code for the name field if it is not null
+        int tagNameHashCode = !string.IsNullOrEmpty(exifTag.TagName) ? 0 : exifTag.TagName.GetHashCode();
+        int tagValueHashCode = !string.IsNullOrEmpty(exifTag.TagValue) ? 0 : exifTag.TagValue.GetHashCode();
+        // Get hash code for marks also if its not 0
+
+        return tagNameHashCode ^ tagValueHashCode;
+    }
 }
