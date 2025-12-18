@@ -106,25 +106,25 @@ public static class PremisManager
                         var element = GetXmlElement(fileExifMetadata, document);
                         if (element != null) parentElement.AppendChild(element);
 
-                        if (fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
                         {
-                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue);
+                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
                         }
 
-                        if (fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
                         {
-                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue);
+                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
                         }
 
 
-                        if (fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
                         {
-                            AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue);
+                            AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
                         }
 
-                        if (fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
                         {
-                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue);
+                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
                         }
                     }
                 }
@@ -243,25 +243,25 @@ public static class PremisManager
                         var element = GetXmlElement(fileExifMetadata, document);
                         if (element != null) parentElement.AppendChild(element);
 
-                        if (fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
                         {
-                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue);
+                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
                         }
 
-                        if (fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
                         {
-                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue);
+                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
                         }
 
 
-                        if (fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
                         {
-                            AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue);
+                            AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
                         }
 
-                        if (fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
                         {
-                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue);
+                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
                         }
                     }
                 }
