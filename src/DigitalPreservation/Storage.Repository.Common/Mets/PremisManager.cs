@@ -394,8 +394,8 @@ public static class PremisManager
     {
         try
         {
-            var element = document.CreateElement(exifMetdata.TagName.Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty));
-            element.InnerText = exifMetdata.TagValue;
+            var element = document.CreateElement(exifMetdata.TagName ?? string.Empty.Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty));
+            element.InnerText = exifMetdata.TagValue ?? string.Empty;
             return element;
         }
         catch (Exception)

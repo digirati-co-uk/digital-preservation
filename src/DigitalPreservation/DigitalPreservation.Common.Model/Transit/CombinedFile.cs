@@ -439,14 +439,14 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
 public class ExifTagComparer : IEqualityComparer<ExifTag>
 {
-    public bool Equals(ExifTag x, ExifTag y)
+    public bool Equals(ExifTag? x, ExifTag? y)
     {
         //Check whether the compared objects reference the same data. 
-        if (object.ReferenceEquals(x, y))
+        if (ReferenceEquals(x, y))
             return true;
 
         //Check whether any of the compared objects is null. 
-        if (object.ReferenceEquals(x, null) || object.ReferenceEquals(y, null))
+        if (ReferenceEquals(x, null) || ReferenceEquals(y, null))
             return false;
 
         return string.Equals(x.TagName, y.TagName, StringComparison.OrdinalIgnoreCase) &&
@@ -456,12 +456,12 @@ public class ExifTagComparer : IEqualityComparer<ExifTag>
     public int GetHashCode(ExifTag exifTag)
     {
         //Check whether the object is null 
-        if (object.ReferenceEquals(exifTag, null))
+        if (ReferenceEquals(exifTag, null))
             return 0;
 
         //Get hash code for the name field if it is not null
-        int tagNameHashCode = !string.IsNullOrEmpty(exifTag.TagName) ? 0 : exifTag.TagName.GetHashCode();
-        int tagValueHashCode = !string.IsNullOrEmpty(exifTag.TagValue) ? 0 : exifTag.TagValue.GetHashCode();
+        var tagNameHashCode = !string.IsNullOrEmpty(exifTag.TagName) ? 0 : exifTag?.TagName?.GetHashCode() ?? 0;
+        var tagValueHashCode = exifTag != null && !string.IsNullOrEmpty(exifTag.TagValue) ? 0 : exifTag?.TagValue?.GetHashCode() ?? 0;
         // Get hash code for marks also if its not 0
 
         return tagNameHashCode ^ tagValueHashCode;

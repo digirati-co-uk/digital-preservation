@@ -634,7 +634,7 @@ public class MetsParser(
                 }
                 
                 var amd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
-                var exifMetadataNode = amd?.Descendants("ExifMetadata").SingleOrDefault(); //TODO:working file
+                var exifMetadataNode = amd?.Descendants("ExifMetadata").SingleOrDefault();
                
                 if (exifMetadataNode != null)
                 {
