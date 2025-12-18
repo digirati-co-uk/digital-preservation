@@ -7,6 +7,6 @@ using System.Threading.Tasks;
 namespace DigitalPreservation.Common.Model.DepositHelpers;
 public class ExifTag
 {
-    public string? TagName { get; set; }
-    public string? TagValue { get; set; }
+    public string? TagName { get; set; } = string.Empty;
+    public string? TagValue { get; set; } = string.Empty;
 }
