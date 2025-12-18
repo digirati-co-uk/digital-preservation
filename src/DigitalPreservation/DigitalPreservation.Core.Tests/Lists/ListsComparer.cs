@@ -8,8 +8,8 @@ public class ListsComparer
     [Fact]
     public void CompareTwoPersonLists()
     {
-        var source = new List<Person>() { new Person("Ken", "Nakamura"), new Person("Nozomi", "Nakamura") };
-        var compare = new List<Person>() { new Person("Ken", "Nakamura"), new Person("Keiko", "Nakamura") };
+        var source = new List<Person>() { new("Ken", "Nakamura"), new("Nozomi", "Nakamura") };
+        var compare = new List<Person>() { new("Ken", "Nakamura"), new("Keiko", "Nakamura") };
         //var result = source.Intersect(compare);
 
         bool isEqual = source.SequenceEqual(compare, new PersonComparer());
@@ -34,7 +34,7 @@ public class ListsComparer
 
         //var result = source.Intersect(compare);
 
-        bool isEqual = depositExifMetadata.SequenceEqual(metsExifMetadata, new ExifTagComparer());
+        var isEqual = depositExifMetadata.SequenceEqual(metsExifMetadata, new ExifTagComparer());
         var t = depositExifMetadata.Except(metsExifMetadata, new ExifTagComparer());
         var arrayDeposit = t.ToArray();
         var t1 = metsExifMetadata.Except(depositExifMetadata, new ExifTagComparer());
@@ -50,23 +50,20 @@ public class ListsComparer
 
             var metsExifItem = arrayMets[depositItemArrayIndex];
 
-            if (exifItemDepositTagName.ToLower() == metsExifItem.TagName.ToLower())
-            {
-                if (!string.Equals(exifItemDepositTagValue, metsExifItem.TagValue, StringComparison.CurrentCultureIgnoreCase))
-                {
-                    misMatches.Add(new CombinedFile.FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName, exifItemDepositTagValue, metsExifItem.TagValue));
-                }
-            }
+            if (exifItemDepositTagName == null || metsExifItem.TagName == null || !string.Equals(exifItemDepositTagName,
+                    metsExifItem.TagName, StringComparison.CurrentCultureIgnoreCase)) continue;
 
-            var depositTagNameNotInMets =
-                metsExifMetadata.Where(x => x.TagName.ToLower() == exifItemDepositTagName.ToLower());
+            if (!string.Equals(exifItemDepositTagValue, metsExifItem.TagValue, StringComparison.CurrentCultureIgnoreCase))
+            {
+                misMatches.Add(new CombinedFile.FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName, exifItemDepositTagValue, metsExifItem.TagValue));
+            }
         }
 
         var resultDeposit = depositExifMetadata.Where(p => metsExifMetadata.All(p2 => p2.TagName != p.TagName));
-        misMatches.AddRange(resultDeposit.Select(depositField => new CombinedFile.FileMisMatch(nameof(ExifMetadata), depositField.TagName, depositField.TagValue, "field does not exist in METS")));
+        misMatches.AddRange(resultDeposit.Select(depositField => new CombinedFile.FileMisMatch(nameof(ExifMetadata), depositField.TagName ?? string.Empty, depositField.TagValue, "field does not exist in METS")));
         
         var resultMets = metsExifMetadata.Where(p => depositExifMetadata.All(p2 => p2.TagName != p.TagName));
-        misMatches.AddRange(resultMets.Select(metsField => new CombinedFile.FileMisMatch(nameof(ExifMetadata), metsField.TagName, metsField.TagValue, "field does not exist in deposit")));
+        misMatches.AddRange(resultMets.Select(metsField => new CombinedFile.FileMisMatch(nameof(ExifMetadata), metsField.TagName ?? string.Empty, metsField.TagValue, "field does not exist in deposit")));
     }
 
 }
@@ -78,19 +75,19 @@ public class Person
         FirstName = firstName;
         LastName = lastName;
     }
-    public string FirstName { get; set; } = string.Empty;
-    public string LastName { get; set; } = string.Empty;
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; } 
 }
 public class PersonComparer : IEqualityComparer<Person>
 {
     public bool Equals(Person x, Person y)
     {
         //Check whether the compared objects reference the same data. 
-        if (object.ReferenceEquals(x, y))
+        if (ReferenceEquals(x, y))
             return true;
 
         //Check whether any of the compared objects is null. 
-        if (object.ReferenceEquals(x, null) || object.ReferenceEquals(y, null))
+        if (ReferenceEquals(x, null) || ReferenceEquals(y, null))
             return false;
 
         return string.Equals(x.FirstName, y.FirstName, StringComparison.OrdinalIgnoreCase) && x.LastName == y.LastName;
@@ -99,12 +96,12 @@ public class PersonComparer : IEqualityComparer<Person>
     public int GetHashCode(Person person)
     {
         //Check whether the object is null 
-        if (object.ReferenceEquals(person, null))
+        if (ReferenceEquals(person, null))
             return 0;
 
         //Get hash code for the name field if it is not null
-        int firstNameHashCode = !string.IsNullOrEmpty(person.FirstName) ? 0 : person.FirstName.GetHashCode();
-        int lastNameHashCode = !string.IsNullOrEmpty(person.LastName) ? 0 : person.LastName.GetHashCode();
+        int firstNameHashCode = !string.IsNullOrEmpty(person.FirstName) ? 0 : person?.FirstName?.GetHashCode() ?? 0;
+        int lastNameHashCode = !string.IsNullOrEmpty(person?.LastName) ? 0 : person?.LastName?.GetHashCode() ?? 0;
         // Get hash code for marks also if its not 0
 
         return firstNameHashCode ^ lastNameHashCode;
@@ -113,31 +110,31 @@ public class PersonComparer : IEqualityComparer<Person>
 
 public class ExifTagComparer : IEqualityComparer<ExifTag>
 {
-    public bool Equals(ExifTag x, ExifTag y)
+    public bool Equals(ExifTag? x, ExifTag? y)
     {
         //Check whether the compared objects reference the same data. 
-        if (object.ReferenceEquals(x, y))
+        if (ReferenceEquals(x, y))
             return true;
 
         //Check whether any of the compared objects is null. 
-        if (object.ReferenceEquals(x, null) || object.ReferenceEquals(y, null))
+        if (ReferenceEquals(x, null) || ReferenceEquals(y, null))
             return false;
 
         return string.Equals(x.TagName, y.TagName, StringComparison.OrdinalIgnoreCase) &&
                string.Equals(x.TagValue, y.TagValue, StringComparison.OrdinalIgnoreCase);
-        //x.TagValue == y.TagValue;
-
     }
 
     public int GetHashCode(ExifTag exifTag)
     {
         //Check whether the object is null 
-        if (object.ReferenceEquals(exifTag, null))
+        if (ReferenceEquals(exifTag, null))
             return 0;
 
         //Get hash code for the name field if it is not null
-        int tagNameHashCode = !string.IsNullOrEmpty(exifTag.TagName) ? 0 : exifTag.TagName.GetHashCode();
-        int tagValueHashCode = !string.IsNullOrEmpty(exifTag.TagValue) ? 0 : exifTag.TagValue.GetHashCode();
+        var tagNameHashCode = !string.IsNullOrEmpty(exifTag.TagName) ? 0 : exifTag?.TagName?.GetHashCode() ?? 0;
+        var tagValueHashCode = exifTag != null && !string.IsNullOrEmpty(exifTag.TagValue)
+            ? 0
+            : exifTag?.TagValue?.GetHashCode() ?? 0;
         // Get hash code for marks also if its not 0
 
         return tagNameHashCode ^ tagValueHashCode;
