@@ -575,7 +575,5 @@ public class VirusModel
 public class ExifModel
 {
     public required string Filepath { get; set; }
-    //public Dictionary<string, string> ExifMetadata { get; set; } = [];
-    //public List<KeyValuePair<string, string>> ExifMetadata { get; set; } = [];
     public List<ExifTag> ExifMetadata { get; set; } = [];
 }
