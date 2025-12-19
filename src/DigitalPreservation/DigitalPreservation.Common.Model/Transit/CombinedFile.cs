@@ -126,10 +126,10 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
         if (DepositExifMetadata != null && MetsExifMetadata != null)
         {
-            if (DepositExifMetadata.RawToolOutput != null && MetsExifMetadata.RawToolOutput != null)
+            if (DepositExifMetadata.Tags != null && MetsExifMetadata.Tags != null)
             {
-                var depositExifMetadata = DepositExifMetadata.RawToolOutput;
-                var metsExifMetadata = MetsExifMetadata.RawToolOutput;
+                var depositExifMetadata = DepositExifMetadata.Tags;
+                var metsExifMetadata = MetsExifMetadata.Tags;
 
                 var isEqual = depositExifMetadata.SequenceEqual(metsExifMetadata, new ExifTagComparer());
 

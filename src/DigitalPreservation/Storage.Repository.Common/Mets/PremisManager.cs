@@ -94,14 +94,13 @@ public static class PremisManager
         if (exifMetadata != null)
         {
             var document = new XmlDocument();
-            var parentCollection = new Collection<XmlElement>();
             var parentElement = GetXmlElement(new ExifTag{ TagName = "ExifMetadata" , TagValue = string.Empty}, document);
 
             if (parentElement != null)
             {
-                if (exifMetadata is { RawToolOutput: not null })
+                if (exifMetadata is { Tags: not null })
                 {
-                    foreach (var fileExifMetadata in exifMetadata.RawToolOutput)
+                    foreach (var fileExifMetadata in exifMetadata.Tags)
                     {
                         var element = GetXmlElement(fileExifMetadata, document);
                         if (element != null) parentElement.AppendChild(element);
@@ -129,7 +128,6 @@ public static class PremisManager
                     }
                 }
 
-                parentCollection.Add(parentElement);
                 var parentExtension = new ObjectCharacteristicsExtension();
                 parentExtension.Any.Add(parentElement);
 
@@ -221,7 +219,6 @@ public static class PremisManager
         if (exifMetadata != null)
         {
             var document = new XmlDocument();
-            var parentCollection = new Collection<XmlElement>();
             var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
             
             foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
@@ -236,9 +233,9 @@ public static class PremisManager
 
             if (parentElement != null)
             {
-                if (exifMetadata is { RawToolOutput: not null })
+                if (exifMetadata is { Tags: not null })
                 {
-                    foreach (var fileExifMetadata in exifMetadata.RawToolOutput)
+                    foreach (var fileExifMetadata in exifMetadata.Tags)
                     {
                         var element = GetXmlElement(fileExifMetadata, document);
                         if (element != null) parentElement.AppendChild(element);
@@ -266,7 +263,6 @@ public static class PremisManager
                     }
                 }
 
-                parentCollection.Add(parentElement);
                 var parentExtension = new ObjectCharacteristicsExtension();
                 parentExtension.Any.Add(parentElement);
 

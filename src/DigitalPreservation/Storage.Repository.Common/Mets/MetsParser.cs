@@ -638,6 +638,7 @@ public class MetsParser(
                
                 if (exifMetadataNode != null)
                 {
+                    var timestamp = DateTime.UtcNow;
                     var exifMetadataList = new List<ExifTag>();
                     foreach (var element in exifMetadataNode.Descendants())
                     {
@@ -647,8 +648,8 @@ public class MetsParser(
                     exifMetadata = new ExifMetadata
                     {
                         Source = "METS",
-                        Timestamp = DateTime.UtcNow,
-                        RawToolOutput = exifMetadataList
+                        Timestamp = timestamp,
+                        Tags = exifMetadataList
                     };
 
                 }
