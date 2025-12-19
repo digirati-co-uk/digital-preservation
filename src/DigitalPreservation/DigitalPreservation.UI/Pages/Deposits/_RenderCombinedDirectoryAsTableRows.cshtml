@@ -125,11 +125,14 @@ File is in both
                     var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
                     if (toolOutput != null && toolOutput.Content.HasText())
                     {
-                        <a target="_blank" href="@(Context.Request.Path + "/tool-output/" + file.LocalPath)"><strong>@file.GetName()</strong></a>
+                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
+                        var base64Encoded = System.Convert.ToBase64String(textBytes);
+
+                        <button type="button" class="link-primary" onclick="openHtmlStringInNewTab('@base64Encoded')">@file.GetName()</button>
                     }
                     else
                     {
-                        @file.GetName()
+                        @file.GetName();
                     }
                 }
                 else
