@@ -3,6 +3,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -517,6 +518,7 @@ public class MetsParser(
                 Uri? storageLocation = null;
                 FileFormatMetadata? premisMetadata = null;
                 VirusScanMetadata? virusScanMetadata = null;
+                ExifMetadata? exifMetadata = null;
                 if (!haveUsedAdmIdAlready)
                 {
                     var techMd = xMets.Descendants(XNames.MetsTechMD)
@@ -630,6 +632,27 @@ public class MetsParser(
                         VirusDefinition = eventDetail != null ? eventDetail.Value : string.Empty
                     };
                 }
+                
+                var amd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
+                var exifMetadataNode = amd?.Descendants("ExifMetadata").SingleOrDefault();
+               
+                if (exifMetadataNode != null)
+                {
+                    var timestamp = DateTime.UtcNow;
+                    var exifMetadataList = new List<ExifTag>();
+                    foreach (var element in exifMetadataNode.Descendants())
+                    {
+                        exifMetadataList.Add(new ExifTag{TagName = element.Name.LocalName , TagValue = element.Value });
+                    }
+
+                    exifMetadata = new ExifMetadata
+                    {
+                        Source = "METS",
+                        Timestamp = timestamp,
+                        Tags = exifMetadataList
+                    };
+
+                }
 
                 var parts = flocat.Split('/');
                 if (string.IsNullOrEmpty(mimeType))
@@ -675,6 +698,11 @@ public class MetsParser(
                 if (virusScanMetadata != null)
                 {
                     file.Metadata.Add(virusScanMetadata);
+                }
+
+                if (exifMetadata != null)
+                {
+                    file.Metadata.Add(exifMetadata);
                 }
 
                 mets.Files.Add(file);

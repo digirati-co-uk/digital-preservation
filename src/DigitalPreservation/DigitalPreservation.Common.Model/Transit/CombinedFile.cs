@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
@@ -122,7 +123,51 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "(Missing section)",
                     "(virus check)", null));
         }
-        
+
+        if (DepositExifMetadata != null && MetsExifMetadata != null)
+        {
+            if (DepositExifMetadata.Tags != null && MetsExifMetadata.Tags != null)
+            {
+                var depositExifMetadata = DepositExifMetadata.Tags;
+                var metsExifMetadata = MetsExifMetadata.Tags;
+
+                var isEqual = depositExifMetadata.SequenceEqual(metsExifMetadata, new ExifTagComparer());
+
+                if (isEqual) return misMatches;
+
+                var inDepositNotInMets = depositExifMetadata.Except(metsExifMetadata, new ExifTagComparer());
+                var arrayDeposit = inDepositNotInMets.ToArray();
+                var inMetsNotInDeposit = metsExifMetadata.Except(depositExifMetadata, new ExifTagComparer());
+                var arrayMets = inMetsNotInDeposit.ToArray();
+
+                foreach (var exifItemDeposit in arrayDeposit.Select((value, i) => (value, i)))
+                {
+                    var exifItemDepositTagName = exifItemDeposit.value.TagName;
+                    var exifItemDepositTagValue = exifItemDeposit.value.TagValue;
+                    var depositItemArrayIndex = exifItemDeposit.i;
+
+                    var metsExifItem = arrayMets[depositItemArrayIndex];
+
+                    if (exifItemDepositTagName != null && metsExifItem.TagName != null && !string.Equals(exifItemDepositTagName, metsExifItem.TagName, StringComparison.CurrentCultureIgnoreCase)) continue;
+
+                    if (string.Equals(exifItemDepositTagValue, metsExifItem.TagValue,
+                            StringComparison.CurrentCultureIgnoreCase)) continue;
+
+                    if (exifItemDepositTagName != null)
+                        misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName,
+                            exifItemDepositTagValue, metsExifItem.TagValue));
+
+                }
+
+                var resultDeposit = depositExifMetadata.Where(p => metsExifMetadata.All(p2 => p2.TagName != p.TagName));
+                misMatches.AddRange(resultDeposit.Select(depositField => new FileMisMatch(nameof(ExifMetadata), depositField.TagName ?? string.Empty, depositField.TagValue, "field does not exist in METS")));
+
+                var resultMets = metsExifMetadata.Where(p => depositExifMetadata.All(p2 => p2.TagName != p.TagName));
+                misMatches.AddRange(resultMets.Select(metsField => new FileMisMatch(nameof(ExifMetadata), metsField.TagName ?? string.Empty, metsField.TagValue, "field does not exist in deposit")));
+
+            }
+
+        }
 
         return misMatches;
     }
@@ -183,10 +228,27 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         return virusScanMetadata;
     }
 
+    public ExifMetadata? GetExifMetadata()
+    {
+        ExifMetadata? exifMetadata = null;
+        if (FileInDeposit != null)
+        {
+            exifMetadata = FileInDeposit.GetExifMetadata();
+        }
+
+        if (exifMetadata is null && FileInMets != null)
+        {
+            exifMetadata = FileInMets.GetExifMetadata();
+        }
+        return exifMetadata;
+    }
+
     private FileFormatMetadata? cachedDepositFileFormatMetadata;
     private bool haveScannedDepositFileFormatMetadata;
     private VirusScanMetadata? cachedDepositVirusScanMetadata;
     private bool haveScannedDepositVirusScanMetadata;
+    private ExifMetadata? cachedDepositExifMetadata;
+    private bool haveScannedDepositExifMetadata;
     /// <summary>
     /// We use the deposit file format metadata multiple times, so let's cache it
     /// </summary>
@@ -219,11 +281,27 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         }
     }
 
+    public ExifMetadata? DepositExifMetadata
+    {
+        get
+        {
+            if (haveScannedDepositExifMetadata)
+            {
+                return cachedDepositExifMetadata;
+            }
+            cachedDepositExifMetadata = FileInDeposit?.GetExifMetadata();
+            haveScannedDepositExifMetadata = true;
+            return cachedDepositExifMetadata;
+        }
+    }
+
 
     private FileFormatMetadata? cachedMetsFileFormatMetadata;
     private bool haveScannedMetsFileFormatMetadata;
     private VirusScanMetadata? cachedMetsVirusScanMetadata;
     private bool haveScannedMetsVirusScanMetadata;
+    private ExifMetadata? cachedMetsExifMetadata;
+    private bool haveScannedMetsExifMetadata;
 
     /// <summary>
     /// We use the deposit file format metadata multiple times, so let's cache it
@@ -260,6 +338,25 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             cachedMetsVirusScanMetadata = FileInMets?.GetVirusScanMetadata();
             haveScannedMetsVirusScanMetadata = true;
             return cachedMetsVirusScanMetadata;
+        }
+    }
+
+    /// <summary>
+    /// We use the METS virus scan metadata multiple times, so let's cache it
+    /// </summary>
+    /// <returns></returns>
+    public ExifMetadata? MetsExifMetadata
+    {
+        get
+        {
+            if (haveScannedMetsExifMetadata)
+            {
+                return cachedMetsExifMetadata;
+            }
+
+            cachedMetsExifMetadata = FileInMets?.GetExifMetadata();
+            haveScannedMetsExifMetadata = true;
+            return cachedMetsExifMetadata;
         }
     }
 
@@ -337,5 +434,36 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     public string? GetName()
     {
         return FileInMets?.Name ?? FileInDeposit?.Name ?? FileInMets?.GetSlug() ?? FileInDeposit?.GetSlug();
+    }
+}
+
+public class ExifTagComparer : IEqualityComparer<ExifTag>
+{
+    public bool Equals(ExifTag? x, ExifTag? y)
+    {
+        //Check whether the compared objects reference the same data. 
+        if (ReferenceEquals(x, y))
+            return true;
+
+        //Check whether any of the compared objects is null. 
+        if (ReferenceEquals(x, null) || ReferenceEquals(y, null))
+            return false;
+
+        return string.Equals(x.TagName, y.TagName, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(x.TagValue, y.TagValue, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public int GetHashCode(ExifTag exifTag)
+    {
+        //Check whether the object is null 
+        if (ReferenceEquals(exifTag, null))
+            return 0;
+
+        //Get hash code for the name field if it is not null
+        var tagNameHashCode = !string.IsNullOrEmpty(exifTag.TagName) ? 0 : exifTag?.TagName?.GetHashCode() ?? 0;
+        var tagValueHashCode = exifTag != null && !string.IsNullOrEmpty(exifTag.TagValue) ? 0 : exifTag?.TagValue?.GetHashCode() ?? 0;
+        // Get hash code for marks also if its not 0
+
+        return tagNameHashCode ^ tagValueHashCode;
     }
 }

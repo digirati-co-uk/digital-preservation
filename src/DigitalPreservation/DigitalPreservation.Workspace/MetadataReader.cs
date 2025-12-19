@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
@@ -135,7 +136,7 @@ public class MetadataReader : IMetadataReader
             // => bc-example-1
             AddFileFormatMetadata(brunnhildeSiegfriedOutput, brunnhildeSiegfriedCommonParent, "Brunnhilde", timestamp);
         }
-        string brunnhildeAvCommonPrefix;
+
         var virusDefinitionRoot = workingRootUri.AppendEscapedSlug("metadata").AppendEscapedSlug("virus-definition").AppendEscapedSlug("virus-definition.txt");
 
         var virusDefinition = string.Empty;
@@ -159,20 +160,20 @@ public class MetadataReader : IMetadataReader
             }
         }
 
-        brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
-        brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
+        var brunnhildeCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
+        brunnhildeCommonPrefix = AllowForObjectsAndMetadata(brunnhildeCommonPrefix);
 
         var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
-        AddVirusScanMetadata(brunnhildeFiles, brunnhildeAvCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
+        AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
 
         exifMetadataList = await GetExifOutputForAllFiles();
 
         if (!exifMetadataList.Any())
             return;
 
-        brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(exifMetadataList.Select(s => s.Filepath));
-        brunnhildeAvCommonPrefix = AllowForObjectsAndMetadata(brunnhildeAvCommonPrefix);
-        AddExifMetadata(brunnhildeAvCommonPrefix, "Exif", timestamp);
+        brunnhildeCommonPrefix = StringUtils.GetCommonParent(exifMetadataList.Select(s => s.Filepath));
+        brunnhildeCommonPrefix = AllowForObjectsAndMetadata(brunnhildeCommonPrefix);
+        AddExifMetadata(brunnhildeCommonPrefix, "ExifTool", timestamp);
     }
 
     private void AddFileFormatMetadata(SiegfriedOutput siegfriedOutput, string commonParent, string source, DateTime timestamp)
@@ -257,7 +258,7 @@ public class MetadataReader : IMetadataReader
             {
                 Source = source,
                 Timestamp = timestamp,
-                RawToolOutput = exifMetadata.ExifMetadata
+                Tags = exifMetadata.ExifMetadata
             });
         }
     }
@@ -500,11 +501,11 @@ public class MetadataReader : IMetadataReader
 
         if (exifResult.Value == null) return [];
         var txt = await GetTextFromStream(exifResult.Value);
-        return ConvertExifResultStringToJson(txt);
+        return ParseExifToolOutput(txt);
 
     }
 
-    public static List<ExifModel> ConvertExifResultStringToJson(string exifResultStr)
+    public static List<ExifModel> ParseExifToolOutput(string exifResultStr)
     {
         try
         {
@@ -513,7 +514,7 @@ public class MetadataReader : IMetadataReader
 
             var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = [] };
             var i = 0;
-            var exifMetadataForFile = new Dictionary<string, string>();
+            var exifMetadataForFile = new List<ExifTag>();
 
             foreach (var str in exifResultList)
             {
@@ -521,7 +522,7 @@ public class MetadataReader : IMetadataReader
                 {
                     if (i > 0)
                     {
-                        exifModel.ExifMetadata = new Dictionary<string, string>(exifMetadataForFile);
+                        exifModel.ExifMetadata = new List<ExifTag>(exifMetadataForFile);
                         exifMetadataForFile.Clear();
                         result.Add(exifModel);
 
@@ -538,11 +539,13 @@ public class MetadataReader : IMetadataReader
                 else
                 {
                     var metadataPair = str.Split(":", 2);
+                    var key = metadataPair[0].Trim().Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty);
 
-                    if (exifMetadataForFile.ContainsKey(metadataPair[0].Trim()))
-                        continue;
-
-                    exifMetadataForFile.Add(metadataPair[0].Trim(), metadataPair[1].Trim());
+                    exifMetadataForFile.Add(new ExifTag
+                    {
+                        TagName = key,
+                        TagValue = metadataPair[1].Trim()
+                    });
                 }
             }
 
@@ -572,5 +575,5 @@ public class VirusModel
 public class ExifModel
 {
     public required string Filepath { get; set; }
-    public Dictionary<string, string> ExifMetadata { get; set; } = [];
+    public List<ExifTag> ExifMetadata { get; set; } = [];
 }
