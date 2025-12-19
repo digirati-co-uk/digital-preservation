@@ -23,3 +23,11 @@ document.querySelectorAll('form.single-submit').forEach(form => {
         }
     });
 });
+
+
+function openHtmlStringInNewTab(htmlString) {
+    const newWindow = window.open('', '_blank');
+    const raw = Base64.decode(htmlString);
+    newWindow.document.write(raw);
+    newWindow.document.close();
+};
