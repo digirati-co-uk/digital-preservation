@@ -146,6 +146,9 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     var exifItemDepositTagValue = exifItemDeposit.value.TagValue;
                     var depositItemArrayIndex = exifItemDeposit.i;
 
+                    if (!isEqual && !arrayMets.Any())
+                        continue;
+
                     var metsExifItem = arrayMets[depositItemArrayIndex];
 
                     if (exifItemDepositTagName != null && metsExifItem.TagName != null && !string.Equals(exifItemDepositTagName, metsExifItem.TagName, StringComparison.CurrentCultureIgnoreCase)) continue;
