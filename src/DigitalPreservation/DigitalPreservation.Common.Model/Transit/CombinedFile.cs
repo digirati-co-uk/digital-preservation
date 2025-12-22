@@ -146,19 +146,54 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     var exifItemDepositTagValue = exifItemDeposit.value.TagValue;
                     var depositItemArrayIndex = exifItemDeposit.i;
 
-                    if (!isEqual && !arrayMets.Any())
-                        continue;
+                    if ((!isEqual && !arrayMets.Any()) || (arrayMets.Length < (depositItemArrayIndex + 1))) //will get an out of bound array exception
+                    {
+                        var itemInMetsArray = arrayMets.FirstOrDefault(x => x.TagName == exifItemDepositTagName && x.MismatchAdded == false);
+                        if (itemInMetsArray == null)
+                        {
+                            //This handles duplicates with different values
+                            var itemInMetsList = metsExifMetadata.FirstOrDefault(x => x.TagName == exifItemDepositTagName && x.MismatchAdded == false);
+                            if (itemInMetsList != null && string.Equals(exifItemDepositTagValue, itemInMetsList.TagValue, StringComparison.CurrentCultureIgnoreCase))
+                            {
+                                itemInMetsList.MismatchAdded = true;
+                                continue;
+                            }
+
+                            if (exifItemDepositTagName != null && itemInMetsList != null)
+                            {
+                                misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName, exifItemDepositTagValue, itemInMetsList.TagValue));
+                                itemInMetsList.MismatchAdded = true;
+
+                            }
+
+                            continue;
+                        }
+
+
+                        if (string.Equals(exifItemDepositTagValue, itemInMetsArray.TagValue, StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            itemInMetsArray.MismatchAdded = true;
+                            continue;
+                        }
+
+                        if (exifItemDepositTagName != null)
+                        {
+                            misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName, exifItemDepositTagValue, itemInMetsArray.TagValue));
+                            itemInMetsArray.MismatchAdded = true;
+                            continue;
+                        }
+
+                    }
 
                     var metsExifItem = arrayMets[depositItemArrayIndex];
 
                     if (exifItemDepositTagName != null && metsExifItem.TagName != null && !string.Equals(exifItemDepositTagName, metsExifItem.TagName, StringComparison.CurrentCultureIgnoreCase)) continue;
 
-                    if (string.Equals(exifItemDepositTagValue, metsExifItem.TagValue,
-                            StringComparison.CurrentCultureIgnoreCase)) continue;
+                    if (string.Equals(exifItemDepositTagValue, metsExifItem.TagValue, StringComparison.CurrentCultureIgnoreCase)) continue;
 
-                    if (exifItemDepositTagName != null)
-                        misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName,
-                            exifItemDepositTagValue, metsExifItem.TagValue));
+                    if (exifItemDepositTagName == null) continue;
+                    arrayMets[depositItemArrayIndex].MismatchAdded = true;
+                    misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName, exifItemDepositTagValue, metsExifItem.TagValue));
 
                 }
 

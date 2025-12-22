@@ -9,4 +9,5 @@ public class ExifTag
 {
     public string? TagName { get; set; } = string.Empty;
     public string? TagValue { get; set; } = string.Empty;
+    public bool? MismatchAdded { get; set; } = false;
 }
