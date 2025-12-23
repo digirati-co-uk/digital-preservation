@@ -124,8 +124,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     "(virus check)", null));
         }
 
-        if (DepositExifMetadata == null || MetsExifMetadata == null) return misMatches;
-        if (DepositExifMetadata.Tags == null || MetsExifMetadata.Tags == null) return misMatches;
+        if (DepositExifMetadata == null || MetsExifMetadata == null || DepositExifMetadata.Tags == null || MetsExifMetadata.Tags == null) return misMatches;
 
         var depositExifMetadata = DepositExifMetadata.Tags;
         var metsExifMetadata = MetsExifMetadata.Tags;
