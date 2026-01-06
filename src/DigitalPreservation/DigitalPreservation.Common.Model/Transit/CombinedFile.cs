@@ -201,6 +201,12 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         var resultMets = metsExifMetadata.Where(p => depositExifMetadata.All(p2 => p2.TagName != p.TagName));
         misMatches.AddRange(resultMets.Select(metsField => new FileMisMatch(nameof(ExifMetadata), metsField.TagName ?? string.Empty, metsField.TagValue, "field does not exist in deposit")));
 
+        if (DepositExifMetadata != null && MetsExifMetadata == null)
+        {
+            misMatches.Add(new FileMisMatch(nameof(ExifMetadata), "(Missing section)",
+                "(exif metadata)", null));
+        }
+
         return misMatches;
     }
 
