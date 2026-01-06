@@ -25,6 +25,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Core\DigitalPreservation.Core.csproj" />
+      <ProjectReference Include="..\Preservation.API.Tests\Preservation.API.Tests.csproj" />
     </ItemGroup>
 
     <ItemGroup>
