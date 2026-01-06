@@ -169,6 +169,12 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
         }
 
+        if (DepositExifMetadata != null && MetsExifMetadata == null)
+        {
+            misMatches.Add(new FileMisMatch(nameof(ExifMetadata), "(Missing section)",
+                "(exif metadata)", null));
+        }
+
         return misMatches;
     }
 
