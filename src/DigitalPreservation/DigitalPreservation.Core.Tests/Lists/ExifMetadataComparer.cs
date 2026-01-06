@@ -33,7 +33,7 @@ public class ExifMetadataComparer
             [
                 new ExifMetadata
                 {
-                    Source = "",
+                    Source = "Exif",
                     Timestamp = DateTime.UtcNow,
                     Tags = metsExifMetadata
                 }
@@ -47,7 +47,7 @@ public class ExifMetadataComparer
             [
                 new ExifMetadata
                 {
-                    Source = "",
+                    Source = "Exif",
                     Timestamp = DateTime.UtcNow,
                     Tags = depositExifMetadata
                 }
@@ -92,7 +92,7 @@ public class ExifMetadataComparer
             [
                 new ExifMetadata
                 {
-                    Source = "",
+                    Source = "Exif",
                     Timestamp = DateTime.UtcNow,
                     Tags = metsExifMetadata
                 }
@@ -106,7 +106,7 @@ public class ExifMetadataComparer
             [
                 new ExifMetadata
                 {
-                    Source = "",
+                    Source = "Exif",
                     Timestamp = DateTime.UtcNow,
                     Tags = depositExifMetadata
                 }
@@ -150,7 +150,7 @@ public class ExifMetadataComparer
             [
                 new ExifMetadata
                 {
-                    Source = "",
+                    Source = "Exif",
                     Timestamp = DateTime.UtcNow,
                     Tags = metsExifMetadata
                 }
@@ -164,7 +164,7 @@ public class ExifMetadataComparer
             [
                 new ExifMetadata
                 {
-                    Source = "",
+                    Source = "Exif",
                     Timestamp = DateTime.UtcNow,
                     Tags = depositExifMetadata
                 }
