@@ -128,7 +128,7 @@ File is in both
                         var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
                         var base64Encoded = System.Convert.ToBase64String(textBytes);
 
-                        <button type="button" class="link-primary" onclick="openHtmlStringInNewTab('@base64Encoded')">@file.GetName()</button>
+                        <a href="javascript:openHtmlStringInNewTab('@base64Encoded');"><strong>@file.GetName()</strong></a>
                     }
                     else
                     {
