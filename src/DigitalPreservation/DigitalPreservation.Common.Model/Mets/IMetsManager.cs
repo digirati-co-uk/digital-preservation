@@ -54,8 +54,18 @@ public interface IMetsManager
 
 
     // There may be more than one so we need to address them better than this, which assumes only one
-    // address by ID?
+    // address by ID? There will almost always be only one so we don't want to complicate the UI
+    // Sets a logical struct map (never a physical one)
     void SetStructMap(FullMets mets, LogicalRange logSm);
+    // This will overwrite a structMap with the same ID, and append one if the ID is different to any currently existing.
     
+    // maybe this rarely used operation, if we need to change the order:
+    void SetStructMapOrder(FullMets mets, string[] ids);
+    
+    // And we also need to remove a structMap; always require the id even if only one, as a safety measure
+    void RemoveStructMap(FullMets mets, string id);
+    
+    // from and to are always physical file paths (?)
     void LinkFile(FullMets mets, string from, string to, Uri role);
+    void UnLinkFile(FullMets mets, string from, string to, Uri role);
 }

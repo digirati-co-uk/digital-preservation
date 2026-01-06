@@ -40,6 +40,11 @@ public class Liddle
         // (This may not happen IRL, it may be a business rule that a unit of preservation (the AG) always
         // corresponds to some archival record, whatever the level)
         
+        // or...
+        // The archivist assigns LIDDLE/WW1/TAPES/1-2 to the root of the object
+        metsManager.SetRecordIdentifier(mets, "objects", "identity-service", "a8n9e4c2");
+        metsManager.SetRecordIdentifier(mets, "objects", "EMu", "LIDDLE/WW1/TAPES/1-2");
+        // This pair of tapes (i.e., physical objects) is LIDDLE/WW1/TAPES/1-2 
         
         // apply access condition and rights statement to origin, though
         metsManager.SetAccessRestrictions(mets, "objects", ["Level1"]);

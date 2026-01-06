@@ -165,14 +165,29 @@ public class WomenOfWestminster
         });
         
         // but now I want to manipulate a logical struct map and update it
-        // Should metsmanager be holding a parsed METS?
-
+        
         // going to need to save it before it can be parsed
         await metsManager.WriteMets(mets);
         // That's where it feels a bit off - like I shouldn't have to do that - but then:
-        
         var parseResult = await parser.GetMetsFileWrapper(metsUri, true);
         var pMets = parseResult.Value;
+
+        // Should MetsManager be holding a parsed METS?
+        // ...that it keeps up-to-date on every operation, so you can always obtain it after any changing operation
+        // ...and carry on making changes without a cycle of saving?
+        
+        // How is a UI going to deal with this?
+        // Compare iiif-vault, for binding a IIIF representation to UI.
+        // We could do the same for METS - but it that overkill?
+        
+        // We are passing in our simplified structures to IMetsManager operations, which 
+        // under the hood is turning them into the XmlGen classes that are the "real" METS 
+        // (because we don't want to deal with those classes at the API level)
+        // This is where it differs from iiif-vault, where there is only the IIIF model, 
+        // both bound to the UI and serialised to JSON.
+        
+        // So in our world, you can make a series of changes to a METS file via IMetsManager operations,
+        // but any originally acquired representation is static, it won't change; you need to re-acquire it:
 
         LogicalRange reloadedLogSm = pMets!.LogicalStructures[0];
         
