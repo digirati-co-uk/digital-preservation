@@ -34,6 +34,7 @@ public class Liddle
     {
         var mets = await Basic_Liddle();
         
+        await metsManager.WriteMets(mets);
         
         // The archivist doesn't assign any identifier to the root of the object
         // because it doesn't correspond to any particular archival record; it's neither a collection nor an item
@@ -197,7 +198,7 @@ public class Liddle
     
     public async Task<FullMets> Basic_Liddle()
     {
-        var name = "Liddle Tape 1";
+        var name = "Liddle Tapes 1 and 2";
         var metsFi = new FileInfo("C:\\git\\uol-dlip\\design\\complex-mets\\liddle.mets.xml");
         var metsUri = new Uri(metsFi.FullName);
         var result = await metsManager.CreateStandardMets(new Uri(metsFi.FullName), name);
