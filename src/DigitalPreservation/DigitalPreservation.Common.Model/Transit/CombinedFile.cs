@@ -124,56 +124,88 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     "(virus check)", null));
         }
 
-        if (DepositExifMetadata != null && MetsExifMetadata != null)
-        {
-            if (DepositExifMetadata.Tags != null && MetsExifMetadata.Tags != null)
-            {
-                var depositExifMetadata = DepositExifMetadata.Tags;
-                var metsExifMetadata = MetsExifMetadata.Tags;
-
-                var isEqual = depositExifMetadata.SequenceEqual(metsExifMetadata, new ExifTagComparer());
-
-                if (isEqual) return misMatches;
-
-                var inDepositNotInMets = depositExifMetadata.Except(metsExifMetadata, new ExifTagComparer());
-                var arrayDeposit = inDepositNotInMets.ToArray();
-                var inMetsNotInDeposit = metsExifMetadata.Except(depositExifMetadata, new ExifTagComparer());
-                var arrayMets = inMetsNotInDeposit.ToArray();
-
-                foreach (var exifItemDeposit in arrayDeposit.Select((value, i) => (value, i)))
-                {
-                    var exifItemDepositTagName = exifItemDeposit.value.TagName;
-                    var exifItemDepositTagValue = exifItemDeposit.value.TagValue;
-                    var depositItemArrayIndex = exifItemDeposit.i;
-
-                    var metsExifItem = arrayMets[depositItemArrayIndex];
-
-                    if (exifItemDepositTagName != null && metsExifItem.TagName != null && !string.Equals(exifItemDepositTagName, metsExifItem.TagName, StringComparison.CurrentCultureIgnoreCase)) continue;
-
-                    if (string.Equals(exifItemDepositTagValue, metsExifItem.TagValue,
-                            StringComparison.CurrentCultureIgnoreCase)) continue;
-
-                    if (exifItemDepositTagName != null)
-                        misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName,
-                            exifItemDepositTagValue, metsExifItem.TagValue));
-
-                }
-
-                var resultDeposit = depositExifMetadata.Where(p => metsExifMetadata.All(p2 => p2.TagName != p.TagName));
-                misMatches.AddRange(resultDeposit.Select(depositField => new FileMisMatch(nameof(ExifMetadata), depositField.TagName ?? string.Empty, depositField.TagValue, "field does not exist in METS")));
-
-                var resultMets = metsExifMetadata.Where(p => depositExifMetadata.All(p2 => p2.TagName != p.TagName));
-                misMatches.AddRange(resultMets.Select(metsField => new FileMisMatch(nameof(ExifMetadata), metsField.TagName ?? string.Empty, metsField.TagValue, "field does not exist in deposit")));
-
-            }
-
-        }
-
         if (DepositExifMetadata != null && MetsExifMetadata == null)
         {
             misMatches.Add(new FileMisMatch(nameof(ExifMetadata), "(Missing section)",
                 "(exif metadata)", null));
         }
+
+        if (DepositExifMetadata == null || MetsExifMetadata == null || DepositExifMetadata.Tags == null || MetsExifMetadata.Tags == null) return misMatches;
+
+        var depositExifMetadata = DepositExifMetadata.Tags;
+        var metsExifMetadata = MetsExifMetadata.Tags;
+
+        var isEqual = depositExifMetadata.SequenceEqual(metsExifMetadata, new ExifTagComparer());
+
+        if (isEqual) return misMatches;
+
+        var inDepositNotInMets = depositExifMetadata.Except(metsExifMetadata, new ExifTagComparer());
+        var arrayDeposit = inDepositNotInMets.ToArray();
+        var inMetsNotInDeposit = metsExifMetadata.Except(depositExifMetadata, new ExifTagComparer());
+        var arrayMets = inMetsNotInDeposit.ToArray();
+
+        foreach (var exifItemDeposit in arrayDeposit.Select((value, i) => (value, i)))
+        {
+            var exifItemDepositTagName = exifItemDeposit.value.TagName;
+            var exifItemDepositTagValue = exifItemDeposit.value.TagValue;
+            var depositItemArrayIndex = exifItemDeposit.i;
+
+            if ((!isEqual && !arrayMets.Any()) || (arrayMets.Length < (depositItemArrayIndex + 1))) //will get an out of bound array exception
+            {
+                var itemInMetsArray = arrayMets.FirstOrDefault(x => x.TagName == exifItemDepositTagName && x.MismatchAdded == false);
+                if (itemInMetsArray == null)
+                {
+                    //This handles duplicates with different values
+                    var itemInMetsList = metsExifMetadata.FirstOrDefault(x => x.TagName == exifItemDepositTagName && x.MismatchAdded == false);
+                    if (itemInMetsList != null && string.Equals(exifItemDepositTagValue, itemInMetsList.TagValue, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        itemInMetsList.MismatchAdded = true;
+                        continue;
+                    }
+
+                    if (exifItemDepositTagName != null && itemInMetsList != null)
+                    {
+                        misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName, exifItemDepositTagValue, itemInMetsList.TagValue));
+                        itemInMetsList.MismatchAdded = true;
+
+                    }
+
+                    continue;
+                }
+
+
+                if (string.Equals(exifItemDepositTagValue, itemInMetsArray.TagValue, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    itemInMetsArray.MismatchAdded = true;
+                    continue;
+                }
+
+                if (exifItemDepositTagName != null)
+                {
+                    misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName, exifItemDepositTagValue, itemInMetsArray.TagValue));
+                    itemInMetsArray.MismatchAdded = true;
+                    continue;
+                }
+
+            }
+
+            var metsExifItem = arrayMets[depositItemArrayIndex];
+
+            if (exifItemDepositTagName != null && metsExifItem.TagName != null && !string.Equals(exifItemDepositTagName, metsExifItem.TagName, StringComparison.CurrentCultureIgnoreCase)) continue;
+
+            if (string.Equals(exifItemDepositTagValue, metsExifItem.TagValue, StringComparison.CurrentCultureIgnoreCase)) continue;
+
+            if (exifItemDepositTagName == null) continue;
+            arrayMets[depositItemArrayIndex].MismatchAdded = true;
+            misMatches.Add(new FileMisMatch(nameof(ExifMetadata), exifItemDepositTagName, exifItemDepositTagValue, metsExifItem.TagValue));
+
+        }
+
+        var resultDeposit = depositExifMetadata.Where(p => metsExifMetadata.All(p2 => p2.TagName != p.TagName));
+        misMatches.AddRange(resultDeposit.Select(depositField => new FileMisMatch(nameof(ExifMetadata), depositField.TagName ?? string.Empty, depositField.TagValue, "field does not exist in METS")));
+
+        var resultMets = metsExifMetadata.Where(p => depositExifMetadata.All(p2 => p2.TagName != p.TagName));
+        misMatches.AddRange(resultMets.Select(metsField => new FileMisMatch(nameof(ExifMetadata), metsField.TagName ?? string.Empty, metsField.TagValue, "field does not exist in deposit")));
 
         return misMatches;
     }

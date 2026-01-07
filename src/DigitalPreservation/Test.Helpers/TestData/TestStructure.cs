@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model.Transit;
 
-namespace Preservation.API.Tests.WorkingDirectories;
+namespace Test.Helpers.TestData;
 
 public class TestStructure
 {
