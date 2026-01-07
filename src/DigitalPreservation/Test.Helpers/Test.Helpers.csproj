@@ -13,4 +13,8 @@
       <PackageReference Include="System.Text.Json" Version="8.0.5" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\DigitalPreservation.Common.Model\DigitalPreservation.Common.Model.csproj" />
+    </ItemGroup>
+
 </Project>

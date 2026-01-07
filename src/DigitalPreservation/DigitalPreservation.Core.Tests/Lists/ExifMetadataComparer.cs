@@ -1,7 +1,7 @@
 ﻿using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
-using Preservation.API.Tests.WorkingDirectories;
+using Test.Helpers.TestData;
 
 namespace DigitalPreservation.Core.Tests.Lists;
 public class ExifMetadataComparer
