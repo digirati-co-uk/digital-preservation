@@ -83,6 +83,7 @@ public class DepositModel(
                     if (WorkspaceManager.Editable)
                     {
                         var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
+                        TempData.Remove("MisMatchCount");
 
                         if (mismatches.Count != 0)
                         {
