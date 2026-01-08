@@ -390,7 +390,13 @@ public static class PremisManager
     {
         try
         {
-            var element = document.CreateElement(exifMetdata.TagName ?? string.Empty.Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty));
+            var element = document.CreateElement(exifMetdata.TagName ?? string.Empty
+                                                                .Replace(" ", string.Empty)
+                                                                .Replace("/", string.Empty)
+                                                                .Replace(@"\", string.Empty)
+                                                                .Replace("(", string.Empty)
+                                                                .Replace(")", string.Empty)
+                                                                .Replace("-", string.Empty));
             element.InnerText = exifMetdata.TagValue ?? string.Empty;
             return element;
         }

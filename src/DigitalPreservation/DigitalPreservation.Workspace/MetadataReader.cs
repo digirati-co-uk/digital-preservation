@@ -539,7 +539,13 @@ public class MetadataReader : IMetadataReader
                 else
                 {
                     var metadataPair = str.Split(":", 2);
-                    var key = metadataPair[0].Trim().Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty);
+                    var key = metadataPair[0].Trim()
+                            .Replace(" ", string.Empty)
+                            .Replace("/", string.Empty)
+                            .Replace(@"\", string.Empty)
+                            .Replace("(", string.Empty)
+                            .Replace(")", string.Empty)
+                            .Replace("-", string.Empty);
 
                     exifMetadataForFile.Add(new ExifTag
                     {
