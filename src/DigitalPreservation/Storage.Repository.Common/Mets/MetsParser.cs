@@ -589,19 +589,9 @@ public class MetsParser(
                     };
                 }
 
-                XElement? digiprovMd = null;
-
-                try
-                {
-                    digiprovMd = xMets.Descendants(XNames.MetsDigiprovMD).FirstOrDefault(t =>
+                var digiprovMd = xMets.Descendants(XNames.MetsDigiprovMD).FirstOrDefault(t =>
                         t.Attribute("ID")!.Value.ToLower()
                             .Contains($"digiprovmd_clamav_{admId.ToLower()}")); //TODO:working file
-                }
-                catch (Exception e)
-                {
-                    logger.LogError($"object id digiprovmd_clamav_{admId.ToLower()} error {e.Message}");
-                }
-
 
                 var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();
                 if (virusEvent != null)
