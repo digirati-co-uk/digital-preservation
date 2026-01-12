@@ -585,7 +585,8 @@ public class MetsParser(
                     {
                         Source = MetsManager.Mets,
                         PronomKey = "UNKNOWN",
-                        FormatName = ""
+                        FormatName = "",
+                        Digest = digest
                     };
                 }
 
