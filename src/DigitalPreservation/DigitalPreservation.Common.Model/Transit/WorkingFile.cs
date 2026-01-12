@@ -1,6 +1,6 @@
-﻿using System.Text.Json.Serialization;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
+using System.Text.Json.Serialization;
 
 namespace DigitalPreservation.Common.Model.Transit;
 
@@ -65,7 +65,8 @@ public class WorkingFile : WorkingBase
                 Size = Size,
                 ContentType = ContentType
             };
-            if (ContentType == "application/octet-stream" && MimeTypes.TryGetMimeType(LocalPath.GetSlug(), out var foundMimeType))
+
+            if ((ContentType == "application/octet-stream" || string.IsNullOrEmpty(ContentType)) && MimeTypes.TryGetMimeType(LocalPath.GetSlug(), out var foundMimeType))
             {
                 syntheticMetadata.ContentType = foundMimeType;
             }
@@ -74,6 +75,11 @@ public class WorkingFile : WorkingBase
         }
         if (fileFormatMetadata.Count <= 1)
         {
+            if (fileFormatMetadata.Count == 1 && (ContentType == "application/octet-stream" || string.IsNullOrEmpty(ContentType) || string.IsNullOrEmpty(fileFormatMetadata.FirstOrDefault()!.ContentType)) && MimeTypes.TryGetMimeType(LocalPath.GetSlug(), out var foundMimeType))
+            {
+                fileFormatMetadata.FirstOrDefault()!.ContentType = foundMimeType;
+            }
+
             return fileFormatMetadata.SingleOrDefault();
         }
 
