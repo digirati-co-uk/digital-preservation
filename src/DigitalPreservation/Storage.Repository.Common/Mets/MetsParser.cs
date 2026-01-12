@@ -584,8 +584,8 @@ public class MetsParser(
                     premisMetadata ??= new FileFormatMetadata
                     {
                         Source = MetsManager.Mets,
-                        PronomKey = "dlip/unknown",
-                        FormatName = "[Not Identified]"
+                        PronomKey = "UNKNOWN",
+                        FormatName = ""
                     };
                 }
 
