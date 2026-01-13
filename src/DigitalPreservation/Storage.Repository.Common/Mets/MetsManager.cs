@@ -468,6 +468,8 @@ public class MetsManager(
                     // in a reversible way (replacing with _ won't do)
                     var fileAdmId = string.Join(' ', file.Admid);
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
+                    
+                    
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
                     var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault(); 
 
