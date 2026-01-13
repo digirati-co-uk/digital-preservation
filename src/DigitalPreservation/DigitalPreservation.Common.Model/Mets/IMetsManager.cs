@@ -7,11 +7,6 @@ namespace DigitalPreservation.Common.Model.Mets;
 
 public interface IMetsManager
 {
-    public const string MetsCreatorAgent = "University of Leeds Digital Library Infrastructure Project";
-    
-    public const string RestrictionOnAccess = "restriction on access";
-    public const string UseAndReproduction = "use and reproduction";
-    
     // Create an empty METS file
     Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit);
     // Reverse-engineer a METS file from an existing AG. This is OK for now but likely to be an error scenario

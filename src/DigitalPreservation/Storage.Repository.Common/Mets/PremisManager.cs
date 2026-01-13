@@ -62,7 +62,7 @@ public static class PremisManager
         }
         
         var storage = file.Storage?.SingleOrDefault(
-            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == Constants.MetsCreatorAgent) != null);
         if (storage != null)
         {
             premisFile.StorageLocation = new Uri(storage.ContentLocation.ContentLocationValue);
@@ -123,7 +123,7 @@ public static class PremisManager
         if (premisFile.StorageLocation != null)
         {
             var storageComplexType = new StorageComplexType();
-            storageComplexType.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            storageComplexType.StorageMedium.Add(new StorageMedium { Value = Constants.MetsCreatorAgent });
             storageComplexType.ContentLocation = new ContentLocationComplexType
             {
                 ContentLocationType = new ContentLocationType { Value = "uri" },
@@ -214,11 +214,11 @@ public static class PremisManager
     private static ContentLocationComplexType EnsureContentLocation(File file)
     {
         var thisStorage = file.Storage.FirstOrDefault(
-            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == Constants.MetsCreatorAgent) != null);
         if (thisStorage == null)
         {
             thisStorage = new StorageComplexType();
-            thisStorage.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            thisStorage.StorageMedium.Add(new StorageMedium { Value = Constants.MetsCreatorAgent });
             file.Storage.Add(thisStorage);
         }
 

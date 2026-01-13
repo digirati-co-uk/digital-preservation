@@ -34,7 +34,7 @@ public class Liddle
     {
         var mets = await Basic_Liddle();
         
-        await metsManager.WriteMets(mets);
+        //await metsManager.WriteMets(mets);
         
         // The archivist doesn't assign any identifier to the root of the object
         // because it doesn't correspond to any particular archival record; it's neither a collection nor an item
