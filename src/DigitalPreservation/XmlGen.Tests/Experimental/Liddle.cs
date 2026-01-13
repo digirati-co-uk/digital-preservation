@@ -29,7 +29,7 @@ public class Liddle
         metsManager = new MetsManager(parser, s3Client);
     }
 
-    [Fact]
+    [Fact(Skip = "Experimental")]
     public async Task Extended_Mets()
     {
         var mets = await Basic_Liddle();

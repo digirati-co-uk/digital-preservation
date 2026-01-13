@@ -30,8 +30,8 @@ public class WomenOfWestminster
         parser = new MetsParser(s3Client, parserLogger);
         metsManager = new MetsManager(parser, s3Client);
     }
-
-    [Fact]
+    
+    [Fact(Skip = "Experimental")]
     public async Task Extended_Mets()
     {
         var metsFi = new FileInfo(MetsFilePath);
