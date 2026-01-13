@@ -122,6 +122,7 @@ try
     builder.Services.AddStorageAwsAccess(builder.Configuration);
     builder.Services.AddSingleton<IMetsParser, MetsParser>();
     builder.Services.AddSingleton<IMetsManager, MetsManager>();
+    builder.Services.AddSingleton<IMetsStorage, MetsStorage>();
     builder.Services.AddSingleton<WorkspaceManagerFactory>();
 
     var app = builder.Build();

@@ -1,4 +1,5 @@
 ﻿using Amazon.S3;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +24,8 @@ public class MetsManagerWithPremis
         var parserLogger = factory!.CreateLogger<MetsParser>();
         var s3Client = new Mock<IAmazonS3>().Object;
         parser = new MetsParser(s3Client, parserLogger);
-        metsManager = new MetsManager(parser, s3Client);
+        var metsStorage = new MetsStorage(s3Client, parser);
+        metsManager = new MetsManager(parser, metsStorage);
     }
     
     
