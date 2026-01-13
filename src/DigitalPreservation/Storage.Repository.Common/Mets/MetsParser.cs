@@ -188,7 +188,7 @@ public class MetsParser(
                 // and in the flat list
                 mets.Files.Add(mets.Self);
             }
-            mets.Editable = mets.Agent == IMetsManager.MetsCreatorAgent;
+            mets.Editable = mets.Agent == Constants.MetsCreatorAgent;
         }
         return Result.OkNotNull(mets);
     }
@@ -202,7 +202,7 @@ public class MetsParser(
             PhysicalStructure = Storage.RootDirectory()
         };
         PopulateFromMets(mets, metsXDocument);
-        mets.Editable = mets.Agent == IMetsManager.MetsCreatorAgent;
+        mets.Editable = mets.Agent == Constants.MetsCreatorAgent;
         return Result.OkNotNull(mets);
     }
 
@@ -319,14 +319,14 @@ public class MetsParser(
             foreach (var accessCondition in rootAccessConditions)
             {
                 var acType = accessCondition.Attribute("type")?.Value;
-                if (acType is IMetsManager.RestrictionOnAccess or "status") // status is Goobi access cond
+                if (acType is Constants.RestrictionOnAccess or "status") // status is Goobi access cond
                 {
                     if (accessCondition.Value.HasText())
                     {
                         mets.RootAccessConditions.Add(accessCondition.Value);
                     }
                 }
-                else if (acType is IMetsManager.UseAndReproduction) // Goobi might have different
+                else if (acType is Constants.UseAndReproduction) // Goobi might have different
                 {
                     if (accessCondition.Value.HasText() && mets.RootRightsStatement is null)
                     {
@@ -468,8 +468,7 @@ public class MetsParser(
                                 workingDirectory.MetsExtensions = new MetsExtensions
                                 {
                                     AdmId = admId,
-                                    PhysDivId = div.Attribute("ID")?.Value,
-                                    AccessCondition = "Open"
+                                    DivId = div.Attribute("ID")?.Value
                                 };
                                 workingDirectory.Metadata =
                                 [
@@ -686,8 +685,7 @@ public class MetsParser(
                     MetsExtensions = new MetsExtensions
                     {
                         AdmId = admId,
-                        PhysDivId = div.Attribute("ID")?.Value,
-                        AccessCondition = "Open"
+                        DivId = div.Attribute("ID")?.Value
                     }
                 };
                 if (premisMetadata != null)

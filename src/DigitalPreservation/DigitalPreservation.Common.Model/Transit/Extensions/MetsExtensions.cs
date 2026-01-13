@@ -9,24 +9,13 @@ public class MetsExtensions
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Href { get; set; }
     
-    [JsonPropertyName("physDivId")]
+    [JsonPropertyName("divId")]
     [JsonPropertyOrder(101)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? PhysDivId { get; set; }
+    public string? DivId { get; set; }
     
     [JsonPropertyName("admId")]
     [JsonPropertyOrder(102)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AdmId { get; set; }
-    
-    [JsonPropertyName("rightsStatement")]
-    [JsonPropertyOrder(103)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? RightsStatement { get; set; }
-    
-    [JsonPropertyName("accessCondition")]
-    [JsonPropertyOrder(104)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? AccessCondition { get; set; }
-    
 }
