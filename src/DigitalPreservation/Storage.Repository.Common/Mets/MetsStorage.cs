@@ -238,10 +238,10 @@ public class MetsStorage(
             agentName = mets.MetsHdr.Agent[0].Name;
         }
 
-        if (agentName != IMetsManager.MetsCreatorAgent)
+        if (agentName != Constants.MetsCreatorAgent)
         {
             return Result.FailNotNull<FullMets>(ErrorCodes.BadRequest,
-                "METS file was not created by " + IMetsManager.MetsCreatorAgent);
+                "METS file was not created by " + Constants.MetsCreatorAgent);
         }
 
         if (mets != null)
