@@ -583,14 +583,15 @@ public class MetsParser(
                     premisMetadata ??= new FileFormatMetadata
                     {
                         Source = MetsManager.Mets,
-                        PronomKey = "dlip/unknown",
-                        FormatName = "[Not Identified]"
+                        PronomKey = "UNKNOWN",
+                        FormatName = "",
+                        Digest = digest
                     };
                 }
 
-                var digiprovMd = xMets.Descendants(XNames.MetsDigiprovMD).SingleOrDefault(t =>
-                    t.Attribute("ID")!.Value.ToLower()
-                        .Contains($"digiprovmd_clamav_{admId.ToLower()}")); //TODO:working file
+                var digiprovMd = xMets.Descendants(XNames.MetsDigiprovMD).FirstOrDefault(t =>
+                        t.Attribute("ID")!.Value.ToLower()
+                            .Contains($"digiprovmd_clamav_{admId.ToLower()}")); //TODO:working file
 
                 var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();
                 if (virusEvent != null)

@@ -427,12 +427,13 @@ public class MetsManager(
                         return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
                     }
 
-                    admId = file.Admid[0];
+                    admId = file.Admid.Count > 1 ? string.Join(" ", file.Admid) : file.Admid[0];
+
                     fileGrp.File.Remove(file);
                 }
                 else
                 {
-                    admId = div.Admid[0];
+                    admId = div.Admid.Count > 1 ? string.Join(" ", div.Admid) : div.Admid[0];
                 }
                     
                 // for both Files and Directories
