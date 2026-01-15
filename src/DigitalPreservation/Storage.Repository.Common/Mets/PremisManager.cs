@@ -1,11 +1,12 @@
-﻿using DigitalPreservation.Common.Model.Mets;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Premis.V3;
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Serialization;
-using DigitalPreservation.Common.Model.DepositHelpers;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
@@ -390,15 +391,19 @@ public static class PremisManager
     {
         try
         {
-            var element = document.CreateElement(exifMetdata.TagName ?? string.Empty.Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty));
-            element.InnerText = exifMetdata.TagValue ?? string.Empty;
-            return element;
+            var rgx = new Regex("[^a-zA-Z0-9]");
+            if (exifMetdata.TagName != null)
+            {
+                var element = document.CreateElement(rgx.Replace(exifMetdata.TagName, ""));
+                element.InnerText = exifMetdata.TagValue ?? string.Empty;
+                return element;
+            }
         }
         catch (Exception)
         {
             return null;
         }
-
+        return null;
     }
 }
 
