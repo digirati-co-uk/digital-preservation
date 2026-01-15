@@ -1,9 +1,8 @@
 ﻿using DigitalPreservation.Common.Model.Results;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
-using static DigitalPreservation.Common.Model.Transit.CombinedFile;
+using static DigitalPreservation.Common.Model.Transit.Combined.CombinedFile;
 
-namespace DigitalPreservation.Common.Model.Transit;
+namespace DigitalPreservation.Common.Model.Transit.Combined;
 
 public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDirectory? directoryInMets, string? relativePath = null)
 {
