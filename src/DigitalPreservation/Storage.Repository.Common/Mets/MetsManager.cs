@@ -279,12 +279,13 @@ public class MetsManager(
                         return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
                     }
 
-                    admId = file.Admid[0];
+                    admId = file.Admid.Count > 1 ? string.Join(" ", file.Admid) : file.Admid[0];
+
                     fileGrp.File.Remove(file);
                 }
                 else
                 {
-                    admId = div.Admid[0];
+                    admId = div.Admid.Count > 1 ? string.Join(" ", div.Admid) : div.Admid[0];
                 }
                     
                 // for both Files and Directories
@@ -583,7 +584,7 @@ public class MetsManager(
                         Role = MetsTypeMetsHdrAgentRole.Creator, 
                         Type = MetsTypeMetsHdrAgentType.Other, 
                         Othertype = "SOFTWARE",
-                        Name = IMetsManager.MetsCreatorAgent
+                        Name = Constants.MetsCreatorAgent
                     }
                 }
             },
@@ -696,7 +697,7 @@ public class MetsManager(
     public List<string> GetRootAccessRestrictions(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
-        return mods == null ? [] : mods.GetAccessConditions(IMetsManager.RestrictionOnAccess); // may add Goobi things to this
+        return mods == null ? [] : mods.GetAccessConditions(Constants.RestrictionOnAccess); // may add Goobi things to this
     }
 
     public void SetRootAccessRestrictions(FullMets fullMets, List<string> accessRestrictions)
@@ -704,10 +705,10 @@ public class MetsManager(
         var mods = ModsManager.GetRootMods(fullMets.Mets);
         if (mods is null) return;
         
-        mods.RemoveAccessConditions(IMetsManager.RestrictionOnAccess);
+        mods.RemoveAccessConditions(Constants.RestrictionOnAccess);
         foreach (var accessRestriction in accessRestrictions)
         {
-            mods.AddAccessCondition(accessRestriction, IMetsManager.RestrictionOnAccess);
+            mods.AddAccessCondition(accessRestriction, Constants.RestrictionOnAccess);
         }
         ModsManager.SetRootMods(fullMets.Mets, mods);
     }
@@ -717,10 +718,10 @@ public class MetsManager(
         var mods = ModsManager.GetRootMods(fullMets.Mets);
         if (mods is null) return;
         
-        mods.RemoveAccessConditions(IMetsManager.UseAndReproduction);
+        mods.RemoveAccessConditions(Constants.UseAndReproduction);
         if (uri is not null)
         {
-            mods.AddAccessCondition(uri.ToString(), IMetsManager.UseAndReproduction);
+            mods.AddAccessCondition(uri.ToString(), Constants.UseAndReproduction);
         }
         ModsManager.SetRootMods(fullMets.Mets, mods);
     }
@@ -728,7 +729,7 @@ public class MetsManager(
     public Uri? GetRootRightsStatement(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
-        var rights = mods?.GetAccessConditions(IMetsManager.UseAndReproduction).SingleOrDefault();
+        var rights = mods?.GetAccessConditions(Constants.UseAndReproduction).SingleOrDefault();
         return rights is not null ? new Uri(rights) : null;
     }
 }
