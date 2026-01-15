@@ -1,6 +1,6 @@
 ﻿namespace DigitalPreservation.Common.Model.Mets;
 
-public class Constants
+public static class Constants
 {
     public const string MetsCreatorAgent = "University of Leeds Digital Library Infrastructure Project";
     public const string RestrictionOnAccess = "restriction on access";
