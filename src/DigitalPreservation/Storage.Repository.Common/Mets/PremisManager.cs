@@ -1,11 +1,11 @@
-﻿using DigitalPreservation.Common.Model.Mets;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Premis.V3;
-using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Serialization;
-using DigitalPreservation.Common.Model.DepositHelpers;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
@@ -13,8 +13,8 @@ namespace Storage.Repository.Common.Mets;
 public static class PremisManager
 {
     private static readonly XmlSerializerNamespaces Namespaces;
-    public const string Pronom = "PRONOM";
-    public const string Sha256 = "SHA256";
+    private const string Pronom = "PRONOM";
+    private const string Sha256 = "SHA256";
     
     static PremisManager()
     {
@@ -64,7 +64,7 @@ public static class PremisManager
         }
         
         var storage = file.Storage?.SingleOrDefault(
-            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == Constants.MetsCreatorAgent) != null);
         if (storage != null)
         {
             premisFile.StorageLocation = new Uri(storage.ContentLocation.ContentLocationValue);
@@ -170,7 +170,7 @@ public static class PremisManager
         if (premisFile.StorageLocation != null)
         {
             var storageComplexType = new StorageComplexType();
-            storageComplexType.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            storageComplexType.StorageMedium.Add(new StorageMedium { Value = Constants.MetsCreatorAgent });
             storageComplexType.ContentLocation = new ContentLocationComplexType
             {
                 ContentLocationType = new ContentLocationType { Value = "uri" },
@@ -333,11 +333,11 @@ public static class PremisManager
     private static ContentLocationComplexType EnsureContentLocation(File file)
     {
         var thisStorage = file.Storage.FirstOrDefault(
-            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == Constants.MetsCreatorAgent) != null);
         if (thisStorage == null)
         {
             thisStorage = new StorageComplexType();
-            thisStorage.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            thisStorage.StorageMedium.Add(new StorageMedium { Value = Constants.MetsCreatorAgent });
             file.Storage.Add(thisStorage);
         }
 
@@ -390,15 +390,19 @@ public static class PremisManager
     {
         try
         {
-            var element = document.CreateElement(exifMetdata.TagName ?? string.Empty.Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty));
-            element.InnerText = exifMetdata.TagValue ?? string.Empty;
-            return element;
+            var rgx = new Regex("[^a-zA-Z0-9]");
+            if (exifMetdata.TagName != null)
+            {
+                var element = document.CreateElement(rgx.Replace(exifMetdata.TagName, ""));
+                element.InnerText = exifMetdata.TagValue ?? string.Empty;
+                return element;
+            }
         }
         catch (Exception)
         {
             return null;
         }
-
+        return null;
     }
 }
 

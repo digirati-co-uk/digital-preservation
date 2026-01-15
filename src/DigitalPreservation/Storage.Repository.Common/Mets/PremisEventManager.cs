@@ -87,6 +87,11 @@ public static class PremisEventManager
 
             eventComplexType.EventDetailInformation.Add(eventDetailInformationComplexType);
         }
+        else
+        {
+            eventComplexType.EventDetailInformation[0].EventDetail = virusScanMetadata.VirusDefinition;
+        }
+
 
         if (!eventComplexType.EventOutcomeInformation.Any())
         {

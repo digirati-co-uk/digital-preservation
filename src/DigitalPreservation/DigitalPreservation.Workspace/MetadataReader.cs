@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Storage.Repository.Common;
+using System.Text.RegularExpressions;
 using File = DigitalPreservation.Common.Model.ToolOutput.Siegfried.File;
 using StringUtils = DigitalPreservation.Utils.StringUtils;
 
@@ -539,7 +540,9 @@ public class MetadataReader : IMetadataReader
                 else
                 {
                     var metadataPair = str.Split(":", 2);
-                    var key = metadataPair[0].Trim().Replace(" ", string.Empty).Replace("/", string.Empty).Replace(@"\", string.Empty);
+
+                    var rgx = new Regex("[^a-zA-Z0-9]");
+                    var key = rgx.Replace(metadataPair[0].Trim(), "");
 
                     exifMetadataForFile.Add(new ExifTag
                     {
