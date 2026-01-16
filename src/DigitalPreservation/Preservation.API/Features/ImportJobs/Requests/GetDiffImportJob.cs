@@ -5,6 +5,7 @@ using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;

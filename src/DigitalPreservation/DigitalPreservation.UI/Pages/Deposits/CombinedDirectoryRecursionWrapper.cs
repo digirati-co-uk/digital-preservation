@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Combined;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 

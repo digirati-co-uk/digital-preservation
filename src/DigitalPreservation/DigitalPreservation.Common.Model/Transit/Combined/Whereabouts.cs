@@ -1,4 +1,4 @@
-﻿namespace DigitalPreservation.Common.Model.Transit;
+﻿namespace DigitalPreservation.Common.Model.Transit.Combined;
 
 public enum Whereabouts
 {

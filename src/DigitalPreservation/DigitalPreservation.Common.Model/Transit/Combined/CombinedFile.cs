@@ -1,8 +1,7 @@
-﻿using DigitalPreservation.Common.Model.DepositHelpers;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
-namespace DigitalPreservation.Common.Model.Transit;
+namespace DigitalPreservation.Common.Model.Transit.Combined;
 
 public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, string? relativePath = null)
 {
@@ -498,9 +497,9 @@ public class ExifTagComparer : IEqualityComparer<ExifTag>
             return 0;
 
         //Get hash code for the name field if it is not null
-        var tagNameHashCode = !string.IsNullOrEmpty(exifTag.TagName) ? 0 : exifTag?.TagName?.GetHashCode() ?? 0;
-        var tagValueHashCode = exifTag != null && !string.IsNullOrEmpty(exifTag.TagValue) ? 0 : exifTag?.TagValue?.GetHashCode() ?? 0;
-        // Get hash code for marks also if its not 0
+        var tagNameHashCode = !string.IsNullOrEmpty(exifTag.TagName) ? 0 : exifTag.TagName?.GetHashCode() ?? 0;
+        var tagValueHashCode = !string.IsNullOrEmpty(exifTag.TagValue) ? 0 : exifTag.TagValue?.GetHashCode() ?? 0;
+        // Get hash code for marks also if it is not 0
 
         return tagNameHashCode ^ tagValueHashCode;
     }
