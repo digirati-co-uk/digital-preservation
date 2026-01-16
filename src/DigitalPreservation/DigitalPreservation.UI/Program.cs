@@ -17,6 +17,7 @@ using Preservation.Client;
 using Serilog;
 using Storage.Repository.Common;
 using Storage.Repository.Common.Mets;
+using Storage.Repository.Common.Mets.StorageImpl;
 using Storage.Repository.Common.S3;
 
 
@@ -92,7 +93,7 @@ try
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
-        .AddSingleton<IMetsStorage, MetsStorage>()
+        .AddSingleton<IMetsStorage, S3MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks();

@@ -17,6 +17,7 @@ using DigitalPreservation.Workspace;
 using Preservation.Client;
 using Storage.Repository.Common.Mets;
 using Storage.Repository.Common;
+using Storage.Repository.Common.Mets.StorageImpl;
 using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
@@ -122,7 +123,7 @@ try
     builder.Services.AddStorageAwsAccess(builder.Configuration);
     builder.Services.AddSingleton<IMetsParser, MetsParser>();
     builder.Services.AddSingleton<IMetsManager, MetsManager>();
-    builder.Services.AddSingleton<IMetsStorage, MetsStorage>();
+    builder.Services.AddSingleton<IMetsStorage, S3MetsStorage>();
     builder.Services.AddSingleton<WorkspaceManagerFactory>();
 
     var app = builder.Build();
