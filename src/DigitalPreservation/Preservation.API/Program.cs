@@ -73,6 +73,7 @@ try
         .AddSingleton<IIdentityMinter, IdentityMinter>()
         .AddMvpCatalogueClient(builder.Configuration)
         .AddResourceMutator(builder.Configuration)
+        .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
         .AddSingleton<IMetsStorage, S3MetsStorage>()

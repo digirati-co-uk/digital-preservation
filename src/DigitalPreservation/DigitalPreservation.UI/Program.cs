@@ -91,6 +91,7 @@ try
             cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
         .AddStorageAwsAccess(builder.Configuration)
+        .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
         .AddSingleton<IMetsStorage, S3MetsStorage>()

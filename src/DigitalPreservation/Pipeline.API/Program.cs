@@ -121,6 +121,7 @@ try
     builder.Services.AddAWSService<IAmazonS3>();
 
     builder.Services.AddStorageAwsAccess(builder.Configuration);
+    builder.Services.AddSingleton<IMetsLoader, S3MetsLoader>();
     builder.Services.AddSingleton<IMetsParser, MetsParser>();
     builder.Services.AddSingleton<IMetsManager, MetsManager>();
     builder.Services.AddSingleton<IMetsStorage, S3MetsStorage>();
