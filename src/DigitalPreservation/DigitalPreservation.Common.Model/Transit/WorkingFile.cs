@@ -66,7 +66,10 @@ public class WorkingFile : WorkingBase
                 ContentType = ContentType
             };
 
-            if ((ContentType == "application/octet-stream" || string.IsNullOrEmpty(ContentType)) && MimeTypes.TryGetMimeType(LocalPath.GetSlug(), out var foundMimeType))
+            if (
+                (ContentType == "application/octet-stream" || string.IsNullOrEmpty(ContentType)) 
+                && 
+                MimeTypes.TryGetMimeType(LocalPath.GetSlug(), out var foundMimeType))
             {
                 syntheticMetadata.ContentType = foundMimeType;
             }
@@ -75,11 +78,6 @@ public class WorkingFile : WorkingBase
         }
         if (fileFormatMetadata.Count <= 1)
         {
-            if (fileFormatMetadata.Count == 1 && (ContentType == "application/octet-stream" || string.IsNullOrEmpty(ContentType) || string.IsNullOrEmpty(fileFormatMetadata.FirstOrDefault()!.ContentType)) && MimeTypes.TryGetMimeType(LocalPath.GetSlug(), out var foundMimeType))
-            {
-                fileFormatMetadata.FirstOrDefault()!.ContentType = foundMimeType;
-            }
-
             return fileFormatMetadata.SingleOrDefault();
         }
 
