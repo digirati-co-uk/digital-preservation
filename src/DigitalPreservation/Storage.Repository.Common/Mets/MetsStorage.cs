@@ -111,46 +111,6 @@ public class MetsStorage(
         return result;
     }
 
-
-    private async Task<Result<FullMets>> GetFullMetsFile(Uri metsLocation, string? eTagToMatch)
-    {
-        Result<FullMets> result;
-
-        DigitalPreservation.XmlGen.Mets.Mets? mets = null;
-        var fileLocResult = await metsParser.GetRootAndFile(metsLocation);
-        var (_, file) = fileLocResult.Value;
-
-        var fi = new FileInfo(file.LocalPath);
-        try
-        {
-            var returnedETag = Checksum.Sha256FromFile(fi);
-            if (eTagToMatch is not null && returnedETag != eTagToMatch)
-            {
-                result = Result.FailNotNull<FullMets>(
-                    ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
-            }
-
-            var serializer = new XmlSerializer(typeof(DigitalPreservation.XmlGen.Mets.Mets));
-            using var reader = XmlReader.Create(file.LocalPath);
-            mets = (DigitalPreservation.XmlGen.Mets.Mets)serializer.Deserialize(reader)!;
-
-            result = Result.OkNotNull<FullMets>(new FullMets
-            {
-                Mets = mets,
-                Uri = file,
-                ETag = returnedETag
-            });
-
-        }
-        catch (Exception e)
-        {
-            result = Result.FailNotNull<FullMets>(ErrorCodes.UnknownError, e.Message);
-        }
-
-        return result;    
-
-    }
-
     public async Task<Result<FullMets>> GetFullMets(Uri metsLocation, string? eTagToMatch)
     {
         DigitalPreservation.XmlGen.Mets.Mets? mets = null;
