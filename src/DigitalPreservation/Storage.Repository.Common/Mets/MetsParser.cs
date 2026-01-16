@@ -3,7 +3,6 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -474,7 +473,7 @@ public class MetsParser(
                                 [
                                     new StorageMetadata
                                     {
-                                        Source = MetsManager.Mets,
+                                        Source = Constants.Mets,
                                         OriginalName = originalName,
                                         StorageLocation = storageLocation
                                     }
@@ -573,7 +572,7 @@ public class MetsParser(
                             premisMetadata = new FileFormatMetadata
                             {
                                 Digest = digest,
-                                Source = MetsManager.Mets,
+                                Source = Constants.Mets,
                                 PronomKey = key,
                                 FormatName = name
                             };
@@ -582,7 +581,7 @@ public class MetsParser(
 
                     premisMetadata ??= new FileFormatMetadata
                     {
-                        Source = MetsManager.Mets,
+                        Source = Constants.Mets,
                         PronomKey = "UNKNOWN",
                         FormatName = "",
                         Digest = digest
@@ -678,7 +677,7 @@ public class MetsParser(
                     [
                         new StorageMetadata
                         {
-                            Source = MetsManager.Mets,
+                            Source = Constants.Mets,
                             OriginalName = originalName,
                             StorageLocation = storageLocation
                         }

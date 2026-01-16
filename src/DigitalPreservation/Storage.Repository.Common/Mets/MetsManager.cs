@@ -25,8 +25,6 @@ public class MetsManager(
     private const string DirectoryType = "Directory";
     private const string ItemType = "Item";
     private const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
-
-    public const string Mets = "METS";
     
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -89,7 +87,7 @@ public class MetsManager(
                 div.Div.Add(childDirectoryDiv);
                 var reducedPremisForObjectDir = new FileFormatMetadata
                 {
-                    Source = Mets,
+                    Source = Constants.Mets,
                     OriginalName = localPath,
                     StorageLocation = childContainer.Id
                 };
@@ -131,7 +129,7 @@ public class MetsManager(
                 });
             var premisFile = new FileFormatMetadata
             {
-                Source = Mets,
+                Source = Constants.Mets,
                 Digest = binary.Digest,
                 Size = binary.Size,
                 OriginalName = localPath,
@@ -505,7 +503,7 @@ public class MetsManager(
                 div.Div.Add(childDirectoryDiv);
                 var premisFile = new FileFormatMetadata
                 {
-                    Source = Mets,
+                    Source = Constants.Mets,
                     OriginalName = operationPath, // workingDirectory.LocalPath
                     StorageLocation = null // storageLocation
                 };
@@ -562,7 +560,7 @@ public class MetsManager(
         // no metadata available
         return new FileFormatMetadata
         {
-            Source = Mets,
+            Source = Constants.Mets,
             ContentType = workingFile.ContentType,
             Digest = digestMetadata?.Digest ?? workingFile.Digest,
             Size = workingFile.Size,
@@ -635,12 +633,12 @@ public class MetsManager(
             {
                 GetAmdSecType(new FileFormatMetadata
                     {
-                        Source = Mets, OriginalName = FolderNames.Objects 
+                        Source = Constants.Mets, OriginalName = FolderNames.Objects 
                     }, 
                     $"{AdmIdPrefix}{FolderNames.Objects}", $"{TechIdPrefix}{FolderNames.Objects}"),
                 GetAmdSecType(new FileFormatMetadata
                     {
-                        Source = Mets, OriginalName = FolderNames.Metadata 
+                        Source = Constants.Mets, OriginalName = FolderNames.Metadata 
                     }, 
                     $"{AdmIdPrefix}{FolderNames.Metadata}", $"{TechIdPrefix}{FolderNames.Metadata}")
             }

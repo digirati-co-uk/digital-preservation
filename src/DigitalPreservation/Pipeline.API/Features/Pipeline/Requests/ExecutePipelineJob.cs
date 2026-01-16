@@ -12,6 +12,7 @@ using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
 using System.Text;
+using DigitalPreservation.Common.Model.Transit.Combined;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;

@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
+using DigitalPreservation.Common.Model.Transit.Combined;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 

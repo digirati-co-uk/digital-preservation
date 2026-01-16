@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace.Requests;
 using LateApexEarlySpeed.Xunit.Assertion.Json;
