@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
+using DigitalPreservation.Common.Model.Transit.Combined;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -44,6 +45,7 @@ public class DepositModel(
     public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
 
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
+    public List<string> FilesWithViruses { get; set; } = [];
 
     public async Task OnGet(
         [FromRoute] string id,
@@ -82,6 +84,7 @@ public class DepositModel(
                     if (WorkspaceManager.Editable)
                     {
                         var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
+                        TempData.Remove("MisMatchCount");
 
                         if (mismatches.Count != 0)
                         {
@@ -89,7 +92,7 @@ public class DepositModel(
                         }
 
                         FileMisMatches = detailedMismatches;
-
+                        FilesWithViruses = RootCombinedDirectory.GetFilesWithVirus();
                     }
                 }
             }
@@ -402,7 +405,6 @@ public class DepositModel(
 
         return Redirect($"/deposits/{id}");
     }
-
 
     public async Task<IActionResult> OnPostDeleteDeposit([FromRoute] string id)
     {

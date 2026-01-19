@@ -1,9 +1,12 @@
-﻿using System.Net.Mime;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Storage.Repository.Common;
+using System.Text.RegularExpressions;
+using File = DigitalPreservation.Common.Model.ToolOutput.Siegfried.File;
+using StringUtils = DigitalPreservation.Utils.StringUtils;
 
 namespace DigitalPreservation.Workspace;
 
@@ -16,7 +19,8 @@ public class MetadataReader : IMetadataReader
     private Dictionary<string, string>? bagItSha256Values;
     private SiegfriedOutput? siegfriedSiegfriedOutput;
     private SiegfriedOutput? brunnhildeSiegfriedOutput;
-    private List<string> infectedFiles = [];
+    private List<VirusModel> infectedFiles = [];
+    private List<ExifModel> exifMetadataList = [];
     
     private readonly Dictionary<string, List<Metadata>> metadataByFiles =  new();
 
@@ -64,10 +68,11 @@ public class MetadataReader : IMetadataReader
         // need to probe for an actual file, not a directory
         var brunnhildeRoot = workingRootUri.AppendEscapedSlug("metadata").AppendEscapedSlug("brunnhilde");
         var brunnhildeProbe = brunnhildeRoot.AppendEscapedSlug("report.html"); // could use a different probe perhaps
+        var brunnhildeAVResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
+
         if (await storage.Exists(brunnhildeProbe))
         {
             brunnhildeSiegfriedOutput = await ParseSiegfriedOutput(brunnhildeRoot.AppendEscapedSlug("siegfried.csv"));
-            var brunnhildeAVResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
             if (brunnhildeAVResult is { Success: true, Value: not null })
             {
                 infectedFiles = await ReadInfectedFilePaths(brunnhildeAVResult.Value);
@@ -86,7 +91,7 @@ public class MetadataReader : IMetadataReader
                     });
             }
         }
-        
+
         // when parsing files with paths, find the common origin and look for objects/ and metadata/
         string? bagItCommonParent;
         if (bagItSha256Values is { Count: > 0 })
@@ -120,7 +125,7 @@ public class MetadataReader : IMetadataReader
             // => bc-example-1
             AddFileFormatMetadata(siegfriedSiegfriedOutput, siegfriedSiegfriedCommonParent, "Siegfried", timestamp);
         }
-        string? brunnhildeSiegfriedCommonParent;
+        var brunnhildeSiegfriedCommonParent = string.Empty;
         if (brunnhildeSiegfriedOutput is { Files.Count: > 0 })
         {
             // Siegfried via Brunnhilde might be a full path, example:
@@ -132,16 +137,44 @@ public class MetadataReader : IMetadataReader
             // => bc-example-1
             AddFileFormatMetadata(brunnhildeSiegfriedOutput, brunnhildeSiegfriedCommonParent, "Brunnhilde", timestamp);
         }
-        string? brunnhildeAvCommonPrefix;
-        if (infectedFiles.Count > 0)
+
+        var virusDefinitionRoot = workingRootUri.AppendEscapedSlug("metadata").AppendEscapedSlug("virus-definition").AppendEscapedSlug("virus-definition.txt");
+
+        var virusDefinition = string.Empty;
+        var virusDefinitionFileExists = await storage.Exists(virusDefinitionRoot);
+        if (virusDefinitionFileExists && brunnhildeAVResult is { Success: true, Value: not null })
         {
-            // the parent of the first instance of /metadata or /metadata/
-            // the parent of the first instance of /objects or /objects/
-            brunnhildeAvCommonPrefix = StringUtils.GetCommonParent(infectedFiles);
-            // ?? not done yet
+            var virusDefinitionResult = await storage.GetStream(virusDefinitionRoot);
+            if (virusDefinitionResult is { Success: true, Value: not null })
+            {
+                virusDefinition = await GetTextFromStream(virusDefinitionResult.Value);
+            }
         }
 
-        
+        if (!virusDefinitionFileExists || string.IsNullOrEmpty(virusDefinition))
+        {
+            var brunnhildeVirusLogResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
+
+            if (brunnhildeVirusLogResult is { Success: true, Value: not null })
+            {
+                virusDefinition = await GetVirusDefinitionFromBrunnhilde(brunnhildeVirusLogResult.Value);
+            }
+        }
+
+        var brunnhildeCommonPrefix = StringUtils.GetCommonParent(infectedFiles.Select(s => s.Filepath));
+        brunnhildeCommonPrefix = AllowForObjectsAndMetadata(brunnhildeCommonPrefix);
+
+        var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
+        AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
+
+        exifMetadataList = await GetExifOutputForAllFiles();
+
+        if (!exifMetadataList.Any())
+            return;
+
+        brunnhildeCommonPrefix = StringUtils.GetCommonParent(exifMetadataList.Select(s => s.Filepath));
+        brunnhildeCommonPrefix = AllowForObjectsAndMetadata(brunnhildeCommonPrefix);
+        AddExifMetadata(brunnhildeCommonPrefix, "ExifTool", timestamp);
     }
 
     private void AddFileFormatMetadata(SiegfriedOutput siegfriedOutput, string commonParent, string source, DateTime timestamp)
@@ -163,6 +196,70 @@ public class MetadataReader : IMetadataReader
                 FormatName = file.Matches[0].Format,
                 ContentType = file.Matches[0].Mime,
                 Timestamp = timestamp
+            });
+        }
+    }
+
+    private void AddVirusScanMetadata(List<File> objectsFiles, string infectedFilesCommonParent, string siegfriedFilesCommonParent, string source,
+        DateTime timestamp, string virusDefinition)
+    {
+        var infectedLocalPaths = new List<string>();
+        foreach (var file in infectedFiles)
+        {
+            var localPath = file.Filepath.RemoveStart(infectedFilesCommonParent).RemoveStart("/"); // check this!
+            if (localPath != null)
+            {
+                infectedLocalPaths.Add(localPath);
+            }
+
+            var metadataList = GetMetadataList(localPath!);
+            metadataList.Add(new VirusScanMetadata
+            {
+                Source = source,
+                HasVirus = true,
+                VirusFound = file.VirusFound,
+                Timestamp = timestamp,
+                VirusDefinition = virusDefinition
+            });
+        }
+
+        foreach (var file in objectsFiles)
+        {
+            var alreadyVirusScanMetadata = false;
+            if (infectedLocalPaths.Count > 0)
+            {
+                alreadyVirusScanMetadata = infectedLocalPaths.Any(s => file.Filename != null && file.Filename.Contains(s));
+            }
+
+            if (alreadyVirusScanMetadata)
+                continue;
+
+            var localPath = file.Filename.RemoveStart(siegfriedFilesCommonParent).RemoveStart("/"); // check this!
+
+            var metadataList = GetMetadataList(localPath!);
+            metadataList.Add(new VirusScanMetadata
+            {
+                Source = source,
+                HasVirus = false,
+                VirusFound = string.Empty,
+                Timestamp = timestamp,
+                VirusDefinition = virusDefinition
+            });
+        }
+    }
+
+    private void AddExifMetadata(string exifFilesCommonParent, string source, DateTime timestamp)
+    {
+        foreach (var exifMetadata in exifMetadataList)
+        {
+            var localPath = exifMetadata.Filepath.RemoveStart(exifFilesCommonParent).RemoveStart("/"); // check this!
+
+            var metadataList = GetMetadataList(localPath!);
+            metadataList.Add(new ExifMetadata
+            {
+                Source = source,
+                Timestamp = timestamp,
+                Tags = exifMetadata.ExifMetadata
             });
         }
     }
@@ -227,11 +324,51 @@ public class MetadataReader : IMetadataReader
         }
     }
 
-    private async Task<List<string>> ReadInfectedFilePaths(Stream stream)
+    private async Task<List<VirusModel>> ReadInfectedFilePaths(Stream stream)
+    {
+        var result = await GetClamScanOutput(stream);
+        var model = new List<VirusModel>();
+
+        foreach (var fileVirus in result.Hits)
+        {
+            var virusStringSplit = fileVirus.Split(':');
+            model.Add(new VirusModel
+            {
+                Filepath = virusStringSplit[0],
+                VirusFound = virusStringSplit[1]
+            });
+        }
+        return model;
+    }
+
+    private async Task<ClamScanResult> GetClamScanOutput(Stream stream)
     {
         var txt = await GetTextFromStream(stream);
-        // TODO - actually parse this once we have an infected example
-        return [];
+        var result = ConvertClamResultStringToJson(txt);
+        return result;
+    }
+
+    public static ClamScanResult ConvertClamResultStringToJson(string clamResultStr)
+    {
+        // Split the string by newlines and filter out any empty entries
+        var clamResultList = clamResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        // Find the index of the scan summary marker
+        var resultsMarker = clamResultList.IndexOf("----------- SCAN SUMMARY -----------");
+
+        if (resultsMarker == -1)
+        {
+            // Return an empty result if the marker is not found
+            return new ClamScanResult { Hits = [], Summary = [] };
+        }
+
+        // Get the hits (lines before the marker)
+        var hitList = clamResultList.Take(resultsMarker).ToList();
+
+        // Get the summary (lines after the marker)
+        var summaryList = clamResultList.Skip(resultsMarker + 1).ToList();
+
+        return new ClamScanResult { Hits = hitList, Summary = summaryList };
     }
 
     private async Task<SiegfriedOutput?> ParseSiegfriedOutput(Uri siegfriedUri)
@@ -338,4 +475,108 @@ public class MetadataReader : IMetadataReader
             workingBase.Metadata = metadataList;
         }
     }
+
+    private async Task<string> GetVirusDefinitionFromBrunnhilde(Stream stream)
+    {
+        var result = await GetClamScanOutput(stream);
+        var knownViruses = string.Empty;
+        var engineVersion = string.Empty;
+
+        foreach (var summaryInfo in result.Summary)
+        {
+            var summaryStringSplit = summaryInfo.Split(':');
+
+            if (summaryStringSplit[0].ToLower() == "known viruses")
+                knownViruses = summaryStringSplit[1];
+            if (summaryStringSplit[0].ToLower() == "engine version")
+                engineVersion = summaryStringSplit[1];
+        }
+
+        return $"ClamAV {engineVersion} Known viruses {knownViruses} ";
+    }
+
+    private async Task<List<ExifModel>> GetExifOutputForAllFiles()
+    {
+        var metadataRoot = workingRootUri.AppendEscapedSlug("metadata");
+        var exifResult = await storage.GetStream(metadataRoot.AppendEscapedSlug("exif").AppendEscapedSlug("exif_output.txt"));
+
+        if (exifResult.Value == null) return [];
+        var txt = await GetTextFromStream(exifResult.Value);
+        return ParseExifToolOutput(txt);
+
+    }
+
+    public static List<ExifModel> ParseExifToolOutput(string exifResultStr)
+    {
+        try
+        {
+            var exifResultList = exifResultStr.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries).ToList();
+            var result = new List<ExifModel>();
+
+            var exifModel = new ExifModel { Filepath = string.Empty, ExifMetadata = [] };
+            var i = 0;
+            var exifMetadataForFile = new List<ExifTag>();
+
+            foreach (var str in exifResultList)
+            {
+                if (str.Contains("========") || str.Contains("directories scanned"))
+                {
+                    if (i > 0)
+                    {
+                        exifModel.ExifMetadata = new List<ExifTag>(exifMetadataForFile);
+                        exifMetadataForFile.Clear();
+                        result.Add(exifModel);
+
+                        if (str.Contains("directories scanned"))
+                            break;
+
+                    }
+
+                    var fileName = str.Replace("========", string.Empty).Trim();
+                    exifModel = new ExifModel { Filepath = fileName };
+
+                    i++;
+                }
+                else
+                {
+                    var metadataPair = str.Split(":", 2);
+
+                    var rgx = new Regex("[^a-zA-Z0-9]");
+                    var key = rgx.Replace(metadataPair[0].Trim(), "");
+
+                    exifMetadataForFile.Add(new ExifTag
+                    {
+                        TagName = key,
+                        TagValue = metadataPair[1].Trim()
+                    });
+                }
+            }
+
+            return result;
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+
+    }
+}
+
+// Define a class to represent the JSON output structure
+public class ClamScanResult
+{
+    public required List<string> Hits { get; set; }
+    public required List<string> Summary { get; set; }
+}
+
+public class VirusModel
+{
+    public required string Filepath { get; set; }
+    public required string VirusFound { get; set; }
+}
+
+public class ExifModel
+{
+    public required string Filepath { get; set; }
+    public List<ExifTag> ExifMetadata { get; set; } = [];
 }

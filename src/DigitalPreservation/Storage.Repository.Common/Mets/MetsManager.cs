@@ -1,11 +1,4 @@
-﻿using System.Net;
-using System.Text;
-using System.Xml;
-using System.Xml.Serialization;
-using Amazon.Runtime.Internal.Util;
-using Amazon.S3;
-using Amazon.S3.Model;
-using Amazon.S3.Util;
+﻿using Amazon.Runtime.Internal.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
@@ -15,15 +8,12 @@ using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
-using Microsoft.Extensions.Logging;
-using Checksum = DigitalPreservation.Utils.Checksum;
-using File = System.IO.File;
 
 namespace Storage.Repository.Common.Mets;
 
 public class MetsManager(
-    IMetsParser metsParser, 
-    IAmazonS3 s3Client) : IMetsManager
+    IMetsParser metsParser,
+    IMetsStorage metsStorage) : IMetsManager
 {
     private const string PhysIdPrefix = "PHYS_";
     private const string FileIdPrefix = "FILE_";
@@ -34,8 +24,7 @@ public class MetsManager(
     private const string MetadataDivId = PhysIdPrefix + FolderNames.Metadata;
     private const string DirectoryType = "Directory";
     private const string ItemType = "Item";
-
-    public const string Mets = "METS";
+    private const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
     
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -98,7 +87,7 @@ public class MetsManager(
                 div.Div.Add(childDirectoryDiv);
                 var reducedPremisForObjectDir = new FileFormatMetadata
                 {
-                    Source = Mets,
+                    Source = Constants.Mets,
                     OriginalName = localPath,
                     StorageLocation = childContainer.Id
                 };
@@ -140,7 +129,7 @@ public class MetsManager(
                 });
             var premisFile = new FileFormatMetadata
             {
-                Source = Mets,
+                Source = Constants.Mets,
                 Digest = binary.Digest,
                 Size = binary.Size,
                 OriginalName = localPath,
@@ -172,152 +161,12 @@ public class MetsManager(
     
     public async Task<Result> WriteMets(FullMets fullMets)
     {
-        // TODO - re-use serializer? re-use XmlSerializerNamespaces GetNamespaces()?
-        
-        var serializer = new XmlSerializer(typeof(DigitalPreservation.XmlGen.Mets.Mets));
-        var sb = new StringBuilder();
-        var writer = XmlWriter.Create(sb, new XmlWriterSettings
-        {
-            OmitXmlDeclaration = true,
-            NamespaceHandling = NamespaceHandling.OmitDuplicates,
-            Encoding = Encoding.UTF8,
-            Indent = true,
-        });
-        serializer.Serialize(writer, fullMets.Mets, GetNamespaces());
-        writer.Close();
-        var xml = sb.ToString();
-
-        switch (fullMets.Uri.Scheme)
-        {
-            case "file":
-                await File.WriteAllTextAsync(fullMets.Uri.LocalPath, xml);
-                return Result.Ok();
-            
-            case "s3":
-                var awsUri = new AmazonS3Uri(fullMets.Uri);
-                var req = new PutObjectRequest
-                {
-                    BucketName = awsUri.Bucket,
-                    Key = awsUri.Key,
-                    ContentType = "application/xml",
-                    ContentBody = xml,
-                    ChecksumAlgorithm = ChecksumAlgorithm.SHA256
-                };
-                if (fullMets.ETag != null)
-                {
-                    req.IfMatch = fullMets.ETag;
-                }
-                var resp = await s3Client.PutObjectAsync(req);
-                if (resp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
-                {
-                    return Result.Ok();
-                }
-                if (resp.HttpStatusCode is HttpStatusCode.PreconditionFailed)
-                {
-                    return Result.Fail(ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
-                }
-                return Result.Fail(ErrorCodes.BadRequest, "AWS returned HTTP Status " + resp.HttpStatusCode + " when writing METS");
-            
-            default:
-                return Result.Fail(ErrorCodes.BadRequest, fullMets.Uri.Scheme + " not supported");
-        }
+        return await metsStorage.WriteMets(fullMets);
     }
 
     public async Task<Result<FullMets>> GetFullMets(Uri metsLocation, string? eTagToMatch)
     {
-        DigitalPreservation.XmlGen.Mets.Mets? mets = null; 
-        var fileLocResult = await metsParser.GetRootAndFile(metsLocation);
-        var (_, file) = fileLocResult.Value;
-        if (file is null)
-        {
-            return Result.FailNotNull<FullMets>(ErrorCodes.NotFound, "No METS file in " + metsLocation);
-        }
-        
-        string? returnedETag;
-
-        switch (file.Scheme)
-        {
-            case "s3":
-                var s3Uri = new AmazonS3Uri(file);
-                var gor = new GetObjectRequest
-                {
-                    BucketName = s3Uri.Bucket,
-                    Key = s3Uri.Key,
-                };
-                if (eTagToMatch is not null)
-                {
-                    gor.EtagToMatch = eTagToMatch;
-                }
-                try
-                {
-                    var resp = await s3Client.GetObjectAsync(gor);
-                    if (resp.HttpStatusCode == HttpStatusCode.OK)
-                    {
-                        var serializer = new XmlSerializer(typeof(DigitalPreservation.XmlGen.Mets.Mets));
-                        using var reader = XmlReader.Create(resp.ResponseStream);
-                        mets = (DigitalPreservation.XmlGen.Mets.Mets)serializer.Deserialize(reader)!;
-                    }
-                    if (resp.HttpStatusCode is HttpStatusCode.PreconditionFailed)
-                    {
-                        return Result.FailNotNull<FullMets>(ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
-                    }
-                    returnedETag = resp.ETag;
-                }
-                catch (Exception e)
-                {
-                    return Result.FailNotNull<FullMets>(ErrorCodes.UnknownError, e.Message);
-                }
-                break;
-            
-            case "file":
-                var fi = new FileInfo(file.LocalPath);
-                try
-                {
-                    returnedETag = Checksum.Sha256FromFile(fi);
-                    if (eTagToMatch is not null && returnedETag != eTagToMatch)
-                    {
-                        return Result.FailNotNull<FullMets>(
-                            ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
-                    }
-                    var serializer = new XmlSerializer(typeof(DigitalPreservation.XmlGen.Mets.Mets));
-                    using var reader = XmlReader.Create(file.LocalPath);
-                    mets = (DigitalPreservation.XmlGen.Mets.Mets)serializer.Deserialize(reader)!;
-                }
-                catch (Exception e)
-                {
-                    return Result.FailNotNull<FullMets>(ErrorCodes.UnknownError, e.Message);
-                }
-                break;
-            
-            default:
-                return Result.FailNotNull<FullMets>(ErrorCodes.BadRequest, file.Scheme + " not supported");
-        }
-
-
-        string? agentName = null;
-        if (mets?.MetsHdr?.Agent is not null && mets.MetsHdr.Agent.Count > 0)
-        {
-            agentName = mets.MetsHdr.Agent[0].Name;
-        }
-
-        if (agentName != IMetsManager.MetsCreatorAgent)
-        {
-            return Result.FailNotNull<FullMets>(ErrorCodes.BadRequest, "METS file was not created by " + IMetsManager.MetsCreatorAgent);
-        }
-
-        if (mets != null)
-        {
-            var fullMetal = new FullMets
-            {
-                Mets = mets,
-                Uri = file,
-                ETag = returnedETag
-            };
-            return Result.OkNotNull(fullMetal);
-        }
-
-        return Result.FailNotNull<FullMets>(
-            ErrorCodes.UnknownError, "Unable to read METS");
+       return await metsStorage.GetFullMets(metsLocation, eTagToMatch);
     }
 
     public async Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag)
@@ -347,7 +196,7 @@ public class MetsManager(
             {
                 await WriteMets(fullMets);
                 return Result.Ok();
-            }
+            } 
 
             return editMetsResult;
         }
@@ -428,12 +277,13 @@ public class MetsManager(
                         return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
                     }
 
-                    admId = file.Admid[0];
+                    admId = file.Admid.Count > 1 ? string.Join(" ", file.Admid) : file.Admid[0];
+
                     fileGrp.File.Remove(file);
                 }
                 else
                 {
-                    admId = div.Admid[0];
+                    admId = div.Admid.Count > 1 ? string.Join(" ", div.Admid) : div.Admid[0];
                 }
                     
                 // for both Files and Directories
@@ -469,6 +319,8 @@ public class MetsManager(
                     var fileAdmId = string.Join(' ', file.Admid);
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
                     var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
+                    var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault(); 
+
                     FileFormatMetadata patchPremis;
                     try
                     {
@@ -478,21 +330,66 @@ public class MetsManager(
                     {
                         return Result.Fail(ErrorCodes.BadRequest, mex.Message);
                     }
+                    
+                    var patchPremisVirus = workingFile.GetVirusScanMetadata();
+                    var patchPremisExif = workingFile.GetExifMetadata();
+
                     PremisComplexType? premisType;
                     if (premisXml is not null)
                     {
                         premisType = premisXml.GetPremisComplexType()!;
-                        PremisManager.Patch(premisType, patchPremis);
+                        PremisManager.Patch(premisType, patchPremis, patchPremisExif);
                     }
                     else
                     {
-                        premisType = PremisManager.Create(patchPremis);
+                        premisType = PremisManager.Create(patchPremis, patchPremisExif);
                     }
                     premisXml = PremisManager.GetXmlElement(premisType, true);
                     amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
+
                     if (patchPremis.ContentType.HasText() && patchPremis.ContentType != ContentTypes.NotIdentified)
                     {
                         file.Mimetype = patchPremis.ContentType;
+                    }
+
+                    EventComplexType? virusEventComplexType = null;
+                    if (virusPremisXml is not null)
+                    {
+                        virusEventComplexType = virusPremisXml.GetEventComplexType()!;
+
+                        if (patchPremisVirus != null)
+                        {
+                            PremisEventManager.Patch(virusEventComplexType, patchPremisVirus);
+                        }
+                    }
+                    else
+                    {
+                        if (patchPremisVirus != null)
+                        {
+                            virusEventComplexType = PremisEventManager.Create(patchPremisVirus);
+                        }
+                    }
+
+                    if (virusEventComplexType is not null)
+                    {
+                        virusPremisXml = PremisEventManager.GetXmlElement(virusEventComplexType);
+
+                        if (amdSec.DigiprovMd.Any())
+                        {
+                            amdSec.DigiprovMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { virusPremisXml } };
+                        }
+                        else
+                        {
+                            amdSec.DigiprovMd.Add(new MdSecType
+                            {
+                                Id = $"{VirusProvEventPrefix}{fileAdmId}",
+                                MdWrap = new MdSecTypeMdWrap
+                                {
+                                    Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
+                                    XmlData = new MdSecTypeMdWrapXmlData { Any = { virusPremisXml } }
+                                }
+                            });
+                        }
                     }
                 }
                 else if (workingBase is WorkingDirectory workingDirectory)
@@ -548,6 +445,8 @@ public class MetsManager(
                 };
                 div.Div.Add(childItemDiv);
                 FileFormatMetadata premisFile;
+                VirusScanMetadata? virusScanMetadata;
+                ExifMetadata? exifMetadata;
                 try
                 {
                     premisFile = GetFileFormatMetadata(workingFile, operationPath);
@@ -556,6 +455,27 @@ public class MetsManager(
                 {
                     return Result.Fail(ErrorCodes.BadRequest, mex.Message);
                 }
+
+
+                try
+                {
+                    virusScanMetadata = workingFile.GetVirusScanMetadata();
+                }
+                catch (MetadataException mex)
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, mex.Message);
+                }
+
+                try
+                {
+                    exifMetadata = workingFile.GetExifMetadata();
+                }
+                catch (MetadataException mex)
+                {
+                    return Result.Fail(ErrorCodes.BadRequest, mex.Message);
+                }
+
+
                 fullMets.Mets.FileSec.FileGrp[0].File.Add(
                     new FileType
                     {
@@ -569,7 +489,7 @@ public class MetsManager(
                             } 
                         }
                     });
-                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
+                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId, $"{VirusProvEventPrefix}{admId}", virusScanMetadata, exifMetadata));
             }
             else if (workingBase is WorkingDirectory workingDirectory)
             {
@@ -583,7 +503,7 @@ public class MetsManager(
                 div.Div.Add(childDirectoryDiv);
                 var premisFile = new FileFormatMetadata
                 {
-                    Source = Mets,
+                    Source = Constants.Mets,
                     OriginalName = operationPath, // workingDirectory.LocalPath
                     StorageLocation = null // storageLocation
                 };
@@ -640,7 +560,7 @@ public class MetsManager(
         // no metadata available
         return new FileFormatMetadata
         {
-            Source = Mets,
+            Source = Constants.Mets,
             ContentType = workingFile.ContentType,
             Digest = digestMetadata?.Digest ?? workingFile.Digest,
             Size = workingFile.Size,
@@ -662,7 +582,7 @@ public class MetsManager(
                         Role = MetsTypeMetsHdrAgentRole.Creator, 
                         Type = MetsTypeMetsHdrAgentType.Other, 
                         Othertype = "SOFTWARE",
-                        Name = IMetsManager.MetsCreatorAgent
+                        Name = Constants.MetsCreatorAgent
                     }
                 }
             },
@@ -713,12 +633,12 @@ public class MetsManager(
             {
                 GetAmdSecType(new FileFormatMetadata
                     {
-                        Source = Mets, OriginalName = FolderNames.Objects 
+                        Source = Constants.Mets, OriginalName = FolderNames.Objects 
                     }, 
                     $"{AdmIdPrefix}{FolderNames.Objects}", $"{TechIdPrefix}{FolderNames.Objects}"),
                 GetAmdSecType(new FileFormatMetadata
                     {
-                        Source = Mets, OriginalName = FolderNames.Metadata 
+                        Source = Constants.Mets, OriginalName = FolderNames.Metadata 
                     }, 
                     $"{AdmIdPrefix}{FolderNames.Metadata}", $"{TechIdPrefix}{FolderNames.Metadata}")
             }
@@ -728,22 +648,14 @@ public class MetsManager(
         return mets;
     }
     
-    private static XmlSerializerNamespaces GetNamespaces()
-    {
-        var ns = new XmlSerializerNamespaces();
-        ns.Add("mets", "http://www.loc.gov/METS/");
-        ns.Add("mods", "http://www.loc.gov/mods/v3");
-        ns.Add("premis", "http://www.loc.gov/premis/v3");
-        ns.Add("xlink", "http://www.w3.org/1999/xlink");
-        ns.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
-        return ns;
-    }
+
     
     
-    private static AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId)
+    private static AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null, ExifMetadata? exifMetadata = null)
     {
-        var premis = PremisManager.Create(premisFile);
+        var premis = PremisManager.Create(premisFile, exifMetadata);
         var xElement = PremisManager.GetXmlElement(premis, true);
+
         var amdSec = new AmdSecType
         {
             Id = admId,
@@ -758,8 +670,24 @@ public class MetsManager(
                         XmlData = new MdSecTypeMdWrapXmlData { Any = { xElement }}
                     }
                 }
-            }
+            },
         };
+
+        if (virusScanMetadata == null) return amdSec;
+
+        var digiProvMd = PremisEventManager.Create(virusScanMetadata);
+        var xVirusElement = PremisEventManager.GetXmlElement(digiProvMd);
+
+        amdSec.DigiprovMd.Add(new MdSecType
+        {
+            Id = digiprovId,
+            MdWrap = new MdSecTypeMdWrap
+            {
+                Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
+                XmlData = new MdSecTypeMdWrapXmlData { Any = { xVirusElement } }
+            }
+        });
+
         return amdSec;
     }
 
@@ -767,7 +695,7 @@ public class MetsManager(
     public List<string> GetRootAccessRestrictions(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
-        return mods == null ? [] : mods.GetAccessConditions(IMetsManager.RestrictionOnAccess); // may add Goobi things to this
+        return mods == null ? [] : mods.GetAccessConditions(Constants.RestrictionOnAccess); // may add Goobi things to this
     }
 
     public void SetRootAccessRestrictions(FullMets fullMets, List<string> accessRestrictions)
@@ -775,10 +703,10 @@ public class MetsManager(
         var mods = ModsManager.GetRootMods(fullMets.Mets);
         if (mods is null) return;
         
-        mods.RemoveAccessConditions(IMetsManager.RestrictionOnAccess);
+        mods.RemoveAccessConditions(Constants.RestrictionOnAccess);
         foreach (var accessRestriction in accessRestrictions)
         {
-            mods.AddAccessCondition(accessRestriction, IMetsManager.RestrictionOnAccess);
+            mods.AddAccessCondition(accessRestriction, Constants.RestrictionOnAccess);
         }
         ModsManager.SetRootMods(fullMets.Mets, mods);
     }
@@ -788,10 +716,10 @@ public class MetsManager(
         var mods = ModsManager.GetRootMods(fullMets.Mets);
         if (mods is null) return;
         
-        mods.RemoveAccessConditions(IMetsManager.UseAndReproduction);
+        mods.RemoveAccessConditions(Constants.UseAndReproduction);
         if (uri is not null)
         {
-            mods.AddAccessCondition(uri.ToString(), IMetsManager.UseAndReproduction);
+            mods.AddAccessCondition(uri.ToString(), Constants.UseAndReproduction);
         }
         ModsManager.SetRootMods(fullMets.Mets, mods);
     }
@@ -799,7 +727,7 @@ public class MetsManager(
     public Uri? GetRootRightsStatement(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
-        var rights = mods?.GetAccessConditions(IMetsManager.UseAndReproduction).SingleOrDefault();
+        var rights = mods?.GetAccessConditions(Constants.UseAndReproduction).SingleOrDefault();
         return rights is not null ? new Uri(rights) : null;
     }
 }

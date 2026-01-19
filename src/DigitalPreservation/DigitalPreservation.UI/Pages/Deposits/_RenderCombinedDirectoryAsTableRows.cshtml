@@ -1,5 +1,6 @@
 ﻿@using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Transit
+@using DigitalPreservation.Common.Model.Transit.Combined
 @using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.Utils
 @using Storage.Repository.Common
@@ -25,7 +26,8 @@ File is in both
     var isMetadata = FolderNames.IsMetadata(combinedDirectory.LocalPath);
     depth = combinedDirectory.LocalPath.Split('/').Length;
     string where = combinedDirectory.Whereabouts.ToString().ToLowerInvariant();
-                   <tr class="deposit-row @("where-" + where)" 
+    
+    <tr class="deposit-row @("where-" + where)" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@isMetadata">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
@@ -84,7 +86,6 @@ File is in both
 }
 @foreach (var file in combinedDirectory.Files)
 {
-    
     var isMetadata = FolderNames.IsMetadata(file.LocalPath!);
     if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem)
     {
@@ -125,11 +126,14 @@ File is in both
                     var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
                     if (toolOutput != null && toolOutput.Content.HasText())
                     {
-                        <a target="_blank" href="@(Context.Request.Path + "/tool-output/" + file.LocalPath)"><strong>@file.GetName()</strong></a>
+                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
+                        var base64Encoded = System.Convert.ToBase64String(textBytes);
+
+                        <a href="javascript:openHtmlStringInNewTab('@base64Encoded');"><strong>@file.GetName()</strong></a>
                     }
                     else
                     {
-                        @file.GetName()
+                        @file.GetName();
                     }
                 }
                 else
@@ -160,6 +164,20 @@ File is in both
             }
         </td>
         <td aria-label="pronom" title="@(file.DepositFileFormatMetadata?.FormatName ?? "(no PRONOM format")">@(file.DepositFileFormatMetadata?.PronomKey ?? "-")</td>
-        <td aria-label="virus">@virusMetadata?.GetDisplay()</td>
+
+        @if (virusMetadata is { HasVirus: true })
+        {
+            <td aria-label="td-virus">
+                <label title="@virusMetadata.VirusFound" aria-label="virus" class="form-check-label text-danger">
+                    <strong>☣</strong>
+                </label>
+            </td>
+
+        }
+        else
+        {
+            <td aria-label="td-virus">@virusMetadata?.GetDisplay()</td>
+        }
+
     </tr>
 } 

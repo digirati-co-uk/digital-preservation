@@ -390,8 +390,21 @@
                                     var fileFormatMetadata = metsBinary?.GetFileFormatMetadata();
                                     var virusMetadata = metsBinary?.GetVirusScanMetadata();
                                     <td aria-label="td-format" title="@fileFormatMetadata?.FormatName">@fileFormatMetadata?.PronomKey</td>
-                                    <td aria-label="td-access">@metsBinary?.MetsExtensions?.AccessCondition</td>
-                                    <td aria-label="td-virus">@virusMetadata?.GetDisplay()</td>
+                                    <td aria-label="td-access">@string.Join(", ", metsBinary?.AccessRestrictions ?? [])</td>
+
+                                    @if (virusMetadata is { HasVirus: true })
+                                    {
+                                        <td aria-label="td-virus">
+                                            <label title="@virusMetadata.VirusFound" aria-label="virus" class="form-check-label text-danger">
+                                                <strong>☣</strong>
+                                            </label>
+                                        </td>
+
+                                    }
+                                    else
+                                    {
+                                        <td aria-label="td-virus">@virusMetadata?.GetDisplay()</td>
+                                    }
                                 }
                                 else
                                 {

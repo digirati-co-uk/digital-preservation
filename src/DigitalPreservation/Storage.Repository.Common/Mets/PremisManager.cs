@@ -1,9 +1,11 @@
-﻿using System.Xml;
-using System.Xml.Serialization;
+﻿using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Premis.V3;
+using System.Text.RegularExpressions;
+using System.Xml;
+using System.Xml.Serialization;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
@@ -11,8 +13,8 @@ namespace Storage.Repository.Common.Mets;
 public static class PremisManager
 {
     private static readonly XmlSerializerNamespaces Namespaces;
-    public const string Pronom = "PRONOM";
-    public const string Sha256 = "SHA256";
+    private const string Pronom = "PRONOM";
+    private const string Sha256 = "SHA256";
     
     static PremisManager()
     {
@@ -62,7 +64,7 @@ public static class PremisManager
         }
         
         var storage = file.Storage?.SingleOrDefault(
-            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == Constants.MetsCreatorAgent) != null);
         if (storage != null)
         {
             premisFile.StorageLocation = new Uri(storage.ContentLocation.ContentLocationValue);
@@ -71,7 +73,7 @@ public static class PremisManager
 
     }
     
-    public static PremisComplexType Create(FileFormatMetadata premisFile)
+    public static PremisComplexType Create(FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
     {
         var premis = new PremisComplexType();
         var file = new File();
@@ -87,6 +89,51 @@ public static class PremisManager
                 MessageDigest = premisFile.Digest
             };
             objectCharacteristics.Fixity.Add(fixity);
+        }
+
+        if (exifMetadata != null)
+        {
+            var document = new XmlDocument();
+            var parentElement = GetXmlElement(new ExifTag{ TagName = "ExifMetadata" , TagValue = string.Empty}, document);
+
+            if (parentElement != null)
+            {
+                if (exifMetadata is { Tags: not null })
+                {
+                    foreach (var fileExifMetadata in exifMetadata.Tags)
+                    {
+                        var element = GetXmlElement(fileExifMetadata, document);
+                        if (element != null) parentElement.AppendChild(element);
+
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
+                        {
+                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
+                        }
+
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
+                        {
+                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
+                        }
+
+
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
+                        {
+                            AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
+                        }
+
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
+                        {
+                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
+                        }
+                    }
+                }
+
+                var parentExtension = new ObjectCharacteristicsExtension();
+                parentExtension.Any.Add(parentElement);
+
+                objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
+            }
+
         }
 
         if (premisFile.Size is > 0)
@@ -123,7 +170,7 @@ public static class PremisManager
         if (premisFile.StorageLocation != null)
         {
             var storageComplexType = new StorageComplexType();
-            storageComplexType.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            storageComplexType.StorageMedium.Add(new StorageMedium { Value = Constants.MetsCreatorAgent });
             storageComplexType.ContentLocation = new ContentLocationComplexType
             {
                 ContentLocationType = new ContentLocationType { Value = "uri" },
@@ -135,7 +182,7 @@ public static class PremisManager
         return premis;
     }
 
-    public static void Patch(PremisComplexType premis, FileFormatMetadata premisFile)
+    public static void Patch(PremisComplexType premis, FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
     {
         // This is not just the same as Create because it shouldn't touch any fields existing
         // in the premis:file already, other than those supplied
@@ -151,19 +198,77 @@ public static class PremisManager
             objectCharacteristics = new ObjectCharacteristicsComplexType();
             file.ObjectCharacteristics.Add(objectCharacteristics);
         }
-        
+
         if (premisFile.Digest.HasText())
         {
-            var fixity = objectCharacteristics.Fixity.FirstOrDefault(f => f.MessageDigestAlgorithm.Value?.ToUpperInvariant() == Sha256);
+            var fixity =
+                objectCharacteristics.Fixity.FirstOrDefault(f =>
+                    f.MessageDigestAlgorithm.Value?.ToUpperInvariant() == Sha256);
             if (fixity == null)
             {
                 fixity = new FixityComplexType
                 {
-                    MessageDigestAlgorithm = new MessageDigestAlgorithm{ Value = Sha256 }
+                    MessageDigestAlgorithm = new MessageDigestAlgorithm { Value = Sha256 }
                 };
                 objectCharacteristics.Fixity.Add(fixity);
             }
+
             fixity.MessageDigest = premisFile.Digest;
+        }
+
+        if (exifMetadata != null)
+        {
+            var document = new XmlDocument();
+            var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
+            
+            foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
+            {
+                objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
+            }
+
+            foreach (var significantPropertiesComplexType in file.SignificantProperties.ToList())
+            {
+                file.SignificantProperties.Remove(significantPropertiesComplexType);
+            }
+
+            if (parentElement != null)
+            {
+                if (exifMetadata is { Tags: not null })
+                {
+                    foreach (var fileExifMetadata in exifMetadata.Tags)
+                    {
+                        var element = GetXmlElement(fileExifMetadata, document);
+                        if (element != null) parentElement.AppendChild(element);
+
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
+                        {
+                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
+                        }
+
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
+                        {
+                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
+                        }
+
+
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
+                        {
+                            AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
+                        }
+
+                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
+                        {
+                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
+                        }
+                    }
+                }
+
+                var parentExtension = new ObjectCharacteristicsExtension();
+                parentExtension.Any.Add(parentElement);
+
+                objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
+            }
+
         }
 
         if (premisFile.Size is > 0)
@@ -211,14 +316,28 @@ public static class PremisManager
         }
     }
 
+    private static void AddSignificantProperty(File file, string propertyName, string metadataValue)
+    {
+        var significantProperties = new SignificantPropertiesComplexType();
+        file.SignificantProperties.Add(significantProperties);
+
+        //TODO: add value to significant properties
+        significantProperties.SignificantPropertiesType = new StringPlusAuthority
+        {
+            Value = propertyName
+        };
+
+        significantProperties.SignificantPropertiesValue.Add(metadataValue);
+    }
+
     private static ContentLocationComplexType EnsureContentLocation(File file)
     {
         var thisStorage = file.Storage.FirstOrDefault(
-            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == IMetsManager.MetsCreatorAgent) != null);
+            s => s.StorageMedium.FirstOrDefault(sm => sm.Value == Constants.MetsCreatorAgent) != null);
         if (thisStorage == null)
         {
             thisStorage = new StorageComplexType();
-            thisStorage.StorageMedium.Add(new StorageMedium { Value = IMetsManager.MetsCreatorAgent });
+            thisStorage.StorageMedium.Add(new StorageMedium { Value = Constants.MetsCreatorAgent });
             file.Storage.Add(thisStorage);
         }
 
@@ -265,6 +384,25 @@ public static class PremisManager
             return doc.DocumentElement?.FirstChild as XmlElement;
         }
         return doc.DocumentElement;
+    }
+
+    public static XmlElement? GetXmlElement(ExifTag exifMetdata, XmlDocument document)
+    {
+        try
+        {
+            var rgx = new Regex("[^a-zA-Z0-9]");
+            if (exifMetdata.TagName != null)
+            {
+                var element = document.CreateElement(rgx.Replace(exifMetdata.TagName, ""));
+                element.InnerText = exifMetdata.TagValue ?? string.Empty;
+                return element;
+            }
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+        return null;
     }
 }
 

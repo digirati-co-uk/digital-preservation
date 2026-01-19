@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Utils;
 using MediatR;
 
@@ -38,7 +39,6 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
         var goodResult = new ItemsAffected();
 
         List<WorkingBase> rootRelativeItems = GetProcessedItems(request.Items);
-
         
         var shallowestFirst = rootRelativeItems
             .OrderBy(item => item.LocalPath.Count(c => c == '/'));

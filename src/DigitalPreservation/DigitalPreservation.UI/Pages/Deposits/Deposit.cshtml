@@ -2,6 +2,7 @@
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.Common.Model.Transit
+@using DigitalPreservation.Common.Model.Transit.Combined
 @using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
@@ -173,6 +174,20 @@
             <p>This Deposit is locked by @Model.Deposit!.LockedBy?.GetSlug()</p>
         </div>
     }
+    
+    @if (!jobRunning && Model.FilesWithViruses.Any())
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <p>Files with viruses</p>
+
+            @foreach (var virusFile in Model.FilesWithViruses)
+            {
+                <p>@virusFile</p>
+            }
+            
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
 
     @if (!jobRunning && TempData["MisMatchCount"] != null)
     {
@@ -180,39 +195,68 @@
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
             
             @{
-                var lastFileName = string.Empty;
-                var differencesString = string.Empty;
-                }
-            <!--ADD IN EXTRA INFORMATION AND DISPLAY MORE INFO ON MISMATCHES-->
+                List<string> mismatchMessages = [];
+                List<string> exifMismatchMessages = [];
+            }
+
             @foreach (var detailMismatch in Model.FileMisMatches)
             {
                 foreach (var fileMismatch in detailMismatch.Item1)
                 {
-                    switch (fileMismatch.Field.ToLower())
+                    if (!(fileMismatch.MetadataType.ToLower() == "exifmetadata"))
                     {
-                        case "contenttype":
-                            differencesString += " Content type;";
-                            @* <p>Content type is different</p> *@
-                            break;
-                        case "pronomkey":
-                            differencesString += " Pronom key;";
-                            @* <p>Pronom key is different</p> *@
-                            break;
-                        case "formatname":
-                            differencesString += " Format name;";
-                            @* <p>Format name is different</p> *@
-                            break;
-                        case "digest":
-                            differencesString += " Digest;";
-                            @* <p>Format name is different</p> *@
-                            break;
-                        default:
-                            <p>undocumented difference</p>
-                            break;
+                        switch (fileMismatch.Field.ToLower())
+                        {
+                            case "contenttype":
+                                mismatchMessages.Add("Content type");
+                                break;
+                            case "pronomkey":
+                                mismatchMessages.Add("Pronom key");
+                                break;
+                            case "formatname":
+                                mismatchMessages.Add("Format name");
+                                break;
+                            case "digest":
+                                mismatchMessages.Add("Digest");
+                                break;
+                            case "hasvirus":
+                                mismatchMessages.Add("Has virus");
+                                break;
+                            case "virusfound":
+                                mismatchMessages.Add("Virus found");
+                                break;
+                            case "virusdefinition":
+                                mismatchMessages.Add("Virus definition");
+                                break;
+                            case "(missing section)":
+                                mismatchMessages.Add("Missing metadata section: " + (fileMismatch.ValueInDeposit ?? fileMismatch.ValueInMets ?? "not specified"));
+                                break;
+                            default:
+                                mismatchMessages.Add("undocumented difference");
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        exifMismatchMessages.Add(fileMismatch.Field);
                     }
                 }
-                <p>@detailMismatch.Item2 (Differences: @differencesString)</p>
-                differencesString = string.Empty;
+
+                if (mismatchMessages.Any())
+                {
+                    var differencesString = String.Join(", ", mismatchMessages.Select(x => x.ToString()).ToArray());
+                    <p>@detailMismatch.Item2 (Differences: @differencesString)</p>
+
+                    mismatchMessages.Clear();
+                }
+
+                if (exifMismatchMessages.Any())
+                {
+                    var differencesString = String.Join(", ", exifMismatchMessages.Select(x => x.ToString()).ToArray());
+                    <p>@detailMismatch.Item2 Exif Metadata: (Differences: @differencesString)</p>
+
+                    exifMismatchMessages.Clear();
+                }
             }
             
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -395,7 +439,7 @@
                     }
                     else
                     {
-                        <a class="btn btn-sm btn-primary me-2 @(!jobRunning ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
+                        <a class="btn btn-sm btn-primary me-2 @(!jobRunning && !(TempData["MisMatchCount"] != null && Convert.ToInt32(TempData["MisMatchCount"]!.ToString()) > 0) ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
                             <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
                         </a>
                         <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">

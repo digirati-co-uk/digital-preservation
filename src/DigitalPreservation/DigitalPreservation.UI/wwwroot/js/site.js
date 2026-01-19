@@ -23,3 +23,13 @@ document.querySelectorAll('form.single-submit').forEach(form => {
         }
     });
 });
+
+
+function openHtmlStringInNewTab(htmlString) {
+    const newWindow = window.open('', '_blank');
+    const raw = decodeURIComponent(atob(htmlString).split('').map(function (c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    newWindow.document.write(raw);
+    newWindow.document.close();
+};

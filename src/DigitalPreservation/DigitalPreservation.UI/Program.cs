@@ -92,6 +92,7 @@ try
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
+        .AddSingleton<IMetsStorage, MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks();

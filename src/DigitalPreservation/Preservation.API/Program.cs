@@ -74,6 +74,7 @@ try
         .AddResourceMutator(builder.Configuration)
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
+        .AddSingleton<IMetsStorage, MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()

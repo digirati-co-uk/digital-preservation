@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model.Transit;
 
-namespace Preservation.API.Tests.WorkingDirectories;
+namespace Test.Helpers.TestData;
 
 public class TestStructure
 {
@@ -187,7 +187,7 @@ public class TestStructure
                                   "files": [],
                                   "directories": [],
                                   "metsExtensions": {
-                                    "physDivId": "PHYS_metadata",
+                                    "divId": "PHYS_metadata",
                                     "admId": "ADM_metadata",
                                     "accessCondition": "Open",
                                     "originalPath": "metadata"
@@ -201,7 +201,7 @@ public class TestStructure
                                   "files": [],
                                   "directories": [],
                                   "metsExtensions": {
-                                    "physDivId": "PHYS_objects",
+                                    "divId": "PHYS_objects",
                                     "admId": "ADM_objects",
                                     "accessCondition": "Open",
                                     "originalPath": "objects"

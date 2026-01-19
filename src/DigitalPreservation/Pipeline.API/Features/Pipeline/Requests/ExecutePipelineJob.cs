@@ -1,5 +1,4 @@
-﻿using Azure.Core;
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -13,8 +12,7 @@ using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
 using System.Text;
-using System.Threading;
-using System.Timers;
+using DigitalPreservation.Common.Model.Transit.Combined;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -135,7 +133,6 @@ public class ProcessPipelineJobHandler(
         return updateResult;
     }
 
-
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
         await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
@@ -233,7 +230,7 @@ public class ProcessPipelineJobHandler(
             };
         }
 
-        var (metadataPath, metadataProcessPath, objectPath) = GetFilePaths(workspaceManager);
+        var (metadataPath, metadataProcessPath, objectPath, depositPath) = GetFilePaths(workspaceManager);
         if (!Directory.Exists(objectPath))
         {
             var errorMessage = $"Could not find object folder for deposit {request.DepositId}";
@@ -277,9 +274,9 @@ public class ProcessPipelineJobHandler(
             processId = process.Id;
         }
 
-        streamReader = process?.StandardOutput;
+        streamReader = process.StandardOutput;
 
-        processTimer.Elapsed += (sender, e) => CheckIfProcessRunning(sender, e, request, workspaceManager.Deposit, cancellationTokenMonitor);
+        processTimer.Elapsed += (_, _) => CheckIfProcessRunning(request, workspaceManager.Deposit, cancellationTokenMonitor);
 
         processTimer.AutoReset = true;
         processTimer.Enabled = true;
@@ -309,9 +306,7 @@ public class ProcessPipelineJobHandler(
 
         logger.LogInformation("_streamReader {streamReader}", streamReader);
 
-        var result = string.Empty;
-
-        result = await streamReader.ReadToEndAsync(cancellationTokenBrunnhilde);
+        var result = await streamReader.ReadToEndAsync(cancellationTokenBrunnhilde);
         processId = 0;
         await tokensCatalog[monitorForceCompleteId].CancelAsync();
 
@@ -323,7 +318,6 @@ public class ProcessPipelineJobHandler(
         {
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
             logger.LogInformation("Brunnhilde creation successful");
-            var depositPath = $"{mountPath}{separator}{request.DepositId}";
 
             var (forceCompleteOnSuccess, cleanupProcessJobOnSuccess) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
@@ -343,19 +337,15 @@ public class ProcessPipelineJobHandler(
             // So we can't use it again for further *content modifications*.
             // But we can use it for other properties, e.g. workspaceManager.IsBagItLayout won't have changed.
 
-            var metadataPathForProcessFiles = workspaceManager.IsBagItLayout
+            var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
                 ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
                 : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
 
-            var metadataPathForProcessDirectories = workspaceManager.IsBagItLayout
-                ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}" //{separator}{BrunnhildeFolderName}
-                : $"{processFolder}{separator}{request.DepositId}{separator}metadata{separator}{BrunnhildeFolderName}"; //               
-
             logger.LogInformation("metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}",
-                metadataPathForProcessFiles);
+                metadataPathForProcessFilesAndDirectories);
             logger.LogInformation(
                 "metadataPathForProcessDirectories after brunnhilde process {metadataPathForProcessDirectories}",
-                metadataPathForProcessDirectories);
+                metadataPathForProcessFilesAndDirectories);
             logger.LogInformation("depositName after brunnhilde process {depositId}", request.DepositId);
 
             var (forceCompleteAfterDelete, cleanupProcessJobAfterDelete) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
@@ -365,8 +355,17 @@ public class ProcessPipelineJobHandler(
                 return await ForceCompleteReturn(cleanupProcessJobAfterDelete, request, workspaceManager.Deposit, cancellationToken);
             }
 
+            var virusDefinition = GetVirusDefinition();
+            //add virus definition file to metadata folder
+            var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{brunnhildeOptions.Value.DirectorySeparator}virus-definition{brunnhildeOptions.Value.DirectorySeparator}virus-definition.txt";
+
+            Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{brunnhildeOptions.Value.DirectorySeparator}virus-definition");
+            await File.WriteAllTextAsync(virusDefinitionPath, virusDefinition, CancellationToken.None);
+
+            await RunExif(metadataPathForProcessFilesAndDirectories, objectPath);
+
             var (createFolderResultList, uploadFilesResultList, forceCompleteUpload, forceCompleteUploadCleanupProcess) = await UploadFilesToMetadataRecursively(
-                request, metadataPathForProcessDirectories, metadataPathForProcessFiles, depositPath,
+                request, metadataPathForProcessFilesAndDirectories, depositPath,
                 workspaceManager.Deposit, cancellationToken);
 
             if (forceCompleteUpload || forceCompleteUploadCleanupProcess)
@@ -431,7 +430,7 @@ public class ProcessPipelineJobHandler(
         };
     }
 
-    private (string, string, string) GetFilePaths(WorkspaceManager workspaceManager)
+    private (string, string, string, string) GetFilePaths(WorkspaceManager workspaceManager)
     {
         var depositId = workspaceManager.DepositSlug;
         var mountPath = storageOptions.Value.FileMountPath;
@@ -442,19 +441,21 @@ public class ProcessPipelineJobHandler(
         string metadataProcessPath;
         string objectPath;
 
+        var depositPath = $"{mountPath}{separator}{depositId}";
+
         if (workspaceManager.IsBagItLayout)
         {
-            metadataPath = $"{mountPath}{separator}{depositId}{separator}data{separator}metadata";
+            metadataPath = $"{depositPath}{separator}data{separator}metadata";
             metadataProcessPath =
                 $"{processFolder}{separator}{depositId}{separator}data{separator}metadata{separator}{BrunnhildeFolderName}";
-            objectPath = $"{mountPath}{separator}{depositId}{separator}data{separator}{objectFolder}";
+            objectPath = $"{depositPath}{separator}data{separator}{objectFolder}";
         }
         else
         {
-            metadataPath = $"{mountPath}{separator}{depositId}{separator}metadata";
+            metadataPath = $"{depositPath}{separator}metadata";
             metadataProcessPath =
                 $"{processFolder}{separator}{depositId}{separator}metadata{separator}{BrunnhildeFolderName}";
-            objectPath = $"{mountPath}{separator}{depositId}{separator}{objectFolder}";
+            objectPath = $"{depositPath}{separator}{objectFolder}";
         }
 
 
@@ -464,7 +465,7 @@ public class ProcessPipelineJobHandler(
         if (!Directory.Exists(metadataProcessPath))
             Directory.CreateDirectory(metadataProcessPath);
 
-        return (metadataPath, metadataProcessPath, objectPath);
+        return (metadataPath, metadataProcessPath, objectPath, depositPath);
     }
 
     private async Task<Result<ItemsAffected>> DeleteBrunnhildeFoldersAndFiles(
@@ -481,10 +482,10 @@ public class ProcessPipelineJobHandler(
             Deposit = null,
             Items = []
         };
-        var testPath = $"{FolderNames.Metadata}/{BrunnhildeFolderName}";
+        var testPath = $"{FolderNames.Metadata}";
         foreach (var directory in directories)
         {
-            if (directory.LocalPath!.StartsWith(testPath))
+            if (directory.LocalPath!.StartsWith(testPath) && directory.LocalPath.ToLower() != "metadata" )
             {
                 deleteSelection.Items.Add(new MinimalItem
                 {
@@ -517,8 +518,8 @@ public class ProcessPipelineJobHandler(
         List<Result<CreateFolderResult>?> createSubFolderResult,
         List<Result<SingleFileUploadResult>?> uploadFileResult, bool forceComplete, bool cleanupProcess)> UploadFilesToMetadataRecursively(
             ExecutePipelineJob request,
-            string sourcePathForDirectories, string sourcePathForFiles, string depositPath,
-            Deposit deposit, CancellationToken cancellationToken)
+            string sourcePathForFilesAndDirectories, string depositPath,
+            Deposit deposit, CancellationToken cancellationToken) //string sourcePathForFiles, 
     {
         try
         {
@@ -538,13 +539,10 @@ public class ProcessPipelineJobHandler(
             logger.LogInformation($"context {context}");
 
             //create Brunnhilde folder first
-            var createSubFolderResult = new List<Result<CreateFolderResult>?>
-                {
-                    await CreateMetadataSubFolderOnS3(request, sourcePathForDirectories)
-                };
+            var createSubFolderResult = new List<Result<CreateFolderResult>?>();
 
-            //Now Create all of the directories
-            foreach (var dirPath in Directory.GetDirectories(sourcePathForDirectories, "*", SearchOption.AllDirectories))
+            //Now Create all the directories
+            foreach (var dirPath in Directory.GetDirectories(sourcePathForFilesAndDirectories, "*", SearchOption.AllDirectories))
             {
                 logger.LogInformation("dir path {dirPath}", dirPath);
                 var (forceCompleteDirectoryUpload, cleanupProcessDirectoryUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
@@ -561,7 +559,7 @@ public class ProcessPipelineJobHandler(
 
             var uploadFileResult = new List<Result<SingleFileUploadResult>?>();
 
-            foreach (var filePath in Directory.GetFiles(sourcePathForFiles, "*.*", SearchOption.AllDirectories))
+            foreach (var filePath in Directory.GetFiles(sourcePathForFilesAndDirectories, "*.*", SearchOption.AllDirectories))
             {
                 logger.LogInformation("Upload file path {filePath}", filePath);
                 if (filesToIgnore.Any(filePath.Contains))
@@ -576,7 +574,7 @@ public class ProcessPipelineJobHandler(
                     return (createSubFolderResult: [], uploadFileResult: [], forceCompleteFileUpload, cleanupProcessFileUpload);
                 }
 
-                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFiles, deposit, cancellationToken);
+                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFilesAndDirectories, deposit, cancellationToken);
                 if (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess)
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
@@ -586,6 +584,8 @@ public class ProcessPipelineJobHandler(
 
                 uploadFileResult.Add(uploadFileToS3Result);
             }
+
+            //var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFiles, deposit, cancellationToken);
 
             foreach (var subFolder in createSubFolderResult)
             {
@@ -606,7 +606,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, " Caught error in copy files recursively from {sourcePathForFiles} to {depositPath}", sourcePathForFiles, depositPath);
+            logger.LogError(ex, " Caught error in copy files recursively from {sourcePathForFilesAndDirectories} to {depositPath}", sourcePathForFilesAndDirectories, depositPath);
             return (createSubFolderResult: [], uploadFileResult: [], false, false);
         }
 
@@ -643,7 +643,7 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<(Result<SingleFileUploadResult>?, bool, bool)> UploadFileToDepositOnS3(ExecutePipelineJob request, string filePath,
-        string sourcePath, Deposit deposit, CancellationToken cancellationToken)
+        string? sourcePath, Deposit deposit, CancellationToken cancellationToken)
     {
         var context = new StringBuilder();
         var metadataContext = "metadata";
@@ -658,7 +658,7 @@ public class ProcessPipelineJobHandler(
             return (null, forceCompleteUploadS3, cleanupProcessUploadS3);
         }
 
-        if (!filePath.Contains(BrunnhildeFolderName))
+        if (!filePath.Contains(BrunnhildeFolderName) && !string.IsNullOrWhiteSpace(sourcePath))
             return (null, false, false);
 
         var fi = new FileInfo(filePath);
@@ -668,9 +668,15 @@ public class ProcessPipelineJobHandler(
             return (null, false, false);
         }
 
-        var contextPath = metadataContext + "/" + Path.GetRelativePath(
-            sourcePath,
-            fi.Directory.FullName).Replace(@"\", "/");
+        var contextPath = string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            contextPath = metadataContext + "/" + Path.GetRelativePath(
+                sourcePath,
+                fi.Directory.FullName).Replace(@"\", "/");
+        }
+
 
         if (fi.Directory.Name.ToLower() == BrunnhildeFolderName &&
             !context.ToString().Contains($"/{BrunnhildeFolderName}"))
@@ -701,7 +707,7 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(
-        ExecutePipelineJob request, Stream stream, string filePath, string contextPath, string checksum)
+        ExecutePipelineJob request, Stream stream, string filePath, string? contextPath, string checksum)
     {
         // This is potentially expensive as it needs a NEW WorkspaceManager each time
         // TODO: We need a batch operation on WorkspaceManager to upload a set of small files.
@@ -748,7 +754,7 @@ public class ProcessPipelineJobHandler(
     {
         var workspaceManagerResult = await GetWorkspaceManager(request, true);
         var workspaceManager = workspaceManagerResult.Value!;
-        var (_, _, objectPath) = GetFilePaths(workspaceManager);
+        var (_, _, objectPath, _) = GetFilePaths(workspaceManager);
         var minimalItems = new List<MinimalItem>();
 
         if (workspaceManager.IsBagItLayout)
@@ -815,7 +821,7 @@ public class ProcessPipelineJobHandler(
 
         return (forceComplete, cleanupProcessJob);
     }
-
+    
     private async Task<Result> TryReleaseLock(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
         var releaseLockResult =
@@ -829,7 +835,7 @@ public class ProcessPipelineJobHandler(
         return releaseLockResult;
     }
 
-    private async void CheckIfProcessRunning(object? source, ElapsedEventArgs eventArgs, ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
+    private async void CheckIfProcessRunning(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
         try
         {
@@ -866,7 +872,7 @@ public class ProcessPipelineJobHandler(
                 processTimer.Enabled = false;
             }
         }
-        catch (ArgumentException e)
+        catch (ArgumentException)
         {
             logger.LogError("Process is not running for job {jobId} and process id {processId}", request.JobIdentifier, processId);
             processTimer.Stop();
@@ -912,6 +918,75 @@ public class ProcessPipelineJobHandler(
             Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
             CleanupProcessJob = true
         };
+    }
+
+    private string GetVirusDefinition()
+    {
+        try
+        {
+            var process = new Process()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "clamscan",
+                    Arguments = "clamscan --version",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            process.Start();
+            string result = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            return result;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+
+    }
+
+    private async Task RunExif(string processPath, string objectPath)
+    {
+        logger.LogInformation("About to run exif");
+        var exifToolLocation = brunnhildeOptions.Value.ExifToolLocation;
+        var separator = brunnhildeOptions.Value.DirectorySeparator;
+        logger.LogInformation("Exif tool location {location}", exifToolLocation);
+
+        try
+        {
+            var process = new Process()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = exifToolLocation,
+                    Arguments = $" -a -r {objectPath}",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            logger.LogInformation("object path for exif command {ObjectPath}", objectPath);
+            logger.LogInformation("About to start exif process.");
+            process.Start();
+            var result = await process.StandardOutput.ReadToEndAsync();
+
+            logger.LogInformation("Exif output result {Result}", result);
+            var exifPath = $"{processPath}{separator}exif";
+
+            logger.LogInformation("Exif output path {OutputPath}", exifPath);
+            logger.LogInformation("Exif process path {ProcessPath}", processPath);
+
+            Directory.CreateDirectory(exifPath);
+            await File.WriteAllTextAsync($"{exifPath}{separator}exif_output.txt", result, CancellationToken.None);
+            await process.WaitForExitAsync();
+        }
+        catch(Exception e)
+        {
+            logger.LogError("Issue running exif tool for objects in the object path {ObjectPath} error {Exception}", objectPath, e.Message);
+        }
     }
 }
 

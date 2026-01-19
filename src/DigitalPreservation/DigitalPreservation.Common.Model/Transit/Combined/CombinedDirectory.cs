@@ -1,9 +1,8 @@
 ﻿using DigitalPreservation.Common.Model.Results;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
-using static DigitalPreservation.Common.Model.Transit.CombinedFile;
+using static DigitalPreservation.Common.Model.Transit.Combined.CombinedFile;
 
-namespace DigitalPreservation.Common.Model.Transit;
+namespace DigitalPreservation.Common.Model.Transit.Combined;
 
 public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDirectory? directoryInMets, string? relativePath = null)
 {
@@ -502,6 +501,13 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         return (mismatches, detailedMisMatches);
     }
 
+    public List<string> GetFilesWithVirus()
+    {
+        var virusFiles = new List<string>();
+        AddVirusFileNotices(virusFiles);
+        return virusFiles;
+    }
+
     private void AddMisMatches(List<string> localPaths, List<(List<FileMisMatch>, string)> detailedMismatches)
     {
         foreach (var combinedFile in Files)
@@ -524,22 +530,22 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
     }
 
-    private List<CombinedFile.FileMisMatch> AddDetailMisMatches()
+    private void AddVirusFileNotices(List<string> filesWithVirus)
     {
-        var s = new List<CombinedFile.FileMisMatch>();
         foreach (var combinedFile in Files)
         {
-            if (combinedFile.MisMatches.Count != 0)
+            var virusMetadata = combinedFile.GetVirusMetadata();
+
+            if (virusMetadata is { HasVirus: true })
             {
-                //localPaths.Add(combinedFile.LocalPath!);
-                foreach (var m in combinedFile.MisMatches)
-                {
-                    s.Add(m);
-                }
+                filesWithVirus.Add(FolderNames.RemovePathPrefix(combinedFile.LocalPath!) ?? string.Empty);
             }
         }
 
-        return s;
+        foreach (var combinedDirectory in Directories)
+        {
+            combinedDirectory.AddVirusFileNotices(filesWithVirus);
+        }
     }
 }
 
