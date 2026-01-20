@@ -1,5 +1,6 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Mods.V3;
 
@@ -73,7 +74,7 @@ public static class ModsManager
 
     public static ModsDefinition? GetRootMods(DigitalPreservation.XmlGen.Mets.Mets mets)
     {
-        var rootDmd = mets.DmdSec.Single(x => x.Id == MetsManager.DmdPhysRoot)!;
+        var rootDmd = mets.DmdSec.Single(x => x.Id == Constants.DmdPhysRoot)!;
         if (rootDmd.MdWrap is { Mdtype: MdSecTypeMdWrapMdtype.Mods })
         {
             var modsXml = rootDmd.MdWrap.XmlData.Any?.FirstOrDefault();
@@ -91,7 +92,7 @@ public static class ModsManager
 
     public static void SetRootMods(DigitalPreservation.XmlGen.Mets.Mets mets, ModsDefinition mods)
     {
-        var rootDmd = mets.DmdSec.Single(x => x.Id == MetsManager.DmdPhysRoot)!;
+        var rootDmd = mets.DmdSec.Single(x => x.Id == Constants.DmdPhysRoot)!;
         rootDmd.MdWrap = new MdSecTypeMdWrap
         {
             Mdtype = MdSecTypeMdWrapMdtype.Mods,
