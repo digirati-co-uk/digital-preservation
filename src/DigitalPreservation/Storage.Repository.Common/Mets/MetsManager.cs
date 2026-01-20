@@ -682,7 +682,7 @@ public class MetsManager(
             return Result.Fail(ErrorCodes.BadRequest, "Cannot delete a non-empty directory.");
         }
 
-        string admId;
+        string? admId;
         if (div is { Type: "Item" })
         {
             SetFileAndFileGroup(div, fullMets);
@@ -692,7 +692,7 @@ public class MetsManager(
                 return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
             }
 
-            admId = File != null && File.Admid.Count > 1 ? string.Join(" ", File.Admid) : File.Admid[0];
+            admId = File != null && File.Admid.Count > 1 ? string.Join(" ", File.Admid) : File?.Admid[0];
 
             FileGroup?.File.Remove(File);
         }
