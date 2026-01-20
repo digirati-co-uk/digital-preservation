@@ -54,6 +54,7 @@ jobs:
         run: |
          dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation" /o:"digirati" /d:sonar.login="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
          dotnet build
+         dotnet test 
          dotnet-sonarscanner end /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
 
 
