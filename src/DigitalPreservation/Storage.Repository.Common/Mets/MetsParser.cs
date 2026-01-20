@@ -1,7 +1,4 @@
 ﻿using System.Xml.Linq;
-using Amazon.S3;
-using Amazon.S3.Model;
-using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
@@ -10,12 +7,11 @@ using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
-using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Storage.Repository.Common.Mets;
 
 public class MetsParser(
-    IAmazonS3 s3Client,
+    IMetsLoader loader,
     ILogger<MetsParser> logger) : IMetsParser
 {
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
@@ -51,91 +47,13 @@ public class MetsParser(
             // We assume that the caller knew that metsLocation is a file
             return Result.Ok((root, (Uri?)file));
         }
-        
+
         // we haven't found the METS file yet
-        switch (root.Scheme)
-        {
-            case "file":
-                var dir = new DirectoryInfo(root.AbsolutePath);
-            
-                // Need to find the METS. Look for "mets.xml" by preference
-                var firstXmlFile = dir.EnumerateFiles().FirstOrDefault(
-                    f => MetsUtils.IsMetsFile(f.Name.GetSlug(), true));
-                if (firstXmlFile == null)
-                {
-                    firstXmlFile = dir.EnumerateFiles().FirstOrDefault(
-                        f => MetsUtils.IsMetsFile(f.Name.GetSlug(), false));
-                }
-
-                if (firstXmlFile == null)
-                {
-                    var childDirs = dir.GetDirectories();
-                    if (childDirs is [{ Name: FolderNames.BagItData }]) // one and one only child directory, called data
-                    {                
-                        firstXmlFile = childDirs[0].EnumerateFiles().FirstOrDefault(
-                            f => MetsUtils.IsMetsFile(f.Name.GetSlug(), true));
-                        if (firstXmlFile == null)
-                        {
-                            firstXmlFile = childDirs[0].EnumerateFiles().FirstOrDefault(
-                                f => MetsUtils.IsMetsFile(f.Name.GetSlug(), false));
-                        }
-                    }
-                }
-                if (firstXmlFile != null)
-                {
-                    file = new Uri(firstXmlFile.FullName);
-                }
-
-                break;
-            case "s3":
-                var rootS3Uri = new AmazonS3Uri(root);
-                var prefix = $"{rootS3Uri.Key.TrimEnd('/')}/";
-            
-                // Need to find the METS
-                var listObjectsReq = new ListObjectsV2Request
-                {
-                    BucketName = rootS3Uri.Bucket,
-                    Prefix = prefix,
-                    Delimiter = "/" // first "children" only ... does that return "data/" no?                       
-                };
-                var resp = await s3Client.ListObjectsV2Async(listObjectsReq);
-                var files = resp.S3Objects.Where(s => !s.Key.EndsWith('/')).ToList();
-                var firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), true));
-                if (firstXmlKey == null)
-                {
-                    firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), false));
-                }
-                
-                if (firstXmlKey == null)
-                {
-                    listObjectsReq = new ListObjectsV2Request
-                    {
-                        BucketName = rootS3Uri.Bucket,
-                        Prefix = prefix + "data/", // BagIt layout
-                        Delimiter = "/"                       
-                    };
-                    resp = await s3Client.ListObjectsV2Async(listObjectsReq);
-                    files = resp.S3Objects.Where(s => !s.Key.EndsWith('/')).ToList();
-                    firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), true));
-                    if (firstXmlKey == null)
-                    {
-                        firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), false));
-                    }
-                }
-
-                if (firstXmlKey != null)
-                {
-                    file = new Uri($"s3://{firstXmlKey.BucketName}/{firstXmlKey.Key}");
-                }
-
-                break;
-            default:
-                throw new NotSupportedException(root.Scheme + " not supported");
-        }
-
+        file = await loader.FindMetsFile(root);
         return Result.Ok((root, file));
     }
-    
+
+
     public async Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation, bool parse = true)
     {
         // might be a file path or an S3 URI
@@ -152,7 +70,7 @@ public class MetsParser(
         {
             try
             {
-                mets.Self = await LoadMetsFileAsync(mets.RootUri, file);
+                mets.Self = await loader.LoadMetsFileAsWorkingFile(file);
             }
             catch (Exception e)
             {
@@ -164,7 +82,7 @@ public class MetsParser(
         {
             try
             {
-                var (xMets, eTag) = await ExamineXml(file, mets.Self.Digest, parse);
+                var (xMets, eTag) = await loader.ExamineXml(file, mets.Self.Digest, parse);
                 mets.ETag = eTag;
                 if (parse && xMets is not null)
                 {
@@ -206,96 +124,7 @@ public class MetsParser(
     }
 
 
-    private async Task<WorkingFile?> LoadMetsFileAsync(Uri root, Uri file)
-    {
-        // This "find the METS file" logic is VERY basic and doesn't even look at the file.
-        // But this is just for Proof of Concept.
-
-        switch (file.Scheme)
-        {
-            case "file":
-                if (File.Exists(file.AbsolutePath))
-                {
-                    var fi = new FileInfo(file.AbsolutePath);
-                    return new WorkingFile
-                    {
-                        ContentType = "application/xml",
-                        LocalPath = fi.Name, // because mets must be in the root
-                        Name = fi.Name,
-                        Digest = Checksum.Sha256FromFile(fi)?.ToLowerInvariant()
-                    };
-                }
-
-                return null;
-            
-            case "s3":
-                var rootS3Uri = new AmazonS3Uri(root);
-                var fileS3Uri = new AmazonS3Uri(file);
-                try
-                {
-                    var resp = await s3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
-                    {
-                        BucketName = fileS3Uri.Bucket,
-                        Key = fileS3Uri.Key
-                    });
-                }
-
-                catch (AmazonS3Exception ex)
-                {
-                    if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-                        return null;
-
-                    throw;
-                }
-                
-                var s3Stream = await s3Client.GetObjectStreamAsync(fileS3Uri.Bucket, fileS3Uri.Key, null);
-                var digest = Checksum.Sha256FromStream(s3Stream)?.ToLowerInvariant();
-                var name = fileS3Uri.Key.GetSlug(); // because mets is in root - whether apparent (BagIt) or real
-                return new WorkingFile
-                {
-                    ContentType = "application/xml",
-                    LocalPath = name, 
-                    Name = name,
-                    Digest = digest
-                };
-            
-            default:
-                throw new NotSupportedException(root.Scheme + " not supported");
-        }
-        
-    }
-    
-    
-    private async Task<(XDocument?, string)> ExamineXml(Uri file, string? digest, bool parse)
-    {
-        XDocument? xDoc = null;
-        switch(file.Scheme)
-        {
-            case "file":
-                var fileETag = digest ?? string.Empty;
-                if (parse)
-                {
-                    xDoc = XDocument.Load(file.LocalPath);
-                }
-                return (xDoc, fileETag);
-
-            case "s3":
-                var s3Uri = new AmazonS3Uri(file);
-                var resp = await s3Client.GetObjectAsync(s3Uri.Bucket, s3Uri.Key);
-                var s3ETag = resp.ETag!;
-                if (parse)
-                {
-                    xDoc = await XDocument.LoadAsync(resp.ResponseStream, LoadOptions.None, CancellationToken.None);
-                }
-                return (xDoc, s3ETag);
-
-            default:
-                throw new NotSupportedException(file.Scheme + " not supported");
-        }
-    }
-
-
-    public void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
+    private void PopulateFromMets(MetsFileWrapper mets, XDocument xMets)
     {
         var modsScope = xMets.Descendants(XNames.mods + "mods").FirstOrDefault();
         // EPrints mods is not wrapped in a <mods:mods> element
@@ -337,7 +166,6 @@ public class MetsParser(
                         {
                             logger.LogError(e, "Unable to parse rights statement {accessCondition}",
                                 accessCondition.Value);
-                            ;
                         }
                     }
                 }
@@ -534,7 +362,7 @@ public class MetsParser(
                     if (fixity != null)
                     {
                         var algorithm = fixity.Element(XNames.PremisMessageDigestAlgorithm)?.Value
-                            ?.ToLowerInvariant().Replace("-", "");
+                            .ToLowerInvariant().Replace("-", "");
                         if (algorithm == "sha256")
                         {
                             digest = fixity.Element(XNames.PremisMessageDigest)?.Value;
@@ -608,16 +436,19 @@ public class MetsParser(
                             .SingleOrDefault();
                     }
 
-                    var eventOutcome = eventOutcomeInformation?.Descendants(XNames.PremisEventOutcome)
+                    var eventOutcome = eventOutcomeInformation?
+                        .Descendants(XNames.PremisEventOutcome)
                         .SingleOrDefault();
 
-                    var eventDetailInformation = virusEvent.Descendants(XNames.PremisEventDetailInformation)
+                    var eventDetailInformation = virusEvent
+                        .Descendants(XNames.PremisEventDetailInformation)
                         .SingleOrDefault();
 
                     XElement? eventDetail = null;
                     if (eventDetailInformation != null)
                     {
-                        eventDetail = eventDetailInformation?.Descendants(XNames.PremisEventDetail)
+                        eventDetail = eventDetailInformation
+                            .Descendants(XNames.PremisEventDetail)
                             .SingleOrDefault();
                     }
 
@@ -656,7 +487,7 @@ public class MetsParser(
                 var parts = flocat.Split('/');
                 if (string.IsNullOrEmpty(mimeType))
                 {
-                    // In the real version, we would have got this from Siegfried for born-digital archives
+                    // In the real version, we would have got this from Siegfried for born-digital archives,
                     // but we'd still be reading it from the METS file we made.
                     if (MimeTypes.TryGetMimeType(parts[^1], out var foundMimeType))
                     {
@@ -707,7 +538,7 @@ public class MetsParser(
 
                 // We only know the "on disk" paths of folders from file paths in flocat
                 // so if we have /folder1/folder2/folder3/file1 where folder2 has no immediate children, we never see it directly.
-                // But we might see it in mets:div in the structmap]]
+                // But we might see it in mets:div in the structmap
                 if (parts.Length > 0)
                 {
                     int walkBack = parts.Length;

@@ -1,11 +1,9 @@
-﻿using Amazon.S3;
-using DigitalPreservation.Common.Model.Mets;
-using DigitalPreservation.Common.Model.Transit;
+﻿using DigitalPreservation.Common.Model.Transit;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Moq;
 using Storage.Repository.Common.Mets;
+using Storage.Repository.Common.Mets.StorageImpl;
 
 namespace XmlGen.Tests;
 
@@ -22,9 +20,9 @@ public class ModsTests
 
         var factory = serviceProvider.GetService<ILoggerFactory>();
         var parserLogger = factory!.CreateLogger<MetsParser>();
-        var s3Client = new Mock<IAmazonS3>().Object;
-        parser = new MetsParser(s3Client, parserLogger);
-        var metsStorage = new MetsStorage(s3Client, parser);
+        var metsLoader = new FileSystemMetsLoader();
+        parser = new MetsParser(metsLoader, parserLogger);
+        var metsStorage = new FileSystemMetsStorage(parser);
         metsManager = new MetsManager(parser, metsStorage);
     }
     
