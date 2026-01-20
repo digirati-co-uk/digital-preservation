@@ -43,9 +43,9 @@ public class FileSystemMetsStorage(IMetsParser metsParser) : IMetsStorage
             return Result.FailNotNull<FullMets>(ErrorCodes.NotFound, "No METS file in " + metsLocation);
         }
 
-        var fi = new FileInfo(file.LocalPath);
         try
         {
+            var fi = new FileInfo(file.LocalPath);
             returnedETag = Checksum.Sha256FromFile(fi);
             if (eTagToMatch is not null && returnedETag != eTagToMatch)
             {
