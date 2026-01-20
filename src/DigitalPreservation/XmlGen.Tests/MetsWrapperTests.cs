@@ -1,10 +1,9 @@
-﻿using Amazon.S3;
-using DigitalPreservation.Common.Model.Transit;
+﻿using DigitalPreservation.Common.Model.Transit;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Moq;
 using Storage.Repository.Common.Mets;
+using Storage.Repository.Common.Mets.StorageImpl;
 
 namespace XmlGen.Tests;
 
@@ -25,8 +24,8 @@ public class MetsWrapperTests
     [Fact]
     public async void Can_Parse_Goobi_METS_For_Wrapper()
     {
-        var s3Client = new Mock<IAmazonS3>().Object;
-        var parser = new MetsParser(s3Client, logger);
+        var metsLoader = new FileSystemMetsLoader();
+        var parser = new MetsParser(metsLoader, logger);
         var goobiMetsFile = new FileInfo("Samples/goobi-wc-b29356350-2.xml");
         var result = await parser.GetMetsFileWrapper(new Uri(goobiMetsFile.FullName));
 
@@ -58,8 +57,8 @@ public class MetsWrapperTests
     [Fact]
     public async Task Can_Parse_EPrints_METS()
     {
-        var s3Client = new Mock<IAmazonS3>().Object;
-        var parser = new MetsParser(s3Client, logger);
+        var metsLoader = new FileSystemMetsLoader();
+        var parser = new MetsParser(metsLoader, logger);
         var eprintsMets = new FileInfo("Samples/EPrints.10315.METS.xml");
         var result = await parser.GetMetsFileWrapper(new Uri(eprintsMets.FullName));
 
@@ -85,8 +84,8 @@ public class MetsWrapperTests
     [Fact]
     public async Task Can_Parse_Archivematica_METS()
     {
-        var s3Client = new Mock<IAmazonS3>().Object;
-        var parser = new MetsParser(s3Client, logger);
+        var metsLoader = new FileSystemMetsLoader();
+        var parser = new MetsParser(metsLoader, logger);
         var archivematicaMets = new FileInfo("Samples/archivematica-wc-METS.299eb16f-1e62-4bf6-b259-c82146153711.xml");
         var result = await parser.GetMetsFileWrapper(new Uri(archivematicaMets.FullName));
 
@@ -134,8 +133,8 @@ public class MetsWrapperTests
     [Fact]
     public async void Can_Parse_METS_From_FolderReference()
     {
-        var s3Client = new Mock<IAmazonS3>().Object;
-        var parser = new MetsParser(s3Client, logger);
+        var metsLoader = new FileSystemMetsLoader();
+        var parser = new MetsParser(metsLoader, logger);
         var metsFolderContainer = new DirectoryInfo("Samples");
         var result = await parser.GetMetsFileWrapper(new Uri(metsFolderContainer.FullName));
 
