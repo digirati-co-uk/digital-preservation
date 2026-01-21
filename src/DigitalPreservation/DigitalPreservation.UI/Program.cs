@@ -17,6 +17,7 @@ using Preservation.Client;
 using Serilog;
 using Storage.Repository.Common;
 using Storage.Repository.Common.Mets;
+using Storage.Repository.Common.Mets.StorageImpl;
 using Storage.Repository.Common.S3;
 
 
@@ -90,10 +91,10 @@ try
             cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
         .AddStorageAwsAccess(builder.Configuration)
+        .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
-        .AddSingleton<IMetsStorage, MetsStorage>()
-        .AddSingleton<IMetadataManager, MetadataManager>()
+        .AddSingleton<IMetsStorage, S3MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddCorrelationIdHeaderPropagation()
         .AddUIHealthChecks();

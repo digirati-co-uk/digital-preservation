@@ -22,6 +22,7 @@ using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using Microsoft.OpenApi.Models;
+using Storage.Repository.Common.Mets.StorageImpl;
 
 
 Log.Logger = new LoggerConfiguration()
@@ -72,10 +73,10 @@ try
         .AddSingleton<IIdentityMinter, IdentityMinter>()
         .AddMvpCatalogueClient(builder.Configuration)
         .AddResourceMutator(builder.Configuration)
+        .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
-        .AddSingleton<IMetsStorage, MetsStorage>()
-        .AddSingleton<IMetadataManager, MetadataManager>()
+        .AddSingleton<IMetsStorage, S3MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
