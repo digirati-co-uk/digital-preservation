@@ -25,7 +25,8 @@ public class ModsTests
         var s3Client = new Mock<IAmazonS3>().Object;
         parser = new MetsParser(s3Client, parserLogger);
         var metsStorage = new MetsStorage(s3Client, parser);
-        metsManager = new MetsManager(parser, metsStorage);
+        var metadataManager = new MetadataManager();
+        metsManager = new MetsManager(parser, metsStorage, metadataManager);
     }
     
     [Fact]

@@ -28,7 +28,8 @@ public class MetsManagerTests
         
         parser = new MetsParser(s3Client, parserLogger);
         var metsStorage = new MetsStorage(s3Client, parser);
-        metsManager = new MetsManager(parser, metsStorage);
+        var metadataManager = new MetadataManager();
+        metsManager = new MetsManager(parser, metsStorage, metadataManager);
     }
 
     [Fact]

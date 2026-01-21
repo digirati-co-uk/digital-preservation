@@ -75,6 +75,7 @@ try
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
         .AddSingleton<IMetsStorage, MetsStorage>()
+        .AddSingleton<IMetadataManager, MetadataManager>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()

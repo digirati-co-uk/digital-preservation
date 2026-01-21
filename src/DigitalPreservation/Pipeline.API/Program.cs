@@ -123,6 +123,7 @@ try
     builder.Services.AddSingleton<IMetsParser, MetsParser>();
     builder.Services.AddSingleton<IMetsManager, MetsManager>();
     builder.Services.AddSingleton<IMetsStorage, MetsStorage>();
+    builder.Services.AddSingleton<IMetadataManager, MetadataManager>();
     builder.Services.AddSingleton<WorkspaceManagerFactory>();
 
     var app = builder.Build();

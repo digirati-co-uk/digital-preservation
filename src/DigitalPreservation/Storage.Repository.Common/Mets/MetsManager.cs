@@ -13,7 +13,8 @@ namespace Storage.Repository.Common.Mets;
 
 public class MetsManager(
     IMetsParser metsParser,
-    IMetsStorage metsStorage) : IMetsManager
+    IMetsStorage metsStorage,
+    IMetadataManager metadataManager) : IMetsManager
 {
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -255,13 +256,15 @@ public class MetsManager(
                     FileAdmId = string.Join(' ', File.Admid);
                     AmdSec = fullMets.Mets.AmdSec.Single(a => a.Id == FileAdmId);
 
-                    var metadataResult = GetMetadataXml(fullMets, div, operationPath);
+                    metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
 
-                    if (!metadataResult.Success)
-                        return metadataResult;
+                    //var metadataResult = GetMetadataXml(fullMets, div, operationPath);
 
-                    ProcessFileFormatDataForFile(workingFile, operationPath, false);
-                    ProcessVirusDataForFile(workingFile);
+                    //if (!metadataResult.Success)
+                    //    return metadataResult;
+
+                    //ProcessFileFormatDataForFile(workingFile, operationPath, false);
+                    //ProcessVirusDataForFile(workingFile);
                 }
             }
             else
@@ -325,32 +328,7 @@ public class MetsManager(
                 };
                 div?.Div.Add(childItemDiv);
 
-                ProcessFileFormatDataForFile(workingFile, operationPath, true);
-
-                File = new FileType
-                {
-                    Id = fileId,
-                    Admid = { admId },
-                    Mimetype = PremisFile?.ContentType ?? workingFile.ContentType,
-                    FLocat =
-                    {
-                        new FileTypeFLocat
-                        {
-                            Href = operationPath, Loctype = FileTypeFLocatLoctype.Url
-                        }
-                    }
-                };
-
-                fullMets.Mets.FileSec.FileGrp[0].File.Add(File);
-
-                if (PremisFile != null && PremisFile.ContentType.HasText() && PremisFile.ContentType != ContentTypes.NotIdentified)
-                {
-                    File.Mimetype = PremisFile.ContentType;
-                }
-
-                ProcessVirusDataForFile(workingFile);
-
-                fullMets.Mets.AmdSec.Add(AmdSec);
+                metadataManager.ProcessAllFileMetadata(ref fullMets, childItemDiv, workingFile, operationPath, true); 
             }
 
             // Now we need to ensure the child items are in alphanumeric order by name...
@@ -378,34 +356,6 @@ public class MetsManager(
         }
 
         return Result.Ok();
-    }
-
-    private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
-    {
-        // This will throw if mismatches
-        var digestMetadata = workingFile.GetDigestMetadata();
-        
-        var fileFormatMetadata = workingFile.GetFileFormatMetadata();
-        if (fileFormatMetadata != null)
-        {
-            if (fileFormatMetadata.OriginalName.IsNullOrWhiteSpace())
-            {
-                fileFormatMetadata.OriginalName = originalName;
-            }
-
-            return fileFormatMetadata;
-        }
-        
-        // no metadata available
-        return new FileFormatMetadata
-        {
-            Source = Constants.Mets,
-            ContentType = workingFile.ContentType,
-            Digest = digestMetadata?.Digest ?? workingFile.Digest,
-            Size = workingFile.Size,
-            OriginalName = originalName, // workingFile.LocalPath
-            StorageLocation = null // storageLocation
-        };
     }
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()
@@ -571,6 +521,34 @@ public class MetsManager(
 
     //==============================================================
     //construct design with method stubs
+    private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
+    {
+        // This will throw if mismatches
+        var digestMetadata = workingFile.GetDigestMetadata();
+
+        var fileFormatMetadata = workingFile.GetFileFormatMetadata();
+        if (fileFormatMetadata != null)
+        {
+            if (fileFormatMetadata.OriginalName.IsNullOrWhiteSpace())
+            {
+                fileFormatMetadata.OriginalName = originalName;
+            }
+
+            return fileFormatMetadata;
+        }
+
+        // no metadata available
+        return new FileFormatMetadata
+        {
+            Source = Constants.Mets,
+            ContentType = workingFile.ContentType,
+            Digest = digestMetadata?.Digest ?? workingFile.Digest,
+            Size = workingFile.Size,
+            OriginalName = originalName, // workingFile.LocalPath
+            StorageLocation = null // storageLocation
+        };
+    }
+
     private Result ProcessFileFormatDataForFile(WorkingFile workingFile, string operationPath, bool newUpload)
     {
         //TODO: this will process new/existing metadata structure for new or existing file
@@ -766,7 +744,6 @@ public class MetsManager(
         FileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
         File = FileGroup.File.Single(f => f.Id == fileId);
     }
-
         
     private (int counter, DivType? parent, DivType? div, string[]? elements, string operationPath, string testPath) GetMetsElements(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
     {
