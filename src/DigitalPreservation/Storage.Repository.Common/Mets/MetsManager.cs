@@ -250,21 +250,8 @@ public class MetsManager(
                     if (File?.FLocat[0].Href != operationPath)
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
 
-                    // TODO: This is a quick fix to get round the problem of spaces in XML IDs.
-                    // We need to not have any spaces in XML IDs, which means we need to escape them 
-                    // in a reversible way (replacing with _ won't do)
-                    FileAdmId = string.Join(' ', File.Admid);
-                    AmdSec = fullMets.Mets.AmdSec.Single(a => a.Id == FileAdmId);
-
                     metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
 
-                    //var metadataResult = GetMetadataXml(fullMets, div, operationPath);
-
-                    //if (!metadataResult.Success)
-                    //    return metadataResult;
-
-                    //ProcessFileFormatDataForFile(workingFile, operationPath, false);
-                    //ProcessVirusDataForFile(workingFile);
                 }
             }
             else
@@ -287,9 +274,6 @@ public class MetsManager(
             var physId = Constants.PhysIdPrefix + operationPath;
             var admId = Constants.AdmIdPrefix + operationPath;
             var techId = Constants.TechIdPrefix + operationPath;
-            TechId = techId;
-
-            FileAdmId = admId;
 
             if (workingBase is not WorkingFile workingFile)
             {
@@ -518,140 +502,6 @@ public class MetsManager(
         var rights = mods?.GetAccessConditions(Constants.UseAndReproduction).SingleOrDefault();
         return rights is not null ? new Uri(rights) : null;
     }
-
-    //==============================================================
-    //construct design with method stubs
-    private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
-    {
-        // This will throw if mismatches
-        var digestMetadata = workingFile.GetDigestMetadata();
-
-        var fileFormatMetadata = workingFile.GetFileFormatMetadata();
-        if (fileFormatMetadata != null)
-        {
-            if (fileFormatMetadata.OriginalName.IsNullOrWhiteSpace())
-            {
-                fileFormatMetadata.OriginalName = originalName;
-            }
-
-            return fileFormatMetadata;
-        }
-
-        // no metadata available
-        return new FileFormatMetadata
-        {
-            Source = Constants.Mets,
-            ContentType = workingFile.ContentType,
-            Digest = digestMetadata?.Digest ?? workingFile.Digest,
-            Size = workingFile.Size,
-            OriginalName = originalName, // workingFile.LocalPath
-            StorageLocation = null // storageLocation
-        };
-    }
-
-    private Result ProcessFileFormatDataForFile(WorkingFile workingFile, string operationPath, bool newUpload)
-    {
-        //TODO: this will process new/existing metadata structure for new or existing file
-        //Call IPremisManager to get XML
-        //FileFormatMetadata premisFile;
-
-        try
-        {
-            PremisFile = GetFileFormatMetadata(workingFile, operationPath);
-        }
-        catch (MetadataException mex)
-        {
-            //TODO: return a Result
-            //return;
-            return Result.Fail(ErrorCodes.BadRequest, mex.Message);
-        }
-
-        var patchPremisExif = workingFile.GetExifMetadata();
-
-        PremisComplexType? premisType;
-        if (PremisIncExifXml is not null)
-        {
-            premisType = PremisIncExifXml.GetPremisComplexType()!;
-            PremisManager.Patch(premisType, PremisFile, patchPremisExif);
-        }
-        else
-        {
-            premisType = PremisManager.Create(PremisFile, patchPremisExif);
-        }
-
-        var premisXml = PremisManager.GetXmlElement(premisType, true);
-        SetAmdSec(premisXml, newUpload);
-
-        if (PremisFile.ContentType.HasText() && PremisFile.ContentType != ContentTypes.NotIdentified && File != null)
-        {
-            File.Mimetype = PremisFile.ContentType;
-        }
-
-        return Result.Ok();
-    }
-
-    //TODO: make these properties as used in all the methods
-    //TODO: WorkingFile workingFile, string operationPath, AmdSecType amdSec, FileType file, string? fileAdmId
-    private void ProcessVirusDataForFile(WorkingFile workingFile)
-    {
-        var patchPremisVirus = workingFile.GetVirusScanMetadata();
-
-        EventComplexType? virusEventComplexType = null;
-        if (VirusXml is not null)
-        {
-            virusEventComplexType = VirusXml.GetEventComplexType()!;
-
-            if (patchPremisVirus != null)
-            {
-                PremisEventManager.Patch(virusEventComplexType, patchPremisVirus);
-            }
-        }
-        else
-        {
-            if (patchPremisVirus != null)
-            {
-                virusEventComplexType = PremisEventManager.Create(patchPremisVirus);
-            }
-        }
-
-        if (virusEventComplexType is null) return;
-        VirusXml = PremisEventManager.GetXmlElement(virusEventComplexType);
-
-        if (AmdSec == null) return;
-
-        AddVirusXml();
-    }
-
-
-    //TODO: return Tuple of all metadata Premis, Virus and Exif (these may be null if a new file)
-    private Result GetMetadataXml(FullMets fullMets, DivType? div, string operationPath)
-    {
-        if (div != null && div.Type != "Item")
-        {
-            return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
-        }
-
-        SetFileAndFileGroup(div, fullMets);
-
-        if (File?.FLocat[0].Href != operationPath)
-        {
-            return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
-        }
-
-        // TODO: This is a quick fix to get round the problem of spaces in XML IDs.
-        // We need to not have any spaces in XML IDs, which means we need to escape them 
-        // in a reversible way (replacing with _ won't do)
-        FileAdmId = string.Join(' ', File.Admid);
-        var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == FileAdmId);
-        var premisIncExifXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault(); //TODO: this includes exif - separate this out
-        var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(Constants.VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault();
-
-        PremisIncExifXml = premisIncExifXml;
-        VirusXml = virusPremisXml;
-
-        return Result.Ok();
-    }
-
     private Result DeleteFile(DivType? div, FullMets fullMets, DivType? parent, string? operationPath)
     {
         // we have arrived at an existing file or folder which is being DELETED
@@ -685,56 +535,6 @@ public class MetsManager(
         parent!.Div.Remove(div);
 
         return Result.Ok();
-    }
-
-    private void SetAmdSec(XmlElement? premisXml, bool newUpload)
-    {
-        if (AmdSec is null || newUpload)
-        {
-            AmdSec = new AmdSecType
-            {
-                Id = FileAdmId, //admId
-                TechMd =
-                {
-                    new MdSecType
-                    {
-                        Id = TechId, //techId
-                        MdWrap = new MdSecTypeMdWrap
-                        {
-                            Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
-                            XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml }}
-                        }
-                    }
-                },
-            };
-        }
-        else
-        {
-            AmdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
-        }
-    }
-
-    private void AddVirusXml()
-    {
-        if (AmdSec is null)
-            return;
-
-        if (AmdSec.DigiprovMd.Any())
-        {
-            AmdSec.DigiprovMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { VirusXml } };
-        }
-        else
-        {
-            AmdSec.DigiprovMd.Add(new MdSecType
-            {
-                Id = $"{Constants.VirusProvEventPrefix}{FileAdmId}",
-                MdWrap = new MdSecTypeMdWrap
-                {
-                    Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
-                    XmlData = new MdSecTypeMdWrapXmlData { Any = { VirusXml } }
-                }
-            });
-        }
     }
 
     private void SetFileAndFileGroup(DivType? div, FullMets fullMets)
@@ -779,15 +579,6 @@ public class MetsManager(
 
         return (counter, parent, div, elements, operationPath, testPath);
     }
-    //TODO: need to reset properties when on new file
-    private XmlElement? PremisIncExifXml { get; set; }
-    private XmlElement? VirusXml { get; set; }
-    private XmlElement? ExifXml { get; set; } //TODO: to follow when Exif has its own premis manager
-
-    private string? FileAdmId { get; set; }
-    private AmdSecType? AmdSec { get; set; } //TODO: may not be a good idea??
     private FileType? File { get; set; }
-    private string? TechId { get; set; }
-    private FileFormatMetadata? PremisFile { get; set; }
     private MetsTypeFileSecFileGrp? FileGroup { get; set; }
 }
