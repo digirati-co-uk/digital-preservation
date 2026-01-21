@@ -346,9 +346,11 @@ public class MetsManager(
                     premisXml = PremisManager.GetXmlElement(premisType, true);
                     amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
 
-                    if (patchPremis.ContentType.HasText() && patchPremis.ContentType != ContentTypes.NotIdentified)
+                    var contentTypeFromDeposit = ContentTypes.GetBestContentType(workingFile);
+                    if (contentTypeFromDeposit.HasText() && contentTypeFromDeposit != ContentTypes.NotIdentified)
                     {
-                        file.Mimetype = patchPremis.ContentType;
+                        // We won't overwrite METS with an invalid or blank one - but do we ever want to do that?
+                        file.Mimetype = contentTypeFromDeposit;
                     }
 
                     EventComplexType? virusEventComplexType = null;
@@ -474,13 +476,17 @@ public class MetsManager(
                     return Result.Fail(ErrorCodes.BadRequest, mex.Message);
                 }
 
-
+                var contentTypeFromDeposit = ContentTypes.GetBestContentType(workingFile);
+                if (contentTypeFromDeposit.IsNullOrWhiteSpace() || contentTypeFromDeposit == ContentTypes.NotIdentified)
+                {
+                    contentTypeFromDeposit = null;
+                }
                 fullMets.Mets.FileSec.FileGrp[0].File.Add(
                     new FileType
                     {
                         Id = fileId, 
                         Admid = { admId },
-                        Mimetype = premisFile.ContentType ?? workingFile.ContentType,
+                        Mimetype = contentTypeFromDeposit,
                         FLocat = { 
                             new FileTypeFLocat
                             {

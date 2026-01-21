@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Mime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
@@ -77,10 +78,17 @@ public class UploadFileToDepositHandler(
                 {
                     throw new Exception("HEAD checksum does not match PUT checksum");
                 }
+                
+                var s3AssignedContentType = headResponse.Headers.ContentType;
+                var contentTypeToBeStored = request.ContentType;
+                if (contentTypeToBeStored.IsNullOrWhiteSpace())
+                {
+                    contentTypeToBeStored = s3AssignedContentType.HasText() ? s3AssignedContentType : ContentTypes.NotIdentified;
+                }
                 var file = new WorkingFile
                 {
                     LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
-                    ContentType = request.ContentType,
+                    ContentType = contentTypeToBeStored,
                     Digest = request.Checksum.ToLowerInvariant(),
                     Size = request.Size,
                     Name = request.DepositFileName,
