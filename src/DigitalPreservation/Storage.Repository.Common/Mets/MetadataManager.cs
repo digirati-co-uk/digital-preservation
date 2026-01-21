@@ -6,11 +6,6 @@ using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
 using DigitalPreservation.XmlGen.Extensions;
 
@@ -95,10 +90,6 @@ public class MetadataManager : IMetadataManager
 
     private Result ProcessFileFormatDataForFile(WorkingFile workingFile, string operationPath, bool newUpload)
     {
-        //TODO: this will process new/existing metadata structure for new or existing file
-        //Call IPremisManager to get XML
-        //FileFormatMetadata premisFile;
-
         try
         {
             PremisFile = GetFileFormatMetadata(workingFile, operationPath);
