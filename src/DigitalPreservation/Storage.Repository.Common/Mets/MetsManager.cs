@@ -284,11 +284,9 @@ public class MetsManager(
                     if (File?.FLocat[0].Href != operationPath)
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
 
-                    var fileAdmId = string.Join(' ', File.Admid);
+                    //var fileAdmId = string.Join(' ', File.Admid);
                     //TODO: pass amdsec
                     metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
-                    var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
-                    amdSec = metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
                     //if (div.Type != "Item")
                     //{
                     //    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
