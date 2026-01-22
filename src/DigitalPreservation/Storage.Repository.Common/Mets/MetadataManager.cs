@@ -12,7 +12,7 @@ using DigitalPreservation.XmlGen.Extensions;
 namespace Storage.Repository.Common.Mets;
 public class MetadataManager : IMetadataManager
 {
-    public void ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
+    public AmdSecType? ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
         var fileId = Constants.FileIdPrefix + operationPath;
         var admId = Constants.AdmIdPrefix + operationPath;
@@ -20,13 +20,11 @@ public class MetadataManager : IMetadataManager
         TechId = techId;
         FileAdmId = admId;
 
-
         if (!newUpload)
         {
             AmdSec = fullMets.Mets.AmdSec.Single(a => a.Id == FileAdmId);
             GetMetadataXml(ref fullMets, div, operationPath);
         }
-
 
         ProcessFileFormatDataForFile(workingFile, operationPath, newUpload);
 
@@ -58,6 +56,8 @@ public class MetadataManager : IMetadataManager
 
         if (newUpload)
             fullMets.Mets.AmdSec.Add(AmdSec);
+
+        return AmdSec;
     }
 
     private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
@@ -116,6 +116,8 @@ public class MetadataManager : IMetadataManager
 
         var premisXml = PremisManager.GetXmlElement(premisType, true);
         SetAmdSec(premisXml, newUpload);
+
+        //amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
 
         return Result.Ok();
     }

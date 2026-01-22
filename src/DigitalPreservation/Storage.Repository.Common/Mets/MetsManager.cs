@@ -276,105 +276,109 @@ public class MetsManager(
                 }
                 else
                 {
-                    //if (div.Type != "Item")
-                    //    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
-
-                    //SetFileAndFileGroup(div, fullMets);
-
-                    //if (File?.FLocat[0].Href != operationPath)
-                    //    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
-
-                    //metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
                     if (div.Type != "Item")
-                    {
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
-                    }
-                    var fileId = div.Fptr[0].Fileid;
-                    var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
-                    var file = fileGrp.File.Single(f => f.Id == fileId);
-                    if (file.FLocat[0].Href != operationPath)
-                    {
+
+                    SetFileAndFileGroup(div, fullMets);
+
+                    if (File?.FLocat[0].Href != operationPath)
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
-                    }
 
-                    // TODO: This is a quick fix to get round the problem of spaces in XML IDs.
-                    // We need to not have any spaces in XML IDs, which means we need to escape them 
-                    // in a reversible way (replacing with _ won't do)
-                    var fileAdmId = string.Join(' ', file.Admid);
+                    var fileAdmId = string.Join(' ', File.Admid);
+                    //TODO: pass amdsec
+                    metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
                     var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
-                    var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
-                    var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(Constants.VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault();
+                    amdSec = metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
+                    //if (div.Type != "Item")
+                    //{
+                    //    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
+                    //}
+                    //var fileId = div.Fptr[0].Fileid;
+                    //var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+                    //var file = fileGrp.File.Single(f => f.Id == fileId);
+                    //if (file.FLocat[0].Href != operationPath)
+                    //{
+                    //    return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
+                    //}
 
-                    FileFormatMetadata patchPremis;
-                    try
-                    {
-                        patchPremis = GetFileFormatMetadata(workingFile, operationPath);
-                    }
-                    catch (MetadataException mex)
-                    {
-                        return Result.Fail(ErrorCodes.BadRequest, mex.Message);
-                    }
+                    //// TODO: This is a quick fix to get round the problem of spaces in XML IDs.
+                    //// We need to not have any spaces in XML IDs, which means we need to escape them 
+                    //// in a reversible way (replacing with _ won't do)
+                    //var fileAdmId = string.Join(' ', file.Admid);
+                    //var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
+                    //var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
+                    //var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(Constants.VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault();
 
-                    var patchPremisVirus = workingFile.GetVirusScanMetadata();
-                    var patchPremisExif = workingFile.GetExifMetadata();
+                    //FileFormatMetadata patchPremis;
+                    //try
+                    //{
+                    //    patchPremis = GetFileFormatMetadata(workingFile, operationPath);
+                    //}
+                    //catch (MetadataException mex)
+                    //{
+                    //    return Result.Fail(ErrorCodes.BadRequest, mex.Message);
+                    //}
 
-                    PremisComplexType? premisType;
-                    if (premisXml is not null)
-                    {
-                        premisType = premisXml.GetPremisComplexType()!;
-                        PremisManager.Patch(premisType, patchPremis, patchPremisExif);
-                    }
-                    else
-                    {
-                        premisType = PremisManager.Create(patchPremis, patchPremisExif);
-                    }
-                    premisXml = PremisManager.GetXmlElement(premisType, true);
-                    amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
+                    //var patchPremisVirus = workingFile.GetVirusScanMetadata();
+                    //var patchPremisExif = workingFile.GetExifMetadata();
 
-                    if (patchPremis.ContentType.HasText() && patchPremis.ContentType != ContentTypes.NotIdentified)
-                    {
-                        file.Mimetype = patchPremis.ContentType;
-                    }
+                    //PremisComplexType? premisType;
+                    //if (premisXml is not null)
+                    //{
+                    //    premisType = premisXml.GetPremisComplexType()!;
+                    //    PremisManager.Patch(premisType, patchPremis, patchPremisExif);
+                    //}
+                    //else
+                    //{
+                    //    premisType = PremisManager.Create(patchPremis, patchPremisExif);
+                    //}
+                    //premisXml = PremisManager.GetXmlElement(premisType, true);
+                    //amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
 
-                    EventComplexType? virusEventComplexType = null;
-                    if (virusPremisXml is not null)
-                    {
-                        virusEventComplexType = virusPremisXml.GetEventComplexType()!;
+                    //if (patchPremis.ContentType.HasText() && patchPremis.ContentType != ContentTypes.NotIdentified)
+                    //{
+                    //    file.Mimetype = patchPremis.ContentType;
+                    //}
 
-                        if (patchPremisVirus != null)
-                        {
-                            PremisEventManager.Patch(virusEventComplexType, patchPremisVirus);
-                        }
-                    }
-                    else
-                    {
-                        if (patchPremisVirus != null)
-                        {
-                            virusEventComplexType = PremisEventManager.Create(patchPremisVirus);
-                        }
-                    }
+                    //EventComplexType? virusEventComplexType = null;
+                    //if (virusPremisXml is not null)
+                    //{
+                    //    virusEventComplexType = virusPremisXml.GetEventComplexType()!;
 
-                    if (virusEventComplexType is not null)
-                    {
-                        virusPremisXml = PremisEventManager.GetXmlElement(virusEventComplexType);
+                    //    if (patchPremisVirus != null)
+                    //    {
+                    //        PremisEventManager.Patch(virusEventComplexType, patchPremisVirus);
+                    //    }
+                    //}
+                    //else
+                    //{
+                    //    if (patchPremisVirus != null)
+                    //    {
+                    //        virusEventComplexType = PremisEventManager.Create(patchPremisVirus);
+                    //    }
+                    //}
 
-                        if (amdSec.DigiprovMd.Any())
-                        {
-                            amdSec.DigiprovMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { virusPremisXml } };
-                        }
-                        else
-                        {
-                            amdSec.DigiprovMd.Add(new MdSecType
-                            {
-                                Id = $"{Constants.VirusProvEventPrefix}{fileAdmId}",
-                                MdWrap = new MdSecTypeMdWrap
-                                {
-                                    Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
-                                    XmlData = new MdSecTypeMdWrapXmlData { Any = { virusPremisXml } }
-                                }
-                            });
-                        }
-                    }
+                    //if (virusEventComplexType is not null)
+                    //{
+                    //    virusPremisXml = PremisEventManager.GetXmlElement(virusEventComplexType);
+
+                    //    if (amdSec.DigiprovMd.Any())
+                    //    {
+                    //        amdSec.DigiprovMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { virusPremisXml } };
+                    //    }
+                    //    else
+                    //    {
+                    //        amdSec.DigiprovMd.Add(new MdSecType
+                    //        {
+                    //            Id = $"{Constants.VirusProvEventPrefix}{fileAdmId}",
+                    //            MdWrap = new MdSecTypeMdWrap
+                    //            {
+                    //                Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
+                    //                XmlData = new MdSecTypeMdWrapXmlData { Any = { virusPremisXml } }
+                    //            }
+                    //        });
+                    //    }
+                    //}
 
                 }
             }
