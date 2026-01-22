@@ -4,10 +4,7 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
-using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
-using DigitalPreservation.XmlGen.Premis.V3;
-using System.Xml;
 
 namespace Storage.Repository.Common.Mets;
 
@@ -214,19 +211,26 @@ public class MetsManager(
         // But for this atomic upload file handler we will not allow any Directory creation, that
         // must have already happened in HandleCreateFolder
         // i.e., we must already be at the last or penultimate member of elements
-        if (elements != null && counter == elements.Length)
+        if (counter == elements.Length)
         {
             if (deletePath is not null)
-                return workingBase is null ? DeleteFile(div, fullMets, parent, operationPath) : Result.Fail(ErrorCodes.BadRequest, "Cannot supply a WorkingBase and a deletePath.");
+            {
+                // we have arrived at an existing file or folder which is being DELETED
+                if (workingBase is null)
+                {
+                    return DeleteFile(div, fullMets, parent, operationPath);
+                }
+                return Result.Fail(ErrorCodes.BadRequest, "Cannot supply a WorkingBase and a deletePath.");
+            }
 
             // we have arrived at an existing file or folder which is being OVERWRITTEN
-            if (workingBase is not WorkingDirectory || div?.Type == "Directory")
+            if (workingBase is not WorkingDirectory || div.Type == "Directory")
             {
                 if (workingBase is not WorkingFile workingFile)
                 {
                     if (workingBase is WorkingDirectory workingDirectory)
                     {
-                        if (div?.Type != "Directory")
+                        if (div.Type != "Directory")
                             return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
 
 
@@ -242,7 +246,7 @@ public class MetsManager(
                 }
                 else
                 {
-                    if (div != null && div.Type != "Item")
+                    if (div.Type != "Item")
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
 
                     SetFileAndFileGroup(div, fullMets);
@@ -259,13 +263,13 @@ public class MetsManager(
                 return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
             }
         } 
-        else if (elements != null && counter == elements.Length - 1)
+        else if (counter == elements.Length - 1)
         {
             if (deletePath is not null)
                 return Result.Fail(ErrorCodes.NotFound, "Can't find a file or folder to delete.");
             
             // div is a directory
-            if (div != null && div.Type != "Directory")
+            if (div.Type != "Directory")
                 return Result.Fail(ErrorCodes.BadRequest, "Parent path is not a Directory");
 
             if (workingBase is null)
@@ -286,7 +290,7 @@ public class MetsManager(
                         Id = physId,
                         Admid = { admId }
                     };
-                    div?.Div.Add(childDirectoryDiv);
+                    div.Div.Add(childDirectoryDiv);
                     var premisFile = new FileFormatMetadata
                     {
                         Source = Constants.Mets,
@@ -310,7 +314,7 @@ public class MetsManager(
                     Id = physId,
                     Fptr = { new DivTypeFptr { Fileid = fileId } }
                 };
-                div?.Div.Add(childItemDiv);
+                div.Div.Add(childItemDiv);
 
                 metadataManager.ProcessAllFileMetadata(ref fullMets, childItemDiv, workingFile, operationPath, true); 
             }
@@ -318,18 +322,16 @@ public class MetsManager(
             // Now we need to ensure the child items are in alphanumeric order by name...
             // how do we do that? We can't sort a Collection<T> in place, and we can't 
             // create a new Collection and assign it to Div
-            if (div != null)
+            
+            var childList = new List<DivType>(div.Div);
+            div.Div.Clear();
+            // We will order case-insensitive; we want to match what a typical file explorer would do.
+            // What about the original ordering? For born digital, is there such a thing?
+            // How do we know what sort order the creator of the archive applied to their view?
+            // Later we can implement something that can set order.
+            foreach (var divType in childList.OrderBy(d => d.Label.ToLowerInvariant()))
             {
-                var childList = new List<DivType>(div.Div);
-                div.Div.Clear();
-                // We will order case-insensitive; we want to match what a typical file explorer would do.
-                // What about the original ordering? For born digital, is there such a thing?
-                // How do we know what sort order the creator of the archive applied to their view?
-                // Later we can implement something that can set order.
-                foreach (var divType in childList.OrderBy(d => d.Label.ToLowerInvariant()))
-                {
-                    div.Div.Add(divType);
-                }
+                div.Div.Add(divType);
             }
         }
         else
@@ -502,10 +504,10 @@ public class MetsManager(
         var rights = mods?.GetAccessConditions(Constants.UseAndReproduction).SingleOrDefault();
         return rights is not null ? new Uri(rights) : null;
     }
-    private Result DeleteFile(DivType? div, FullMets fullMets, DivType? parent, string? operationPath)
+    
+    private Result DeleteFile(DivType div, FullMets fullMets, DivType? parent, string? operationPath)
     {
-        // we have arrived at an existing file or folder which is being DELETED
-        if (div != null && div.Div.Count > 0)
+        if (div.Div.Count > 0)
         {
             return Result.Fail(ErrorCodes.BadRequest, "Cannot delete a non-empty directory.");
         }
@@ -526,7 +528,7 @@ public class MetsManager(
         }
         else
         {
-            admId = div != null && div.Admid.Count > 1 ? string.Join(" ", div.Admid) : div.Admid[0];
+            admId = div.Admid.Count > 1 ? string.Join(" ", div.Admid) : div.Admid[0];
         }
 
         // for both Files and Directories
@@ -537,15 +539,14 @@ public class MetsManager(
         return Result.Ok();
     }
 
-    private void SetFileAndFileGroup(DivType? div, FullMets fullMets)
+    private void SetFileAndFileGroup(DivType div, FullMets fullMets)
     {
-        if (div == null) return;
         var fileId = div.Fptr[0].Fileid;
         FileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
         File = FileGroup.File.Single(f => f.Id == fileId);
     }
         
-    private (int counter, DivType? parent, DivType? div, string[]? elements, string operationPath, string testPath) GetMetsElements(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
+    private (int counter, DivType? parent, DivType div, string[] elements, string operationPath, string testPath) GetMetsElements(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
     {
         //TODO: put in separate method this
         var operationPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath);
