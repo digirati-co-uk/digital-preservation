@@ -9,5 +9,5 @@ using System.Threading.Tasks;
 namespace DigitalPreservation.Common.Model.Mets;
 public interface IMetadataManager
 {
-    AmdSecType? ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false);
+    void ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false);
 }
