@@ -37,7 +37,6 @@ public class MetadataManager : IMetadataManager
             {
                 Id = fileId,
                 Admid = { admId },
-                Mimetype = PremisFile?.ContentType ?? workingFile.ContentType,
                 FLocat =
                 {
                     new FileTypeFLocat
