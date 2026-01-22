@@ -52,10 +52,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-         dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation" /o:"digirati" /d:sonar.login="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
+         dotnet tool install --global dotnet-coverage
+         dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation" /o:"digirati" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
          dotnet build
-         dotnet-sonarscanner end /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
-
+         dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
+         dotnet-sonarscanner end  /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
 
   test-dotnet:
     if: github.event.pull_request.draft != true
@@ -113,7 +114,7 @@ jobs:
   deploy-environment:
     needs: [build-push-images]
     uses: ./.github/workflows/deploy.yml
-    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-deploy')))
+    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'deploy')))
     with:
       image_tag: "${{ github.sha }}"
       target_env: "${{ inputs.environment || 'development' }}"

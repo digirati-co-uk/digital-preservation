@@ -4,27 +4,15 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
-using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
-using DigitalPreservation.XmlGen.Premis.V3;
 
 namespace Storage.Repository.Common.Mets;
 
 public class MetsManager(
     IMetsParser metsParser,
-    IMetsStorage metsStorage) : IMetsManager
+    IMetsStorage metsStorage,
+    IMetadataManager metadataManager) : IMetsManager
 {
-    private const string PhysIdPrefix = "PHYS_";
-    private const string FileIdPrefix = "FILE_";
-    private const string AdmIdPrefix = "ADM_";
-    private const string TechIdPrefix = "TECH_";
-    public const string DmdPhysRoot = "DMD_PHYS_ROOT";
-    private const string ObjectsDivId = PhysIdPrefix + FolderNames.Objects;
-    private const string MetadataDivId = PhysIdPrefix + FolderNames.Metadata;
-    private const string DirectoryType = "Directory";
-    private const string ItemType = "Item";
-    private const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
-    
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
         var (file, mets) = await GetStandardMets(metsLocation, agNameFromDeposit);
@@ -68,19 +56,19 @@ public class MetsManager(
             if (container is ArchivalGroup && childContainer.GetSlug() == FolderNames.Objects)
             {
                 // The objects div should already exist from our template
-                childDirectoryDiv = mets.StructMap[0].Div.Div.Single(d => d.Id == ObjectsDivId);
+                childDirectoryDiv = mets.StructMap[0].Div.Div.Single(d => d.Id == Constants.ObjectsDivId);
             }
 
             if (childDirectoryDiv == null)
             {
                 var localPath = childContainer.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
-                var admId = AdmIdPrefix + localPath;
-                var techId = TechIdPrefix + localPath;
+                var admId = Constants.AdmIdPrefix + localPath;
+                var techId = Constants.TechIdPrefix + localPath;
                 childDirectoryDiv = new DivType
                 {
-                    Type = DirectoryType,
+                    Type = Constants.DirectoryType,
                     Label = childContainer.Name,
-                    Id = $"{PhysIdPrefix}{localPath}",
+                    Id = $"{Constants.PhysIdPrefix}{localPath}",
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
@@ -102,14 +90,14 @@ public class MetsManager(
             {
                 continue;
             }
-            var fileId = FileIdPrefix + localPath;
-            var admId = AdmIdPrefix + localPath;
-            var techId = TechIdPrefix + localPath;
+            var fileId = Constants.FileIdPrefix + localPath;
+            var admId = Constants.AdmIdPrefix + localPath;
+            var techId = Constants.TechIdPrefix + localPath;
             var childItemDiv = new DivType
             {
-                Type = ItemType,
+                Type = Constants.ItemType,
                 Label = binary.Name,
-                Id = $"{PhysIdPrefix}{localPath}",
+                Id = $"{Constants.PhysIdPrefix}{localPath}",
                 Fptr = { new DivTypeFptr{ Fileid = fileId } }
             };
             div.Div.Add(childItemDiv);
@@ -156,8 +144,6 @@ public class MetsManager(
     }
     
 
-
-    
     public async Task<Result> WriteMets(FullMets fullMets)
     {
         return await metsStorage.WriteMets(fullMets);
@@ -219,32 +205,8 @@ public class MetsManager(
         // This may not be a good idea. But without it, we need a more complex way of
         // finding the METS parts, like the XDocument parsing in MetsParser.
 
-        var operationPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath);
-        var elements = operationPath!.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var div = fullMets.Mets.StructMap.Single(sm => sm.Type=="PHYSICAL").Div!;
-        DivType? parent = null;
-        var testPath = string.Empty;
-        int counter = 0;
-        foreach (var element in elements)
-        {
-            if (testPath.HasText())
-            {
-                testPath += "/";
-            }
-            testPath += element;
-            // This is navigating using our ID convention for directories
-            // If we don't want to do this, we can use the premis:originalName for the directory
-            var childDiv = div.Div.SingleOrDefault(d => d.Id == $"{PhysIdPrefix}{testPath}");
-            if (childDiv is null)
-            {
-                break;
-            }
+        var (counter, parent, div, elements, operationPath, testPath) = GetMetsElements(workingBase, deletePath, fullMets);
 
-            counter++;
-            parent = div;
-            div = childDiv;
-        }
-            
         // div might be the file itself, or a parent or grandparent directory.
         // But for this atomic upload file handler we will not allow any Directory creation, that
         // must have already happened in HandleCreateFolder
@@ -253,275 +215,114 @@ public class MetsManager(
         {
             if (deletePath is not null)
             {
-                if (workingBase is not null)
-                {
-                    return Result.Fail(ErrorCodes.BadRequest, "Cannot supply a WorkingBase and a deletePath.");
-                }
-                    
                 // we have arrived at an existing file or folder which is being DELETED
-                if (div.Div.Count > 0)
+                if (workingBase is null)
                 {
-                    return Result.Fail(ErrorCodes.BadRequest, "Cannot delete a non-empty directory.");
+                    return DeleteFile(div, fullMets, parent, operationPath);
                 }
+                return Result.Fail(ErrorCodes.BadRequest, "Cannot supply a WorkingBase and a deletePath.");
+            }
 
-                string admId;
-                if (div.Type == "Item")
+            // we have arrived at an existing file or folder which is being OVERWRITTEN
+            if (workingBase is not WorkingDirectory || div.Type == "Directory")
+            {
+                if (workingBase is not WorkingFile workingFile)
                 {
-                    // for Files only
-                    var fileId = div.Fptr[0].Fileid;
-                    var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
-                    var file = fileGrp.File.Single(f => f.Id == fileId);
-                    if (file.FLocat[0].Href != operationPath)
+                    if (workingBase is WorkingDirectory workingDirectory)
                     {
-                        return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
+                        if (div.Type != "Directory")
+                            return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
+
+
+                        // Is there anything else that could be done here?
+                        if (workingDirectory.Name.HasText())
+                            // and is it even done on hasText?
+                            div.Label = workingDirectory.Name;
                     }
-
-                    admId = file.Admid.Count > 1 ? string.Join(" ", file.Admid) : file.Admid[0];
-
-                    fileGrp.File.Remove(file);
+                    else
+                    {
+                        return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
+                    }
                 }
                 else
                 {
-                    admId = div.Admid.Count > 1 ? string.Join(" ", div.Admid) : div.Admid[0];
+                    if (div.Type != "Item")
+                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
+
+                    SetFileAndFileGroup(div, fullMets);
+
+                    if (File?.FLocat[0].Href != operationPath)
+                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
+
+                    metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
+
                 }
-                    
-                // for both Files and Directories
-                var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == admId);
-                fullMets.Mets.AmdSec.Remove(amdSec);
-                parent!.Div.Remove(div);
             }
             else
             {
-                // we have arrived at an existing file or folder which is being OVERWRITTEN
-                if (workingBase is WorkingDirectory && div.Type != "Directory")
-                {
-                    return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
-                }
-
-                if (workingBase is WorkingFile workingFile)
-                {
-                    if (div.Type != "Item")
-                    {
-                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
-                    }
-                    var fileId = div.Fptr[0].Fileid;
-                    var fileGrp = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
-                    var file = fileGrp.File.Single(f => f.Id == fileId);
-                    if (file.FLocat[0].Href != operationPath)
-                    {
-                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
-                    }
-
-                    // TODO: This is a quick fix to get round the problem of spaces in XML IDs.
-                    // We need to not have any spaces in XML IDs, which means we need to escape them 
-                    // in a reversible way (replacing with _ won't do)
-                    var fileAdmId = string.Join(' ', file.Admid);
-                    var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == fileAdmId);
-                    var premisXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault();
-                    var virusPremisXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault(); 
-
-                    FileFormatMetadata patchPremis;
-                    try
-                    {
-                        patchPremis = GetFileFormatMetadata(workingFile, operationPath);
-                    }
-                    catch (MetadataException mex)
-                    {
-                        return Result.Fail(ErrorCodes.BadRequest, mex.Message);
-                    }
-                    
-                    var patchPremisVirus = workingFile.GetVirusScanMetadata();
-                    var patchPremisExif = workingFile.GetExifMetadata();
-
-                    PremisComplexType? premisType;
-                    if (premisXml is not null)
-                    {
-                        premisType = premisXml.GetPremisComplexType()!;
-                        PremisManager.Patch(premisType, patchPremis, patchPremisExif);
-                    }
-                    else
-                    {
-                        premisType = PremisManager.Create(patchPremis, patchPremisExif);
-                    }
-                    premisXml = PremisManager.GetXmlElement(premisType, true);
-                    amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
-
-                    var contentTypeFromDeposit = ContentTypes.GetBestContentType(workingFile);
-                    if (contentTypeFromDeposit.HasText() && contentTypeFromDeposit != ContentTypes.NotIdentified)
-                    {
-                        // We won't overwrite METS with an invalid or blank one - but do we ever want to do that?
-                        file.Mimetype = contentTypeFromDeposit;
-                    }
-
-                    EventComplexType? virusEventComplexType = null;
-                    if (virusPremisXml is not null)
-                    {
-                        virusEventComplexType = virusPremisXml.GetEventComplexType()!;
-
-                        if (patchPremisVirus != null)
-                        {
-                            PremisEventManager.Patch(virusEventComplexType, patchPremisVirus);
-                        }
-                    }
-                    else
-                    {
-                        if (patchPremisVirus != null)
-                        {
-                            virusEventComplexType = PremisEventManager.Create(patchPremisVirus);
-                        }
-                    }
-
-                    if (virusEventComplexType is not null)
-                    {
-                        virusPremisXml = PremisEventManager.GetXmlElement(virusEventComplexType);
-
-                        if (amdSec.DigiprovMd.Any())
-                        {
-                            amdSec.DigiprovMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { virusPremisXml } };
-                        }
-                        else
-                        {
-                            amdSec.DigiprovMd.Add(new MdSecType
-                            {
-                                Id = $"{VirusProvEventPrefix}{fileAdmId}",
-                                MdWrap = new MdSecTypeMdWrap
-                                {
-                                    Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
-                                    XmlData = new MdSecTypeMdWrapXmlData { Any = { virusPremisXml } }
-                                }
-                            });
-                        }
-                    }
-                }
-                else if (workingBase is WorkingDirectory workingDirectory)
-                {
-                    if(div.Type != "Directory")
-                    {
-                        return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
-                    }
-
-                    // Is there anything else that could be done here?
-                    if (workingDirectory.Name.HasText())
-                    {
-                        // and is it even done on hasText?
-                        div.Label = workingDirectory.Name;
-                    }
-                }
-                else
-                {
-                    return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
-                }                    
+                return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
             }
         } 
         else if (counter == elements.Length - 1)
         {
             if (deletePath is not null)
-            {
                 return Result.Fail(ErrorCodes.NotFound, "Can't find a file or folder to delete.");
-            }
+            
             // div is a directory
             if (div.Type != "Directory")
-            {
                 return Result.Fail(ErrorCodes.BadRequest, "Parent path is not a Directory");
-            }
 
             if (workingBase is null)
-            {
                 return Result.Fail(ErrorCodes.BadRequest, "No working directory or working file supplied to add.");
-            }
 
-            var physId = PhysIdPrefix + operationPath;
-            var admId = AdmIdPrefix + operationPath;
-            var techId = TechIdPrefix + operationPath;
-                
-            if (workingBase is WorkingFile workingFile)
+            var physId = Constants.PhysIdPrefix + operationPath;
+            var admId = Constants.AdmIdPrefix + operationPath;
+            var techId = Constants.TechIdPrefix + operationPath;
+
+            if (workingBase is not WorkingFile workingFile)
             {
-                var fileId = FileIdPrefix + operationPath;
-                var childItemDiv = new DivType
+                if (workingBase is WorkingDirectory workingDirectory)
                 {
-                    Type = ItemType,
-                    Label = workingFile.Name ?? operationPath.GetSlug(),
-                    Id = physId,
-                    Fptr = { new DivTypeFptr{ Fileid = fileId } }
-                };
-                div.Div.Add(childItemDiv);
-                FileFormatMetadata premisFile;
-                VirusScanMetadata? virusScanMetadata;
-                ExifMetadata? exifMetadata;
-                try
-                {
-                    premisFile = GetFileFormatMetadata(workingFile, operationPath);
-                }
-                catch (MetadataException mex)
-                {
-                    return Result.Fail(ErrorCodes.BadRequest, mex.Message);
-                }
-
-
-                try
-                {
-                    virusScanMetadata = workingFile.GetVirusScanMetadata();
-                }
-                catch (MetadataException mex)
-                {
-                    return Result.Fail(ErrorCodes.BadRequest, mex.Message);
-                }
-
-                try
-                {
-                    exifMetadata = workingFile.GetExifMetadata();
-                }
-                catch (MetadataException mex)
-                {
-                    return Result.Fail(ErrorCodes.BadRequest, mex.Message);
-                }
-
-                var contentTypeFromDeposit = ContentTypes.GetBestContentType(workingFile);
-                if (contentTypeFromDeposit.IsNullOrWhiteSpace() || contentTypeFromDeposit == ContentTypes.NotIdentified)
-                {
-                    contentTypeFromDeposit = null;
-                }
-                fullMets.Mets.FileSec.FileGrp[0].File.Add(
-                    new FileType
+                    var childDirectoryDiv = new DivType
                     {
-                        Id = fileId, 
-                        Admid = { admId },
-                        Mimetype = contentTypeFromDeposit,
-                        FLocat = { 
-                            new FileTypeFLocat
-                            {
-                                Href = operationPath, Loctype = FileTypeFLocatLoctype.Url
-                            } 
-                        }
-                    });
-                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId, $"{VirusProvEventPrefix}{admId}", virusScanMetadata, exifMetadata));
-            }
-            else if (workingBase is WorkingDirectory workingDirectory)
-            {
-                var childDirectoryDiv = new DivType
+                        Type = Constants.DirectoryType,
+                        Label = workingDirectory.Name ?? operationPath.GetSlug(),
+                        Id = physId,
+                        Admid = { admId }
+                    };
+                    div.Div.Add(childDirectoryDiv);
+                    var premisFile = new FileFormatMetadata
+                    {
+                        Source = Constants.Mets,
+                        OriginalName = operationPath, // workingDirectory.LocalPath
+                        StorageLocation = null // storageLocation
+                    };
+                    fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
+                }
+                else
                 {
-                    Type = DirectoryType,
-                    Label = workingDirectory.Name ?? operationPath.GetSlug(),
-                    Id = physId,
-                    Admid = { admId }
-                };
-                div.Div.Add(childDirectoryDiv);
-                var premisFile = new FileFormatMetadata
-                {
-                    Source = Constants.Mets,
-                    OriginalName = operationPath, // workingDirectory.LocalPath
-                    StorageLocation = null // storageLocation
-                };
-                fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
+                    return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
+                }
             }
             else
             {
-                return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
+                var fileId = Constants.FileIdPrefix + operationPath;
+                var childItemDiv = new DivType
+                {
+                    Type = Constants.ItemType,
+                    Label = workingFile.Name ?? operationPath.GetSlug(),
+                    Id = physId,
+                    Fptr = { new DivTypeFptr { Fileid = fileId } }
+                };
+                div.Div.Add(childItemDiv);
+
+                metadataManager.ProcessAllFileMetadata(ref fullMets, childItemDiv, workingFile, operationPath, true); 
             }
-                
+
             // Now we need to ensure the child items are in alphanumeric order by name...
             // how do we do that? We can't sort a Collection<T> in place, and we can't 
             // create a new Collection and assign it to Div
+            
             var childList = new List<DivType>(div.Div);
             div.Div.Clear();
             // We will order case-insensitive; we want to match what a typical file explorer would do.
@@ -543,37 +344,6 @@ public class MetsManager(
         return Result.Ok();
     }
 
-    private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
-    {
-        // This will throw if mismatches
-        var digestMetadata = workingFile.GetDigestMetadata();
-        
-        var fileFormatMetadata = workingFile.GetFileFormatMetadata();
-        if (fileFormatMetadata != null)
-        {
-            if (fileFormatMetadata.OriginalName.IsNullOrWhiteSpace())
-            {
-                fileFormatMetadata.OriginalName = originalName;
-            }
-            // if (fileFormatMetadata.StorageLocation == null)
-            // {
-            //     fileFormatMetadata.StorageLocation = storageLocation;
-            // }
-            return fileFormatMetadata;
-        }
-        
-        // no metadata available
-        return new FileFormatMetadata
-        {
-            Source = Constants.Mets,
-            ContentType = workingFile.ContentType,
-            Digest = digestMetadata?.Digest ?? workingFile.Digest,
-            Size = workingFile.Size,
-            OriginalName = originalName, // workingFile.LocalPath
-            StorageLocation = null // storageLocation
-        };
-    }
-
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()
     {
         var mets = new DigitalPreservation.XmlGen.Mets.Mets
@@ -593,7 +363,7 @@ public class MetsManager(
             },
             DmdSec =
             {
-                new MdSecType { Id = DmdPhysRoot }
+                new MdSecType { Id = Constants.DmdPhysRoot }
             },
             FileSec = new MetsTypeFileSec
             {
@@ -611,21 +381,21 @@ public class MetsManager(
                     {
                         Id = "PHYS_ROOT",
                         Label = WorkingDirectory.DefaultRootName,
-                        Type = DirectoryType,  
-                        Dmdid = { DmdPhysRoot },
+                        Type = Constants.DirectoryType,  
+                        Dmdid = { Constants.DmdPhysRoot },
                         Div = { 
                             new DivType
                             {
-                                Id = MetadataDivId,  // do this with premis:originalName metadata for directories?
-                                Type = DirectoryType,
+                                Id = Constants.MetadataDivId,  // do this with premis:originalName metadata for directories?
+                                Type = Constants.DirectoryType,
                                 Label = FolderNames.Metadata,
                                 Dmdid = { $"DMD_{FolderNames.Metadata}" },
                                 Admid = { $"ADM_{FolderNames.Metadata}" }
                             }, 
                             new DivType
                             {
-                                Id = ObjectsDivId,  // do this with premis:originalName metadata for directories?
-                                Type = DirectoryType,
+                                Id = Constants.ObjectsDivId,  // do this with premis:originalName metadata for directories?
+                                Type = Constants.DirectoryType,
                                 Label = FolderNames.Objects,
                                 Dmdid = { $"DMD_{FolderNames.Objects}" },
                                 Admid = { $"ADM_{FolderNames.Objects}" }
@@ -640,12 +410,12 @@ public class MetsManager(
                     {
                         Source = Constants.Mets, OriginalName = FolderNames.Objects 
                     }, 
-                    $"{AdmIdPrefix}{FolderNames.Objects}", $"{TechIdPrefix}{FolderNames.Objects}"),
+                    $"{Constants.AdmIdPrefix}{FolderNames.Objects}", $"{Constants.TechIdPrefix}{FolderNames.Objects}"),
                 GetAmdSecType(new FileFormatMetadata
                     {
                         Source = Constants.Mets, OriginalName = FolderNames.Metadata 
                     }, 
-                    $"{AdmIdPrefix}{FolderNames.Metadata}", $"{TechIdPrefix}{FolderNames.Metadata}")
+                    $"{Constants.AdmIdPrefix}{FolderNames.Metadata}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };
@@ -653,14 +423,13 @@ public class MetsManager(
         return mets;
     }
     
-
-    
-    
     private static AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null, ExifMetadata? exifMetadata = null)
     {
+        //TODO: use ProcessFileFormatDataForFile()
         var premis = PremisManager.Create(premisFile, exifMetadata);
         var xElement = PremisManager.GetXmlElement(premis, true);
 
+        //TODO: this is a new amdsec
         var amdSec = new AmdSecType
         {
             Id = admId,
@@ -735,4 +504,82 @@ public class MetsManager(
         var rights = mods?.GetAccessConditions(Constants.UseAndReproduction).SingleOrDefault();
         return rights is not null ? new Uri(rights) : null;
     }
+    
+    private Result DeleteFile(DivType div, FullMets fullMets, DivType? parent, string? operationPath)
+    {
+        if (div.Div.Count > 0)
+        {
+            return Result.Fail(ErrorCodes.BadRequest, "Cannot delete a non-empty directory.");
+        }
+
+        string? admId;
+        if (div is { Type: "Item" })
+        {
+            SetFileAndFileGroup(div, fullMets);
+
+            if (File != null && File.FLocat[0].Href != operationPath)
+            {
+                return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
+            }
+
+            admId = File != null && File.Admid.Count > 1 ? string.Join(" ", File.Admid) : File?.Admid[0];
+
+            FileGroup?.File.Remove(File);
+        }
+        else
+        {
+            admId = div.Admid.Count > 1 ? string.Join(" ", div.Admid) : div.Admid[0];
+        }
+
+        // for both Files and Directories
+        var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == admId);
+        fullMets.Mets.AmdSec.Remove(amdSec);
+        parent!.Div.Remove(div);
+
+        return Result.Ok();
+    }
+
+    private void SetFileAndFileGroup(DivType div, FullMets fullMets)
+    {
+        var fileId = div.Fptr[0].Fileid;
+        FileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+        File = FileGroup.File.Single(f => f.Id == fileId);
+    }
+        
+    private (int counter, DivType? parent, DivType div, string[] elements, string operationPath, string testPath) GetMetsElements(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
+    {
+        //TODO: put in separate method this
+        var operationPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath);
+        var elements = operationPath!.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        //TODO: put this in a separate method
+        var div = fullMets.Mets.StructMap.Single(sm => sm.Type == "PHYSICAL").Div!;
+        DivType? parent = null;
+        var testPath = string.Empty;
+        var counter = 0;
+
+        foreach (var element in elements)
+        {
+            if (testPath.HasText())
+            {
+                testPath += "/";
+            }
+            testPath += element;
+            // This is navigating using our ID convention for directories
+            // If we don't want to do this, we can use the premis:originalName for the directory
+            var childDiv = div.Div.SingleOrDefault(d => d.Id == $"{Constants.PhysIdPrefix}{testPath}");
+            if (childDiv is null)
+            {
+                break;
+            }
+
+            counter++;
+            parent = div;
+            div = childDiv;
+        }
+
+        return (counter, parent, div, elements, operationPath, testPath);
+    }
+    private FileType? File { get; set; }
+    private MetsTypeFileSecFileGrp? FileGroup { get; set; }
 }

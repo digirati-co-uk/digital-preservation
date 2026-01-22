@@ -76,6 +76,7 @@ try
         .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
+        .AddSingleton<IMetadataManager, MetadataManager>()
         .AddSingleton<IMetsStorage, S3MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddPreservationHealthChecks()
