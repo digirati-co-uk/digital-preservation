@@ -19,7 +19,8 @@ public class MetadataManager : IMetadataManager
         var techId = Constants.TechIdPrefix + operationPath;
         TechId = techId;
         FileAdmId = admId;
-
+        PremisIncExifXml = null;
+        VirusXml = null;
 
         if (!newUpload)
         {
