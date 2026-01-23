@@ -63,7 +63,7 @@ public class MetsParser(
         {
             RootUri = root,
             MetsUri = file,
-            PhysicalStructure = Storage.RootDirectory()
+            PhysicalStructure = WorkingDirectory.RootDirectory()
         };
 
         if (file is not null)
@@ -111,12 +111,14 @@ public class MetsParser(
     }
 
 
-    public Result<MetsFileWrapper> GetMetsFileWrapperFromXDocument(XDocument metsXDocument)
+    public Result<MetsFileWrapper> GetMetsFileWrapperFromXDocument(Uri metsUri, XDocument metsXDocument)
     {
         var mets = new MetsFileWrapper
         {
+            MetsUri = metsUri,
+            RootUri = metsUri.GetParentUri(),
             XDocument = metsXDocument,
-            PhysicalStructure = Storage.RootDirectory()
+            PhysicalStructure = WorkingDirectory.RootDirectory()
         };
         PopulateFromMets(mets, metsXDocument);
         mets.Editable = mets.Agent == Constants.MetsCreatorAgent;

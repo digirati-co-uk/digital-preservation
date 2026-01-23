@@ -13,7 +13,7 @@ public interface IMetsParser
     /// <returns></returns>
     Task<Result<MetsFileWrapper>> GetMetsFileWrapper(Uri metsLocation, bool parse = true);
 
-    Result<MetsFileWrapper> GetMetsFileWrapperFromXDocument(XDocument metsXDocument);
+    Result<MetsFileWrapper> GetMetsFileWrapperFromXDocument(Uri metsUri, XDocument metsXDocument);
     
     Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation);
 

@@ -39,7 +39,7 @@ public class Storage(
         var pResp = await s3Client.PutObjectAsync(pReq);
         if (pResp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
         {
-            var root = RootDirectory();
+            var root = WorkingDirectory.RootDirectory();
             switch (templateType)
             {
                 case TemplateType.RootLevel:
@@ -124,17 +124,6 @@ public class Storage(
         {
             return ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Unable to write Deposit File System File.", pReqDepositFileSystem.GetS3Uri());
         }
-    }
-
-  
-    public static WorkingDirectory RootDirectory()
-    {
-        return new WorkingDirectory
-        {
-            LocalPath = string.Empty,
-            Name = WorkingDirectory.DefaultRootName,
-            Modified = DateTime.UtcNow
-        };
     }
 
 
@@ -334,7 +323,7 @@ public class Storage(
         {
             var s3Location = new AmazonS3Uri(location);
             var s3Objects = await ListAllS3Objects(s3Location, cancellationToken);
-            var top = RootDirectory();
+            var top = WorkingDirectory.RootDirectory();
 
             // Create the directories
             foreach (var s3Object in s3Objects.OrderBy(o => o.Key.Replace('/', '~')))
