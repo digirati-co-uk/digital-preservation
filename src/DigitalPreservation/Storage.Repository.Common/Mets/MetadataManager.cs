@@ -29,14 +29,14 @@ public class MetadataManager : IMetadataManager
 
 
         ProcessFileFormatDataForFile(workingFile, operationPath, newUpload);
-
+        
+        
         if (newUpload)
         {
             File = new FileType
             {
                 Id = fileId,
                 Admid = { admId },
-                Mimetype = PremisFile?.ContentType ?? workingFile.ContentType,
                 FLocat =
                 {
                     new FileTypeFLocat
@@ -49,9 +49,13 @@ public class MetadataManager : IMetadataManager
             fullMets.Mets.FileSec.FileGrp[0].File.Add(File);
         }
 
-        if (PremisFile != null && PremisFile.ContentType.HasText() && PremisFile.ContentType != ContentTypes.NotIdentified && File != null)
+        if (File != null)
         {
-            File.Mimetype = PremisFile.ContentType;
+            var contentTypeFromDeposit = ContentTypes.GetBestContentType(workingFile);
+            if (contentTypeFromDeposit.HasText() && contentTypeFromDeposit != ContentTypes.NotIdentified)
+            {
+                File.Mimetype = contentTypeFromDeposit;
+            }
         }
 
         ProcessVirusDataForFile(workingFile);
