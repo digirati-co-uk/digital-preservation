@@ -407,6 +407,8 @@ public class ProcessPipelineJobHandler(
 
             await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
 
+            await Task.Delay(2000, cancellationToken);
+
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.Completed
