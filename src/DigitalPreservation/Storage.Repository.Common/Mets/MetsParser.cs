@@ -14,6 +14,46 @@ public class MetsParser(
     IMetsLoader loader,
     ILogger<MetsParser> logger) : IMetsParser
 {
+    /// <summary>
+    /// Pre-built lookup dictionaries for O(1) access to METS elements by ID.
+    /// This mirrors the Python implementation's amd_map, file_map, and tech_map.
+    /// </summary>
+    private sealed record MetsLookupMaps(
+        Dictionary<string, XElement> AmdSecMap,
+        Dictionary<string, XElement> FileMap,
+        Dictionary<string, XElement> TechMdMap,
+        Dictionary<string, XElement> DigiprovMdMap
+    );
+    
+    /// <summary>
+    /// Builds lookup dictionaries for efficient O(1) access to METS elements by ID.
+    /// This is equivalent to the Python version's amd_map, file_map, and tech_map.
+    /// </summary>
+    private static MetsLookupMaps BuildLookupMaps(XDocument xMets)
+    {
+        // Build amdSec map: ID -> XElement
+        var amdSecMap = xMets.Descendants(XNames.MetsAmdSec)
+            .Where(el => el.Attribute("ID") != null)
+            .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
+
+        // Build file map: ID -> XElement (from fileSec)
+        var fileMap = xMets.Descendants(XNames.MetsFile)
+            .Where(el => el.Attribute("ID") != null)
+            .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
+
+        // Build techMD map: ID -> XElement
+        var techMdMap = xMets.Descendants(XNames.MetsTechMD)
+            .Where(el => el.Attribute("ID") != null)
+            .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
+
+        // Build digiprovMD map: ID -> XElement (for virus scan lookups)
+        var digiprovMdMap = xMets.Descendants(XNames.MetsDigiprovMD)
+            .Where(el => el.Attribute("ID") != null)
+            .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
+
+        return new MetsLookupMaps(amdSecMap, fileMap, techMdMap, digiprovMdMap);
+    }
+    
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
     {
         // If metsLocation ends with .xml, it's assumed to be the METS file itself.
@@ -225,12 +265,14 @@ public class MetsParser(
         // Not sure how to be formal about that.
 
         var parent = physicalStructMap;
-        var fileSec = xMets.Descendants(XNames.MetsFileSec).Single();
 
         // This relies on all directories having labels not just some
         Stack<string> directoryLabels = new();
+        
+        // Build lookup maps once before traversal for O(1) access during processing
+        var lookupMaps = BuildLookupMaps(xMets);
 
-        ProcessChildStructDivs(mets, xMets, parent, fileSec, directoryLabels);
+        ProcessChildStructDivs(mets, parent, directoryLabels, lookupMaps);
 
         // We should now have a flat list of WorkingFile, and a set of WorkingDirectories, with correct names
         // if supplied. Now assign the files to their directories.
@@ -248,8 +290,8 @@ public class MetsParser(
 
     }
 
-    private void ProcessChildStructDivs(MetsFileWrapper mets, XDocument xMets, XElement parent, XElement fileSec,
-        Stack<string> directoryLabels)
+    private void ProcessChildStructDivs(MetsFileWrapper mets, XElement parent,
+        Stack<string> directoryLabels, MetsLookupMaps lookupMaps)
     {
         // We want to create MetsFileWrapper::PhysicalStructure (WorkingDirectories and WorkingFiles).
         // We can traverse the physical structmap, finding div type=Directory and div type=File
@@ -271,10 +313,8 @@ public class MetsParser(
                 var admId = div.Attribute("ADMID")?.Value;
                 if (admId.HasText())
                 {
-                    // TODO - put these andSecs into a dictionary - have done in Python version
-                    var amd = xMets.Descendants(XNames.MetsAmdSec)
-                        .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
-                    if (amd != null)
+                    // Use pre-built dictionary for O(1) lookup instead of LINQ query
+                    if (lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
                     {
                         var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
                         Uri? storageLocation = null;
@@ -328,7 +368,7 @@ public class MetsParser(
                 // - this is true for Goobi at Wellcome. But in reality we'd need a stricter check than that.
 
                 var fileId = fptr.Attribute("FILEID")!.Value;
-                var fileEl = fileSec.Descendants(XNames.MetsFile).Single(f => f.Attribute("ID")!.Value == fileId);
+                var fileEl = lookupMaps.FileMap[fileId];
                 var mimeType =
                     fileEl.Attribute("MIMETYPE")
                         ?.Value; // Archivematica does not have this, have to get it from PRONOM, even reverse lookup
@@ -349,16 +389,11 @@ public class MetsParser(
                 ExifMetadata? exifMetadata = null;
                 if (!haveUsedAdmIdAlready)
                 {
-                    var techMd = xMets.Descendants(XNames.MetsTechMD)
-                        .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
-
-                    if (techMd == null)
+                    if (!lookupMaps.TechMdMap.TryGetValue(admId, out var techMd))
                     {
-                        // Archivematica does it this way
-                        techMd = xMets.Descendants(XNames.MetsAmdSec)
-                            .SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
+                        // Archivematica does it this way - fall back to amdSec map
+                        lookupMaps.AmdSecMap.TryGetValue(admId, out techMd);
                     }
-
 
                     var fixity = techMd!.Descendants(XNames.PremisFixity).SingleOrDefault();
                     if (fixity != null)
@@ -417,10 +452,21 @@ public class MetsParser(
                         Digest = digest
                     };
                 }
-
-                var digiprovMd = xMets.Descendants(XNames.MetsDigiprovMD).FirstOrDefault(t =>
-                        t.Attribute("ID")!.Value.ToLower()
-                            .Contains($"digiprovmd_clamav_{admId.ToLower()}")); //TODO:working file
+                
+                // Use pre-built dictionary for O(1) lookup instead of LINQ query
+                // The digiprovMD ID contains a pattern like "digiprovmd_clamav_{admId}"
+                var clamavKey = $"{Constants.VirusProvEventPrefix}{admId}";
+                if (!lookupMaps.DigiprovMdMap.TryGetValue(clamavKey, out var digiprovMd))
+                {
+                    var lowerKey = clamavKey.ToLowerInvariant();
+                    // Try case-insensitive search through the pre-built map
+                    var matchingKey = lookupMaps.DigiprovMdMap.Keys
+                        .FirstOrDefault(k => k.ToLower().Contains(lowerKey));
+                    if (matchingKey != null)
+                    {
+                        digiprovMd = lookupMaps.DigiprovMdMap[matchingKey];
+                    }
+                }
 
                 var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();
                 if (virusEvent != null)
@@ -465,25 +511,28 @@ public class MetsParser(
                     };
                 }
                 
-                var amd = xMets.Descendants(XNames.MetsAmdSec).SingleOrDefault(t => t.Attribute("ID")!.Value == admId);
-                var exifMetadataNode = amd?.Descendants("ExifMetadata").SingleOrDefault();
+                
+                if (lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
+                {                
+                    var exifMetadataNode = amd.Descendants("ExifMetadata").SingleOrDefault();
                
-                if (exifMetadataNode != null)
-                {
-                    var timestamp = DateTime.UtcNow;
-                    var exifMetadataList = new List<ExifTag>();
-                    foreach (var element in exifMetadataNode.Descendants())
+                    if (exifMetadataNode != null)
                     {
-                        exifMetadataList.Add(new ExifTag{TagName = element.Name.LocalName , TagValue = element.Value });
+                        var timestamp = DateTime.UtcNow;
+                        var exifMetadataList = new List<ExifTag>();
+                        foreach (var element in exifMetadataNode.Descendants())
+                        {
+                            exifMetadataList.Add(new ExifTag{TagName = element.Name.LocalName , TagValue = element.Value });
+                        }
+
+                        exifMetadata = new ExifMetadata
+                        {
+                            Source = "METS",
+                            Timestamp = timestamp,
+                            Tags = exifMetadataList
+                        };
+
                     }
-
-                    exifMetadata = new ExifMetadata
-                    {
-                        Source = "METS",
-                        Timestamp = timestamp,
-                        Tags = exifMetadataList
-                    };
-
                 }
 
                 var parts = flocat.Split('/');
@@ -554,7 +603,7 @@ public class MetsParser(
 
             }
 
-            ProcessChildStructDivs(mets, xMets, div, fileSec, directoryLabels);
+            ProcessChildStructDivs(mets, div, directoryLabels, lookupMaps);
         }
     }
 
