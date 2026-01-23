@@ -27,7 +27,6 @@ public class MetadataManager : IMetadataManager
             GetMetadataXml(ref fullMets, div, operationPath);
         }
 
-
         ProcessFileFormatDataForFile(workingFile, operationPath, newUpload);
 
         if (newUpload)
@@ -58,6 +57,8 @@ public class MetadataManager : IMetadataManager
 
         if (newUpload)
             fullMets.Mets.AmdSec.Add(AmdSec);
+
+        AmdSec = null;
     }
 
     private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
