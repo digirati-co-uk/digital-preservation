@@ -29,6 +29,10 @@ public class WorkingFile : WorkingBase
     [JsonPropertyOrder(16)]
     public long? Size { get; set; }
 
+    [JsonPropertyName("links")]
+    [JsonPropertyOrder(50)]
+    public List<FileLink> Links { get; set; } = [];
+
     public WorkingFile ToRootLayout()
     {
         if (!LocalPath.StartsWith($"{FolderNames.BagItData}/"))

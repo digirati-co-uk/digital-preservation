@@ -1,0 +1,302 @@
+<mets:mets xmlns:mods="http://www.loc.gov/mods/v3" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:mets="http://www.loc.gov/METS/">
+  <mets:metsHdr CREATEDATE="2026-01-07T10:00:24.3999414+00:00">
+    <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+      <mets:name>University of Leeds Digital Library Infrastructure Project</mets:name>
+    </mets:agent>
+  </mets:metsHdr>
+  <mets:dmdSec ID="DMD_PHYS_ROOT">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:titleInfo>
+            <mods:title>Liddle Tapes 1 and 2</mods:title><!-- here at all? -->
+          </mods:titleInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_objects">
+    <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:mods>
+            <mods:titleInfo>
+              <mods:title>Liddle Tapes 1 and 2</mods:title>
+            </mods:titleInfo>
+            <mods:accessCondition type="restriction on access" xlink:type="simple">Level1</mods:accessCondition>
+            <mods:accessCondition type="use and reproduction" xlink:type="simple">http://rightsstatements.org/vocab/InC/1.0/</mods:accessCondition>              
+            <mods:recordInfo>
+              <mods:recordIdentifier source="identity-service">a8n9e4c2</mods:recordIdentifier>
+              <mods:recordIdentifier source="EMu">LIDDLE/WW1/TAPES/1-2</mods:recordIdentifier>
+            </mods:recordInfo>
+          </mods:mods>
+        </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+
+  
+  <mets:dmdSec ID="DMD_LOG_0001">
+    <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:mods>
+            <mods:titleInfo>
+              <mods:title>ADDAMS-WILLIAMS, DONALD ARTHUR</mods:title>
+            </mods:titleInfo>             
+            <mods:recordInfo>
+              <mods:recordIdentifier source="identity-service">mg56cva7</mods:recordIdentifier>
+              <mods:recordIdentifier source="EMu">LIDDLE/WW1/XXX/1</mods:recordIdentifier>
+            </mods:recordInfo>
+          </mods:mods>
+        </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  
+  <mets:dmdSec ID="DMD_LOG_0002">
+    <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:mods>
+            <mods:titleInfo>
+              <mods:title>AITCHISON, BERTRAM STEWART</mods:title>
+            </mods:titleInfo>             
+            <mods:recordInfo>
+              <mods:recordIdentifier source="identity-service">vvdd4433</mods:recordIdentifier>
+              <mods:recordIdentifier source="EMu">LIDDLE/WW1/XXX/2</mods:recordIdentifier>
+            </mods:recordInfo>
+          </mods:mods>
+        </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  
+  <mets:dmdSec ID="DMD_LOG_0003">
+    <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:mods>
+            <mods:titleInfo>
+              <mods:title>ALEXANDER, C</mods:title>
+            </mods:titleInfo>             
+            <mods:recordInfo>
+              <mods:recordIdentifier source="identity-service">adfa234d</mods:recordIdentifier>
+              <mods:recordIdentifier source="EMu">LIDDLE/WW1/XXX/3</mods:recordIdentifier>
+            </mods:recordInfo>
+          </mods:mods>
+        </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  
+  <mets:dmdSec ID="DMD_LOG_0004">
+    <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:mods>
+            <mods:titleInfo>
+              <mods:title>ALLANSON, CECIL JOHN LYONS</mods:title>
+            </mods:titleInfo>             
+            <mods:recordInfo>
+              <mods:recordIdentifier source="identity-service">e34e2ads</mods:recordIdentifier>
+              <mods:recordIdentifier source="EMu">LIDDLE/WW1/XXX/4</mods:recordIdentifier>
+            </mods:recordInfo>
+          </mods:mods>
+        </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+
+  <mets:amdSec ID="ADM_objects">
+    <mets:techMD ID="TECH_objects">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>objects</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata">
+    <mets:techMD ID="TECH_metadata">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>metadata</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/tape1side1.wav">
+    <mets:techMD ID="TECH_objects/tape1side1.wav">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>abcd1234</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>500000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Broadcast WAVE 0 Generic</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/1</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/tape1side1.wav</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/tape1side2.wav">
+    <mets:techMD ID="TECH_objects/tape1side2.wav">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>3e421bb1</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>500001</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Broadcast WAVE 0 Generic</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/1</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/tape1side2.wav</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/tape2side1.wav">
+    <mets:techMD ID="TECH_objects/tape2side1.wav">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>d4d4e3e3</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>499999</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Broadcast WAVE 0 Generic</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/1</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/tape2side1.wav</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/tape2side2.wav">
+    <mets:techMD ID="TECH_objects/tape2side2.wav">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>a2d3e4f5</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>500100</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Broadcast WAVE 0 Generic</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/1</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/tape2side2.wav</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:fileSec>
+    <mets:fileGrp USE="OBJECTS">
+      <mets:file ID="FILE_objects/tape1side1.wav" MIMETYPE="audio/x-wav" ADMID="ADM_objects/tape1side1.wav">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/tape1side1.wav" />
+      </mets:file>
+      <mets:file ID="FILE_objects/tape1side2.wav" MIMETYPE="audio/x-wav" ADMID="ADM_objects/tape1side2.wav">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/tape1side2.wav" />
+      </mets:file>
+      <mets:file ID="FILE_objects/tape2side1.wav" MIMETYPE="audio/x-wav" ADMID="ADM_objects/tape2side1.wav">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/tape2side1.wav" />
+      </mets:file>
+      <mets:file ID="FILE_objects/tape2side2.wav" MIMETYPE="audio/x-wav" ADMID="ADM_objects/tape2side2.wav">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/tape2side2.wav" />
+      </mets:file>
+    </mets:fileGrp>
+  </mets:fileSec>
+  <mets:structMap TYPE="PHYSICAL">
+    <mets:div ID="PHYS_ROOT" LABEL="__ROOT" DMDID="DMD_PHYS_ROOT" TYPE="Directory">
+      <mets:div ID="PHYS_metadata" LABEL="metadata" DMDID="DMD_metadata" ADMID="ADM_metadata" TYPE="Directory" />
+      <mets:div ID="PHYS_objects" LABEL="objects" DMDID="DMD_objects" ADMID="ADM_objects" TYPE="Directory">
+        <mets:div ID="PHYS_objects/tape1side1.wav" LABEL="Tape 1 Side 1" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/tape1side1.wav" />
+        </mets:div>
+        <mets:div ID="PHYS_objects/tape1side2.wav" LABEL="Tape 1 Side 2" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/tape1side2.wav" />
+        </mets:div>
+        <mets:div ID="PHYS_objects/tape2side1.wav" LABEL="Tape 2 Side 1" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/tape2side1.wav" />
+        </mets:div>
+        <mets:div ID="PHYS_objects/tape2side2.wav" LABEL="Tape 2 Side 2" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/tape2side2.wav" />
+        </mets:div>
+      </mets:div>
+    </mets:div>
+  </mets:structMap>
+
+  
+  <mets:structMap TYPE="LOGICAL">
+      <mets:div ADMID="AMDLOG_0000" DMDID="DMDLOG_0000" ID="LOG_0000" LABEL="Tapes 1 and 2" TYPE="Collection">
+          <mets:div ID="LOG_0001" LABEL="ADDAMS-WILLIAMS, DONALD ARTHUR" TYPE="Item" DMDID="DMD_LOG_0001">                        
+            <mets:fptr>
+                <mets:area FILEID="FILE_objects/tape1side1.wav" BETYPE="time" BEGIN="00:00:15" END="00:35:09.5"/>
+            </mets:fptr>
+          </mets:div>          
+          <mets:div ID="LOG_0002" LABEL="AITCHISON, BERTRAM STEWART" TYPE="Item" DMDID="DMD_LOG_0002">                        
+            <mets:fptr>
+                <mets:area FILEID="FILE_objects/tape1side1.wav" BETYPE="time" BEGIN="00:36:40" END="00:45:00"/>
+            </mets:fptr>                   
+            <mets:fptr>
+                <mets:area FILEID="FILE_objects/tape1side2.wav" BETYPE="time" BEGIN="00:00:09.2" END="00:20:09"/>
+            </mets:fptr>
+          </mets:div>
+          <mets:div ID="LOG_0003" LABEL="ALEXANDER, C" TYPE="Item" DMDID="DMD_LOG_0003">                        
+            <mets:fptr>
+                <mets:area FILEID="FILE_objects/tape1side2.wav" BETYPE="time" BEGIN="00:20:50" END="00:31:40"/>
+            </mets:fptr>
+          </mets:div>
+          <mets:div ID="LOG_0004" LABEL="ALLANSON, CECIL JOHN LYONS" TYPE="Item" DMDID="DMD_LOG_0004">                        
+            <mets:fptr>
+                <mets:area FILEID="FILE_objects/tape2side1.wav" BETYPE="time" BEGIN="00:00:13.9" END="00:44:50.54"/>
+            </mets:fptr>                        
+            <mets:fptr>
+                <mets:area FILEID="FILE_objects/tape2side2.wav" BETYPE="time" BEGIN="00:00:20.6" END="00:23:07.51"/>
+            </mets:fptr>
+          </mets:div>
+      </mets:div>
+  </mets:structMap>
+
+
+</mets:mets>

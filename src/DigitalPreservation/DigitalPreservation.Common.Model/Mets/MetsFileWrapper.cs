@@ -1,5 +1,6 @@
 ﻿using System.Xml.Linq;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using Microsoft.Extensions.Primitives;
 
 namespace DigitalPreservation.Common.Model.Mets;
@@ -36,4 +37,5 @@ public class MetsFileWrapper
     public bool Editable { get; set; }
     public List<string> RootAccessConditions { get; set; } = [];
     public Uri? RootRightsStatement { get; set; }
+    public List<LogicalRange> LogicalStructures { get; set; } = [];
 }

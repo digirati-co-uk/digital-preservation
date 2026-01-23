@@ -1,0 +1,300 @@
+<mets:mets xmlns:mods="http://www.loc.gov/mods/v3" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:mets="http://www.loc.gov/METS/">
+  <mets:metsHdr CREATEDATE="2025-11-10T11:28:24.1258902+00:00">
+    <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+      <mets:name>University of Leeds Digital Library Infrastructure Project</mets:name>
+    </mets:agent>
+  </mets:metsHdr>
+  <mets:dmdSec ID="DMD_PHYS_ROOT">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:titleInfo>
+            <mods:title>Women of Westminster</mods:title><!-- here at all? -->
+          </mods:titleInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_objects">
+    <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:mods>
+            <mods:titleInfo>
+              <mods:title>Women of Westminster</mods:title>
+            </mods:titleInfo>
+            <mods:accessCondition type="restriction on access" xlink:type="simple">Level1</mods:accessCondition>
+            <mods:accessCondition type="use and reproduction" xlink:type="simple">http://rightsstatements.org/vocab/InC/1.0/</mods:accessCondition>              
+            <mods:recordInfo>
+              <mods:recordIdentifier source="identity-service">b6n9e4c2</mods:recordIdentifier>
+              <mods:recordIdentifier source="EMu">MS 2249</mods:recordIdentifier>
+            </mods:recordInfo>
+          </mods:mods>
+        </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_LOG_0001">
+    <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:mods>
+            <mods:titleInfo>
+              <mods:title>Interview with Amber Rudd</mods:title>
+            </mods:titleInfo>             
+            <mods:recordInfo>
+              <mods:recordIdentifier source="identity-service">mg56cva7</mods:recordIdentifier>
+              <mods:recordIdentifier source="EMu">MS 2249/1</mods:recordIdentifier>
+            </mods:recordInfo>
+          </mods:mods>
+        </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_LOG_0002">
+    <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:mods>
+            <mods:titleInfo>
+              <mods:title>Interview with Angela Eagle</mods:title>
+            </mods:titleInfo>             
+            <mods:recordInfo>
+              <mods:recordIdentifier source="identity-service">hh43pd32</mods:recordIdentifier>
+              <mods:recordIdentifier source="EMu">MS 2249/2</mods:recordIdentifier>
+            </mods:recordInfo>
+          </mods:mods>
+        </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_objects/angela-eagle.m4a">
+    <mets:mdWrap MDTYPE="MODS">
+        <mets:xmlData>
+          <mods:mods>
+              <mods:accessCondition type="restriction on access" xlink:type="simple">Closed</mods:accessCondition>
+              <mods:accessCondition type="use and reproduction" xlink:type="simple">null(?)</mods:accessCondition><!-- how to override with no right statement?-->
+          </mods:mods>
+        </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:amdSec ID="ADM_objects">
+    <mets:techMD ID="TECH_objects">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>objects</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata">
+    <mets:techMD ID="TECH_metadata">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>metadata</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/amber-rudd.m4a">
+    <mets:techMD ID="TECH_objects/amber-rudd.m4a">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>abcd1234</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>1000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">M4A Audio</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/100</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/amber-rudd.m4a</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/amber-rudd.docx">
+    <mets:techMD ID="TECH_objects/amber-rudd.docx">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>1234abcd</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>500</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Microsoft Word</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/200</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/amber-rudd.docx</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/angela-eagle.m4a">
+    <mets:techMD ID="TECH_objects/angela-eagle.m4a">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>aabbccdd</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>2000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">M4A Audio</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/100</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/angela-eagle.m4a</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/angela-eagle-redacted.m4a">
+    <mets:techMD ID="TECH_objects/angela-eagle-redacted.m4a">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>99887766</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>1500</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">M4A Audio</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/100</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/angela-eagle-redacted.m4a</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/angela-eagle-transcript.docx">
+    <mets:techMD ID="TECH_objects/angela-eagle-transcript.docx">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>a1b2c3d4</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>600</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Microsoft Word</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/200</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/angela-eagle-transcript.docx</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:fileSec>
+    <mets:fileGrp USE="OBJECTS">
+      <mets:file ID="FILE_objects/amber-rudd.m4a" MIMETYPE="audio/m4a" ADMID="ADM_objects/amber-rudd.m4a">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/amber-rudd.m4a" />
+      </mets:file>
+      <mets:file ID="FILE_objects/amber-rudd.docx" MIMETYPE="application/msword" ADMID="ADM_objects/amber-rudd.docx">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/amber-rudd.docx" />
+      </mets:file>
+      <mets:file ID="FILE_objects/angela-eagle.m4a" MIMETYPE="audio/m4a" ADMID="ADM_objects/angela-eagle.m4a">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/angela-eagle.m4a" />
+      </mets:file>
+      <mets:file ID="FILE_objects/angela-eagle-redacted.m4a" MIMETYPE="audio/m4a" ADMID="ADM_objects/angela-eagle-redacted.m4a">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/angela-eagle-redacted.m4a" />
+      </mets:file>
+      <mets:file ID="FILE_objects/angela-eagle-transcript.docx" MIMETYPE="application/msword" ADMID="ADM_objects/angela-eagle-transcript.docx">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/angela-eagle-transcript.docx" />
+      </mets:file>
+    </mets:fileGrp>
+  </mets:fileSec>
+  <mets:structMap TYPE="PHYSICAL">
+    <mets:div ID="PHYS_ROOT" LABEL="__ROOT" DMDID="DMD_PHYS_ROOT" TYPE="Directory">
+      <mets:div ID="PHYS_metadata" LABEL="metadata" DMDID="DMD_metadata" ADMID="ADM_metadata" TYPE="Directory" />
+      <mets:div ID="PHYS_objects" LABEL="objects" DMDID="DMD_objects" ADMID="ADM_objects" TYPE="Directory">
+
+
+        <mets:div ID="PHYS_objects/amber-rudd.docx" LABEL="Amber Rudd Transcript.docx" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/amber-rudd.docx" />
+        </mets:div>
+        <mets:div ID="PHYS_objects/amber-rudd.m4a" LABEL="Amber Rudd.m4a" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/amber-rudd.m4a" />
+        </mets:div>
+        <mets:div ID="PHYS_objects/angela-eagle-redacted.m4a" LABEL="Angela Eagle - redacted.m4a" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/angela-eagle-redacted.m4a" />
+        </mets:div>
+        <mets:div ID="PHYS_objects/angela-eagle-transcript.docx" LABEL="Angela Eagle redacted transcript.docx" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/angela-eagle-transcript.docx" />
+        </mets:div>
+        <mets:div ID="PHYS_objects/angela-eagle.m4a" LABEL="Angela Eagle.m4a" TYPE="Item" DMDID="DMD_objects/angela-eagle.m4a" >
+          <mets:fptr FILEID="FILE_objects/angela-eagle.m4a" />
+        </mets:div>
+
+
+      </mets:div>
+    </mets:div>
+  </mets:structMap>
+
+  
+    <mets:structMap TYPE="LOGICAL">
+        <mets:div ADMID="AMDLOG_0000" DMDID="DMDLOG_0000" ID="LOG_0000" LABEL="Women of Westminster" TYPE="Collection">
+            <mets:div ID="LOG_0001" LABEL="Amber Rudd" TYPE="Item" DMDID="DMD_LOG_0001">            
+              <mets:fptr FILEID="FILE_objects/amber-rudd.m4a" />
+              <mets:fptr FILEID="FILE_objects/amber-rudd.docx" />
+            </mets:div>
+            <mets:div ID="LOG_0002" LABEL="Angela Eagle" TYPE="Item" DMDID="DMD_LOG_0002">
+              <mets:fptr FILEID="FILE_objects/angela-eagle-redacted.m4a" />
+              <mets:fptr FILEID="FILE_objects/angela-eagle-transcript.docx" />
+            </mets:div>
+        </mets:div>
+    </mets:structMap>
+
+    <mets:structLink>
+        <mets:smLink xlink:from="FILE_objects/amber-rudd.m4a" xlink:to="FILE_objects/amber-rudd.docx" 
+                    xlink:arcrole="http://iiif.io/api/presentation/3#supplementing" />
+        <mets:smLink xlink:from="FILE_objects/angela-eagle-redacted" xlink:to="angela-eagle-transcript.docx" 
+                    xlink:arcrole="http://iiif.io/api/presentation/3#supplementing" />
+    </mets:structLink>
+  </mets:mets>
