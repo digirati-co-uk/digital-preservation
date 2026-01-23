@@ -19,14 +19,14 @@ public class MetadataManager : IMetadataManager
         var techId = Constants.TechIdPrefix + operationPath;
         TechId = techId;
         FileAdmId = admId;
-
+        PremisIncExifXml = null;
+        VirusXml = null;
 
         if (!newUpload)
         {
             AmdSec = fullMets.Mets.AmdSec.Single(a => a.Id == FileAdmId);
             GetMetadataXml(ref fullMets, div, operationPath);
         }
-
 
         ProcessFileFormatDataForFile(workingFile, operationPath, newUpload);
         
@@ -62,6 +62,8 @@ public class MetadataManager : IMetadataManager
 
         if (newUpload)
             fullMets.Mets.AmdSec.Add(AmdSec);
+
+        AmdSec = null;
     }
 
     private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
