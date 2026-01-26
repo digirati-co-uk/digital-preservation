@@ -8,4 +8,5 @@ public class BrunnhildeOptions
     public string? ObjectsFolder { get; set; }
     public string? ProcessFolder { get; set; }
     public string? ExifToolLocation { get; set; }
+    public int? ReleaseLockAttemptTime { get; set; }
 }
