@@ -429,19 +429,17 @@ public class ProcessPipelineJobHandler(
             while (true)
             {
                 var releaseLockResult = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-
-                if (!releaseLockResult.Success)
-                {
-                    logger.LogError($"Failure to release the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
-                    continue;
-                }
-
                 var exit = (DateTime.Now - start).Seconds > brunnhildeOptions.Value.ReleaseLockAttemptTime;
 
-                if (!exit && !releaseLockResult.Success) continue;
-                logger.LogInformation($"Successfully released the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}");
-                break;
+                if (releaseLockResult.Success)
+                {
+                    logger.LogInformation($"Successfully released the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}");
+                    break;
+                }
 
+                if (!exit) continue;
+                logger.LogError($"Failure to release the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
+                break;
             }
 
             return new ProcessPipelineResult
