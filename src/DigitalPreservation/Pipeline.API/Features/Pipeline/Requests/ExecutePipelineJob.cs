@@ -368,6 +368,25 @@ public class ProcessPipelineJobHandler(
                 request, metadataPathForProcessFilesAndDirectories, depositPath,
                 workspaceManager.Deposit, cancellationToken);
 
+            if (!createFolderResultList.Any() && !uploadFilesResultList.Any())
+            {
+                await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors = 
+                    [
+                        new Error
+                        {
+                            Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} had an issue uploading files to S3"
+                        }
+                    ],
+                    CleanupProcessJob = false
+                };
+            }
+
+
             if (forceCompleteUpload || forceCompleteUploadCleanupProcess)
             {
                 return await ForceCompleteReturn(forceCompleteUploadCleanupProcess, request, workspaceManager.Deposit, cancellationToken);
@@ -405,7 +424,24 @@ public class ProcessPipelineJobHandler(
             if (metsResult.Failure)
                 logger.LogInformation("Issue adding objects to METS in pipeline run: {error}", metsResult.ErrorMessage);
 
-            await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+            var start = DateTime.Now;
+
+            while (true)
+            {
+                var releaseLockResult = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+
+                if (!releaseLockResult.Success)
+                {
+                    logger.LogError($"Failure to release the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
+                    continue;
+                }
+
+                var exit = (DateTime.Now - start).Seconds > brunnhildeOptions.Value.ReleaseLockAttemptTime;
+
+                if (!exit && !releaseLockResult.Success) continue;
+                logger.LogInformation($"Successfully released the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}");
+                break;
+            }
 
             return new ProcessPipelineResult
             {
@@ -575,7 +611,7 @@ public class ProcessPipelineJobHandler(
                 }
 
                 var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFilesAndDirectories, deposit, cancellationToken);
-                if (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess)
+                if (uploadFileToS3Result != null && (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess || !uploadFileToS3Result.Success))
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
                     logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
@@ -584,8 +620,6 @@ public class ProcessPipelineJobHandler(
 
                 uploadFileResult.Add(uploadFileToS3Result);
             }
-
-            //var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFiles, deposit, cancellationToken);
 
             foreach (var subFolder in createSubFolderResult)
             {
@@ -606,6 +640,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception ex)
         {
+            await TryReleaseLock(request, deposit, cancellationToken);
             logger.LogError(ex, " Caught error in copy files recursively from {sourcePathForFilesAndDirectories} to {depositPath}", sourcePathForFilesAndDirectories, depositPath);
             return (createSubFolderResult: [], uploadFileResult: [], false, false);
         }
