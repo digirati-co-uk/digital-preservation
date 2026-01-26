@@ -83,10 +83,11 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     DepositFileFormatMetadata.PronomKey, MetsFileFormatMetadata.PronomKey));
             }
 
-            if (DepositFileFormatMetadata!.ContentType != FileInMets.ContentType)
+            var bestContentType = ContentTypes.GetBestContentType(FileInDeposit);
+            if (bestContentType != FileInMets.ContentType)
             {
                 misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "ContentType",
-                    DepositFileFormatMetadata.ContentType, FileInMets.ContentType));
+                    bestContentType, FileInMets.ContentType));
             }
 
             if (DepositFileFormatMetadata!.Digest != MetsFileFormatMetadata!.Digest)
@@ -417,30 +418,18 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
         return size;
     }
-
-    public List<string?> GetAllContentTypes()
+    
+    
+    public string? GetSingleContentTypeFromMetsAndDeposit()
     {
-        return
+        List<string?> allContentTypes =
         [
             FileInMets?.ContentType,
-            DepositFileFormatMetadata?.ContentType,
-            FileInDeposit?.ContentType
+            ContentTypes.GetBestContentType(FileInDeposit)
         ];
-    }
-    
-    public string? GetSingleContentType()
-    {
-        var distinctContentTypes = GetAllContentTypes().Where(ct => ct.HasText()).Distinct().ToList();
-        if (distinctContentTypes.Count > 1)
-        {
-            // It might really be application/octet-stream, which is OK if that's the best we can do
-            distinctContentTypes.RemoveAll(ct => ct == "application/octet-stream");
-        }
-        if (distinctContentTypes.Count > 1)
-        {
-            // It might really be application/octet-stream, which is OK if that's the best we can do
-            distinctContentTypes.RemoveAll(ct => ct == "binary/octet-stream");
-        }
+        var distinctContentTypes = allContentTypes
+            .Where(ct => ct.HasText()).Distinct().Select(ct => ct!).ToList();
+        ContentTypes.RemoveExtraGenericContentTypes(distinctContentTypes);
         if (distinctContentTypes.Count == 1)
         {
             return distinctContentTypes.Single();

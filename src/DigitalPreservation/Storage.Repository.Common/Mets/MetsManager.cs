@@ -262,12 +262,12 @@ public class MetsManager(
             {
                 return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
             }
-        } 
+        }
         else if (counter == elements.Length - 1)
         {
             if (deletePath is not null)
                 return Result.Fail(ErrorCodes.NotFound, "Can't find a file or folder to delete.");
-            
+
             // div is a directory
             if (div.Type != "Directory")
                 return Result.Fail(ErrorCodes.BadRequest, "Parent path is not a Directory");
@@ -316,13 +316,13 @@ public class MetsManager(
                 };
                 div.Div.Add(childItemDiv);
 
-                metadataManager.ProcessAllFileMetadata(ref fullMets, childItemDiv, workingFile, operationPath, true); 
+                metadataManager.ProcessAllFileMetadata(ref fullMets, childItemDiv, workingFile, operationPath, true);
             }
 
             // Now we need to ensure the child items are in alphanumeric order by name...
             // how do we do that? We can't sort a Collection<T> in place, and we can't 
             // create a new Collection and assign it to Div
-            
+
             var childList = new List<DivType>(div.Div);
             div.Div.Clear();
             // We will order case-insensitive; we want to match what a typical file explorer would do.

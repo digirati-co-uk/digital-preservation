@@ -19,7 +19,8 @@ public class MetadataManager : IMetadataManager
         var techId = Constants.TechIdPrefix + operationPath;
         TechId = techId;
         FileAdmId = admId;
-
+        PremisIncExifXml = null;
+        VirusXml = null;
 
         if (!newUpload)
         {
@@ -27,16 +28,15 @@ public class MetadataManager : IMetadataManager
             GetMetadataXml(ref fullMets, div, operationPath);
         }
 
-
         ProcessFileFormatDataForFile(workingFile, operationPath, newUpload);
-
+        
+        
         if (newUpload)
         {
             File = new FileType
             {
                 Id = fileId,
                 Admid = { admId },
-                Mimetype = PremisFile?.ContentType ?? workingFile.ContentType,
                 FLocat =
                 {
                     new FileTypeFLocat
@@ -49,15 +49,21 @@ public class MetadataManager : IMetadataManager
             fullMets.Mets.FileSec.FileGrp[0].File.Add(File);
         }
 
-        if (PremisFile != null && PremisFile.ContentType.HasText() && PremisFile.ContentType != ContentTypes.NotIdentified && File != null)
+        if (File != null)
         {
-            File.Mimetype = PremisFile.ContentType;
+            var contentTypeFromDeposit = ContentTypes.GetBestContentType(workingFile);
+            if (contentTypeFromDeposit.HasText() && contentTypeFromDeposit != ContentTypes.NotIdentified)
+            {
+                File.Mimetype = contentTypeFromDeposit;
+            }
         }
 
         ProcessVirusDataForFile(workingFile);
 
         if (newUpload)
             fullMets.Mets.AmdSec.Add(AmdSec);
+
+        AmdSec = null;
     }
 
     private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)

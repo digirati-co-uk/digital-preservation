@@ -485,21 +485,10 @@ public class MetsParser(
                 }
 
                 var parts = flocat.Split('/');
-                if (string.IsNullOrEmpty(mimeType))
-                {
-                    // In the real version, we would have got this from Siegfried for born-digital archives,
-                    // but we'd still be reading it from the METS file we made.
-                    if (MimeTypes.TryGetMimeType(parts[^1], out var foundMimeType))
-                    {
-                        logger.LogWarning(
-                            $"Content Type for {flocat} was deduced from file extension: {foundMimeType}");
-                        mimeType = foundMimeType;
-                    }
-                }
 
                 var file = new WorkingFile
                 {
-                    ContentType = mimeType ?? ContentTypes.NotIdentified,
+                    ContentType = mimeType,
                     LocalPath = flocat,
                     Digest = digest,
                     Size = size,
