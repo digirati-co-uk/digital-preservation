@@ -166,7 +166,7 @@ public class BrowseModel(
                 try
                 {
                     var xMets = XDocument.Load(metsResult.Item1);
-                    var result = metsParser.GetMetsFileWrapperFromXDocument(xMets);
+                    var result = metsParser.GetMetsFileWrapperFromXDocument(CachedArchivalGroup.Id, xMets);
                     if (result is { Success: true, Value: not null })
                     {
                         metsWrapper = result.Value;
