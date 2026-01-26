@@ -365,7 +365,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                     $"File {combinedFile.LocalPath} has different sizes in deposit and mets or does not have a size at all");
             }
             
-            var contentType = combinedFile.GetSingleContentType();
+            var contentType = combinedFile.GetSingleContentTypeFromMetsAndDeposit();
             if (contentType is null)
             {
                 if (combinedFile.LocalPath == metsXmlPath)
@@ -376,8 +376,10 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 }
                 else
                 {
-                    return Result.FailNotNull<Container>(ErrorCodes.BadRequest, 
-                        $"File {combinedFile.LocalPath} has different content types in deposit and mets - " + string.Join(", ", combinedFile.GetAllContentTypes()));
+                    return Result.FailNotNull<Container>(ErrorCodes.BadRequest,
+                        $"File {combinedFile.LocalPath} has different content types in METS " 
+                        + $"({combinedFile.FileInMets?.ContentType}) and Deposit " 
+                        + $"({string.Join(", ", ContentTypes.GetAllContentTypes(combinedFile.FileInDeposit))})");
                 }
             }
 

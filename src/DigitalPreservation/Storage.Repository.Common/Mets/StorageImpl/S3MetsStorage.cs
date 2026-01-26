@@ -23,6 +23,7 @@ public class S3MetsStorage(
         var xml = StorageHelpers.XmlFromFullMets(fullMets);
         if (string.IsNullOrEmpty(xml))
         {
+            //This is unreachable due to the namespace injection GetNameSpaces() in StorageHelpers.cs
             return Result.Fail(ErrorCodes.BadRequest, "Failed to serialize METS");
         }
 
