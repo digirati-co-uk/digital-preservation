@@ -424,26 +424,6 @@ public class ProcessPipelineJobHandler(
             if (metsResult.Failure)
                 logger.LogInformation("Issue adding objects to METS in pipeline run: {error}", metsResult.ErrorMessage);
 
-            var start = DateTime.Now;
-
-            while (true)
-            {
-                var releaseLockResult = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-
-                if (!releaseLockResult.Success)
-                {
-                    logger.LogError($"Failure to release the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
-                    continue;
-                }
-
-                var exit = (DateTime.Now - start).Seconds > brunnhildeOptions.Value.ReleaseLockAttemptTime;
-
-                if (!exit && !releaseLockResult.Success) continue;
-                logger.LogInformation($"Successfully released the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}");
-                break;
-
-            }
-
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.Completed
