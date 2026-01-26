@@ -10,9 +10,16 @@ public class WorkingFile : WorkingBase
     [JsonPropertyName("type")]
     public override string Type { get; set; } = nameof(WorkingFile); 
     
+    /// <summary>
+    /// For files in deposits, this will be the mimetype supplied at upload time,
+    /// or determined by the MimeTypes library, or determined by AWS S3, in that
+    /// order. Compare with the same property on FileFormatMetadata.
+    ///
+    /// For files in METS, this is the mets:file element's MIMETYPE property.
+    /// </summary>
     [JsonPropertyName("contentType")]
     [JsonPropertyOrder(14)]
-    public required string ContentType { get; set; }
+    public string? ContentType { get; set; }
 
     [JsonPropertyName("digest")]
     [JsonPropertyOrder(15)]
@@ -112,8 +119,11 @@ public class WorkingFile : WorkingBase
 
         // Should we require that ALL of these agree?
         // Pronom keys should definitely agree.
-
         // In practice, as Brunnhilde is using Siegfried, they should always agree.
+        
+        // Content types may be different from different sources - so while we can coalesce
+        // them here, we must check them elsewhere.
+
         // (for now - we may have other sources later)
         if (pronomKeys.Count > 0)
         {
