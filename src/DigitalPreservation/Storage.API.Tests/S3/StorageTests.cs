@@ -314,6 +314,14 @@ public class StorageTests
 
             }));
 
+
+        // Simulate successful PutObjectAsync
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Returns(Task.FromResult(new PutObjectResponse()
+            {
+                HttpStatusCode = HttpStatusCode.Created,
+            }));
+
         var resultTask = storage.AddToDepositFileSystem(uri, file, CancellationToken.None);
         var result = resultTask.GetAwaiter().GetResult();
 
