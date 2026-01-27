@@ -50,7 +50,7 @@ public class WomenOfWestminster
 
 
         // The archivist marks some files as not for publication
-        metsManager.SetAccessRestrictions(mets, "objects/angela-eagle-redacted.m4a", ["Level2"]);
+        metsManager.SetAccessRestrictions(mets, "objects/angela-eagle-redacted.m4a", ["Closed"]);
         metsManager.SetRightsStatement(mets, "objects/angela-eagle-redacted.m4a", null); //???
 
 
