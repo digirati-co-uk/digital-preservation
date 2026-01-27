@@ -26,7 +26,8 @@ public class DepositModel(
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
     IOptions<PipelineOptions> pipelineOptions,
-    IConfiguration configuration) : PageModel
+    IConfiguration configuration,
+    ILogger<DepositModel> logger) : PageModel
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
@@ -62,6 +63,7 @@ public class DepositModel(
         if (getDepositResult.Success)
         {
             Deposit = getDepositResult.Value!;
+            logger.LogInformation("In Bind deposit for deposit {deposit} Lock date: {lockDate}, Locked by: {lockedBy} ", Deposit.Id, Deposit?.LockDate, Deposit?.LockedBy);
             WorkspaceManager = await workspaceManagerFactory.CreateAsync(Deposit);
             
             if (!Deposit.ArchivalGroupExists && Deposit.ArchivalGroup != null && Deposit.ArchivalGroup.GetPathUnderRoot().HasText())
