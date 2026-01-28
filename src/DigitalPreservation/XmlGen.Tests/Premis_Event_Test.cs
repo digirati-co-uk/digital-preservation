@@ -4,6 +4,7 @@ using FluentAssertions;
 using Storage.Repository.Common.Mets;
 using System.Xml;
 using System.Xml.Serialization;
+using DigitalPreservation.Common.Model.Mets;
 using Xunit.Abstractions;
 using Xunit.Sdk;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
@@ -16,11 +17,13 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
     {
         var testPremisData = GetTestPremisData();
         var testVirusMetadata = GetTestVirusMetadataData();
-        var premis = PremisManager.Create(testPremisData);
-        var s = PremisManager.Serialise(premis);
+        var premisManager = new PremisManager();
+        var premisEventManager = new PremisEventManager();
+        var premis = premisManager.Create(testPremisData);
+        var s = premisManager.Serialise(premis);
 
-        var premisEvent = PremisEventManager.Create(testVirusMetadata);
-        var s1 = PremisEventManager.Serialise(premisEvent);
+        var premisEvent = premisEventManager.Create(testVirusMetadata);
+        var s1 = premisEventManager.Serialise(premisEvent);
 
         testOutputHelper.WriteLine(s);
         testOutputHelper.WriteLine(s1);
@@ -29,25 +32,28 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
     [Fact]
     public void Read_Premis()
     {
+        var premisManager = new PremisManager();
         var testData = GetTestPremisData();
-        var premis = PremisManager.Create(testData);
-        var read = PremisManager.Read(premis);
+        var premis = premisManager.Create(testData);
+        var read = premisManager.Read(premis);
         read.Should().BeEquivalentTo(testData);
     }
 
     [Fact]
     public void Build_Premis_Get_XmlElement()
     {
+        var premisManager = new PremisManager();
+        var premisEventManager = new PremisEventManager();
         var testPremisData = GetTestPremisData();
         var testVirusMetadata = GetTestVirusMetadataData();
-        var premis = PremisManager.Create(testPremisData);
-        var s = PremisManager.Serialise(premis);
+        var premis = premisManager.Create(testPremisData);
+        var s = premisManager.Serialise(premis);
 
-        var premisEvent = PremisEventManager.Create(testVirusMetadata);
-        var s1 = PremisEventManager.Serialise(premisEvent);
+        var premisEvent = premisEventManager.Create(testVirusMetadata);
+        var s1 = premisEventManager.Serialise(premisEvent);
 
-        var xmlElement = PremisManager.GetXmlElement(premis, false);
-        var xmlElementMetadata = PremisEventManager.GetXmlElement(premisEvent);
+        var xmlElement = premisManager.GetXmlElement(premis, false);
+        var xmlElementMetadata = premisEventManager.GetXmlElement(premisEvent);
 
         testOutputHelper.WriteLine(xmlElement?.ToString());
         testOutputHelper.WriteLine(xmlElementMetadata?.ToString());

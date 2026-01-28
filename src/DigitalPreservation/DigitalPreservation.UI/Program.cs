@@ -95,6 +95,8 @@ try
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
         .AddSingleton<IMetadataManager, MetadataManager>()
+        .AddSingleton<IPremisManager, PremisManager>()
+        .AddSingleton<IPremisEventManager, PremisEventManager>()
         .AddSingleton<IMetsStorage, S3MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddCorrelationIdHeaderPropagation()

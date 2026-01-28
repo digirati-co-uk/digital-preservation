@@ -125,6 +125,8 @@ try
     builder.Services.AddSingleton<IMetsParser, MetsParser>();
     builder.Services.AddSingleton<IMetsManager, MetsManager>();
     builder.Services.AddSingleton<IMetadataManager, MetadataManager>();
+    builder.Services.AddSingleton<IPremisManager, PremisManager>();
+    builder.Services.AddSingleton<IPremisEventManager, PremisEventManager>();
     builder.Services.AddSingleton<IMetsStorage, S3MetsStorage>();
     builder.Services.AddSingleton<WorkspaceManagerFactory>();
 

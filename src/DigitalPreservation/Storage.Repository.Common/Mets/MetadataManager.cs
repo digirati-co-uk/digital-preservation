@@ -10,7 +10,7 @@ using System.Xml;
 using DigitalPreservation.XmlGen.Extensions;
 
 namespace Storage.Repository.Common.Mets;
-public class MetadataManager : IMetadataManager
+public class MetadataManager(IPremisManager premisManager, IPremisEventManager premisEventManager) : IMetadataManager
 {
     public void ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
@@ -113,14 +113,15 @@ public class MetadataManager : IMetadataManager
         if (PremisIncExifXml is not null)
         {
             premisType = PremisIncExifXml.GetPremisComplexType()!;
-            PremisManager.Patch(premisType, PremisFile, patchPremisExif);
+            premisManager.Patch(premisType, PremisFile, patchPremisExif);
+            //PremisManager.Patch(premisType, PremisFile, patchPremisExif);
         }
         else
         {
-            premisType = PremisManager.Create(PremisFile, patchPremisExif);
+            premisType = premisManager.Create(PremisFile, patchPremisExif);
         }
 
-        var premisXml = PremisManager.GetXmlElement(premisType, true);
+        var premisXml = premisManager.GetXmlElement(premisType, true);
         SetAmdSec(premisXml, newUpload);
 
         return Result.Ok();
@@ -137,19 +138,19 @@ public class MetadataManager : IMetadataManager
 
             if (patchPremisVirus != null)
             {
-                PremisEventManager.Patch(virusEventComplexType, patchPremisVirus);
+                premisEventManager.Patch(virusEventComplexType, patchPremisVirus);
             }
         }
         else
         {
             if (patchPremisVirus != null)
             {
-                virusEventComplexType = PremisEventManager.Create(patchPremisVirus);
+                virusEventComplexType = premisEventManager.Create(patchPremisVirus);
             }
         }
 
         if (virusEventComplexType is null) return;
-        VirusXml = PremisEventManager.GetXmlElement(virusEventComplexType);
+        VirusXml = premisEventManager.GetXmlElement(virusEventComplexType);
 
         if (AmdSec == null) return;
 

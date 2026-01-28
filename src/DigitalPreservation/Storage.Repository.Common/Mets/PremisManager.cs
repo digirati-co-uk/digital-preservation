@@ -10,30 +10,22 @@ using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
 
-public static class PremisManager
+public class PremisManager : IPremisManager
 {
-    private static readonly XmlSerializerNamespaces Namespaces;
     private const string Pronom = "PRONOM";
     private const string Sha256 = "SHA256";
-    
-    static PremisManager()
-    {
-        Namespaces = new XmlSerializerNamespaces();
-        Namespaces.Add("premis", "http://www.loc.gov/premis/v3");
-        Namespaces.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
-    }
-    
-    public static FileFormatMetadata? Read(PremisComplexType premis)
+
+    public FileFormatMetadata? Read(PremisComplexType premis)
     {
         var file = premis.Object.FirstOrDefault(po => po is File);
         return file == null ? null : Read((File)file);
     }
-    
-    public static FileFormatMetadata Read(File file)
+
+    public FileFormatMetadata Read(File file)
     {
-        var premisFile = new FileFormatMetadata{ Source = "METS" };
+        var premisFile = new FileFormatMetadata { Source = "METS" };
         var objectCharacteristics = file.ObjectCharacteristics.FirstOrDefault();
-        
+
         var fixity = objectCharacteristics?.Fixity?.FirstOrDefault(f => f.MessageDigestAlgorithm.Value?.ToUpperInvariant() == Sha256);
         if (fixity != null)
         {
@@ -62,7 +54,7 @@ public static class PremisManager
         {
             premisFile.OriginalName = file.OriginalName.Value;
         }
-        
+
         var storage = file.Storage?.SingleOrDefault(
             s => s.StorageMedium.FirstOrDefault(sm => sm.Value == Constants.MetsCreatorAgent) != null);
         if (storage != null)
@@ -72,8 +64,8 @@ public static class PremisManager
         return premisFile;
 
     }
-    
-    public static PremisComplexType Create(FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
+
+    public PremisComplexType Create(FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
     {
         var premis = new PremisComplexType();
         var file = new File();
@@ -85,7 +77,7 @@ public static class PremisManager
         {
             var fixity = new FixityComplexType
             {
-                MessageDigestAlgorithm = new MessageDigestAlgorithm{ Value = Sha256 },
+                MessageDigestAlgorithm = new MessageDigestAlgorithm { Value = Sha256 },
                 MessageDigest = premisFile.Digest
             };
             objectCharacteristics.Fixity.Add(fixity);
@@ -94,7 +86,7 @@ public static class PremisManager
         if (exifMetadata != null)
         {
             var document = new XmlDocument();
-            var parentElement = GetXmlElement(new ExifTag{ TagName = "ExifMetadata" , TagValue = string.Empty}, document);
+            var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
 
             if (parentElement != null)
             {
@@ -182,7 +174,7 @@ public static class PremisManager
         return premis;
     }
 
-    public static void Patch(PremisComplexType premis, FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
+    public void Patch(PremisComplexType premis, FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
     {
         // This is not just the same as Create because it shouldn't touch any fields existing
         // in the premis:file already, other than those supplied
@@ -191,7 +183,7 @@ public static class PremisManager
             file = new File();
             premis.Object.Add(file);
         }
-        
+
         var objectCharacteristics = file.ObjectCharacteristics.FirstOrDefault();
         if (objectCharacteristics == null)
         {
@@ -220,7 +212,7 @@ public static class PremisManager
         {
             var document = new XmlDocument();
             var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
-            
+
             foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
             {
                 objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
@@ -316,7 +308,7 @@ public static class PremisManager
         }
     }
 
-    private static void AddSignificantProperty(File file, string propertyName, string metadataValue)
+    private void AddSignificantProperty(File file, string propertyName, string metadataValue)
     {
         var significantProperties = new SignificantPropertiesComplexType();
         file.SignificantProperties.Add(significantProperties);
@@ -330,7 +322,7 @@ public static class PremisManager
         significantProperties.SignificantPropertiesValue.Add(metadataValue);
     }
 
-    private static ContentLocationComplexType EnsureContentLocation(File file)
+    private ContentLocationComplexType EnsureContentLocation(File file)
     {
         var thisStorage = file.Storage.FirstOrDefault(
             s => s.StorageMedium.FirstOrDefault(sm => sm.Value == Constants.MetsCreatorAgent) != null);
@@ -350,7 +342,7 @@ public static class PremisManager
         return contentLocation;
     }
 
-    private static FormatComplexType EnsurePronomFormat(ObjectCharacteristicsComplexType objectCharacteristics)
+    private FormatComplexType EnsurePronomFormat(ObjectCharacteristicsComplexType objectCharacteristics)
     {
         var pronomFormat = objectCharacteristics.Format.FirstOrDefault(
             f => f.FormatRegistry.FirstOrDefault(
@@ -364,20 +356,21 @@ public static class PremisManager
         return pronomFormat;
     }
 
-    public static string Serialise(PremisComplexType premis)
+    public string Serialise(PremisComplexType premis)
     {
         var serializer = new XmlSerializer(typeof(PremisComplexType));
         var sw = new StringWriter();
-        serializer.Serialize(sw, premis, Namespaces);
+        serializer.Serialize(sw, premis, GetXmlSerializerNameSpaces());
         return sw.ToString();
     }
 
-    public static XmlElement? GetXmlElement(PremisComplexType premis, bool fileElement)
+    public XmlElement? GetXmlElement(PremisComplexType premis, bool fileElement)
     {
         var serializer = new XmlSerializer(typeof(PremisComplexType));
         var doc = new XmlDocument();
-        using (var xw = doc.CreateNavigator()!.AppendChild()) {
-            serializer.Serialize(xw,  premis, Namespaces);
+        using (var xw = doc.CreateNavigator()!.AppendChild())
+        {
+            serializer.Serialize(xw, premis, GetXmlSerializerNameSpaces());
         }
         if (fileElement)
         {
@@ -386,7 +379,7 @@ public static class PremisManager
         return doc.DocumentElement;
     }
 
-    public static XmlElement? GetXmlElement(ExifTag exifMetdata, XmlDocument document)
+    public XmlElement? GetXmlElement(ExifTag exifMetdata, XmlDocument document)
     {
         try
         {
@@ -403,6 +396,15 @@ public static class PremisManager
             return null;
         }
         return null;
+    }
+
+    private XmlSerializerNamespaces GetXmlSerializerNameSpaces()
+    {
+        var namespaces = new XmlSerializerNamespaces();
+        namespaces.Add("premis", "http://www.loc.gov/premis/v3");
+        namespaces.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
+
+        return namespaces;
     }
 }
 
