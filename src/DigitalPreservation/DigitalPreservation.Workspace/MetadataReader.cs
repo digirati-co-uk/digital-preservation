@@ -431,10 +431,23 @@ public class MetadataReader : IMetadataReader
             return null;
         }
 
-        if (candidateStrings.Count > 1)
+        for (int i = candidateStrings.Count - 1; i >= 0; i--)
         {
-            candidateStrings.RemoveAll(s => !s.Split('/')[0].StartsWith("siegfried."));
+            string s = candidateStrings[i];
+            string prefix = s.Split('/')[0];
+
+            // Check if the prefix does NOT start with "siegfried."
+            if (!s.Contains("siegfried."))
+            {
+                // If it doesn't match the required prefix, remove the item at the current index
+                candidateStrings.RemoveAt(i);
+            }
         }
+
+        //if (candidateStrings.Count > 1)
+        //{
+        //    candidateStrings.RemoveAll(s => !s.Split('/')[0].StartsWith("siegfried."));
+        //}
         
         // ideally, this is one of the three above:
         return new Uri(candidateStrings[0]);
