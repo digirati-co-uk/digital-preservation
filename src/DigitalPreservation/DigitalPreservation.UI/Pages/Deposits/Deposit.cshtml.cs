@@ -63,9 +63,8 @@ public class DepositModel(
         if (getDepositResult.Success)
         {
             Deposit = getDepositResult.Value!;
-            logger.LogInformation("In Bind deposit for deposit {deposit} Lock date: {lockDate}, Locked by: {lockedBy} ", Deposit.Id, Deposit?.LockDate, Deposit?.LockedBy);
             WorkspaceManager = await workspaceManagerFactory.CreateAsync(Deposit);
-            
+
             if (!Deposit.ArchivalGroupExists && Deposit.ArchivalGroup != null && Deposit.ArchivalGroup.GetPathUnderRoot().HasText())
             {
                 var testArchivalGroupResult = await mediator.Send(new TestArchivalGroupPath(Deposit.ArchivalGroup.GetPathUnderRoot()!));
@@ -105,6 +104,7 @@ public class DepositModel(
             return false;
         }
 
+        logger.LogInformation("In Bind deposit for deposit {deposit} Lock date: {lockDate}, Locked by: {lockedBy} ", Deposit?.Id, Deposit?.LockDate, Deposit?.LockedBy);
         return true;
     }
     
