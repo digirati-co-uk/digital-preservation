@@ -1,19 +1,18 @@
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
-using DigitalPreservation.XmlGen.Mets;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.Mets.StorageImpl;
 
-namespace XmlGen.Tests.Experimental;
+namespace XmlGen.Tests.Experimental.Parsing;
 
-public class ComplexMetsParsing
+public class ParseWomenOfWestminster
 {
     private readonly MetsParser parser;
     
-    public ComplexMetsParsing()
+    public ParseWomenOfWestminster()
     {
         var serviceProvider = new ServiceCollection()
             .AddLogging()
