@@ -27,7 +27,7 @@ public class ModsTests
         var premisManagerExif = new PremisManagerExif();
         var premisEventManager = new PremisEventManagerVirus();
         var metadataManager = new MetadataManager(premisManager, premisManagerExif, premisEventManager);
-        metsManager = new MetsManager(parser, metsStorage, metadataManager, premisManager, premisManagerExif, premisEventManager);
+        metsManager = new MetsManager(parser, metsStorage, metadataManager, premisManager, premisEventManager);
     }
     
     [Fact]

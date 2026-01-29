@@ -10,7 +10,6 @@ using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
 
-
 public class PremisManager : IPremisManager<FileFormatMetadata>
 {
     private const string Pronom = "PRONOM";
@@ -66,7 +65,7 @@ public class PremisManager : IPremisManager<FileFormatMetadata>
 
     }
 
-    public PremisComplexType Create(FileFormatMetadata premisFile) //, ExifMetadata? exifMetadata = null
+    public PremisComplexType Create(FileFormatMetadata premisFile)
     {
         var premis = new PremisComplexType();
         var file = new File();
@@ -83,51 +82,6 @@ public class PremisManager : IPremisManager<FileFormatMetadata>
             };
             objectCharacteristics.Fixity.Add(fixity);
         }
-
-        //if (exifMetadata != null)
-        //{
-        //    var document = new XmlDocument();
-        //    var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
-
-        //    if (parentElement != null)
-        //    {
-        //        if (exifMetadata is { Tags: not null })
-        //        {
-        //            foreach (var fileExifMetadata in exifMetadata.Tags)
-        //            {
-        //                var element = GetXmlElement(fileExifMetadata, document);
-        //                if (element != null) parentElement.AppendChild(element);
-
-        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
-        //                {
-        //                    AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
-        //                }
-
-        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
-        //                {
-        //                    AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
-        //                }
-
-
-        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
-        //                {
-        //                    AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
-        //                }
-
-        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
-        //                {
-        //                    AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
-        //                }
-        //            }
-        //        }
-
-        //        var parentExtension = new ObjectCharacteristicsExtension();
-        //        parentExtension.Any.Add(parentElement);
-
-        //        objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
-        //    }
-
-        //}
 
         if (premisFile.Size is > 0)
         {
@@ -208,61 +162,6 @@ public class PremisManager : IPremisManager<FileFormatMetadata>
 
             fixity.MessageDigest = premisFile.Digest;
         }
-
-        //if (exifMetadata != null)
-        //{
-        //    var document = new XmlDocument();
-        //    var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
-
-        //    foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
-        //    {
-        //        objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
-        //    }
-
-        //    foreach (var significantPropertiesComplexType in file.SignificantProperties.ToList())
-        //    {
-        //        file.SignificantProperties.Remove(significantPropertiesComplexType);
-        //    }
-
-        //    if (parentElement != null)
-        //    {
-        //        if (exifMetadata is { Tags: not null })
-        //        {
-        //            foreach (var fileExifMetadata in exifMetadata.Tags)
-        //            {
-        //                var element = GetXmlElement(fileExifMetadata, document);
-        //                if (element != null) parentElement.AppendChild(element);
-
-        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
-        //                {
-        //                    AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
-        //                }
-
-        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
-        //                {
-        //                    AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
-        //                }
-
-
-        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
-        //                {
-        //                    AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
-        //                }
-
-        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
-        //                {
-        //                    AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
-        //                }
-        //            }
-        //        }
-
-        //        var parentExtension = new ObjectCharacteristicsExtension();
-        //        parentExtension.Any.Add(parentElement);
-
-        //        objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
-        //    }
-
-        //}
 
         if (premisFile.Size is > 0)
         {
@@ -378,25 +277,6 @@ public class PremisManager : IPremisManager<FileFormatMetadata>
             return doc.DocumentElement?.FirstChild as XmlElement;
         }
         return doc.DocumentElement;
-    }
-
-    public XmlElement? GetXmlElement(ExifTag exifMetdata, XmlDocument document)
-    {
-        try
-        {
-            var rgx = new Regex("[^a-zA-Z0-9]");
-            if (exifMetdata.TagName != null)
-            {
-                var element = document.CreateElement(rgx.Replace(exifMetdata.TagName, ""));
-                element.InnerText = exifMetdata.TagValue ?? string.Empty;
-                return element;
-            }
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-        return null;
     }
 
     private XmlSerializerNamespaces GetXmlSerializerNameSpaces()

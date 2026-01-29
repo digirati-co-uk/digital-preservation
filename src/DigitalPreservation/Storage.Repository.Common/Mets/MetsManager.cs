@@ -5,8 +5,6 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
-using DigitalPreservation.XmlGen.Premis.V3;
-using System.Xml;
 
 namespace Storage.Repository.Common.Mets;
 
@@ -15,7 +13,6 @@ public class MetsManager(
     IMetsStorage metsStorage,
     IMetadataManager metadataManager,
     IPremisManager<FileFormatMetadata> premisManager,
-    IPremisManager<ExifMetadata> premisManagerExif,
     IPremisEventManager<VirusScanMetadata> premisEventManagerVirus) : IMetsManager
 {
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
@@ -264,7 +261,7 @@ public class MetsManager(
                     if (File?.FLocat[0].Href != operationPath)
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
 
-                    metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
+                    return metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
 
                 }
             }
@@ -433,27 +430,11 @@ public class MetsManager(
         return mets;
     }
     
-    private AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null, ExifMetadata? exifMetadata = null)
+    private AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null)
     {
-        PremisComplexType? exif = null;
-        //TODO: use ProcessFileFormatDataForFile()
-        var premis = premisManager.Create(premisFile); //, exifMetadata
-
-        //if (exifMetadata != null)
-        //{
-        //    exif = premisManagerExif.Create(exifMetadata);
-        //}
-
+        var premis = premisManager.Create(premisFile);
         var xElement = premisManager.GetXmlElement(premis, true);
 
-        XmlElement? xElementExif = null;
-
-        //if (exif != null)
-        //{
-        //    xElementExif = premisManagerExif.GetXmlElement(exif, false);
-        //}
-
-        //TODO: this is a new amdsec
         var amdSec = new AmdSecType
         {
             Id = admId,
@@ -572,11 +553,9 @@ public class MetsManager(
         
     private (int counter, DivType? parent, DivType div, string[] elements, string operationPath, string testPath) GetMetsElements(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
     {
-        //TODO: put in separate method this
         var operationPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath);
         var elements = operationPath!.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        //TODO: put this in a separate method
         var div = fullMets.Mets.StructMap.Single(sm => sm.Type == "PHYSICAL").Div!;
         DivType? parent = null;
         var testPath = string.Empty;
