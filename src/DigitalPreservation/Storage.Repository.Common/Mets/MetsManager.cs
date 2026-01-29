@@ -5,6 +5,8 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
+using DigitalPreservation.XmlGen.Premis.V3;
+using System.Xml;
 
 namespace Storage.Repository.Common.Mets;
 
@@ -12,8 +14,9 @@ public class MetsManager(
     IMetsParser metsParser,
     IMetsStorage metsStorage,
     IMetadataManager metadataManager,
-    IPremisManager premisManager,
-    IPremisEventManager premisEventManager) : IMetsManager
+    IPremisManager<FileFormatMetadata> premisManager,
+    IPremisManager<ExifMetadata> premisManagerExif,
+    IPremisEventManager<VirusScanMetadata> premisEventManagerVirus) : IMetsManager
 {
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -432,9 +435,23 @@ public class MetsManager(
     
     private AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null, ExifMetadata? exifMetadata = null)
     {
+        PremisComplexType? exif = null;
         //TODO: use ProcessFileFormatDataForFile()
-        var premis = premisManager.Create(premisFile, exifMetadata);
+        var premis = premisManager.Create(premisFile); //, exifMetadata
+
+        //if (exifMetadata != null)
+        //{
+        //    exif = premisManagerExif.Create(exifMetadata);
+        //}
+
         var xElement = premisManager.GetXmlElement(premis, true);
+
+        XmlElement? xElementExif = null;
+
+        //if (exif != null)
+        //{
+        //    xElementExif = premisManagerExif.GetXmlElement(exif, false);
+        //}
 
         //TODO: this is a new amdsec
         var amdSec = new AmdSecType
@@ -456,8 +473,8 @@ public class MetsManager(
 
         if (virusScanMetadata == null) return amdSec;
 
-        var digiProvMd = premisEventManager.Create(virusScanMetadata);
-        var xVirusElement = premisEventManager.GetXmlElement(digiProvMd);
+        var digiProvMd = premisEventManagerVirus.Create(virusScanMetadata);
+        var xVirusElement = premisEventManagerVirus.GetXmlElement(digiProvMd);
 
         amdSec.DigiprovMd.Add(new MdSecType
         {

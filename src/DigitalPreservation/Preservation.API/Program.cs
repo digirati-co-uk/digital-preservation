@@ -21,6 +21,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using Microsoft.OpenApi.Models;
 using Storage.Repository.Common.Mets.StorageImpl;
 
@@ -77,8 +78,9 @@ try
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
         .AddSingleton<IMetadataManager, MetadataManager>()
-        .AddSingleton<IPremisManager, PremisManager>()
-        .AddSingleton<IPremisEventManager, PremisEventManager>()
+        .AddSingleton<IPremisManager<FileFormatMetadata>, PremisManager>()
+        .AddSingleton<IPremisManager<ExifMetadata>, PremisManagerExif>()
+        .AddSingleton<IPremisEventManager<VirusScanMetadata>, PremisEventManagerVirus>()
         .AddSingleton<IMetsStorage, S3MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddPreservationHealthChecks()

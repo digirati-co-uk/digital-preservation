@@ -25,9 +25,10 @@ public class MetsManagerWithPremis
         parser = new MetsParser(metsLoader, parserLogger);
         var metsStorage = new FileSystemMetsStorage(parser);
         var premisManager = new PremisManager();
-        var premisEventManager = new PremisEventManager();
-        var metadataManager = new MetadataManager(premisManager, premisEventManager);
-        metsManager = new MetsManager(parser, metsStorage, metadataManager, premisManager, premisEventManager);
+        var premisManagerExif = new PremisManagerExif();
+        var premisEventManager = new PremisEventManagerVirus();
+        var metadataManager = new MetadataManager(premisManager, premisManagerExif, premisEventManager);
+        metsManager = new MetsManager(parser, metsStorage, metadataManager, premisManager, premisManagerExif, premisEventManager);
     }
     
     

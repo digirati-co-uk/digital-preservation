@@ -18,7 +18,7 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
         var testPremisData = GetTestPremisData();
         var testVirusMetadata = GetTestVirusMetadataData();
         var premisManager = new PremisManager();
-        var premisEventManager = new PremisEventManager();
+        var premisEventManager = new PremisEventManagerVirus();
         var premis = premisManager.Create(testPremisData);
         var s = premisManager.Serialise(premis);
 
@@ -43,7 +43,7 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
     public void Build_Premis_Get_XmlElement()
     {
         var premisManager = new PremisManager();
-        var premisEventManager = new PremisEventManager();
+        var premisEventManager = new PremisEventManagerVirus();
         var testPremisData = GetTestPremisData();
         var testVirusMetadata = GetTestVirusMetadataData();
         var premis = premisManager.Create(testPremisData);

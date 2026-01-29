@@ -10,7 +10,8 @@ using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
 
-public class PremisManager : IPremisManager
+
+public class PremisManager : IPremisManager<FileFormatMetadata>
 {
     private const string Pronom = "PRONOM";
     private const string Sha256 = "SHA256";
@@ -65,7 +66,7 @@ public class PremisManager : IPremisManager
 
     }
 
-    public PremisComplexType Create(FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
+    public PremisComplexType Create(FileFormatMetadata premisFile) //, ExifMetadata? exifMetadata = null
     {
         var premis = new PremisComplexType();
         var file = new File();
@@ -83,50 +84,50 @@ public class PremisManager : IPremisManager
             objectCharacteristics.Fixity.Add(fixity);
         }
 
-        if (exifMetadata != null)
-        {
-            var document = new XmlDocument();
-            var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
+        //if (exifMetadata != null)
+        //{
+        //    var document = new XmlDocument();
+        //    var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
 
-            if (parentElement != null)
-            {
-                if (exifMetadata is { Tags: not null })
-                {
-                    foreach (var fileExifMetadata in exifMetadata.Tags)
-                    {
-                        var element = GetXmlElement(fileExifMetadata, document);
-                        if (element != null) parentElement.AppendChild(element);
+        //    if (parentElement != null)
+        //    {
+        //        if (exifMetadata is { Tags: not null })
+        //        {
+        //            foreach (var fileExifMetadata in exifMetadata.Tags)
+        //            {
+        //                var element = GetXmlElement(fileExifMetadata, document);
+        //                if (element != null) parentElement.AppendChild(element);
 
-                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
-                        {
-                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
-                        }
+        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
+        //                {
+        //                    AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
+        //                }
 
-                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
-                        {
-                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
-                        }
+        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
+        //                {
+        //                    AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
+        //                }
 
 
-                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
-                        {
-                            AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
-                        }
+        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
+        //                {
+        //                    AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
+        //                }
 
-                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
-                        {
-                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
-                        }
-                    }
-                }
+        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
+        //                {
+        //                    AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
+        //                }
+        //            }
+        //        }
 
-                var parentExtension = new ObjectCharacteristicsExtension();
-                parentExtension.Any.Add(parentElement);
+        //        var parentExtension = new ObjectCharacteristicsExtension();
+        //        parentExtension.Any.Add(parentElement);
 
-                objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
-            }
+        //        objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
+        //    }
 
-        }
+        //}
 
         if (premisFile.Size is > 0)
         {
@@ -174,7 +175,7 @@ public class PremisManager : IPremisManager
         return premis;
     }
 
-    public void Patch(PremisComplexType premis, FileFormatMetadata premisFile, ExifMetadata? exifMetadata = null)
+    public void Patch(PremisComplexType premis, FileFormatMetadata premisFile) //, ExifMetadata? exifMetadata = null
     {
         // This is not just the same as Create because it shouldn't touch any fields existing
         // in the premis:file already, other than those supplied
@@ -208,60 +209,60 @@ public class PremisManager : IPremisManager
             fixity.MessageDigest = premisFile.Digest;
         }
 
-        if (exifMetadata != null)
-        {
-            var document = new XmlDocument();
-            var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
+        //if (exifMetadata != null)
+        //{
+        //    var document = new XmlDocument();
+        //    var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
 
-            foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
-            {
-                objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
-            }
+        //    foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
+        //    {
+        //        objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
+        //    }
 
-            foreach (var significantPropertiesComplexType in file.SignificantProperties.ToList())
-            {
-                file.SignificantProperties.Remove(significantPropertiesComplexType);
-            }
+        //    foreach (var significantPropertiesComplexType in file.SignificantProperties.ToList())
+        //    {
+        //        file.SignificantProperties.Remove(significantPropertiesComplexType);
+        //    }
 
-            if (parentElement != null)
-            {
-                if (exifMetadata is { Tags: not null })
-                {
-                    foreach (var fileExifMetadata in exifMetadata.Tags)
-                    {
-                        var element = GetXmlElement(fileExifMetadata, document);
-                        if (element != null) parentElement.AppendChild(element);
+        //    if (parentElement != null)
+        //    {
+        //        if (exifMetadata is { Tags: not null })
+        //        {
+        //            foreach (var fileExifMetadata in exifMetadata.Tags)
+        //            {
+        //                var element = GetXmlElement(fileExifMetadata, document);
+        //                if (element != null) parentElement.AppendChild(element);
 
-                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
-                        {
-                            AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
-                        }
+        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imageheight")
+        //                {
+        //                    AddSignificantProperty(file, "ImageHeight", fileExifMetadata.TagValue ?? string.Empty);
+        //                }
 
-                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
-                        {
-                            AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
-                        }
+        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "imagewidth")
+        //                {
+        //                    AddSignificantProperty(file, "ImageWidth", fileExifMetadata.TagValue ?? string.Empty);
+        //                }
 
 
-                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
-                        {
-                            AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
-                        }
+        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "duration")
+        //                {
+        //                    AddSignificantProperty(file, "Duration", fileExifMetadata.TagValue ?? string.Empty);
+        //                }
 
-                        if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
-                        {
-                            AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
-                        }
-                    }
-                }
+        //                if (fileExifMetadata.TagName != null && fileExifMetadata.TagName.ToLower().Trim().Replace(" ", string.Empty) == "avgbitrate")
+        //                {
+        //                    AddSignificantProperty(file, "Bitrate", fileExifMetadata.TagValue ?? string.Empty);
+        //                }
+        //            }
+        //        }
 
-                var parentExtension = new ObjectCharacteristicsExtension();
-                parentExtension.Any.Add(parentElement);
+        //        var parentExtension = new ObjectCharacteristicsExtension();
+        //        parentExtension.Any.Add(parentElement);
 
-                objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
-            }
+        //        objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
+        //    }
 
-        }
+        //}
 
         if (premisFile.Size is > 0)
         {

@@ -10,7 +10,7 @@ using System.Xml;
 using DigitalPreservation.XmlGen.Extensions;
 
 namespace Storage.Repository.Common.Mets;
-public class MetadataManager(IPremisManager premisManager, IPremisEventManager premisEventManager) : IMetadataManager
+public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, IPremisManager<ExifMetadata> premisManagerExif, IPremisEventManager<VirusScanMetadata> premisEventManagerVirus) : IMetadataManager
 {
     public void ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
@@ -110,18 +110,23 @@ public class MetadataManager(IPremisManager premisManager, IPremisEventManager p
         var patchPremisExif = workingFile.GetExifMetadata();
 
         PremisComplexType? premisType;
+
         if (PremisIncExifXml is not null)
         {
             premisType = PremisIncExifXml.GetPremisComplexType()!;
-            premisManager.Patch(premisType, PremisFile, patchPremisExif);
-            //PremisManager.Patch(premisType, PremisFile, patchPremisExif);
+            premisManager.Patch(premisType, PremisFile);
+            if (patchPremisExif != null) 
+                premisManagerExif.Patch(premisType, patchPremisExif);
         }
         else
         {
-            premisType = premisManager.Create(PremisFile, patchPremisExif);
+            premisType = premisManager.Create(PremisFile);
+            if (patchPremisExif != null)
+                premisManagerExif.Create(patchPremisExif); 
         }
 
         var premisXml = premisManager.GetXmlElement(premisType, true);
+
         SetAmdSec(premisXml, newUpload);
 
         return Result.Ok();
@@ -138,19 +143,19 @@ public class MetadataManager(IPremisManager premisManager, IPremisEventManager p
 
             if (patchPremisVirus != null)
             {
-                premisEventManager.Patch(virusEventComplexType, patchPremisVirus);
+                premisEventManagerVirus.Patch(virusEventComplexType, patchPremisVirus);
             }
         }
         else
         {
             if (patchPremisVirus != null)
             {
-                virusEventComplexType = premisEventManager.Create(patchPremisVirus);
+                virusEventComplexType = premisEventManagerVirus.Create(patchPremisVirus);
             }
         }
 
         if (virusEventComplexType is null) return;
-        VirusXml = premisEventManager.GetXmlElement(virusEventComplexType);
+        VirusXml = premisEventManagerVirus.GetXmlElement(virusEventComplexType);
 
         if (AmdSec == null) return;
 
