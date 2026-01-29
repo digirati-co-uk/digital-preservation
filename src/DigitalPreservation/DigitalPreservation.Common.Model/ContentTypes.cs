@@ -55,6 +55,23 @@ public static class ContentTypes
             {
                 return distinctTypes.Single(ct => ct.StartsWith("image/"));
             }
+
+            if (distinctTypes.Count == 2)
+            {
+                var textCount = distinctTypes.Count(ct => ct.StartsWith("text/"));
+                if (textCount == 1)
+                {
+                    var textForm = distinctTypes.Single(ct => ct.StartsWith("text/"));
+                    if (textForm == "text/rtf")
+                    {
+                        return "text/rtf";
+                    }
+                    if (textForm == "text/xml")
+                    {
+                        return "application/xml";
+                    }
+                }
+            }
         }
         
         // We still have more than one distinct content type that isn't a generic one, even after our special rules.
@@ -98,8 +115,13 @@ public static class ContentTypes
 
         if (distinctTypes.Count > 1)
         {
-            // It might really be application/octet-stream, which is OK if that's the best we can do
+            // It might really be binary/octet-stream, which is OK if that's the best we can do
             distinctTypes.RemoveAll(ct => ct == "binary/octet-stream");
+        }
+
+        if (distinctTypes.Count > 1)
+        {
+            distinctTypes.RemoveAll(ct => ct == "application/x-www-form-urlencoded");
         }
     }
 }
