@@ -208,7 +208,7 @@
                         switch (fileMismatch.Field.ToLower())
                         {
                             case "contenttype":
-                                mismatchMessages.Add("Content type");
+                                mismatchMessages.Add($"Content type: Deposit [{fileMismatch.ValueInDeposit}], Mets [{fileMismatch.ValueInMets}]");
                                 break;
                             case "pronomkey":
                                 mismatchMessages.Add("Pronom key");

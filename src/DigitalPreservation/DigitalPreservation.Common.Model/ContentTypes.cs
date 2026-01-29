@@ -37,23 +37,51 @@ public static class ContentTypes
         // of EXIF and maybe FFProbe in future to determine what the file is.
         
         var applicationCount = distinctTypes.Count(ct => ct.StartsWith("application/"));
-        var videoCount = distinctTypes.Count(ct => ct.StartsWith("video/"));
-        var audioCount = distinctTypes.Count(ct => ct.StartsWith("audio/"));
-        var imageCount = distinctTypes.Count(ct => ct.StartsWith("image/"));
 
         if (applicationCount == 1)
         {
+            var imageCount = distinctTypes.Count(ct => ct.StartsWith("image/"));
+            if (imageCount == 1)
+            {
+                return distinctTypes.Single(ct => ct.StartsWith("image/"));
+            }
+            
+            var videoCount = distinctTypes.Count(ct => ct.StartsWith("video/"));
             if (videoCount == 1)
             {
                 return distinctTypes.Single(ct => ct.StartsWith("video/"));
             }
+            
+            var audioCount = distinctTypes.Count(ct => ct.StartsWith("audio/"));
             if (audioCount == 1)
             {
                 return distinctTypes.Single(ct => ct.StartsWith("audio/"));
             }
-            if (imageCount == 1)
+            
+            if (distinctTypes.Count == 2)
             {
-                return distinctTypes.Single(ct => ct.StartsWith("image/"));
+                var textCount = distinctTypes.Count(ct => ct.StartsWith("text/"));
+                if (textCount == 1)
+                {
+                    var textForm = distinctTypes.Single(ct => ct.StartsWith("text/"));
+                    if (textForm == "text/rtf")
+                    {
+                        return "text/rtf";
+                    }
+                    if (textForm == "text/xml")
+                    {
+                        return "application/xml";
+                    }
+                }
+            }
+        }
+
+        if (applicationCount == 2)
+        {
+            // Do we just keep adding new scenarios here?
+            if (distinctTypes.Contains("application/rtf") && distinctTypes.Contains("application/msword"))
+            {
+                return "application/rtf";
             }
         }
         
@@ -98,8 +126,13 @@ public static class ContentTypes
 
         if (distinctTypes.Count > 1)
         {
-            // It might really be application/octet-stream, which is OK if that's the best we can do
+            // It might really be binary/octet-stream, which is OK if that's the best we can do
             distinctTypes.RemoveAll(ct => ct == "binary/octet-stream");
+        }
+
+        if (distinctTypes.Count > 1)
+        {
+            distinctTypes.RemoveAll(ct => ct == "application/x-www-form-urlencoded");
         }
     }
 }

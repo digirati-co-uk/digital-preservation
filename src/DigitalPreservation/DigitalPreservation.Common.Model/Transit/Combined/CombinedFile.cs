@@ -86,8 +86,10 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             var bestContentType = ContentTypes.GetBestContentType(FileInDeposit);
             if (bestContentType != FileInMets.ContentType)
             {
+                var allCTs = string.Join(", ", ContentTypes.GetAllContentTypes(FileInDeposit));
+                var depositContentTypes = $"Best: {bestContentType}; wf: {FileInDeposit.ContentType}; all: {allCTs}";
                 misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "ContentType",
-                    bestContentType, FileInMets.ContentType));
+                    depositContentTypes, FileInMets.ContentType));
             }
 
             if (DepositFileFormatMetadata!.Digest != MetsFileFormatMetadata!.Digest)
