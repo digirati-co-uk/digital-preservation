@@ -37,25 +37,27 @@ public static class ContentTypes
         // of EXIF and maybe FFProbe in future to determine what the file is.
         
         var applicationCount = distinctTypes.Count(ct => ct.StartsWith("application/"));
-        var videoCount = distinctTypes.Count(ct => ct.StartsWith("video/"));
-        var audioCount = distinctTypes.Count(ct => ct.StartsWith("audio/"));
-        var imageCount = distinctTypes.Count(ct => ct.StartsWith("image/"));
 
         if (applicationCount == 1)
         {
-            if (videoCount == 1)
-            {
-                return distinctTypes.Single(ct => ct.StartsWith("video/"));
-            }
-            if (audioCount == 1)
-            {
-                return distinctTypes.Single(ct => ct.StartsWith("audio/"));
-            }
+            var imageCount = distinctTypes.Count(ct => ct.StartsWith("image/"));
             if (imageCount == 1)
             {
                 return distinctTypes.Single(ct => ct.StartsWith("image/"));
             }
-
+            
+            var videoCount = distinctTypes.Count(ct => ct.StartsWith("video/"));
+            if (videoCount == 1)
+            {
+                return distinctTypes.Single(ct => ct.StartsWith("video/"));
+            }
+            
+            var audioCount = distinctTypes.Count(ct => ct.StartsWith("audio/"));
+            if (audioCount == 1)
+            {
+                return distinctTypes.Single(ct => ct.StartsWith("audio/"));
+            }
+            
             if (distinctTypes.Count == 2)
             {
                 var textCount = distinctTypes.Count(ct => ct.StartsWith("text/"));
@@ -71,6 +73,15 @@ public static class ContentTypes
                         return "application/xml";
                     }
                 }
+            }
+        }
+
+        if (applicationCount == 2)
+        {
+            // Do we just keep adding new scenarios here?
+            if (distinctTypes.Contains("application/rtf") && distinctTypes.Contains("application/msword"))
+            {
+                return "application/rtf";
             }
         }
         
