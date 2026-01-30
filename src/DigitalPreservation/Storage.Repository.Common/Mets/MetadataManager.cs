@@ -10,9 +10,9 @@ using System.Xml;
 using DigitalPreservation.XmlGen.Extensions;
 
 namespace Storage.Repository.Common.Mets;
-public class MetadataManager : IMetadataManager
+public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, IPremisManager<ExifMetadata> premisManagerExif, IPremisEventManager<VirusScanMetadata> premisEventManagerVirus) : IMetadataManager
 {
-    public void ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
+    public Result ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
         var fileId = Constants.FileIdPrefix + operationPath;
         var admId = Constants.AdmIdPrefix + operationPath;
@@ -25,12 +25,17 @@ public class MetadataManager : IMetadataManager
         if (!newUpload)
         {
             AmdSec = fullMets.Mets.AmdSec.Single(a => a.Id == FileAdmId);
-            GetMetadataXml(ref fullMets, div, operationPath);
+            var resultGetMetadataXml = GetMetadataXml(ref fullMets, div, operationPath);
+
+            if (resultGetMetadataXml.Failure)
+                return resultGetMetadataXml;
         }
 
-        ProcessFileFormatDataForFile(workingFile, operationPath, newUpload);
-        
-        
+        var resultProcessFileFormatDataForFile = ProcessFileFormatDataForFile(workingFile, operationPath, newUpload);
+
+        if(resultProcessFileFormatDataForFile.Failure)
+            return resultProcessFileFormatDataForFile;
+
         if (newUpload)
         {
             File = new FileType
@@ -64,6 +69,8 @@ public class MetadataManager : IMetadataManager
             fullMets.Mets.AmdSec.Add(AmdSec);
 
         AmdSec = null;
+
+        return Result.Ok();
     }
 
     private static FileFormatMetadata GetFileFormatMetadata(WorkingFile workingFile, string originalName)
@@ -102,25 +109,29 @@ public class MetadataManager : IMetadataManager
         }
         catch (MetadataException mex)
         {
-            //TODO: return a Result
-            //return;
             return Result.Fail(ErrorCodes.BadRequest, mex.Message);
         }
 
         var patchPremisExif = workingFile.GetExifMetadata();
 
         PremisComplexType? premisType;
+
         if (PremisIncExifXml is not null)
         {
             premisType = PremisIncExifXml.GetPremisComplexType()!;
-            PremisManager.Patch(premisType, PremisFile, patchPremisExif);
+            premisManager.Patch(premisType, PremisFile);
+            if (patchPremisExif is not null) 
+                premisManagerExif.Patch(premisType, patchPremisExif);
         }
         else
         {
-            premisType = PremisManager.Create(PremisFile, patchPremisExif);
+            premisType = premisManager.Create(PremisFile);
+            if (patchPremisExif is not null)
+                premisManagerExif.Create(patchPremisExif); 
         }
 
-        var premisXml = PremisManager.GetXmlElement(premisType, true);
+        var premisXml = premisManager.GetXmlElement(premisType, true);
+
         SetAmdSec(premisXml, newUpload);
 
         return Result.Ok();
@@ -137,19 +148,19 @@ public class MetadataManager : IMetadataManager
 
             if (patchPremisVirus != null)
             {
-                PremisEventManager.Patch(virusEventComplexType, patchPremisVirus);
+                premisEventManagerVirus.Patch(virusEventComplexType, patchPremisVirus);
             }
         }
         else
         {
             if (patchPremisVirus != null)
             {
-                virusEventComplexType = PremisEventManager.Create(patchPremisVirus);
+                virusEventComplexType = premisEventManagerVirus.Create(patchPremisVirus);
             }
         }
 
         if (virusEventComplexType is null) return;
-        VirusXml = PremisEventManager.GetXmlElement(virusEventComplexType);
+        VirusXml = premisEventManagerVirus.GetXmlElement(virusEventComplexType);
 
         if (AmdSec == null) return;
 

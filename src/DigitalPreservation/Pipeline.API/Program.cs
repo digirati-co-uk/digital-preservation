@@ -13,6 +13,7 @@ using Serilog;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.PipelineApi;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Workspace;
 using Preservation.Client;
 using Storage.Repository.Common.Mets;
@@ -125,6 +126,9 @@ try
     builder.Services.AddSingleton<IMetsParser, MetsParser>();
     builder.Services.AddSingleton<IMetsManager, MetsManager>();
     builder.Services.AddSingleton<IMetadataManager, MetadataManager>();
+    builder.Services.AddSingleton<IPremisManager<FileFormatMetadata>, PremisManager>();
+    builder.Services.AddSingleton<IPremisManager<ExifMetadata>, PremisManagerExif>();
+    builder.Services.AddSingleton<IPremisEventManager<VirusScanMetadata>, PremisEventManagerVirus>();
     builder.Services.AddSingleton<IMetsStorage, S3MetsStorage>();
     builder.Services.AddSingleton<WorkspaceManagerFactory>();
 
