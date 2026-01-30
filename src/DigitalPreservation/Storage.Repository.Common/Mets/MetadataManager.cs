@@ -120,15 +120,14 @@ public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, I
         {
             premisType = PremisIncExifXml.GetPremisComplexType()!;
             premisManager.Patch(premisType, PremisFile);
-            if (patchPremisExif is not null) 
-                premisManagerExif.Patch(premisType, patchPremisExif);
         }
         else
         {
             premisType = premisManager.Create(PremisFile);
-            if (patchPremisExif is not null)
-                premisManagerExif.Create(patchPremisExif); 
         }
+
+        if (patchPremisExif is not null) 
+            premisManagerExif.Patch(premisType, patchPremisExif);
 
         var premisXml = premisManager.GetXmlElement(premisType, true);
 
