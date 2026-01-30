@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.DepositHelpers;
+﻿using System.Text;
+using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -517,6 +518,8 @@ public class MetadataReader : IMetadataReader
             var i = 0;
             var exifMetadataForFile = new List<ExifTag>();
 
+            var sbRawOutput = new StringBuilder();
+
             foreach (var str in exifResultList)
             {
                 if (str.Contains("========") || str.Contains("directories scanned"))
@@ -524,7 +527,14 @@ public class MetadataReader : IMetadataReader
                     if (i > 0)
                     {
                         exifModel.ExifMetadata = new List<ExifTag>(exifMetadataForFile);
+                        exifModel.ExifMetadata.Add(new ExifTag
+                        {
+                            TagName = "RawOutput",
+                            TagValue = sbRawOutput.ToString()
+                        });
+
                         exifMetadataForFile.Clear();
+                        sbRawOutput.Clear();
                         result.Add(exifModel);
 
                         if (str.Contains("directories scanned"))
@@ -539,6 +549,9 @@ public class MetadataReader : IMetadataReader
                 }
                 else
                 {
+                    sbRawOutput.Append(str);
+                    sbRawOutput.Append("\\n");
+
                     var metadataPair = str.Split(":", 2);
 
                     var rgx = new Regex("[^a-zA-Z0-9]");
