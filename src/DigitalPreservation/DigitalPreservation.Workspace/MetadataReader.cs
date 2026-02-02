@@ -262,6 +262,9 @@ public class MetadataReader : IMetadataReader
                 Timestamp = timestamp,
                 Tags = exifMetadata.ExifMetadata
             });
+
+            SetMetadataHtml(metadataList, exifMetadata, timestamp);
+
         }
     }
 
@@ -572,6 +575,159 @@ public class MetadataReader : IMetadataReader
             return [];
         }
 
+    }
+
+    private IDictionary<string, string> GetValues(object obj) =>
+        obj?.GetType().GetProperties()
+            .ToDictionary(p => p.Name, p => p.GetValue(obj)?.ToString() ?? "")
+        ?? []; // Returns empty dictionary if obj is null
+
+    private void SetMetadataHtml(List<Metadata>? metadataList, ExifModel? exifMetadata, DateTime timestamp)
+    {
+        var brunnhildeMetadata = metadataList.FirstOrDefault(x => x.Source.ToLower() == "brunnhilde");
+        var clamMetadata = metadataList.FirstOrDefault(x => x.Source.ToLower() == "clamav");
+
+        IDictionary<string, string>? brunnhildeMetadataDictionary = null;
+        IDictionary<string, string>? clamMetadataDictionary = null;
+
+        if (brunnhildeMetadata is not null)
+            brunnhildeMetadataDictionary = GetValues(brunnhildeMetadata);
+
+
+        if (clamMetadata is not null)
+            clamMetadataDictionary = GetValues(clamMetadata);
+
+        IEnumerable<string>? brunnhildeStrings;
+        var brunnhildeHtml = string.Empty;
+        IEnumerable<string>? clamStrings;
+        var clamHtml = string.Empty;
+
+        brunnhildeStrings = brunnhildeMetadataDictionary?.Select(x => $"{x.Key}: {x.Value}");
+        if (brunnhildeStrings is not null) 
+            brunnhildeHtml = string.Join("<br>", brunnhildeStrings);
+
+        clamStrings = clamMetadataDictionary?.Select(x => $"{x.Key}: {x.Value}");
+        if (clamStrings is not null) 
+            clamHtml = string.Join("<br>", clamStrings);
+
+        var rawOutput = exifMetadata?.ExifMetadata.FirstOrDefault(x => x.TagName?.ToLower() == "rawoutput")?.TagValue;
+
+        //if (string.IsNullOrEmpty(rawOutput))
+        var replaceNewLineRawOutput = rawOutput.Replace("\\n", "<br>");
+        metadataList.Add(new ToolOutput
+        {
+            Source = "Exif",
+            Timestamp = timestamp,
+            Content = $@"<html>
+                            {GetHeader()}
+                            <body>
+                                <h1>Exif Metadata</h1>
+                                <pre>{replaceNewLineRawOutput}</pre>
+                                <h1>Brunnhilde</h1>
+                                <pre>{brunnhildeHtml}</pre>
+                                <h1>ClamAV</h1>
+                                <pre>{clamHtml}</pre>
+                            </body>
+                        </html>", //raw tool output
+            ContentType = "text/html"
+        });
+    }
+
+    private string GetHeader()
+    {
+        return @"
+            <head>
+            <title>Metadata report</title>
+            <meta charset=""utf-8"">
+            <style type=""text/css"">
+            body {
+              font-family: Arial, Helvetica, sans-serif;
+              margin: 20px 20px 20px 20px;
+              padding: 10px;
+              width: 95%;
+            }
+
+            header {
+              position: fixed;
+              top: 0;
+              width: 95%;
+              padding-bottom: 10px;
+              border-bottom: 2px solid #000;
+              background: white;
+              z-index: 1001;
+            }
+
+            h1 {
+              margin-bottom: 10px;
+            }
+
+            nav a {
+              padding-right: 10px;
+            }
+
+            nav a:not(:first-child) {
+              padding-left: 10px;
+            }
+
+            nav a:not(:last-child) {
+              border-right: 1px solid #ddd;
+            }
+
+            div {
+              padding-bottom: 10px;
+            }
+
+            table {
+              border-collapse: collapse;
+            }
+
+            td {
+              border-bottom: 1px solid #ddd;
+              padding: 10px 20px 6px 20px;
+            }
+
+            td:not(:last-child) {
+              border-right: 1px solid #ddd;
+            }
+
+            th {
+              border-bottom: 2px solid #ddd;
+              padding: 10px 20px 6px 20px;
+              background-color: #f5f5f5;
+            }
+
+            th:not(:last-child) {
+              border-right: 1px solid #ddd;
+            }
+
+            tr:hover {
+              background-color: #f5f5f5;
+            }
+
+            a {
+              color: #007BFF;
+              text-decoration: none;
+            }
+
+            a.anchor {
+              display: block;
+              position: relative;
+              top: -120px;
+              visibility: hidden;
+            }
+
+            hr {
+              width: 25%;
+              color: #ddd;
+              text-align: left;
+              margin-left: 0;
+            }
+
+            .hidden {
+              display: none;
+            }
+            </style>
+            </head>";
     }
 }
 
