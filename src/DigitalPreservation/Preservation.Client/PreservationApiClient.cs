@@ -388,6 +388,7 @@ internal class PreservationApiClient(
                 var deposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
                 if (deposit is not null)
                 {
+                    logger.LogInformation("In preservation API client for deposit {deposit} Lock date: {lockDate}, Locked by: {lockedBy} ", deposit.Id, deposit?.LockDate, deposit?.LockedBy);
                     return Result.Ok(deposit);
                 }
                 return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);

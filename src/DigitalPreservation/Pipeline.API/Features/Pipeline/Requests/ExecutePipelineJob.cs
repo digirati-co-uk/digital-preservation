@@ -434,6 +434,13 @@ public class ProcessPipelineJobHandler(
                 if (releaseLockResult.Success)
                 {
                     logger.LogInformation($"Successfully released the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}");
+                    
+                    var response = await preservationApiClient.GetDeposit(request.DepositId, cancellationToken);
+                    if (response is { Success: true })
+                    {
+                        var deposit = response.Value;
+                        logger.LogInformation("In Pipeline Job Lock date: {lockDate}, Locked by: {lockedBy} ", deposit?.LockDate, deposit?.LockedBy);
+                    }
                     break;
                 }
 
@@ -442,6 +449,7 @@ public class ProcessPipelineJobHandler(
                 break;
             }
 
+            logger.LogInformation($"Returning a completed status for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.Completed

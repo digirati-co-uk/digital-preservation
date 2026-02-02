@@ -40,6 +40,7 @@ public class DepositsController(
     public async Task<IActionResult> GetDeposit([FromRoute] string id)
     {
         var result = await mediator.Send(new GetDeposit(id));
+        logger.LogInformation("In Preservation API for deposit {deposit} Lock date: {lockDate}, Locked by: {lockedBy} ", result.Value ?.Id, result.Value?.LockDate, result.Value?.LockedBy);
         return this.StatusResponseFromResult(result);
     }
     
