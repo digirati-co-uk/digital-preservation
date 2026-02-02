@@ -77,6 +77,7 @@ public class SiegfriedOutput
     }
 }
 
+[Serializable]
 internal class SiegfriedCsvRow
 {
     public string? Filename { get; set; }
