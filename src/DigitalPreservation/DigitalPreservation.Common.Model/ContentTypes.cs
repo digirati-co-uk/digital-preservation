@@ -35,31 +35,62 @@ public static class ContentTypes
         
         // This is our jumping off point for more detailed investigation, using the tool outputs 
         // of EXIF and maybe FFProbe in future to determine what the file is.
-        
+        var contentTypeFromAdHocRules = GetContentTypeFromSpecificRules(distinctTypes);
+        return contentTypeFromAdHocRules;
+    }
+
+    private static string? GetContentTypeFromSpecificRules(List<string> distinctTypes)
+    {
         var applicationCount = distinctTypes.Count(ct => ct.StartsWith("application/"));
-        var videoCount = distinctTypes.Count(ct => ct.StartsWith("video/"));
-        var audioCount = distinctTypes.Count(ct => ct.StartsWith("audio/"));
-        var imageCount = distinctTypes.Count(ct => ct.StartsWith("image/"));
 
         if (applicationCount == 1)
         {
-            if (videoCount == 1)
-            {
-                return distinctTypes.Single(ct => ct.StartsWith("video/"));
-            }
-            if (audioCount == 1)
-            {
-                return distinctTypes.Single(ct => ct.StartsWith("audio/"));
-            }
+            var imageCount = distinctTypes.Count(ct => ct.StartsWith("image/"));
             if (imageCount == 1)
             {
                 return distinctTypes.Single(ct => ct.StartsWith("image/"));
             }
+            
+            var videoCount = distinctTypes.Count(ct => ct.StartsWith("video/"));
+            if (videoCount == 1)
+            {
+                return distinctTypes.Single(ct => ct.StartsWith("video/"));
+            }
+            
+            var audioCount = distinctTypes.Count(ct => ct.StartsWith("audio/"));
+            if (audioCount == 1)
+            {
+                return distinctTypes.Single(ct => ct.StartsWith("audio/"));
+            }
+            
+            if (distinctTypes.Count == 2)
+            {
+                var textCount = distinctTypes.Count(ct => ct.StartsWith("text/"));
+                if (textCount == 1)
+                {
+                    var textForm = distinctTypes.Single(ct => ct.StartsWith("text/"));
+                    if (textForm == "text/rtf")
+                    {
+                        return "text/rtf";
+                    }
+                    if (textForm == "text/xml")
+                    {
+                        return "application/xml";
+                    }
+                }
+            }
         }
-        
-        // We still have more than one distinct content type that isn't a generic one, even after our special rules.
-        return null;
 
+        if (applicationCount == 2)
+        {
+            // Do we just keep adding new scenarios here?
+            if (distinctTypes.Contains("application/rtf") && distinctTypes.Contains("application/msword"))
+            {
+                return "application/rtf";
+            }
+        }
+
+        return null;
     }
 
     private static List<string> GetDistinctTypes(WorkingFile fileInDeposit)
@@ -98,8 +129,13 @@ public static class ContentTypes
 
         if (distinctTypes.Count > 1)
         {
-            // It might really be application/octet-stream, which is OK if that's the best we can do
+            // It might really be binary/octet-stream, which is OK if that's the best we can do
             distinctTypes.RemoveAll(ct => ct == "binary/octet-stream");
+        }
+
+        if (distinctTypes.Count > 1)
+        {
+            distinctTypes.RemoveAll(ct => ct == "application/x-www-form-urlencoded");
         }
     }
 }
