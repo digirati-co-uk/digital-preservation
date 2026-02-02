@@ -35,7 +35,12 @@ public static class ContentTypes
         
         // This is our jumping off point for more detailed investigation, using the tool outputs 
         // of EXIF and maybe FFProbe in future to determine what the file is.
-        
+        var contentTypeFromAdHocRules = GetContentTypeFromSpecificRules(distinctTypes);
+        return contentTypeFromAdHocRules;
+    }
+
+    private static string? GetContentTypeFromSpecificRules(List<string> distinctTypes)
+    {
         var applicationCount = distinctTypes.Count(ct => ct.StartsWith("application/"));
 
         if (applicationCount == 1)
@@ -84,10 +89,8 @@ public static class ContentTypes
                 return "application/rtf";
             }
         }
-        
-        // We still have more than one distinct content type that isn't a generic one, even after our special rules.
-        return null;
 
+        return null;
     }
 
     private static List<string> GetDistinctTypes(WorkingFile fileInDeposit)
