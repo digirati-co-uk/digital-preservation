@@ -577,11 +577,6 @@ public class MetadataReader : IMetadataReader
 
     }
 
-    private IDictionary<string, string> GetValues(object obj) =>
-        obj?.GetType().GetProperties()
-            .ToDictionary(p => p.Name, p => p.GetValue(obj)?.ToString() ?? "")
-        ?? []; // Returns empty dictionary if obj is null
-
     private void SetMetadataHtml(List<Metadata>? metadataList, ExifModel? exifMetadata, DateTime timestamp)
     {
         var brunnhildeMetadata = metadataList.FirstOrDefault(x => x.Source.ToLower() == "brunnhilde");
@@ -591,11 +586,11 @@ public class MetadataReader : IMetadataReader
         IDictionary<string, string>? clamMetadataDictionary = null;
 
         if (brunnhildeMetadata is not null)
-            brunnhildeMetadataDictionary = GetValues(brunnhildeMetadata);
+            brunnhildeMetadataDictionary = CollectionUtils.GetValues(brunnhildeMetadata);
 
 
         if (clamMetadata is not null)
-            clamMetadataDictionary = GetValues(clamMetadata);
+            clamMetadataDictionary = CollectionUtils.GetValues(clamMetadata);
 
         IEnumerable<string>? brunnhildeStrings;
         var brunnhildeHtml = string.Empty;
@@ -612,28 +607,27 @@ public class MetadataReader : IMetadataReader
 
         var rawOutput = exifMetadata?.ExifMetadata.FirstOrDefault(x => x.TagName?.ToLower() == "rawoutput")?.TagValue;
 
-        //if (string.IsNullOrEmpty(rawOutput))
-        var replaceNewLineRawOutput = rawOutput.Replace("\\n", "<br>");
+        var replaceNewLineRawOutput = rawOutput?.Replace("\\n", "<br>");
         metadataList.Add(new ToolOutput
         {
             Source = "Exif",
             Timestamp = timestamp,
             Content = $@"<html>
-                            {GetHeader()}
+                            {GetStyle()}
                             <body>
-                                <h1>Exif Metadata</h1>
-                                <pre>{replaceNewLineRawOutput}</pre>
                                 <h1>Brunnhilde</h1>
                                 <pre>{brunnhildeHtml}</pre>
                                 <h1>ClamAV</h1>
                                 <pre>{clamHtml}</pre>
+                                <h1>Exif Metadata</h1>
+                                <pre>{replaceNewLineRawOutput}</pre>
                             </body>
-                        </html>", //raw tool output
+                        </html>",
             ContentType = "text/html"
         });
     }
 
-    private string GetHeader()
+    private string GetStyle()
     {
         return @"
             <head>

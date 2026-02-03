@@ -6,8 +6,20 @@
 @{
     var binary = Model.Item1;
     var workingFile = Model.Item2;
+    var fileformatMetadata = Model.Item2?.GetFileFormatMetadata();
+    var virusScanMetadata = Model.Item2?.GetVirusScanMetadata();
+    var exifMetadata = Model.Item2?.GetExifMetadata();
+    IDictionary<string, string>? fileFormatDict = null;
+    IDictionary<string, string>? virusDict = null;
+
+    if (fileformatMetadata != null)
+        fileFormatDict = CollectionUtils.GetValues(fileformatMetadata);
+
+    if(virusScanMetadata != null)
+        virusDict = CollectionUtils.GetValues(virusScanMetadata);
 }
-<table class="table small">
+
+<table class="table small table-striped">
     <tr>
         <th scope="row">Name</th>
         <td>
@@ -68,18 +80,18 @@
     <tr>
         <th scope="row">Digest</th>
         <td>@((binary?.Digest ?? workingFile?.Digest) ?? "")
-        @if (binary?.Digest.HasText() is true && workingFile?.Digest.HasText() is true)
-        {
-            if (binary.Digest != workingFile.Digest)
+            @if (binary?.Digest.HasText() is true && workingFile?.Digest.HasText() is true)
             {
-                <div class="alert alert-danger" role="alert">
-                    <p>
-                        Binary Digest @binary.Digest <br/>
-                        does not match workingFile Digest @workingFile.Digest
-                    </p>
-                </div>
+                if (binary.Digest != workingFile.Digest)
+                {
+                    <div class="alert alert-danger" role="alert">
+                        <p>
+                            Binary Digest @binary.Digest <br/>
+                            does not match workingFile Digest @workingFile.Digest
+                        </p>
+                    </div>
+                }
             }
-        }
         </td>
     </tr>
     @if (binary != null)
@@ -89,4 +101,77 @@
             <td>🚫 <a href="@binary.Content">Binary content (Storage API)</a></td>
         </tr>
     }
+    
+    <tr>
+        <th scope="row">&nbsp;</th>
+        <td></td>
+    </tr>
+    <tr>
+        <th scope="row"><strong>Brunnhilde</strong></th>
+        <td></td>
+    </tr>
+    <tr>
+        @if (workingFile != null)
+        {
+            @if (fileFormatDict != null && fileFormatDict.Any())
+            {
+                foreach (var fileFormatMetadata in fileFormatDict)
+                {
+                    <tr>
+                        <th scope="row">@fileFormatMetadata.Key</th>
+                        <td>@fileFormatMetadata.Value</td>
+                    </tr>
+                }
+            }
+        }
+    </tr>
+    
+    <tr>
+        <th scope="row">&nbsp;</th>
+        <td></td>
+    </tr>
+    <tr>
+        <th scope="row"><strong>Clam AV</strong></th>
+        <td></td>
+    </tr>
+    <tr>
+        @if (workingFile != null)
+        {
+            @if (virusDict != null && virusDict.Any())
+            {
+                foreach (var virusMetadata in virusDict)
+                {
+                    <tr>
+                    <th scope="row">@virusMetadata.Key</th>
+                    <td>@virusMetadata.Value</td>
+                    </tr>
+                }
+            }
+        }
+    </tr>
+
+    <tr>
+        <th scope="row">&nbsp;</th>
+        <td></td>
+    </tr>
+    <tr>
+        <th scope="row"><strong>Exif Metadata</strong></th>
+        <td></td>
+    </tr>
+    <tr>
+        @if (workingFile != null)
+        {
+            @if (exifMetadata is { Tags: not null })
+            {
+                foreach (var exifPair in exifMetadata.Tags)
+                {
+                    <tr>
+                        <th scope="row">@exifPair.TagName</th>
+                        <td>@exifPair.TagValue</td>
+                    </tr>
+                }
+            }
+        }
+    </tr>
+
 </table>
