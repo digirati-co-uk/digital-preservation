@@ -579,6 +579,7 @@ public class MetadataReader : IMetadataReader
 
     private void SetMetadataHtml(List<Metadata>? metadataList, ExifModel? exifMetadata, DateTime timestamp)
     {
+        if (metadataList == null) return;
         var brunnhildeMetadata = metadataList.FirstOrDefault(x => x.Source.ToLower() == "brunnhilde");
         var clamMetadata = metadataList.FirstOrDefault(x => x.Source.ToLower() == "clamav");
 
