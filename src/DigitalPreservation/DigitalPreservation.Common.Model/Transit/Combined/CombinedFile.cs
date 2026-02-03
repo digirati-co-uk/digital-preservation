@@ -147,7 +147,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         foreach (var exifItemDeposit in arrayDeposit.Select((value, i) => (value, i)))
         {
             var exifItemDepositTagName = exifItemDeposit.value.TagName;
-            var exifItemDepositTagValue = exifItemDeposit.value.TagValue?.ReplaceLineEndings().Replace("\\r", string.Empty).Replace("\\n", string.Empty); 
+            var exifItemDepositTagValue = exifItemDeposit.value.TagValue?.RemoveLineEndings();
             var depositItemArrayIndex = exifItemDeposit.i;
 
             if ((!isEqual && !arrayMets.Any()) || (arrayMets.Length < (depositItemArrayIndex + 1))) //will get an out of bound array exception
@@ -193,7 +193,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
             if (exifItemDepositTagName != null && metsExifItem.TagName != null && !string.Equals(exifItemDepositTagName, metsExifItem.TagName, StringComparison.CurrentCultureIgnoreCase)) continue;
 
-            var metsTagValue = metsExifItem.TagValue?.ReplaceLineEndings().Replace("\\r", string.Empty).Replace("\\n", string.Empty);
+            var metsTagValue = metsExifItem.TagValue?.RemoveLineEndings();
             if (string.Equals(exifItemDepositTagValue, metsTagValue, StringComparison.CurrentCultureIgnoreCase)) continue;
 
             if (exifItemDepositTagName == null) continue;
