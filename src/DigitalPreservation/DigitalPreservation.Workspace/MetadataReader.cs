@@ -171,11 +171,16 @@ public class MetadataReader : IMetadataReader
         exifMetadataList = await GetExifOutputForAllFiles();
 
         if (!exifMetadataList.Any())
+        {
+            AddMetadataToolOutput(timestamp);
             return;
+        }
 
         brunnhildeCommonPrefix = StringUtils.GetCommonParent(exifMetadataList.Select(s => s.Filepath));
         brunnhildeCommonPrefix = AllowForObjectsAndMetadata(brunnhildeCommonPrefix);
         AddExifMetadata(brunnhildeCommonPrefix, "ExifTool", timestamp);
+
+        AddMetadataToolOutput(timestamp);
     }
 
     private void AddFileFormatMetadata(SiegfriedOutput siegfriedOutput, string commonParent, string source, DateTime timestamp)
@@ -263,8 +268,7 @@ public class MetadataReader : IMetadataReader
                 Tags = exifMetadata.ExifMetadata
             });
 
-            SetMetadataHtml(metadataList, exifMetadata, timestamp);
-
+            //SetMetadataHtml(metadataList, exifMetadata, timestamp);
         }
     }
 
@@ -607,8 +611,22 @@ public class MetadataReader : IMetadataReader
             clamHtml = string.Join("<br>", clamStrings);
 
         var rawOutput = exifMetadata?.ExifMetadata.FirstOrDefault(x => x.TagName?.ToLower() == "rawoutput")?.TagValue;
-
         var replaceNewLineRawOutput = rawOutput?.Replace("\\n", "<br>");
+
+        var htmlBody = new StringBuilder();
+
+        if (!string.IsNullOrEmpty(brunnhildeHtml))
+            htmlBody.Append($@"<h1>Brunnhilde</h1>
+                           <pre>{brunnhildeHtml}</pre>");
+
+        if (!string.IsNullOrEmpty(brunnhildeHtml))
+            htmlBody.Append($@"<h1>ClamAV</h1>
+                           <pre>{clamHtml}</pre>");
+
+        if (!string.IsNullOrEmpty(replaceNewLineRawOutput))
+            htmlBody.Append($@"<h1>Exif Metadata</h1>
+                           <pre>{replaceNewLineRawOutput}</pre>");
+
         metadataList.Add(new ToolOutput
         {
             Source = "Exif",
@@ -616,16 +634,13 @@ public class MetadataReader : IMetadataReader
             Content = $@"<html>
                             {GetStyle()}
                             <body>
-                                <h1>Brunnhilde</h1>
-                                <pre>{brunnhildeHtml}</pre>
-                                <h1>ClamAV</h1>
-                                <pre>{clamHtml}</pre>
-                                <h1>Exif Metadata</h1>
-                                <pre>{replaceNewLineRawOutput}</pre>
+                                {htmlBody}
                             </body>
                         </html>",
             ContentType = "text/html"
         });
+
+        htmlBody.Clear();
     }
 
     private string GetStyle()
@@ -723,6 +738,24 @@ public class MetadataReader : IMetadataReader
             }
             </style>
             </head>";
+    }
+
+    private void AddMetadataToolOutput(DateTime timestamp)
+    {
+        string brunnhildeSiegfriedCommonParent;
+        if (brunnhildeSiegfriedOutput is { Files.Count: > 0 })
+        {
+            brunnhildeSiegfriedCommonParent = StringUtils.GetCommonParent(brunnhildeSiegfriedOutput.Files.Select(f => f.Filename!));
+            brunnhildeSiegfriedCommonParent = AllowForObjectsAndMetadata(brunnhildeSiegfriedCommonParent);
+            foreach (var file in brunnhildeSiegfriedOutput.Files)
+            {
+                var localPath = file.Filename.RemoveStart(brunnhildeSiegfriedCommonParent).RemoveStart("/");
+                var metadataList = GetMetadataList(localPath!);
+                var exifMetadata = !string.IsNullOrEmpty(localPath) ?  exifMetadataList.FirstOrDefault(x => x.Filepath.Contains(localPath)) : null;
+
+                SetMetadataHtml(metadataList, exifMetadata, timestamp);
+            }
+        }
     }
 }
 
