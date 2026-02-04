@@ -433,7 +433,7 @@ public class MetadataReader : IMetadataReader
 
         if (candidateStrings.Count > 1)
         {
-            candidateStrings.RemoveAll(s => !s.Split('/')[0].StartsWith("siegfried."));
+            candidateStrings.RemoveAll(s => !s.Split('/')[^1].StartsWith("siegfried."));
         }
         
         // ideally, this is one of the three above:

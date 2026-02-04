@@ -34,6 +34,7 @@ public class DeleteItemsHandler(
     IAmazonS3 s3Client,
     IMetsManager metsManager) : IRequestHandler<DeleteItems, Result<ItemsAffected>>
 {
+    private string[] pipelineMetadataFolders = ["metadata/brunnhilde", "metadata/exif", "metadata/virus-definition"]; 
     public async Task<Result<ItemsAffected>> Handle(DeleteItems request, CancellationToken cancellationToken)
     { 
         var goodResult = new ItemsAffected();
@@ -217,7 +218,7 @@ public class DeleteItemsHandler(
                 }
             }
 
-            if (failedDeleteResult == null)
+            if (failedDeleteResult == null || !pipelineMetadataFolders.Contains(item.RelativePath))
             {
                 goodResult.Items.Add(item);
             }
