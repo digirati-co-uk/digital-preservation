@@ -19,7 +19,7 @@
         virusDict = CollectionUtils.GetValues(virusScanMetadata);
 }
 
-<table class="table small table-striped">
+<table class="table small">
     <tr>
         <th scope="row">Name</th>
         <td>
@@ -101,77 +101,69 @@
             <td>🚫 <a href="@binary.Content">Binary content (Storage API)</a></td>
         </tr>
     }
-    
-    <tr>
-        <th scope="row">&nbsp;</th>
-        <td></td>
-    </tr>
-    <tr>
-        <th scope="row"><strong>Brunnhilde</strong></th>
-        <td></td>
-    </tr>
-    <tr>
-        @if (workingFile != null)
-        {
-            @if (fileFormatDict != null && fileFormatDict.Any())
-            {
-                foreach (var fileFormatMetadata in fileFormatDict)
-                {
-                    <tr>
-                        <th scope="row">@fileFormatMetadata.Key</th>
-                        <td>@fileFormatMetadata.Value</td>
-                    </tr>
-                }
-            }
-        }
-    </tr>
-    
-    <tr>
-        <th scope="row">&nbsp;</th>
-        <td></td>
-    </tr>
-    <tr>
-        <th scope="row"><strong>Clam AV</strong></th>
-        <td></td>
-    </tr>
-    <tr>
-        @if (workingFile != null)
-        {
-            @if (virusDict != null && virusDict.Any())
-            {
-                foreach (var virusMetadata in virusDict)
-                {
-                    <tr>
-                    <th scope="row">@virusMetadata.Key</th>
-                    <td>@virusMetadata.Value</td>
-                    </tr>
-                }
-            }
-        }
-    </tr>
 
-    <tr>
-        <th scope="row">&nbsp;</th>
-        <td></td>
-    </tr>
-    <tr>
-        <th scope="row"><strong>Exif Metadata</strong></th>
-        <td></td>
-    </tr>
-    <tr>
-        @if (workingFile != null)
-        {
-            @if (exifMetadata is { Tags: not null })
-            {
-                foreach (var exifPair in exifMetadata.Tags)
-                {
-                    <tr>
-                        <th scope="row">@exifPair.TagName</th>
-                        <td>@exifPair.TagValue</td>
-                    </tr>
-                }
-            }
-        }
-    </tr>
 
 </table>
+
+<div>
+    <h3>Brunnhilde</h3>
+    <table class="table small" style="width: 30%;">
+        <tr>
+            @if (workingFile != null)
+            {
+                @if (fileFormatDict != null && fileFormatDict.Any())
+                {
+                    foreach (var fileFormatMetadata in fileFormatDict)
+                    {
+                        <tr>
+                            <th scope="row">@fileFormatMetadata.Key</th>
+                            <td>@fileFormatMetadata.Value</td>
+                        </tr>
+                    }
+                }
+            }
+        </tr>
+    </table>
+</div>
+
+<div>
+    <h3>Clam AV</h3>
+    <table class="table small" style="width: 30%;">
+        <tr>
+            @if (workingFile != null)
+            {
+                @if (virusDict != null && virusDict.Any())
+                {
+                    foreach (var virusMetadata in virusDict)
+                    {
+                        <tr>
+                            <th scope="row">@virusMetadata.Key</th>
+                            <td>@virusMetadata.Value</td>
+                        </tr>
+                    }
+                }
+            }
+        </tr>
+    </table>
+</div>
+
+<div>
+    <h3>Exif Metadata</h3>
+    <table class="table small" style="width: 30%;">
+        <tr>
+            @if (workingFile != null)
+            {
+                @if (exifMetadata is { Tags: not null })
+                {
+                    foreach (var exifPair in exifMetadata.Tags.Where(x => x.TagName?.ToLower() != "rawoutput"))
+                    {
+                        <tr>
+                            <th scope="row">@exifPair.TagName</th>
+                            <td>@exifPair.TagValue</td>
+                        </tr>
+                    }
+                }
+            }
+        </tr>
+    </table>
+</div>
