@@ -19,7 +19,7 @@
         virusDict = CollectionUtils.GetValues(virusScanMetadata);
 }
 
-<table class="table small">
+<table class="table small table-striped">
     <tr>
         <th scope="row">Name</th>
         <td>
@@ -105,65 +105,79 @@
 
 </table>
 
-<div>
-    <h3>Brunnhilde</h3>
-    <table class="table small" style="width: 30%;">
-        <tr>
-            @if (workingFile != null)
-            {
-                @if (fileFormatDict != null && fileFormatDict.Any())
-                {
-                    foreach (var fileFormatMetadata in fileFormatDict)
+@if (workingFile != null)
+{
+    @if ((fileFormatDict != null && fileFormatDict.Any()) || (virusDict != null && virusDict.Any()) || exifMetadata is { Tags: not null })
+    {
+        <div>
+            <h3>Metadata</h3>
+        </div>
+    }
+}
+
+
+@if (workingFile != null)
+{
+    @if (fileFormatDict != null && fileFormatDict.Any())
+    {
+        <div>
+            <h4>Brunnhilde</h4>
+            <table class="table small" style="width: 30%;">
+                <tr>
+                    @foreach (var fileFormatMetadata in fileFormatDict)
                     {
                         <tr>
                             <th scope="row">@fileFormatMetadata.Key</th>
                             <td>@fileFormatMetadata.Value</td>
                         </tr>
                     }
-                }
-            }
-        </tr>
-    </table>
-</div>
+                </tr>
+            </table>
+        </div>
+    }
+}
 
-<div>
-    <h3>Clam AV</h3>
-    <table class="table small" style="width: 30%;">
-        <tr>
-            @if (workingFile != null)
-            {
-                @if (virusDict != null && virusDict.Any())
-                {
-                    foreach (var virusMetadata in virusDict)
+@if (workingFile != null)
+{
+    @if (virusDict != null && virusDict.Any())
+    {
+        <div>
+            <h4>Clam AV</h4>
+            <table class="table small" style="width: 30%;">
+                <tr>
+                    @foreach (var virusMetadata in virusDict)
                     {
                         <tr>
                             <th scope="row">@virusMetadata.Key</th>
                             <td>@virusMetadata.Value</td>
                         </tr>
                     }
-                }
-            }
-        </tr>
-    </table>
-</div>
+                </tr>
+            </table>
+        </div>
+    }
+}
 
-<div>
-    <h3>Exif Metadata</h3>
-    <table class="table small" style="width: 30%;">
-        <tr>
-            @if (workingFile != null)
-            {
-                @if (exifMetadata is { Tags: not null })
-                {
-                    foreach (var exifPair in exifMetadata.Tags.Where(x => x.TagName?.ToLower() != "rawoutput"))
+@if (workingFile != null)
+{
+    @if (exifMetadata is { Tags: not null })
+    {
+        <div>
+            <h4>Exif Metadata</h4>
+            <table class="table small" style="width: 30%;">
+                <tr>
+                    @foreach (var exifPair in exifMetadata.Tags.Where(x => x.TagName?.ToLower() != "rawoutput"))
                     {
                         <tr>
                             <th scope="row">@exifPair.TagName</th>
                             <td>@exifPair.TagValue</td>
                         </tr>
                     }
-                }
-            }
-        </tr>
-    </table>
-</div>
+                </tr>
+            </table>
+        </div>
+    }
+}
+
+
+
