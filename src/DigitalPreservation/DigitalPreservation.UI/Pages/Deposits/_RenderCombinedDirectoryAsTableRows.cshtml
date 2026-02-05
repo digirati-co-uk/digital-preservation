@@ -73,7 +73,7 @@ File is in both
        <td></td>
        <td></td>
        <td></td>
-       <td></td>
+        <td></td>
     </tr>
 }
 @foreach (var dir in combinedDirectory.Directories)
@@ -122,6 +122,21 @@ File is in both
                     <a target="_blank" href="@(Context.Request.Path + "/mets")"><strong>@Model.MetsPath.GetSlug()</strong></a>
                 }
                 else if (isMetadata)
+                {
+                    var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
+                    if (toolOutput != null && toolOutput.Content.HasText())
+                    {
+                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
+                        var base64Encoded = System.Convert.ToBase64String(textBytes);
+
+                        <a href="javascript:openHtmlStringInNewTab('@base64Encoded');"><strong>@file.GetName()</strong></a>
+                    }
+                    else
+                    {
+                        @file.GetName();
+                    }
+                }
+                else if (!isMetadata)
                 {
                     var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
                     if (toolOutput != null && toolOutput.Content.HasText())

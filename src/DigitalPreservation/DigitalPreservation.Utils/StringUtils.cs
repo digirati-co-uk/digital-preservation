@@ -274,4 +274,9 @@ public static class StringUtils
         }
         return s + ")";
     }
+
+    public static string? RemoveLineEndings(this string? str)
+    {
+        return str?.ReplaceLineEndings().Replace("\\r", string.Empty).Replace("\\n", string.Empty);
+    }
 }
