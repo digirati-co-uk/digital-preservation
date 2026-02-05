@@ -107,4 +107,14 @@ public class WorkingDirectory : WorkingBase
             Metadata = Metadata
         };
     }
+    
+    public static WorkingDirectory RootDirectory()
+    {
+        return new WorkingDirectory
+        {
+            LocalPath = string.Empty,
+            Name = WorkingDirectory.DefaultRootName,
+            Modified = DateTime.UtcNow
+        };
+    }
 }
