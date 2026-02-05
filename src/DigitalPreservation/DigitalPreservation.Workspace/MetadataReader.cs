@@ -268,7 +268,6 @@ public class MetadataReader : IMetadataReader
                 Tags = exifMetadata.ExifMetadata
             });
 
-            //SetMetadataHtml(metadataList, exifMetadata, timestamp);
         }
     }
 
