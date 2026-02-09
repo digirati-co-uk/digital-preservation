@@ -180,7 +180,7 @@
 
 @if (workingFile != null)
 {
-    @if (exifMetadata is { Tags: not null } && exifMetadata?.Source.ToLower() == "exif")
+    @if (exifMetadata is { Tags: not null })
     {
         <div>
             <h4>Exif Metadata</h4>
