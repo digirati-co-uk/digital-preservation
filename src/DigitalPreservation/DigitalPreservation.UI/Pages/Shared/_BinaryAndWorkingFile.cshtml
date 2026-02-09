@@ -59,6 +59,7 @@
             <td>@binary.ContentType</td>
         </tr>
     }
+
     @if (workingFile != null)
     {
         var premisFromMets = workingFile.Metadata.OfType<FileFormatMetadata>().SingleOrDefault();
@@ -126,6 +127,25 @@
                 <tr>
                     @foreach (var fileFormatMetadata in fileFormatDict)
                     {
+                        if ((fileFormatMetadata.Key.ToLower() == "contenttype" || fileFormatMetadata.Key.ToLower() == "size") && string.IsNullOrEmpty(fileFormatMetadata.Value) && binary != null)
+                        {
+
+                            <tr>
+                                <th scope="row">@fileFormatMetadata.Key</th>
+                                <td>@(fileFormatMetadata.Key.ToLower() == "contenttype" ? binary.ContentType : binary.Size)</td>
+                            </tr>
+                            continue;
+                        }
+
+                        if (fileFormatMetadata.Key.ToLower() == "timestamp" && binary != null)
+                        {
+                            <tr>
+                                <th scope="row">@fileFormatMetadata.Key</th>
+                                <td>@binary.Created</td>
+                            </tr>
+                            continue;
+                        }
+
                         <tr>
                             <th scope="row">@fileFormatMetadata.Key</th>
                             <td>@fileFormatMetadata.Value</td>
@@ -139,7 +159,7 @@
 
 @if (workingFile != null)
 {
-    @if (virusDict != null && virusDict.Any())
+    @if (virusDict != null && virusDict.Any() && virusScanMetadata?.Source.ToLower() == "clamav")
     {
         <div>
             <h4>Clam AV</h4>
@@ -160,7 +180,7 @@
 
 @if (workingFile != null)
 {
-    @if (exifMetadata is { Tags: not null })
+    @if (exifMetadata is { Tags: not null } && exifMetadata?.Source.ToLower() == "exif")
     {
         <div>
             <h4>Exif Metadata</h4>
