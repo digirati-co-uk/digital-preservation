@@ -125,7 +125,7 @@
     {
         <div>
             <h4>Brunnhilde</h4>
-            <table class="table small" style="width: 30%;">
+            <table class="table small" style="width: 30%;" aria-label="table-brunnhilde">
                 <tr>
                     @foreach (var fileFormatMetadata in fileFormatDict)
                     {
@@ -165,7 +165,7 @@
     {
         <div>
             <h4>Clam AV</h4>
-            <table class="table small" style="width: 30%;">
+            <table class="table small" style="width: 30%;" aria-label="table-virus">
                 <tr>
                     @foreach (var virusMetadata in virusDict)
                     {
@@ -186,7 +186,7 @@
     {
         <div>
             <h4>Exif Metadata</h4>
-            <table class="table small" style="width: 30%;">
+            <table class="table small" style="width: 30%;" aria-label="table-exif">
                 <tr>
                     @foreach (var exifPair in exifMetadata.Tags.Where(x => x.TagName?.ToLower() != "rawoutput"))
                     {
