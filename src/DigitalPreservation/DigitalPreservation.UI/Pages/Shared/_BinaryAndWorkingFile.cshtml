@@ -17,9 +17,11 @@
 
     if(virusScanMetadata != null)
         virusDict = CollectionUtils.GetValues(virusScanMetadata);
+
+    var toolsRun = fileformatMetadata?.PronomKey?.ToLower() != "unknown" && !string.IsNullOrEmpty(fileformatMetadata?.FormatName);
 }
 
-<table class="table small table-striped">
+<table class="table small table-striped" aria-label="table-core">
     <tr>
         <th scope="row">Name</th>
         <td>
@@ -59,6 +61,7 @@
             <td>@binary.ContentType</td>
         </tr>
     }
+
     @if (workingFile != null)
     {
         var premisFromMets = workingFile.Metadata.OfType<FileFormatMetadata>().SingleOrDefault();
@@ -105,7 +108,7 @@
 
 </table>
 
-@if (workingFile != null)
+@if (workingFile != null && toolsRun)
 {
     @if ((fileFormatDict != null && fileFormatDict.Any()) || (virusDict != null && virusDict.Any()) || exifMetadata is { Tags: not null })
     {
@@ -116,16 +119,35 @@
 }
 
 
-@if (workingFile != null)
+@if (workingFile != null && toolsRun)
 {
     @if (fileFormatDict != null && fileFormatDict.Any())
     {
         <div>
             <h4>Brunnhilde</h4>
-            <table class="table small" style="width: 30%;">
+            <table class="table small" style="width: 30%;" aria-label="table-brunnhilde">
                 <tr>
                     @foreach (var fileFormatMetadata in fileFormatDict)
                     {
+                        if ((fileFormatMetadata.Key.ToLower() == "contenttype" || fileFormatMetadata.Key.ToLower() == "size") && string.IsNullOrEmpty(fileFormatMetadata.Value) && binary != null)
+                        {
+
+                            <tr>
+                                <th scope="row">@fileFormatMetadata.Key</th>
+                                <td>@(fileFormatMetadata.Key.ToLower() == "contenttype" ? binary.ContentType : binary.Size)</td>
+                            </tr>
+                            continue;
+                        }
+
+                        if (fileFormatMetadata.Key.ToLower() == "timestamp" && binary != null)
+                        {
+                            <tr>
+                                <th scope="row">@fileFormatMetadata.Key</th>
+                                <td>@binary.Created</td>
+                            </tr>
+                            continue;
+                        }
+
                         <tr>
                             <th scope="row">@fileFormatMetadata.Key</th>
                             <td>@fileFormatMetadata.Value</td>
@@ -139,11 +161,11 @@
 
 @if (workingFile != null)
 {
-    @if (virusDict != null && virusDict.Any())
+    @if (virusDict != null && virusDict.Any() && virusScanMetadata?.Source.ToLower() == "clamav")
     {
         <div>
             <h4>Clam AV</h4>
-            <table class="table small" style="width: 30%;">
+            <table class="table small" style="width: 30%;" aria-label="table-virus">
                 <tr>
                     @foreach (var virusMetadata in virusDict)
                     {
@@ -164,7 +186,7 @@
     {
         <div>
             <h4>Exif Metadata</h4>
-            <table class="table small" style="width: 30%;">
+            <table class="table small" style="width: 30%;" aria-label="table-exif">
                 <tr>
                     @foreach (var exifPair in exifMetadata.Tags.Where(x => x.TagName?.ToLower() != "rawoutput"))
                     {
