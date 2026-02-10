@@ -9,4 +9,5 @@ public class BrunnhildeOptions
     public string? ProcessFolder { get; set; }
     public string? ExifToolLocation { get; set; }
     public int? ReleaseLockAttemptTime { get; set; }
+    public string? PipelineMetadataFolders { get; set; }
 }

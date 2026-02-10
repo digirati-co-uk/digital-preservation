@@ -23,4 +23,6 @@ public class DeleteSelection
     [JsonPropertyOrder(4)]
     [JsonPropertyName("items")]
     public List<MinimalItem> Items { get; set; } = [];
+
+    public string[]? ContinueIfFail { get; set; } = [];
 }
