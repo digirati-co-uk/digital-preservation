@@ -444,7 +444,78 @@ public class MetsManagerTests
         // TODO: Validate result.Value.XDocument
         // Need to verify that fileSec and ADMSec have been updated
     }
-    
-    
-    
+
+    [Fact]
+    public async Task Can_Add_Files_With_Spaces_To_Empty_Mets()
+    {
+        var emptyMetsFi = new FileInfo("Outputs/empty-mets-add-files-with-spaces.xml");
+        var metsUri = new Uri(emptyMetsFi.FullName);
+        var result = await metsManager.CreateStandardMets(
+            metsUri, "Empty Mets File - Add Files");
+
+        result.Success.Should().BeTrue();
+        var metsWrapper = result.Value!;
+        metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(2);
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
+
+        var file = new WorkingFile
+        {
+            ContentType = "text/plain",
+            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
+            LocalPath = "objects/readme bm.txt",
+            Size = 9999,
+            Name = "readme bm.txt",
+            Modified = DateTime.UtcNow
+        };
+        var addResult = await metsManager.HandleSingleFileUpload(metsUri, file, metsWrapper.ETag!);
+        addResult.Success.Should().BeTrue();
+
+        //var (fileMets, mets) = await metsManager.GetStandardMets(metsUri, null);
+        var parseResult = await parser.GetMetsFileWrapper(metsUri);
+        parseResult.Success.Should().BeTrue();
+
+        var updatedWrapper = parseResult.Value!;
+        var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
+
+
+        objectsDir.Directories.Should().HaveCount(0);
+        objectsDir.Files.Should().HaveCount(1);
+        objectsDir.Files[0].Name.Should().Be("readme bm.txt");
+        objectsDir.Files[0].LocalPath.Should().Be("objects/readme bm.txt");
+        objectsDir.Files[0].Size.Should().Be(9999);
+        objectsDir.Files[0].ContentType.Should().Be("text/plain");
+        objectsDir.Files[0].Digest.Should().Be("801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105");
+        objectsDir.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme bm.txt");
+        objectsDir.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme bm.txt");
+
+        var fileTwoSpaces = new WorkingFile
+        {
+            ContentType = "text/plain",
+            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f101",
+            LocalPath = "objects/readme bm 1548.txt",
+            Size = 9999,
+            Name = "readme bm 1548.txt",
+            Modified = DateTime.UtcNow
+        };
+        var addResultTwoSpaces = await metsManager.HandleSingleFileUpload(metsUri, fileTwoSpaces, updatedWrapper.ETag!);
+        addResultTwoSpaces.Success.Should().BeTrue();
+
+        //var (fileMets, mets) = await metsManager.GetStandardMets(metsUri, null);
+        var parseResultTwoSpaces = await parser.GetMetsFileWrapper(metsUri);
+        parseResultTwoSpaces.Success.Should().BeTrue();
+
+        var updatedWrapperTwoSpaces = parseResultTwoSpaces.Value!;
+        var objectsDirTwoSpaces = updatedWrapperTwoSpaces.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
+        objectsDirTwoSpaces.Directories.Should().HaveCount(0);
+        objectsDirTwoSpaces.Files.Should().HaveCount(2);
+        objectsDirTwoSpaces.Files[0].Name.Should().Be("readme bm 1548.txt");
+        objectsDirTwoSpaces.Files[0].LocalPath.Should().Be("objects/readme bm 1548.txt");
+        objectsDirTwoSpaces.Files[0].Size.Should().Be(9999);
+        objectsDirTwoSpaces.Files[0].ContentType.Should().Be("text/plain");
+        objectsDirTwoSpaces.Files[0].Digest.Should().Be("801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f101");
+        objectsDirTwoSpaces.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme bm 1548.txt");
+        objectsDirTwoSpaces.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme bm 1548.txt");
+    }
+
 }
