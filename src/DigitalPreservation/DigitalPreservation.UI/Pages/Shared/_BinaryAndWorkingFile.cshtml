@@ -124,8 +124,8 @@
     @if (fileFormatDict != null && fileFormatDict.Any())
     {
         <div>
-            <h4>Brunnhilde</h4>
-            <table class="table small" style="width: 30%;" aria-label="table-brunnhilde">
+            <h4>File format</h4>
+            <table class="table small" style="width: 30%;" aria-label="table-file-format">
                 <tr>
                     @foreach (var fileFormatMetadata in fileFormatDict)
                     {
@@ -164,7 +164,7 @@
     @if (virusDict != null && virusDict.Any() && virusScanMetadata?.Source.ToLower() == "clamav")
     {
         <div>
-            <h4>Clam AV</h4>
+            <h4>Viruses</h4>
             <table class="table small" style="width: 30%;" aria-label="table-virus">
                 <tr>
                     @foreach (var virusMetadata in virusDict)
@@ -185,7 +185,7 @@
     @if (exifMetadata is { Tags: not null })
     {
         <div>
-            <h4>Exif Metadata</h4>
+            <h4>Exif</h4>
             <table class="table small" style="width: 30%;" aria-label="table-exif">
                 <tr>
                     @foreach (var exifPair in exifMetadata.Tags.Where(x => x.TagName?.ToLower() != "rawoutput"))
