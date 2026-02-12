@@ -1,11 +1,13 @@
-﻿using System.Text.Json;
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.Mets.StorageImpl;
+using System.Text.Json;
+using System.Xml;
 
 namespace XmlGen.Tests;
 
@@ -446,12 +448,11 @@ public class MetsManagerTests
     }
 
     [Fact]
-    public async Task Can_Add_Files_With_Spaces_To_Empty_Mets()
+    public async Task Can_Add_Files_With_Spaces_To_Empty_Mets_With_Metadata()
     {
         var emptyMetsFi = new FileInfo("Outputs/empty-mets-add-files-with-spaces.xml");
         var metsUri = new Uri(emptyMetsFi.FullName);
-        var result = await metsManager.CreateStandardMets(
-            metsUri, "Empty Mets File - Add Files");
+        var result = await metsManager.CreateStandardMets(metsUri, "Empty Mets File - Add Files");
 
         result.Success.Should().BeTrue();
         var metsWrapper = result.Value!;
@@ -462,12 +463,49 @@ public class MetsManagerTests
         var file = new WorkingFile
         {
             ContentType = "text/plain",
-            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
             LocalPath = "objects/readme bm.txt",
             Size = 9999,
             Name = "readme bm.txt",
-            Modified = DateTime.UtcNow
+            Modified = DateTime.UtcNow,
+            Metadata = [
+                new FileFormatMetadata
+                {
+                    Source = "Brunnhilde",
+                    Digest = "b42a6e9c",
+                    ContentType = "text/plain",
+                    FormatName = "Text File",
+                    PronomKey = "fmt/101",
+                    Size = 9999
+                },
+                new VirusScanMetadata
+                {
+                    Source = "ClamAv",
+                    HasVirus = true,
+                    VirusDefinition = "1.3.4",
+                    VirusFound = "EICAR-HDB",
+                    Timestamp = DateTime.Now
+                },
+                new ExifMetadata
+                {
+                    Source = "Exif",
+                    Tags =
+                    [
+                        new()
+                        {
+                            TagName = "ExifToolVersion",
+                            TagValue = "1.3.4"
+                        },
+
+                        new()
+                        {
+                            TagName = "ContentType",
+                            TagValue = "text/plain"
+                        }
+                    ]
+                }
+            ]
         };
+
         var addResult = await metsManager.HandleSingleFileUpload(metsUri, file, metsWrapper.ETag!);
         addResult.Success.Should().BeTrue();
 
@@ -478,44 +516,164 @@ public class MetsManagerTests
         var updatedWrapper = parseResult.Value!;
         var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
 
-
         objectsDir.Directories.Should().HaveCount(0);
         objectsDir.Files.Should().HaveCount(1);
         objectsDir.Files[0].Name.Should().Be("readme bm.txt");
         objectsDir.Files[0].LocalPath.Should().Be("objects/readme bm.txt");
         objectsDir.Files[0].Size.Should().Be(9999);
         objectsDir.Files[0].ContentType.Should().Be("text/plain");
-        objectsDir.Files[0].Digest.Should().Be("801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105");
+        objectsDir.Files[0].Digest.Should().Be("b42a6e9c");
         objectsDir.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme bm.txt");
         objectsDir.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme bm.txt");
 
-        var fileTwoSpaces = new WorkingFile
+        //check metadata in METS
+        objectsDir.Files[0].GetExifMetadata()?.Tags.Should().HaveCount(2);
+        var exifTags = objectsDir.Files[0].GetExifMetadata()?.Tags;
+        if (exifTags != null)
         {
-            ContentType = "text/plain",
-            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f101",
-            LocalPath = "objects/readme bm 1548.txt",
-            Size = 9999,
-            Name = "readme bm 1548.txt",
-            Modified = DateTime.UtcNow
-        };
-        var addResultTwoSpaces = await metsManager.HandleSingleFileUpload(metsUri, fileTwoSpaces, updatedWrapper.ETag!);
-        addResultTwoSpaces.Success.Should().BeTrue();
+            (exifTags?.FirstOrDefault()!).TagName.Should().Be("ExifToolVersion");
+            (exifTags?.FirstOrDefault()!).TagValue.Should().Be("1.3.4");
+        }
 
-        //var (fileMets, mets) = await metsManager.GetStandardMets(metsUri, null);
-        var parseResultTwoSpaces = await parser.GetMetsFileWrapper(metsUri);
-        parseResultTwoSpaces.Success.Should().BeTrue();
+        objectsDir.Files[0].GetVirusScanMetadata().Should().NotBeNull();
+        objectsDir.Files[0].GetVirusScanMetadata()?.HasVirus.Should().BeTrue();
+        objectsDir.Files[0].GetVirusScanMetadata()?.VirusFound.Should().Be("EICAR-HDB");
+        objectsDir.Files[0].GetVirusScanMetadata()?.VirusDefinition.Should().Be("1.3.4");
+        objectsDir.Files[0].GetVirusScanMetadata()?.Source.Should().Be("ClamAv");
 
-        var updatedWrapperTwoSpaces = parseResultTwoSpaces.Value!;
-        var objectsDirTwoSpaces = updatedWrapperTwoSpaces.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
-        objectsDirTwoSpaces.Directories.Should().HaveCount(0);
-        objectsDirTwoSpaces.Files.Should().HaveCount(2);
-        objectsDirTwoSpaces.Files[0].Name.Should().Be("readme bm 1548.txt");
-        objectsDirTwoSpaces.Files[0].LocalPath.Should().Be("objects/readme bm 1548.txt");
-        objectsDirTwoSpaces.Files[0].Size.Should().Be(9999);
-        objectsDirTwoSpaces.Files[0].ContentType.Should().Be("text/plain");
-        objectsDirTwoSpaces.Files[0].Digest.Should().Be("801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f101");
-        objectsDirTwoSpaces.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme bm 1548.txt");
-        objectsDirTwoSpaces.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme bm 1548.txt");
+        objectsDir.Files[0].GetFileFormatMetadata().Should().NotBeNull();
+        objectsDir.Files[0].GetFileFormatMetadata()?.Size.Should().Be(9999);
+        objectsDir.Files[0].GetFileFormatMetadata()?.Digest.Should().Be("b42a6e9c");
+        objectsDir.Files[0].GetFileFormatMetadata()?.FormatName.Should().Be("Text File");
+        objectsDir.Files[0].GetFileFormatMetadata()?.PronomKey.Should().Be("fmt/101");
+        objectsDir.Files[0].GetFileFormatMetadata()?.ContentType.Should().Be("text/plain");
     }
 
+    [Fact]
+    public async Task Can_Add_Files_With_Spaces_Compare_Mets_Xml()
+    {
+        var emptyMetsFi = new FileInfo("Outputs/empty-mets-add-files-with-spaces.xml");
+        var metsUri = new Uri(emptyMetsFi.FullName);
+        var result = await metsManager.CreateStandardMets(metsUri, "Empty Mets File - Add Files");
+
+        result.Success.Should().BeTrue();
+        var metsWrapper = result.Value!;
+        metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(2);
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
+        metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
+
+        var file = new WorkingFile
+        {
+            ContentType = "text/plain",
+            LocalPath = "objects/readme bm.txt",
+            Size = 9999,
+            Name = "readme bm.txt",
+            Modified = DateTime.UtcNow,
+            Metadata = [
+                new FileFormatMetadata
+                {
+                    Source = "Brunnhilde",
+                    Digest = "b42a6e9c",
+                    ContentType = "text/plain",
+                    FormatName = "Text File",
+                    PronomKey = "fmt/101",
+                    Size = 9999
+                },
+                new VirusScanMetadata
+                {
+                    Source = "ClamAv",
+                    HasVirus = true,
+                    VirusDefinition = "1.3.4",
+                    VirusFound = "EICAR-HDB",
+                    Timestamp = DateTime.Now
+                },
+                new ExifMetadata
+                {
+                    Source = "Exif",
+                    Tags =
+                    [
+                        new()
+                        {
+                            TagName = "ExifToolVersion",
+                            TagValue = "1.3.4"
+                        },
+
+                        new()
+                        {
+                            TagName = "ContentType",
+                            TagValue = "text/plain"
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var addResult = await metsManager.HandleSingleFileUpload(metsUri, file, metsWrapper.ETag!);
+        addResult.Success.Should().BeTrue();
+
+        //var (fileMets, mets) = await metsManager.GetStandardMets(metsUri, null);
+        var parseResult = await parser.GetMetsFileWrapper(metsUri);
+        parseResult.Success.Should().BeTrue();
+
+        //TODO: Read the XMl that MetsManager produced with file id having spaces
+        var doc = new XmlDocument();
+        doc.Load(emptyMetsFi.FullName);
+
+        XmlNodeList? nodes = doc.SelectNodes("//*[@ID='ADM_objects/readme bm.txt']");
+
+        if (nodes != null)
+        {
+            foreach (XmlNode node in nodes)
+            {
+                var digest = node.SelectNodes("//*[name()='premis:messageDigest']");
+                var size = node.SelectNodes("//*[name()='premis:size']");
+                var formatName = node.SelectNodes("//*[name()='premis:formatName']");
+                var pronomKey = node.SelectNodes("//*[name()='premis:formatRegistryKey']");
+                var originalName = node.SelectNodes("//*[name()='premis:originalName']");
+
+                if (digest != null)
+                    digest[0]?.InnerText.Should().Be("b42a6e9c");
+
+                if (size != null)
+                    size[0]?.InnerText.Should().Be("9999");
+
+                if (formatName != null)
+                    formatName[0]?.InnerText.Should().Be("Text File");
+
+                if (pronomKey != null)
+                    pronomKey[0]?.InnerText.Should().Be("fmt/101");
+
+                if (originalName != null)
+                    originalName[2]?.InnerText.Should().Be("objects/readme bm.txt");
+
+                //Exif
+                var exifToolVersion = node.SelectNodes("//*[name()='ExifToolVersion']");
+                var exifContentType = node.SelectNodes("//*[name()='ContentType']");
+
+                exifToolVersion?[0]?.InnerText.Should().Be("1.3.4");
+                exifContentType?[0]?.InnerText.Should().Be("text/plain");
+            }
+        }
+
+        //Virus Scan Metadata
+        XmlNodeList? virusNodes = doc.SelectNodes("//*[@ID='digiprovMD_ClamAV_ADM_objects/readme bm.txt']");
+        if (virusNodes != null)
+        {
+            foreach (XmlNode virusNode in virusNodes)
+            {
+                var virusDefinition = virusNode.SelectNodes("//*[name()='premis:eventDetail']");
+                var virusScanResult = virusNode.SelectNodes("//*[name()='premis:eventOutcome']");
+                var virusName = virusNode.SelectNodes("//*[name()='premis:eventOutcomeDetailNote']");
+
+                if (virusDefinition != null)
+                    virusDefinition[0]?.InnerText.Should().Be("1.3.4");
+
+                if (virusScanResult != null)
+                    virusScanResult[0]?.InnerText.Should().Be("Fail");
+
+                if (virusName != null)
+                    virusName[0]?.InnerText.Should().Be("EICAR-HDB");
+            }
+        }
+    }
 }

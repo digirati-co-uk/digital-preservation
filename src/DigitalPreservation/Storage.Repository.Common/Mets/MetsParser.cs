@@ -439,7 +439,9 @@ public class MetsParser(
                                 Digest = digest,
                                 Source = Constants.Mets,
                                 PronomKey = key,
-                                FormatName = name
+                                FormatName = name,
+                                Size  = size,
+                                ContentType = mimeType
                             };
                         }
                     }
