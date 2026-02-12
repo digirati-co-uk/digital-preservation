@@ -324,5 +324,30 @@ public class DepositsController(
 
         return this.StatusResponseFromResult(runPipelineStatusResult, successStatusCode: 204);
     }
+    
+
+    [HttpPut("{id}/activate", Name = "Activate")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+
+    public async Task<IActionResult> Active([FromRoute] string id)
+    {
+        var setActiveResult = await mediator.Send(new ActiveDeposit(id, true, User));
+        return this.StatusResponseFromResult(setActiveResult, successStatusCode: 204);
+    }
+
+
+    [HttpPut("{id}/deactivate", Name = "Deactivate")]
+    [ProducesResponseType(204)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+
+    public async Task<IActionResult> Deactivate([FromRoute] string id)
+    {
+        var setActiveResult = await mediator.Send(new ActiveDeposit(id, false, User));
+        return this.StatusResponseFromResult(setActiveResult, successStatusCode: 204);
+    }
+
 
 }
