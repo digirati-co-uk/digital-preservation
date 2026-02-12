@@ -615,15 +615,15 @@ public class MetadataReader : IMetadataReader
         var htmlBody = new StringBuilder();
 
         if (!string.IsNullOrEmpty(brunnhildeHtml))
-            htmlBody.Append($@"<h1>Brunnhilde</h1>
+            htmlBody.Append($@"<h1>File format</h1>
                            <pre>{brunnhildeHtml}</pre>");
 
         if (!string.IsNullOrEmpty(brunnhildeHtml))
-            htmlBody.Append($@"<h1>ClamAV</h1>
+            htmlBody.Append($@"<h1>Viruses</h1>
                            <pre>{clamHtml}</pre>");
 
         if (!string.IsNullOrEmpty(replaceNewLineRawOutput))
-            htmlBody.Append($@"<h1>Exif Metadata</h1>
+            htmlBody.Append($@"<h1>Exif</h1>
                            <pre>{replaceNewLineRawOutput}</pre>");
 
         metadataList.Add(new ToolOutput
