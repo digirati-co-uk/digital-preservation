@@ -552,6 +552,7 @@ public class ProcessPipelineJobHandler(
             }
         }
 
+        deleteSelection.ContinueIfFail = brunnhildeOptions.Value.PipelineMetadataFolders?.Split(",");
         var resultDelete = await workspaceManager.DeleteItems(deleteSelection, request.GetUserName());
         return resultDelete;
     }
