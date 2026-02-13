@@ -580,7 +580,7 @@ public class MetadataReader : IMetadataReader
 
     }
 
-    private void SetMetadataHtml(List<Metadata>? metadataList, ExifModel? exifMetadata, DateTime timestamp)
+    public static void SetMetadataHtml(List<Metadata>? metadataList, ExifModel? exifMetadata, DateTime timestamp)
     {
         if (metadataList == null) return;
         var brunnhildeMetadata = metadataList.FirstOrDefault(x => x.Source.ToLower() == "brunnhilde");
@@ -618,7 +618,7 @@ public class MetadataReader : IMetadataReader
             htmlBody.Append($@"<h1>File format</h1>
                            <pre>{brunnhildeHtml}</pre>");
 
-        if (!string.IsNullOrEmpty(brunnhildeHtml))
+        if (!string.IsNullOrEmpty(clamHtml))
             htmlBody.Append($@"<h1>Viruses</h1>
                            <pre>{clamHtml}</pre>");
 
@@ -642,7 +642,7 @@ public class MetadataReader : IMetadataReader
         htmlBody.Clear();
     }
 
-    private string GetStyle()
+    private static string GetStyle()
     {
         return @"
             <head>
