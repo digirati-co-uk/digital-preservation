@@ -14,7 +14,7 @@ using Xunit.Sdk;
 
 namespace XmlGen.Tests;
 
-public class ExifTests(ITestOutputHelper testOutputHelper)
+public class ExifTests()
 {
     [Fact]
     private void Build_Exif()
