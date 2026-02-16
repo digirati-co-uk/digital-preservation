@@ -494,7 +494,7 @@ public class MetsManagerTests
         objectsDir.Files[0].GetVirusScanMetadata()?.HasVirus.Should().BeTrue();
         objectsDir.Files[0].GetVirusScanMetadata()?.VirusFound.Should().Be("EICAR-HDB");
         objectsDir.Files[0].GetVirusScanMetadata()?.VirusDefinition.Should().Be("1.3.4");
-        objectsDir.Files[0].GetVirusScanMetadata()?.Source.Should().Be("ClamAv");
+        objectsDir.Files[0].GetVirusScanMetadata()?.Source.Should().Be("ClamAV");
 
         objectsDir.Files[0].GetFileFormatMetadata().Should().NotBeNull();
         objectsDir.Files[0].GetFileFormatMetadata()?.Size.Should().Be(9999);
