@@ -459,52 +459,7 @@ public class MetsManagerTests
         metsWrapper.PhysicalStructure!.Directories.Should().HaveCount(2);
         metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
         metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
-
-        var file = new WorkingFile
-        {
-            ContentType = "text/plain",
-            LocalPath = "objects/readme bm.txt",
-            Size = 9999,
-            Name = "readme bm.txt",
-            Modified = DateTime.UtcNow,
-            Metadata = [
-                new FileFormatMetadata
-                {
-                    Source = "Brunnhilde",
-                    Digest = "b42a6e9c",
-                    ContentType = "text/plain",
-                    FormatName = "Text File",
-                    PronomKey = "fmt/101",
-                    Size = 9999
-                },
-                new VirusScanMetadata
-                {
-                    Source = "ClamAv",
-                    HasVirus = true,
-                    VirusDefinition = "1.3.4",
-                    VirusFound = "EICAR-HDB",
-                    Timestamp = DateTime.Now
-                },
-                new ExifMetadata
-                {
-                    Source = "Exif",
-                    Tags =
-                    [
-                        new()
-                        {
-                            TagName = "ExifToolVersion",
-                            TagValue = "1.3.4"
-                        },
-
-                        new()
-                        {
-                            TagName = "ContentType",
-                            TagValue = "text/plain"
-                        }
-                    ]
-                }
-            ]
-        };
+        var file = GetTestWorkingFile();
 
         var addResult = await metsManager.HandleSingleFileUpload(metsUri, file, metsWrapper.ETag!);
         addResult.Success.Should().BeTrue();
@@ -562,60 +517,14 @@ public class MetsManagerTests
         metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
         metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
 
-        var file = new WorkingFile
-        {
-            ContentType = "text/plain",
-            LocalPath = "objects/readme bm.txt",
-            Size = 9999,
-            Name = "readme bm.txt",
-            Modified = DateTime.UtcNow,
-            Metadata = [
-                new FileFormatMetadata
-                {
-                    Source = "Brunnhilde",
-                    Digest = "b42a6e9c",
-                    ContentType = "text/plain",
-                    FormatName = "Text File",
-                    PronomKey = "fmt/101",
-                    Size = 9999
-                },
-                new VirusScanMetadata
-                {
-                    Source = "ClamAv",
-                    HasVirus = true,
-                    VirusDefinition = "1.3.4",
-                    VirusFound = "EICAR-HDB",
-                    Timestamp = DateTime.Now
-                },
-                new ExifMetadata
-                {
-                    Source = "Exif",
-                    Tags =
-                    [
-                        new()
-                        {
-                            TagName = "ExifToolVersion",
-                            TagValue = "1.3.4"
-                        },
-
-                        new()
-                        {
-                            TagName = "ContentType",
-                            TagValue = "text/plain"
-                        }
-                    ]
-                }
-            ]
-        };
+        var file = GetTestWorkingFile();
 
         var addResult = await metsManager.HandleSingleFileUpload(metsUri, file, metsWrapper.ETag!);
         addResult.Success.Should().BeTrue();
 
-        //var (fileMets, mets) = await metsManager.GetStandardMets(metsUri, null);
         var parseResult = await parser.GetMetsFileWrapper(metsUri);
         parseResult.Success.Should().BeTrue();
 
-        //TODO: Read the XMl that MetsManager produced with file id having spaces
         var doc = new XmlDocument();
         doc.Load(emptyMetsFi.FullName);
 
@@ -680,7 +589,7 @@ public class MetsManagerTests
     [Fact]
     public async Task Check_Mets_Extensions_AdmId_And_DivId()
     {
-        var emptyMetsFi = new FileInfo("Outputs/empty-mets-add-files-with-spaces.xml");
+        var emptyMetsFi = new FileInfo("Outputs/empty-mets-add-files-with-spaces-mets-extensions.xml");
         var metsUri = new Uri(emptyMetsFi.FullName);
         var result = await metsManager.CreateStandardMets(metsUri, "Empty Mets File - Add Files");
 
@@ -690,7 +599,27 @@ public class MetsManagerTests
         metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Objects);
         metsWrapper.PhysicalStructure.Directories.Should().Contain(wd => wd.Name == FolderNames.Metadata);
 
-        var file = new WorkingFile
+        var file = GetTestWorkingFile();
+
+        var addResult = await metsManager.HandleSingleFileUpload(metsUri, file, metsWrapper.ETag!);
+        addResult.Success.Should().BeTrue();
+
+        //var (fileMets, mets) = await metsManager.GetStandardMets(metsUri, null);
+        var parseResult = await parser.GetMetsFileWrapper(metsUri);
+        parseResult.Success.Should().BeTrue();
+
+        var updatedWrapper = parseResult.Value!;
+        var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
+
+        objectsDir.Directories.Should().HaveCount(0);
+        objectsDir.Files.Should().HaveCount(1);
+        objectsDir.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme bm.txt");
+        objectsDir.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme bm.txt");
+    }
+
+    private WorkingFile GetTestWorkingFile()
+    {
+        return new WorkingFile
         {
             ContentType = "text/plain",
             LocalPath = "objects/readme bm.txt",
@@ -735,20 +664,5 @@ public class MetsManagerTests
                 }
             ]
         };
-
-        var addResult = await metsManager.HandleSingleFileUpload(metsUri, file, metsWrapper.ETag!);
-        addResult.Success.Should().BeTrue();
-
-        //var (fileMets, mets) = await metsManager.GetStandardMets(metsUri, null);
-        var parseResult = await parser.GetMetsFileWrapper(metsUri);
-        parseResult.Success.Should().BeTrue();
-
-        var updatedWrapper = parseResult.Value!;
-        var objectsDir = updatedWrapper.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
-
-        objectsDir.Directories.Should().HaveCount(0);
-        objectsDir.Files.Should().HaveCount(1);
-        objectsDir.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme bm.txt");
-        objectsDir.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme bm.txt");
     }
 }
