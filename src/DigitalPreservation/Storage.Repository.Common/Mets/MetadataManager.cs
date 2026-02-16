@@ -14,10 +14,11 @@ public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, I
 {
     public Result ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
-        var identifiers = FilenameHelpers.GetIdSafeOperationPath(operationPath);
-
-        TechId = identifiers.TechId;
-        FileAdmId = identifiers.AdmId;
+        var fileId = Constants.FileIdPrefix + operationPath;
+        var admId = Constants.AdmIdPrefix + operationPath;
+        var techId = Constants.TechIdPrefix + operationPath;
+        TechId = techId;
+        FileAdmId = admId;
         PremisIncExifXml = null;
         VirusXml = null;
 
@@ -39,8 +40,8 @@ public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, I
         {
             File = new FileType
             {
-                Id = identifiers.FileId,
-                Admid = { identifiers.AdmId },
+                Id = fileId,
+                Admid = { admId },
                 FLocat =
                 {
                     new FileTypeFLocat

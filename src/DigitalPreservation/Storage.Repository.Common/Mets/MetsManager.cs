@@ -282,7 +282,9 @@ public class MetsManager(
             if (workingBase is null)
                 return Result.Fail(ErrorCodes.BadRequest, "No working directory or working file supplied to add.");
 
-            var identifiers = FilenameHelpers.GetIdSafeOperationPath(operationPath);
+            var physId = Constants.PhysIdPrefix + operationPath;
+            var admId = Constants.AdmIdPrefix + operationPath;
+            var techId = Constants.TechIdPrefix + operationPath;
 
             if (workingBase is not WorkingFile workingFile)
             {
@@ -292,8 +294,8 @@ public class MetsManager(
                     {
                         Type = Constants.DirectoryType,
                         Label = workingDirectory.Name ?? operationPath.GetSlug(),
-                        Id = identifiers.PhysId,
-                        Admid = { identifiers.AdmId }
+                        Id = physId,
+                        Admid = { admId }
                     };
                     div.Div.Add(childDirectoryDiv);
                     var premisFile = new FileFormatMetadata
@@ -302,7 +304,7 @@ public class MetsManager(
                         OriginalName = operationPath, // workingDirectory.LocalPath
                         StorageLocation = null // storageLocation
                     };
-                    fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, identifiers.AdmId, identifiers.TechId));
+                    fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
                 }
                 else
                 {
@@ -310,13 +312,14 @@ public class MetsManager(
                 }
             }
             else
-            { 
+            {
+                var fileId = Constants.FileIdPrefix + operationPath;
                 var childItemDiv = new DivType
                 {
                     Type = Constants.ItemType,
                     Label = workingFile.Name ?? operationPath.GetSlug(),
-                    Id = identifiers.PhysId,
-                    Fptr = { new DivTypeFptr { Fileid = identifiers.FileId } }
+                    Id = physId,
+                    Fptr = { new DivTypeFptr { Fileid = fileId } }
                 };
                 div.Div.Add(childItemDiv);
 
