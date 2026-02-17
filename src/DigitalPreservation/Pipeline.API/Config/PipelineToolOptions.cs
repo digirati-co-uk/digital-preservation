@@ -1,6 +1,6 @@
 ﻿namespace Pipeline.API.Config;
 
-public class BrunnhildeOptions
+public class PipelineToolOptions
 {
     public string? PathToBrunnhilde { get; set; }
     public string? PathToPython { get; set; }
@@ -9,4 +9,5 @@ public class BrunnhildeOptions
     public string? ProcessFolder { get; set; }
     public string? ExifToolLocation { get; set; }
     public int? ReleaseLockAttemptTime { get; set; }
+    public string? PipelineMetadataFolders { get; set; }
 }
