@@ -29,7 +29,7 @@ public class ExecutePipelineJob(string jobIdentifier, string depositId, string? 
 public class ProcessPipelineJobHandler(
     ILogger<ProcessPipelineJobHandler> logger,
     IOptions<StorageOptions> storageOptions,
-    IOptions<BrunnhildeOptions> brunnhildeOptions,
+    IOptions<PipelineToolOptions> pipelineToolOptions,
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient) : IRequestHandler<ExecutePipelineJob, Result>
 
@@ -198,8 +198,8 @@ public class ProcessPipelineJobHandler(
 
     private void CleanupProcessFolder(string depositName)
     {
-        var processFolder = brunnhildeOptions.Value.ProcessFolder;
-        var separator = brunnhildeOptions.Value.DirectorySeparator;
+        var processFolder = pipelineToolOptions.Value.ProcessFolder;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
         Directory.Delete(metadataPathForProcessDelete, true);
     }
@@ -208,8 +208,8 @@ public class ProcessPipelineJobHandler(
         WorkspaceManager workspaceManager, CancellationToken cancellationToken)
     {
         var mountPath = storageOptions.Value.FileMountPath;
-        var separator = brunnhildeOptions.Value.DirectorySeparator;
-        var processFolder = brunnhildeOptions.Value.ProcessFolder;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
+        var processFolder = pipelineToolOptions.Value.ProcessFolder;
 
         var tokenSourceBrunnhilde = new CancellationTokenSource();
         tokensCatalog.Add(brunnhildeProcessId, tokenSourceBrunnhilde);
@@ -260,8 +260,8 @@ public class ProcessPipelineJobHandler(
         }
 
         using var process = new Process();
-        process.StartInfo.FileName = brunnhildeOptions.Value.PathToPython;
-        process.StartInfo.Arguments = $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
+        process.StartInfo.FileName = pipelineToolOptions.Value.PathToPython;
+        process.StartInfo.Arguments = $"  {pipelineToolOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.RedirectStandardOutput = true;
 
@@ -357,9 +357,9 @@ public class ProcessPipelineJobHandler(
 
             var virusDefinition = GetVirusDefinition();
             //add virus definition file to metadata folder
-            var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{brunnhildeOptions.Value.DirectorySeparator}virus-definition{brunnhildeOptions.Value.DirectorySeparator}virus-definition.txt";
+            var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition{pipelineToolOptions.Value.DirectorySeparator}virus-definition.txt";
 
-            Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{brunnhildeOptions.Value.DirectorySeparator}virus-definition");
+            Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition");
             await File.WriteAllTextAsync(virusDefinitionPath, virusDefinition, CancellationToken.None);
 
             await RunExif(metadataPathForProcessFilesAndDirectories, objectPath);
@@ -429,7 +429,7 @@ public class ProcessPipelineJobHandler(
             while (true)
             {
                 var releaseLockResult = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-                var exit = (DateTime.Now - start).Seconds > brunnhildeOptions.Value.ReleaseLockAttemptTime;
+                var exit = (DateTime.Now - start).Seconds > pipelineToolOptions.Value.ReleaseLockAttemptTime;
 
                 if (releaseLockResult.Success)
                 {
@@ -477,9 +477,9 @@ public class ProcessPipelineJobHandler(
     {
         var depositId = workspaceManager.DepositSlug;
         var mountPath = storageOptions.Value.FileMountPath;
-        var separator = brunnhildeOptions.Value.DirectorySeparator;
-        var objectFolder = brunnhildeOptions.Value.ObjectsFolder;
-        var processFolder = brunnhildeOptions.Value.ProcessFolder;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
+        var objectFolder = pipelineToolOptions.Value.ObjectsFolder;
+        var processFolder = pipelineToolOptions.Value.ProcessFolder;
         string metadataPath;
         string metadataProcessPath;
         string objectPath;
@@ -552,7 +552,7 @@ public class ProcessPipelineJobHandler(
             }
         }
 
-        deleteSelection.ContinueIfFail = brunnhildeOptions.Value.PipelineMetadataFolders?.Split(",");
+        deleteSelection.ContinueIfFail = pipelineToolOptions.Value.PipelineMetadataFolders?.Split(",");
         var resultDelete = await workspaceManager.DeleteItems(deleteSelection, request.GetUserName());
         return resultDelete;
     }
@@ -993,8 +993,8 @@ public class ProcessPipelineJobHandler(
     private async Task RunExif(string processPath, string objectPath)
     {
         logger.LogInformation("About to run exif");
-        var exifToolLocation = brunnhildeOptions.Value.ExifToolLocation;
-        var separator = brunnhildeOptions.Value.DirectorySeparator;
+        var exifToolLocation = pipelineToolOptions.Value.ExifToolLocation;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
         logger.LogInformation("Exif tool location {location}", exifToolLocation);
 
         try

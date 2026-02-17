@@ -41,8 +41,8 @@ try
     builder.Services.Configure<StorageOptions>(
         builder.Configuration.GetSection("StorageOptions"));
 
-    builder.Services.Configure<BrunnhildeOptions>(
-        builder.Configuration.GetSection("BrunnhildeOptions"));
+    builder.Services.Configure<PipelineToolOptions>(
+        builder.Configuration.GetSection("PipelineToolOptions"));
 
     builder.Services.Configure<PipelineOptions>(
         builder.Configuration.GetSection("PipelineOptions"));
