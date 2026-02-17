@@ -1,16 +1,9 @@
 ﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Workspace;
 using FluentAssertions;
-using FluentAssertions.Equivalency;
 using Storage.Repository.Common.Mets;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
-using Xunit.Abstractions;
-using Xunit.Sdk;
+
 
 namespace XmlGen.Tests;
 
