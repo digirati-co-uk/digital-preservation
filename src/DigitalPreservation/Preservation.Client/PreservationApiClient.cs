@@ -17,12 +17,12 @@ using Storage.Repository.Common;
 
 namespace Preservation.Client;
 
-internal class PreservationApiClient(
+public class PreservationApiClient(
     HttpClient httpClient,
     ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
     private readonly HttpClient preservationHttpClient = httpClient;
-    
+
 
     public async Task<Result<SearchCollection?>> Search(string text, int? page, int? pageSize, SearchType type, int otherPage, CancellationToken cancellationToken = default)
     {
@@ -41,7 +41,7 @@ internal class PreservationApiClient(
 
     public async Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken)
     {
-        var uri = new Uri(deposit.Id!.AbsolutePath + "/lock" + (force ? "?force=true" : ""), UriKind.Relative); 
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/lock" + (force ? "?force=true" : ""), UriKind.Relative);
         var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
         if (response.IsSuccessStatusCode)
         {
@@ -52,7 +52,7 @@ internal class PreservationApiClient(
 
     public async Task<Result> ReleaseDepositLock(Deposit deposit, CancellationToken cancellationToken)
     {
-        var uri = new Uri(deposit.Id!.AbsolutePath + "/lock", UriKind.Relative); 
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/lock", UriKind.Relative);
         var response = await preservationHttpClient.DeleteAsync(uri, cancellationToken);
         if (response.IsSuccessStatusCode)
         {
@@ -92,9 +92,9 @@ internal class PreservationApiClient(
         var reqPath = $"validation/archivalgroup/{archivalGroupPathUnderRoot}";
         return await TestArchivalGroupPathInternal(reqPath);
     }
-    
+
     public async Task<Result<List<Uri>>> GetAllAgents(CancellationToken cancellationToken)
-    {        
+    {
         try
         {
             var uri = new Uri("/agents", UriKind.Relative);
@@ -120,7 +120,7 @@ internal class PreservationApiClient(
 
     public async Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken)
     {
-        var uri = new Uri(deposit.Id!.AbsolutePath, UriKind.Relative); 
+        var uri = new Uri(deposit.Id!.AbsolutePath, UriKind.Relative);
         try
         {
             HttpResponseMessage response = await preservationHttpClient.PatchAsJsonAsync(uri, deposit, cancellationToken);
@@ -143,7 +143,7 @@ internal class PreservationApiClient(
     }
 
     public async Task<Result> DeleteDeposit(string id, CancellationToken cancellationToken)
-    {        
+    {
         try
         {
             var relPath = $"/deposits/{id}";
@@ -153,6 +153,7 @@ internal class PreservationApiClient(
             {
                 return Result.Ok();
             }
+
             return await response.ToFailResult("Unable to delete deposit");
         }
         catch (Exception e)
@@ -233,8 +234,8 @@ internal class PreservationApiClient(
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
-    
-    
+
+
 
     public async Task<Result<DepositQueryPage>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
     {
@@ -245,7 +246,7 @@ internal class PreservationApiClient(
             var queryString = QueryBuilder.MakeQueryString(query);
             if (queryString.HasText())
             {
-                relPath += $"?{queryString}";   
+                relPath += $"?{queryString}";
             }
             var uri = new Uri(relPath, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
@@ -271,7 +272,7 @@ internal class PreservationApiClient(
     }
 
     public async Task<Result<List<ImportJobResult>>> GetImportJobResultsForDeposit(string depositId, CancellationToken cancellationToken)
-    {        
+    {
         try
         {
             var uri = new Uri($"/deposits/{depositId}/importJobs/results", UriKind.Relative);
@@ -321,7 +322,7 @@ internal class PreservationApiClient(
     }
 
     public async Task<Result<ImportJob>> GetDiffImportJob(string depositId, CancellationToken cancellationToken)
-    { 
+    {
         try
         {
             var relPath = $"/deposits/{depositId}/importjobs/diff";
@@ -376,7 +377,7 @@ internal class PreservationApiClient(
     }
 
     public async Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default)
-    {        
+    {
         try
         {
             var relPath = $"/deposits/{id}";
@@ -436,7 +437,7 @@ internal class PreservationApiClient(
         var response = await preservationHttpClient.SendAsync(req, cancellationToken);
         if (response.IsSuccessStatusCode)
         {
-            return (await response.Content.ReadAsStreamAsync(cancellationToken), 
+            return (await response.Content.ReadAsStreamAsync(cancellationToken),
                 response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream");
         }
 
@@ -451,7 +452,7 @@ internal class PreservationApiClient(
         var response = await preservationHttpClient.SendAsync(req, cancellationToken);
         if (response.IsSuccessStatusCode)
         {
-            return (await response.Content.ReadAsStreamAsync(cancellationToken), 
+            return (await response.Content.ReadAsStreamAsync(cancellationToken),
                 response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream");
         }
 
@@ -589,4 +590,29 @@ internal class PreservationApiClient(
 
 
     }
+
+    public async Task<Result> ActivateDeposit(Deposit deposit, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/activate", UriKind.Relative);
+        var response = await preservationHttpClient.PutAsync(uri, null, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+
+        return await response.ToFailResult("Unable to Activate deposit");
+    }
+
+    public async Task<Result> DeactivateDeposit(Deposit deposit, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(deposit.Id!.AbsolutePath + "/deactivate", UriKind.Relative);
+        var response = await preservationHttpClient.PutAsync(uri, null, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            return Result.Ok();
+        }
+
+        return await response.ToFailResult("Unable to Deactivate deposit");
+    }
+
 }

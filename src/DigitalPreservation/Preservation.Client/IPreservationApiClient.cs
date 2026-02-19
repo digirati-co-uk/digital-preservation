@@ -84,4 +84,9 @@ public interface IPreservationApiClient
         CancellationToken cancellationToken);
 
     Task<Result<LogPipelineStatusResult>> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit, CancellationToken cancellationToken);
+
+    Task<Result> ActivateDeposit(Deposit deposit, CancellationToken cancellationToken);
+    Task<Result> DeactivateDeposit(Deposit deposit, CancellationToken cancellationToken);
+
+
 }
