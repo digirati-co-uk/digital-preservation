@@ -387,13 +387,36 @@ public class MetsParser(
                 FileFormatMetadata? premisMetadata = null;
                 VirusScanMetadata? virusScanMetadata = null;
                 ExifMetadata? exifMetadata = null;
+                string[]? admIdList = null;
                 if (!haveUsedAdmIdAlready)
                 {
+                    if (admId.Contains(" "))
+                    {
+                        admIdList = admId.Split();
+                    }
+
                     if (!lookupMaps.TechMdMap.TryGetValue(admId, out var techMd))
                     {
                         // Archivematica does it this way - fall back to amdSec map
                         lookupMaps.AmdSecMap.TryGetValue(admId, out techMd);
                     }
+
+                    if (techMd == null)
+                    {
+                        //then try the first item in split array if adm id has spaces
+                        //if (admid has spaces)
+                        //then try each part
+                        if (admIdList != null)
+                            foreach (var admIdString in admIdList)
+                            {
+                                lookupMaps.AmdSecMap.TryGetValue(admIdString, out techMd);
+                                if (techMd != null)
+                                    break;
+                            }
+                    }
+
+                    if(techMd == null)
+                        continue;
 
                     var fixity = techMd!.Descendants(XNames.PremisFixity).SingleOrDefault();
                     if (fixity != null)

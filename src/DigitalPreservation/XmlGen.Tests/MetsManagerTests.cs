@@ -473,13 +473,13 @@ public class MetsManagerTests
 
         objectsDir.Directories.Should().HaveCount(0);
         objectsDir.Files.Should().HaveCount(1);
-        objectsDir.Files[0].Name.Should().Be("readme bm.txt");
-        objectsDir.Files[0].LocalPath.Should().Be("objects/readme bm.txt");
+        objectsDir.Files[0].Name.Should().Be("readme ' bm.txt");
+        objectsDir.Files[0].LocalPath.Should().Be("objects/readme ' bm.txt");
         objectsDir.Files[0].Size.Should().Be(9999);
         objectsDir.Files[0].ContentType.Should().Be("text/plain");
         objectsDir.Files[0].Digest.Should().Be("b42a6e9c");
-        objectsDir.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme bm.txt");
-        objectsDir.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme bm.txt");
+        objectsDir.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme+&apos;+bm.txt");
+        objectsDir.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme+&apos;+bm.txt");
 
         //check metadata in METS
         objectsDir.Files[0].GetExifMetadata()?.Tags.Should().HaveCount(2);
@@ -528,7 +528,7 @@ public class MetsManagerTests
         var doc = new XmlDocument();
         doc.Load(emptyMetsFi.FullName);
 
-        XmlNodeList? nodes = doc.SelectNodes("//*[@ID='ADM_objects/readme bm.txt']");
+        var nodes = doc.SelectNodes("//*[@ID='ADM_objects/readme+&apos;+bm.txt']");
 
         if (nodes != null)
         {
@@ -553,7 +553,7 @@ public class MetsManagerTests
                     pronomKey[0]?.InnerText.Should().Be("fmt/101");
 
                 if (originalName != null)
-                    originalName[2]?.InnerText.Should().Be("objects/readme bm.txt");
+                    originalName[2]?.InnerText.Should().Be("objects/readme ' bm.txt");
 
                 //Exif
                 var exifToolVersion = node.SelectNodes("//*[name()='ExifToolVersion']");
@@ -565,7 +565,7 @@ public class MetsManagerTests
         }
 
         //Virus Scan Metadata
-        XmlNodeList? virusNodes = doc.SelectNodes("//*[@ID='digiprovMD_ClamAV_ADM_objects/readme bm.txt']");
+        var virusNodes = doc.SelectNodes("//*[@ID='digiprovMD_ClamAV_ADM_objects/readme+&apos;+bm.txt']");
         if (virusNodes != null)
         {
             foreach (XmlNode virusNode in virusNodes)
@@ -613,8 +613,8 @@ public class MetsManagerTests
 
         objectsDir.Directories.Should().HaveCount(0);
         objectsDir.Files.Should().HaveCount(1);
-        objectsDir.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme bm.txt");
-        objectsDir.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme bm.txt");
+        objectsDir.Files[0].MetsExtensions?.AdmId.Should().Be("ADM_objects/readme+&apos;+bm.txt");
+        objectsDir.Files[0].MetsExtensions?.DivId.Should().Be("PHYS_objects/readme+&apos;+bm.txt");
     }
 
     private WorkingFile GetTestWorkingFile()
@@ -622,9 +622,9 @@ public class MetsManagerTests
         return new WorkingFile
         {
             ContentType = "text/plain",
-            LocalPath = "objects/readme bm.txt",
+            LocalPath = "objects/readme ' bm.txt",
             Size = 9999,
-            Name = "readme bm.txt",
+            Name = "readme ' bm.txt",
             Modified = DateTime.UtcNow,
             Metadata = [
                 new FileFormatMetadata
