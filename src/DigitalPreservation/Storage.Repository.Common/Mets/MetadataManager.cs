@@ -14,9 +14,14 @@ public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, I
 {
     public Result ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
-        var fileId = Constants.FileIdPrefix + operationPath;
-        var admId = Constants.AdmIdPrefix + operationPath;
-        var techId = Constants.TechIdPrefix + operationPath;
+        var identifiers = FilenameHelpers.GetIdSafeOperationPath(operationPath);
+        var objectFile = !string.IsNullOrEmpty(workingFile.LocalPath) &&
+                         !FolderNames.IsMetadata(workingFile.LocalPath!);
+
+        var fileId = objectFile ? identifiers.FileId : Constants.FileIdPrefix + operationPath;
+        var admId = objectFile ? identifiers.AdmId : Constants.AdmIdPrefix + operationPath;
+        var techId = objectFile ? identifiers.TechId : Constants.TechIdPrefix + operationPath;
+
         TechId = techId;
         FileAdmId = admId;
         PremisIncExifXml = null;
