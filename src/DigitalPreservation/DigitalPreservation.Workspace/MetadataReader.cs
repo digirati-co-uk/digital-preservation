@@ -440,7 +440,7 @@ public class MetadataReader : IMetadataReader
 
         if (candidateStrings.Count > 1)
         {
-            candidateStrings.RemoveAll(s => !s.Split('/')[0].StartsWith("siegfried."));
+            candidateStrings.RemoveAll(s => !s.Split('/')[^1].StartsWith("siegfried."));
         }
         
         // ideally, this is one of the three above:
@@ -580,7 +580,7 @@ public class MetadataReader : IMetadataReader
 
     }
 
-    private void SetMetadataHtml(List<Metadata>? metadataList, ExifModel? exifMetadata, DateTime timestamp)
+    public static void SetMetadataHtml(List<Metadata>? metadataList, ExifModel? exifMetadata, DateTime timestamp)
     {
         if (metadataList == null) return;
         var brunnhildeMetadata = metadataList.FirstOrDefault(x => x.Source.ToLower() == "brunnhilde");
@@ -615,15 +615,15 @@ public class MetadataReader : IMetadataReader
         var htmlBody = new StringBuilder();
 
         if (!string.IsNullOrEmpty(brunnhildeHtml))
-            htmlBody.Append($@"<h1>Brunnhilde</h1>
+            htmlBody.Append($@"<h1>File format</h1>
                            <pre>{brunnhildeHtml}</pre>");
 
-        if (!string.IsNullOrEmpty(brunnhildeHtml))
-            htmlBody.Append($@"<h1>ClamAV</h1>
+        if (!string.IsNullOrEmpty(clamHtml))
+            htmlBody.Append($@"<h1>Viruses</h1>
                            <pre>{clamHtml}</pre>");
 
         if (!string.IsNullOrEmpty(replaceNewLineRawOutput))
-            htmlBody.Append($@"<h1>Exif Metadata</h1>
+            htmlBody.Append($@"<h1>Exif</h1>
                            <pre>{replaceNewLineRawOutput}</pre>");
 
         metadataList.Add(new ToolOutput
@@ -642,7 +642,7 @@ public class MetadataReader : IMetadataReader
         htmlBody.Clear();
     }
 
-    private string GetStyle()
+    private static string GetStyle()
     {
         return @"
             <head>

@@ -217,7 +217,7 @@ public class DeleteItemsHandler(
                 }
             }
 
-            if (failedDeleteResult == null)
+            if (failedDeleteResult == null || (request.DeleteSelection.ContinueIfFail != null && request.DeleteSelection.ContinueIfFail.Length > 0 && !request.DeleteSelection.ContinueIfFail.Contains(item.RelativePath)))
             {
                 goodResult.Items.Add(item);
             }
