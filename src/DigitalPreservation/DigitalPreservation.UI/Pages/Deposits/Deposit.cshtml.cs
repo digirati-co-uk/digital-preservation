@@ -340,7 +340,7 @@ public class DepositModel(
 
         return Redirect($"/deposits/{id}");
     }
-
+    
     public async Task<IActionResult> OnPostRunPipeline([FromRoute] string id)
     {
         if (await BindDeposit(id))
@@ -636,6 +636,42 @@ public class DepositModel(
         }
 
         return (allJobs, runningJob);
+    }
+
+    public async Task<IActionResult> OnPostActivateDeposit([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await mediator.Send(new ActivateDeposit(Deposit!));
+            if (result.Success)
+            {
+                TempData["Valid"] = "Activated Deposit.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
+        }
+
+        return Redirect($"/deposits/{id}");
+    }
+    
+    public async Task<IActionResult> OnPostDeactivateDeposit([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await mediator.Send(new DeactivateDeposit(Deposit!));
+            if (result.Success)
+            {
+                TempData["Valid"] = "Deactivated Deposit.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
+        }
+
+        return Redirect($"/deposits/{id}");
     }
 }
 
