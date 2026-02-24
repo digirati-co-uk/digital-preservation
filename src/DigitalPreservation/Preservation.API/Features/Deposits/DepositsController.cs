@@ -333,7 +333,7 @@ public class DepositsController(
 
     public async Task<IActionResult> Active([FromRoute] string id)
     {
-        var setActiveResult = await mediator.Send(new ActiveDeposit(id, true, User));
+        var setActiveResult = await mediator.Send(new ActivateDeposit(id, true, User));
         return this.StatusResponseFromResult(setActiveResult, successStatusCode: 204);
     }
 
@@ -345,7 +345,7 @@ public class DepositsController(
 
     public async Task<IActionResult> Deactivate([FromRoute] string id)
     {
-        var setActiveResult = await mediator.Send(new ActiveDeposit(id, false, User));
+        var setActiveResult = await mediator.Send(new ActivateDeposit(id, false, User));
         return this.StatusResponseFromResult(setActiveResult, successStatusCode: 204);
     }
 

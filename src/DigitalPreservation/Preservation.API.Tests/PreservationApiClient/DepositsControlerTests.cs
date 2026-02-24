@@ -37,7 +37,7 @@ public class DepositsControllerTests
     {
         const string depositId = "dep-1";
         A.CallTo(() => mediator.Send(
-                A<ActiveDeposit>._,
+                A<ActivateDeposit>._,
                 A<CancellationToken>._))
             .Returns(Task.FromResult(Result.Ok()));
 
@@ -51,7 +51,7 @@ public class DepositsControllerTests
     {
         const string depositId = "dep-2";
         A.CallTo(() => mediator.Send(
-                A<ActiveDeposit>._,
+                A<ActivateDeposit>._,
                 A<CancellationToken>._))
             .Returns(Task.FromResult(Result.Ok()));
 
@@ -66,7 +66,7 @@ public class DepositsControllerTests
     public async Task Active_ReturnsProblemDetails_OnFailure()
     {
         A.CallTo(() => mediator.Send(
-                A<ActiveDeposit>._,
+                A<ActivateDeposit>._,
                 A<CancellationToken>._))
             .Returns(Task.FromResult(Result.Fail(ErrorCodes.NotFound, "this failed somehow")));
 
@@ -82,7 +82,7 @@ public class DepositsControllerTests
     public async Task Deactivate_ReturnsProblemDetails_OnFailure()
     {
         A.CallTo(() => mediator.Send(
-                A<ActiveDeposit>._,
+                A<ActivateDeposit>._,
                 A<CancellationToken>._))
             .Returns(Task.FromResult(Result.Fail(ErrorCodes.NotFound, "this failed somehow")));
 
