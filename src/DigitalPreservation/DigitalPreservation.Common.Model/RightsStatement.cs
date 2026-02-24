@@ -3,7 +3,8 @@
 public class RightsStatement
 {
     public static List<RightsStatement> All { get; }
-    
+    public static List<RightsStatement> CreativeCommons { get; }
+
     static RightsStatement()
     {
         All =
@@ -86,8 +87,54 @@ public class RightsStatement
                 Value = new Uri("http://rightsstatements.org/vocab/NKC/1.0/") 
             }
         ];
+
+        CreativeCommons =
+        [
+            new RightsStatement
+            {
+                ShortLabel = "CC0",
+                Label = "Creative Commons Zero",
+                Value = new Uri("https://creativecommons.org/publicdomain/zero/1.0/")
+            },
+            new RightsStatement
+            {
+                ShortLabel = "CC-BY",
+                Label = "Attribution",
+                Value = new Uri("https://creativecommons.org/licenses/by/4.0/")
+            },
+            new RightsStatement
+            {
+                ShortLabel = "CC-BY-SA",
+                Label = "Attribution-ShareAlike",
+                Value = new Uri("https://creativecommons.org/licenses/by-sa/4.0/")
+            },
+            new RightsStatement
+            {
+                ShortLabel = "CC-BY-ND",
+                Label = "Attribution-NoDerivatives",
+                Value = new Uri("https://creativecommons.org/licenses/by-nd/4.0/")
+            },
+            new RightsStatement
+            {
+                ShortLabel = "CC-BY-NC",
+                Label = "Attribution-NonCommercial",
+                Value = new Uri("https://creativecommons.org/licenses/by-nc/4.0/")
+            },
+            new RightsStatement
+            {
+                ShortLabel = "CC-BY-NC-SA",
+                Label = "Attribution-NonCommercial-ShareAlike",
+                Value = new Uri("https://creativecommons.org/licenses/by-nc-sa/4.0/")
+            },
+            new RightsStatement
+            {
+                ShortLabel = "CC-BY-NC-ND",
+                Label = "Attribution-NonCommercial-NoDerivatives",
+                Value = new Uri("https://creativecommons.org/licenses/by-nc-nd/4.0/")
+            },
+        ];
     }
-    
+
     public required string Label { get; set; }
     public required string ShortLabel { get; set; }
     public required Uri Value { get; set; }
