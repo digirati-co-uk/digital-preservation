@@ -71,6 +71,11 @@ public class PatchDepositHandler(
             {
                 entity.ArchivalGroupName = request.Deposit.ArchivalGroupName;
             }
+
+            if (request.Deposit.Archived.HasValue)
+            {
+                entity.Archived = request.Deposit.Archived.Value;
+            }
             
             entity.LastModifiedBy = callerIdentity;
             entity.LastModified = DateTime.UtcNow;

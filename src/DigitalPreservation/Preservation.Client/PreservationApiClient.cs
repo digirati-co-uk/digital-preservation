@@ -2,6 +2,7 @@
 using System.Threading;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
+using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -17,7 +18,7 @@ using Storage.Repository.Common;
 
 namespace Preservation.Client;
 
-internal class PreservationApiClient(
+public class PreservationApiClient(
     HttpClient httpClient,
     ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
@@ -382,7 +383,7 @@ internal class PreservationApiClient(
             var relPath = $"/deposits/{id}";
             var uri = new Uri(relPath, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+              var response = await preservationHttpClient.SendAsync(req, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var deposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
@@ -567,6 +568,31 @@ internal class PreservationApiClient(
         }
     }
 
+    public async Task<Result<ArchiveJobResult>> GetArchiveJobResult(string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = new Uri($"/deposits/{depositId}/depositarchivejobs", UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var jobResult = await response.Content.ReadFromJsonAsync<ArchiveJobResult>(cancellationToken: cancellationToken);
+                if (jobResult is not null)
+                {
+                    return Result.OkNotNull(jobResult);
+                }
+                return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<ArchiveJobResult>("Unable to get pipeline run job result");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<Result<LogPipelineStatusResult>> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit, CancellationToken cancellationToken)
     {
         try
@@ -585,6 +611,29 @@ internal class PreservationApiClient(
         {
             logger.LogError(ex, ex.Message);
             return Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, ex.Message);
+        }
+
+
+    }
+
+    public async Task<Result<ArchiveJobResult>> ArchiveDeposit([FromBody] ArchiveDepositJob archiveDepositJob, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = new Uri("/Deposits/archive-job", UriKind.Relative);
+            var response = await preservationHttpClient.PostAsJsonAsync(uri, archiveDepositJob, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return Result.OkNotNull(new ArchiveJobResult { Status = "Success", DepositId = archiveDepositJob.DepositId });
+            }
+
+            return await response.ToFailNotNullResult<ArchiveJobResult>("Unable to archive deposit.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, ex.Message);
+            return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, ex.Message);
         }
 
 

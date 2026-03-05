@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.12.35728.132
+# Visual Studio Version 18
+VisualStudioVersion = 18.2.11415.280 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Storage.API", "Storage.API\Storage.API.csproj", "{7D9BB221-AF76-4F99-A9E6-0676DC0039DD}"
 EndProject
@@ -52,6 +52,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Storage.API.Importer", "Storage.API.Importer\Storage.API.Importer.csproj", "{1B782935-0CF0-45DE-92E6-36C1586CC0E7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pipeline.API", "Pipeline.API\Pipeline.API.csproj", "{63819D2C-5A3A-44C9-A36E-06D044CE129A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalPreservation.Deposit.Archiver", "DigitalPreservation.Deposit.Archiver\DigitalPreservation.Deposit.Archiver.csproj", "{2F3913FB-5FAC-D51F-4C62-39C4D6FDA555}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -155,6 +157,10 @@ Global
 		{63819D2C-5A3A-44C9-A36E-06D044CE129A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{63819D2C-5A3A-44C9-A36E-06D044CE129A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{63819D2C-5A3A-44C9-A36E-06D044CE129A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2F3913FB-5FAC-D51F-4C62-39C4D6FDA555}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2F3913FB-5FAC-D51F-4C62-39C4D6FDA555}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2F3913FB-5FAC-D51F-4C62-39C4D6FDA555}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2F3913FB-5FAC-D51F-4C62-39C4D6FDA555}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

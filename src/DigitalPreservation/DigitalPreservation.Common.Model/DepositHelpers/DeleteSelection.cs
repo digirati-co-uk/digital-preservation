@@ -25,4 +25,10 @@ public class DeleteSelection
     public List<MinimalItem> Items { get; set; } = [];
 
     public string[]? ContinueIfFail { get; set; } = [];
+
+    [JsonPropertyOrder(5)]
+    [JsonPropertyName("deleteFromMets")]
+    public bool DeleteDirectlyInAws { get; set; }
+
+
 }

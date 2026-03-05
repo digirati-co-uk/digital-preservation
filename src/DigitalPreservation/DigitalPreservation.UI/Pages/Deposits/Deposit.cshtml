@@ -25,11 +25,11 @@
     ViewData["Title"] = Model.GetDisplayTitle();
     ViewData["section"] = "deposits";
 
-    var jobRunning = false;
-    if (Model.RunningPipelineJob != null)
+    var jobRunningOrArchived = false;
+    if (Model.RunningPipelineJob != null || Model.Deposit?.Archived != null)
     {
         TempData.Remove("MisMatchCount");
-        jobRunning = true;
+        jobRunningOrArchived = true;
     }
 }
 
@@ -50,81 +50,82 @@
                         Actions
                     </button>
                     <ul class="dropdown-menu">
-                        @if (Model.Deposit?.LockedBy != null)
-                        {
-                            <li>
-                                <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ReleaseLock">
-                                    <svg class="bi"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
-                                </button>
-                            </li>
-                        }
-                        else
-                        {
-                            <li>
-                                <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="Lock">
-                                    <svg class="bi"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
-                                </button>
-                            </li>
-                        }
+                            @if (Model.Deposit?.LockedBy != null)
+                            {
+                                <li>
+                                    <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ReleaseLock">
+                                        <svg class="bi"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
+                                    </button>
+                                </li>
+                            }
+                            else
+                            {
+                                <li>
+                                    <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="Lock">
+                                        <svg class="bi"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
+                                    </button>
+                                </li>
+                            }
 
-                        @if (Model.ShowPipeline)
-                        {
-                            <li>
-                                <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="RunPipeline">
-                                    <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
-                                </button>
-                            </li>
-                            <li>
-                                <button disabled="@(!jobRunning)" class="dropdown-item @(!jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ForceCompletePipelineRun">
-                                    <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
-                                </button>
-                            </li>
-                        }
+                            @if (Model.ShowPipeline)
+                            {
+                                <li>
+                                    <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="RunPipeline">
+                                        <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
+                                    </button>
+                                </li>
+                                <li>
+                                <button disabled="@(!jobRunningOrArchived || Model.Deposit?.Archived != null)" class="dropdown-item @(!jobRunningOrArchived || Model.Deposit?.Archived != null ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ForceCompletePipelineRun">
+                                        <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
+                                    </button>
+                                </li>
+                            }
 
-                        <li>
-                            <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ValidateStorage">
-                                <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
-                            </button>
-                        </li>
-                        <li>
-                            <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
-                                <svg class="bi"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
-                            </button>
-                        </li>
-                        <li>
-                            <button class="dropdown-item text-primary" type="button" id="toggleRhs"
-                                    data-bs-toggle="collapse" data-bs-target="#sidebarInfoPanel" aria-expanded="true" aria-controls="sidebarInfoPanel">
-                                <svg class="bi"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
-                            </button>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                            <button @(jobRunning ? " disabled=disabled" : "") class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="button" id="selectNonMets">
-                                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
-                            </button>
-                        </li>
-                        <li>
-                            <button @(jobRunning ? " disabled=disabled" : "") class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
-                                <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
-                            </button>
-                        </li>
-                        <li>
-                            <button @(jobRunning ? " disabled=disabled" : "") class="dropdown-item @(jobRunning ? "text-secondary" : "text-danger")" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
-                                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
-                            </button>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                            <a class="dropdown-item text-primary" role="button" target="_blank" href="@Model.GetDepositLocation()">
-                                <svg class="bi"><use xlink:href="#cloud"/></svg><span class="ms-2">Open Deposit location</span>
-                            </a>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                            <button @(jobRunning ? " disabled=disabled" : "") class="dropdown-item @(jobRunning ? "text-secondary" : "text-danger")" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
-                                <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
-                            </button>
-                        </li>
+                            <li>
+                                <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ValidateStorage">
+                                    <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
+                                    <svg class="bi"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item text-primary" type="button" id="toggleRhs"
+                                        data-bs-toggle="collapse" data-bs-target="#sidebarInfoPanel" aria-expanded="true" aria-controls="sidebarInfoPanel">
+                                    <svg class="bi"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button @(jobRunningOrArchived ? " disabled=disabled" : "") class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="button" id="selectNonMets">
+                                    <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button @(jobRunningOrArchived ? " disabled=disabled" : "") class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
+                                    <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button @(jobRunningOrArchived ? " disabled=disabled" : "") class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-danger")" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
+                                    <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
+                                </button>
+                            </li>
+
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-primary" role="button" target="_blank" href="@Model.GetDepositLocation()">
+                                    <svg class="bi"><use xlink:href="#cloud"/></svg><span class="ms-2">Open Deposit location</span>
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button @(jobRunningOrArchived ? " disabled=disabled" : "") class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-danger")" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
+                                    <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
+                                </button>
+                            </li>
                     </ul>
                 </div>
             </form>
@@ -133,20 +134,20 @@
 </div>
 
 <div>
-    @if (!jobRunning && TempData["Error"] != null)
+    @if (!jobRunningOrArchived && TempData["Error"] != null)
     {
         <div class="alert alert-danger" role="alert">
             <p>@Html.Raw(TempData["Error"])</p>
         </div>
     }
-    @if (!jobRunning && TempData["Deleted"] != null)
+    @if (!jobRunningOrArchived && TempData["Deleted"] != null)
     {
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         <p>@Html.Raw(TempData["Deleted"])</p>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     }
-    @if (!jobRunning && TempData["Updated"] != null)
+    @if (!jobRunningOrArchived && TempData["Updated"] != null)
     {
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         <p>@Html.Raw(TempData["Updated"])</p>
@@ -160,7 +161,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     }
-    @if (!jobRunning && TempData["AccessConditionsUpdated"] != null)
+    @if (!jobRunningOrArchived && TempData["AccessConditionsUpdated"] != null)
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["AccessConditionsUpdated"])</p>
@@ -175,7 +176,7 @@
         </div>
     }
     
-    @if (!jobRunning && Model.FilesWithViruses.Any())
+    @if (!jobRunningOrArchived && Model.FilesWithViruses.Any())
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <p>Files with viruses</p>
@@ -188,8 +189,15 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
+    
+    @if (Model.Deposit is { Archived: not null })
+    {
+        <div class="alert alert-success" role="alert">
+            <p>This preserved deposit has been archived.</p>
+        </div>
+    }
 
-    @if (!jobRunning && TempData["MisMatchCount"] != null)
+    @if (!jobRunningOrArchived && TempData["MisMatchCount"] != null)
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
@@ -266,7 +274,7 @@
     }
 
     
-    @if (jobRunning && TempData["Valid"] == null)
+    @if (jobRunningOrArchived && TempData["Valid"] == null && Model.Deposit?.Archived == null)
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <p>This deposit has a metadata pipeline being run by @Model.Deposit!.LockedBy?.GetSlug() . <br/> 
@@ -439,7 +447,7 @@
                     }
                     else
                     {
-                        <a class="btn btn-sm btn-primary me-2 @(!jobRunning && !(TempData["MisMatchCount"] != null && Convert.ToInt32(TempData["MisMatchCount"]!.ToString()) > 0) ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
+                        <a class="btn btn-sm btn-primary me-2 @(!jobRunningOrArchived && !(TempData["MisMatchCount"] != null && Convert.ToInt32(TempData["MisMatchCount"]!.ToString()) > 0) ? "" : "disabled")" role="button" href="/deposits/@Model.Id/importjobs/diff">
                             <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Create diff import job</span>
                         </a>
                         <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">

@@ -95,6 +95,10 @@ public class Deposit : Resource
     [JsonPropertyName("lockDate")]
     public DateTime? LockDate { get; set; }
 
+    [JsonPropertyOrder(703)]
+    [JsonPropertyName("archived")]
+    public DateTime? Archived { get; set; }  // if not null can't be reused?
+
     public const string BasePathElement = "deposits";
     
     /// <summary>

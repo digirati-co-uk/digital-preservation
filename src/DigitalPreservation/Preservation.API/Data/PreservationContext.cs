@@ -12,6 +12,7 @@ public class PreservationContext : DbContext
     public DbSet<ImportJob> ImportJobs { get; set; }
     public DbSet<ArchivalGroupEvent> ArchivalGroupEvents { get; set; }
     public DbSet<PipelineRunJob> PipelineRunJobs { get; set; }
+    public DbSet<DepositArchiveJob> DepositArchiveJobs { get; set; }
 
     public PreservationContext(DbContextOptions<PreservationContext> options) : base(options)
     {

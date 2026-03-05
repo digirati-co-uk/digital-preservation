@@ -96,9 +96,10 @@ File is in both
     <tr class="deposit-row @("where-" + where)" 
         data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-mismatches="@mismatches" data-metadata="@isMetadata">
         <td aria-label="select-row">
-            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && file.LocalPath != "mets.xml")
+            <!--Active: true,-->
+            @if (Model is { Editable: true, LockedByOtherUser: false } && file.LocalPath != "mets.xml")
             {
-                <input class="form-check-input item-selector item-file" type="checkbox" 
+                <input class="form-check-input item-selector item-file" type="checkbox"
                        value="@file.LocalPath" id="@("is-" + Model.RowCounter.Count)">
                 @if (mismatches)
                 {

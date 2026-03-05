@@ -1,4 +1,4 @@
-// ReSharper disable EntityFramework.ModelValidation.UnlimitedStringLength
+﻿// ReSharper disable EntityFramework.ModelValidation.UnlimitedStringLength
 
 namespace Preservation.API.Data.Entities;
 
@@ -53,4 +53,5 @@ public class Deposit
     public string? LockedBy { get; set; }
     
     public DateTime? LockDate { get; set; }
+    public DateTime? Archived { get; set; }
 }

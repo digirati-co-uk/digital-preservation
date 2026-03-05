@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
+using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Transit.Combined;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
@@ -544,6 +545,18 @@ public class DepositModel(
 
         TempData["Error"] = fetchResultsResult.CodeAndMessage();
         return [];
+    }
+
+    public async Task<bool> DepositArchived()
+    {
+        var fetchResultsResult = await DepositJobResultFetcher.GetArchiveJobResult(Id, mediator);
+        if (fetchResultsResult.Success)
+        {
+            var archiveJobResult = fetchResultsResult.Value!;
+            return archiveJobResult.DepositId != null;
+        }
+
+        return false;
     }
 
     public string GetDepositLocation()
