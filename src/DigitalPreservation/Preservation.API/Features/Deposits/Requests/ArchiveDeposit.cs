@@ -39,9 +39,8 @@ public class ArchiveDepositHandler(
             StartTime = request.ArchiveDepositJob.StartTime!.Value,
             EndTime = request.ArchiveDepositJob.EndTime,
             BatchNumber = request.ArchiveDepositJob.BatchNumber!,
-            Id = request.ArchiveDepositJob.Id!
-            //TODO: further up the stack put these into the 
-            //DeletedCount = update later 
+            Id = request.ArchiveDepositJob.Id!,
+            DeletedCount = request.ArchiveDepositJob.DeletedCount!.Value
         };
 
         dbContext.DepositArchiveJobs.Add(newArchiveJob);

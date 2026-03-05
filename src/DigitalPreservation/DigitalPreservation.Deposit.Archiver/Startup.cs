@@ -40,17 +40,19 @@ public class Startup
 
         //TODO: above returns scope URI too
         var fromServerlessTemplateoauthAzureSecret = Environment.GetEnvironmentVariable("oauthAzureSecret");
-        var secreatJsonString = GetSecretValue(fromServerlessTemplateoauthAzureSecret!, "eu-west-1");
+        var secretJsonString = GetSecretValue(fromServerlessTemplateoauthAzureSecret!, "eu-west-1");
+
+        var secretModel = System.Text.Json.JsonSerializer.Deserialize<AuthProviderModel>(secretJsonString);
 
         var netEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-        var fromServerlessTemplate2 = Environment.GetEnvironmentVariable("CLIENT_ID2");
+
         //// Example of creating the IConfiguration object and
         //// adding it to the dependency injection container.
         var builder = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", false, true)
-            .AddJsonFile($"appsettings.{netEnv}.json", false, true);
-            //.AddJsonFile("appsettings.json", true);
+            //.AddJsonFile("appsettings.json", false, true)
+            //.AddJsonFile($"appsettings.{netEnv}.json", false, true);
+            .AddJsonFile("appsettings.json", false);
 
 
         //// Add AWS Systems Manager as a potential provider for the configuration. This is 
@@ -70,8 +72,10 @@ public class Startup
         //// Example of using the AWSSDK.Extensions.NETCore.Setup NuGet package to add
         //// the Amazon S3 service client to the dependency injection container.
         //services.AddAWSService<Amazon.S3.IAmazonS3>()
-        services.AddSingleton<ITokenScope>(x =>
-            new TokenScope(configuration.GetSection("AzureAd:ScopeUri").Value));
+        //services.AddSingleton<ITokenScope>(x =>
+        //    new TokenScope(configuration.GetSection("AzureAd:ScopeUri").Value));
+
+        services.AddSingleton<ITokenScope>(x => new TokenScope(secretModel?.ScopeUri));
 
         services.ConfigureForwardedHeaders()
             .AddHttpContextAccessor()
@@ -81,8 +85,12 @@ public class Startup
             })
             .AddMachinePreservationClient(configuration, "ArchiverLambda");
 
-        var accessTokenProviderOptions = new AccessTokenProviderOptions();
-        accessTokenProviderOptions.ClientId = Environment.GetEnvironmentVariable("CLIENT_ID");
+        var accessTokenProviderOptions = new AccessTokenProviderOptions
+        {
+            ClientId = secretModel?.ClientId,
+            ClientSecret = secretModel?.ClientSecret,
+            TenantId = secretModel?.TenantId
+        };
         //configuration.GetSection("TokenProvider").Bind(accessTokenProviderOptions); 
         services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
         services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
@@ -102,7 +110,7 @@ public class Startup
         services.AddSingleton<WorkspaceManagerFactory>();
     }
 
-    private  string GetSecretValue(string secretName, string region)
+    private string GetSecretValue(string secretName, string region)
     {
         var client = new AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(region));
 
