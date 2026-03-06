@@ -1,0 +1,29 @@
+# Use AWS-provided base image for .NET 8
+FROM public.ecr.aws/lambda/dotnet:8-preview AS base
+
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY ["src/DigitalPreservation/DigitalPreservation.Deposit.Archiver/DigitalPreservation.Deposit.Archiver.csproj", "Deposit.Archiver/"]
+RUN dotnet restore "Deposit.Archiver/DigitalPreservation.Deposit.Archiver.csproj"
+
+COPY src/DigitalPreservation/ .
+WORKDIR "/src/Deposit.Archiver"
+RUN dotnet build "DigitalPreservation.Deposit.Archiver.csproj" -c Release -o /app/build
+
+# Publish stage
+FROM build AS publish
+RUN dotnet publish "DigitalPreservation.Deposit.Archiver.csproj" \
+    --configuration Release \
+    --runtime linux-x64 \
+    --self-contained false \
+    --output /app/publish \
+    -p:PublishReadyToRun=true
+
+# Final stage
+FROM base AS final
+WORKDIR /var/task
+COPY --from=publish /app/publish .
+
+# Set the entry point to the function handler
+CMD ["DigitalPreservation.Deposit.Archiver::DigitalPreservation.Deposit.Archiver.Functions_Get_Generated::Get"]

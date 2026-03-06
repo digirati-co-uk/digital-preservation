@@ -67,6 +67,8 @@ public class Startup
             //.WriteTo.File("log-.txt", rollingInterval: RollingInterval.Day) locally for testing
             .CreateLogger();
 
+        Log.Logger.Information("Secret model {secretModel}", secretModel);
+
         services.AddSingleton<IConfiguration>(configuration);
 
         //// Example of using the AWSSDK.Extensions.NETCore.Setup NuGet package to add

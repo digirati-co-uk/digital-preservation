@@ -1,5 +1,4 @@
-﻿using System.Diagnostics.Eventing.Reader;
-using Amazon.Lambda.Annotations;
+﻿using Amazon.Lambda.Annotations;
 using Amazon.Lambda.Annotations.APIGateway;
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
@@ -17,6 +16,8 @@ using Polly.Retry;
 using Preservation.Client;
 using Serilog;
 using Storage.Repository.Common;
+using System.Diagnostics;
+using System.Diagnostics.Eventing.Reader;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
@@ -80,6 +81,16 @@ public class Functions
 
         var deposits = await preservationApiClient.GetDeposits(query, CancellationToken.None);
         Log.Logger.Information("Got deposits for archiving from preservation API");
+
+        if (deposits.Value != null && deposits.Value.Deposits.Count > 0)
+        {
+            Log.Logger.Information("Deposits count {depositsCount}", deposits.Value?.Deposits.Count);
+        }
+        else
+        {
+            Log.Logger.Error("No deposits returned {errorCode} {errorMessage}", deposits.ErrorCode, deposits.ErrorMessage);
+        }
+
         var startTime = DateTime.UtcNow;
         var batchNumber = identityMinter.MintIdentity("ArchiveJob");
 
@@ -122,10 +133,14 @@ public class Functions
             archiveJob.Id = identityMinter.MintIdentity("ArchiveJobIdentifier");
             archiveJob.DeletedCount = deletedCount;
 
+            
             var archiveJobResult = await RetryArchiveDepositResult.ExecuteAsync(() =>
                 preservationApiClient.ArchiveDeposit(archiveJob, CancellationToken.None));
 
-            if(archiveJobResult.Failure)
+            if (archiveJobResult.Success)
+                Log.Logger.Information("Successfully archived deposit {depositId} in batch {batchNumber}", archiveJob.DepositId, batchNumber);
+            
+            if (archiveJobResult.Failure)
                 Log.Logger.Information("Issue archiving deposit {depositId} in batch {batchNumber}", archiveJob.DepositId, batchNumber);
 
         }
@@ -149,6 +164,7 @@ public class Functions
 
         if (deleteFilesResult.Success)
         {
+            Log.Logger.Information("Successfully deleted files for deposit {depositId}", depositId);
             var markerFileUploadResult = await UploadMarkerFile(workspaceManager);
 
             if (!markerFileUploadResult.Success)
@@ -174,23 +190,24 @@ public class Functions
 
     private async Task<Result<SingleFileUploadResult>> UploadMarkerFile(WorkspaceManager workspaceManager)
     {
-        Result<SingleFileUploadResult>? uploadMarkerFile;
-        await using (StreamWriter sw = new StreamWriter("archived-marker.txt"))
-        {
-            await sw.WriteLineAsync(DateTime.UtcNow.ToString("s"));
-        }
+        var tmpPath = "/tmp/markerfile"; //TODO: put in config
 
-        var fi = new FileInfo("archived-marker.txt");
+        Directory.CreateDirectory(tmpPath);
+        await File.WriteAllTextAsync($"{tmpPath}/archived.txt", DateTime.UtcNow.ToString("s"), CancellationToken.None);
+
+        Result<SingleFileUploadResult>? uploadMarkerFile;
+
+        var fi = new FileInfo($"{tmpPath}/archived.txt");
         var checksum = Checksum.Sha256FromFile(fi);
 
-        await using (Stream stream = File.OpenRead("archived-marker.txt"))
+        await using (Stream stream = File.OpenRead($"{tmpPath}/archived.txt"))
         {
-            uploadMarkerFile = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, "archived-marker.txt",
-                checksum!, "archived-marker.txt", "text/plain", "", "archiver", true);
+            uploadMarkerFile = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, "archived.txt",
+                checksum!, "archived.txt", "text/plain", "", "archiver", true);
         }
 
-        if (File.Exists("archived-marker.txt"))
-            File.Delete("archived-marker.txt");
+        if (File.Exists($"{tmpPath}/archived.txt"))
+            File.Delete($"{tmpPath}/archived.txt");
 
         return uploadMarkerFile;
     }
