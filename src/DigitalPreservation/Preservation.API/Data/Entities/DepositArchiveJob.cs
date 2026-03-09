@@ -11,7 +11,7 @@ public class DepositArchiveJob
     public required DateTime? EndTime { get; set; }
 
     public int DeletedCount { get; set; }
-    public string Errors { get; set; }
+    public string? Errors { get; set; }
 
-    public string BatchNumber { get; set; }
+    public string? BatchNumber { get; set; }
 }
