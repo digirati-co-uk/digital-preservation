@@ -30,5 +30,7 @@ public class DeleteSelection
     [JsonPropertyName("deleteFromMets")]
     public bool DeleteDirectlyInAws { get; set; }
 
+    public string[]? DeletableRootFiles { get; set; } = [];
+
 
 }

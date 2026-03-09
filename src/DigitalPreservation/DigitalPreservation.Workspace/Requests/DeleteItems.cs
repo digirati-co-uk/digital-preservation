@@ -109,8 +109,14 @@ public class DeleteItemsHandler(
 
                     if (fileToDelete != null && !fileToDelete.LocalPath!.Contains('/'))
                     {
-                        failedDeleteResult = Result.FailNotNull<ItemsAffected>(
-                            ErrorCodes.BadRequest, "You cannot delete files in the root.");
+                        //root file
+                        if (request.DeleteSelection.DeletableRootFiles != null &&
+                            !request.DeleteSelection.DeletableRootFiles.Contains(fileToDelete.LocalPath!))
+                        {
+                            failedDeleteResult = Result.FailNotNull<ItemsAffected>(
+                                ErrorCodes.BadRequest, "You cannot delete files in the root.");
+                        }
+
                     }
                 }
 

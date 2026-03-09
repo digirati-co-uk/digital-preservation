@@ -18,6 +18,7 @@ using Serilog;
 using Storage.Repository.Common;
 using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
+using static System.Reflection.Metadata.BlobBuilder;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
@@ -67,23 +68,23 @@ public class Functions
     [RestApi(LambdaHttpMethod.Get, "/")]
     public async Task<IHttpResult> Get(ILambdaContext context)
     {
-        //TODO: get top 5 inactive deposits
         var query = new DepositQuery
         {
             Status = "preserved",
-            OrderBy = DepositQuery.Preserved,
+            OrderBy = DepositQuery.LastModified,
             Page = 0,
-            PageSize = 5, //TODO: get this from config
-            Ascending = false,
+            PageSize = Convert.ToInt32(Environment.GetEnvironmentVariable("BatchSize")),
+            Ascending = true,
             ShowAll = true,
-            Archived = false
+            Archived = false,
+            LastModifiedBefore = DateTime.UtcNow.AddMonths(Convert.ToInt32(Environment.GetEnvironmentVariable("LastModifiedMonths")))
         };
 
         var deposits = await preservationApiClient.GetDeposits(query, CancellationToken.None);
-        Log.Logger.Information("Got deposits for archiving from preservation API");
 
         if (deposits.Value != null && deposits.Value.Deposits.Count > 0)
         {
+            Log.Logger.Information("Got deposits for archiving from preservation API");
             Log.Logger.Information("Deposits count {depositsCount}", deposits.Value?.Deposits.Count);
         }
         else
@@ -108,18 +109,36 @@ public class Functions
                         Log.Logger.Information("issue releasing lock for {depositId}", depositId);
 
                     if (workspaceManager.Value != null && deposit.Files != null)
+                    {
+                        Log.Logger.Information("Calling archive for deposit {depositId}", depositId);
                         await Archive(workspaceManager.Value, depositId, deposit.Files);
+                    }
+
                 }
 
                 var archivedDeposit = archiveJobsList.FirstOrDefault(x => x.DepositId == depositId);
+                Log.Logger.Information("Archived deposit is not null for deposit {archivedDeposit}. Deposit Uri: {depositUri}", archivedDeposit != null, archivedDeposit?.DepositUri);
 
                 if (archivedDeposit == null || (!string.IsNullOrEmpty(archivedDeposit.Errors) && !archivedDeposit.Errors.Contains("No items to delete."))) continue;
 
+                Log.Logger.Information("No errors and Items to delete for deposit id {depositId}", depositId);
                 deposit.Archived = DateTime.UtcNow;
                 var patchDeposit = await preservationApiClient.UpdateDeposit(deposit, CancellationToken.None);
 
-                if(patchDeposit.Failure)
-                    Log.Logger.Information("issue patching deposit for {depositId}", depositId);
+                if (patchDeposit.Failure)
+                {
+                    var index = archiveJobsList.IndexOf(archivedDeposit);
+                    if (index > -1)
+                    {
+                        archiveJobsList[index].Errors = patchDeposit.ErrorMessage;
+                    }
+
+                    Log.Logger.Error("issue patching deposit for {depositId} Error message: {errorMessage}", depositId, patchDeposit.ErrorMessage);
+                }
+
+
+                if (patchDeposit.Success)
+                    Log.Logger.Error("Successfully patched deposit for {depositId}", depositId);
             }
         }
 
@@ -133,7 +152,6 @@ public class Functions
             archiveJob.Id = identityMinter.MintIdentity("ArchiveJobIdentifier");
             archiveJob.DeletedCount = deletedCount;
 
-            
             var archiveJobResult = await RetryArchiveDepositResult.ExecuteAsync(() =>
                 preservationApiClient.ArchiveDeposit(archiveJob, CancellationToken.None));
 
@@ -169,13 +187,15 @@ public class Functions
 
             if (!markerFileUploadResult.Success)
             {
-                Log.Logger.Error("Errors uploading marker file for deposit {depositId}", depositId);
+                Log.Logger.Error("Errors uploading marker file for deposit {depositId} Error message: {errorMessage}", depositId, markerFileUploadResult.ErrorMessage);
                 archiveDepositJob.Errors += markerFileUploadResult.ErrorMessage;
             }
+            else
+            {
+                Log.Logger.Information("Uploaded marker file for deposit {depositId}", depositId);
+                deletedCount += 1;
+            }
 
-            Log.Logger.Information("Uploaded marker file for deposit {depositId}", depositId);
-
-            deletedCount += 1;
         }
 
         if (deleteFilesResult.Failure)
@@ -190,24 +210,25 @@ public class Functions
 
     private async Task<Result<SingleFileUploadResult>> UploadMarkerFile(WorkspaceManager workspaceManager)
     {
-        var tmpPath = "/tmp/markerfile"; //TODO: put in config
+        var tmpPath = Environment.GetEnvironmentVariable("tmpFilesPath");
+        var directorySeparator = Environment.GetEnvironmentVariable("DirectorySeparator");
 
         Directory.CreateDirectory(tmpPath);
-        await File.WriteAllTextAsync($"{tmpPath}/archived.txt", DateTime.UtcNow.ToString("s"), CancellationToken.None);
+        await File.WriteAllTextAsync($"{tmpPath}{directorySeparator}archived.txt", DateTime.UtcNow.ToString("s"), CancellationToken.None);
 
         Result<SingleFileUploadResult>? uploadMarkerFile;
 
-        var fi = new FileInfo($"{tmpPath}/archived.txt");
+        var fi = new FileInfo($"{tmpPath}{directorySeparator}archived.txt");
         var checksum = Checksum.Sha256FromFile(fi);
 
-        await using (Stream stream = File.OpenRead($"{tmpPath}/archived.txt"))
+        await using (Stream stream = File.OpenRead($"{tmpPath}{directorySeparator}archived.txt"))
         {
             uploadMarkerFile = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, "archived.txt",
-                checksum!, "archived.txt", "text/plain", "", "archiver", true);
+                checksum!, "archived.txt", "text/plain", "", "archiver", true, true);
         }
 
-        if (File.Exists($"{tmpPath}/archived.txt"))
-            File.Delete($"{tmpPath}/archived.txt");
+        if (File.Exists($"{tmpPath}{directorySeparator}archived.txt"))
+            File.Delete($"{tmpPath}{directorySeparator}archived.txt");
 
         return uploadMarkerFile;
     }
@@ -223,7 +244,8 @@ public class Functions
             DeleteFromDepositFiles = true,
             DeleteFromMets = false,
             Deposit = null,
-            Items = []
+            Items = [],
+            DeletableRootFiles = ["archived.txt"]
         };
 
         var metadataPath = $"{FolderNames.Metadata}";
@@ -231,7 +253,7 @@ public class Functions
 
         foreach (var file in files)
         {
-            if (file.LocalPath!.StartsWith(metadataPath) || file.LocalPath!.StartsWith(objectsPath))
+            if (file.LocalPath!.StartsWith(metadataPath) || file.LocalPath!.StartsWith(objectsPath) || file.LocalPath!.Contains("archived.txt"))
             {
                 deleteSelection.Items.Add(new MinimalItem
                 {

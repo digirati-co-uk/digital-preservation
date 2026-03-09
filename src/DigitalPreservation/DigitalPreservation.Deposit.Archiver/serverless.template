@@ -25,7 +25,11 @@
         ],
         "Environment": {
           "Variables": {
-            "oauthAzureSecret": "/preservation/dev/ui/oauth_azure"
+            "oauthAzureSecret": "/preservation/dev/ui/oauth_azure",
+            "tmpFilesPath": "/tmp/markerfile",
+            "DirectorySeparator": "/",
+            "BatchSize": "5",
+            "LastModifiedMonths": "-6"
           }
         },
         "PackageType": "Image",
