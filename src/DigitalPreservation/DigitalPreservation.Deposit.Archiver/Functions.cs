@@ -188,7 +188,7 @@ public class Functions
             DepositUri = depositUri.AbsoluteUri,
         };
 
-        if (deleteFilesResult.Success)
+        if (deleteFilesResult.Success || (deleteFilesResult.ErrorMessage != null && deleteFilesResult.ErrorMessage.Contains("No items to delete.")))
         {
             Log.Logger.Information("Successfully deleted files for deposit {depositId}", depositId);
             var markerFileUploadResult = await UploadMarkerFile(workspaceManager);
@@ -203,7 +203,6 @@ public class Functions
                 Log.Logger.Information("Uploaded marker file for deposit {depositId}", depositId);
                 deletedCount += 1;
             }
-
         }
 
         if (deleteFilesResult.Failure)
