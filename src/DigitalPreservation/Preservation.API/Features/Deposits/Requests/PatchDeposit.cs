@@ -34,16 +34,22 @@ public class PatchDepositHandler(
         logger.LogInformation("Patching deposit {id} for user {user}", request.Deposit.Id, callerIdentity);
         try
         {
-            
+            bool? archivalGroupExists = null;
             var mintedId = request.Deposit.Id!.GetSlug();
-            
-            var (archivalGroupExists, validateAgResult) = await ArchivalGroupRequestValidator
-                .ValidateArchivalGroup(dbContext, storageApiClient, request.Deposit, mintedId);
-            if (validateAgResult.Failure)
+
+            if (!request.Deposit.Archived.HasValue)
             {
-                return Result.FailNotNull<Deposit>(validateAgResult.ErrorCode!, validateAgResult.ErrorMessage);
+                var (agExists, validateAgResult) = await ArchivalGroupRequestValidator
+                    .ValidateArchivalGroup(dbContext, storageApiClient, request.Deposit, mintedId);
+
+                if (agExists.HasValue) archivalGroupExists = agExists.Value;
+
+                if (validateAgResult.Failure)
+                {
+                    return Result.FailNotNull<Deposit>(validateAgResult.ErrorCode!, validateAgResult.ErrorMessage);
+                }
             }
-            
+
             var entity = await dbContext.Deposits.SingleAsync(
                 d => d.MintedId == mintedId, cancellationToken: cancellationToken);
 

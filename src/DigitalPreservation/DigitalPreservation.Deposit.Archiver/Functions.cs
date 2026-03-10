@@ -114,31 +114,39 @@ public class Functions
                         await Archive(workspaceManager.Value, depositId, deposit.Files);
                     }
 
-                }
+                    var archivedDeposit = archiveJobsList.FirstOrDefault(x => x.DepositId == depositId);
+                    Log.Logger.Information("Archived deposit is not null for deposit {archivedDeposit}. Deposit Uri: {depositUri}", archivedDeposit != null, archivedDeposit?.DepositUri);
 
-                var archivedDeposit = archiveJobsList.FirstOrDefault(x => x.DepositId == depositId);
-                Log.Logger.Information("Archived deposit is not null for deposit {archivedDeposit}. Deposit Uri: {depositUri}", archivedDeposit != null, archivedDeposit?.DepositUri);
+                    if (archivedDeposit == null || (!string.IsNullOrEmpty(archivedDeposit.Errors) && !archivedDeposit.Errors.Contains("No items to delete."))) continue;
 
-                if (archivedDeposit == null || (!string.IsNullOrEmpty(archivedDeposit.Errors) && !archivedDeposit.Errors.Contains("No items to delete."))) continue;
+                    Log.Logger.Information("No errors and Items to delete for deposit id {depositId}", depositId);
+                    deposit.Archived = DateTime.UtcNow;
+                    var patchDeposit = await preservationApiClient.UpdateDeposit(deposit, CancellationToken.None);
 
-                Log.Logger.Information("No errors and Items to delete for deposit id {depositId}", depositId);
-                deposit.Archived = DateTime.UtcNow;
-                var patchDeposit = await preservationApiClient.UpdateDeposit(deposit, CancellationToken.None);
-
-                if (patchDeposit.Failure)
-                {
-                    var index = archiveJobsList.IndexOf(archivedDeposit);
-                    if (index > -1)
+                    if (patchDeposit.Failure)
                     {
-                        archiveJobsList[index].Errors = patchDeposit.ErrorMessage;
+                        Log.Logger.Error("issue patching deposit for {depositId} Error message: {errorMessage}", depositId, patchDeposit.ErrorMessage);
+                        
+                        if (workspaceManager.Value != null)
+                        {
+                            var deleteFilesResult = await DeleteDepositFiles(workspaceManager.Value);
+
+                            if(!deleteFilesResult.Success) 
+                                Log.Logger.Error("Could not delete archived.txt file for {depositId} Error message: {errorMessage}", depositId, deleteFilesResult.ErrorMessage);
+                        }
+
+                        var index = archiveJobsList.IndexOf(archivedDeposit);
+                        if (index > -1)
+                        {
+                            archiveJobsList[index].Errors = patchDeposit.ErrorMessage;
+                        }
                     }
 
-                    Log.Logger.Error("issue patching deposit for {depositId} Error message: {errorMessage}", depositId, patchDeposit.ErrorMessage);
+
+                    if (patchDeposit.Success)
+                        Log.Logger.Error("Successfully patched deposit for {depositId}", depositId);
+
                 }
-
-
-                if (patchDeposit.Success)
-                    Log.Logger.Error("Successfully patched deposit for {depositId}", depositId);
             }
         }
 

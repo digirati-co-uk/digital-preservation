@@ -23,7 +23,8 @@ public class UploadFileToDeposit(
     string checksum, 
     string depositFileName, 
     string contentType,
-    string metsETag) : IRequest<Result<WorkingFile?>>
+    string metsETag,
+    bool updateMets = true) : IRequest<Result<WorkingFile?>>
 {
     public bool IsBagItLayout { get; } = isBagItLayout;
     public Uri RootUri { get; } = rootUri;
@@ -35,6 +36,7 @@ public class UploadFileToDeposit(
     public string DepositFileName { get; } = depositFileName;
     public string ContentType { get; } = contentType;
     public string MetsETag { get; } = metsETag;
+    public bool UpdateMets { get; set; } = updateMets;
 }
 
 public class UploadFileToDepositHandler(
@@ -62,7 +64,7 @@ public class UploadFileToDepositHandler(
             var response = await s3Client.PutObjectAsync(req, cancellationToken);
 
             var respChecksum = AwsChecksum.FromBase64ToHex(response.ChecksumSHA256);
-            if(response is { ChecksumSHA256: not null } && respChecksum == request.Checksum)
+            if (response is { ChecksumSHA256: not null } && respChecksum == request.Checksum)
             {
                 // we need the Modified date that S3 set when it saved this file, which I don't think we can get 
                 // without a further HEAD request:
@@ -77,13 +79,16 @@ public class UploadFileToDepositHandler(
                 {
                     throw new Exception("HEAD checksum does not match PUT checksum");
                 }
-                
+
                 var s3AssignedContentType = headResponse.Headers.ContentType;
                 var contentTypeToBeStored = request.ContentType;
                 if (contentTypeToBeStored.IsNullOrWhiteSpace())
                 {
-                    contentTypeToBeStored = s3AssignedContentType.HasText() ? s3AssignedContentType : ContentTypes.NotIdentified;
+                    contentTypeToBeStored = s3AssignedContentType.HasText()
+                        ? s3AssignedContentType
+                        : ContentTypes.NotIdentified;
                 }
+
                 var file = new WorkingFile
                 {
                     LocalPath = fullKey.RemoveStart(s3Uri.Key)!,
@@ -91,20 +96,26 @@ public class UploadFileToDepositHandler(
                     Digest = request.Checksum.ToLowerInvariant(),
                     Size = request.Size,
                     Name = request.DepositFileName,
-                    Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
+                    Modified = headResponse.LastModified
+                        .ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
                 };
+
                 var saveResult = await storage.AddToDepositFileSystem(request.RootUri, file, cancellationToken);
-                if (saveResult.Success)
+
+                if (saveResult.Success && request.UpdateMets)
                 {
                     var result = await metsManager.HandleSingleFileUpload(request.RootUri, file, request.MetsETag);
                     if (result.Success)
                     {
                         return Result.Ok(file);
                     }
+
                     return Result.Fail<WorkingFile>(result.ErrorCode!, result.ErrorMessage);
                 }
+
                 return Result.Generify<WorkingFile?>(saveResult);
             }
+
             // The file we just saved in the Deposit does not the same checksum we think it should have.
             // We need to delete the file from the Deposit (see Azure 105199)
             var checksumMessage =

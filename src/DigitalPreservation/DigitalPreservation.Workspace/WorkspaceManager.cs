@@ -279,7 +279,9 @@ public class WorkspaceManager(
             checksum,
             fileName,
             contentType,
-            Deposit.MetsETag!));
+            Deposit.MetsETag!,
+            !archiverFile));
+
         if (uploadFileResult.Success)
         {
             var result = new SingleFileUploadResult
