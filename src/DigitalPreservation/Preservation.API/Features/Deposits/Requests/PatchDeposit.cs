@@ -81,6 +81,7 @@ public class PatchDepositHandler(
             if (request.Deposit.Archived.HasValue)
             {
                 entity.Archived = request.Deposit.Archived.Value;
+                entity.Status = DepositStates.Archived;
             }
             
             entity.LastModifiedBy = callerIdentity;
