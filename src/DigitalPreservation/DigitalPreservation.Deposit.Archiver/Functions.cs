@@ -100,62 +100,59 @@ public class Functions
             foreach (var deposit in deposits.Value?.Deposits!)
             {
                 var depositId = deposit.Id?.Segments[^1];
-                if (depositId != null)
+                if (depositId is null) continue;
+                var workspaceManager = await GetWorkspaceManager(depositId, true);
+                var releaseLock = await preservationApiClient.ReleaseDepositLock(deposit, CancellationToken.None);
+
+                //check if in deposit archiver jobs table with errors - dont try again
+                var previousDepositArchiverJob = await preservationApiClient.GetArchiveJobResult(depositId, CancellationToken.None);
+
+                if (previousDepositArchiverJob is { Success: true, Value.Errors: not null } && previousDepositArchiverJob.Value.Errors.Any())
                 {
-                    var workspaceManager = await GetWorkspaceManager(depositId, true);
-                    var releaseLock = await preservationApiClient.ReleaseDepositLock(deposit, CancellationToken.None);
-
-                    //check if in deposit archiver jobs table with errors - dont try again
-                    var previousDepositArchiverJob = await preservationApiClient.GetArchiveJobResult(depositId, CancellationToken.None);
-
-                    if (previousDepositArchiverJob.Value != null && previousDepositArchiverJob.Value.Errors != null && previousDepositArchiverJob.Value.Errors.Any())
-                    {
-                        Log.Logger.Information("Previous archiver job run for this deposit {depositId} had errors", depositId);
-                        continue;
-                    }
-
-                    if (releaseLock.Failure)
-                        Log.Logger.Information("issue releasing lock for {depositId}", depositId);
-
-                    if (workspaceManager.Value != null && deposit.Files != null)
-                    {
-                        Log.Logger.Information("Calling archive for deposit {depositId}", depositId);
-                        await Archive(workspaceManager.Value, depositId, deposit.Files);
-                    }
-
-                    var archivedDeposit = archiveJobsList.FirstOrDefault(x => x.DepositId == depositId);
-                    Log.Logger.Information("Archived deposit is not null for deposit {archivedDeposit}. Deposit Uri: {depositUri}", archivedDeposit != null, archivedDeposit?.DepositUri);
-
-                    if (archivedDeposit == null || (!string.IsNullOrEmpty(archivedDeposit.Errors) && !archivedDeposit.Errors.Contains("No items to delete."))) continue;
-
-                    Log.Logger.Information("No errors and Items to delete for deposit id {depositId}", depositId);
-                    deposit.Archived = DateTime.UtcNow;
-                    var patchDeposit = await preservationApiClient.UpdateDeposit(deposit, CancellationToken.None);
-
-                    if (patchDeposit.Failure)
-                    {
-                        Log.Logger.Error("issue patching deposit for {depositId} Error message: {errorMessage}", depositId, patchDeposit.ErrorMessage);
-                        
-                        if (workspaceManager.Value != null)
-                        {
-                            var deleteFilesResult = await DeleteDepositFiles(workspaceManager.Value);
-
-                            if(!deleteFilesResult.Success) 
-                                Log.Logger.Error("Could not delete archived.txt file for {depositId} Error message: {errorMessage}", depositId, deleteFilesResult.ErrorMessage);
-                        }
-
-                        var index = archiveJobsList.IndexOf(archivedDeposit);
-                        if (index > -1)
-                        {
-                            archiveJobsList[index].Errors = patchDeposit.ErrorMessage;
-                        }
-                    }
-
-
-                    if (patchDeposit.Success)
-                        Log.Logger.Error("Successfully patched deposit for {depositId}", depositId);
-
+                    Log.Logger.Information("Previous archiver job run for this deposit {depositId} had errors", depositId);
+                    continue;
                 }
+
+                if (releaseLock.Failure)
+                    Log.Logger.Information("issue releasing lock for {depositId}", depositId);
+
+                if (workspaceManager.Value != null && deposit.Files != null)
+                {
+                    Log.Logger.Information("Calling archive for deposit {depositId}", depositId);
+                    await Archive(workspaceManager.Value, depositId, deposit.Files);
+                }
+
+                var archivedDeposit = archiveJobsList.FirstOrDefault(x => x.DepositId == depositId);
+                Log.Logger.Information("Archived deposit is not null for deposit {archivedDeposit}. Deposit Uri: {depositUri}", archivedDeposit != null, archivedDeposit?.DepositUri);
+
+                if (archivedDeposit == null || (!string.IsNullOrEmpty(archivedDeposit.Errors) && !archivedDeposit.Errors.Contains("No items to delete."))) continue;
+
+                Log.Logger.Information("No errors and Items to delete for deposit id {depositId}", depositId);
+                deposit.Archived = DateTime.UtcNow;
+                var patchDeposit = await preservationApiClient.UpdateDeposit(deposit, CancellationToken.None);
+
+                if (patchDeposit.Failure)
+                {
+                    Log.Logger.Error("issue patching deposit for {depositId} Error message: {errorMessage}", depositId, patchDeposit.ErrorMessage);
+                        
+                    if (workspaceManager.Value != null)
+                    {
+                        var deleteFilesResult = await DeleteDepositFiles(workspaceManager.Value);
+
+                        if(!deleteFilesResult.Success) 
+                            Log.Logger.Error("Could not delete archived.txt file for {depositId} Error message: {errorMessage}", depositId, deleteFilesResult.ErrorMessage);
+                    }
+
+                    var index = archiveJobsList.IndexOf(archivedDeposit);
+                    if (index > -1)
+                    {
+                        archiveJobsList[index].Errors = patchDeposit.ErrorMessage;
+                    }
+                }
+
+
+                if (patchDeposit.Success)
+                    Log.Logger.Error("Successfully patched deposit for {depositId}", depositId);
             }
         }
 

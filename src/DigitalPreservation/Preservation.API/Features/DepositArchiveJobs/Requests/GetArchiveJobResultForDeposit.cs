@@ -21,10 +21,14 @@ public class GetArchiveJobResultForDepositHandler(
 {
     public async Task<Result<ArchiveJobResult?>> Handle(GetArchiveJobResultForDeposit request, CancellationToken cancellationToken)
     {
-        var archiveJobEntity = await dbContext.DepositArchiveJobs
-            .SingleOrDefaultAsync(j => j.DepositId == request.DepositId, cancellationToken: cancellationToken);
+        var archiveJobEntityList = await dbContext.DepositArchiveJobs
+            .Where(j => j.DepositId == request.DepositId)
+            .OrderByDescending(x => x.EndTime)
+            .ToListAsync(cancellationToken);
 
-        if (archiveJobEntity == null)
+        var archiveJobEntity = archiveJobEntityList.Take(1).FirstOrDefault();
+
+        if (!archiveJobEntityList.Any() || archiveJobEntity == null)
         {
             return Result.Fail<ArchiveJobResult>(ErrorCodes.NotFound,
                 $" deposit {request.DepositId}");
