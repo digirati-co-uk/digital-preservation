@@ -83,9 +83,12 @@ public class PatchDepositHandler(
                 entity.Archived = request.Deposit.Archived.Value;
                 entity.Status = DepositStates.Archived;
             }
-            
-            entity.LastModifiedBy = callerIdentity;
-            entity.LastModified = DateTime.UtcNow;
+            else
+            {
+                entity.LastModifiedBy = callerIdentity;
+                entity.LastModified = DateTime.UtcNow;
+            }
+
             await dbContext.SaveChangesAsync(cancellationToken);
 
             // Now recover:
