@@ -97,13 +97,22 @@ public class Functions
 
         if (deposits.Value?.Deposits is { Count: > 0 })
         {
-            foreach (var deposit in deposits.Value?.Deposits)
+            foreach (var deposit in deposits.Value?.Deposits!)
             {
                 var depositId = deposit.Id?.Segments[^1];
                 if (depositId != null)
                 {
                     var workspaceManager = await GetWorkspaceManager(depositId, true);
                     var releaseLock = await preservationApiClient.ReleaseDepositLock(deposit, CancellationToken.None);
+
+                    //check if in deposit archiver jobs table with errors - dont try again
+                    var previousDepositArchiverJob = await preservationApiClient.GetArchiveJobResult(depositId, CancellationToken.None);
+
+                    if (previousDepositArchiverJob.Value != null && previousDepositArchiverJob.Value.Errors != null && previousDepositArchiverJob.Value.Errors.Any())
+                    {
+                        Log.Logger.Information("Previous archiver job run for this deposit {depositId} had errors", depositId);
+                        continue;
+                    }
 
                     if (releaseLock.Failure)
                         Log.Logger.Information("issue releasing lock for {depositId}", depositId);

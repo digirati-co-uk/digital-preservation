@@ -572,7 +572,8 @@ public class PreservationApiClient(
     {
         try
         {
-            var uri = new Uri($"/deposits/{depositId}/depositarchivejobs", UriKind.Relative);
+            var relPath = $"/DepositArchiveJobs/{depositId}";
+            var uri = new Uri(relPath, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
             if (response.IsSuccessStatusCode)
@@ -584,7 +585,7 @@ public class PreservationApiClient(
                 }
                 return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
             }
-            return await response.ToFailNotNullResult<ArchiveJobResult>("Unable to get pipeline run job result");
+            return await response.ToFailNotNullResult<ArchiveJobResult>("Unable to get archive run job result");
         }
         catch (Exception e)
         {

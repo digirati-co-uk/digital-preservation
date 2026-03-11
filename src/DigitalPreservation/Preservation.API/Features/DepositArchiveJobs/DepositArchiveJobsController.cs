@@ -8,17 +8,17 @@ using Preservation.API.Features.PipelineRunJobs.Requests;
 
 namespace Preservation.API.Features.DepositArchiveJobs;
 
-[Route("deposits/{depositId}/depositarchivejobs")]
+[Route("[controller]")]
 [ApiController]
 public class DepositArchiveJobsController(IMediator mediator) : Controller
 {
-    [HttpGet(Name = "GetArchiveJobResult")]
+    [HttpGet("{id}", Name = "GetArchiveJobResult")]
     [ProducesResponseType<List<ArchiveJobResult>>(200, "application/json")]
     [ProducesResponseType<ProblemDetails>(404, "application/json")]
     [ProducesResponseType<ProblemDetails>(401, "application/json")]
-    public async Task<IActionResult> GetArchiveJobResults([FromRoute] string depositId)
+    public async Task<IActionResult> GetArchiveJobResult([FromRoute] string id)
     {
-        var result = await mediator.Send(new GetArchiveJobResultForDeposit(depositId));
+        var result = await mediator.Send(new GetArchiveJobResultForDeposit(id));
         return this.StatusResponseFromResult(result);
     }
 }
