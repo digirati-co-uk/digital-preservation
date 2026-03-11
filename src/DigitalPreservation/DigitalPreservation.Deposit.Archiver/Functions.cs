@@ -129,6 +129,8 @@ public class Functions
 
                 Log.Logger.Information("No errors and Items to delete for deposit id {depositId}", depositId);
                 deposit.Archived = DateTime.UtcNow;
+                deposit.Status = DepositStates.Archived;
+
                 var patchDeposit = await preservationApiClient.UpdateDeposit(deposit, CancellationToken.None);
 
                 if (patchDeposit.Failure)

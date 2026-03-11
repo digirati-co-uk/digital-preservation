@@ -128,8 +128,9 @@ public static class DepositStates
     public const string Exporting = "exporting";
     public const string Preserved = "preserved";
     public const string Error = "error";
+    public const string Archived = "archived";
 
-    public static readonly string[] All = [New, Exporting, Preserved, Error];
+    public static readonly string[] All = [New, Exporting, Preserved, Error, Archived];
 }
 
 public enum TemplateType
