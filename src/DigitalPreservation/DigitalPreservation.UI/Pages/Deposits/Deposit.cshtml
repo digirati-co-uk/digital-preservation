@@ -587,6 +587,8 @@
                     <dd aria-label="exported-by"><agent-link uri="@Model.Deposit.ExportedBy"></agent-link></dd>
                     <dt>Version exported</dt>
                     <dd aria-label="version-exported">@(Model.Deposit.VersionExported ?? "-")</dd>
+                    <dt>Archived</dt>
+                    <dd aria-label="archived">@(Model.Deposit.Archived.GetDateDisplay("-"))</dd>
                 </dl>
             </div>
             
