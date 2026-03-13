@@ -26,7 +26,8 @@ public class DepositModel(
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
     IOptions<PipelineOptions> pipelineOptions,
-    IConfiguration configuration) : PageModel
+    IConfiguration configuration,
+    ILogger<DepositModel> logger) : PageModel
 {
     public required string Id { get; set; }
     public required WorkspaceManager WorkspaceManager { get; set; }
@@ -63,7 +64,7 @@ public class DepositModel(
         {
             Deposit = getDepositResult.Value!;
             WorkspaceManager = await workspaceManagerFactory.CreateAsync(Deposit);
-            
+
             if (!Deposit.ArchivalGroupExists && Deposit.ArchivalGroup != null && Deposit.ArchivalGroup.GetPathUnderRoot().HasText())
             {
                 var testArchivalGroupResult = await mediator.Send(new TestArchivalGroupPath(Deposit.ArchivalGroup.GetPathUnderRoot()!));
@@ -103,6 +104,7 @@ public class DepositModel(
             return false;
         }
 
+        logger.LogInformation("In Bind deposit for deposit {deposit} Lock date: {lockDate}, Locked by: {lockedBy} ", Deposit?.Id, Deposit?.LockDate, Deposit?.LockedBy);
         return true;
     }
     
@@ -338,7 +340,7 @@ public class DepositModel(
 
         return Redirect($"/deposits/{id}");
     }
-
+    
     public async Task<IActionResult> OnPostRunPipeline([FromRoute] string id)
     {
         if (await BindDeposit(id))
@@ -634,6 +636,42 @@ public class DepositModel(
         }
 
         return (allJobs, runningJob);
+    }
+
+    public async Task<IActionResult> OnPostActivateDeposit([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await mediator.Send(new ActivateDeposit(Deposit!));
+            if (result.Success)
+            {
+                TempData["Valid"] = "Activated Deposit.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
+        }
+
+        return Redirect($"/deposits/{id}");
+    }
+    
+    public async Task<IActionResult> OnPostDeactivateDeposit([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await mediator.Send(new DeactivateDeposit(Deposit!));
+            if (result.Success)
+            {
+                TempData["Valid"] = "Deactivated Deposit.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
+        }
+
+        return Redirect($"/deposits/{id}");
     }
 }
 

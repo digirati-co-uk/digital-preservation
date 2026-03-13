@@ -23,8 +23,11 @@ public class ModsTests
         var metsLoader = new FileSystemMetsLoader();
         parser = new MetsParser(metsLoader, parserLogger);
         var metsStorage = new FileSystemMetsStorage(parser);
-        var metadataManager = new MetadataManager();
-        metsManager = new MetsManager(parser, metsStorage, metadataManager);
+        var premisManager = new PremisManager();
+        var premisManagerExif = new PremisManagerExif();
+        var premisEventManager = new PremisEventManagerVirus();
+        var metadataManager = new MetadataManager(premisManager, premisManagerExif, premisEventManager);
+        metsManager = new MetsManager(parser, metsStorage, metadataManager, premisManager, premisEventManager);
     }
     
     [Fact]

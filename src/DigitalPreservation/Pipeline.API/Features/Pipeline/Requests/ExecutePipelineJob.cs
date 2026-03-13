@@ -29,7 +29,7 @@ public class ExecutePipelineJob(string jobIdentifier, string depositId, string? 
 public class ProcessPipelineJobHandler(
     ILogger<ProcessPipelineJobHandler> logger,
     IOptions<StorageOptions> storageOptions,
-    IOptions<BrunnhildeOptions> brunnhildeOptions,
+    IOptions<PipelineToolOptions> pipelineToolOptions,
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient) : IRequestHandler<ExecutePipelineJob, Result>
 
@@ -198,8 +198,8 @@ public class ProcessPipelineJobHandler(
 
     private void CleanupProcessFolder(string depositName)
     {
-        var processFolder = brunnhildeOptions.Value.ProcessFolder;
-        var separator = brunnhildeOptions.Value.DirectorySeparator;
+        var processFolder = pipelineToolOptions.Value.ProcessFolder;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
         Directory.Delete(metadataPathForProcessDelete, true);
     }
@@ -208,8 +208,8 @@ public class ProcessPipelineJobHandler(
         WorkspaceManager workspaceManager, CancellationToken cancellationToken)
     {
         var mountPath = storageOptions.Value.FileMountPath;
-        var separator = brunnhildeOptions.Value.DirectorySeparator;
-        var processFolder = brunnhildeOptions.Value.ProcessFolder;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
+        var processFolder = pipelineToolOptions.Value.ProcessFolder;
 
         var tokenSourceBrunnhilde = new CancellationTokenSource();
         tokensCatalog.Add(brunnhildeProcessId, tokenSourceBrunnhilde);
@@ -260,8 +260,8 @@ public class ProcessPipelineJobHandler(
         }
 
         using var process = new Process();
-        process.StartInfo.FileName = brunnhildeOptions.Value.PathToPython;
-        process.StartInfo.Arguments = $"  {brunnhildeOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
+        process.StartInfo.FileName = pipelineToolOptions.Value.PathToPython;
+        process.StartInfo.Arguments = $"  {pipelineToolOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.RedirectStandardOutput = true;
 
@@ -357,9 +357,9 @@ public class ProcessPipelineJobHandler(
 
             var virusDefinition = GetVirusDefinition();
             //add virus definition file to metadata folder
-            var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{brunnhildeOptions.Value.DirectorySeparator}virus-definition{brunnhildeOptions.Value.DirectorySeparator}virus-definition.txt";
+            var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition{pipelineToolOptions.Value.DirectorySeparator}virus-definition.txt";
 
-            Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{brunnhildeOptions.Value.DirectorySeparator}virus-definition");
+            Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition");
             await File.WriteAllTextAsync(virusDefinitionPath, virusDefinition, CancellationToken.None);
 
             await RunExif(metadataPathForProcessFilesAndDirectories, objectPath);
@@ -367,6 +367,25 @@ public class ProcessPipelineJobHandler(
             var (createFolderResultList, uploadFilesResultList, forceCompleteUpload, forceCompleteUploadCleanupProcess) = await UploadFilesToMetadataRecursively(
                 request, metadataPathForProcessFilesAndDirectories, depositPath,
                 workspaceManager.Deposit, cancellationToken);
+
+            if (!createFolderResultList.Any() && !uploadFilesResultList.Any())
+            {
+                await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors = 
+                    [
+                        new Error
+                        {
+                            Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} had an issue uploading files to S3"
+                        }
+                    ],
+                    CleanupProcessJob = false
+                };
+            }
+
 
             if (forceCompleteUpload || forceCompleteUploadCleanupProcess)
             {
@@ -405,8 +424,32 @@ public class ProcessPipelineJobHandler(
             if (metsResult.Failure)
                 logger.LogInformation("Issue adding objects to METS in pipeline run: {error}", metsResult.ErrorMessage);
 
-            await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+            var start = DateTime.Now;
 
+            while (true)
+            {
+                var releaseLockResult = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+                var exit = (DateTime.Now - start).Seconds > pipelineToolOptions.Value.ReleaseLockAttemptTime;
+
+                if (releaseLockResult.Success)
+                {
+                    logger.LogInformation($"Successfully released the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}");
+                    
+                    var response = await preservationApiClient.GetDeposit(request.DepositId, cancellationToken);
+                    if (response is { Success: true })
+                    {
+                        var deposit = response.Value;
+                        logger.LogInformation("In Pipeline Job Lock date: {lockDate}, Locked by: {lockedBy} ", deposit?.LockDate, deposit?.LockedBy);
+                    }
+                    break;
+                }
+
+                if (!exit) continue;
+                logger.LogError($"Failure to release the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
+                break;
+            }
+
+            logger.LogInformation($"Returning a completed status for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.Completed
@@ -434,9 +477,9 @@ public class ProcessPipelineJobHandler(
     {
         var depositId = workspaceManager.DepositSlug;
         var mountPath = storageOptions.Value.FileMountPath;
-        var separator = brunnhildeOptions.Value.DirectorySeparator;
-        var objectFolder = brunnhildeOptions.Value.ObjectsFolder;
-        var processFolder = brunnhildeOptions.Value.ProcessFolder;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
+        var objectFolder = pipelineToolOptions.Value.ObjectsFolder;
+        var processFolder = pipelineToolOptions.Value.ProcessFolder;
         string metadataPath;
         string metadataProcessPath;
         string objectPath;
@@ -509,6 +552,7 @@ public class ProcessPipelineJobHandler(
             }
         }
 
+        deleteSelection.ContinueIfFail = pipelineToolOptions.Value.PipelineMetadataFolders?.Split(",");
         var resultDelete = await workspaceManager.DeleteItems(deleteSelection, request.GetUserName());
         return resultDelete;
     }
@@ -575,7 +619,7 @@ public class ProcessPipelineJobHandler(
                 }
 
                 var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFilesAndDirectories, deposit, cancellationToken);
-                if (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess)
+                if (uploadFileToS3Result != null && (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess || !uploadFileToS3Result.Success))
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
                     logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
@@ -584,8 +628,6 @@ public class ProcessPipelineJobHandler(
 
                 uploadFileResult.Add(uploadFileToS3Result);
             }
-
-            //var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFiles, deposit, cancellationToken);
 
             foreach (var subFolder in createSubFolderResult)
             {
@@ -606,6 +648,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception ex)
         {
+            await TryReleaseLock(request, deposit, cancellationToken);
             logger.LogError(ex, " Caught error in copy files recursively from {sourcePathForFilesAndDirectories} to {depositPath}", sourcePathForFilesAndDirectories, depositPath);
             return (createSubFolderResult: [], uploadFileResult: [], false, false);
         }
@@ -950,8 +993,8 @@ public class ProcessPipelineJobHandler(
     private async Task RunExif(string processPath, string objectPath)
     {
         logger.LogInformation("About to run exif");
-        var exifToolLocation = brunnhildeOptions.Value.ExifToolLocation;
-        var separator = brunnhildeOptions.Value.DirectorySeparator;
+        var exifToolLocation = pipelineToolOptions.Value.ExifToolLocation;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
         logger.LogInformation("Exif tool location {location}", exifToolLocation);
 
         try

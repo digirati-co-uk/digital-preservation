@@ -1,4 +1,4 @@
-using System.Xml;
+﻿using System.Xml;
 using System.Xml.Serialization;
 using DigitalPreservation.XmlGen.Extensions;
 using DigitalPreservation.XmlGen.Mets;
@@ -224,5 +224,31 @@ public class GoobiMetsParsing
         format.FormatRegistry[0].FormatRegistryName.Value.Should().Be("PRONOM");
         format.FormatRegistry[0].FormatRegistryKey.Value.Should().Be("x-fmt/392");
     }
+
+
+    [Fact]
+    public void GetEventComplexType_WhenProvidedSerializedEvent_ReturnsEventComplexTypeInstance()
+    {
+        var source = new EventComplexType();
+        var serializer = new XmlSerializer(typeof(EventComplexType));
+
+        string xml;
+        using (var writer = new StringWriter())
+        {
+            serializer.Serialize(writer, source);
+            xml = writer.ToString();
+        }
+
+        var xmlDocument = new XmlDocument();
+        xmlDocument.LoadXml(xml);
+        var element = xmlDocument.DocumentElement ?? throw new InvalidOperationException("DocumentElement was null after serialization.");
+
+        var result = element.GetEventComplexType();
+
+        Assert.NotNull(result);
+        Assert.IsType<EventComplexType>(result);
+    }
+
+
 
 }
