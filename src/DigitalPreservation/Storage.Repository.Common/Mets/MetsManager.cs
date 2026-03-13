@@ -66,6 +66,7 @@ public class MetsManager(
                 var localPath = childContainer.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
                 var admId = Constants.AdmIdPrefix + localPath;
                 var techId = Constants.TechIdPrefix + localPath;
+
                 childDirectoryDiv = new DivType
                 {
                     Type = Constants.DirectoryType,
@@ -98,14 +99,16 @@ public class MetsManager(
             {
                 continue;
             }
+
             var fileId = Constants.FileIdPrefix + localPath;
             var admId = Constants.AdmIdPrefix + localPath;
             var techId = Constants.TechIdPrefix + localPath;
+
             var childItemDiv = new DivType
             {
                 Type = Constants.ItemType,
                 Label = binary.Name,
-                Id = $"{Constants.PhysIdPrefix}{localPath}",
+                Id = $"{Constants.PhysIdPrefix}{localPath}", 
                 Fptr = { new DivTypeFptr { Fileid = fileId } }
             };
             div.Div.Add(childItemDiv);
@@ -282,6 +285,8 @@ public class MetsManager(
             if (workingBase is null)
                 return Result.Fail(ErrorCodes.BadRequest, "No working directory or working file supplied to add.");
 
+            //TODO: only do this for object files for a working file
+            //var identifiers = FilenameHelpers.GetIdSafeOperationPath(operationPath);
             var physId = Constants.PhysIdPrefix + operationPath;
             var admId = Constants.AdmIdPrefix + operationPath;
             var techId = Constants.TechIdPrefix + operationPath;
@@ -313,13 +318,21 @@ public class MetsManager(
             }
             else
             {
+                var identifiers = FilenameHelpers.GetIdSafeOperationPath(operationPath);
+                var objectFile = !string.IsNullOrEmpty(workingBase?.LocalPath) && workingBase is WorkingFile &&
+                                 !FolderNames.IsMetadata(workingBase?.LocalPath!);
+
                 var fileId = Constants.FileIdPrefix + operationPath;
+                var physicalId = objectFile ? identifiers.PhysId : physId;
+                var fileIdentifier = objectFile ? identifiers.FileId : fileId;
+
+                //TODO: check if working file
                 var childItemDiv = new DivType
                 {
                     Type = Constants.ItemType,
                     Label = workingFile.Name ?? operationPath.GetSlug(),
-                    Id = physId,
-                    Fptr = { new DivTypeFptr { Fileid = fileId } }
+                    Id = physicalId,
+                    Fptr = { new DivTypeFptr { Fileid = fileIdentifier } }
                 };
                 div.Div.Add(childItemDiv);
 
@@ -568,9 +581,26 @@ public class MetsManager(
                 testPath += "/";
             }
             testPath += element;
+
+            bool objectFile;
+
+            if (workingBase is null && string.IsNullOrEmpty(workingBase?.LocalPath) && testPath.Trim().ToLower() != "objects")
+            {
+                objectFile = !string.IsNullOrEmpty(testPath) &&
+                             !FolderNames.IsMetadata(testPath);
+            }
+            else
+            {
+                objectFile = !string.IsNullOrEmpty(workingBase?.LocalPath) && workingBase is WorkingFile &&
+                             !FolderNames.IsMetadata(workingBase?.LocalPath!);
+            }
+
+
+            var identifiers = FilenameHelpers.GetIdSafeOperationPath(testPath);
+            var physId = objectFile ? identifiers.PhysId : $"{Constants.PhysIdPrefix}{testPath}";
             // This is navigating using our ID convention for directories
             // If we don't want to do this, we can use the premis:originalName for the directory
-            var childDiv = div.Div.SingleOrDefault(d => d.Id == $"{Constants.PhysIdPrefix}{testPath}");
+            var childDiv = div.Div.SingleOrDefault(d => d.Id == physId); // $"{Constants.PhysIdPrefix}{testPath}"
             if (childDiv is null)
             {
                 break;
