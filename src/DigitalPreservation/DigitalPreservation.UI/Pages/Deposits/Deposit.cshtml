@@ -66,6 +66,29 @@
                                 </button>
                             </li>
                         }
+                         
+                        
+                        @if (Model.Deposit?.Status is not "new")
+                        {
+
+                            @if (Model.Deposit?.Active is true)
+                            {
+                                <li>
+                                    <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="DeactivateDeposit">
+                                        <svg class="bi"><use xlink:href="#door-closed"/></svg><span class="ms-2">Deactivate Deposit</span>
+                                    </button>
+                                </li>
+                            }
+                            else
+                            {
+                                <li>
+                                    <button disabled="@jobRunning" class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ActivateDeposit">
+                                        <svg class="bi"><use xlink:href="#door-open"/></svg><span class="ms-2">Activate Deposit</span>
+                                    </button>
+                                </li>
+                            }
+                        }
+
 
                         @if (Model.ShowPipeline)
                         {
