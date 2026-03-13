@@ -510,7 +510,7 @@ public class MetsManager(
         return rights is not null ? new Uri(rights) : null;
     }
     
-    private Result DeleteFile(DivType div, FullMets fullMets, DivType? parent, string? operationPath)
+    private static Result DeleteFile(DivType div, FullMets fullMets, DivType? parent, string? operationPath)
     {
         if (div.Div.Count > 0)
         {

@@ -175,7 +175,7 @@ public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, I
         AddVirusXml(ctx);
     }
 
-    private Result GetMetadataXml(ProcessingContext ctx, FullMets fullMets, DivType? div, string operationPath)
+    private static Result GetMetadataXml(ProcessingContext ctx, FullMets fullMets, DivType? div, string operationPath)
     {
         if (div != null && div.Type != "Item")
         {
@@ -194,7 +194,6 @@ public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, I
         // in a reversible way (replacing with _ won't do)
         ctx.FileAdmId = string.Join(' ', ctx.File.Admid);
         var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == ctx.FileAdmId);
-        //ctx.AmdSec = amdSec;
         ctx.PremisIncExifXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault(); //TODO: this includes exif - separate this out
         ctx.VirusXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(Constants.VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault();
 
@@ -214,7 +213,7 @@ public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, I
         if (ctx.AmdSec is null)
             return;
 
-        if (ctx.AmdSec.DigiprovMd.Any())
+        if (ctx.AmdSec.DigiprovMd.Count != 0)
         {
             ctx.AmdSec.DigiprovMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { ctx.VirusXml } };
         }
@@ -232,7 +231,7 @@ public class MetadataManager(IPremisManager<FileFormatMetadata> premisManager, I
         }
     }
 
-    private void SetAmdSec(ProcessingContext ctx, XmlElement? premisXml, bool newUpload)
+    private static void SetAmdSec(ProcessingContext ctx, XmlElement? premisXml, bool newUpload)
     {
         if (ctx.AmdSec is null || newUpload)
         {
