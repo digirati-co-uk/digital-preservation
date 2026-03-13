@@ -22,11 +22,11 @@ public class SiegfriedOutput
             .Build();
 
         // Consume the stream start event "manually"
-        parser.Expect<StreamStart>();
+        parser.Consume<StreamStart>();
 
         var output = new SiegfriedOutput();
         bool first = true;
-        while (parser.Accept<DocumentStart>())
+        while (parser.Accept<DocumentStart>(out _))
         {
             if (first)
             {
@@ -77,6 +77,7 @@ public class SiegfriedOutput
     }
 }
 
+[Serializable]
 internal class SiegfriedCsvRow
 {
     public string? Filename { get; set; }

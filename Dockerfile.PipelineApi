@@ -25,7 +25,7 @@ RUN chmod +x /etc/cron.daily/folder-cleanup.sh
 
 RUN apt-get update -y
 RUN apt-get install golang -y
-RUN go install github.com/richardlehane/siegfried/cmd/sf@latest
+RUN go install github.com/richardlehane/siegfried/cmd/sf@v1.11.2
 RUN cp /root/go/bin/sf /bin
 RUN sf -update
 #brunnhilde    

@@ -12,7 +12,9 @@ namespace Storage.Repository.Common.Mets;
 public class MetsManager(
     IMetsParser metsParser,
     IMetsStorage metsStorage,
-    IMetadataManager metadataManager) : IMetsManager
+    IMetadataManager metadataManager,
+    IPremisManager<FileFormatMetadata> premisManager,
+    IPremisEventManager<VirusScanMetadata> premisEventManagerVirus) : IMetsManager
 {
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -81,10 +83,16 @@ public class MetsManager(
                 };
                 mets.AmdSec.Add(GetAmdSecType(reducedPremisForObjectDir, admId, techId));
             }
+
             AddResourceToMets(mets, archivalGroupUri, childDirectoryDiv, childContainer);
         }
 
-        foreach (var binary in container.Binaries)
+        AddBinariesToMets(container.Binaries, agLocalPath, div, mets);
+    }
+
+    private void AddBinariesToMets(List<Binary> binaries, string agLocalPath, DivType div, DigitalPreservation.XmlGen.Mets.Mets mets)
+    {
+        foreach (var binary in binaries)
         {
             var localPath = binary.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
             if (MetsUtils.IsMetsFile(localPath!, true))
@@ -99,20 +107,20 @@ public class MetsManager(
                 Type = Constants.ItemType,
                 Label = binary.Name,
                 Id = $"{Constants.PhysIdPrefix}{localPath}",
-                Fptr = { new DivTypeFptr{ Fileid = fileId } }
+                Fptr = { new DivTypeFptr { Fileid = fileId } }
             };
             div.Div.Add(childItemDiv);
             mets.FileSec.FileGrp[0].File.Add(
                 new FileType
                 {
-                    Id = fileId, 
+                    Id = fileId,
                     Admid = { admId },
                     Mimetype = binary.ContentType,
-                    FLocat = { 
+                    FLocat = {
                         new FileTypeFLocat
                         {
                             Href = localPath, Loctype = FileTypeFLocatLoctype.Url
-                        } 
+                        }
                     }
                 });
             var premisFile = new FileFormatMetadata
@@ -126,7 +134,6 @@ public class MetsManager(
             mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
         }
     }
-
 
     private async Task<(Uri file, DigitalPreservation.XmlGen.Mets.Mets mets)> GetStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -255,7 +262,7 @@ public class MetsManager(
                     if (File?.FLocat[0].Href != operationPath)
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
 
-                    metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
+                    return metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
 
                 }
             }
@@ -263,12 +270,12 @@ public class MetsManager(
             {
                 return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
             }
-        } 
+        }
         else if (counter == elements.Length - 1)
         {
             if (deletePath is not null)
                 return Result.Fail(ErrorCodes.NotFound, "Can't find a file or folder to delete.");
-            
+
             // div is a directory
             if (div.Type != "Directory")
                 return Result.Fail(ErrorCodes.BadRequest, "Parent path is not a Directory");
@@ -317,13 +324,13 @@ public class MetsManager(
                 };
                 div.Div.Add(childItemDiv);
 
-                metadataManager.ProcessAllFileMetadata(ref fullMets, childItemDiv, workingFile, operationPath, true); 
+                metadataManager.ProcessAllFileMetadata(ref fullMets, childItemDiv, workingFile, operationPath, true);
             }
 
             // Now we need to ensure the child items are in alphanumeric order by name...
             // how do we do that? We can't sort a Collection<T> in place, and we can't 
             // create a new Collection and assign it to Div
-            
+
             var childList = new List<DivType>(div.Div);
             div.Div.Clear();
             // We will order case-insensitive; we want to match what a typical file explorer would do.
@@ -424,13 +431,11 @@ public class MetsManager(
         return mets;
     }
     
-    private static AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null, ExifMetadata? exifMetadata = null)
+    private AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null)
     {
-        //TODO: use ProcessFileFormatDataForFile()
-        var premis = PremisManager.Create(premisFile, exifMetadata);
-        var xElement = PremisManager.GetXmlElement(premis, true);
+        var premis = premisManager.Create(premisFile);
+        var xElement = premisManager.GetXmlElement(premis, true);
 
-        //TODO: this is a new amdsec
         var amdSec = new AmdSecType
         {
             Id = admId,
@@ -450,8 +455,8 @@ public class MetsManager(
 
         if (virusScanMetadata == null) return amdSec;
 
-        var digiProvMd = PremisEventManager.Create(virusScanMetadata);
-        var xVirusElement = PremisEventManager.GetXmlElement(digiProvMd);
+        var digiProvMd = premisEventManagerVirus.Create(virusScanMetadata);
+        var xVirusElement = premisEventManagerVirus.GetXmlElement(digiProvMd);
 
         amdSec.DigiprovMd.Add(new MdSecType
         {
@@ -549,11 +554,9 @@ public class MetsManager(
         
     private (int counter, DivType? parent, DivType div, string[] elements, string operationPath, string testPath) GetMetsElements(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
     {
-        //TODO: put in separate method this
         var operationPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath);
         var elements = operationPath!.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        //TODO: put this in a separate method
         var div = fullMets.Mets.StructMap.Single(sm => sm.Type == "PHYSICAL").Div!;
         DivType? parent = null;
         var testPath = string.Empty;
