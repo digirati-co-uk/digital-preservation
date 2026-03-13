@@ -24,7 +24,16 @@ public class Liddle
         var parserLogger = factory!.CreateLogger<MetsParser>();
         var parser1 = new MetsParser(new FileSystemMetsLoader(), parserLogger);
         var storage = new FileSystemMetsStorage(parser1);
-        metsManager = new MetsManager(parser1, storage, new MetadataManager());
+
+        var premisManager = new PremisManager();
+        var premisManagerExif = new PremisManagerExif();
+        var premisEventManagerVirus = new PremisEventManagerVirus();
+        metsManager = new MetsManager(
+            parser1, 
+            storage, 
+            new MetadataManager(premisManager, premisManagerExif, premisEventManagerVirus),
+            premisManager, 
+            premisEventManagerVirus);
     }
 
     [Fact(Skip = "Experimental")]

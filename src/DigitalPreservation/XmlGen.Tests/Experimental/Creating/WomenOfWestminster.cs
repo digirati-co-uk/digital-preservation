@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.Mets.StorageImpl;
 
-namespace XmlGen.Tests.Experimental.Creating;
+namespace XmlGen.Tests.Experimental;
 
 public class WomenOfWestminster
 {
@@ -27,7 +27,16 @@ public class WomenOfWestminster
         var parserLogger = factory!.CreateLogger<MetsParser>();
         parser = new MetsParser(new FileSystemMetsLoader(), parserLogger);
         var storage = new FileSystemMetsStorage(parser);
-        metsManager = new MetsManager(parser, storage, new MetadataManager());
+        var premisManager = new PremisManager();
+        var premisManagerExif = new PremisManagerExif();
+        var premisEventManagerVirus = new PremisEventManagerVirus();
+        
+        metsManager = new MetsManager(
+            parser, 
+            storage, 
+            new MetadataManager(premisManager, premisManagerExif, premisEventManagerVirus),
+            premisManager, 
+            premisEventManagerVirus);
     }
 
 
