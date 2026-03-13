@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.Mets.StorageImpl;
 
-namespace XmlGen.Tests.Experimental;
+namespace XmlGen.Tests.Experimental.Creating;
 
 public class WomenOfWestminster
 {

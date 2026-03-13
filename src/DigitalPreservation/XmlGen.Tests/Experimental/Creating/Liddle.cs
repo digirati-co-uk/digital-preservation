@@ -8,12 +8,11 @@ using Microsoft.Extensions.Logging;
 using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.Mets.StorageImpl;
 
-namespace XmlGen.Tests.Experimental;
+namespace XmlGen.Tests.Experimental.Creating;
 
 public class Liddle
 {
     private readonly IMetsManager metsManager;
-    private readonly MetsParser parser;
 
     public Liddle()
     {
@@ -23,9 +22,9 @@ public class Liddle
 
         var factory = serviceProvider.GetService<ILoggerFactory>();
         var parserLogger = factory!.CreateLogger<MetsParser>();
-        parser = new MetsParser(new FileSystemMetsLoader(), parserLogger);
-        var storage = new FileSystemMetsStorage(parser);
-        metsManager = new MetsManager(parser, storage, new MetadataManager());
+        var parser1 = new MetsParser(new FileSystemMetsLoader(), parserLogger);
+        var storage = new FileSystemMetsStorage(parser1);
+        metsManager = new MetsManager(parser1, storage, new MetadataManager());
     }
 
     [Fact(Skip = "Experimental")]
