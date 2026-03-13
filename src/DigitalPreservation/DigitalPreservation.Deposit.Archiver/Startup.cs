@@ -48,7 +48,7 @@ public class Startup
         var builder = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             //.AddJsonFile("appsettings.json", false, true)
-            .AddJsonFile($"appsettings.{netEnv}.json", false, true)
+            //.AddJsonFile($"appsettings.{netEnv}.json", false, true) // this goes in when running locally
             .AddJsonFile("appsettings.json", false);
 
         var configuration = builder.Build();
