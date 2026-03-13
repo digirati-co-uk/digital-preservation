@@ -36,9 +36,6 @@ public class Startup
     /// </summary>
     public void ConfigureServices(IServiceCollection services)
     {
-        //var t = GetSecretValue("/preservation/dev/ui/oauth_azure", "eu-west-1");
-
-        //TODO: above returns scope URI too
         var fromServerlessTemplateoauthAzureSecret = Environment.GetEnvironmentVariable("oauthAzureSecret");
         var secretJsonString = GetSecretValue(fromServerlessTemplateoauthAzureSecret!, "eu-west-1");
 
@@ -51,13 +48,8 @@ public class Startup
         var builder = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             //.AddJsonFile("appsettings.json", false, true)
-            //.AddJsonFile($"appsettings.{netEnv}.json", false, true);
+            .AddJsonFile($"appsettings.{netEnv}.json", false, true)
             .AddJsonFile("appsettings.json", false);
-
-
-        //// Add AWS Systems Manager as a potential provider for the configuration. This is 
-        //// available with the Amazon.Extensions.Configuration.SystemsManager NuGet package.
-        //builder.AddSystemsManager("/app/settings");
 
         var configuration = builder.Build();
 
@@ -70,12 +62,6 @@ public class Startup
         Log.Logger.Information("Secret model {secretModel}", secretModel);
 
         services.AddSingleton<IConfiguration>(configuration);
-
-        //// Example of using the AWSSDK.Extensions.NETCore.Setup NuGet package to add
-        //// the Amazon S3 service client to the dependency injection container.
-        //services.AddAWSService<Amazon.S3.IAmazonS3>()
-        //services.AddSingleton<ITokenScope>(x =>
-        //    new TokenScope(configuration.GetSection("AzureAd:ScopeUri").Value));
 
         services.AddSingleton<ITokenScope>(x => new TokenScope(secretModel?.ScopeUri));
 
@@ -93,7 +79,6 @@ public class Startup
             ClientSecret = secretModel?.ClientSecret,
             TenantId = secretModel?.TenantId
         };
-        //configuration.GetSection("TokenProvider").Bind(accessTokenProviderOptions); 
         services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
         services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
 
