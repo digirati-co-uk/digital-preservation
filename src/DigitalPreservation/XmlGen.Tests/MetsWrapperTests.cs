@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Transit;
+﻿using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -141,6 +142,30 @@ public class MetsWrapperTests
 
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Third_Party_METS_Is_Not_Editable()
+    {
+        // MetsFileWrapper.Editable is true only when the Agent matches MetsCreatorAgent
+        // (i.e., METS files we created ourselves). Third-party METS from Goobi,
+        // Archivematica, and EPrints must not be treated as editable.
+
+        var metsLoader = new FileSystemMetsLoader();
+        var parser = new MetsParser(metsLoader, logger);
+
+        var goobiResult = await parser.GetMetsFileWrapper(
+            new Uri(new FileInfo("Samples/goobi-wc-b29356350-2.xml").FullName));
+        goobiResult.Value!.Editable.Should().BeFalse();
+        goobiResult.Value.Agent.Should().NotBe(Constants.MetsCreatorAgent);
+
+        var archivematicaResult = await parser.GetMetsFileWrapper(
+            new Uri(new FileInfo("Samples/archivematica-wc-METS.299eb16f-1e62-4bf6-b259-c82146153711.xml").FullName));
+        archivematicaResult.Value!.Editable.Should().BeFalse();
+
+        var eprintsResult = await parser.GetMetsFileWrapper(
+            new Uri(new FileInfo("Samples/EPrints.10315.METS.xml").FullName));
+        eprintsResult.Value!.Editable.Should().BeFalse();
     }
 
     [Fact]

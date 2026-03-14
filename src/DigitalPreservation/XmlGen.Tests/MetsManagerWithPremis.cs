@@ -899,4 +899,66 @@ public class MetsManagerWithPremis
 
         await Task.WhenAll(tasks);
     }
+
+    // -----------------------------------------------------------------------
+    // METSFILEWRAPPER PARSER ROUND-TRIPS (Name, Agent, Editable,
+    // RootAccessConditions, RootRightsStatement)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task Parser_Populates_Name_Agent_And_Editable_For_Our_Own_METS()
+    {
+        // MetsFileWrapper.Name, Agent, and Editable are populated by PopulateFromMets.
+        // For METS we created ourselves:
+        //   Name   = the agNameFromDeposit passed to CreateStandardMets
+        //   Agent  = Constants.MetsCreatorAgent
+        //   Editable = true (because Agent matches MetsCreatorAgent)
+
+        var (metsUri, _) = await CreateEmptyMets("parser-name-agent.xml");
+
+        var parseResult = await parser.GetMetsFileWrapper(metsUri);
+        parseResult.Success.Should().BeTrue();
+        var wrapper = parseResult.Value!;
+
+        wrapper.Name.Should().Be("Test METS");
+        wrapper.Agent.Should().Be(Constants.MetsCreatorAgent);
+        wrapper.Editable.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Parser_Populates_Access_Conditions_And_Rights_Statement_Via_MetsFileWrapper()
+    {
+        // MetsManager.SetRootAccessRestrictions / SetRootRightsStatement write MODS
+        // accessCondition elements. PopulateFromMets must read these back into
+        // MetsFileWrapper.RootAccessConditions and RootRightsStatement.
+        // This is the path the UI uses — it reads MetsFileWrapper, not FullMets.
+
+        var (metsUri, eTag) = await CreateEmptyMets("parser-access-conditions.xml");
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+
+        metsManager.SetRootAccessRestrictions(fullMets, ["Restricted", "Leeds only"]);
+        metsManager.SetRootRightsStatement(fullMets, new Uri("https://creativecommons.org/licenses/by/4.0/"));
+        await metsManager.WriteMets(fullMets);
+
+        // Read back via parser (MetsFileWrapper path, not FullMets)
+        var parseResult = await parser.GetMetsFileWrapper(metsUri);
+        parseResult.Success.Should().BeTrue();
+        var wrapper = parseResult.Value!;
+
+        wrapper.RootAccessConditions.Should().HaveCount(2);
+        wrapper.RootAccessConditions.Should().Contain("Restricted");
+        wrapper.RootAccessConditions.Should().Contain("Leeds only");
+        wrapper.RootRightsStatement.Should().Be(new Uri("https://creativecommons.org/licenses/by/4.0/"));
+
+        // Update and re-check
+        var fullMets2 = (await metsManager.GetFullMets(metsUri, null)).Value!;
+        metsManager.SetRootAccessRestrictions(fullMets2, ["Open access"]);
+        metsManager.SetRootRightsStatement(fullMets2, null);
+        await metsManager.WriteMets(fullMets2);
+
+        var parseResult2 = await parser.GetMetsFileWrapper(metsUri);
+        var wrapper2 = parseResult2.Value!;
+        wrapper2.RootAccessConditions.Should().ContainSingle().Which.Should().Be("Open access");
+        wrapper2.RootRightsStatement.Should().BeNull();
+    }
 }

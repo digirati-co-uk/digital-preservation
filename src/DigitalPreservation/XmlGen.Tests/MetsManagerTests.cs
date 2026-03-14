@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -474,6 +475,26 @@ public class MetsManagerTests
     }
 
     [Fact]
+    public async Task Delete_Non_Existent_Path_Returns_NotFound()
+    {
+        // Attempting to delete a file or directory that is not present in the METS
+        // must return NotFound, not throw or silently succeed.
+
+        var agFi = new FileInfo("Samples/archivalGroup.json");
+        var agMetsFi = new FileInfo("Outputs/archivalGroup-mets-delete-notfound.xml");
+        var agMetsUri = new Uri(agMetsFi.FullName);
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName));
+        var result = await metsManager.CreateStandardMets(agMetsUri, archivalGroup!, "Delete NotFound Test");
+        result.Success.Should().BeTrue();
+
+        var deleteResult = await metsManager.HandleDeleteObject(
+            agMetsUri, "objects/does-not-exist.pdf", result.Value!.ETag!);
+
+        deleteResult.Success.Should().BeFalse();
+        deleteResult.ErrorCode.Should().Be(ErrorCodes.NotFound);
+    }
+
+    [Fact]
     public async Task Upload_To_Missing_Parent_Directory_Returns_BadRequest()
     {
         // If a caller tries to upload a file to a path whose parent directory
@@ -500,5 +521,34 @@ public class MetsManagerTests
         result.Success.Should().BeFalse();
         result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
         result.ErrorMessage.Should().Contain("objects/not-yet-created");
+    }
+
+    [Fact]
+    public async Task Editing_Third_Party_METS_Via_MetsManager_Returns_BadRequest()
+    {
+        // MetsManager must refuse to edit METS files not created by us.
+        // FileSystemMetsStorage.GetFullMets checks the agent name and returns
+        // BadRequest if it doesn't match Constants.MetsCreatorAgent.
+        // This verifies the guard is exercised end-to-end through MetsManager,
+        // not just at the parser level (MetsFileWrapper.Editable).
+
+        var goobiMetsUri = new Uri(new FileInfo("Samples/goobi-wc-b29356350-2.xml").FullName);
+
+        var file = new WorkingFile
+        {
+            LocalPath = "objects/b29356350_0001.jp2",
+            Name = "b29356350_0001.jp2",
+            ContentType = "image/jp2",
+            Digest = "eb634d64ce8e6be5195174ceaef9ac9e19c37119f3b31618630aa633ccdbf68f",
+            Size = 100,
+            Modified = DateTime.UtcNow
+        };
+
+        // Pass null for eTag to bypass the ETag/concurrency check so the agent guard is reached.
+        var result = await metsManager.HandleSingleFileUpload(goobiMetsUri, file, null!);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        result.ErrorMessage.Should().Contain(Constants.MetsCreatorAgent);
     }
 }
