@@ -323,7 +323,9 @@ public class MetsManager(
                 };
                 div.Div.Add(childItemDiv);
 
-                metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, operationPath, true);
+                var metadataResult = metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, operationPath, true);
+                if (metadataResult.Failure)
+                    return metadataResult;
             }
 
             // Now we need to ensure the child items are in alphanumeric order by name...

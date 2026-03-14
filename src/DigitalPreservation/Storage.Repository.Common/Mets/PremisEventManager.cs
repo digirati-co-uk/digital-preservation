@@ -80,7 +80,7 @@ public class PremisEventManagerVirus : IPremisEventManager<VirusScanMetadata>
             {
                 EventOutcome = new StringPlusAuthority
                 {
-                    Value = virusScanMetadata.HasVirus ? "Fail" : "Success"
+                    Value = virusScanMetadata.HasVirus ? "Fail" : "Pass"
                 },
                 EventOutcomeDetail = { new EventOutcomeDetailComplexType
                 {
@@ -89,6 +89,25 @@ public class PremisEventManagerVirus : IPremisEventManager<VirusScanMetadata>
             };
 
             eventComplexType.EventOutcomeInformation.Add(eventOutcomeInformationComplexType);
+        }
+        else
+        {
+            var existing = eventComplexType.EventOutcomeInformation[0];
+            existing.EventOutcome = new StringPlusAuthority
+            {
+                Value = virusScanMetadata.HasVirus ? "Fail" : "Pass"
+            };
+            if (!existing.EventOutcomeDetail.Any())
+            {
+                existing.EventOutcomeDetail.Add(new EventOutcomeDetailComplexType
+                {
+                    EventOutcomeDetailNote = virusScanMetadata.VirusFound
+                });
+            }
+            else
+            {
+                existing.EventOutcomeDetail[0].EventOutcomeDetailNote = virusScanMetadata.VirusFound;
+            }
         }
     }
 
