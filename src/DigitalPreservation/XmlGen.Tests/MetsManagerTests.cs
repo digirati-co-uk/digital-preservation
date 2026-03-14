@@ -444,7 +444,61 @@ public class MetsManagerTests
         // TODO: Validate result.Value.XDocument
         // Need to verify that fileSec and ADMSec have been updated
     }
-    
-    
-    
+
+    [Fact]
+    public async Task Stale_ETag_Returns_PreconditionFailed()
+    {
+        // If a deposit's METS has been modified since the caller last read it,
+        // the ETag will no longer match. HandleSingleFileUpload must return
+        // PreconditionFailed rather than silently overwriting the intervening changes.
+
+        var metsFi = new FileInfo("Outputs/etag-mismatch.xml");
+        var metsUri = new Uri(metsFi.FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "ETag Test");
+        createResult.Success.Should().BeTrue();
+
+        var file = new WorkingFile
+        {
+            LocalPath = "objects/readme.txt",
+            Name = "readme.txt",
+            ContentType = "text/plain",
+            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
+            Size = 100,
+            Modified = DateTime.UtcNow
+        };
+
+        var result = await metsManager.HandleSingleFileUpload(metsUri, file, "not-the-real-etag");
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.PreconditionFailed);
+    }
+
+    [Fact]
+    public async Task Upload_To_Missing_Parent_Directory_Returns_BadRequest()
+    {
+        // If a caller tries to upload a file to a path whose parent directory
+        // has not yet been added to METS, MetsManager must return BadRequest.
+        // The caller is required to call HandleCreateFolder first.
+
+        var metsFi = new FileInfo("Outputs/missing-parent.xml");
+        var metsUri = new Uri(metsFi.FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "Missing Parent Test");
+        createResult.Success.Should().BeTrue();
+
+        var file = new WorkingFile
+        {
+            LocalPath = "objects/not-yet-created/readme.txt",
+            Name = "readme.txt",
+            ContentType = "text/plain",
+            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
+            Size = 100,
+            Modified = DateTime.UtcNow
+        };
+
+        var result = await metsManager.HandleSingleFileUpload(metsUri, file, createResult.Value!.ETag!);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        result.ErrorMessage.Should().Contain("objects/not-yet-created");
+    }
 }

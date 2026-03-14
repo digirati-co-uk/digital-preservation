@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -141,5 +142,85 @@ public class MetsWrapperTests
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();
     }
-    
+
+    [Fact]
+    public async Task MetsParser_Extracts_Premis_Metadata_From_Goobi_METS()
+    {
+        // GetMetsFileWrapper must populate WorkingFile.Metadata with FileFormatMetadata
+        // derived from PREMIS techMD in a Goobi METS file.
+        // This data is what the ImportJob diff uses to determine fixity and format.
+
+        var metsLoader = new FileSystemMetsLoader();
+        var parser = new MetsParser(metsLoader, logger);
+        var goobiMetsFile = new FileInfo("Samples/goobi-wc-b29356350-2.xml");
+        var result = await parser.GetMetsFileWrapper(new Uri(goobiMetsFile.FullName));
+
+        result.Success.Should().BeTrue();
+
+        var file = result.Value!.Files.Single(f => f.LocalPath == "objects/b29356350_0001.jp2");
+
+        // Top-level properties populated from fileSec
+        file.ContentType.Should().Be("image/jp2");
+
+        // FileFormatMetadata populated from PREMIS techMD
+        var ffm = file.Metadata.OfType<FileFormatMetadata>().Single();
+        ffm.Source.Should().Be("METS");
+        ffm.PronomKey.Should().Be("x-fmt/392");
+        ffm.FormatName.Should().Be("JP2 (JPEG 2000 part 1)");
+        ffm.Size.Should().Be(1348420);
+        // Note: the Goobi sample labels its digest algorithm as "sha256" but the
+        // stored value is 40 hex characters (SHA-1 length) — a data quality issue
+        // in the source METS, not a parser bug. The parser reads it as supplied.
+        ffm.Digest.Should().Be("6eb6c17cd93e392fed8e1cb4d9de5617b8a9b4de");
+    }
+
+    [Fact]
+    public async Task MetsParser_Extracts_Premis_Metadata_From_EPrints_METS()
+    {
+        // GetMetsFileWrapper must populate WorkingFile.Metadata with FileFormatMetadata
+        // derived from PREMIS techMD in an EPrints METS file.
+
+        var metsLoader = new FileSystemMetsLoader();
+        var parser = new MetsParser(metsLoader, logger);
+        var eprintsMets = new FileInfo("Samples/EPrints.10315.METS.xml");
+        var result = await parser.GetMetsFileWrapper(new Uri(eprintsMets.FullName));
+
+        result.Success.Should().BeTrue();
+
+        // files[0] is the first object file; its digest is already asserted in
+        // Can_Parse_EPrints_METS. Here we additionally verify the PRONOM metadata.
+        var file = result.Value!.PhysicalStructure!.Directories
+            .Single(d => d.Name == FolderNames.Objects).Files[0];
+
+        var ffm = file.Metadata.OfType<FileFormatMetadata>().Single();
+        ffm.Source.Should().Be("METS");
+        ffm.PronomKey.Should().Be("fmt/43");
+        ffm.FormatName.Should().Be("JPEG File Interchange Format");
+        ffm.Size.Should().Be(876464);
+        ffm.Digest.Should().Be("4675c73e6fd66d2ea9a684ec79e4e6559bb4d44a35e8234794b0691472b0385d");
+    }
+
+    [Fact]
+    public async Task MetsParser_Extracts_Premis_Metadata_From_Archivematica_METS()
+    {
+        // GetMetsFileWrapper must populate WorkingFile.Metadata with FileFormatMetadata
+        // derived from PREMIS techMD in an Archivematica METS file.
+
+        var metsLoader = new FileSystemMetsLoader();
+        var parser = new MetsParser(metsLoader, logger);
+        var archivematicaMets = new FileInfo("Samples/archivematica-wc-METS.299eb16f-1e62-4bf6-b259-c82146153711.xml");
+        var result = await parser.GetMetsFileWrapper(new Uri(archivematicaMets.FullName));
+
+        result.Success.Should().BeTrue();
+
+        var file = result.Value!.Files
+            .Single(f => f.LocalPath == "objects/Edgware_Community_Hospital/03_05_01.tif");
+
+        var ffm = file.Metadata.OfType<FileFormatMetadata>().Single();
+        ffm.Source.Should().Be("METS");
+        ffm.PronomKey.Should().Be("fmt/353");
+        ffm.FormatName.Should().Be("Tagged Image File Format");
+        ffm.Size.Should().Be(2383740);
+        ffm.Digest.Should().Be("e05e9d3f5f6771b17274404a2d4230970e5a782b8f519e2447853032ef53ee84");
+    }
 }
