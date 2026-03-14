@@ -524,6 +524,57 @@ public class MetsManagerTests
     }
 
     [Fact]
+    public async Task Deleting_Non_Empty_Directory_Returns_BadRequest()
+    {
+        // MetsManager.DeleteFile checks div.Div.Count > 0 and returns BadRequest
+        // with "Cannot delete a non-empty directory." Callers must delete all children
+        // before removing the parent directory.
+
+        var metsFi = new FileInfo("Outputs/delete-non-empty-dir.xml");
+        var metsUri = new Uri(metsFi.FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "Delete Non-Empty Dir Test");
+        createResult.Success.Should().BeTrue();
+        var eTag = createResult.Value!.ETag!;
+
+        // Create a subdirectory
+        var dir = new WorkingDirectory
+        {
+            LocalPath = "objects/sub-folder",
+            Name = "sub-folder",
+            Modified = DateTime.UtcNow
+        };
+        var dirResult = await metsManager.HandleCreateFolder(metsUri, dir, eTag);
+        dirResult.Success.Should().BeTrue();
+
+        // Parse to get a fresh ETag after the folder creation
+        var parsed = await parser.GetMetsFileWrapper(metsUri);
+        eTag = parsed.Value!.ETag!;
+
+        // Add a file inside the subdirectory
+        var file = new WorkingFile
+        {
+            LocalPath = "objects/sub-folder/readme.txt",
+            Name = "readme.txt",
+            ContentType = "text/plain",
+            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
+            Size = 100,
+            Modified = DateTime.UtcNow
+        };
+        var uploadResult = await metsManager.HandleSingleFileUpload(metsUri, file, eTag);
+        uploadResult.Success.Should().BeTrue();
+
+        var parsed2 = await parser.GetMetsFileWrapper(metsUri);
+        eTag = parsed2.Value!.ETag!;
+
+        // Attempt to delete the non-empty directory without removing the child first
+        var deleteResult = await metsManager.HandleDeleteObject(metsUri, "objects/sub-folder", eTag);
+
+        deleteResult.Success.Should().BeFalse();
+        deleteResult.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        deleteResult.ErrorMessage.Should().Contain("non-empty");
+    }
+
+    [Fact]
     public async Task Editing_Third_Party_METS_Via_MetsManager_Returns_BadRequest()
     {
         // MetsManager must refuse to edit METS files not created by us.

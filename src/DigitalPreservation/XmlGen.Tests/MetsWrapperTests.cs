@@ -24,7 +24,7 @@ public class MetsWrapperTests
     }
     
     [Fact]
-    public async void Can_Parse_Goobi_METS_For_Wrapper()
+    public async Task Can_Parse_Goobi_METS_For_Wrapper()
     {
         var metsLoader = new FileSystemMetsLoader();
         var parser = new MetsParser(metsLoader, logger);
@@ -133,15 +133,34 @@ public class MetsWrapperTests
     }
     
     [Fact]
-    public async void Can_Parse_METS_From_FolderReference()
+    public async Task Can_Parse_METS_From_FolderReference()
     {
+        // FileSystemMetsLoader.FindMetsFile searches the directory for the first file
+        // whose name (lowercased slug) contains "mets" and ends in ".xml", preferring
+        // the canonical name "mets.xml". This test verifies that the folder-reference
+        // code path resolves successfully and that the resolved METS can be fully parsed.
+
         var metsLoader = new FileSystemMetsLoader();
         var parser = new MetsParser(metsLoader, logger);
         var metsFolderContainer = new DirectoryInfo("Samples");
         var result = await parser.GetMetsFileWrapper(new Uri(metsFolderContainer.FullName));
 
         result.Success.Should().BeTrue();
-        result.Value.Should().NotBeNull();
+        var wrapper = result.Value!;
+        wrapper.Should().NotBeNull();
+
+        // Whichever METS file was resolved, it must have a parseable physical structure
+        wrapper.PhysicalStructure.Should().NotBeNull(
+            "the resolved METS must have a structMap physical structure");
+
+        // The METS file itself is always listed as a WorkingFile in the wrapper root
+        // (FileSystemMetsLoader.LoadMetsFileAsWorkingFile populates it with ContentType=application/xml)
+        wrapper.Files.Should().Contain(f => f.ContentType == "application/xml",
+            "the resolved METS file itself must appear as a WorkingFile in the wrapper");
+
+        // The resolved file came from the Samples directory
+        wrapper.Files.Should().Contain(f => f.Name.EndsWith(".xml"),
+            "the resolved file must be an XML file from the Samples folder");
     }
 
     [Fact]
