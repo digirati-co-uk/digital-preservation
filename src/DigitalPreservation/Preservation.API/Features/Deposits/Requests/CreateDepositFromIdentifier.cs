@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Mets;
+using Storage.Repository.Common.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Workspace;
@@ -27,7 +28,7 @@ public class CreateDepositFromIdentifierHandler(
     IStorageApiClient storageApiClient,
     IStorage storage,
     IMetsManager metsManager,
-    IMetsFromArchivalGroup metsFromArchivalGroup,
+    MetsFromArchivalGroup metsFromArchivalGroup,
     WorkspaceManagerFactory workspaceManagerFactory) : 
     CreateDepositBase(
         logger, 

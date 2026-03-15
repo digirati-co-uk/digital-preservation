@@ -26,7 +26,7 @@ public class CreateDepositBase(
     IStorageApiClient storageApiClient,
     IStorage storage,
     IMetsManager metsManager,
-    IMetsFromArchivalGroup metsFromArchivalGroup,
+    MetsFromArchivalGroup metsFromArchivalGroup,
     WorkspaceManagerFactory workspaceManagerFactory)
 {
     protected async Task<Result<Deposit?>> HandleBase(CreateDeposit request, CancellationToken cancellationToken)

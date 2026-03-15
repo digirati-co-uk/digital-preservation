@@ -77,7 +77,7 @@ try
         .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
-        .AddSingleton<IMetsFromArchivalGroup, MetsFromArchivalGroup>()
+        .AddSingleton<MetsFromArchivalGroup>()
         .AddSingleton<MetadataManager>()
         .AddSingleton<PremisManager>()
         .AddSingleton<PremisManagerExif>()
