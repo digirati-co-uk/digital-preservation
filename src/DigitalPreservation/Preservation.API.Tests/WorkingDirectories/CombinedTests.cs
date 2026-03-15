@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Combined;
 using Test.Helpers.TestData;
 
 namespace Preservation.API.Tests.WorkingDirectories;
