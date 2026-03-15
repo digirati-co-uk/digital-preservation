@@ -97,7 +97,7 @@ public class PremisEventManagerVirus : IPremisEventManager<VirusScanMetadata>
             {
                 Value = virusScanMetadata.HasVirus ? "Fail" : "Pass"
             };
-            if (!existing.EventOutcomeDetail.Any())
+            if (existing.EventOutcomeDetail.Count == 0)
             {
                 existing.EventOutcomeDetail.Add(new EventOutcomeDetailComplexType
                 {
