@@ -256,12 +256,12 @@ public class MetsManager(
                     if (div.Type != "Item")
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
 
-                    SetFileAndFileGroup(div, fullMets);
+                    var (file, _) = SetFileAndFileGroup(div, fullMets);
 
-                    if (File?.FLocat[0].Href != operationPath)
+                    if (file.FLocat[0].Href != operationPath)
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
 
-                    return metadataManager.ProcessAllFileMetadata(ref fullMets, div, workingFile, operationPath);
+                    return metadataManager.ProcessAllFileMetadata(fullMets, div, workingFile, operationPath);
 
                 }
             }
@@ -323,7 +323,9 @@ public class MetsManager(
                 };
                 div.Div.Add(childItemDiv);
 
-                metadataManager.ProcessAllFileMetadata(ref fullMets, childItemDiv, workingFile, operationPath, true);
+                var metadataResult = metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, operationPath, true);
+                if (metadataResult.Failure)
+                    return metadataResult;
             }
 
             // Now we need to ensure the child items are in alphanumeric order by name...
@@ -510,7 +512,7 @@ public class MetsManager(
         return rights is not null ? new Uri(rights) : null;
     }
     
-    private Result DeleteFile(DivType div, FullMets fullMets, DivType? parent, string? operationPath)
+    private static Result DeleteFile(DivType div, FullMets fullMets, DivType? parent, string? operationPath)
     {
         if (div.Div.Count > 0)
         {
@@ -520,16 +522,16 @@ public class MetsManager(
         string? admId;
         if (div is { Type: "Item" })
         {
-            SetFileAndFileGroup(div, fullMets);
+            var (file, fileGroup) = SetFileAndFileGroup(div, fullMets);
 
-            if (File != null && File.FLocat[0].Href != operationPath)
+            if (file.FLocat[0].Href != operationPath)
             {
                 return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
             }
 
-            admId = File != null && File.Admid.Count > 1 ? string.Join(" ", File.Admid) : File?.Admid[0];
+            admId = file.Admid.Count > 1 ? string.Join(" ", file.Admid) : file.Admid[0];
 
-            FileGroup?.File.Remove(File);
+            fileGroup.File.Remove(file);
         }
         else
         {
@@ -544,11 +546,12 @@ public class MetsManager(
         return Result.Ok();
     }
 
-    private void SetFileAndFileGroup(DivType div, FullMets fullMets)
+    private static (FileType file, MetsTypeFileSecFileGrp fileGroup) SetFileAndFileGroup(DivType div, FullMets fullMets)
     {
         var fileId = div.Fptr[0].Fileid;
-        FileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
-        File = FileGroup.File.Single(f => f.Id == fileId);
+        var fileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+        var file = fileGroup.File.Single(f => f.Id == fileId);
+        return (file, fileGroup);
     }
         
     private (int counter, DivType? parent, DivType div, string[] elements, string operationPath, string testPath) GetMetsElements(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
@@ -583,6 +586,4 @@ public class MetsManager(
 
         return (counter, parent, div, elements, operationPath, testPath);
     }
-    private FileType? File { get; set; }
-    private MetsTypeFileSecFileGrp? FileGroup { get; set; }
 }

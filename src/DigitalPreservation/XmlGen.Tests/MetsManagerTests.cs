@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -444,7 +445,161 @@ public class MetsManagerTests
         // TODO: Validate result.Value.XDocument
         // Need to verify that fileSec and ADMSec have been updated
     }
-    
-    
-    
+
+    [Fact]
+    public async Task Stale_ETag_Returns_PreconditionFailed()
+    {
+        // If a deposit's METS has been modified since the caller last read it,
+        // the ETag will no longer match. HandleSingleFileUpload must return
+        // PreconditionFailed rather than silently overwriting the intervening changes.
+
+        var metsFi = new FileInfo("Outputs/etag-mismatch.xml");
+        var metsUri = new Uri(metsFi.FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "ETag Test");
+        createResult.Success.Should().BeTrue();
+
+        var file = new WorkingFile
+        {
+            LocalPath = "objects/readme.txt",
+            Name = "readme.txt",
+            ContentType = "text/plain",
+            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
+            Size = 100,
+            Modified = DateTime.UtcNow
+        };
+
+        var result = await metsManager.HandleSingleFileUpload(metsUri, file, "not-the-real-etag");
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.PreconditionFailed);
+    }
+
+    [Fact]
+    public async Task Delete_Non_Existent_Path_Returns_NotFound()
+    {
+        // Attempting to delete a file or directory that is not present in the METS
+        // must return NotFound, not throw or silently succeed.
+
+        var agFi = new FileInfo("Samples/archivalGroup.json");
+        var agMetsFi = new FileInfo("Outputs/archivalGroup-mets-delete-notfound.xml");
+        var agMetsUri = new Uri(agMetsFi.FullName);
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName));
+        var result = await metsManager.CreateStandardMets(agMetsUri, archivalGroup!, "Delete NotFound Test");
+        result.Success.Should().BeTrue();
+
+        var deleteResult = await metsManager.HandleDeleteObject(
+            agMetsUri, "objects/does-not-exist.pdf", result.Value!.ETag!);
+
+        deleteResult.Success.Should().BeFalse();
+        deleteResult.ErrorCode.Should().Be(ErrorCodes.NotFound);
+    }
+
+    [Fact]
+    public async Task Upload_To_Missing_Parent_Directory_Returns_BadRequest()
+    {
+        // If a caller tries to upload a file to a path whose parent directory
+        // has not yet been added to METS, MetsManager must return BadRequest.
+        // The caller is required to call HandleCreateFolder first.
+
+        var metsFi = new FileInfo("Outputs/missing-parent.xml");
+        var metsUri = new Uri(metsFi.FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "Missing Parent Test");
+        createResult.Success.Should().BeTrue();
+
+        var file = new WorkingFile
+        {
+            LocalPath = "objects/not-yet-created/readme.txt",
+            Name = "readme.txt",
+            ContentType = "text/plain",
+            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
+            Size = 100,
+            Modified = DateTime.UtcNow
+        };
+
+        var result = await metsManager.HandleSingleFileUpload(metsUri, file, createResult.Value!.ETag!);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        result.ErrorMessage.Should().Contain("objects/not-yet-created");
+    }
+
+    [Fact]
+    public async Task Deleting_Non_Empty_Directory_Returns_BadRequest()
+    {
+        // MetsManager.DeleteFile checks div.Div.Count > 0 and returns BadRequest
+        // with "Cannot delete a non-empty directory." Callers must delete all children
+        // before removing the parent directory.
+
+        var metsFi = new FileInfo("Outputs/delete-non-empty-dir.xml");
+        var metsUri = new Uri(metsFi.FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "Delete Non-Empty Dir Test");
+        createResult.Success.Should().BeTrue();
+        var eTag = createResult.Value!.ETag!;
+
+        // Create a subdirectory
+        var dir = new WorkingDirectory
+        {
+            LocalPath = "objects/sub-folder",
+            Name = "sub-folder",
+            Modified = DateTime.UtcNow
+        };
+        var dirResult = await metsManager.HandleCreateFolder(metsUri, dir, eTag);
+        dirResult.Success.Should().BeTrue();
+
+        // Parse to get a fresh ETag after the folder creation
+        var parsed = await parser.GetMetsFileWrapper(metsUri);
+        eTag = parsed.Value!.ETag!;
+
+        // Add a file inside the subdirectory
+        var file = new WorkingFile
+        {
+            LocalPath = "objects/sub-folder/readme.txt",
+            Name = "readme.txt",
+            ContentType = "text/plain",
+            Digest = "801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105",
+            Size = 100,
+            Modified = DateTime.UtcNow
+        };
+        var uploadResult = await metsManager.HandleSingleFileUpload(metsUri, file, eTag);
+        uploadResult.Success.Should().BeTrue();
+
+        var parsed2 = await parser.GetMetsFileWrapper(metsUri);
+        eTag = parsed2.Value!.ETag!;
+
+        // Attempt to delete the non-empty directory without removing the child first
+        var deleteResult = await metsManager.HandleDeleteObject(metsUri, "objects/sub-folder", eTag);
+
+        deleteResult.Success.Should().BeFalse();
+        deleteResult.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        deleteResult.ErrorMessage.Should().Contain("non-empty");
+    }
+
+    [Fact]
+    public async Task Editing_Third_Party_METS_Via_MetsManager_Returns_BadRequest()
+    {
+        // MetsManager must refuse to edit METS files not created by us.
+        // FileSystemMetsStorage.GetFullMets checks the agent name and returns
+        // BadRequest if it doesn't match Constants.MetsCreatorAgent.
+        // This verifies the guard is exercised end-to-end through MetsManager,
+        // not just at the parser level (MetsFileWrapper.Editable).
+
+        var goobiMetsUri = new Uri(new FileInfo("Samples/goobi-wc-b29356350-2.xml").FullName);
+
+        var file = new WorkingFile
+        {
+            LocalPath = "objects/b29356350_0001.jp2",
+            Name = "b29356350_0001.jp2",
+            ContentType = "image/jp2",
+            Digest = "eb634d64ce8e6be5195174ceaef9ac9e19c37119f3b31618630aa633ccdbf68f",
+            Size = 100,
+            Modified = DateTime.UtcNow
+        };
+
+        // Pass null for eTag to bypass the ETag/concurrency check so the agent guard is reached.
+        var result = await metsManager.HandleSingleFileUpload(goobiMetsUri, file, null!);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        result.ErrorMessage.Should().Contain(Constants.MetsCreatorAgent);
+    }
 }

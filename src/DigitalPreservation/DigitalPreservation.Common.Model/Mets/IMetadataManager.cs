@@ -10,5 +10,5 @@ using System.Threading.Tasks;
 namespace DigitalPreservation.Common.Model.Mets;
 public interface IMetadataManager
 {
-    Result ProcessAllFileMetadata(ref FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false);
+    Result ProcessAllFileMetadata(FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false);
 }
