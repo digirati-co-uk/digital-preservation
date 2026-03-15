@@ -1,10 +1,4 @@
-﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
-using DigitalPreservation.XmlGen.Premis.V3;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using DigitalPreservation.XmlGen.Premis.V3;
 using System.Xml;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
