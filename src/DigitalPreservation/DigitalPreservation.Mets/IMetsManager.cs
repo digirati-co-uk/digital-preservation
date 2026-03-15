@@ -1,7 +1,7 @@
 ﻿using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 
-namespace DigitalPreservation.Common.Model.Mets;
+namespace DigitalPreservation.Mets;
 
 public interface IMetsManager
 {

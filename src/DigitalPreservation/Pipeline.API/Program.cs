@@ -11,7 +11,7 @@ using Pipeline.API.Features.Pipeline;
 using Pipeline.API.Middleware;
 using Serilog;
 using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Workspace;

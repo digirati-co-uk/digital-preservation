@@ -1,6 +1,7 @@
-﻿using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Mets;
+using DigitalPreservation.Common.Model.PreservationApi;
 
-namespace DigitalPreservation.Common.Model.Mets;
+namespace Preservation.API.Features.Deposits;
 
 public class DepositWithMets
 {

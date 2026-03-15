@@ -2,9 +2,8 @@
 using DigitalPreservation.XmlGen.Premis.V3;
 using System.Xml;
 using System.Xml.Serialization;
-using DigitalPreservation.Common.Model.Mets;
 
-namespace Storage.Repository.Common.Mets;
+namespace DigitalPreservation.Mets;
 
 public class PremisEventManagerVirus
 {

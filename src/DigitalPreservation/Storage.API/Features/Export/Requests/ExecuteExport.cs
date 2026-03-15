@@ -7,7 +7,7 @@ using DigitalPreservation.Utils;
 using MediatR;
 using Storage.API.Fedora;
 using Storage.Repository.Common;
-using Storage.Repository.Common.Mets;
+using DigitalPreservation.Mets;
 using ExportResource = DigitalPreservation.Common.Model.Export.Export;
 
 namespace Storage.API.Features.Export.Requests;

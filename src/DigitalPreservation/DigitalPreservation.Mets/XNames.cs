@@ -1,6 +1,6 @@
 ﻿using System.Xml.Linq;
 
-namespace Storage.Repository.Common.Mets;
+namespace DigitalPreservation.Mets;
 
 public static class XNames
 {

@@ -1,7 +1,7 @@
 ﻿using System.Xml.Linq;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
-using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;

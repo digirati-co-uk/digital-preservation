@@ -1,9 +1,8 @@
 ﻿using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
-using DigitalPreservation.Common.Model.Mets;
 
-namespace Storage.Repository.Common.Mets.StorageImpl;
+namespace DigitalPreservation.Mets.StorageImpl;
 
 public static class StorageHelpers
 {

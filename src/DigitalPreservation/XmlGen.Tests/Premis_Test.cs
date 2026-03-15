@@ -1,8 +1,8 @@
-﻿using DigitalPreservation.Common.Model.Mets;
+﻿using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.XmlGen.Premis.V3;
 using FluentAssertions;
-using Storage.Repository.Common.Mets;
+using DigitalPreservation.Mets;
 using System.Xml;
 using System.Xml.Serialization;
 using Xunit.Abstractions;

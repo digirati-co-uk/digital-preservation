@@ -1,6 +1,6 @@
 ﻿using DigitalPreservation.Common.Model.Transit;
 
-namespace DigitalPreservation.Common.Model.Mets;
+namespace DigitalPreservation.Mets;
 
 public static class Constants
 {

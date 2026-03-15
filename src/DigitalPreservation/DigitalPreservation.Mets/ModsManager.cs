@@ -1,10 +1,9 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
-using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Mods.V3;
 
-namespace Storage.Repository.Common.Mets;
+namespace DigitalPreservation.Mets;
 
 
 public static class ModsManager

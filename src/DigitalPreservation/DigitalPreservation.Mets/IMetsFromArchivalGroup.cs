@@ -1,6 +1,7 @@
-﻿using DigitalPreservation.Common.Model.Results;
+﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Results;
 
-namespace DigitalPreservation.Common.Model.Mets;
+namespace DigitalPreservation.Mets;
 
 public interface IMetsFromArchivalGroup
 {

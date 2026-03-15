@@ -1,9 +1,9 @@
 ﻿using System.Xml.Linq;
-using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
 
-namespace Storage.Repository.Common.Mets.StorageImpl;
+namespace DigitalPreservation.Mets.StorageImpl;
 
 public class FileSystemMetsLoader : IMetsLoader
 {

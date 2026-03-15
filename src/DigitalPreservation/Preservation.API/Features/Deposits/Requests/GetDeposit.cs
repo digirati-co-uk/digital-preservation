@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Common.Model.Mets;
+﻿using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Workspace;
