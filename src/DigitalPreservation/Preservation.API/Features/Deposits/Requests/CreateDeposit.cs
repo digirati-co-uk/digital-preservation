@@ -27,6 +27,7 @@ public class CreateDepositHandler(
     IStorageApiClient storageApiClient,
     IStorage storage,
     IMetsManager metsManager,
+    IMetsFromArchivalGroup metsFromArchivalGroup,
     WorkspaceManagerFactory workspaceManagerFactory
     ) : 
         CreateDepositBase(
@@ -37,6 +38,7 @@ public class CreateDepositHandler(
             storageApiClient, 
             storage, 
             metsManager, 
+            metsFromArchivalGroup,
             workspaceManagerFactory), 
         IRequestHandler<CreateDeposit, Result<Deposit?>>
 {

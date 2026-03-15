@@ -27,6 +27,7 @@ public class CreateDepositFromIdentifierHandler(
     IStorageApiClient storageApiClient,
     IStorage storage,
     IMetsManager metsManager,
+    IMetsFromArchivalGroup metsFromArchivalGroup,
     WorkspaceManagerFactory workspaceManagerFactory) : 
     CreateDepositBase(
         logger, 
@@ -36,6 +37,7 @@ public class CreateDepositFromIdentifierHandler(
         storageApiClient, 
         storage, 
         metsManager,
+        metsFromArchivalGroup,
         workspaceManagerFactory), 
     IRequestHandler<CreateDepositFromIdentifier, Result<Deposit?>>
 {

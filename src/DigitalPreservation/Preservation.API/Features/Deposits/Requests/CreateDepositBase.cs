@@ -26,6 +26,7 @@ public class CreateDepositBase(
     IStorageApiClient storageApiClient,
     IStorage storage,
     IMetsManager metsManager,
+    IMetsFromArchivalGroup metsFromArchivalGroup,
     WorkspaceManagerFactory workspaceManagerFactory)
 {
     protected async Task<Result<Deposit?>> HandleBase(CreateDeposit request, CancellationToken cancellationToken)
@@ -270,7 +271,7 @@ public class CreateDepositBase(
                 var archivalGroupResult = await storageApiClient.GetArchivalGroup(archivalGroupUri!.AbsolutePath);
                 if (archivalGroupResult is { Success: true, Value: not null })
                 {
-                    var result = await metsManager.CreateStandardMets(filesLocation, archivalGroupResult.Value,
+                    var result = await metsFromArchivalGroup.CreateStandardMets(filesLocation, archivalGroupResult.Value,
                         agNameFromDeposit);
                     if (result is { Success: true, Value: not null })
                     {
