@@ -6,7 +6,7 @@ using DigitalPreservation.Common.Model.Mets;
 
 namespace Storage.Repository.Common.Mets;
 
-public class PremisEventManagerVirus : IPremisEventManager<VirusScanMetadata>
+public class PremisEventManagerVirus
 {
     public EventComplexType Create(VirusScanMetadata virusScanMetadata)
     {

@@ -11,7 +11,7 @@ using File = DigitalPreservation.XmlGen.Premis.V3.File;
 namespace Storage.Repository.Common.Mets;
 
 
-public class PremisManagerExif : IPremisManager<ExifMetadata>
+public class PremisManagerExif
 {
     public ExifMetadata? Read(PremisComplexType premis)
     {

@@ -14,7 +14,7 @@ namespace Storage.Repository.Common.Mets;
 /// </summary>
 /// <param name="metsManager"></param>
 /// <param name="metsParser"></param>
-public class MetsFromArchivalGroup(MetsManager metsManager, MetsParser metsParser) : IMetsFromArchivalGroup
+public class MetsFromArchivalGroup(MetsManager metsManager, MetsParser metsParser, MetadataManager metadataManager) : IMetsFromArchivalGroup
 {
     /// <summary>
     /// Reverse-engineer a METS file from an existing Archival Group.
@@ -75,7 +75,7 @@ public class MetsFromArchivalGroup(MetsManager metsManager, MetsParser metsParse
                     OriginalName = localPath,
                     StorageLocation = childContainer.Id
                 };
-                mets.AmdSec.Add(metsManager.GetAmdSecType(reducedPremisForObjectDir, admId, techId));
+                mets.AmdSec.Add(metadataManager.GetAmdSecType(reducedPremisForObjectDir, admId, techId));
             }
 
             AddResourceToMets(mets, archivalGroupUri, childDirectoryDiv, childContainer);
@@ -126,7 +126,7 @@ public class MetsFromArchivalGroup(MetsManager metsManager, MetsParser metsParse
                 OriginalName = localPath,
                 StorageLocation = binary.Id
             };
-            mets.AmdSec.Add(metsManager.GetAmdSecType(premisFile, admId, techId));
+            mets.AmdSec.Add(metadataManager.GetAmdSecType(premisFile, admId, techId));
         }
     }
 }

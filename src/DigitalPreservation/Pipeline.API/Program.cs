@@ -125,10 +125,10 @@ try
     builder.Services.AddSingleton<IMetsLoader, S3MetsLoader>();
     builder.Services.AddSingleton<IMetsParser, MetsParser>();
     builder.Services.AddSingleton<IMetsManager, MetsManager>();
-    builder.Services.AddSingleton<IMetadataManager, MetadataManager>();
-    builder.Services.AddSingleton<IPremisManager<FileFormatMetadata>, PremisManager>();
-    builder.Services.AddSingleton<IPremisManager<ExifMetadata>, PremisManagerExif>();
-    builder.Services.AddSingleton<IPremisEventManager<VirusScanMetadata>, PremisEventManagerVirus>();
+    builder.Services.AddSingleton<MetadataManager>();
+    builder.Services.AddSingleton<PremisManager>();
+    builder.Services.AddSingleton<PremisManagerExif>();
+    builder.Services.AddSingleton<PremisEventManagerVirus>();
     builder.Services.AddSingleton<IMetsStorage, S3MetsStorage>();
     builder.Services.AddSingleton<WorkspaceManagerFactory>();
 

@@ -11,9 +11,7 @@ namespace Storage.Repository.Common.Mets;
 public class MetsManager(
     IMetsParser metsParser,
     IMetsStorage metsStorage,
-    IMetadataManager metadataManager,
-    IPremisManager<FileFormatMetadata> premisManager,
-    IPremisEventManager<VirusScanMetadata> premisEventManagerVirus) : IMetsManager
+    MetadataManager metadataManager) : IMetsManager
 {
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -26,6 +24,8 @@ public class MetsManager(
         return Result.FailNotNull<MetsFileWrapper>(writeResult.ErrorCode!, writeResult.ErrorMessage);
     }
 
+    // This being internal is a code smell; it's there to let MetsFromArchivalGroup call it.
+    // But more extensive decoupling is probably not worth it.
     internal async Task<(Uri file, DigitalPreservation.XmlGen.Mets.Mets mets)> GetStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
         // might be a file path or an S3 URI
@@ -196,7 +196,7 @@ public class MetsManager(
                         OriginalName = operationPath, // workingDirectory.LocalPath
                         StorageLocation = null // storageLocation
                     };
-                    fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
+                    fullMets.Mets.AmdSec.Add(metadataManager.GetAmdSecType(premisFile, admId, techId));
                 }
                 else
                 {
@@ -307,15 +307,15 @@ public class MetsManager(
             },
             AmdSec =
             {
-                GetAmdSecType(new FileFormatMetadata
+                metadataManager.GetAmdSecType(new FileFormatMetadata
                     {
-                        Source = Constants.Mets, OriginalName = FolderNames.Objects 
-                    }, 
+                        Source = Constants.Mets, OriginalName = FolderNames.Objects
+                    },
                     $"{Constants.AdmIdPrefix}{FolderNames.Objects}", $"{Constants.TechIdPrefix}{FolderNames.Objects}"),
-                GetAmdSecType(new FileFormatMetadata
+                metadataManager.GetAmdSecType(new FileFormatMetadata
                     {
-                        Source = Constants.Mets, OriginalName = FolderNames.Metadata 
-                    }, 
+                        Source = Constants.Mets, OriginalName = FolderNames.Metadata
+                    },
                     $"{Constants.AdmIdPrefix}{FolderNames.Metadata}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
@@ -324,47 +324,6 @@ public class MetsManager(
         return mets;
     }
     
-    internal AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null)
-    {
-        var premis = premisManager.Create(premisFile);
-        var xElement = premisManager.GetXmlElement(premis, true);
-
-        var amdSec = new AmdSecType
-        {
-            Id = admId,
-            TechMd =
-            {
-                new MdSecType
-                {
-                    Id = techId,
-                    MdWrap = new MdSecTypeMdWrap
-                    {
-                        Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
-                        XmlData = new MdSecTypeMdWrapXmlData { Any = { xElement }}
-                    }
-                }
-            },
-        };
-
-        if (virusScanMetadata == null) return amdSec;
-
-        var digiProvMd = premisEventManagerVirus.Create(virusScanMetadata);
-        var xVirusElement = premisEventManagerVirus.GetXmlElement(digiProvMd);
-
-        amdSec.DigiprovMd.Add(new MdSecType
-        {
-            Id = digiprovId,
-            MdWrap = new MdSecTypeMdWrap
-            {
-                Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
-                XmlData = new MdSecTypeMdWrapXmlData { Any = { xVirusElement } }
-            }
-        });
-
-        return amdSec;
-    }
-
-
     public List<string> GetRootAccessRestrictions(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);

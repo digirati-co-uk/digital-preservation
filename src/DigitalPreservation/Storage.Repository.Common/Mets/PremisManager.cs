@@ -10,7 +10,7 @@ using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace Storage.Repository.Common.Mets;
 
-public class PremisManager : IPremisManager<FileFormatMetadata>
+public class PremisManager
 {
     private const string Pronom = "PRONOM";
     private const string Sha256 = "SHA256";
