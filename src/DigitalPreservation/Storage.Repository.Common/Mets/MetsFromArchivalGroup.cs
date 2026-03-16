@@ -14,7 +14,7 @@ namespace Storage.Repository.Common.Mets;
 /// </summary>
 /// <param name="metsManager"></param>
 /// <param name="metsParser"></param>
-public class MetsFromArchivalGroup(MetsManager metsManager, MetsParser metsParser, MetadataManager metadataManager)
+public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsParser, MetadataManager metadataManager)
 {
     /// <summary>
     /// Reverse-engineer a METS file from an existing Archival Group.
