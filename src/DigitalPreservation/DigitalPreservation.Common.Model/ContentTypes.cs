@@ -1,4 +1,6 @@
-﻿using DigitalPreservation.Common.Model.Transit;
+﻿using System.Collections.Generic;
+using System.Linq;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 

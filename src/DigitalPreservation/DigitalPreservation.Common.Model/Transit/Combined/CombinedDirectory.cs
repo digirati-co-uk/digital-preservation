@@ -1,4 +1,7 @@
-﻿using DigitalPreservation.Common.Model.Results;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
 using static DigitalPreservation.Common.Model.Transit.Combined.CombinedFile;
 

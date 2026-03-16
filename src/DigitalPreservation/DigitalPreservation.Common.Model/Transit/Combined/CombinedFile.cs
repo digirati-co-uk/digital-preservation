@@ -1,4 +1,7 @@
-﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit.Combined;

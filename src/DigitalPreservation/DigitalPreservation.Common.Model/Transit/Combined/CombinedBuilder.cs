@@ -1,4 +1,7 @@
-﻿using DigitalPreservation.Utils;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit.Combined;
 
