@@ -1,4 +1,4 @@
-﻿namespace DigitalPreservation.Common.Model.Mets;
+﻿namespace DigitalPreservation.Mets;
 
 public class FullMets
 {

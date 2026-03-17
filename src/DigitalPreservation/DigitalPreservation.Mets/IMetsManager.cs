@@ -1,14 +1,14 @@
 ﻿using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 
-namespace DigitalPreservation.Common.Model.Mets;
+namespace DigitalPreservation.Mets;
 
 public interface IMetsManager
 {
     // Create an empty METS file
     Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit);
-    // Reverse-engineer a METS file from an existing AG. This is OK for now but likely to be an error scenario
-    Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, ArchivalGroup archivalGroup, string? agNameFromDeposit);
+
+    Task<(Uri file, DigitalPreservation.XmlGen.Mets.Mets mets)> GetStandardMets(Uri metsLocation, string? agNameFromDeposit);
     
     Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag); // , Uri? storageLocation
     Task<Result> HandleDeleteObject(Uri workingRoot, string localPath, string depositETag);

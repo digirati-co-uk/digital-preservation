@@ -1,5 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Results;
+﻿using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Search;
 using MediatR;
 using Storage.API.Fedora;

@@ -1,7 +1,6 @@
 ﻿using System.Security.Claims;
 using System.Text.Json;
 using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Results;

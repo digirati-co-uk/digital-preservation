@@ -1,7 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Common.Model.Mets;
+﻿using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PipelineApi;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
@@ -17,7 +15,6 @@ using Microsoft.Identity.Web.UI;
 using Preservation.Client;
 using Serilog;
 using Storage.Repository.Common;
-using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.Mets.StorageImpl;
 using Storage.Repository.Common.S3;
 
@@ -95,10 +92,10 @@ try
         .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
-        .AddSingleton<IMetadataManager, MetadataManager>()
-        .AddSingleton<IPremisManager<FileFormatMetadata>, PremisManager>()
-        .AddSingleton<IPremisManager<ExifMetadata>, PremisManagerExif>()
-        .AddSingleton<IPremisEventManager<VirusScanMetadata>, PremisEventManagerVirus>()
+        .AddSingleton<MetadataManager>()
+        .AddSingleton<PremisManager>()
+        .AddSingleton<PremisManagerExif>()
+        .AddSingleton<PremisEventManagerVirus>()
         .AddSingleton<IMetsStorage, S3MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
         .AddCorrelationIdHeaderPropagation()

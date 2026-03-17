@@ -2,7 +2,6 @@
 using Amazon.Runtime;
 using Amazon.S3;
 using DigitalPreservation.Common.Model;
-using DigitalPreservation.XmlGen.Mods.V3;
 using Storage.Repository.Common.S3;
 
 namespace Storage.API.Tests.S3;

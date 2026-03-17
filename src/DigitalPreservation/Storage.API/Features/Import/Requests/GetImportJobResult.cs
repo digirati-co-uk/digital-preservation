@@ -1,7 +1,6 @@
 ﻿using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
-using Storage.Repository.Common;
 
 namespace Storage.API.Features.Import.Requests;
 

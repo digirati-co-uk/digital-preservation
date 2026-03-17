@@ -7,10 +7,8 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Search;
-using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Web;
-using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 

@@ -359,3 +359,7 @@ MigrationBackup/
 fedora.bat
 
 .venv
+
+.claude
+
+CLAUDE.md

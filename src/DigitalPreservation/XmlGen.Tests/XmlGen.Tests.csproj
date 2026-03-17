@@ -28,6 +28,7 @@
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Workspace\DigitalPreservation.Workspace.csproj" />
       <ProjectReference Include="..\DigitalPreservation.XmlGen\DigitalPreservation.XmlGen.csproj" />
+      <ProjectReference Include="..\DigitalPreservation.Mets\DigitalPreservation.Mets.csproj" />
       <ProjectReference Include="..\Storage.Repository.Common\Storage.Repository.Common.csproj" />
     </ItemGroup>
 
@@ -69,6 +70,12 @@
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
       <None Update="Samples\goobi-wc-b29356350-3.xml">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="Samples\path-fixture-spaces.xml">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="Samples\path-fixture-special.xml">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
     </ItemGroup>

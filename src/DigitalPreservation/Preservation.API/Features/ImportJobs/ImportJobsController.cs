@@ -6,7 +6,6 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using MediatR;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Features.ImportJobs.Requests;

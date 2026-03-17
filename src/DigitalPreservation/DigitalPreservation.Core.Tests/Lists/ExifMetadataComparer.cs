@@ -1,5 +1,4 @@
-﻿using DigitalPreservation.Common.Model.DepositHelpers;
-using DigitalPreservation.Common.Model.Transit;
+﻿using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using Test.Helpers.TestData;

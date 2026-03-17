@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;

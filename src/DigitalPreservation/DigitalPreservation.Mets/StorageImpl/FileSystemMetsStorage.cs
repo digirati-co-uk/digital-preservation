@@ -1,11 +1,10 @@
 ﻿using System.Xml;
 using System.Xml.Serialization;
 using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
 
-namespace Storage.Repository.Common.Mets.StorageImpl;
+namespace DigitalPreservation.Mets.StorageImpl;
 
 public class FileSystemMetsStorage(IMetsParser metsParser) : IMetsStorage
 {

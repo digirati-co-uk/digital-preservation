@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.Http;
 
 namespace DigitalPreservation.Core.Configuration;
 

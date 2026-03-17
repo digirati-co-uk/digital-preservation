@@ -2,7 +2,7 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
-using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Utils;
 using Checksum = DigitalPreservation.Utils.Checksum;

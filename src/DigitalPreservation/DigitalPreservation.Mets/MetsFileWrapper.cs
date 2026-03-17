@@ -1,8 +1,7 @@
 ﻿using System.Xml.Linq;
 using DigitalPreservation.Common.Model.Transit;
-using Microsoft.Extensions.Primitives;
 
-namespace DigitalPreservation.Common.Model.Mets;
+namespace DigitalPreservation.Mets;
 
 /// <summary>
 /// This is used to access any METS file - not just ones we have created.
