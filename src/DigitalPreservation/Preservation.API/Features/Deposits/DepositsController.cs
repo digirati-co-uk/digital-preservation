@@ -351,7 +351,12 @@ public class DepositsController(
     }
 
     [HttpPost("archive-job", Name = "LogArchiveJob")]
-    //[ApiExplorerSettings(IgnoreApi = true)] // for internal use
+
+    [ProducesResponseType(204)]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
     public async Task<IActionResult> LogArchiveJob([FromBody] ArchiveDepositJob archiveDepositJob)
     {
         var archiveJobStatusResult = await mediator.Send(new ArchiveDeposit(archiveDepositJob));
