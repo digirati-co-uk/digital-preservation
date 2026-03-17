@@ -174,7 +174,7 @@ public class Functions
                 Log.Logger.Information("Successfully archived deposit {depositId} in batch {batchNumber}", archiveJob.DepositId, batchNumber);
             
             if (archiveJobResult.Failure)
-                Log.Logger.Information("Issue archiving deposit {depositId} in batch {batchNumber}", archiveJob.DepositId, batchNumber);
+                Log.Logger.Information("Issue archiving deposit {depositId} in batch {batchNumber} with error message {errorMessage}", archiveJob.DepositId, batchNumber, archiveJobResult.ErrorMessage);
 
         }
 
