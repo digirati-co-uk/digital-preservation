@@ -1,5 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.UI.Features.Repository.Requests;
+﻿using DigitalPreservation.UI.Features.Repository.Requests;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;

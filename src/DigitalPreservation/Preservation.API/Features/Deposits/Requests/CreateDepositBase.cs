@@ -6,7 +6,6 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
-using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using LeedsDlipServices.Identity;
 using Preservation.API.Data;

@@ -1,6 +1,4 @@
-﻿using Amazon.SimpleNotificationService;
-using Amazon.SQS;
-using DigitalPreservation.Common.Model.Identity;
+﻿using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;

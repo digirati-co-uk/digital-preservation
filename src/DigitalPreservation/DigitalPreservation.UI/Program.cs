@@ -1,7 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Mets;
+﻿using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PipelineApi;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
@@ -17,7 +15,6 @@ using Microsoft.Identity.Web.UI;
 using Preservation.Client;
 using Serilog;
 using Storage.Repository.Common;
-using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.Mets.StorageImpl;
 using Storage.Repository.Common.S3;
 

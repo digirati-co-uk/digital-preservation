@@ -1,5 +1,4 @@
 using System.Xml.Linq;
-using DigitalPreservation.Common.Model;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
 using DigitalPreservation.Common.Model.Transit;
@@ -7,8 +6,6 @@ using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Storage.Repository.Common.Mets;
-using Storage.Repository.Common.Mets.StorageImpl;
 
 namespace XmlGen.Tests;
 

@@ -16,12 +16,9 @@ using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.S3;
 using DigitalPreservation.Core.Auth;
 using LeedsDlipServices;
-using LeedsDlipServices.Identity;
-using Microsoft.Extensions.DependencyInjection;
 using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using Microsoft.OpenApi.Models;
 using Storage.Repository.Common.Mets.StorageImpl;
 

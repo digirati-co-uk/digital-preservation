@@ -1,5 +1,4 @@
-﻿using DigitalPreservation.Common.Model.PipelineApi;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Preservation.API.Data.Entities;
 
 // ReSharper disable ClassNeverInstantiated.Global

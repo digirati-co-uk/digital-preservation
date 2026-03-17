@@ -1,6 +1,5 @@
 ﻿using System.Xml.Linq;
 using DigitalPreservation.Common.Model.Transit;
-using Microsoft.Extensions.Primitives;
 
 namespace DigitalPreservation.Mets;
 

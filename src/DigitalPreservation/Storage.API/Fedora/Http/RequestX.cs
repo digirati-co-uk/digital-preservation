@@ -1,5 +1,4 @@
-﻿using System.Net;
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using DigitalPreservation.Utils;
 using Storage.API.Fedora.Model;
 using Storage.API.Fedora.Vocab;

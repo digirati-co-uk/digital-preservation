@@ -5,7 +5,6 @@ using DigitalPreservation.XmlGen.Mets;
 using FakeItEasy;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
-using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.Mets.StorageImpl;
 using System.Net;
 using System.Text;

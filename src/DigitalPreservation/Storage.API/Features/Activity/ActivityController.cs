@@ -1,7 +1,5 @@
-﻿using DigitalPreservation.Core.Auth;
-using DigitalPreservation.Core.Web;
+﻿using DigitalPreservation.Core.Web;
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Storage.API.Features.Activity.Requests;
 

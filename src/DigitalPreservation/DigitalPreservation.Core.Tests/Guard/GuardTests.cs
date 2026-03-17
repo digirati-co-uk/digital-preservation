@@ -1,5 +1,4 @@
 using DigitalPreservation.Core.Guard;
-using FluentAssertions;
 
 namespace DigitalPreservation.Core.Tests.Guard;
 

@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
 
 namespace DigitalPreservation.Common.Model.DepositHelpers;

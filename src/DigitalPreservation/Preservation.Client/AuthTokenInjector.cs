@@ -1,11 +1,7 @@
 ﻿using System.Net.Http.Headers;
-using System.Security.Claims;
 using DigitalPreservation.CommonApiClient;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Web;
-using Microsoft.IdentityModel.Abstractions;
 
 namespace Preservation.Client;
 

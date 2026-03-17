@@ -1,6 +1,4 @@
-﻿using DigitalPreservation.Common.Model.DepositHelpers;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
-using DigitalPreservation.Utils;
+﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.XmlGen.Premis.V3;
 using System.Text.RegularExpressions;
 using System.Xml;

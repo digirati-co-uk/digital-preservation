@@ -1,5 +1,4 @@
-﻿using System;
-using DigitalPreservation.Utils;
+﻿using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit;
 

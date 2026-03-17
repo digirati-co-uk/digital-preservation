@@ -10,7 +10,6 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Utils;
 using MediatR;
-using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 

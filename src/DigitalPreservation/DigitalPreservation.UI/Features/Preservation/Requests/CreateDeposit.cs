@@ -2,7 +2,6 @@
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using MediatR;
-using Microsoft.Extensions.Options;
 using Preservation.Client;
 
 namespace DigitalPreservation.UI.Features.Preservation.Requests;
