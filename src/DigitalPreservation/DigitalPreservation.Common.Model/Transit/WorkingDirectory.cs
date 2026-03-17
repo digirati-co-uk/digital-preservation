@@ -90,14 +90,24 @@ public class WorkingDirectory : WorkingBase
 
     public WorkingDirectory ToRootLayout()
     {
-        if (!LocalPath.StartsWith($"{FolderNames.BagItData}/"))
+        string localPath;
+        if (LocalPath == FolderNames.BagItData)
         {
-            return this;
+            // This _is_ the root
+            localPath = string.Empty; 
+        }
+        else
+        {
+            if (!LocalPath.StartsWith($"{FolderNames.BagItData}/"))
+            {
+                return this;
+            }
+            localPath = LocalPath.RemoveStart($"{FolderNames.BagItData}/")!;
         }
 
         return new WorkingDirectory
         {
-            LocalPath = LocalPath.RemoveStart($"{FolderNames.BagItData}/")!,
+            LocalPath = localPath,
             Directories = Directories.Select(d => d.ToRootLayout()).ToList(),
             Files = Files.Select(f => f.ToRootLayout()).ToList(),
             MetsExtensions = MetsExtensions,

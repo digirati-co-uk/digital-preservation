@@ -106,17 +106,16 @@ public class DepositsController(
             return this.StatusResponseFromResult(filesystemResult);
         }
         var fileSystem = filesystemResult.Value;
+        if (workspaceManager.IsBagItLayout)
+        {
+            fileSystem = fileSystem.FindDirectory(FolderNames.BagItData)!.ToRootLayout();
+        }
         var wbsToAdd = new List<WorkingBase>();
         foreach (var path in localPaths)
         {
             // we don't know if it's a file or a directory from just the path,
             // but it's not expensive now to find out
-            WorkingBase? wbToAdd = fileSystem.FindFile(path);
-            if (wbToAdd is null)
-            {
-                wbToAdd = fileSystem.FindDirectory(path);
-            }
-
+            WorkingBase? wbToAdd = fileSystem.FindFile(path) ?? (WorkingBase?)fileSystem.FindDirectory(path);
             if (wbToAdd != null)
             {
                 wbsToAdd.Add(wbToAdd);
