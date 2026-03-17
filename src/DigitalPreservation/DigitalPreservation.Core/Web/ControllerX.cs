@@ -1,5 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Results;
+﻿using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Utils;
 using Microsoft.AspNetCore.Mvc;
 

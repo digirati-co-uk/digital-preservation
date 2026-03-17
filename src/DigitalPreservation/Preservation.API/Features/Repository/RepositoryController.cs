@@ -6,7 +6,7 @@ using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Repository.Requests;
-using Storage.Repository.Common.Mets;
+using DigitalPreservation.Mets;
 
 namespace Preservation.API.Features.Repository;
 

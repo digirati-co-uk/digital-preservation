@@ -1,5 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -14,7 +14,7 @@ namespace Storage.Repository.Common.Mets;
 /// </summary>
 /// <param name="metsManager"></param>
 /// <param name="metsParser"></param>
-public class MetsFromArchivalGroup(MetsManager metsManager, MetsParser metsParser, MetadataManager metadataManager) : IMetsFromArchivalGroup
+public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsParser, MetadataManager metadataManager)
 {
     /// <summary>
     /// Reverse-engineer a METS file from an existing Archival Group.

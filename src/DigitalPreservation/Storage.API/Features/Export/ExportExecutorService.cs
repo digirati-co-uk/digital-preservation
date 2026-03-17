@@ -1,6 +1,4 @@
 ﻿namespace Storage.API.Features.Export;
-using ExportResource = DigitalPreservation.Common.Model.Export.Export;
-
 
 public class ExportExecutorService(
     IServiceScopeFactory serviceScopeFactory,

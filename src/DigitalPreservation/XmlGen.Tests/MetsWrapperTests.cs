@@ -1,11 +1,10 @@
-﻿using DigitalPreservation.Common.Model.Mets;
+﻿using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Storage.Repository.Common.Mets;
-using Storage.Repository.Common.Mets.StorageImpl;
+using DigitalPreservation.Mets.StorageImpl;
 
 namespace XmlGen.Tests;
 
@@ -159,7 +158,7 @@ public class MetsWrapperTests
             "the resolved METS file itself must appear as a WorkingFile in the wrapper");
 
         // The resolved file came from the Samples directory
-        wrapper.Files.Should().Contain(f => f.Name.EndsWith(".xml"),
+        wrapper.Files.Should().Contain(f => f.Name!.EndsWith(".xml"),
             "the resolved file must be an XML file from the Samples folder");
     }
 

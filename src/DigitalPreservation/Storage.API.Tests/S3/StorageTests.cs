@@ -1,11 +1,8 @@
-﻿using Amazon.Runtime.Internal.Util;
-using Amazon.S3;
+﻿using Amazon.S3;
 using Amazon.S3.Model;
-using Azure.Core;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using FakeItEasy;
-using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Storage.Repository.Common;

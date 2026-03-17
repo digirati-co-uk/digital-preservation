@@ -1,5 +1,5 @@
 ﻿// ReSharper disable EntityFramework.ModelValidation.UnlimitedStringLength
-using DigitalPreservation.Common.Model.Import;
+
 using DigitalPreservation.Common.Model.PipelineApi;
 
 namespace Preservation.API.Data.Entities;

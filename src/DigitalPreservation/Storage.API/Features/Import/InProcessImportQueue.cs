@@ -1,5 +1,4 @@
 ﻿using System.Threading.Channels;
-using DigitalPreservation.Common.Model.Import;
 
 namespace Storage.API.Features.Import;
 

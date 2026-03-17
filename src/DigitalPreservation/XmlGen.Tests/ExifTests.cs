@@ -1,7 +1,7 @@
 ﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Workspace;
 using FluentAssertions;
-using Storage.Repository.Common.Mets;
+using DigitalPreservation.Mets;
 using System.Xml;
 
 

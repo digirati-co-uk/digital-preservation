@@ -1,12 +1,11 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.LogHelpers;
-using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
-using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using LeedsDlipServices.Identity;
 using Preservation.API.Data;
@@ -26,7 +25,7 @@ public class CreateDepositBase(
     IStorageApiClient storageApiClient,
     IStorage storage,
     IMetsManager metsManager,
-    IMetsFromArchivalGroup metsFromArchivalGroup,
+    MetsFromArchivalGroup metsFromArchivalGroup,
     WorkspaceManagerFactory workspaceManagerFactory)
 {
     protected async Task<Result<Deposit?>> HandleBase(CreateDeposit request, CancellationToken cancellationToken)

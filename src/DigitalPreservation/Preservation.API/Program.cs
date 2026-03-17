@@ -3,7 +3,7 @@ using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
-using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Preservation.API.Data;
 using Preservation.API.Features.Activity.Readers;
@@ -16,12 +16,9 @@ using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.S3;
 using DigitalPreservation.Core.Auth;
 using LeedsDlipServices;
-using LeedsDlipServices.Identity;
-using Microsoft.Extensions.DependencyInjection;
 using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using Microsoft.OpenApi.Models;
 using Storage.Repository.Common.Mets.StorageImpl;
 
@@ -77,7 +74,7 @@ try
         .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
         .AddSingleton<IMetsManager, MetsManager>()
-        .AddSingleton<IMetsFromArchivalGroup, MetsFromArchivalGroup>()
+        .AddSingleton<MetsFromArchivalGroup>()
         .AddSingleton<MetadataManager>()
         .AddSingleton<PremisManager>()
         .AddSingleton<PremisManagerExif>()

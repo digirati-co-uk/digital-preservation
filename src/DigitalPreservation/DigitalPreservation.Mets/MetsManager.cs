@@ -1,12 +1,11 @@
 ﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
 
-namespace Storage.Repository.Common.Mets;
+namespace DigitalPreservation.Mets;
 
 public class MetsManager(
     IMetsParser metsParser,
@@ -24,9 +23,7 @@ public class MetsManager(
         return Result.FailNotNull<MetsFileWrapper>(writeResult.ErrorCode!, writeResult.ErrorMessage);
     }
 
-    // This being internal is a code smell; it's there to let MetsFromArchivalGroup call it.
-    // But more extensive decoupling is probably not worth it.
-    internal async Task<(Uri file, DigitalPreservation.XmlGen.Mets.Mets mets)> GetStandardMets(Uri metsLocation, string? agNameFromDeposit)
+    public async Task<(Uri file, DigitalPreservation.XmlGen.Mets.Mets mets)> GetStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
         // might be a file path or an S3 URI
         var fileLocResult = await metsParser.GetRootAndFile(metsLocation);

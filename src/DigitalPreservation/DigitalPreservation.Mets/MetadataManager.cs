@@ -1,5 +1,4 @@
 using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -9,7 +8,7 @@ using DigitalPreservation.XmlGen.Premis.V3;
 using System.Xml;
 using DigitalPreservation.XmlGen.Extensions;
 
-namespace Storage.Repository.Common.Mets;
+namespace DigitalPreservation.Mets;
 
 public class MetadataManager(PremisManager premisManager, PremisManagerExif premisManagerExif, PremisEventManagerVirus premisEventManagerVirus)
 {
@@ -208,7 +207,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         ctx.File = ctx.FileGroup.File.Single(f => f.Id == fileId);
     }
 
-    internal AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null)
+    public AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null)
     {
         var premis = premisManager.Create(premisFile);
         var xElement = premisManager.GetXmlElement(premis, true);

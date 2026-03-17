@@ -3,7 +3,6 @@ using System.Xml;
 using System.Xml.Serialization;
 using DigitalPreservation.XmlGen.Mods.V3;
 using DigitalPreservation.XmlGen.Premis.V3;
-using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace DigitalPreservation.XmlGen.Extensions;
 
