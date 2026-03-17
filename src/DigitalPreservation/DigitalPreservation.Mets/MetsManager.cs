@@ -1,19 +1,16 @@
 ﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
 
-namespace Storage.Repository.Common.Mets;
+namespace DigitalPreservation.Mets;
 
 public class MetsManager(
     IMetsParser metsParser,
     IMetsStorage metsStorage,
-    IMetadataManager metadataManager,
-    IPremisManager<FileFormatMetadata> premisManager,
-    IPremisEventManager<VirusScanMetadata> premisEventManagerVirus) : IMetsManager
+    MetadataManager metadataManager) : IMetsManager
 {
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
@@ -26,115 +23,7 @@ public class MetsManager(
         return Result.FailNotNull<MetsFileWrapper>(writeResult.ErrorCode!, writeResult.ErrorMessage);
     }
 
-    public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, ArchivalGroup archivalGroup, string? agNameFromDeposit)
-    {
-        var (file, mets) = await GetStandardMets(metsLocation, agNameFromDeposit);
-        
-        AddResourceToMets(mets, archivalGroup.Id!, mets.StructMap[0].Div, archivalGroup);
-        
-        var writeResult = await WriteMets(new FullMets{ Mets = mets, Uri = file });
-        if (writeResult.Success)
-        {
-            return await metsParser.GetMetsFileWrapper(file);
-        }
-        return Result.FailNotNull<MetsFileWrapper>(writeResult.ErrorCode!, writeResult.ErrorMessage);
-    }
-
-
-    /// <summary>
-    /// This builds up the METS file from repository resources, not working files
-    /// This will likely never be used in production
-    /// </summary>
-    /// <param name="mets"></param>
-    /// <param name="archivalGroupUri"></param>
-    /// <param name="div"></param>
-    /// <param name="container"></param>
-    private void AddResourceToMets(DigitalPreservation.XmlGen.Mets.Mets mets, Uri archivalGroupUri, DivType div, Container container)
-    {
-        var agLocalPath = archivalGroupUri.LocalPath;
-        foreach (var childContainer in container.Containers)
-        {
-            DivType? childDirectoryDiv = null;
-            if (container is ArchivalGroup && childContainer.GetSlug() == FolderNames.Objects)
-            {
-                // The objects div should already exist from our template
-                childDirectoryDiv = mets.StructMap[0].Div.Div.Single(d => d.Id == Constants.ObjectsDivId);
-            }
-
-            if (childDirectoryDiv == null)
-            {
-                var localPath = childContainer.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
-                var admId = Constants.AdmIdPrefix + localPath;
-                var techId = Constants.TechIdPrefix + localPath;
-                childDirectoryDiv = new DivType
-                {
-                    Type = Constants.DirectoryType,
-                    Label = childContainer.Name,
-                    Id = $"{Constants.PhysIdPrefix}{localPath}",
-                    Admid = { admId }
-                };
-                div.Div.Add(childDirectoryDiv);
-                var reducedPremisForObjectDir = new FileFormatMetadata
-                {
-                    Source = Constants.Mets,
-                    OriginalName = localPath,
-                    StorageLocation = childContainer.Id
-                };
-                mets.AmdSec.Add(GetAmdSecType(reducedPremisForObjectDir, admId, techId));
-            }
-
-            AddResourceToMets(mets, archivalGroupUri, childDirectoryDiv, childContainer);
-        }
-
-        AddBinariesToMets(container.Binaries, agLocalPath, div, mets);
-    }
-
-    private void AddBinariesToMets(List<Binary> binaries, string agLocalPath, DivType div, DigitalPreservation.XmlGen.Mets.Mets mets)
-    {
-        foreach (var binary in binaries)
-        {
-            var localPath = binary.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
-            if (MetsUtils.IsMetsFile(localPath!, true))
-            {
-                continue;
-            }
-            var fileId = Constants.FileIdPrefix + localPath;
-            var admId = Constants.AdmIdPrefix + localPath;
-            var techId = Constants.TechIdPrefix + localPath;
-            var childItemDiv = new DivType
-            {
-                Type = Constants.ItemType,
-                Label = binary.Name,
-                Id = $"{Constants.PhysIdPrefix}{localPath}",
-                Fptr = { new DivTypeFptr { Fileid = fileId } }
-            };
-            div.Div.Add(childItemDiv);
-            mets.FileSec.FileGrp[0].File.Add(
-                new FileType
-                {
-                    Id = fileId,
-                    Admid = { admId },
-                    Mimetype = binary.ContentType,
-                    FLocat = {
-                        new FileTypeFLocat
-                        {
-                            Href = localPath, Loctype = FileTypeFLocatLoctype.Url
-                        }
-                    }
-                });
-            var premisFile = new FileFormatMetadata
-            {
-                Source = Constants.Mets,
-                Digest = binary.Digest,
-                Size = binary.Size,
-                OriginalName = localPath,
-                StorageLocation = binary.Id
-            };
-            mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
-        }
-    }
-
-    private async Task<(Uri file, DigitalPreservation.XmlGen.Mets.Mets mets)> GetStandardMets(Uri metsLocation, string? agNameFromDeposit)
+    public async Task<(Uri file, DigitalPreservation.XmlGen.Mets.Mets mets)> GetStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
         // might be a file path or an S3 URI
         var fileLocResult = await metsParser.GetRootAndFile(metsLocation);
@@ -304,7 +193,7 @@ public class MetsManager(
                         OriginalName = operationPath, // workingDirectory.LocalPath
                         StorageLocation = null // storageLocation
                     };
-                    fullMets.Mets.AmdSec.Add(GetAmdSecType(premisFile, admId, techId));
+                    fullMets.Mets.AmdSec.Add(metadataManager.GetAmdSecType(premisFile, admId, techId));
                 }
                 else
                 {
@@ -415,15 +304,15 @@ public class MetsManager(
             },
             AmdSec =
             {
-                GetAmdSecType(new FileFormatMetadata
+                metadataManager.GetAmdSecType(new FileFormatMetadata
                     {
-                        Source = Constants.Mets, OriginalName = FolderNames.Objects 
-                    }, 
+                        Source = Constants.Mets, OriginalName = FolderNames.Objects
+                    },
                     $"{Constants.AdmIdPrefix}{FolderNames.Objects}", $"{Constants.TechIdPrefix}{FolderNames.Objects}"),
-                GetAmdSecType(new FileFormatMetadata
+                metadataManager.GetAmdSecType(new FileFormatMetadata
                     {
-                        Source = Constants.Mets, OriginalName = FolderNames.Metadata 
-                    }, 
+                        Source = Constants.Mets, OriginalName = FolderNames.Metadata
+                    },
                     $"{Constants.AdmIdPrefix}{FolderNames.Metadata}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
@@ -432,47 +321,6 @@ public class MetsManager(
         return mets;
     }
     
-    private AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null)
-    {
-        var premis = premisManager.Create(premisFile);
-        var xElement = premisManager.GetXmlElement(premis, true);
-
-        var amdSec = new AmdSecType
-        {
-            Id = admId,
-            TechMd =
-            {
-                new MdSecType
-                {
-                    Id = techId,
-                    MdWrap = new MdSecTypeMdWrap
-                    {
-                        Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
-                        XmlData = new MdSecTypeMdWrapXmlData { Any = { xElement }}
-                    }
-                }
-            },
-        };
-
-        if (virusScanMetadata == null) return amdSec;
-
-        var digiProvMd = premisEventManagerVirus.Create(virusScanMetadata);
-        var xVirusElement = premisEventManagerVirus.GetXmlElement(digiProvMd);
-
-        amdSec.DigiprovMd.Add(new MdSecType
-        {
-            Id = digiprovId,
-            MdWrap = new MdSecTypeMdWrap
-            {
-                Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
-                XmlData = new MdSecTypeMdWrapXmlData { Any = { xVirusElement } }
-            }
-        });
-
-        return amdSec;
-    }
-
-
     public List<string> GetRootAccessRestrictions(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);

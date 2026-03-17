@@ -1,7 +1,7 @@
 ﻿using DigitalPreservation.Common.Model.Results;
 
 
-namespace DigitalPreservation.Common.Model.Mets;
+namespace DigitalPreservation.Mets;
 
 public interface IMetsStorage
 {

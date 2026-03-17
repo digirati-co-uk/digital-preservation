@@ -2,11 +2,10 @@
 using DigitalPreservation.XmlGen.Premis.V3;
 using System.Xml;
 using System.Xml.Serialization;
-using DigitalPreservation.Common.Model.Mets;
 
-namespace Storage.Repository.Common.Mets;
+namespace DigitalPreservation.Mets;
 
-public class PremisEventManagerVirus : IPremisEventManager<VirusScanMetadata>
+public class PremisEventManagerVirus
 {
     public EventComplexType Create(VirusScanMetadata virusScanMetadata)
     {

@@ -1,5 +1,4 @@
-﻿using Amazon.Runtime.Internal.Util;
-using Amazon.S3.Util;
+﻿using Amazon.S3.Util;
 using DigitalPreservation.Utils;
 
 namespace Storage.Repository.Common.S3;

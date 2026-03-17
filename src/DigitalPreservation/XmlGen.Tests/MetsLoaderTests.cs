@@ -2,15 +2,9 @@
 using Amazon.Runtime.SharedInterfaces;
 using Amazon.S3;
 using Amazon.S3.Model;
-using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Mets;
-using DigitalPreservation.XmlGen.Mets;
+using DigitalPreservation.Mets;
 using FakeItEasy;
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using Microsoft.VisualStudio.TestPlatform.ObjectModel.DataCollection;
-using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.Mets.StorageImpl;
 using System.Net;
 using System.Text;

@@ -1,16 +1,13 @@
-﻿using DigitalPreservation.Common.Model.DepositHelpers;
-using DigitalPreservation.Common.Model.Mets;
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Premis.V3;
-using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Serialization;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
-namespace Storage.Repository.Common.Mets;
+namespace DigitalPreservation.Mets;
 
-public class PremisManager : IPremisManager<FileFormatMetadata>
+public class PremisManager
 {
     private const string Pronom = "PRONOM";
     private const string Sha256 = "SHA256";

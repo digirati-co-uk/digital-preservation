@@ -1,13 +1,11 @@
 using System.Xml.Linq;
-using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Mets;
+using DigitalPreservation.Mets.StorageImpl;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Storage.Repository.Common.Mets;
-using Storage.Repository.Common.Mets.StorageImpl;
 
 namespace XmlGen.Tests;
 
@@ -61,7 +59,7 @@ public class MetsManagerPathTests
         var premisManagerExif = new PremisManagerExif();
         var premisEventManager = new PremisEventManagerVirus();
         var metadataManager = new MetadataManager(premisManager, premisManagerExif, premisEventManager);
-        metsManager = new MetsManager(parser, metsStorage, metadataManager, premisManager, premisEventManager);
+        metsManager = new MetsManager(parser, metsStorage, metadataManager);
     }
 
     // -----------------------------------------------------------------------

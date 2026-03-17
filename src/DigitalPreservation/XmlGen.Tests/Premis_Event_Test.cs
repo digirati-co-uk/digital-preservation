@@ -1,13 +1,7 @@
 ﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
-using DigitalPreservation.XmlGen.Premis.V3;
 using FluentAssertions;
-using Storage.Repository.Common.Mets;
-using System.Xml;
-using System.Xml.Serialization;
-using DigitalPreservation.Common.Model.Mets;
+using DigitalPreservation.Mets;
 using Xunit.Abstractions;
-using Xunit.Sdk;
-using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace XmlGen.Tests;
 public class Premis_Event_Test(ITestOutputHelper testOutputHelper)

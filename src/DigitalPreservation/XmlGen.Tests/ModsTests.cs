@@ -2,8 +2,8 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Storage.Repository.Common.Mets;
-using Storage.Repository.Common.Mets.StorageImpl;
+using DigitalPreservation.Mets;
+using DigitalPreservation.Mets.StorageImpl;
 
 namespace XmlGen.Tests;
 
@@ -27,7 +27,7 @@ public class ModsTests
         var premisManagerExif = new PremisManagerExif();
         var premisEventManager = new PremisEventManagerVirus();
         var metadataManager = new MetadataManager(premisManager, premisManagerExif, premisEventManager);
-        metsManager = new MetsManager(parser, metsStorage, metadataManager, premisManager, premisEventManager);
+        metsManager = new MetsManager(parser, metsStorage, metadataManager);
     }
     
     [Fact]

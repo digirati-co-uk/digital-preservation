@@ -1,5 +1,4 @@
-﻿using DigitalPreservation.Common.Model.PipelineApi;
-using MediatR;
+﻿using MediatR;
 using Pipeline.API.Features.Pipeline.Requests;
 
 namespace Pipeline.API.Features.Pipeline;

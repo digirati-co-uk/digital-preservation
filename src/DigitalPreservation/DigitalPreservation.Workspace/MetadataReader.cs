@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.ToolOutput.Siegfried;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;

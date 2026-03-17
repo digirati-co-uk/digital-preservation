@@ -1,5 +1,4 @@
 ﻿using System.Net.Http.Json;
-using System.Threading;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;

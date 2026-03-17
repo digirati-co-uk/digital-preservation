@@ -1,14 +1,9 @@
-﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Search;
-using DigitalPreservation.Core.Auth;
+﻿using DigitalPreservation.Common.Model.Search;
 using DigitalPreservation.Core.Web;
-using DigitalPreservation.Core.Web.Headers;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Storage.API.Features.Repository.Requests;
-using Storage.API.Fedora.Vocab;
 using System.Net;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace Storage.API.Features.Repository;
 

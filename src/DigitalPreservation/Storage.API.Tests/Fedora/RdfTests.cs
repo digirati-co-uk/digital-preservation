@@ -1,6 +1,4 @@
 ﻿using Storage.API.Fedora.Http;
-using Storage.API.Fedora.Vocab;
-using static System.Net.WebRequestMethods;
 
 namespace Storage.API.Tests.Fedora;
 

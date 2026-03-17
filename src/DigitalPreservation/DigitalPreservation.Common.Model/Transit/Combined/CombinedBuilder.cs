@@ -1,7 +1,6 @@
-﻿using DigitalPreservation.Common.Model.Transit.Combined;
-using DigitalPreservation.Utils;
+﻿using DigitalPreservation.Utils;
 
-namespace DigitalPreservation.Common.Model.Transit;
+namespace DigitalPreservation.Common.Model.Transit.Combined;
 
 public static class CombinedBuilder
 {
