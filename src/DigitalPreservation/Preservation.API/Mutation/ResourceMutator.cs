@@ -192,7 +192,8 @@ public class ResourceMutator(
             VersionExported = entity.VersionExported,
             VersionPreserved = entity.VersionPreserved,
             LockedBy = GetAgentUri(entity.LockedBy),
-            LockDate = entity.LockDate 
+            LockDate = entity.LockDate,
+            Archived = entity.Archived
         };
         return deposit;
     }
