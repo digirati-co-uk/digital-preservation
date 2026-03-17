@@ -139,6 +139,12 @@ public class GetDepositsHandler(
                     predicate = predicate.And(x => x.Status == q.Status);
                 }
 
+                if (q.Archived.HasValue)
+                {
+                    predicate = q.Archived == true ? predicate.And(x => x.Archived.HasValue) : predicate.And(x => !x.Archived.HasValue);
+                    // We need at least one predicate so...
+                }
+
                 queryable = dbContext.Deposits.Where(predicate);
                 total = await queryable.CountAsync(cancellationToken);
             }

@@ -60,7 +60,12 @@ public class QueryBuilder
         {
             queryString.Add(nameof(query.ShowForm), "true");
         }
-        
+
+        if (query.Archived.HasValue)
+        {
+            queryString.Add(nameof(query.Archived), $"{query.Archived}");
+        }
+
         return queryString.ToString() ?? string.Empty;
     }
 

@@ -23,7 +23,8 @@ public class UploadFileToDeposit(
     string checksum, 
     string depositFileName, 
     string contentType,
-    string metsETag) : IRequest<Result<WorkingFile?>>
+    string metsETag,
+    bool updateMets = true) : IRequest<Result<WorkingFile?>>
 {
     public bool IsBagItLayout { get; } = isBagItLayout;
     public Uri RootUri { get; } = rootUri;
@@ -35,6 +36,7 @@ public class UploadFileToDeposit(
     public string DepositFileName { get; } = depositFileName;
     public string ContentType { get; } = contentType;
     public string MetsETag { get; } = metsETag;
+    public bool UpdateMets { get; set; } = updateMets;
 }
 
 public class UploadFileToDepositHandler(
@@ -94,7 +96,7 @@ public class UploadFileToDepositHandler(
                     Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
                 };
                 var saveResult = await storage.AddToDepositFileSystem(request.RootUri, file, cancellationToken);
-                if (saveResult.Success)
+                if (saveResult.Success && request.UpdateMets)
                 {
                     var result = await metsManager.HandleSingleFileUpload(request.RootUri, file, request.MetsETag);
                     if (result.Success)

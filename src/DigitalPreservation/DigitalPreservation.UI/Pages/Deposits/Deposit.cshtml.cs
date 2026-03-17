@@ -673,5 +673,17 @@ public class DepositModel(
 
         return Redirect($"/deposits/{id}");
     }
+
+    public async Task<bool> DepositArchived()
+    {
+        var fetchResultsResult = await DepositJobResultFetcher.GetArchiveJobResult(Id, mediator);
+        if (fetchResultsResult.Success)
+        {
+            var archiveJobResult = fetchResultsResult.Value!;
+            return archiveJobResult.DepositId != null;
+        }
+
+        return false;
+    }
 }
 

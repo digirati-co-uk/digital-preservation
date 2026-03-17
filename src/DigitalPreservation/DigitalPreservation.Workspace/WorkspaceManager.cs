@@ -233,7 +233,7 @@ public class WorkspaceManager(
 
 
     public async Task<Result<SingleFileUploadResult>> UploadSingleSmallFile(
-        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity, bool allowFilesOutsideObjects = false)
+        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity, bool allowFilesOutsideObjects = false, bool archiverFile = false)
     {
         var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
@@ -264,8 +264,8 @@ public class WorkspaceManager(
         if (parentDirectory.Directories.Any(d => d.LocalPath!.GetSlug() == slug) ||
             parentDirectory.Files.Any(f => f.LocalPath!.GetSlug() == slug))
         {
-            return Result.FailNotNull<SingleFileUploadResult>(
-                ErrorCodes.BadRequest, "This file name conflicts with " + slug);
+            if (!archiverFile)
+                return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.BadRequest, "This file name conflicts with " + slug);
         }
 
         var uploadFileResult = await mediator.Send(new UploadFileToDeposit(
@@ -278,7 +278,8 @@ public class WorkspaceManager(
             checksum,
             fileName,
             contentType,
-            Deposit.MetsETag!));
+            Deposit.MetsETag!,
+            !archiverFile));
         if (uploadFileResult.Success)
         {
             var result = new SingleFileUploadResult

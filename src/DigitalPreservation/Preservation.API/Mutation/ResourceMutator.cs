@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
@@ -337,7 +338,29 @@ public class ResourceMutator(
             ManifestUri = record.ManifestUri,
             RepositoryUri = record.RepositoryUri
         };
-    
+
+    public ArchiveJobResult MutateDepositArchiveJob(DepositArchiveJob entity)
+    {
+        var errors = new List<Error>();
+        if (!string.IsNullOrEmpty(entity.Errors))
+        {
+            errors.Add(new Error
+            {
+                Message = entity.Errors
+            });
+        }
+
+        var archiveJobResult = new ArchiveJobResult
+        {
+            DepositId = entity.DepositId,
+            Errors = errors.Count != 0 ? errors.ToArray<Error>() : null,
+            DateBegun = entity.StartTime,
+            DateFinished = entity.EndTime
+        };
+
+        return archiveJobResult;
+    }
+
 }
 
 public class MutatorOptions
