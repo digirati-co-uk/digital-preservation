@@ -33,5 +33,13 @@ public abstract class ResourceBase
 
     [JsonPropertyName("effectiveRightsStatement")]
     [JsonPropertyOrder(11)]
+    
     public Uri? EffectiveRightsStatement { get; set; }
+    [JsonPropertyName("recordInfo")]
+    [JsonPropertyOrder(15)]
+    public RecordInfo? RecordInfo { get; set; }
+
+    [JsonPropertyName("effectiveRecordInfo")]
+    [JsonPropertyOrder(16)]
+    public RecordInfo? EffectiveRecordInfo { get; set; }
 }
