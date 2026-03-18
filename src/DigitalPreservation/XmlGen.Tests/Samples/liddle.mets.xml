@@ -127,6 +127,10 @@
             <mets:mdWrap MDTYPE="PREMIS:OBJECT">
                 <mets:xmlData>
                     <premis:object xsi:type="premis:file">
+                        <premis:significantProperties>
+                            <premis:significantPropertiesType>Duration</premis:significantPropertiesType>
+                            <premis:significantPropertiesValue>2704.7</premis:significantPropertiesValue>
+                        </premis:significantProperties>
                         <premis:objectCharacteristics>
                             <premis:fixity>
                                 <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
@@ -154,6 +158,10 @@
             <mets:mdWrap MDTYPE="PREMIS:OBJECT">
                 <mets:xmlData>
                     <premis:object xsi:type="premis:file">
+                        <premis:significantProperties>
+                            <premis:significantPropertiesType>Duration</premis:significantPropertiesType>
+                            <premis:significantPropertiesValue>2720.1</premis:significantPropertiesValue>
+                        </premis:significantProperties>
                         <premis:objectCharacteristics>
                             <premis:fixity>
                                 <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
@@ -181,6 +189,10 @@
             <mets:mdWrap MDTYPE="PREMIS:OBJECT">
                 <mets:xmlData>
                     <premis:object xsi:type="premis:file">
+                        <premis:significantProperties>
+                            <premis:significantPropertiesType>Duration</premis:significantPropertiesType>
+                            <premis:significantPropertiesValue>2700</premis:significantPropertiesValue>
+                        </premis:significantProperties>
                         <premis:objectCharacteristics>
                             <premis:fixity>
                                 <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
@@ -208,6 +220,10 @@
             <mets:mdWrap MDTYPE="PREMIS:OBJECT">
                 <mets:xmlData>
                     <premis:object xsi:type="premis:file">
+                        <premis:significantProperties>
+                            <premis:significantPropertiesType>Duration</premis:significantPropertiesType>
+                            <premis:significantPropertiesValue>1400</premis:significantPropertiesValue>
+                        </premis:significantProperties>
                         <premis:objectCharacteristics>
                             <premis:fixity>
                                 <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
@@ -271,28 +287,28 @@
         <mets:div ADMID="AMDLOG_0000" DMDID="DMDLOG_0000" ID="LOG_0000" LABEL="Tapes 1 and 2" TYPE="Collection">
             <mets:div ID="LOG_0001" LABEL="ADDAMS-WILLIAMS, DONALD ARTHUR" TYPE="Item" DMDID="DMD_LOG_0001">
                 <mets:fptr>
-                    <mets:area FILEID="FILE_objects/tape1side1.wav" BETYPE="time" BEGIN="00:00:15" END="00:35:09.5"/>
+                    <mets:area FILEID="FILE_objects/tape1side1.wav" BETYPE="TIME" BEGIN="00:00:15" END="00:35:09.5"/>
                 </mets:fptr>
             </mets:div>
             <mets:div ID="LOG_0002" LABEL="AITCHISON, BERTRAM STEWART" TYPE="Item" DMDID="DMD_LOG_0002">
                 <mets:fptr>
-                    <mets:area FILEID="FILE_objects/tape1side1.wav" BETYPE="time" BEGIN="00:36:40" END="00:45:00"/>
+                    <mets:area FILEID="FILE_objects/tape1side1.wav" BETYPE="TIME" BEGIN="00:36:40" END="00:45:00"/>
                 </mets:fptr>
                 <mets:fptr>
-                    <mets:area FILEID="FILE_objects/tape1side2.wav" BETYPE="time" BEGIN="00:00:09.2" END="00:20:09"/>
+                    <mets:area FILEID="FILE_objects/tape1side2.wav" BETYPE="TIME" BEGIN="00:00:09.2" END="00:20:09"/>
                 </mets:fptr>
             </mets:div>
             <mets:div ID="LOG_0003" LABEL="ALEXANDER, C" TYPE="Item" DMDID="DMD_LOG_0003">
                 <mets:fptr>
-                    <mets:area FILEID="FILE_objects/tape1side2.wav" BETYPE="time" BEGIN="00:20:50" END="00:31:40"/>
+                    <mets:area FILEID="FILE_objects/tape1side2.wav" BETYPE="TIME" BEGIN="00:20:50" END="00:31:40"/>
                 </mets:fptr>
             </mets:div>
             <mets:div ID="LOG_0004" LABEL="ALLANSON, CECIL JOHN LYONS" TYPE="Item" DMDID="DMD_LOG_0004">
                 <mets:fptr>
-                    <mets:area FILEID="FILE_objects/tape2side1.wav" BETYPE="time" BEGIN="00:00:13.9" END="00:44:50.54"/>
+                    <mets:area FILEID="FILE_objects/tape2side1.wav" BETYPE="TIME" BEGIN="00:00:13.9" END="00:44:50.54"/>
                 </mets:fptr>
                 <mets:fptr>
-                    <mets:area FILEID="FILE_objects/tape2side2.wav" BETYPE="time" BEGIN="00:00:20.6" END="00:23:07.51"/>
+                    <mets:area FILEID="FILE_objects/tape2side2.wav" BETYPE="TIME" BEGIN="00:00:20.6" END="00:23:07.51"/>
                 </mets:fptr>
             </mets:div>
         </mets:div>

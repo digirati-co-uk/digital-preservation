@@ -275,6 +275,11 @@ public class Liddle
                     FormatName = "Broadcast WAVE 0 Generic",
                     PronomKey = "fmt/1",
                     Size = 499999
+                },
+                new ExtentMetadata
+                {
+                    Source = "FFProbe",
+                    Duration = 2700
                 }
             ]
         });        
@@ -294,6 +299,11 @@ public class Liddle
                     FormatName = "Broadcast WAVE 0 Generic",
                     PronomKey = "fmt/1",
                     Size = 500100
+                },
+                new ExtentMetadata
+                {
+                    Source = "FFProbe",
+                    Duration = 1400
                 }
             ]
         });

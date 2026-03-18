@@ -1,0 +1,978 @@
+<mets:mets xmlns:mods="http://www.loc.gov/mods/v3" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:mets="http://www.loc.gov/METS/">
+  <mets:metsHdr CREATEDATE="2026-03-18T15:10:40.2865575+00:00">
+    <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+      <mets:name>University of Leeds Digital Library Infrastructure Project</mets:name>
+    </mets:agent>
+  </mets:metsHdr>
+  <mets:dmdSec ID="DMD_PHYS_ROOT">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:titleInfo>
+            <mods:title>Response Book</mods:title>
+          </mods:titleInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_LOG_0000">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:titleInfo>
+            <mods:title>Response Book</mods:title>
+          </mods:titleInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_LOG_0001">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:titleInfo>
+            <mods:title>Part 1</mods:title>
+          </mods:titleInfo>
+          <mods:recordInfo>
+            <mods:recordIdentifier source="identity-service">rp4m2q8s</mods:recordIdentifier>
+            <mods:recordIdentifier source="EMu">PRI/2/999/a</mods:recordIdentifier>
+          </mods:recordInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_LOG_0002">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:titleInfo>
+            <mods:title>Part 2</mods:title>
+          </mods:titleInfo>
+          <mods:recordInfo>
+            <mods:recordIdentifier source="identity-service">xt7n5k3w</mods:recordIdentifier>
+            <mods:recordIdentifier source="EMu">PRI/2/999/b</mods:recordIdentifier>
+          </mods:recordInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_LOG_0003">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:titleInfo>
+            <mods:title>Part 3</mods:title>
+          </mods:titleInfo>
+          <mods:recordInfo>
+            <mods:recordIdentifier source="identity-service">bg9h1j6v</mods:recordIdentifier>
+            <mods:recordIdentifier source="EMu">PRI/2/999/c</mods:recordIdentifier>
+          </mods:recordInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMD_objects">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:accessCondition type="restriction on access" xlink:type="simple">Level1</mods:accessCondition>
+          <mods:accessCondition type="use and reproduction" xlink:type="simple">http://rightsstatements.org/vocab/InC/1.0/</mods:accessCondition>
+          <mods:recordInfo>
+            <mods:recordIdentifier source="identity-service">pn67d3ep</mods:recordIdentifier>
+            <mods:recordIdentifier source="EMu">PRI/2/999</mods:recordIdentifier>
+          </mods:recordInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:amdSec ID="ADM_objects">
+    <mets:techMD ID="TECH_objects">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics/>
+            <premis:originalName>objects</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata">
+    <mets:techMD ID="TECH_metadata">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics/>
+            <premis:originalName>metadata</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/001.tif">
+    <mets:techMD ID="TECH_objects/001.tif">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>4000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>6000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>a1b2c3d4</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>72000000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/10</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <FileType>TIFF</FileType>
+                  <MIMEType>image/tiff</MIMEType>
+                  <ImageWidth>4000</ImageWidth>
+                  <ImageHeight>6000</ImageHeight>
+                  <BitsPerSample>8 8 8</BitsPerSample>
+                  <XResolution>300</XResolution>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/001.tif</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/001.tif">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail/>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/002.tif">
+    <mets:techMD ID="TECH_objects/002.tif">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>4000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>6000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>b2c3d4e5</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>71982000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/10</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <FileType>TIFF</FileType>
+                  <MIMEType>image/tiff</MIMEType>
+                  <ImageWidth>4000</ImageWidth>
+                  <ImageHeight>6000</ImageHeight>
+                  <BitsPerSample>8 8 8</BitsPerSample>
+                  <XResolution>300</XResolution>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/002.tif</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/002.tif">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail/>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/003.tif">
+    <mets:techMD ID="TECH_objects/003.tif">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>4000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>6000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>c3d4e5f6</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>72011000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/10</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <FileType>TIFF</FileType>
+                  <MIMEType>image/tiff</MIMEType>
+                  <ImageWidth>4000</ImageWidth>
+                  <ImageHeight>6000</ImageHeight>
+                  <BitsPerSample>8 8 8</BitsPerSample>
+                  <XResolution>300</XResolution>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/003.tif</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/003.tif">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail/>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/004.tif">
+    <mets:techMD ID="TECH_objects/004.tif">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>4000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>6000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>d4e5f6a7</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>71993000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/10</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <FileType>TIFF</FileType>
+                  <MIMEType>image/tiff</MIMEType>
+                  <ImageWidth>4000</ImageWidth>
+                  <ImageHeight>6000</ImageHeight>
+                  <BitsPerSample>8 8 8</BitsPerSample>
+                  <XResolution>300</XResolution>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/004.tif</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/004.tif">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail/>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/005.tif">
+    <mets:techMD ID="TECH_objects/005.tif">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>6000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>4000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>e5f6a7b8</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>72004000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/10</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <FileType>TIFF</FileType>
+                  <MIMEType>image/tiff</MIMEType>
+                  <ImageWidth>6000</ImageWidth>
+                  <ImageHeight>4000</ImageHeight>
+                  <BitsPerSample>8 8 8</BitsPerSample>
+                  <XResolution>300</XResolution>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/005.tif</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/005.tif">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail/>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/006.tif">
+    <mets:techMD ID="TECH_objects/006.tif">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>4000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>6000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>f6a7b8c9</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>71987000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/10</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <FileType>TIFF</FileType>
+                  <MIMEType>image/tiff</MIMEType>
+                  <ImageWidth>4000</ImageWidth>
+                  <ImageHeight>6000</ImageHeight>
+                  <BitsPerSample>8 8 8</BitsPerSample>
+                  <XResolution>300</XResolution>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/006.tif</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/006.tif">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail/>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/007.tif">
+    <mets:techMD ID="TECH_objects/007.tif">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>4000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>6000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>a7b8c9d0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>72018000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/10</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <FileType>TIFF</FileType>
+                  <MIMEType>image/tiff</MIMEType>
+                  <ImageWidth>4000</ImageWidth>
+                  <ImageHeight>6000</ImageHeight>
+                  <BitsPerSample>8 8 8</BitsPerSample>
+                  <XResolution>300</XResolution>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/007.tif</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/007.tif">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail/>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/008.tif">
+    <mets:techMD ID="TECH_objects/008.tif">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>4000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>6000</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>b8c9d0e1</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>71996000</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Tagged Image File Format</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/10</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <FileType>TIFF</FileType>
+                  <MIMEType>image/tiff</MIMEType>
+                  <ImageWidth>4000</ImageWidth>
+                  <ImageHeight>6000</ImageHeight>
+                  <BitsPerSample>8 8 8</BitsPerSample>
+                  <XResolution>300</XResolution>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/008.tif</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/008.tif">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail/>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/htr">
+    <mets:techMD ID="TECH_objects/htr">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics/>
+            <premis:originalName>objects/htr</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/htr/001.xml">
+    <mets:techMD ID="TECH_objects/htr/001.xml">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>h001xhtr0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>51200</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Extensible Markup Language</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/101</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/htr/001.xml</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/htr/002.xml">
+    <mets:techMD ID="TECH_objects/htr/002.xml">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>h002xhtr0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>51200</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Extensible Markup Language</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/101</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/htr/002.xml</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/htr/003.xml">
+    <mets:techMD ID="TECH_objects/htr/003.xml">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>h003xhtr0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>51200</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Extensible Markup Language</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/101</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/htr/003.xml</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/htr/004.xml">
+    <mets:techMD ID="TECH_objects/htr/004.xml">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>h004xhtr0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>51200</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Extensible Markup Language</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/101</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/htr/004.xml</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/htr/005.xml">
+    <mets:techMD ID="TECH_objects/htr/005.xml">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>h005xhtr0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>51200</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Extensible Markup Language</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/101</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/htr/005.xml</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/htr/006.xml">
+    <mets:techMD ID="TECH_objects/htr/006.xml">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>h006xhtr0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>51200</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Extensible Markup Language</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/101</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/htr/006.xml</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/htr/007.xml">
+    <mets:techMD ID="TECH_objects/htr/007.xml">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>h007xhtr0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>51200</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Extensible Markup Language</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/101</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/htr/007.xml</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/htr/008.xml">
+    <mets:techMD ID="TECH_objects/htr/008.xml">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>h008xhtr0</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>51200</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Extensible Markup Language</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/101</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/htr/008.xml</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:fileSec>
+    <mets:fileGrp USE="OBJECTS">
+      <mets:file ID="FILE_objects/001.tif" MIMETYPE="image/tiff" ADMID="ADM_objects/001.tif">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/001.tif"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/002.tif" MIMETYPE="image/tiff" ADMID="ADM_objects/002.tif">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/002.tif"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/003.tif" MIMETYPE="image/tiff" ADMID="ADM_objects/003.tif">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/003.tif"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/004.tif" MIMETYPE="image/tiff" ADMID="ADM_objects/004.tif">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/004.tif"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/005.tif" MIMETYPE="image/tiff" ADMID="ADM_objects/005.tif">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/005.tif"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/006.tif" MIMETYPE="image/tiff" ADMID="ADM_objects/006.tif">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/006.tif"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/007.tif" MIMETYPE="image/tiff" ADMID="ADM_objects/007.tif">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/007.tif"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/008.tif" MIMETYPE="image/tiff" ADMID="ADM_objects/008.tif">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/008.tif"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/htr/001.xml" MIMETYPE="application/xml" ADMID="ADM_objects/htr/001.xml">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/htr/001.xml"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/htr/002.xml" MIMETYPE="application/xml" ADMID="ADM_objects/htr/002.xml">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/htr/002.xml"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/htr/003.xml" MIMETYPE="application/xml" ADMID="ADM_objects/htr/003.xml">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/htr/003.xml"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/htr/004.xml" MIMETYPE="application/xml" ADMID="ADM_objects/htr/004.xml">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/htr/004.xml"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/htr/005.xml" MIMETYPE="application/xml" ADMID="ADM_objects/htr/005.xml">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/htr/005.xml"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/htr/006.xml" MIMETYPE="application/xml" ADMID="ADM_objects/htr/006.xml">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/htr/006.xml"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/htr/007.xml" MIMETYPE="application/xml" ADMID="ADM_objects/htr/007.xml">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/htr/007.xml"/>
+      </mets:file>
+      <mets:file ID="FILE_objects/htr/008.xml" MIMETYPE="application/xml" ADMID="ADM_objects/htr/008.xml">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/htr/008.xml"/>
+      </mets:file>
+    </mets:fileGrp>
+  </mets:fileSec>
+  <mets:structMap TYPE="PHYSICAL">
+    <mets:div ID="PHYS_ROOT" LABEL="__ROOT" DMDID="DMD_PHYS_ROOT" TYPE="Directory">
+      <mets:div ID="PHYS_metadata" LABEL="metadata" DMDID="DMD_metadata" ADMID="ADM_metadata" TYPE="Directory"/>
+      <mets:div ID="PHYS_objects" LABEL="objects" DMDID="DMD_objects" ADMID="ADM_objects" TYPE="Directory">
+        <mets:div ID="PHYS_objects/001.tif" LABEL="001.tif" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/001.tif"/>
+        </mets:div>
+        <mets:div ID="PHYS_objects/002.tif" LABEL="002.tif" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/002.tif"/>
+        </mets:div>
+        <mets:div ID="PHYS_objects/003.tif" LABEL="003.tif" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/003.tif"/>
+        </mets:div>
+        <mets:div ID="PHYS_objects/004.tif" LABEL="004.tif" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/004.tif"/>
+        </mets:div>
+        <mets:div ID="PHYS_objects/005.tif" LABEL="005.tif" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/005.tif"/>
+        </mets:div>
+        <mets:div ID="PHYS_objects/006.tif" LABEL="006.tif" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/006.tif"/>
+        </mets:div>
+        <mets:div ID="PHYS_objects/007.tif" LABEL="007.tif" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/007.tif"/>
+        </mets:div>
+        <mets:div ID="PHYS_objects/008.tif" LABEL="008.tif" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/008.tif"/>
+        </mets:div>
+        <mets:div ID="PHYS_objects/htr" LABEL="htr" ADMID="ADM_objects/htr" TYPE="Directory">
+          <mets:div ID="PHYS_objects/htr/001.xml" LABEL="001.xml" TYPE="Item">
+            <mets:fptr FILEID="FILE_objects/htr/001.xml"/>
+          </mets:div>
+          <mets:div ID="PHYS_objects/htr/002.xml" LABEL="002.xml" TYPE="Item">
+            <mets:fptr FILEID="FILE_objects/htr/002.xml"/>
+          </mets:div>
+          <mets:div ID="PHYS_objects/htr/003.xml" LABEL="003.xml" TYPE="Item">
+            <mets:fptr FILEID="FILE_objects/htr/003.xml"/>
+          </mets:div>
+          <mets:div ID="PHYS_objects/htr/004.xml" LABEL="004.xml" TYPE="Item">
+            <mets:fptr FILEID="FILE_objects/htr/004.xml"/>
+          </mets:div>
+          <mets:div ID="PHYS_objects/htr/005.xml" LABEL="005.xml" TYPE="Item">
+            <mets:fptr FILEID="FILE_objects/htr/005.xml"/>
+          </mets:div>
+          <mets:div ID="PHYS_objects/htr/006.xml" LABEL="006.xml" TYPE="Item">
+            <mets:fptr FILEID="FILE_objects/htr/006.xml"/>
+          </mets:div>
+          <mets:div ID="PHYS_objects/htr/007.xml" LABEL="007.xml" TYPE="Item">
+            <mets:fptr FILEID="FILE_objects/htr/007.xml"/>
+          </mets:div>
+          <mets:div ID="PHYS_objects/htr/008.xml" LABEL="008.xml" TYPE="Item">
+            <mets:fptr FILEID="FILE_objects/htr/008.xml"/>
+          </mets:div>
+        </mets:div>
+      </mets:div>
+    </mets:div>
+  </mets:structMap>
+  <mets:structMap ID="LOG" TYPE="LOGICAL">
+    <mets:div ID="LOG_0000" TYPE="Collection" LABEL="Response Book" DMDID="DMD_LOG_0000">
+      <mets:div ID="LOG_0001" TYPE="Part" LABEL="Part 1" DMDID="DMD_LOG_0001">
+        <mets:fptr FILEID="FILE_objects/001.tif"/>
+        <mets:fptr FILEID="FILE_objects/002.tif"/>
+        <mets:fptr FILEID="FILE_objects/003.tif"/>
+      </mets:div>
+      <mets:div ID="LOG_0002" TYPE="Part" LABEL="Part 2" DMDID="DMD_LOG_0002">
+        <mets:fptr FILEID="FILE_objects/004.tif"/>
+        <mets:fptr>
+          <mets:area FILEID="FILE_objects/005.tif" SHAPE="RECT" COORDS="0,0,6000,2000"/>
+        </mets:fptr>
+      </mets:div>
+      <mets:div ID="LOG_0003" TYPE="Part" LABEL="Part 3" DMDID="DMD_LOG_0003">
+        <mets:fptr>
+          <mets:area FILEID="FILE_objects/005.tif" SHAPE="RECT" COORDS="0,2000,6000,4000"/>
+        </mets:fptr>
+        <mets:fptr FILEID="FILE_objects/006.tif"/>
+        <mets:fptr FILEID="FILE_objects/007.tif"/>
+        <mets:fptr FILEID="FILE_objects/008.tif"/>
+      </mets:div>
+    </mets:div>
+  </mets:structMap>
+  <mets:structLink>
+    <mets:smLink xlink:from="FILE_objects/001.tif" xlink:to="FILE_objects/htr/001.xml" xlink:arcrole="http://iiif.io/api/presentation/3#supplementing"/>
+    <mets:smLink xlink:from="FILE_objects/002.tif" xlink:to="FILE_objects/htr/002.xml" xlink:arcrole="http://iiif.io/api/presentation/3#supplementing"/>
+    <mets:smLink xlink:from="FILE_objects/003.tif" xlink:to="FILE_objects/htr/003.xml" xlink:arcrole="http://iiif.io/api/presentation/3#supplementing"/>
+    <mets:smLink xlink:from="FILE_objects/004.tif" xlink:to="FILE_objects/htr/004.xml" xlink:arcrole="http://iiif.io/api/presentation/3#supplementing"/>
+    <mets:smLink xlink:from="FILE_objects/005.tif" xlink:to="FILE_objects/htr/005.xml" xlink:arcrole="http://iiif.io/api/presentation/3#supplementing"/>
+    <mets:smLink xlink:from="FILE_objects/006.tif" xlink:to="FILE_objects/htr/006.xml" xlink:arcrole="http://iiif.io/api/presentation/3#supplementing"/>
+    <mets:smLink xlink:from="FILE_objects/007.tif" xlink:to="FILE_objects/htr/007.xml" xlink:arcrole="http://iiif.io/api/presentation/3#supplementing"/>
+    <mets:smLink xlink:from="FILE_objects/008.tif" xlink:to="FILE_objects/htr/008.xml" xlink:arcrole="http://iiif.io/api/presentation/3#supplementing"/>
+  </mets:structLink>
+</mets:mets>

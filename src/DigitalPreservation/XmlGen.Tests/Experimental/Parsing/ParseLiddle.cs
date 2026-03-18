@@ -73,15 +73,22 @@ public class ParseLiddle
         objects.Files[0].Digest.Should().Be("abcd1234");
         objects.Files[0].Metadata.OfType<FileFormatMetadata>().Single().PronomKey.Should().Be("fmt/1");
         objects.Files[0].Metadata.OfType<FileFormatMetadata>().Single().FormatName.Should().Be("Broadcast WAVE 0 Generic");
+        objects.Files[0].Metadata.OfType<ExtentMetadata>().Single().Duration.Should().Be(2704.7);
+
         objects.Files[1].LocalPath.Should().Be("objects/tape1side2.wav");
         objects.Files[1].ContentType.Should().Be("audio/x-wav");
         objects.Files[1].Digest.Should().Be("3e421bb1");
+        objects.Files[1].Metadata.OfType<ExtentMetadata>().Single().Duration.Should().Be(2720.1);
+
         objects.Files[2].LocalPath.Should().Be("objects/tape2side1.wav");
         objects.Files[2].ContentType.Should().Be("audio/x-wav");
         objects.Files[2].Digest.Should().Be("d4d4e3e3");
+        objects.Files[2].Metadata.OfType<ExtentMetadata>().Single().Duration.Should().Be(2700.0);
+
         objects.Files[3].LocalPath.Should().Be("objects/tape2side2.wav");
         objects.Files[3].ContentType.Should().Be("audio/x-wav");
         objects.Files[3].Digest.Should().Be("a2d3e4f5");
+        objects.Files[3].Metadata.OfType<ExtentMetadata>().Single().Duration.Should().Be(1400.0);
 
         // No file-to-file links (no structLink section in this METS)
         objects.Files[0].Links.Should().HaveCount(0);

@@ -14,6 +14,7 @@ public class WomenOfWestminster
     private readonly IMetsManager metsManager;
     private readonly MetsParser parser;
 
+    private const string MetsFilePathBasic = "C:\\git\\uol-dlip\\design\\complex-mets\\wow.basic.mets.xml";
     private const string MetsFilePath = "C:\\git\\uol-dlip\\design\\complex-mets\\wow.example.mets.xml";
 
     public WomenOfWestminster()
@@ -34,8 +35,18 @@ public class WomenOfWestminster
     }
 
 
+    [Fact]
+    public async Task Basic_WoW_Mets()
+    {
+        var metsFi = new FileInfo(MetsFilePathBasic);
+        var metsUri = new Uri(metsFi.FullName);
+        var mets = await Basic_Women_of_Westminster(metsUri);
+        await metsManager.WriteMets(mets);
+    }
+
+
     [Fact(Skip = "Experimental")]
-    public async Task Extended_Mets()
+    public async Task Extended_Wow_Mets()
     {
         var metsFi = new FileInfo(MetsFilePath);
         var metsUri = new Uri(metsFi.FullName);
@@ -233,7 +244,7 @@ public class WomenOfWestminster
         await metsManager.WriteMets(mets);
     }
 
-    public async Task<FullMets> Basic_Women_of_Westminster(Uri metsUri)
+    private async Task<FullMets> Basic_Women_of_Westminster(Uri metsUri)
     {
         var name = "Women of Westminster";
         var result = await metsManager.CreateStandardMets(metsUri, name);
