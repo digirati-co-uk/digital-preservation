@@ -106,9 +106,9 @@ public class BrowseModel(
         {
             case nameof(ArchivalGroup):
                 
-                if (view == ViewValues.Mets)
+                if (view is ViewValues.Mets or ViewValues.ParsedMets)
                 {
-                    var metsResult = await preservationApiClient.GetMetsStream(resourcePath);
+                    var metsResult = await preservationApiClient.GetMetsStream(resourcePath, view == ViewValues.ParsedMets);
                     if (metsResult is { Item1: not null, Item2: not null })
                     {
                         return File(metsResult.Item1, metsResult.Item2);

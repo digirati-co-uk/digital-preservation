@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Xml.Linq;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
@@ -13,12 +14,13 @@ namespace Preservation.API.Features.Repository;
 
 [Route(PreservedResource.BasePathElement + "/{*path}")]
 [ApiController]
-public class RepositoryController(IMediator mediator) : Controller
+public class RepositoryController(IMediator mediator, IMetsParser metsParser) : Controller
 {
     [HttpGet(Name = "Browse")]
     [ProducesResponseType<Container>(200, "application/json")]
     [ProducesResponseType<Binary>(200, "application/json")]
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]
+    [ProducesResponseType<MetsFileWrapper>(200, "application/json")]
     [ProducesResponseType<ProblemDetails>(400, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
@@ -47,7 +49,7 @@ public class RepositoryController(IMediator mediator) : Controller
             return this.StatusResponseFromResult(lwResult);
         }
         var result = await mediator.Send(new GetResource(Request.Path));
-        if (view == ViewValues.Mets && result is { Success: true, Value: ArchivalGroup archivalGroup })
+        if ((view is ViewValues.Mets or ViewValues.ParsedMets) && result is { Success: true, Value: ArchivalGroup archivalGroup })
         {
             var mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, true));
             if (mets is null)
@@ -61,7 +63,21 @@ public class RepositoryController(IMediator mediator) : Controller
                 var streamResult = await mediator.Send(new GetBinaryStream(mets.Id!.AbsolutePath));
                 if (streamResult is { Success: true, Value: not null })
                 {
-                    return new FileStreamResult(streamResult.Value, "application/xml");
+                    // there is a METS file there to be read
+                    if (view == ViewValues.Mets)
+                    {
+                        return new FileStreamResult(streamResult.Value, "application/xml");
+                    }
+
+                    var xMets = XDocument.Load(streamResult.Value);
+                    var parsedMetsResult = metsParser.GetMetsFileWrapperFromXDocument(mets.Id, xMets);
+                    if (parsedMetsResult.Success)
+                    {
+                        parsedMetsResult.Value!.XDocument = null;
+                        return Ok(parsedMetsResult.Value);
+                    }
+
+                    return this.StatusResponseFromResult(parsedMetsResult);
                 }
 
                 return this.StatusResponseFromResult(streamResult);

@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using LeedsDlipServices.Identity;
@@ -62,6 +63,29 @@ public class DepositsController(
         {
             Response.Headers.ETag = wrapper.Value.MetsFileWrapper.ETag;
             return Content(wrapper.Value.MetsFileWrapper.XDocument!.ToString(), "application/xml");
+        }
+        return this.StatusResponseFromResult(wrapper);
+    }
+    
+        
+    [HttpGet("{id}/parsed-mets", Name = "GetDepositWithParsedMets")]
+    [ProducesResponseType<MetsFileWrapper>(200)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    public async Task<IActionResult> GetDepositParsedMets([FromRoute] string id)
+    {
+        var wrapper = await mediator.Send(new GetDepositWithMets(id));
+        if (wrapper is
+            {
+                Success: true, 
+                Value: not null, 
+                Value.MetsFileWrapper: not null, 
+                Value.MetsFileWrapper.XDocument: not null
+            })
+        {
+            var mfw = wrapper.Value.MetsFileWrapper;
+            mfw.XDocument = null; // we don't want to return this
+            return Ok(mfw);
         }
         return this.StatusResponseFromResult(wrapper);
     }
