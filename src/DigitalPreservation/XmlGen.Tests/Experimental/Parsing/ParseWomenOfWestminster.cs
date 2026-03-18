@@ -174,7 +174,7 @@ public class ParseWomenOfWestminster
         var ruddTranscript = phys.FindFile("objects/amber-rudd.docx")!;
         var eagleRedactedAudio = phys.FindFile("objects/angela-eagle-redacted.m4a")!;
         var eagleTranscript = phys.FindFile("objects/angela-eagle-transcript.docx")!;
-        var eagleAudio = phys.FindFile("objects/angela-eagle")!;
+        var eagleAudio = phys.FindFile("objects/angela-eagle.m4a")!;
         
         // 4 of the files have no explicit descriptive metadata - they inherit it
         ruddAudio.RecordInfo.Should().BeNull();
