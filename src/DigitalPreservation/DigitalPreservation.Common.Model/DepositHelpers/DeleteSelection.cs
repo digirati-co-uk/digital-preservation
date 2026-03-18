@@ -26,9 +26,5 @@ public class DeleteSelection
 
     public string[]? ContinueIfFail { get; set; } = [];
 
-    [JsonPropertyOrder(5)]
-    [JsonPropertyName("deleteFromMets")]
-    public bool DeleteDirectlyInAws { get; set; }
-
     public string[]? NonDeletableRootFiles { get; set; } = [];
 }
