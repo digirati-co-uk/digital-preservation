@@ -101,9 +101,9 @@ public class ParseResponseBook
         part2.Files[1].LocalPath.Should().Be("objects/005.tif");
         part2.Files[1].Region.Should().NotBeNull();
         part2.Files[1].Region!.X1.Should().Be(0);
-        part2.Files[1].Region.Y1.Should().Be(0);
-        part2.Files[1].Region.X2.Should().Be(6000);
-        part2.Files[1].Region.Y2.Should().Be(2000);
+        part2.Files[1].Region!.Y1.Should().Be(0);
+        part2.Files[1].Region!.X2.Should().Be(6000);
+        part2.Files[1].Region!.Y2.Should().Be(2000);
 
         // Part 3: bottom half of page 5 via Rectangle, then pages 6–8 whole-file
         var part3 = logsm.Ranges[2];
@@ -115,9 +115,9 @@ public class ParseResponseBook
         part3.Files[0].LocalPath.Should().Be("objects/005.tif");
         part3.Files[0].Region.Should().NotBeNull();
         part3.Files[0].Region!.X1.Should().Be(0);
-        part3.Files[0].Region.Y1.Should().Be(2000);
-        part3.Files[0].Region.X2.Should().Be(6000);
-        part3.Files[0].Region.Y2.Should().Be(4000);
+        part3.Files[0].Region!.Y1.Should().Be(2000);
+        part3.Files[0].Region!.X2.Should().Be(6000);
+        part3.Files[0].Region!.Y2.Should().Be(4000);
         part3.Files[1].LocalPath.Should().Be("objects/006.tif");
         part3.Files[1].Region.Should().BeNull();
         part3.Files[2].LocalPath.Should().Be("objects/007.tif");
@@ -127,21 +127,21 @@ public class ParseResponseBook
         // --- EffectiveRecordInfo inheritance ---
         // Pages 1–3: whole-file fptr from Part 1 → inherit Part 1's record info
         objects.Files[0].EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("rp4m2q8s");
-        objects.Files[0].EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/a");
+        objects.Files[0].EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/a");
         objects.Files[1].EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/a");
         objects.Files[2].EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/a");
 
         // Page 4: whole-file fptr from Part 2 → inherit Part 2's record info
         objects.Files[3].EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("xt7n5k3w");
-        objects.Files[3].EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/b");
+        objects.Files[3].EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/b");
 
         // Page 5: referenced via area (region) from two ranges → falls back to physical objects/ record info
         objects.Files[4].EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("pn67d3ep");
-        objects.Files[4].EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("PRI/2/999");
+        objects.Files[4].EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("PRI/2/999");
 
         // Pages 6–8: whole-file fptr from Part 3 → inherit Part 3's record info
         objects.Files[5].EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("bg9h1j6v");
-        objects.Files[5].EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/c");
+        objects.Files[5].EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/c");
         objects.Files[6].EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/c");
         objects.Files[7].EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("PRI/2/999/c");
 

@@ -8,7 +8,7 @@ namespace Preservation.API.Features.PipelineRunJobs;
 
 [Route("deposits/{depositId}/pipelinerunjobs")]
 [ApiController]
-public class PipelineRunJobsController(IMediator mediator) : Controller
+public class PipelineRunJobsController(IMediator mediator) : ControllerBase
 {
 
     [HttpGet(Name = "GetPipelineJobResults")]

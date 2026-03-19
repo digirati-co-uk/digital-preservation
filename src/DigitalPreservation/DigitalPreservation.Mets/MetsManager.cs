@@ -322,6 +322,7 @@ public class MetsManager(
         return mets;
     }
     
+    [Obsolete("Replace calls to this with GetAccessRestrictions")]
     public List<string> GetRootAccessRestrictions(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
@@ -354,6 +355,7 @@ public class MetsManager(
         ModsManager.SetRootMods(fullMets.Mets, mods);
     }
     
+    [Obsolete("Replace calls to this with GetRightsStatement")]
     public Uri? GetRootRightsStatement(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);

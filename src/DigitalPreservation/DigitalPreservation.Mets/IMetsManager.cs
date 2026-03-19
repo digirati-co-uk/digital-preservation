@@ -22,14 +22,10 @@ public interface IMetsManager
     Task<Result> WriteMets(FullMets fullMets);
 
     // The following are made obsolete because they are handled by the more general cases below.
-    [Obsolete]
-    List<string> GetRootAccessRestrictions(FullMets fullMets);
-    [Obsolete]
+    [Obsolete("Superseded by SetAccessRestrictions(..), kept for legacy support temporarily")]
     void SetRootAccessRestrictions(FullMets fullMets, List<string> accessRestrictions);
-    [Obsolete]
+    [Obsolete("Superseded by SetRightsStatement(..), kept for legacy support temporarily")]
     void SetRootRightsStatement(FullMets fullMets, Uri? uri);
-    [Obsolete]
-    Uri? GetRootRightsStatement(FullMets fullMets);
 
     // Extensions
     // We don't need getters because this information will be exposed in either WorkingFile/Dir or Logical ... Ranges

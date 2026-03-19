@@ -6,7 +6,7 @@ namespace DigitalPreservation.Core.Web;
 
 public static class ControllerX
 {
-    public static ActionResult StatusResponseFromResult<T>(this Controller controller, Result<T> result, int successStatusCode = 200, Uri? createdLocation = null)
+    public static ActionResult StatusResponseFromResult<T>(this ControllerBase controller, Result<T> result, int successStatusCode = 200, Uri? createdLocation = null)
     {
         if (result.Success && result.ErrorCode.IsNullOrWhiteSpace())
         {
@@ -31,7 +31,7 @@ public static class ControllerX
         return GetProblemObjectResult(result);
     }
 
-    public static ActionResult StatusResponseFromResult(this Controller controller, Result result, int successStatusCode = 200)
+    public static ActionResult StatusResponseFromResult(this ControllerBase controller, Result result, int successStatusCode = 200)
     {
         if (result.Success && result.ErrorCode.IsNullOrWhiteSpace())
         {

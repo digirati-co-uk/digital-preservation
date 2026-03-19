@@ -465,10 +465,10 @@ public class PreservationApiClient(
         return (null, null);
     }
 
-    public async Task<(Stream?, string?)> GetMetsStream(string archivalGrouprepositoryPath, bool parsedJson = false, CancellationToken cancellationToken = default)
+    public async Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, bool parsedJson = false, CancellationToken cancellationToken = default)
     {
         var queryString = "?view=" + (parsedJson ? "parsed-mets" : "mets");
-        var uri = new Uri(archivalGrouprepositoryPath + queryString, UriKind.Relative);
+        var uri = new Uri(archivalGroupPathUnderRoot + queryString, UriKind.Relative);
         var req = new HttpRequestMessage(HttpMethod.Get, uri);
         var response = await preservationHttpClient.SendAsync(req, cancellationToken);
         if (response.IsSuccessStatusCode)

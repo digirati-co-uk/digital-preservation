@@ -11,7 +11,7 @@ namespace XmlGen.Tests.Experimental.Creating;
 
 public class Liddle
 {
-    private readonly IMetsManager metsManager;
+    private readonly MetsManager metsManager;
 
     public Liddle()
     {

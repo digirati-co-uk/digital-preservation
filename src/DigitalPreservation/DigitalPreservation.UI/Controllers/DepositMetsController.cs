@@ -4,6 +4,7 @@ using Preservation.Client;
 
 namespace DigitalPreservation.UI.Controllers;
 
+[Route("deposits/{id}")]
 public class DepositMetsController(
     IPreservationApiClient preservationApiClient) : Controller
 {
@@ -12,7 +13,7 @@ public class DepositMetsController(
     /// </summary>
     /// <param name="id"></param>
     /// <returns></returns>
-    [Route("deposits/{id}/mets")]
+    [Route("mets")]
     [HttpGet]
     [Produces("application/xml")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -32,7 +33,7 @@ public class DepositMetsController(
     /// </summary>
     /// <param name="id"></param>
     /// <returns></returns>
-    [Route("deposits/{id}/parsed-mets")]
+    [Route("parsed-mets")]
     [HttpGet]
     [Produces("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK)]

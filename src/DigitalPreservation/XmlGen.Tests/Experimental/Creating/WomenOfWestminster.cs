@@ -11,7 +11,7 @@ namespace XmlGen.Tests.Experimental.Creating;
 
 public class WomenOfWestminster
 {
-    private readonly IMetsManager metsManager;
+    private readonly MetsManager metsManager;
     private readonly MetsParser parser;
 
     private const string MetsFilePathBasic = "C:\\git\\uol-dlip\\design\\complex-mets\\wow.basic.mets.xml";

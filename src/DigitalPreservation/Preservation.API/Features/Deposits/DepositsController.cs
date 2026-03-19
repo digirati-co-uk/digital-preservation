@@ -21,7 +21,7 @@ public class DepositsController(
     ILogger<DepositsController> logger,
     IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory
-    ) : Controller
+    ) : ControllerBase
 {
     [HttpGet(Name = "ListDeposits")]
     [ProducesResponseType<DepositQueryPage>(200, "application/json")]

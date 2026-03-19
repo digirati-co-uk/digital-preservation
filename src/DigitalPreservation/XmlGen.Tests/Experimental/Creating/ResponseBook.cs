@@ -11,7 +11,7 @@ namespace XmlGen.Tests.Experimental.Creating;
 
 public class ResponseBook
 {
-    private readonly IMetsManager metsManager;
+    private readonly MetsManager metsManager;
 
     private const string MetsFilePathBasic = "C:\\git\\uol-dlip\\design\\complex-mets\\response-book.basic.mets.xml";
 

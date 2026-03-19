@@ -14,7 +14,7 @@ namespace Preservation.API.Features.Repository;
 
 [Route(PreservedResource.BasePathElement + "/{*path}")]
 [ApiController]
-public class RepositoryController(IMediator mediator, IMetsParser metsParser) : Controller
+public class RepositoryController(IMediator mediator, IMetsParser metsParser) : ControllerBase
 {
     [HttpGet(Name = "Browse")]
     [ProducesResponseType<Container>(200, "application/json")]
