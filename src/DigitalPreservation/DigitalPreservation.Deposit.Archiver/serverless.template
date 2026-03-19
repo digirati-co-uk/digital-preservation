@@ -29,7 +29,8 @@
             "tmpFilesPath": "/tmp/markerfile",
             "DirectorySeparator": "/",
             "BatchSize": "15",
-            "LastModifiedMonths": "-6"
+            "LastModifiedMonths": "-6",
+            "ClientBaseAddress": "https://preservation-api-dev.library.leeds.ac.uk"
           }
         },
         "PackageType": "Image",

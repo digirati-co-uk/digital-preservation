@@ -33,18 +33,15 @@ public class Startup
     public void ConfigureServices(IServiceCollection services)
     {
         var fromServerlessTemplateoauthAzureSecret = Environment.GetEnvironmentVariable("oauthAzureSecret");
+        var clientBaseAddress = Environment.GetEnvironmentVariable("ClientBaseAddress");
         var secretJsonString = GetSecretValue(fromServerlessTemplateoauthAzureSecret!, "eu-west-1");
 
         var secretModel = System.Text.Json.JsonSerializer.Deserialize<AuthProviderModel>(secretJsonString);
-
-        var netEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
         //// Example of creating the IConfiguration object and
         //// adding it to the dependency injection container.
         var builder = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            //.AddJsonFile("appsettings.json", false, true)
-            //.AddJsonFile($"appsettings.{netEnv}.json", false, true) // this goes in when running locally
             .AddJsonFile("appsettings.json", false);
 
         var configuration = builder.Build();
@@ -67,7 +64,7 @@ public class Startup
             {
                 cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
             })
-            .AddMachinePreservationClient(configuration, "ArchiverLambda");
+            .AddMachinePreservationClient(configuration, "ArchiverLambda", clientBaseAddress);
 
         var accessTokenProviderOptions = new AccessTokenProviderOptions
         {

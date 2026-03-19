@@ -45,9 +45,10 @@ public static class ServiceCollectionX
     /// <param name="serviceCollection">Current <see cref="IServiceCollection"/> object</param>
     /// <param name="configuration">Current <see cref="IConfiguration"/> object</param>
     /// <param name="componentName">Calling component name, used for "x-requested-by" header</param>
+    /// <param name="clientBaseAddress"></param>
     /// <returns>Modified service collection</returns>
     public static IServiceCollection AddMachinePreservationClient(this IServiceCollection serviceCollection,
-        IConfiguration configuration, string componentName)
+        IConfiguration configuration, string componentName, string? clientBaseAddress = null)
     {
         serviceCollection.Configure<PreservationOptions>(configuration.GetSection(PreservationOptions.Preservation));
         serviceCollection
@@ -58,7 +59,7 @@ public static class ServiceCollectionX
                 var tokenProvider = provider.GetRequiredService<IAccessTokenProvider>();
                 var token = tokenProvider.GetAccessToken().Result;
                 var preservationOptions = provider.GetRequiredService<IOptions<PreservationOptions>>().Value;
-                client.BaseAddress = preservationOptions.Root.ThrowIfNull(nameof(preservationOptions.Root));
+                client.BaseAddress = !string.IsNullOrEmpty(clientBaseAddress) ? new Uri(clientBaseAddress) : preservationOptions.Root.ThrowIfNull(nameof(preservationOptions.Root));
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 client.DefaultRequestHeaders.Add("X-Client-Identity", componentName);
