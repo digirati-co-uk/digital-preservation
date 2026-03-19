@@ -25,12 +25,12 @@
         ],
         "Environment": {
           "Variables": {
-            "oauthAzureSecret": "/preservation/dev/ui/oauth_azure",
-            "tmpFilesPath": "/tmp/markerfile",
-            "DirectorySeparator": "/",
-            "BatchSize": "15",
-            "LastModifiedMonths": "-6",
-            "ClientBaseAddress": "https://preservation-api-dev.library.leeds.ac.uk"
+            "OAUTH_AZURE_SECRET": "/preservation/dev/ui/oauth_azure",
+            "TMP_FILES_PATH": "/tmp/markerfile",
+            "DIRECTORY_SEPARATOR": "/",
+            "BATCH_SIZE": "25",
+            "LAST_MODIFIED_MONTHS": "-6",
+            "CLIENT_BASE_ADDRESS": "https://preservation-api-dev.library.leeds.ac.uk"
           }
         },
         "PackageType": "Image",

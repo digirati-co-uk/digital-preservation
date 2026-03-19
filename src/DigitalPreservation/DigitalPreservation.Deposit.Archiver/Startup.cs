@@ -32,8 +32,8 @@ public class Startup
     /// </summary>
     public void ConfigureServices(IServiceCollection services)
     {
-        var fromServerlessTemplateoauthAzureSecret = Environment.GetEnvironmentVariable("oauthAzureSecret");
-        var clientBaseAddress = Environment.GetEnvironmentVariable("ClientBaseAddress");
+        var fromServerlessTemplateoauthAzureSecret = Environment.GetEnvironmentVariable("OAUTH_AZURE_SECRET");
+        var clientBaseAddress = Environment.GetEnvironmentVariable("CLIENT_BASE_ADDRESS");
         var secretJsonString = GetSecretValue(fromServerlessTemplateoauthAzureSecret!, "eu-west-1");
 
         var secretModel = System.Text.Json.JsonSerializer.Deserialize<AuthProviderModel>(secretJsonString);

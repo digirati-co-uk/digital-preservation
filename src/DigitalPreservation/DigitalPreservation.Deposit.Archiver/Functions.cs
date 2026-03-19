@@ -73,11 +73,11 @@ public class Functions
             Status = "preserved",
             OrderBy = DepositQuery.LastModified,
             Page = 0,
-            PageSize = Convert.ToInt32(Environment.GetEnvironmentVariable("BatchSize")),
+            PageSize = Convert.ToInt32(Environment.GetEnvironmentVariable("BATCH_SIZE")),
             Ascending = true,
             ShowAll = true,
             Archived = false,
-            LastModifiedBefore = DateTime.UtcNow.AddMonths(Convert.ToInt32(Environment.GetEnvironmentVariable("LastModifiedMonths")))
+            LastModifiedBefore = DateTime.UtcNow.AddMonths(Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS")))
         };
 
         var deposits = await preservationApiClient.GetDeposits(query, CancellationToken.None);
@@ -224,8 +224,8 @@ public class Functions
 
     private async Task<Result<SingleFileUploadResult>> UploadMarkerFile(WorkspaceManager workspaceManager)
     {
-        var tmpPath = Environment.GetEnvironmentVariable("tmpFilesPath");
-        var directorySeparator = Environment.GetEnvironmentVariable("DirectorySeparator");
+        var tmpPath = Environment.GetEnvironmentVariable("TMP_FILES_PATH");
+        var directorySeparator = Environment.GetEnvironmentVariable("DIRECTORY_SEPARATOR");
 
         Directory.CreateDirectory(tmpPath);
         await File.WriteAllTextAsync($"{tmpPath}{directorySeparator}archived.txt", DateTime.UtcNow.ToString("s"), CancellationToken.None);
