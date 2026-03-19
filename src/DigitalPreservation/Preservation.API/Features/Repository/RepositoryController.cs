@@ -30,66 +30,71 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
         [FromQuery] string? view = null,
         [FromQuery] string? version = null)
     {
-        if (version.HasText())
+        if (version.HasText() && view != ViewValues.Lightweight)
         {
-            if (view != ViewValues.Lightweight)
+            var problem = new ProblemDetails
             {
-                var problem = new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.BadRequest,
-                    Title = "Version only supported on lightweight view",
-                    Detail = "View " + (view ?? "[empty]") + " is not a valid value when a version is requested."
-                };
-                return BadRequest(problem);
-            }
+                Status = (int)HttpStatusCode.BadRequest,
+                Title = "Version only supported on lightweight view",
+                Detail = "View " + (view ?? "[empty]") + " is not a valid value when a version is requested."
+            };
+            return BadRequest(problem);
         }
+        
         if (view == ViewValues.Lightweight)
         {
             var lwResult = await mediator.Send(new GetLightweightResource(path!, version));
             return this.StatusResponseFromResult(lwResult);
         }
+        
         var result = await mediator.Send(new GetResource(Request.Path));
         if ((view is ViewValues.Mets or ViewValues.ParsedMets) && result is { Success: true, Value: ArchivalGroup archivalGroup })
         {
-            var mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, true));
-            if (mets is null)
-            {
-                mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, false));
-            }
-
-            if (mets is not null)
-            {
-                // We need to stream the METS view from storage
-                var streamResult = await mediator.Send(new GetBinaryStream(mets.Id!.AbsolutePath));
-                if (streamResult is { Success: true, Value: not null })
-                {
-                    // there is a METS file there to be read
-                    if (view == ViewValues.Mets)
-                    {
-                        return new FileStreamResult(streamResult.Value, "application/xml");
-                    }
-
-                    var xMets = XDocument.Load(streamResult.Value);
-                    var parsedMetsResult = metsParser.GetMetsFileWrapperFromXDocument(mets.Id, xMets);
-                    if (parsedMetsResult.Success)
-                    {
-                        parsedMetsResult.Value!.XDocument = null;
-                        return Ok(parsedMetsResult.Value);
-                    }
-
-                    return this.StatusResponseFromResult(parsedMetsResult);
-                }
-
-                return this.StatusResponseFromResult(streamResult);
-            }
-
+            return await GetMetsResult(archivalGroup, view);
         }
         
         // default 99.999% scenario:
         return this.StatusResponseFromResult(result);
     }
-    
-    
+
+    private async Task<IActionResult> GetMetsResult(ArchivalGroup archivalGroup, string view)
+    {            
+        var mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, true));
+        if (mets is null)
+        {
+            mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, false));
+        }
+
+        if (mets is null)
+        {
+            return NotFound();
+        }
+        
+        // We need to stream the METS view from storage
+        var streamResult = await mediator.Send(new GetBinaryStream(mets.Id!.AbsolutePath));
+        if (streamResult is { Success: true, Value: not null })
+        {
+            // there is a METS file there to be read
+            if (view == ViewValues.Mets)
+            {
+                return new FileStreamResult(streamResult.Value, "application/xml");
+            }
+
+            var xMets = XDocument.Load(streamResult.Value);
+            var parsedMetsResult = metsParser.GetMetsFileWrapperFromXDocument(mets.Id, xMets);
+            if (parsedMetsResult.Success)
+            {
+                parsedMetsResult.Value!.XDocument = null;
+                return Ok(parsedMetsResult.Value);
+            }
+
+            return this.StatusResponseFromResult(parsedMetsResult);
+        }
+
+        return this.StatusResponseFromResult(streamResult);
+    }
+
+
     [HttpHead(Name = "HeadResource")]
     [ProducesResponseType(200)]
     [ProducesResponseType(404)]

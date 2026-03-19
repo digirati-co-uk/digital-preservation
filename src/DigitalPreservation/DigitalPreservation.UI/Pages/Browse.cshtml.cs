@@ -57,12 +57,7 @@ public class BrowseModel(
             version = CachedArchivalGroup.Version!.OcflVersion!;
             await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
         }
-        if(
-            view != ViewValues.Mets && 
-            CachedArchivalGroup != null && 
-            WorkingDirectory == null && 
-            WorkingFile == null && 
-            MetsUtils.IsMetsFile(pathUnderRoot!.GetSlug()))
+        if(ShouldRedirectToMetsView(pathUnderRoot, view))
         {
             return Redirect("/browse/" + CachedArchivalGroup.GetPathUnderRoot() 
                                       + "?view=mets" + (version.HasText() ? "&version=" + version : ""));           
@@ -149,6 +144,15 @@ public class BrowseModel(
         }
      
         return Page();
+    }
+
+    private bool ShouldRedirectToMetsView(string? pathUnderRoot, string? view)
+    {
+        return (view != ViewValues.Mets && view != ViewValues.ParsedMets) && 
+               CachedArchivalGroup != null && 
+               WorkingDirectory == null && 
+               WorkingFile == null && 
+               MetsUtils.IsMetsFile(pathUnderRoot!.GetSlug());
     }
 
     private async Task TrySetWorkingFileAndDirectoryFromMets(string? pathUnderRoot, string version)
