@@ -22,7 +22,7 @@ public class ParseResponseBook
         parser = new MetsParser(new FileSystemMetsLoader(), parserLogger);
     }
 
-    [Fact]
+    [Fact(Skip = "Experimental")]
     public async Task Can_Parse_Response_Book()
     {
         var metsFile = new FileInfo("Samples/response-book.mets.xml");

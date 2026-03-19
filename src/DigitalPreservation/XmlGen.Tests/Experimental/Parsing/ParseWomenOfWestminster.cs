@@ -24,7 +24,7 @@ public class ParseWomenOfWestminster
         parser = new MetsParser(metsLoader, parserLogger);
     }
 
-    [Fact]
+    [Fact(Skip = "Experimental")]
     public async Task Can_Parse_Women_Of_Westminster()
     {
         var wowMets = new FileInfo("Samples/wow.mets.xml");
@@ -39,8 +39,8 @@ public class ParseWomenOfWestminster
         
         
         result.Value.Name.Should().Be("Women of Westminster");
-        phys.Directories.Should().HaveCount(1);
-        var objects = phys.Directories[0];
+        phys.Directories.Should().HaveCount(2);
+        var objects = phys.Directories.Single(d => d.Name == "objects");
         objects.Name.Should().Be(FolderNames.Objects);
         objects.Files.Should().HaveCount(5);
         

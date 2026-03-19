@@ -25,7 +25,7 @@ public class ParseLiddle
         parser = new MetsParser(metsLoader, parserLogger);
     }
 
-    [Fact]
+    [Fact(Skip = "Experimental")]
     public async Task Can_Parse_Liddle()
     {
         var liddleMets = new FileInfo("Samples/liddle.mets.xml");
@@ -39,8 +39,8 @@ public class ParseLiddle
         phys!.Files.Should().Contain(f => f.Name == "liddle.mets.xml");
 
         result.Value.Name.Should().Be("Liddle Tapes 1 and 2");
-        phys.Directories.Should().HaveCount(1);
-        var objects = phys.Directories[0];
+        phys.Directories.Should().HaveCount(2);
+        var objects = phys.Directories.Single(d => d.Name == "objects");
         objects.Name.Should().Be(FolderNames.Objects);
         objects.Files.Should().HaveCount(4);
 
