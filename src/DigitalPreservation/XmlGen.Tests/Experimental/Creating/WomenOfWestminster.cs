@@ -54,18 +54,25 @@ public class WomenOfWestminster
 
 
         // The archivist assigns MS 2249 to the root of the object
-        metsManager.SetRecordIdentifier(mets, "objects", "identity-service", "b6n9e4c2");
-        metsManager.SetRecordIdentifier(mets, "objects", "EMu", "MS 2249");
+        var recordInfo = new RecordInfo
+        {
+            RecordIdentifiers =
+            [
+                new RecordIdentifier { Source = "identity-service", Value = "b6n9e4c2" },
+                new RecordIdentifier { Source = "EMu", Value = "MS 2249" },
+            ]
+        };
+        metsManager.SetRecordInfoByPath(mets, "objects", recordInfo);
 
 
         // apply access condition and rights statement to origin
-        metsManager.SetAccessRestrictions(mets, "objects", ["Level1"]);
-        metsManager.SetRightsStatement(mets, "objects", new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
+        metsManager.SetAccessRestrictionsByPath(mets, "objects", ["Level1"]);
+        metsManager.SetRightsStatementByPath(mets, "objects", new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
 
 
         // The archivist marks some files as not for publication
-        metsManager.SetAccessRestrictions(mets, "objects/angela-eagle-redacted.m4a", ["Closed"]);
-        metsManager.SetRightsStatement(mets, "objects/angela-eagle-redacted.m4a", null); //???
+        metsManager.SetAccessRestrictionsByPath(mets, "objects/angela-eagle-redacted.m4a", ["Closed"]);
+        metsManager.SetRightsStatementByPath(mets, "objects/angela-eagle-redacted.m4a", null); //???
 
 
         // The archivist creates a "presentation" structure over the raw files, aligned with EMu archival description.
@@ -150,7 +157,7 @@ public class WomenOfWestminster
         //  - set the recordInfo on that section in a separate operation
 
         // here's me addressing a logical div to apply a rights statement
-        metsManager.SetRightsStatement(mets, "LOG_0002", new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
+        metsManager.SetRightsStatementByPath(mets, "LOG_0002", new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
 
         // OK let's randomly add a folder
         metsManager.AddToMets(mets, new WorkingDirectory

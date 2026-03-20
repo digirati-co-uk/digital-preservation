@@ -11,6 +11,7 @@ public static class Constants
     public const string PhysIdPrefix = "PHYS_";
     public const string FileIdPrefix = "FILE_";
     public const string AdmIdPrefix = "ADM_";
+    public const string DmdIdPrefix = "DMD_";
     public const string TechIdPrefix = "TECH_";
     public const string DmdPhysRoot = "DMD_PHYS_ROOT";
     public const string ObjectsDivId = PhysIdPrefix + FolderNames.Objects;

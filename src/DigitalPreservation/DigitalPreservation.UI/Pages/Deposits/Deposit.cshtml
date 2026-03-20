@@ -380,8 +380,6 @@
                                     var wrapper = new CombinedDirectoryRecursionWrapper(Model.RootCombinedDirectory,
                                         Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
                                         Model.Deposit.Active, IsLockedByOtherUser(), 
-                                        Model.WorkspaceManager.RootAccessRestrictions,
-                                        Model.WorkspaceManager.RootRightsStatement,
                                         new Counter());
                                     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
                                 }

@@ -33,7 +33,7 @@ public class ModsTests
     [Fact]
     public void Build_Premis_Get_XmlElement()
     {
-        var mods = ModsManager.Create("This is the name of the object");
+        var mods = ModsManager.CreateRootMods("This is the name of the object");
         var xmlElement = ModsManager.GetXmlElement(mods);
         // testOutputHelper.WriteLine(xmlElement?.OuterXml);
     }
@@ -74,63 +74,70 @@ public class ModsTests
         var metsResult = await metsManager.GetFullMets(metsUri, metsWrapper.ETag!);
         var mets = metsResult.Value;
         mets.Should().NotBeNull();
+        var objectsDiv = mets!.Mets.StructMap[0].Div.Div.Single(d => d.Id == Constants.ObjectsDivId);
 
-        var accessRestrictions = metsManager.GetRootAccessRestrictions(mets!);
-        accessRestrictions.Should().HaveCount(0);
-        metsManager.SetRootAccessRestrictions(mets!, [ "my-access-restriction" ]);
-        accessRestrictions = metsManager.GetRootAccessRestrictions(mets!);
+        var objectMods = ModsManager.GetModsForDiv(mets.Mets, objectsDiv);
+        objectMods.Should().BeNull();
+        
+        metsManager.SetAccessRestrictionsByPath(mets, "objects", [ "my-access-restriction" ]);
+        objectMods = ModsManager.GetModsForDiv(mets.Mets, objectsDiv);
+        objectMods.Should().NotBeNull();
+        var accessRestrictions = objectMods!.GetAccessConditions(Constants.RestrictionOnAccess);
         accessRestrictions.Should().HaveCount(1);
         accessRestrictions[0].Should().Be("my-access-restriction");
         
-        await metsManager.WriteMets(mets!);
+        await metsManager.WriteMets(mets);
         
         var parseResult = await parser.GetMetsFileWrapper(metsUri);
         parseResult.Success.Should().BeTrue();
         var updatedWrapper = parseResult.Value!;
         
         updatedWrapper.Name.Should().Be(name);
-        updatedWrapper.RootAccessConditions.Should().HaveCount(1);
-        updatedWrapper.RootAccessConditions[0].Should().Be("my-access-restriction");
-        
+        var objects= updatedWrapper.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects");
+        objects.AccessRestrictions.Should().HaveCount(1);
+        objects.AccessRestrictions[0].Should().Be("my-access-restriction");
     }
     
     
     [Fact]
     public async Task Can_Create_Rights_Statement()
-    {
+    {        
         var name = "Empty Mets File With MODS title for rights statement";
         var metsFi = new FileInfo("Outputs/empty-mets-mods-with-rights.xml");
         var metsUri = new Uri(metsFi.FullName);
         var result = await metsManager.CreateStandardMets(new Uri(metsFi.FullName), name);
-        
+
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();
         var metsWrapper = result.Value!;
         var metsResult = await metsManager.GetFullMets(metsUri, metsWrapper.ETag!);
         var mets = metsResult.Value;
         mets.Should().NotBeNull();
+        var objectsDiv = mets!.Mets.StructMap[0].Div.Div.Single(d => d.Id == Constants.ObjectsDivId);
 
-        var rightsStatement = metsManager.GetRootRightsStatement(mets!);
-        rightsStatement.Should().BeNull();
-        metsManager.SetRootRightsStatement(mets!, new Uri("https://rightsstatements.org/vocab/NoC-NC/1.0/"));
-        rightsStatement = metsManager.GetRootRightsStatement(mets!);
-        rightsStatement.Should().NotBeNull();
-        rightsStatement.Should().Be("https://rightsstatements.org/vocab/NoC-NC/1.0/");
+        var objectMods = ModsManager.GetModsForDiv(mets.Mets, objectsDiv);
+        objectMods.Should().BeNull();
         
-        await metsManager.WriteMets(mets!);
+        metsManager.SetRightsStatementByPath(mets, "objects", new Uri("https://rightsstatements.org/vocab/NoC-NC/1.0/"));
+        objectMods = ModsManager.GetModsForDiv(mets.Mets, objectsDiv);
+        objectMods.Should().NotBeNull();
+        var rightsStatements = objectMods!.GetAccessConditions(Constants.UseAndReproduction);
+        rightsStatements.Should().HaveCount(1);
+        rightsStatements.Single().Should().Be("https://rightsstatements.org/vocab/NoC-NC/1.0/");
+        
+        await metsManager.WriteMets(mets);
         
         var parseResult = await parser.GetMetsFileWrapper(metsUri);
         parseResult.Success.Should().BeTrue();
         var updatedWrapper = parseResult.Value!;
         
         updatedWrapper.Name.Should().Be(name);
-        updatedWrapper.RootRightsStatement.Should().NotBeNull();
-        updatedWrapper.RootRightsStatement.Should().Be("https://rightsstatements.org/vocab/NoC-NC/1.0/");
-        
+        var objects= updatedWrapper.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects");
+        objects.RightsStatement.Should().Be("https://rightsstatements.org/vocab/NoC-NC/1.0/");
     }
     
     
-    [Fact(Skip = "To be implemented in phase 2")]
+    [Fact]
     public async Task Can_Update_File_Level_MODS()
     {
         var metsFi = new FileInfo("Outputs/mets-with-file-level-mods.xml");

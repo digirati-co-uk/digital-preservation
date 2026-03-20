@@ -25,8 +25,8 @@ public class SetRootAccessConditionsHandler(IMetsManager metsManager) : IRequest
         if (metsResult is { Success: true, Value: not null })
         {
             var fullMets = metsResult.Value;
-            metsManager.SetRootAccessRestrictions(fullMets, request.AccessRestrictions);
-            metsManager.SetRootRightsStatement(fullMets, request.RightsStatement);
+            metsManager.SetAccessRestrictionsByPath(fullMets, "objects", request.AccessRestrictions);
+            metsManager.SetRightsStatementByPath(fullMets, "objects", request.RightsStatement);
             var writeMetsResult = await metsManager.WriteMets(fullMets);
             if (writeMetsResult.Failure)
             {

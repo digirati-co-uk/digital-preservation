@@ -49,12 +49,19 @@ public class ResponseBook
         var mets = await Basic_Response_Book(metsUri);
 
         // Assign record identifiers to the objects/ folder
-        metsManager.SetRecordIdentifier(mets, "objects", "identity-service", "pn67d3ep");
-        metsManager.SetRecordIdentifier(mets, "objects", "EMu", "PRI/2/999");
+        var recordInfo = new RecordInfo
+        {
+            RecordIdentifiers =
+            [
+                new RecordIdentifier { Source = "identity-service", Value = "pn67d3ep" },
+                new RecordIdentifier { Source = "EMu", Value = "PRI/2/999" },
+            ]
+        };
+        metsManager.SetRecordInfoByPath(mets, "objects", recordInfo);
 
         // Set access condition and rights statement on objects/
-        metsManager.SetAccessRestrictions(mets, "objects", ["Level1"]);
-        metsManager.SetRightsStatement(mets, "objects", new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
+        metsManager.SetAccessRestrictionsByPath(mets, "objects", ["Level1"]);
+        metsManager.SetRightsStatementByPath(mets, "objects", new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
 
         // Logical structMap: three parts grouping pages, with region pointers on the landscape page 5
         var logSm = new LogicalRange

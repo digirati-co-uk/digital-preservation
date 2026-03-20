@@ -46,7 +46,7 @@ public class ParseLiddle
 
         // Access restrictions and rights set on the objects/ folder
         objects.AccessRestrictions.Should().HaveCount(1);
-        objects.AccessRestrictions[0].Should().Be("Level1");
+        objects.AccessRestrictions![0].Should().Be("Level1");
         objects.EffectiveAccessRestrictions.Should().HaveCount(1);
         objects.EffectiveAccessRestrictions[0].Should().Be("Level1");
         var inCopyright = new Uri("http://rightsstatements.org/vocab/InC/1.0/");
@@ -102,19 +102,19 @@ public class ParseLiddle
         var tape2side1 = phys.FindFile("objects/tape2side1.wav")!;
         var tape2side2 = phys.FindFile("objects/tape2side2.wav")!;
 
-        tape1side1.AccessRestrictions.Should().HaveCount(0);
+        tape1side1.AccessRestrictions.Should().BeNull();
         tape1side1.RightsStatement.Should().BeNull();
         tape1side1.RecordInfo.Should().BeNull();
 
-        tape1side2.AccessRestrictions.Should().HaveCount(0);
+        tape1side2.AccessRestrictions.Should().BeNull();
         tape1side2.RightsStatement.Should().BeNull();
         tape1side2.RecordInfo.Should().BeNull();
 
-        tape2side1.AccessRestrictions.Should().HaveCount(0);
+        tape2side1.AccessRestrictions.Should().BeNull();
         tape2side1.RightsStatement.Should().BeNull();
         tape2side1.RecordInfo.Should().BeNull();
 
-        tape2side2.AccessRestrictions.Should().HaveCount(0);
+        tape2side2.AccessRestrictions.Should().BeNull();
         tape2side2.RightsStatement.Should().BeNull();
         tape2side2.RecordInfo.Should().BeNull();
 
@@ -179,7 +179,7 @@ public class ParseLiddle
 
         // Logical ranges have no access or rights declared, and the physical objects/ root
         // (DMD_PHYS_ROOT) declares no access either, so effective values are empty.
-        logsm.Ranges[0].AccessRestrictions.Should().HaveCount(0);
+        logsm.Ranges[0].AccessRestrictions.Should().BeNull();
         logsm.Ranges[0].RightsStatement.Should().BeNull();
         logsm.Ranges[0].EffectiveAccessRestrictions.Should().HaveCount(0);
         logsm.Ranges[0].EffectiveRightsStatement.Should().BeNull();

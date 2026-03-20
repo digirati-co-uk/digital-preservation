@@ -19,6 +19,7 @@ public class MetsParser(
     /// </summary>
     private sealed record MetsLookupMaps(
         Dictionary<string, XElement> AmdSecMap,
+        Dictionary<string, XElement> DmdSecMap,
         Dictionary<string, XElement> FileMap,
         Dictionary<string, XElement> TechMdMap,
         Dictionary<string, XElement> DigiprovMdMap
@@ -35,6 +36,11 @@ public class MetsParser(
             .Where(el => el.Attribute("ID") != null)
             .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
 
+        // Build DMD Sec map: ID -> XElement (for access conditions, rights, recordInfo)
+        var dmdSecMap = xMets.Descendants(XNames.MetsDmdSec)
+            .Where(el => el.Attribute("ID") != null)
+            .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
+        
         // Build file map: ID -> XElement (from fileSec)
         var fileMap = xMets.Descendants(XNames.MetsFile)
             .Where(el => el.Attribute("ID") != null)
@@ -50,7 +56,7 @@ public class MetsParser(
             .Where(el => el.Attribute("ID") != null)
             .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
 
-        return new MetsLookupMaps(amdSecMap, fileMap, techMdMap, digiprovMdMap);
+        return new MetsLookupMaps(amdSecMap, dmdSecMap, fileMap, techMdMap, digiprovMdMap);
     }
     
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
@@ -182,43 +188,11 @@ public class MetsParser(
             mets.Name = name;
         }
 
-        var rootAccessConditions = modsScope?.Descendants(XNames.mods + "accessCondition").ToList();
-        if (rootAccessConditions is { Count: > 0 })
-        {
-            foreach (var accessCondition in rootAccessConditions)
-            {
-                var acType = accessCondition.Attribute("type")?.Value;
-                if (acType is Constants.RestrictionOnAccess or "status") // status is Goobi access cond
-                {
-                    if (accessCondition.Value.HasText())
-                    {
-                        mets.RootAccessConditions.Add(accessCondition.Value);
-                    }
-                }
-                else if (acType is Constants.UseAndReproduction) // Goobi might have different
-                {
-                    if (accessCondition.Value.HasText() && mets.RootRightsStatement is null)
-                    {
-                        try
-                        {
-                            mets.RootRightsStatement = new Uri(accessCondition.Value);
-                        }
-                        catch (Exception e)
-                        {
-                            logger.LogError(e, "Unable to parse rights statement {accessCondition}",
-                                accessCondition.Value);
-                        }
-                    }
-                }
-            }
-        }
-
         var agent = xMets.Descendants(XNames.mets + "agent").FirstOrDefault();
         if (agent is not null)
         {
             mets.Agent = agent.Descendants(XNames.mets + "name").FirstOrDefault()?.Value;
         }
-
 
         // There may be more than one, and they may or may not be qualified as physical or logical
         XElement? physicalStructMap = null;
@@ -299,6 +273,8 @@ public class MetsParser(
         // to rely on the AMD premis:originalName as the local path.
         foreach (var div in parent.Elements(XNames.MetsDiv))
         {
+            var (accessRestrictions, rightsStatement, recordInfo) = GetDmdForDiv(div, lookupMaps);
+            
             var type = div.Attribute("TYPE")?.Value.ToLowerInvariant();
             var label = div.Attribute("LABEL")?.Value;
             if (type == "directory")
@@ -309,6 +285,8 @@ public class MetsParser(
                 }
 
                 directoryLabels.Push(label);
+
+                
                 var admId = div.Attribute("ADMID")?.Value;
                 if (admId.HasText())
                 {
@@ -347,6 +325,9 @@ public class MetsParser(
                                         StorageLocation = storageLocation
                                     }
                                 ];
+                                workingDirectory.AccessRestrictions = accessRestrictions;
+                                workingDirectory.RightsStatement = rightsStatement;
+                                workingDirectory.RecordInfo = recordInfo;
                             }
                         }
                     }
@@ -365,6 +346,8 @@ public class MetsParser(
                 // Goobi METS has the ADMID on the mets:div. But that means we can use it only once!
                 // Going to make an assumption for now that the first encountered mets:fptr is the one that gets the ADMID
                 // - this is true for Goobi at Wellcome. But in reality we'd need a stricter check than that.
+                
+                // In contrast, we assume (for now) that DMDID is always on the mets:div; no file itself has DMD.
 
                 var fileId = fptr.Attribute("FILEID")!.Value;
                 var fileEl = lookupMaps.FileMap[fileId];
@@ -574,6 +557,9 @@ public class MetsParser(
                 {
                     file.Metadata.Add(exifMetadata);
                 }
+                file.AccessRestrictions = accessRestrictions;
+                file.RightsStatement = rightsStatement;
+                file.RecordInfo = recordInfo;
 
                 mets.Files.Add(file);
 
@@ -608,5 +594,48 @@ public class MetsParser(
         }
     }
 
+
+    private (List<string>?, Uri?, RecordInfo?) GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
+    {
+        // data gathered sparsely from optional MODS
+        // We assume that the DMD is always linked from the mets:Div, never from a file
+        List<string>? accessRestrictions = null;
+        Uri? rightsStatement = null;
+        RecordInfo? recordInfo = null;
+        
+        var dmdId = div.Attribute("DMDID")?.Value;
+        if (dmdId.HasText())
+        {
+            if (lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd))
+            {
+                var accessConditionEls = dmd.Descendants(XNames.ModsAccessCondition);
+                foreach (var accessConditionEl in accessConditionEls)
+                {
+                    var condType = accessConditionEl.Attribute("type")?.Value;
+                    if (condType == Constants.RestrictionOnAccess || condType == "status") // "status" is Goobi access cond
+                    {
+                        accessRestrictions ??= [];
+                        accessRestrictions.Add(accessConditionEl.Value);
+                    }
+                    if (accessConditionEl.Attribute("type")?.Value == Constants.UseAndReproduction)
+                    {
+                        rightsStatement = new Uri(accessConditionEl.Value);
+                    }
+                }
+                var recordIdentifierEls = dmd.Descendants(XNames.ModsRecordIdentifier);
+                foreach (var recordIdentifierEl in recordIdentifierEls)
+                {
+                    recordInfo ??= new RecordInfo();
+                    recordInfo.RecordIdentifiers.Add(new RecordIdentifier()
+                    {
+                        Source = recordIdentifierEl.Attribute("source")!.Value,
+                        Value = recordIdentifierEl.Value
+                    });
+                }
+            }
+        }
+        
+        return (accessRestrictions, rightsStatement, recordInfo);
+    }
 
 }

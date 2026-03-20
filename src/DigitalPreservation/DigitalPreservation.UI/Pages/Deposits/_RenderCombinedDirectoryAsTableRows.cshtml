@@ -50,6 +50,12 @@ File is in both
         </td>
         <td style="padding-left: @(1.3 * depth)rem">
             <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg> <span title="@combinedDirectory.LocalPath" aria-label="name">@(combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug())</span>
+            
+            
+            
+            
+            @* TC This is where we also need to work out how to display EffectiveXXX *@
+            
             @if (combinedDirectory.LocalPath == "objects")
             {
                 <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#accessConditionsModal" aria-label="Set rights and access conditions">
@@ -80,7 +86,6 @@ File is in both
 {
     var wrapper = new CombinedDirectoryRecursionWrapper(
         dir, Model.MetsPath, Model.Editable, Model.Active, Model.LockedByOtherUser, 
-        Model.RootAccessRestrictions, Model.RootRightsStatement,
         Model.RowCounter);
     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
 }

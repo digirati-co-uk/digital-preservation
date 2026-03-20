@@ -44,13 +44,20 @@ public class Liddle
 
         // or...
         // The archivist assigns LIDDLE/WW1/TAPES/1-2 to the root of the object
-        metsManager.SetRecordIdentifier(mets, "objects", "identity-service", "a8n9e4c2");
-        metsManager.SetRecordIdentifier(mets, "objects", "EMu", "LIDDLE/WW1/TAPES/1-2");
+        var recordInfo = new RecordInfo
+        {
+            RecordIdentifiers =
+            [
+                new RecordIdentifier { Source = "identity-service", Value = "a8n9e4c2" },
+                new RecordIdentifier { Source = "EMu", Value = "LIDDLE/WW1/TAPES/1-2" },
+            ]
+        };
+        metsManager.SetRecordInfoByPath(mets, "objects", recordInfo);
         // This pair of tapes (i.e., physical objects) is LIDDLE/WW1/TAPES/1-2 
 
         // apply access condition and rights statement to origin, though
-        metsManager.SetAccessRestrictions(mets, "objects", ["Level1"]);
-        metsManager.SetRightsStatement(mets, "objects", new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
+        metsManager.SetAccessRestrictionsByPath(mets, "objects", ["Level1"]);
+        metsManager.SetRightsStatementByPath(mets, "objects", new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
 
 
 

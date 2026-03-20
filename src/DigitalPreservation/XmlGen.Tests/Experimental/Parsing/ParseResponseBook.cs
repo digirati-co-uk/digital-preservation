@@ -49,7 +49,7 @@ public class ParseResponseBook
         // Access condition and rights statement on objects/
         var inCopyright = new Uri("http://rightsstatements.org/vocab/InC/1.0/");
         objects.AccessRestrictions.Should().HaveCount(1);
-        objects.AccessRestrictions[0].Should().Be("Level1");
+        objects.AccessRestrictions![0].Should().Be("Level1");
         objects.EffectiveAccessRestrictions.Should().HaveCount(1);
         objects.EffectiveAccessRestrictions[0].Should().Be("Level1");
         objects.RightsStatement.Should().Be(inCopyright);
@@ -164,7 +164,7 @@ public class ParseResponseBook
         page1.Size.Should().Be(72000000);
 
         // No explicit access / rights / record info on individual files
-        page1.AccessRestrictions.Should().HaveCount(0);
+        page1.AccessRestrictions.Should().BeNull();
         page1.RightsStatement.Should().BeNull();
         page1.RecordInfo.Should().BeNull();
 

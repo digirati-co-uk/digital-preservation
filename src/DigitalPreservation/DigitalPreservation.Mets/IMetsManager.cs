@@ -21,26 +21,21 @@ public interface IMetsManager
     Result DeleteFromMets(FullMets fullMets, string deletePath); // , Uri? storageLocation
     Task<Result> WriteMets(FullMets fullMets);
 
-    // The following are made obsolete because they are handled by the more general cases below.
-    [Obsolete("Superseded by SetAccessRestrictions(..), kept for legacy support temporarily")]
-    void SetRootAccessRestrictions(FullMets fullMets, List<string> accessRestrictions);
-    [Obsolete("Superseded by SetRightsStatement(..), kept for legacy support temporarily")]
-    void SetRootRightsStatement(FullMets fullMets, Uri? uri);
-
     // Extensions
     // We don't need getters because this information will be exposed in either WorkingFile/Dir or Logical ... Ranges
     // These need to be settable on DIVs in Logical Struct Maps as well as on physical paths.
-    // Both are strings; is it safe for the same method to be used for both?
-    // ...instead of `string physicalPath` it's `string divID` 
-    // `string locator` is either a physical path of a file or directory,
-    // or the "ID" of a mets:Div - usually a logical one but can be a physical one
-    // SetRecordIdentifier(mets, "objects/child-folder", "EMu", "MS 1234/8")
-    // SetRecordIdentifier(mets, "LOG_0003", "EMu", "MS 1234/9")
-    // SetRecordIdentifier(mets, "PHYS_objects/child-folder", "EMu", "MS 1234/8")  // equiv to first one
-    // always look for both, throw an exception if you find both?
-    void SetRecordIdentifier(FullMets mets, string locator, string source, string value);
-    void SetRightsStatement(FullMets mets, string locator, Uri? rightsStatement);
-    void SetAccessRestrictions(FullMets mets, string locator, List<string> accessRestrictions);
+    // Both are strings; it's clearer if they are separate methods.
+    // `string localPath` is either a physical path of a file or directory,
+    // `string divId` is the "ID" of a mets:Div - usually a logical one but can be a physical one
+    // SetAccessRestrictionsByPath(mets, "objects/child-folder", ["Closed"])
+    // SetAccessRestrictionsByDivId(mets, "LOG_0003", ["Sundays Only"])
+    // SetAccessRestrictionsByDivId(mets, "PHYS_objects/child-folder", ["Closed"])  // equiv to first one
+    void SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo);
+    void SetRecordInfoByDivId(FullMets mets, string divId, RecordInfo recordInfo);
+    void SetRightsStatementByPath(FullMets mets, string localPath, Uri? rightsStatement);
+    void SetRightsStatementByDivId(FullMets mets, string divId, Uri? rightsStatement);
+    void SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions);
+    void SetAccessRestrictionsByDivId(FullMets mets, string divId, List<string> accessRestrictions);
 
 
     // There may be more than one so we need to address them better than this, which assumes only one

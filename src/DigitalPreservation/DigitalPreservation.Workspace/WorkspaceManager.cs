@@ -30,10 +30,6 @@ public class WorkspaceManager(
     public bool Editable { get; private set; }
     public string? MetsName { get; private set; }
     
-    // TODO: In phase 2, replace these with always an operation on a CombinedDirectory -> METS Directory, including the workspace root.
-    public List<string> RootAccessRestrictions { get; private set; } = [];
-    public Uri? RootRightsStatement { get; private set; }
-    
     
     public async Task<Result> SetAccessConditions(List<string> rootAccessRestrictions, Uri? rootRightsStatement)
     {
@@ -99,9 +95,6 @@ public class WorkspaceManager(
             {
                 HasValidFiles = true;
             }
-
-            RootAccessRestrictions = metsWrapper?.RootAccessConditions ?? [];
-            RootRightsStatement = metsWrapper?.RootRightsStatement;
             return Result.Ok(apparentRoot);
         }
 

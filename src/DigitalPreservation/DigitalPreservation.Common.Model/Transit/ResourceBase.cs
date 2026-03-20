@@ -21,7 +21,7 @@ public abstract class ResourceBase
 
     [JsonPropertyName("accessRestrictions")]
     [JsonPropertyOrder(5)]
-    public List<string> AccessRestrictions { get; set; } = [];
+    public List<string>? AccessRestrictions { get; set; }
 
     [JsonPropertyName("effectiveAccessRestrictions")]
     [JsonPropertyOrder(6)]

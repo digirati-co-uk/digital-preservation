@@ -46,7 +46,7 @@ public class ParseWomenOfWestminster
         
         // Explicitly set access restrictions on objects folder
         objects.AccessRestrictions.Should().HaveCount(1);
-        objects.AccessRestrictions[0].Should().Be("Level1");
+        objects.AccessRestrictions![0].Should().Be("Level1");
         // ... and these are matched by effective access restrictions
         objects.EffectiveAccessRestrictions.Should().HaveCount(1);
         objects.EffectiveAccessRestrictions[0].Should().Be("Level1");
@@ -131,7 +131,7 @@ public class ParseWomenOfWestminster
         // No child ranges
         logsm.Ranges[0].Ranges.Should().HaveCount(0);
         // No explicit access or rights, just recordinfo above
-        logsm.Ranges[0].AccessRestrictions.Should().HaveCount(0);
+        logsm.Ranges[0].AccessRestrictions.Should().BeNull();
         logsm.Ranges[0].RightsStatement.Should().BeNull();
         // TODO: Does a logical range inherit from the physical structMap?
         // ONLY if there is something declared on the physical structmap root (DMD_PHYS_ROOT), which is not the case here
@@ -162,7 +162,7 @@ public class ParseWomenOfWestminster
         // No child ranges
         logsm.Ranges[1].Ranges.Should().HaveCount(0);
         // No explicit access or rights, just recordinfo above
-        logsm.Ranges[1].AccessRestrictions.Should().HaveCount(0);
+        logsm.Ranges[1].AccessRestrictions.Should().BeNull();
         logsm.Ranges[1].RightsStatement.Should().BeNull();
         // see comment above - nothing to inherit at this level
         logsm.Ranges[0].EffectiveAccessRestrictions.Should().HaveCount(0);
@@ -178,25 +178,25 @@ public class ParseWomenOfWestminster
         
         // 4 of the files have no explicit descriptive metadata - they inherit it
         ruddAudio.RecordInfo.Should().BeNull();
-        ruddAudio.AccessRestrictions.Should().HaveCount(0);
+        ruddAudio.AccessRestrictions.Should().BeNull();
         ruddAudio.RightsStatement.Should().BeNull();
         
         ruddTranscript.RecordInfo.Should().BeNull();
-        ruddTranscript.AccessRestrictions.Should().HaveCount(0);
+        ruddTranscript.AccessRestrictions.Should().BeNull();
         ruddTranscript.RightsStatement.Should().BeNull();
         
         eagleRedactedAudio.RecordInfo.Should().BeNull();
-        eagleRedactedAudio.AccessRestrictions.Should().HaveCount(0);
+        eagleRedactedAudio.AccessRestrictions.Should().BeNull();
         eagleRedactedAudio.RightsStatement.Should().BeNull();
         
         eagleTranscript.RecordInfo.Should().BeNull();
-        eagleTranscript.AccessRestrictions.Should().HaveCount(0);
+        eagleTranscript.AccessRestrictions.Should().BeNull();
         eagleTranscript.RightsStatement.Should().BeNull();
         
         eagleAudio.RecordInfo.Should().BeNull();
         // but Eagle Audio does have an explicit access and rights assignment:
         eagleAudio.AccessRestrictions.Should().HaveCount(1);
-        eagleAudio.AccessRestrictions[0].Should().Be("Closed");
+        eagleAudio.AccessRestrictions![0].Should().Be("Closed");
         // TODO: how to override inherited? Effective will be null, correctly, but we can't tell directly that there is an explicit null assignment here
         eagleAudio.RightsStatement.Should().BeNull();
 
