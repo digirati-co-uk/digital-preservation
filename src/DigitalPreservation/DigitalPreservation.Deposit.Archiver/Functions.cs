@@ -15,10 +15,6 @@ using Polly;
 using Polly.Retry;
 using Preservation.Client;
 using Serilog;
-using Storage.Repository.Common;
-using System.Diagnostics;
-using System.Diagnostics.Eventing.Reader;
-using static System.Reflection.Metadata.BlobBuilder;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
@@ -68,6 +64,7 @@ public class Functions
     [RestApi(LambdaHttpMethod.Get, "/")]
     public async Task<IHttpResult> Get(ILambdaContext context)
     {
+        var lastModifiedBefore = -Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
         var query = new DepositQuery
         {
             Status = "preserved",
@@ -77,7 +74,7 @@ public class Functions
             Ascending = true,
             ShowAll = true,
             Archived = false,
-            LastModifiedBefore = DateTime.UtcNow.AddMonths(Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS")))
+            LastModifiedBefore = DateTime.UtcNow.AddMonths(lastModifiedBefore)
         };
 
         var deposits = await preservationApiClient.GetDeposits(query, CancellationToken.None);
@@ -305,4 +302,5 @@ public class Functions
 
         return Result.OkNotNull(workspaceManager);
     }
+
 }

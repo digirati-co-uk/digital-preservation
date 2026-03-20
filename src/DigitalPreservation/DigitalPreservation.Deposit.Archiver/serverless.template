@@ -29,7 +29,7 @@
             "TMP_FILES_PATH": "/tmp/markerfile",
             "DIRECTORY_SEPARATOR": "/",
             "BATCH_SIZE": "25",
-            "LAST_MODIFIED_MONTHS": "-6",
+            "LAST_MODIFIED_MONTHS": "6",
             "CLIENT_BASE_ADDRESS": "https://preservation-api-dev.library.leeds.ac.uk"
           }
         },
