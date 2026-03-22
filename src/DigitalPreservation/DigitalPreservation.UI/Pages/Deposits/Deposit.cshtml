@@ -837,15 +837,15 @@
 </div>
 
 
-@* ------------------- RIGHTS AND ACCESS MODAL *@
+@* ------------------- RIGHTS, ACCESS AND RECORDINFO MODAL (mods) *@
 
-<div class="modal fade" id="accessConditionsModal" tabindex="-1" aria-labelledby="accessConditionsModalLabel" aria-hidden="true">
+<div class="modal fade" id="modsModal" tabindex="-1" aria-labelledby="modsModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             
             <form class="single-submit" method="post" asp-page-handler="SetRightsAndAccess">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="accessConditionsModalLabel"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Rights and Access</span></h1>
+                    <h1 class="modal-title fs-5" id="modsModalLabel"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Rights and Access</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -860,7 +860,7 @@
                                 }
                             </select>
                             <div id="accessRestrictionsHelp" class="form-text">
-                                Set access restriction(s) on root. <!-- TODO: when this can be done on any element in the hierarchy, display the accessConditionContext here -->
+                                Set access restriction(s) on root. <!-- TODO: when this can be done on any element in the hierarchy, display the modsContext here -->
                             </div>
                         }
                         else
@@ -892,7 +892,7 @@
                                 }
                             </select>
                             <div id="rightsStatementHelp" class="form-text">
-                                Set rights statement on root. <!-- TODO: when this can be done on any element in the hierarchy, display the accessConditionContext here -->
+                                Set rights statement on root. <!-- TODO: when this can be done on any element in the hierarchy, display the modsContext here -->
                             </div>
                         }
                         else
@@ -902,8 +902,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <input type="hidden" id="accessConditionContext" name="accessConditionContext">
-                    <input type="hidden" id="accessConditionContextIsFile" name="accessConditionContextIsFile">
+                    <input type="hidden" id="modsContext" name="modsContext">
+                    <input type="hidden" id="modsContextIsFile" name="modsContextIsFile">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                     {
@@ -931,8 +931,8 @@
     const newFolderContextIsFile = document.getElementById("newFolderContextIsFile");
     const newFileContext = document.getElementById("newFileContext");
     const newFileContextIsFile = document.getElementById("newFileContextIsFile");
-    const accessConditionContext = document.getElementById("accessConditionContext");
-    const accessConditionContextIsFile = document.getElementById("accessConditionContextIsFile");
+    const modsContext = document.getElementById("modsContext");
+    const modsContextIsFile = document.getElementById("modsContextIsFile");
     
     const deleteButton = document.getElementById("deleteButton");
     const deleteFromDepositRadio = document.getElementById("deleteFromDeposit");
@@ -1110,10 +1110,10 @@
             const isFile = row.getAttribute("data-type") === "file";
             newFileContext.value = path;
             newFolderContext.value = path;
-            accessConditionContext.value = path;
+            modsContext.value = path;
             newFolderContextIsFile.value = isFile;
             newFileContextIsFile.value = isFile;
-            accessConditionContextIsFile.value = isFile;
+            modsContextIsFile.value = isFile;
             // deleteContext.value = path;
             // deleteContextIsFile.value = isFile;
             // deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;

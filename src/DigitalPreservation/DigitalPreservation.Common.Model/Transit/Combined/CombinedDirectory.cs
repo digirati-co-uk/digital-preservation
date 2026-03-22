@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Utils;
 using static DigitalPreservation.Common.Model.Transit.Combined.CombinedFile;
 
@@ -549,6 +550,19 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
             combinedDirectory.AddVirusFileNotices(filesWithVirus);
         }
     }
+
+
+    public List<string> AccessRestrictions => DirectoryInMets?.AccessRestrictions ?? [];
+
+    public List<string> EffectiveAccessRestrictions => DirectoryInMets?.EffectiveAccessRestrictions ?? [];
+
+    public Uri? RightsStatement => DirectoryInMets?.RightsStatement;
+
+    public Uri? EffectiveRightsStatement => DirectoryInMets?.EffectiveRightsStatement;
+    
+    public RecordInfo? RecordInfo => DirectoryInMets?.RecordInfo;
+
+    public RecordInfo? EffectiveRecordInfo => DirectoryInMets?.EffectiveRecordInfo;
 }
 
 public class FileSizeTotals

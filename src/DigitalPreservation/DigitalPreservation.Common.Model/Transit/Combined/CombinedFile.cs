@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.Transit.Extensions;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Common.Model.Transit.Combined;
@@ -464,6 +465,19 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     {
         return FileInMets?.Name ?? FileInDeposit?.Name ?? FileInMets?.GetSlug() ?? FileInDeposit?.GetSlug();
     }
+    
+    
+    public List<string>? AccessRestrictions => FileInMets?.AccessRestrictions;
+
+    public List<string> EffectiveAccessRestrictions => FileInMets?.EffectiveAccessRestrictions ?? [];
+
+    public Uri? RightsStatement => FileInMets?.RightsStatement;
+
+    public Uri? EffectiveRightsStatement => FileInMets?.EffectiveRightsStatement;
+    
+    public RecordInfo? RecordInfo => FileInMets?.RecordInfo;
+
+    public RecordInfo? EffectiveRecordInfo => FileInMets?.EffectiveRecordInfo;
 }
 
 public class ExifTagComparer : IEqualityComparer<ExifTag>

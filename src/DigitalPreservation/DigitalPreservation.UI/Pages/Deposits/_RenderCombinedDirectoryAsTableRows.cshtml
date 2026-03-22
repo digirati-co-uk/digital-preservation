@@ -1,6 +1,7 @@
 ﻿@using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.Common.Model.Transit.Combined
+@using DigitalPreservation.Common.Model.Transit.Extensions
 @using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.Utils
 @using Storage.Repository.Common
@@ -55,24 +56,37 @@ File is in both
             
             
             @* TC This is where we also need to work out how to display EffectiveXXX *@
-            
-            @if (combinedDirectory.LocalPath == "objects")
+
+            <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#modsModal" 
+                aria-label="Set rights and access conditions"
+                data-access="@string.Join(',', combinedDirectory.AccessRestrictions)"
+                data-eff-access="@string.Join(',', combinedDirectory.EffectiveAccessRestrictions)"
+                data-rights="@combinedDirectory.RightsStatement"
+                data-eff-rights="@combinedDirectory.EffectiveRightsStatement"
+                data-recordinfo="@combinedDirectory.RecordInfo?.ToCompactString()"
+                data-eff-recordinfo="@combinedDirectory.EffectiveRecordInfo?.ToCompactString()"
+               >
+                <svg class="bi"><use xlink:href="#info-square"/></svg>
+            </a>
+            @if (combinedDirectory.AccessRestrictions.Count > 0)
             {
-                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#accessConditionsModal" aria-label="Set rights and access conditions">
-                    <svg class="bi"><use xlink:href="#info-square"/></svg>
-                </a>
-                @if (Model.RootAccessRestrictions.Count > 0)
+                <small>Access: <em><strong>@string.Join(", ", combinedDirectory.AccessRestrictions)</strong></em></small>
+            }
+            @if (combinedDirectory.RightsStatement != null)
+            {
+                if (combinedDirectory.AccessRestrictions.Count > 0)
                 {
-                    <small>Access: <em><strong>@string.Join(", ", Model.RootAccessRestrictions)</strong></em></small>
+                    <span>; </span>
                 }
-                @if (Model.RootRightsStatement != null)
+                <small>Rights: <em><strong>@RightsStatement.GetShortLabel(combinedDirectory.RightsStatement)</strong></em></small>
+            }
+            @if (combinedDirectory.RecordInfo != null)
+            {
+                if (combinedDirectory.AccessRestrictions.Count > 0 || combinedDirectory.RightsStatement != null)
                 {
-                    if (Model.RootAccessRestrictions.Count > 0)
-                    {
-                        <span>; </span>
-                    }
-                    <small>Rights: <em><strong>@RightsStatement.GetShortLabel(Model.RootRightsStatement)</strong></em></small>
+                    <span>; </span>
                 }
+                <small>Record: <em><strong>@combinedDirectory.RecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ")</strong></em></small>
             }
         </td>
         <td></td>
