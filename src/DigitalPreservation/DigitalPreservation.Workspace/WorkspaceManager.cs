@@ -31,9 +31,9 @@ public class WorkspaceManager(
     public string? MetsName { get; private set; }
     
     
-    public async Task<Result> SetAccessConditions(List<string> rootAccessRestrictions, Uri? rootRightsStatement)
+    public async Task<Result> SetModsInformation(string localPath, List<string> rootAccessRestrictions, Uri? rootRightsStatement)
     {
-        var result = await mediator.Send(new SetRootAccessConditions(Deposit.Files!, Deposit.MetsETag!, rootAccessRestrictions, rootRightsStatement));
+        var result = await mediator.Send(new SetModsInformation(Deposit.Files!, localPath, Deposit.MetsETag!, rootAccessRestrictions, rootRightsStatement));
         return result;
     }
 

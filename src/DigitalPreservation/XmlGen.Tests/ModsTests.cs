@@ -95,7 +95,7 @@ public class ModsTests
         updatedWrapper.Name.Should().Be(name);
         var objects= updatedWrapper.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects");
         objects.AccessRestrictions.Should().HaveCount(1);
-        objects.AccessRestrictions[0].Should().Be("my-access-restriction");
+        objects.AccessRestrictions![0].Should().Be("my-access-restriction");
     }
     
     
@@ -178,7 +178,7 @@ public class ModsTests
         objectsDir.Files[0].ContentType.Should().Be("text/plain");
         objectsDir.Files[0].Digest.Should().Be("801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105");
         objectsDir.Files[0].AccessRestrictions.Should().HaveCount(1);
-        objectsDir.Files[0].AccessRestrictions[0].Should().Be("my-access-restriction");
+        objectsDir.Files[0].AccessRestrictions![0].Should().Be("my-access-restriction");
         objectsDir.Files[0].RightsStatement.Should().Be("https://rightsstatements.org/vocab/NoC-NC/1.0/");
         
     }

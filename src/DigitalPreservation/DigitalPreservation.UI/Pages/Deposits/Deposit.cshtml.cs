@@ -480,12 +480,14 @@ public class DepositModel(
 
     public async Task<IActionResult> OnPostSetRightsAndAccess(
         [FromRoute] string id,
+        [FromForm] string modsContext,
+        [FromForm] bool modsContextIsFile,
         [FromForm] List<string> accessRestrictions,
         [FromForm] Uri? rightsStatement)
     {        
         if (await BindDeposit(id))
         {
-            var result = await WorkspaceManager.SetAccessConditions(accessRestrictions, rightsStatement);
+            var result = await WorkspaceManager.SetModsInformation(modsContext, accessRestrictions, rightsStatement);
             if (result.Success)
             {
                 TempData["AccessConditionsUpdated"] = "Access Restrictions and Rights Statement updated.";

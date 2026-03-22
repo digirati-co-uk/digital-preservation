@@ -1,0 +1,37 @@
+@using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.Transit.Combined
+@using DigitalPreservation.Common.Model.Transit.Extensions
+@model CombinedBase
+
+@* TC This is where we also need to work out how to display EffectiveXXX *@
+<a class="link-primary mods-launcher" role="button" data-bs-toggle="modal" data-bs-target="#modsModal"
+    aria-label="Set rights and access conditions"
+    data-access="@string.Join(',', Model.AccessRestrictions)"
+    data-eff-access="@string.Join(',', Model.EffectiveAccessRestrictions)"
+    data-rights="@RightsStatement.GetShortLabel(Model.RightsStatement)"
+    data-eff-rights="@RightsStatement.GetShortLabel(Model.EffectiveRightsStatement)"
+    data-recordinfo="@Model.RecordInfo?.ToCompactString()"
+    data-eff-recordinfo="@Model.EffectiveRecordInfo?.ToCompactString()"
+   >
+    <svg class="bi"><use xlink:href="#info-square"/></svg>
+</a>
+@if (Model.AccessRestrictions.Count > 0)
+{
+    <small>Access: <em><strong>@string.Join(", ", Model.AccessRestrictions)</strong></em></small>
+}
+@if (Model.RightsStatement != null)
+{
+    if (Model.AccessRestrictions.Count > 0)
+    {
+        <span>; </span>
+    }
+    <small>Rights: <em><strong>@RightsStatement.GetShortLabel(Model.RightsStatement)</strong></em></small>
+}
+@if (Model.RecordInfo != null)
+{
+    if (Model.AccessRestrictions.Count > 0 || Model.RightsStatement != null)
+    {
+        <span>; </span>
+    }
+    <small>Record: <em><strong>@Model.RecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ")</strong></em></small>
+}

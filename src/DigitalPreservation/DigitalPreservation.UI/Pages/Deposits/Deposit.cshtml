@@ -1,10 +1,13 @@
 ﻿@page "/deposits/{id}"
+@using System.Text.Json
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.Common.Model.Transit.Combined
+@using DigitalPreservation.Common.Model.Transit.Extensions
 @using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.Utils
+@using DigitalPreservation.XmlGen.Dc.Terms
 @model DepositModel
 
 @functions {
@@ -842,7 +845,49 @@
 <div class="modal fade" id="modsModal" tabindex="-1" aria-labelledby="modsModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            
+            <script>
+                function populateModsModalFromAttributes(launcher){
+
+                    let accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
+                    let rightsStatementSelect = document.getElementById("rightsStatementSelect");
+                    accessRestrictionsSelect.selectedIndex = -1;
+                    rightsStatementSelect.selectedIndex = -1;
+                    // and clear recordInfo form
+                    
+                    let accessConditionList = launcher.getAttribute("data-access");
+                    let rightsStatement = launcher.getAttribute("data-rights");
+                    let recordInfoCompact = launcher.getAttribute("data-recordinfo");
+                    let modsContextPath = modsContext.value;
+                    
+                    document.getElementById("modsLocalPathInfo").innerHTML = "Set information for " + modsContextPath;
+                    document.getElementById("accessRestrictionsHelp").innerHTML = "Set access restriction(s) on " + modsContextPath;
+                    document.getElementById("rightsStatementHelp").innerHTML = "Set rights statement on " + modsContextPath;
+                    // document.getElementById("recordInfoHelp").innerHTML = "Set record identifiers on " + modsContextPath;
+                    
+                    if(accessConditionList.length > 0){
+                        let accessConditions = accessConditionList.split(",");
+                        for (const option of accessRestrictionsSelect.options) {
+                            if(accessConditions.includes(option.value)){
+                                option.selected = true;
+                            }
+                        }
+                    }
+                    
+                    if(rightsStatement){
+                        let rsUri = rightsStatements[rightsStatement].value;
+                        for (const option of rightsStatementSelect.options) {
+                            if(option.value === rsUri){
+                                option.selected = true;
+                            }
+                        }
+                    }
+                    
+                    if(recordInfoCompact){
+                        // TODO: populate recordInfo form elements
+                    }
+                    
+                }
+            </script>
             <form class="single-submit" method="post" asp-page-handler="SetRightsAndAccess">
                 <div class="modal-header">
                     <h1 class="modal-title fs-5" id="modsModalLabel"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Rights and Access</span></h1>
@@ -850,34 +895,25 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
+                        <p id="modsLocalPathInfo"></p>
+                    </div>
+                    <div class="mb-3">
                         <label id="accessRestrictionsSelectLabel" for="accessRestrictionsSelect" class="form-label">Access Restriction(s)</label>
                         @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <select multiple id="accessRestrictionsSelect" class="form-select" name="accessRestrictions" aria-labelledby="accessRestrictionsSelectLabel">
                                 @foreach (var accessRestriction in AccessRestriction.All)
                                 {
-                                    <!option value="@accessRestriction.Value" @(Model.WorkspaceManager.RootAccessRestrictions.Contains(accessRestriction.Value) ? " selected" : "")>@accessRestriction.Label</!option>
+                                    <!option value="@accessRestriction.Value">@accessRestriction.Label</!option>
                                 }
                             </select>
-                            <div id="accessRestrictionsHelp" class="form-text">
-                                Set access restriction(s) on root. <!-- TODO: when this can be done on any element in the hierarchy, display the modsContext here -->
-                            </div>
+                            <div id="accessRestrictionsHelp" class="form-text"></div>
                         }
                         else
                         {
-                            @if (Model.WorkspaceManager.RootAccessRestrictions.Count == 0)
-                            {
-                                <p>(No access restrictions)</p>
-                            }
-                            else
-                            {
-                                <ul>
-                                    @foreach (var accessRestriction in Model.WorkspaceManager.RootAccessRestrictions)
-                                    {
-                                        <li>@accessRestriction</li>
-                                    }
-                                </ul> 
-                            }
+                            <ul id="nonEditableAccessRestrictions">
+                                <li>none</li>
+                            </ul>
                         }
                     </div>
                     <div class="mb-3">
@@ -885,19 +921,21 @@
                         @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <select id="rightsStatementSelect" class="form-select" name="rightsStatement" aria-labelledby="rightsStatementSelectLabel">
-                                <!option value="" @(Model.WorkspaceManager.RootRightsStatement == null ? "" : " selected")>(none)</!option>
-                                @foreach (var rightsStatement in RightsStatement.All)
+                                <!option value="">(none)</!option>
+                                @foreach (var rightsStatement in RightsStatement.RightsStatements)
                                 {
-                                    <!option value="@rightsStatement.Value" @(Model.WorkspaceManager.RootRightsStatement == rightsStatement.Value ? " selected" : "")>@rightsStatement.Label</!option>
+                                    <!option value="@rightsStatement.Value">@rightsStatement.Label</!option>
+                                }
+                                @foreach (var creativeCommons in RightsStatement.CreativeCommons)
+                                {
+                                    <!option value="@creativeCommons.Value">@creativeCommons.Label</!option>
                                 }
                             </select>
-                            <div id="rightsStatementHelp" class="form-text">
-                                Set rights statement on root. <!-- TODO: when this can be done on any element in the hierarchy, display the modsContext here -->
-                            </div>
+                            <div id="rightsStatementHelp" class="form-text"></div>
                         }
                         else
                         {
-                            <p>@(Model.WorkspaceManager.RootRightsStatement == null ? "(no rights statement)" : Model.WorkspaceManager.RootRightsStatement)</p> 
+                            <p id="nonEditableRightsStatement">(no rights statement)</p>
                         }
                     </div>
                 </div>
@@ -923,6 +961,13 @@
 
 
 <script>
+
+    const rightsStatements = @Html.Raw(JsonSerializer.Serialize(
+        RightsStatement.ByShortLabel, 
+        new JsonSerializerOptions
+        {
+            WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        }))
     
     const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
     const rows = document.getElementsByClassName("deposit-row");
@@ -1105,8 +1150,8 @@
         }
         row.addEventListener('click', (event) => {
             const row = event.currentTarget;
-
             const path = row.getAttribute("data-path");
+            console.log("Click event on row for path: " + path);
             const isFile = row.getAttribute("data-type") === "file";
             newFileContext.value = path;
             newFolderContext.value = path;
@@ -1114,10 +1159,11 @@
             newFolderContextIsFile.value = isFile;
             newFileContextIsFile.value = isFile;
             modsContextIsFile.value = isFile;
-            // deleteContext.value = path;
-            // deleteContextIsFile.value = isFile;
-            // deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;
-            // deleteButton.removeAttribute("disabled");
+
+            let modsLauncher = event.target.closest('a');
+            if(modsLauncher && modsLauncher.classList.contains("mods-launcher")){
+                populateModsModalFromAttributes(modsLauncher);
+            }
             
             if (row.classList.contains("table-active")){
                 for (const r of rows) { r.classList.remove("table-active"); }
@@ -1128,7 +1174,7 @@
                 clicked = true;
             }
         });
-    }
+    }    
 
 
 </script>

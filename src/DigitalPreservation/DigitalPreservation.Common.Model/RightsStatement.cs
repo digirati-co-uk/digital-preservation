@@ -1,13 +1,19 @@
-﻿namespace DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.XmlGen.Dc.Terms;
+using Uri = System.Uri;
+
+namespace DigitalPreservation.Common.Model;
 
 public class RightsStatement
 {
-    public static List<RightsStatement> All { get; }
+    public static List<RightsStatement> RightsStatements { get; }
     public static List<RightsStatement> CreativeCommons { get; }
+    
+    public static Dictionary<string, RightsStatement> ByShortLabel { get; }
+    public static Dictionary<Uri, RightsStatement> ByUri { get; }
 
     static RightsStatement()
     {
-        All =
+        RightsStatements =
         [
             // In Copyright
             new RightsStatement
@@ -133,15 +139,29 @@ public class RightsStatement
                 Value = new Uri("https://creativecommons.org/licenses/by-nc-nd/4.0/")
             },
         ];
+
+        var asList = new List<RightsStatement>();
+        asList.AddRange(RightsStatements);
+        asList.AddRange(CreativeCommons);
+        ByShortLabel = asList.ToDictionary(rs => rs.ShortLabel, rs => rs);
+        ByUri = asList.ToDictionary(rs => rs.Value, rs => rs);
     }
 
     public required string Label { get; set; }
     public required string ShortLabel { get; set; }
     public required Uri Value { get; set; }
 
-    public static string GetShortLabel(Uri modelRootRightsStatement)
+    public static string GetShortLabel(Uri? modelRootRightsStatement)
     {
-        var rs = All.SingleOrDefault(x => x.Value == modelRootRightsStatement);
-        return rs?.ShortLabel ?? "???";
+        if (modelRootRightsStatement == null)
+        {
+            return string.Empty;
+        }
+        var rs = RightsStatements.SingleOrDefault(x => x.Value == modelRootRightsStatement);
+        if (rs == null)
+        {
+            rs = CreativeCommons.SingleOrDefault(x => x.Value == modelRootRightsStatement);
+        }
+        return rs?.ShortLabel ?? rs?.Value.ToString() ?? string.Empty;
     }
 }
