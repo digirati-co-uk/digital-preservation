@@ -1,4 +1,5 @@
-﻿@using DigitalPreservation.Common.Model.Transit
+﻿@using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.Transit
 @using DigitalPreservation.Common.Model.Transit.Combined
 @using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.Utils
@@ -25,6 +26,7 @@ File is in both
     var isMetadata = FolderNames.IsMetadata(combinedDirectory.LocalPath);
     depth = combinedDirectory.LocalPath.Split('/').Length;
     string where = combinedDirectory.Whereabouts.ToString().ToLowerInvariant();
+    string displayName = combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug();
     
     <tr class="deposit-row @("where-" + where)" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@isMetadata">
@@ -48,11 +50,14 @@ File is in both
             }
         </td>
         <td style="padding-left: @(1.3 * depth)rem">
-            <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg> 
-            <span title="@combinedDirectory.LocalPath" aria-label="name">@(combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug())</span>
+            <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg>
             @if (combinedDirectory.LocalPath == "objects" || combinedDirectory.LocalPath.StartsWith("objects/"))
+            { 
+                @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)combinedDirectory, displayName, null as string))
+            }
+            else
             {
-                @await Html.PartialAsync("_AccessAndRights", combinedDirectory)
+                <span title="@combinedDirectory.LocalPath" aria-label="name">@displayName</span>
             }
         </td>
         <td></td>
@@ -100,51 +105,32 @@ File is in both
         <td class="dep-actions">
         </td>
         <td style="padding-left: @(1.3 * (depth + 1))rem">
-            <svg class="bi"><use xlink:href="#file-earmark@(where != "mets" ? "-plus" : "-text")"/></svg>
+            <svg class="bi"><use xlink:href="#file-earmark@(where != "both" ? "-plus" : "")"/></svg>
             <span aria-label="name" title="@file.LocalPath">
                 @if (file.LocalPath.HasText() && file.LocalPath == Model.MetsPath)
                 {
                     <a target="_blank" href="@(Context.Request.Path + "/mets")"><strong>@Model.MetsPath.GetSlug()</strong></a>
                 }
-                else if (isMetadata)
-                {
-                    var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
-                    if (toolOutput != null && toolOutput.Content.HasText())
-                    {
-                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
-                        var base64Encoded = System.Convert.ToBase64String(textBytes);
-
-                        <a href="javascript:openHtmlStringInNewTab('@base64Encoded');"><strong>@file.GetName()</strong></a>
-                    }
-                    else
-                    {
-                        @file.GetName();
-                    }
-                }
-                else if (!isMetadata)
-                {
-                    var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
-                    if (toolOutput != null && toolOutput.Content.HasText())
-                    {
-                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
-                        var base64Encoded = System.Convert.ToBase64String(textBytes);
-
-                        <a href="javascript:openHtmlStringInNewTab('@base64Encoded');"><strong>@file.GetName()</strong></a>
-                    }
-                    else
-                    {
-                        @file.GetName();
-                    }
-                }
                 else
                 {
-                    @(file.GetName() ?? "{{ NO LOCALPATH }}")
+                    string? base64EncodedToolOutput = null;
+                    var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
+                    if (toolOutput != null && toolOutput.Content.HasText())
+                    {
+                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
+                        base64EncodedToolOutput = Convert.ToBase64String(textBytes);
+                    }
+                    var displayName = file.GetName() ?? "{{ NO LOCAL PATH }}";
+                    if (isMetadata && base64EncodedToolOutput != null)
+                    {
+                        <a href="javascript:openHtmlStringInNewTab('@base64EncodedToolOutput');"><strong>@displayName</strong></a>
+                    }
+                    else
+                    {
+                        @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)file, displayName, base64EncodedToolOutput))
+                    }
                 }
             </span>
-            @if (file.LocalPath!.StartsWith("objects/"))
-            {
-                @await Html.PartialAsync("_AccessAndRights", file)
-            }
         </td>
         @{
             var contentType = file.GetSingleContentTypeFromMetsAndDeposit();

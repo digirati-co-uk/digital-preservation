@@ -857,12 +857,20 @@
                     let accessConditionList = launcher.getAttribute("data-access");
                     let rightsStatement = launcher.getAttribute("data-rights");
                     let recordInfoCompact = launcher.getAttribute("data-recordinfo");
-                    let modsContextPath = modsContext.value;
-                    
-                    document.getElementById("modsLocalPathInfo").innerHTML = "Set information for " + modsContextPath;
-                    document.getElementById("accessRestrictionsHelp").innerHTML = "Set access restriction(s) on " + modsContextPath;
-                    document.getElementById("rightsStatementHelp").innerHTML = "Set rights statement on " + modsContextPath;
+                    let base64ToolOutput = launcher.getAttribute("data-tool-output");
+                    document.getElementById("modsLocalPathInfo").innerHTML = modsContext.value;
+                    // document.getElementById("accessRestrictionsHelp").innerHTML = "Set access restriction(s) on " + modsContextPath;
+                    // document.getElementById("rightsStatementHelp").innerHTML = "Set rights statement on " + modsContextPath;
                     // document.getElementById("recordInfoHelp").innerHTML = "Set record identifiers on " + modsContextPath;
+                    
+                    let toolOutputLink = document.getElementById("toolOutputLink");
+                    // remove event listeners
+                    toolOutputLink.innerHTML = "";
+                    if(base64ToolOutput){
+                        let windowOpener = document.createElement('a');
+                        toolOutputLink.appendChild(windowOpener);
+                        windowOpener.addEventListener("click", () => openHtmlStringInNewTab(base64ToolOutput));
+                    }
                     
                     if(accessConditionList.length > 0){
                         let accessConditions = accessConditionList.split(",");
@@ -890,12 +898,13 @@
             </script>
             <form class="single-submit" method="post" asp-page-handler="SetRightsAndAccess">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="modsModalLabel"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Rights and Access</span></h1>
+                    <h1 class="modal-title fs-5" id="modsModalLabel"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Metadata</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <p id="modsLocalPathInfo"></p>
+                        <p class="small" id="modsLocalPathInfo"></p>
+                        <p class="small" id="toolOutputLink"></p>
                     </div>
                     <div class="mb-3">
                         <label id="accessRestrictionsSelectLabel" for="accessRestrictionsSelect" class="form-label">Access Restriction(s)</label>
@@ -907,7 +916,7 @@
                                     <!option value="@accessRestriction.Value">@accessRestriction.Label</!option>
                                 }
                             </select>
-                            <div id="accessRestrictionsHelp" class="form-text"></div>
+                            @* <div id="accessRestrictionsHelp" class="form-text"></div> *@
                         }
                         else
                         {
@@ -931,7 +940,7 @@
                                     <!option value="@creativeCommons.Value">@creativeCommons.Label</!option>
                                 }
                             </select>
-                            <div id="rightsStatementHelp" class="form-text"></div>
+                            @* <div id="rightsStatementHelp" class="form-text"></div> *@
                         }
                         else
                         {

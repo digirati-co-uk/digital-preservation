@@ -1,55 +1,62 @@
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Transit.Combined
 @using DigitalPreservation.Common.Model.Transit.Extensions
-@model CombinedBase
+@model (CombinedBase, string, string?)
 
-<a class="link-primary mods-launcher" role="button" data-bs-toggle="modal" data-bs-target="#modsModal"
-   aria-label="Set rights and access conditions"
-   data-access="@string.Join(',', Model.AccessRestrictions)"
-   data-eff-access="@string.Join(',', Model.EffectiveAccessRestrictions)"
-   data-rights="@RightsStatement.GetShortLabel(Model.RightsStatement)"
-   data-eff-rights="@RightsStatement.GetShortLabel(Model.EffectiveRightsStatement)"
-   data-recordinfo="@Model.RecordInfo?.ToCompactString()"
-   data-eff-recordinfo="@Model.EffectiveRecordInfo?.ToCompactString()"
->
-    <svg class="bi"><use xlink:href="#info-square"/></svg>
-</a>
+@{
+    var combinedBase = Model.Item1;
+    var display = Model.Item2;
+    var base64ToolOutput = Model.Item3; 
+}
+
+
+
+<a class="mods-launcher" 
+    data-bs-toggle="modal" data-bs-target="#modsModal"
+    data-tool-output="@base64ToolOutput"
+    aria-label="Set rights, access and record identifiers"
+    data-access="@string.Join(',', combinedBase.AccessRestrictions)"
+    data-eff-access="@string.Join(',', combinedBase.EffectiveAccessRestrictions)"
+    data-rights="@RightsStatement.GetShortLabel(combinedBase.RightsStatement)"
+    data-eff-rights="@RightsStatement.GetShortLabel(combinedBase.EffectiveRightsStatement)"
+    data-recordinfo="@combinedBase.RecordInfo?.ToCompactString()"
+    data-eff-recordinfo="@combinedBase.EffectiveRecordInfo?.ToCompactString()">@display</a>
 
 @{
     // Collect display items as (label, text, inherited). Inherited items render in muted style.
     var items = new List<(string Label, string Text, bool Inherited)>();
 
-    if (Model.AccessRestrictions.Count > 0)
+    if (combinedBase.AccessRestrictions.Count > 0)
     {
-        if (!Model.EffectiveAccessRestrictions.SequenceEqual(Model.AccessRestrictions))
+        if (!combinedBase.EffectiveAccessRestrictions.SequenceEqual(combinedBase.AccessRestrictions))
             throw new NotSupportedException("Effective access restrictions don't equal explicit access restrictions");
-        items.Add(("Access", string.Join(", ", Model.AccessRestrictions), false));
+        items.Add(("Access", string.Join(", ", combinedBase.AccessRestrictions), false));
     }
-    else if (Model.EffectiveAccessRestrictions.Count > 0)
+    else if (combinedBase.EffectiveAccessRestrictions.Count > 0)
     {
-        items.Add(("Access", string.Join(", ", Model.EffectiveAccessRestrictions), true));
+        items.Add(("Access", string.Join(", ", combinedBase.EffectiveAccessRestrictions), true));
     }
 
-    if (Model.RightsStatement != null)
+    if (combinedBase.RightsStatement != null)
     {
-        if (Model.EffectiveRightsStatement != Model.RightsStatement)
+        if (combinedBase.EffectiveRightsStatement != combinedBase.RightsStatement)
             throw new NotSupportedException("Effective rights statement does not equal explicit rights statement");
-        items.Add(("Rights", RightsStatement.GetShortLabel(Model.RightsStatement) ?? "", false));
+        items.Add(("Rights", RightsStatement.GetShortLabel(combinedBase.RightsStatement) ?? "", false));
     }
-    else if (Model.EffectiveRightsStatement != null)
+    else if (combinedBase.EffectiveRightsStatement != null)
     {
-        items.Add(("Rights", RightsStatement.GetShortLabel(Model.EffectiveRightsStatement) ?? "", true));
+        items.Add(("Rights", RightsStatement.GetShortLabel(combinedBase.EffectiveRightsStatement) ?? "", true));
     }
 
-    if (Model.RecordInfo != null)
+    if (combinedBase.RecordInfo != null)
     {
-        if (!Model.RecordInfo.HasSameIdentifiers(Model.EffectiveRecordInfo))
+        if (!combinedBase.RecordInfo.HasSameIdentifiers(combinedBase.EffectiveRecordInfo))
             throw new NotSupportedException("Effective record identifiers do not equal explicit record identifiers");
-        items.Add(("Record", Model.RecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ") ?? "", false));
+        items.Add(("Record", combinedBase.RecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ") ?? "", false));
     }
-    else if (Model.EffectiveRecordInfo != null)
+    else if (combinedBase.EffectiveRecordInfo != null)
     {
-        items.Add(("Record", Model.EffectiveRecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ") ?? "", true));
+        items.Add(("Record", combinedBase.EffectiveRecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ") ?? "", true));
     }
 }
 

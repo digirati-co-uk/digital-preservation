@@ -229,3 +229,9 @@ tr.where-both td {
     margin: 5px 5px 5px 5px;
     min-width: 100%;
 }
+
+.deposit-row a.mods-launcher {
+    padding: 0; 
+    border: 0;
+    
+}
