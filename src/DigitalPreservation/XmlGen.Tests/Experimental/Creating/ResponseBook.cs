@@ -171,10 +171,10 @@ public class ResponseBook
         }
 
         // Link each image page to its HTR XML file as a supplementing resource
-        var supplementing = new Uri("http://iiif.io/api/presentation/3#supplementing");
+        var transcript = FileLinkRoles.FromIiifProvides("transcript");
         foreach (var page in new[] { "001", "002", "003", "004", "005", "006", "007", "008" })
         {
-            metsManager.LinkFile(mets, $"objects/{page}.tif", $"objects/htr/{page}.xml", supplementing);
+            metsManager.LinkFile(mets, $"objects/{page}.tif", $"objects/htr/{page}.xml", transcript);
         }
 
         await metsManager.WriteMets(mets);

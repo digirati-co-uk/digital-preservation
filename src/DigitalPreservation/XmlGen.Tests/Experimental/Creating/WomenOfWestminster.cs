@@ -140,9 +140,9 @@ public class WomenOfWestminster
 
 
         // The archivist asserts that the transcripts are _supplementing_ the audio files
-        var supplementing = new Uri("http://iiif.io/api/presentation/3#supplementing"); // this will be a const somewhere
-        metsManager.LinkFile(mets, "objects/amber-rudd.m4a", "objects/amber-rudd.docx", supplementing);
-        metsManager.LinkFile(mets, "objects/angela-eagle-redacted.m4a", "objects/angela-eagle-transcript.docx", supplementing);
+        var transcript = FileLinkRoles.FromIiifProvides("transcript");
+        metsManager.LinkFile(mets, "objects/amber-rudd.m4a", "objects/amber-rudd.docx", transcript);
+        metsManager.LinkFile(mets, "objects/angela-eagle-redacted.m4a", "objects/angela-eagle-transcript.docx", transcript);
 
         //
         await metsManager.WriteMets(mets);
