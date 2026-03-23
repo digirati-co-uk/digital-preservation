@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
@@ -83,14 +84,14 @@ public class ParseWomenOfWestminster
         objects.Files[4].LocalPath.Should().Be("objects/angela-eagle-transcript.docx");
 
         // links between files
-        var supplementing = new Uri("http://iiif.io/api/presentation/3#supplementing");
+        var transcript = FileLinkRoles.FromIiifProvides("transcript");
         objects.Files[0].Links.Should().HaveCount(1);
         objects.Files[0].Links[0].To.Should().Be("objects/amber-rudd.docx");
-        objects.Files[0].Links[0].Role.Should().Be(supplementing);
+        objects.Files[0].Links[0].Role.Should().Be(transcript);
         objects.Files[1].Links.Should().HaveCount(0);
         objects.Files[2].Links.Should().HaveCount(0);
         objects.Files[3].Links[0].To.Should().Be("objects/angela-eagle-transcript.docx");
-        objects.Files[3].Links[0].Role.Should().Be(supplementing);
+        objects.Files[3].Links[0].Role.Should().Be(transcript);
         objects.Files[4].Links.Should().HaveCount(0);
 
         // logical structmap

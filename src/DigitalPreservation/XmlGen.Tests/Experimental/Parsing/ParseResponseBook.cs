@@ -1,3 +1,4 @@
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
@@ -252,12 +253,12 @@ public class ParseResponseBook
 
 
         // --- smLinks: each image page links to its HTR file ---
-        var supplementing = new Uri("http://iiif.io/api/presentation/3#supplementing");
+        var transcript = FileLinkRoles.FromIiifProvides("transcript");
         for (var i = 0; i < 8; i++)
         {
             objects.Files[i].Links.Should().HaveCount(1);
             objects.Files[i].Links[0].To.Should().Be($"objects/htr/00{i + 1}.xml");
-            objects.Files[i].Links[0].Role.Should().Be(supplementing);
+            objects.Files[i].Links[0].Role.Should().Be(transcript);
         }
 
 
