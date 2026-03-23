@@ -104,9 +104,9 @@ public class MetsManager(
         // finding the METS parts, like the XDocument parsing in MetsParser.
 
         var localPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath)!;
-        var (div, parent, foundDepth, totalDepth) = LocateMetsDivByLocalPath(fullMets, localPath);
+        var (contextDiv, parent, foundDepth, totalDepth) = LocateMetsDivByLocalPath(fullMets, localPath);
 
-        // div might be the file itself, or a parent or grandparent directory.
+        // contextDiv might be the file itself, or a parent or grandparent directory.
         // But for this atomic upload file handler we will not allow any Directory creation, that
         // must have already happened in HandleCreateFolder
         // i.e., we must already be at the last or penultimate member of elements
@@ -117,30 +117,30 @@ public class MetsManager(
                 // we have arrived at an existing file or folder which is being DELETED
                 if (workingBase is null)
                 {
-                    return DeleteDiv(div, fullMets, parent, localPath);
+                    return DeleteDiv(contextDiv, fullMets, parent, localPath);
                 }
                 return Result.Fail(ErrorCodes.BadRequest, "Cannot supply a WorkingBase and a deletePath.");
             }
 
             // we have arrived at an existing file or folder which is being OVERWRITTEN
-            if (workingBase is not WorkingDirectory || div.Type == "Directory")
+            if (workingBase is not WorkingDirectory || contextDiv.Type == "Directory")
             {
                 if (workingBase is not WorkingFile workingFile)
                 {
                     if (workingBase is WorkingDirectory workingDirectory)
                     {
-                        if (div.Type != "Directory")
+                        if (contextDiv.Type != "Directory")
                             return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
 
                         // Is there anything else that could be done here?
                         if (workingDirectory.Name.HasText())
                         {
                             // and is it even done on hasText?
-                            div.Label = workingDirectory.Name;
+                            contextDiv.Label = workingDirectory.Name;
                         }
                         
                         // UPDATE an existing Directory
-                        PopulateDmdFromResource(fullMets, workingDirectory, div);
+                        PopulateDmdFromResource(fullMets, workingDirectory, contextDiv);
                     }
                     else
                     {
@@ -149,17 +149,17 @@ public class MetsManager(
                 }
                 else
                 {
-                    if (div.Type != "Item")
+                    if (contextDiv.Type != "Item")
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
 
-                    var (file, _) = SetFileAndFileGroup(div, fullMets);
+                    var (file, _) = SetFileAndFileGroup(contextDiv, fullMets);
 
                     if (file.FLocat[0].Href != localPath)
                         return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
 
                     // UPDATE AN EXISTING FILE
-                    PopulateDmdFromResource(fullMets, workingFile, div);
-                    return metadataManager.ProcessAllFileMetadata(fullMets, div, workingFile, localPath);
+                    PopulateDmdFromResource(fullMets, workingFile, contextDiv);
+                    return metadataManager.ProcessAllFileMetadata(fullMets, contextDiv, workingFile, localPath);
 
                 }
             }
@@ -174,7 +174,7 @@ public class MetsManager(
                 return Result.Fail(ErrorCodes.NotFound, "Can't find a file or folder to delete.");
 
             // div is a directory
-            if (div.Type != "Directory")
+            if (contextDiv.Type != "Directory")
                 return Result.Fail(ErrorCodes.BadRequest, "Parent path is not a Directory");
 
             if (workingBase is null)
@@ -196,7 +196,7 @@ public class MetsManager(
                         Id = physId,
                         Admid = { admId }
                     };
-                    div.Div.Add(childDirectoryDiv);
+                    contextDiv.Div.Add(childDirectoryDiv);
                     var premisFile = new FileFormatMetadata
                     {
                         Source = Constants.Mets,
@@ -213,7 +213,7 @@ public class MetsManager(
             }
             else
             {
-                // Add a new Directory (Item) Div 
+                // Add a new File (Item) Div 
                 var fileId = Constants.FileIdPrefix + localPath;
                 var childItemDiv = new DivType
                 {
@@ -222,9 +222,9 @@ public class MetsManager(
                     Id = physId,
                     Fptr = { new DivTypeFptr { Fileid = fileId } }
                 };
-                div.Div.Add(childItemDiv);
+                contextDiv.Div.Add(childItemDiv);
 
-                PopulateDmdFromResource(fullMets, workingFile, div);
+                PopulateDmdFromResource(fullMets, workingFile, childItemDiv);
                 var metadataResult = metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, localPath, true);
                 if (metadataResult.Failure)
                     return metadataResult;
@@ -234,15 +234,15 @@ public class MetsManager(
             // how do we do that? We can't sort a Collection<T> in place, and we can't 
             // create a new Collection and assign it to Div
 
-            var childList = new List<DivType>(div.Div);
-            div.Div.Clear();
+            var childList = new List<DivType>(contextDiv.Div);
+            contextDiv.Div.Clear();
             // We will order case-insensitive; we want to match what a typical file explorer would do.
             // What about the original ordering? For born digital, is there such a thing?
             // How do we know what sort order the creator of the archive applied to their view?
             // Later we can implement something that can set order.
             foreach (var divType in childList.OrderBy(d => d.Label.ToLowerInvariant()))
             {
-                div.Div.Add(divType);
+                contextDiv.Div.Add(divType);
             }
         }
         else
@@ -385,7 +385,7 @@ public class MetsManager(
         return (file, fileGroup);
     }
         
-    private (DivType div, DivType? parent, int foundDepth, int totalDepth) LocateMetsDivByLocalPath(FullMets fullMets, string localPath)
+    private (DivType contextDiv, DivType? parent, int foundDepth, int totalDepth) LocateMetsDivByLocalPath(FullMets fullMets, string localPath)
     {
         var elements = localPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
