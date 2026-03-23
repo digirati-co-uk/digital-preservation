@@ -408,94 +408,66 @@ public class MetsParser(
                     }
                     else
                     {
-
-                    var fixity = techMd.Descendants(XNames.PremisFixity).SingleOrDefault();
-                    if (fixity != null)
-                    {
-                        var algorithm = fixity.Element(XNames.PremisMessageDigestAlgorithm)?.Value
-                            .ToLowerInvariant().Replace("-", "");
-                        if (algorithm == "sha256")
+                        var fixity = techMd.Descendants(XNames.PremisFixity).SingleOrDefault();
+                        if (fixity != null)
                         {
-                            digest = fixity.Element(XNames.PremisMessageDigest)?.Value;
-                        }
-                    }
-
-                    var sizeEl = techMd.Descendants(XNames.PremisSize).SingleOrDefault();
-                    if (sizeEl != null)
-                    {
-                        long.TryParse(sizeEl.Value, out size);
-                    }
-
-                    originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
-                    var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
-                    if (storageUri != null)
-                    {
-                        try
-                        {
-                            storageLocation = new Uri(storageUri);
-                        }
-                        catch (Exception e)
-                        {
-                            logger.LogError(e, "Unable to parse storage location {storageUri}", storageUri);
-                        }
-                    }
-
-                    haveUsedAdmIdAlready = true;
-                    var format = techMd.Descendants(XNames.PremisFormat).SingleOrDefault();
-                    if (format != null)
-                    {
-                        var name = format.Descendants(XNames.PremisFormatName).SingleOrDefault()?.Value;
-                        var key = format.Descendants(XNames.PremisFormatRegistryKey).SingleOrDefault()?.Value;
-                        if (name.HasText() && key.HasText())
-                        {
-                            premisMetadata = new FileFormatMetadata
+                            var algorithm = fixity.Element(XNames.PremisMessageDigestAlgorithm)?.Value
+                                .ToLowerInvariant().Replace("-", "");
+                            if (algorithm == "sha256")
                             {
-                                Digest = digest,
-                                Source = Constants.Mets,
-                                PronomKey = key,
-                                FormatName = name,
-                                Size = size,
-                                ContentType = mimeType
-                            };
+                                digest = fixity.Element(XNames.PremisMessageDigest)?.Value;
+                            }
                         }
-                    }
 
-                    premisMetadata ??= new FileFormatMetadata
-                    {
-                        Source = Constants.Mets,
-                        PronomKey = "UNKNOWN",
-                        FormatName = "",
-                        Digest = digest
-                    };
+                        var sizeEl = techMd.Descendants(XNames.PremisSize).SingleOrDefault();
+                        if (sizeEl != null)
+                        {
+                            long.TryParse(sizeEl.Value, out size);
+                        }
 
-                    // Parse premis:significantProperties for extent (duration / pixel dimensions)
-                    double? duration = null;
-                    int? pixelWidth = null;
-                    int? pixelHeight = null;
-                    foreach (var sp in techMd.Descendants(XNames.PremisSignificantProperties))
-                    {
-                        var spType = sp.Element(XNames.PremisSignificantPropertiesType)?.Value;
-                        var spValue = sp.Element(XNames.PremisSignificantPropertiesValue)?.Value;
-                        if (spType == "Duration" && double.TryParse(spValue,
-                                System.Globalization.NumberStyles.Float,
-                                System.Globalization.CultureInfo.InvariantCulture, out var dur))
-                            duration = dur;
-                        else if (spType == "ImageWidth" && int.TryParse(spValue, out var w))
-                            pixelWidth = w;
-                        else if (spType == "ImageHeight" && int.TryParse(spValue, out var h))
-                            pixelHeight = h;
-                    }
-                    if (duration != null || pixelWidth != null || pixelHeight != null)
-                    {
-                        extentMetadata = new ExtentMetadata
+                        originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
+                        var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
+                        if (storageUri != null)
+                        {
+                            try
+                            {
+                                storageLocation = new Uri(storageUri);
+                            }
+                            catch (Exception e)
+                            {
+                                logger.LogError(e, "Unable to parse storage location {storageUri}", storageUri);
+                            }
+                        }
+
+                        haveUsedAdmIdAlready = true;
+                        var format = techMd.Descendants(XNames.PremisFormat).SingleOrDefault();
+                        if (format != null)
+                        {
+                            var name = format.Descendants(XNames.PremisFormatName).SingleOrDefault()?.Value;
+                            var key = format.Descendants(XNames.PremisFormatRegistryKey).SingleOrDefault()?.Value;
+                            if (name.HasText() && key.HasText())
+                            {
+                                premisMetadata = new FileFormatMetadata
+                                {
+                                    Digest = digest,
+                                    Source = Constants.Mets,
+                                    PronomKey = key,
+                                    FormatName = name,
+                                    Size = size,
+                                    ContentType = mimeType
+                                };
+                            }
+                        }
+
+                        premisMetadata ??= new FileFormatMetadata
                         {
                             Source = Constants.Mets,
-                            Duration = duration,
-                            PixelWidth = pixelWidth,
-                            PixelHeight = pixelHeight
+                            PronomKey = "UNKNOWN",
+                            FormatName = "",
+                            Digest = digest
                         };
-                    }
 
+                        extentMetadata = ParseExtentMetadata(techMd);
                     } // end else (techMd != null)
                 }
 
@@ -663,6 +635,40 @@ public class MetsParser(
         }
     }
 
+    private static ExtentMetadata? ParseExtentMetadata(XElement techMd)
+    {
+        ExtentMetadata? extentMetadata = null;
+        // Parse premis:significantProperties for extent (duration / pixel dimensions)
+        double? duration = null;
+        int? pixelWidth = null;
+        int? pixelHeight = null;
+        foreach (var sp in techMd.Descendants(XNames.PremisSignificantProperties))
+        {
+            var spType = sp.Element(XNames.PremisSignificantPropertiesType)?.Value;
+            var spValue = sp.Element(XNames.PremisSignificantPropertiesValue)?.Value;
+            if (spType == "Duration" && double.TryParse(spValue,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var dur))
+                duration = dur;
+            else if (spType == "ImageWidth" && int.TryParse(spValue, out var w))
+                pixelWidth = w;
+            else if (spType == "ImageHeight" && int.TryParse(spValue, out var h))
+                pixelHeight = h;
+        }
+        if (duration != null || pixelWidth != null || pixelHeight != null)
+        {
+            extentMetadata = new ExtentMetadata
+            {
+                Source = Constants.Mets,
+                Duration = duration,
+                PixelWidth = pixelWidth,
+                PixelHeight = pixelHeight
+            };
+        }
+
+        return extentMetadata;
+    }
+
 
     private (List<string>?, Uri?, RecordInfo?, bool) GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
     {
@@ -814,19 +820,31 @@ public class MetsParser(
 
             var fp = new FilePointer { LocalPath = localPath };
             var betype = areaEl.Attribute("BETYPE")?.Value;
+            var shape = areaEl.Attribute("SHAPE")?.Value;
+
             if (string.Equals(betype, "TIME", StringComparison.OrdinalIgnoreCase))
             {
+                // Temporal reference: BEGIN/END are time codes (HH:MM:SS or HH:MM:SS.sss)
                 var begin = areaEl.Attribute("BEGIN")?.Value;
                 var end = areaEl.Attribute("END")?.Value;
-                if (begin != null) fp.BeginTime = ParseTimeToSeconds(begin);
-                if (end != null) fp.EndTime = ParseTimeToSeconds(end);
+                try
+                {
+                    if (begin != null) fp.BeginTime = MetsTimeCode.ToSeconds(begin);
+                    if (end != null) fp.EndTime = MetsTimeCode.ToSeconds(end);
+                }
+                catch (FormatException e)
+                {
+                    logger.LogWarning(e, "Unable to parse time code in mets:area element");
+                }
             }
-            else
+            else if (string.Equals(shape, "RECT", StringComparison.OrdinalIgnoreCase))
             {
+                // Spatial reference: axis-aligned rectangle via SHAPE="RECT" and COORDS="x1,y1,x2,y2".
+                // CIRCLE and POLY are not currently supported.
                 var coords = areaEl.Attribute("COORDS")?.Value;
-                var shape = areaEl.Attribute("SHAPE")?.Value;
-                fp.Region = ParseCoords(coords, shape);
+                fp.Region = MetsAreaCoords.TryParseRect(shape, coords);
             }
+            // Other BETYPE values (BYTE, IDREF, SMPTR, XPTR) and SHAPE values are not currently supported.
             return fp;
         }
         else
@@ -998,36 +1016,6 @@ public class MetsParser(
         {
             ComputeEffectiveForLogicalRange(child, physRootAccess, physRootRights);
         }
-    }
-
-    private static double ParseTimeToSeconds(string time)
-    {
-        var parts = time.Split(':');
-        if (parts.Length == 3)
-        {
-            var h = double.TryParse(parts[0], out var hh) ? hh : 0;
-            var m = double.TryParse(parts[1], out var mm) ? mm : 0;
-            var s = double.TryParse(parts[2], System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out var ss) ? ss : 0;
-            return h * 3600 + m * 60 + s;
-        }
-        return 0;
-    }
-
-    private static Rectangle? ParseCoords(string? coords, string? shape)
-    {
-        if (!string.Equals(shape, "RECT", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(coords))
-            return null;
-        var parts = coords.Split(',');
-        if (parts.Length == 4 &&
-            int.TryParse(parts[0].Trim(), out var x1) &&
-            int.TryParse(parts[1].Trim(), out var y1) &&
-            int.TryParse(parts[2].Trim(), out var x2) &&
-            int.TryParse(parts[3].Trim(), out var y2))
-        {
-            return new Rectangle { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2 };
-        }
-        return null;
     }
 
 }
