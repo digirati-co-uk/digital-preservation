@@ -44,6 +44,24 @@ public partial class RecordInfo
     [GeneratedRegex(@"^(.*)\(([^)]*)\)$")]
     private static partial Regex RecordIdentifierStringForm();
     
+    /// <summary>
+    /// Returns true if <paramref name="other"/> has the same record identifiers in the same order
+    /// (comparing both Source and Value with ordinal case-sensitive equality).
+    /// Two null references are considered equivalent; a null and a non-null are not.
+    /// </summary>
+    public bool HasSameIdentifiers(RecordInfo? other)
+    {
+        if (other is null) return false;
+        if (RecordIdentifiers.Count != other.RecordIdentifiers.Count) return false;
+        for (var i = 0; i < RecordIdentifiers.Count; i++)
+        {
+            if (RecordIdentifiers[i].Source != other.RecordIdentifiers[i].Source ||
+                RecordIdentifiers[i].Value  != other.RecordIdentifiers[i].Value)
+                return false;
+        }
+        return true;
+    }
+
     public static RecordInfo? FromCompactString(string compactString)
     {
         if (string.IsNullOrWhiteSpace(compactString))

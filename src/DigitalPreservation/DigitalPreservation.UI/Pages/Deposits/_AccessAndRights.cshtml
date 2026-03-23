@@ -3,35 +3,59 @@
 @using DigitalPreservation.Common.Model.Transit.Extensions
 @model CombinedBase
 
-@* TC This is where we also need to work out how to display EffectiveXXX *@
 <a class="link-primary mods-launcher" role="button" data-bs-toggle="modal" data-bs-target="#modsModal"
-    aria-label="Set rights and access conditions"
-    data-access="@string.Join(',', Model.AccessRestrictions)"
-    data-eff-access="@string.Join(',', Model.EffectiveAccessRestrictions)"
-    data-rights="@RightsStatement.GetShortLabel(Model.RightsStatement)"
-    data-eff-rights="@RightsStatement.GetShortLabel(Model.EffectiveRightsStatement)"
-    data-recordinfo="@Model.RecordInfo?.ToCompactString()"
-    data-eff-recordinfo="@Model.EffectiveRecordInfo?.ToCompactString()"
-   >
+   aria-label="Set rights and access conditions"
+   data-access="@string.Join(',', Model.AccessRestrictions)"
+   data-eff-access="@string.Join(',', Model.EffectiveAccessRestrictions)"
+   data-rights="@RightsStatement.GetShortLabel(Model.RightsStatement)"
+   data-eff-rights="@RightsStatement.GetShortLabel(Model.EffectiveRightsStatement)"
+   data-recordinfo="@Model.RecordInfo?.ToCompactString()"
+   data-eff-recordinfo="@Model.EffectiveRecordInfo?.ToCompactString()"
+>
     <svg class="bi"><use xlink:href="#info-square"/></svg>
 </a>
-@if (Model.AccessRestrictions.Count > 0)
-{
-    <small>Access: <em><strong>@string.Join(", ", Model.AccessRestrictions)</strong></em></small>
-}
-@if (Model.RightsStatement != null)
-{
+
+@{
+    // Collect display items as (label, text, inherited). Inherited items render in muted style.
+    var items = new List<(string Label, string Text, bool Inherited)>();
+
     if (Model.AccessRestrictions.Count > 0)
     {
-        <span>; </span>
+        if (!Model.EffectiveAccessRestrictions.SequenceEqual(Model.AccessRestrictions))
+            throw new NotSupportedException("Effective access restrictions don't equal explicit access restrictions");
+        items.Add(("Access", string.Join(", ", Model.AccessRestrictions), false));
     }
-    <small>Rights: <em><strong>@RightsStatement.GetShortLabel(Model.RightsStatement)</strong></em></small>
-}
-@if (Model.RecordInfo != null)
-{
-    if (Model.AccessRestrictions.Count > 0 || Model.RightsStatement != null)
+    else if (Model.EffectiveAccessRestrictions.Count > 0)
     {
-        <span>; </span>
+        items.Add(("Access", string.Join(", ", Model.EffectiveAccessRestrictions), true));
     }
-    <small>Record: <em><strong>@Model.RecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ")</strong></em></small>
+
+    if (Model.RightsStatement != null)
+    {
+        if (Model.EffectiveRightsStatement != Model.RightsStatement)
+            throw new NotSupportedException("Effective rights statement does not equal explicit rights statement");
+        items.Add(("Rights", RightsStatement.GetShortLabel(Model.RightsStatement) ?? "", false));
+    }
+    else if (Model.EffectiveRightsStatement != null)
+    {
+        items.Add(("Rights", RightsStatement.GetShortLabel(Model.EffectiveRightsStatement) ?? "", true));
+    }
+
+    if (Model.RecordInfo != null)
+    {
+        if (!Model.RecordInfo.HasSameIdentifiers(Model.EffectiveRecordInfo))
+            throw new NotSupportedException("Effective record identifiers do not equal explicit record identifiers");
+        items.Add(("Record", Model.RecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ") ?? "", false));
+    }
+    else if (Model.EffectiveRecordInfo != null)
+    {
+        items.Add(("Record", Model.EffectiveRecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ") ?? "", true));
+    }
+}
+
+@for (var i = 0; i < items.Count; i++)
+{
+    if (i > 0) { <span>; </span> }
+    var item = items[i];
+    <small class="@(item.Inherited ? "text-secondary" : "")">@item.Label: <em><strong>@item.Text</strong></em></small>
 }
