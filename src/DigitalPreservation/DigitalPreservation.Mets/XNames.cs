@@ -18,6 +18,7 @@ public static class XNames
     public static readonly XName MetsMdWrap = mets + "mdWrap";
     public static readonly XName MetsXmlData = mets + "xmlData";
     public static readonly XName MetsFptr = mets + "fptr";
+    public static readonly XName MetsArea = mets + "area";
     public static readonly XName MetsFLocat = mets + "FLocat";
     public static readonly XName MetsTechMD = mets + "techMD";
     public static readonly XName MetsRightsMD = mets + "rightsMD";

@@ -25,7 +25,7 @@ public class ParseLiddle
         parser = new MetsParser(metsLoader, parserLogger);
     }
 
-    [Fact(Skip = "Experimental")]
+    [Fact]
     public async Task Can_Parse_Liddle()
     {
         var liddleMets = new FileInfo("Samples/liddle.mets.xml");

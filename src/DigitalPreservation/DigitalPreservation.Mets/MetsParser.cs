@@ -245,7 +245,8 @@ public class MetsParser(
         // Build lookup maps once before traversal for O(1) access during processing
         var lookupMaps = BuildLookupMaps(xMets);
 
-        ProcessChildStructDivs(mets, parent, directoryLabels, lookupMaps);
+        var filesWithExplicitRights = new HashSet<string>();
+        ProcessChildStructDivs(mets, parent, directoryLabels, lookupMaps, filesWithExplicitRights);
 
         // We should now have a flat list of WorkingFile, and a set of WorkingDirectories, with correct names
         // if supplied. Now assign the files to their directories.
@@ -261,10 +262,21 @@ public class MetsParser(
             folder.Files.Add(file);
         }
 
+        // Parse structLink file-to-file links
+        ParseStructLinks(xMets, lookupMaps, mets.Files);
+
+        // Parse logical structMaps into LogicalRange trees
+        mets.LogicalStructures.AddRange(ParseLogicalStructMaps(xMets, lookupMaps));
+
+        // Build map of file paths to logical ranges that reference them as whole-file fptrs
+        var fileToWholeFileRanges = BuildFileToWholeFileRangesMap(mets.LogicalStructures);
+
+        // Compute effective (inherited) metadata for all physical and logical resources
+        ComputeEffectiveMetadata(mets, fileToWholeFileRanges, filesWithExplicitRights);
     }
 
     private void ProcessChildStructDivs(MetsFileWrapper mets, XElement parent,
-        Stack<string> directoryLabels, MetsLookupMaps lookupMaps)
+        Stack<string> directoryLabels, MetsLookupMaps lookupMaps, HashSet<string> filesWithExplicitRights)
     {
         // We want to create MetsFileWrapper::PhysicalStructure (WorkingDirectories and WorkingFiles).
         // We can traverse the physical structmap, finding div type=Directory and div type=File
@@ -273,8 +285,8 @@ public class MetsParser(
         // to rely on the AMD premis:originalName as the local path.
         foreach (var div in parent.Elements(XNames.MetsDiv))
         {
-            var (accessRestrictions, rightsStatement, recordInfo) = GetDmdForDiv(div, lookupMaps);
-            
+            var (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet) = GetDmdForDiv(div, lookupMaps);
+
             var type = div.Attribute("TYPE")?.Value.ToLowerInvariant();
             var label = div.Attribute("LABEL")?.Value;
             if (type == "directory")
@@ -332,6 +344,19 @@ public class MetsParser(
                         }
                     }
                 }
+                else
+                {
+                    // No ADMID: this is a structural-only div (e.g. PHYS_ROOT) that cannot
+                    // create a WorkingDirectory. If it carries a DMDID with access/rights/
+                    // recordInfo, store those on the root PhysicalStructure so that logical
+                    // ranges can inherit from it (DMD_PHYS_ROOT inheritance rule).
+                    if (accessRestrictions != null)
+                        mets.PhysicalStructure!.AccessRestrictions ??= accessRestrictions;
+                    if (rightsStatement != null)
+                        mets.PhysicalStructure!.RightsStatement ??= rightsStatement;
+                    if (recordInfo != null)
+                        mets.PhysicalStructure!.RecordInfo ??= recordInfo;
+                }
             }
 
             // type may be Directory, we need to match them up to file paths
@@ -357,8 +382,7 @@ public class MetsParser(
                 var flocat = fileEl.Elements(XNames.MetsFLocat).Single().Attribute(XNames.XLinkHref)!.Value;
                 if (admId == null)
                 {
-                    admId = fileEl.Attribute("ADMID")!
-                        .Value; // EPrints and Archivematica METS have ADMID on the mets:file
+                    admId = fileEl.Attribute("ADMID")?.Value; // EPrints and Archivematica METS have ADMID on the mets:file
                     haveUsedAdmIdAlready = false;
                 }
 
@@ -369,7 +393,8 @@ public class MetsParser(
                 FileFormatMetadata? premisMetadata = null;
                 VirusScanMetadata? virusScanMetadata = null;
                 ExifMetadata? exifMetadata = null;
-                if (!haveUsedAdmIdAlready)
+                ExtentMetadata? extentMetadata = null;
+                if (!haveUsedAdmIdAlready && admId != null)
                 {
                     if (!lookupMaps.TechMdMap.TryGetValue(admId, out var techMd))
                     {
@@ -377,7 +402,14 @@ public class MetsParser(
                         lookupMaps.AmdSecMap.TryGetValue(admId, out techMd);
                     }
 
-                    var fixity = techMd!.Descendants(XNames.PremisFixity).SingleOrDefault();
+                    if (techMd == null)
+                    {
+                        haveUsedAdmIdAlready = true;
+                    }
+                    else
+                    {
+
+                    var fixity = techMd.Descendants(XNames.PremisFixity).SingleOrDefault();
                     if (fixity != null)
                     {
                         var algorithm = fixity.Element(XNames.PremisMessageDigestAlgorithm)?.Value
@@ -435,8 +467,38 @@ public class MetsParser(
                         FormatName = "",
                         Digest = digest
                     };
+
+                    // Parse premis:significantProperties for extent (duration / pixel dimensions)
+                    double? duration = null;
+                    int? pixelWidth = null;
+                    int? pixelHeight = null;
+                    foreach (var sp in techMd.Descendants(XNames.PremisSignificantProperties))
+                    {
+                        var spType = sp.Element(XNames.PremisSignificantPropertiesType)?.Value;
+                        var spValue = sp.Element(XNames.PremisSignificantPropertiesValue)?.Value;
+                        if (spType == "Duration" && double.TryParse(spValue,
+                                System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture, out var dur))
+                            duration = dur;
+                        else if (spType == "ImageWidth" && int.TryParse(spValue, out var w))
+                            pixelWidth = w;
+                        else if (spType == "ImageHeight" && int.TryParse(spValue, out var h))
+                            pixelHeight = h;
+                    }
+                    if (duration != null || pixelWidth != null || pixelHeight != null)
+                    {
+                        extentMetadata = new ExtentMetadata
+                        {
+                            Source = Constants.Mets,
+                            Duration = duration,
+                            PixelWidth = pixelWidth,
+                            PixelHeight = pixelHeight
+                        };
+                    }
+
+                    } // end else (techMd != null)
                 }
-                
+
                 // Use pre-built dictionary for O(1) lookup instead of LINQ query
                 // The digiprovMD ID contains a pattern like "digiprovmd_clamav_{admId}"
                 var clamavKey = $"{Constants.VirusProvEventPrefix}{admId}";
@@ -496,8 +558,8 @@ public class MetsParser(
                 }
                 
                 
-                if (lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
-                {                
+                if (admId != null && lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
+                {
                     var exifMetadataNode = amd.Descendants("ExifMetadata").SingleOrDefault();
                
                     if (exifMetadataNode != null)
@@ -557,9 +619,16 @@ public class MetsParser(
                 {
                     file.Metadata.Add(exifMetadata);
                 }
+                if (extentMetadata != null)
+                {
+                    file.Metadata.Add(extentMetadata);
+                }
                 file.AccessRestrictions = accessRestrictions;
                 file.RightsStatement = rightsStatement;
                 file.RecordInfo = recordInfo;
+
+                if (rightsExplicitlySet)
+                    filesWithExplicitRights.Add(flocat);
 
                 mets.Files.Add(file);
 
@@ -590,19 +659,20 @@ public class MetsParser(
 
             }
 
-            ProcessChildStructDivs(mets, div, directoryLabels, lookupMaps);
+            ProcessChildStructDivs(mets, div, directoryLabels, lookupMaps, filesWithExplicitRights);
         }
     }
 
 
-    private (List<string>?, Uri?, RecordInfo?) GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
+    private (List<string>?, Uri?, RecordInfo?, bool) GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
     {
         // data gathered sparsely from optional MODS
         // We assume that the DMD is always linked from the mets:Div, never from a file
         List<string>? accessRestrictions = null;
         Uri? rightsStatement = null;
         RecordInfo? recordInfo = null;
-        
+        bool rightsExplicitlySet = false;
+
         var dmdId = div.Attribute("DMDID")?.Value;
         if (dmdId.HasText())
         {
@@ -619,7 +689,11 @@ public class MetsParser(
                     }
                     if (accessConditionEl.Attribute("type")?.Value == Constants.UseAndReproduction)
                     {
-                        rightsStatement = new Uri(accessConditionEl.Value);
+                        // The element is present — rights was explicitly addressed in this DMDID.
+                        // If the value isn't a valid URI (e.g. "null(?)"), rightsStatement stays null,
+                        // but we still record that rights was explicitly set so inheritance is suppressed.
+                        rightsExplicitlySet = true;
+                        Uri.TryCreate(accessConditionEl.Value, UriKind.Absolute, out rightsStatement);
                     }
                 }
                 var recordIdentifierEls = dmd.Descendants(XNames.ModsRecordIdentifier);
@@ -634,8 +708,326 @@ public class MetsParser(
                 }
             }
         }
-        
-        return (accessRestrictions, rightsStatement, recordInfo);
+
+        return (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // structLink parsing
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static void ParseStructLinks(XDocument xMets, MetsLookupMaps lookupMaps, List<WorkingFile> files)
+    {
+        var structLink = xMets.Descendants(XNames.MetsStructLink).FirstOrDefault();
+        if (structLink == null) return;
+
+        var fileByPath = files.ToDictionary(f => f.LocalPath, f => f);
+
+        foreach (var smLink in structLink.Elements(XNames.MetsSmLink))
+        {
+            var fromId = smLink.Attribute(XNames.XLinkFrom)?.Value;
+            var toId = smLink.Attribute(XNames.XLinkTo)?.Value;
+            // xlink:arcrole — find by local name to avoid namespace ambiguity
+            var arcrole = smLink.Attributes().FirstOrDefault(a => a.Name.LocalName == "arcrole")?.Value;
+
+            if (fromId == null || toId == null) continue;
+
+            var fromPath = lookupMaps.FileMap.TryGetValue(fromId, out var fromEl)
+                ? fromEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
+                : null;
+            var toPath = lookupMaps.FileMap.TryGetValue(toId, out var toEl)
+                ? toEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
+                : null;
+
+            if (fromPath == null || toPath == null) continue;
+            if (!fileByPath.TryGetValue(fromPath, out var sourceFile)) continue;
+
+            Uri? roleUri = arcrole != null && Uri.TryCreate(arcrole, UriKind.Absolute, out var u) ? u : null;
+            sourceFile.Links.Add(new FileLink { To = toPath, Role = roleUri });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Logical structMap parsing
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private List<LogicalRange> ParseLogicalStructMaps(XDocument xMets, MetsLookupMaps lookupMaps)
+    {
+        var result = new List<LogicalRange>();
+        foreach (var sm in xMets.Descendants(XNames.MetsStructMap))
+        {
+            var typeAttr = sm.Attribute("TYPE")?.Value;
+            if (!string.Equals(typeAttr, "logical", StringComparison.OrdinalIgnoreCase)) continue;
+
+            foreach (var div in sm.Elements(XNames.MetsDiv))
+            {
+                result.Add(ParseLogicalDiv(div, lookupMaps));
+            }
+        }
+        return result;
+    }
+
+    private LogicalRange ParseLogicalDiv(XElement div, MetsLookupMaps lookupMaps)
+    {
+        var id = div.Attribute("ID")?.Value ?? "";
+        var type = div.Attribute("TYPE")?.Value ?? "Range";
+        var label = div.Attribute("LABEL")?.Value;
+        var name = GetNameFromDmd(div, lookupMaps) ?? label;
+
+        var (accessRestrictions, rightsStatement, recordInfo, _) = GetDmdForDiv(div, lookupMaps);
+
+        var range = new LogicalRange
+        {
+            Id = id,
+            Type = type,
+            Name = name,
+            AccessRestrictions = accessRestrictions,
+            RightsStatement = rightsStatement,
+            RecordInfo = recordInfo
+        };
+
+        foreach (var fptr in div.Elements(XNames.MetsFptr))
+        {
+            var fp = ParseLogicalFptr(fptr, lookupMaps);
+            if (fp != null) range.Files.Add(fp);
+        }
+
+        foreach (var childDiv in div.Elements(XNames.MetsDiv))
+        {
+            range.Ranges.Add(ParseLogicalDiv(childDiv, lookupMaps));
+        }
+
+        return range;
+    }
+
+    private FilePointer? ParseLogicalFptr(XElement fptr, MetsLookupMaps lookupMaps)
+    {
+        var areaEl = fptr.Element(XNames.MetsArea);
+
+        if (areaEl != null)
+        {
+            // Area reference: time segment or image region
+            var fileId = areaEl.Attribute("FILEID")?.Value ?? fptr.Attribute("FILEID")?.Value;
+            if (fileId == null) return null;
+            var localPath = GetLocalPathForFileId(fileId, lookupMaps);
+            if (localPath == null) return null;
+
+            var fp = new FilePointer { LocalPath = localPath };
+            var betype = areaEl.Attribute("BETYPE")?.Value;
+            if (string.Equals(betype, "TIME", StringComparison.OrdinalIgnoreCase))
+            {
+                var begin = areaEl.Attribute("BEGIN")?.Value;
+                var end = areaEl.Attribute("END")?.Value;
+                if (begin != null) fp.BeginTime = ParseTimeToSeconds(begin);
+                if (end != null) fp.EndTime = ParseTimeToSeconds(end);
+            }
+            else
+            {
+                var coords = areaEl.Attribute("COORDS")?.Value;
+                var shape = areaEl.Attribute("SHAPE")?.Value;
+                fp.Region = ParseCoords(coords, shape);
+            }
+            return fp;
+        }
+        else
+        {
+            // Whole-file reference
+            var fileId = fptr.Attribute("FILEID")?.Value;
+            if (fileId == null) return null;
+            var localPath = GetLocalPathForFileId(fileId, lookupMaps);
+            if (localPath == null) return null;
+            return new FilePointer { LocalPath = localPath };
+        }
+    }
+
+    private string? GetLocalPathForFileId(string fileId, MetsLookupMaps lookupMaps)
+    {
+        if (!lookupMaps.FileMap.TryGetValue(fileId, out var fileEl)) return null;
+        return fileEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value;
+    }
+
+    private string? GetNameFromDmd(XElement div, MetsLookupMaps lookupMaps)
+    {
+        var dmdId = div.Attribute("DMDID")?.Value;
+        if (!dmdId.HasText()) return null;
+        if (!lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd)) return null;
+        return dmd.Descendants(XNames.ModsTitle).FirstOrDefault()?.Value;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Effective metadata computation
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static Dictionary<string, List<LogicalRange>> BuildFileToWholeFileRangesMap(
+        List<LogicalRange> logicalStructures)
+    {
+        var result = new Dictionary<string, List<LogicalRange>>();
+        foreach (var range in logicalStructures)
+        {
+            CollectWholeFileReferences(range, result);
+        }
+        return result;
+    }
+
+    private static void CollectWholeFileReferences(
+        LogicalRange range,
+        Dictionary<string, List<LogicalRange>> result)
+    {
+        foreach (var fp in range.Files)
+        {
+            // Only whole-file references (no time segment, no image region) contribute
+            if (fp.BeginTime == null && fp.EndTime == null && fp.Region == null)
+            {
+                if (!result.TryGetValue(fp.LocalPath, out var ranges))
+                {
+                    ranges = [];
+                    result[fp.LocalPath] = ranges;
+                }
+                ranges.Add(range);
+            }
+        }
+        foreach (var child in range.Ranges)
+        {
+            CollectWholeFileReferences(child, result);
+        }
+    }
+
+    private static void ComputeEffectiveMetadata(
+        MetsFileWrapper mets,
+        Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        HashSet<string> filesWithExplicitRights)
+    {
+        var physRoot = mets.PhysicalStructure!;
+        var rootAccess = physRoot.AccessRestrictions ?? [];
+        var rootRights = physRoot.RightsStatement;
+        var rootRecordInfo = physRoot.RecordInfo;
+
+        physRoot.EffectiveAccessRestrictions = rootAccess;
+        physRoot.EffectiveRightsStatement = rootRights;
+        physRoot.EffectiveRecordInfo = rootRecordInfo;
+
+        foreach (var file in physRoot.Files)
+        {
+            SetFileEffective(file, rootAccess, rootRights, rootRecordInfo, fileToWholeFileRanges, filesWithExplicitRights);
+        }
+
+        foreach (var dir in physRoot.Directories)
+        {
+            ComputeEffectiveForDirectory(dir, rootAccess, rootRights, rootRecordInfo, fileToWholeFileRanges, filesWithExplicitRights);
+        }
+
+        // Logical ranges inherit access/rights from PHYS_ROOT only (not from objects/ or other physical divs)
+        foreach (var range in mets.LogicalStructures)
+        {
+            ComputeEffectiveForLogicalRange(range, rootAccess, rootRights);
+        }
+    }
+
+    private static void ComputeEffectiveForDirectory(
+        WorkingDirectory dir,
+        List<string> parentAccess,
+        Uri? parentRights,
+        RecordInfo? parentRecordInfo,
+        Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        HashSet<string> filesWithExplicitRights)
+    {
+        var effectiveAccess = dir.AccessRestrictions is { Count: > 0 } ? dir.AccessRestrictions : parentAccess;
+        var effectiveRights = dir.RightsStatement ?? parentRights;
+        var effectiveRecordInfo = dir.RecordInfo ?? parentRecordInfo;
+
+        dir.EffectiveAccessRestrictions = effectiveAccess;
+        dir.EffectiveRightsStatement = effectiveRights;
+        dir.EffectiveRecordInfo = effectiveRecordInfo;
+
+        foreach (var file in dir.Files)
+        {
+            SetFileEffective(file, effectiveAccess, effectiveRights, effectiveRecordInfo, fileToWholeFileRanges, filesWithExplicitRights);
+        }
+
+        foreach (var subDir in dir.Directories)
+        {
+            ComputeEffectiveForDirectory(subDir, effectiveAccess, effectiveRights, effectiveRecordInfo, fileToWholeFileRanges, filesWithExplicitRights);
+        }
+    }
+
+    private static void SetFileEffective(
+        WorkingFile file,
+        List<string> parentAccess,
+        Uri? parentRights,
+        RecordInfo? parentRecordInfo,
+        Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        HashSet<string> filesWithExplicitRights)
+    {
+        file.EffectiveAccessRestrictions = file.AccessRestrictions is { Count: > 0 }
+            ? file.AccessRestrictions
+            : parentAccess;
+        // If the div had an explicit use-and-reproduction element (even with an invalid value like "null(?)"),
+        // use the file's own rights (which may be null) rather than inheriting from the physical parent.
+        file.EffectiveRightsStatement = (file.RightsStatement != null || filesWithExplicitRights.Contains(file.LocalPath))
+            ? file.RightsStatement
+            : parentRights;
+
+        // RecordInfo: own value → exactly-one whole-file logical range → physical parent
+        if (file.RecordInfo != null)
+        {
+            file.EffectiveRecordInfo = file.RecordInfo;
+        }
+        else if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var ranges) && ranges.Count == 1)
+        {
+            file.EffectiveRecordInfo = ranges[0].RecordInfo;
+        }
+        else
+        {
+            file.EffectiveRecordInfo = parentRecordInfo;
+        }
+    }
+
+    private static void ComputeEffectiveForLogicalRange(
+        LogicalRange range,
+        List<string> physRootAccess,
+        Uri? physRootRights)
+    {
+        // Logical ranges inherit access/rights from PHYS_ROOT only, not from objects/ or other physical divs
+        range.EffectiveAccessRestrictions = range.AccessRestrictions is { Count: > 0 }
+            ? range.AccessRestrictions
+            : physRootAccess;
+        range.EffectiveRightsStatement = range.RightsStatement ?? physRootRights;
+        range.EffectiveRecordInfo = range.RecordInfo;
+
+        foreach (var child in range.Ranges)
+        {
+            ComputeEffectiveForLogicalRange(child, physRootAccess, physRootRights);
+        }
+    }
+
+    private static double ParseTimeToSeconds(string time)
+    {
+        var parts = time.Split(':');
+        if (parts.Length == 3)
+        {
+            var h = double.TryParse(parts[0], out var hh) ? hh : 0;
+            var m = double.TryParse(parts[1], out var mm) ? mm : 0;
+            var s = double.TryParse(parts[2], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var ss) ? ss : 0;
+            return h * 3600 + m * 60 + s;
+        }
+        return 0;
+    }
+
+    private static Rectangle? ParseCoords(string? coords, string? shape)
+    {
+        if (!string.Equals(shape, "RECT", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(coords))
+            return null;
+        var parts = coords.Split(',');
+        if (parts.Length == 4 &&
+            int.TryParse(parts[0].Trim(), out var x1) &&
+            int.TryParse(parts[1].Trim(), out var y1) &&
+            int.TryParse(parts[2].Trim(), out var x2) &&
+            int.TryParse(parts[3].Trim(), out var y2))
+        {
+            return new Rectangle { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2 };
+        }
+        return null;
     }
 
 }

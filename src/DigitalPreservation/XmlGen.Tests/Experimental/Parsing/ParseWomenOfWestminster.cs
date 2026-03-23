@@ -25,7 +25,7 @@ public class ParseWomenOfWestminster
         parser = new MetsParser(metsLoader, parserLogger);
     }
 
-    [Fact(Skip = "Experimental")]
+    [Fact]
     public async Task Can_Parse_Women_Of_Westminster()
     {
         var wowMets = new FileInfo("Samples/wow.mets.xml");
@@ -272,7 +272,7 @@ public class ParseWomenOfWestminster
 
         // locate files by ID and localpath
         // This is the ID of the file's mets:div in the physical structMap. Do we want to be able to get by mets:file ID property? 
-        var ruddAudioById = phys.Files.SingleOrDefault(f => f.MetsExtensions!.DivId == "PHYS_objects/amber-rudd.m4a");
+        var ruddAudioById = result.Value.Files.SingleOrDefault(f => f.MetsExtensions?.DivId == "PHYS_objects/amber-rudd.m4a");
         ruddAudioById.Should().NotBeNull();
         
 

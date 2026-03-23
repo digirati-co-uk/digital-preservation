@@ -256,20 +256,20 @@
             <mets:div ID="PHYS_objects" LABEL="objects" DMDID="DMD_objects" ADMID="ADM_objects" TYPE="Directory">
 
 
+                <mets:div ID="PHYS_objects/amber-rudd.m4a" LABEL="Amber Rudd.m4a" TYPE="Item">
+                    <mets:fptr FILEID="FILE_objects/amber-rudd.m4a" />
+                </mets:div>
                 <mets:div ID="PHYS_objects/amber-rudd.docx" LABEL="Amber Rudd Transcript.docx" TYPE="Item">
                     <mets:fptr FILEID="FILE_objects/amber-rudd.docx" />
                 </mets:div>
-                <mets:div ID="PHYS_objects/amber-rudd.m4a" LABEL="Amber Rudd.m4a" TYPE="Item">
-                    <mets:fptr FILEID="FILE_objects/amber-rudd.m4a" />
+                <mets:div ID="PHYS_objects/angela-eagle.m4a" LABEL="Angela Eagle.m4a" TYPE="Item" DMDID="DMD_objects/angela-eagle.m4a" >
+                    <mets:fptr FILEID="FILE_objects/angela-eagle.m4a" />
                 </mets:div>
                 <mets:div ID="PHYS_objects/angela-eagle-redacted.m4a" LABEL="Angela Eagle - redacted.m4a" TYPE="Item">
                     <mets:fptr FILEID="FILE_objects/angela-eagle-redacted.m4a" />
                 </mets:div>
                 <mets:div ID="PHYS_objects/angela-eagle-transcript.docx" LABEL="Angela Eagle redacted transcript.docx" TYPE="Item">
                     <mets:fptr FILEID="FILE_objects/angela-eagle-transcript.docx" />
-                </mets:div>
-                <mets:div ID="PHYS_objects/angela-eagle.m4a" LABEL="Angela Eagle.m4a" TYPE="Item" DMDID="DMD_objects/angela-eagle.m4a" >
-                    <mets:fptr FILEID="FILE_objects/angela-eagle.m4a" />
                 </mets:div>
 
 
@@ -294,7 +294,7 @@
     <mets:structLink>
         <mets:smLink xlink:from="FILE_objects/amber-rudd.m4a" xlink:to="FILE_objects/amber-rudd.docx"
                      xlink:arcrole="http://iiif.io/api/presentation/3#supplementing" />
-        <mets:smLink xlink:from="FILE_objects/angela-eagle-redacted" xlink:to="angela-eagle-transcript.docx"
+        <mets:smLink xlink:from="FILE_objects/angela-eagle-redacted.m4a" xlink:to="FILE_objects/angela-eagle-transcript.docx"
                      xlink:arcrole="http://iiif.io/api/presentation/3#supplementing" />
     </mets:structLink>
 </mets:mets>

@@ -2,6 +2,17 @@
 
 namespace DigitalPreservation.Common.Model.Transit.Extensions;
 
+/// <summary>
+/// Compares Uris by their AbsoluteUri string so that fragment-only differences are respected.
+/// .NET's default Uri.GetHashCode() ignores fragments, causing collisions when fragments are the only difference.
+/// </summary>
+internal sealed class UriAbsoluteStringComparer : IEqualityComparer<Uri>
+{
+    public bool Equals(Uri? x, Uri? y) =>
+        string.Equals(x?.AbsoluteUri, y?.AbsoluteUri, StringComparison.Ordinal);
+    public int GetHashCode(Uri obj) => StringComparer.Ordinal.GetHashCode(obj.AbsoluteUri);
+}
+
 public class FileLink
 {
     [JsonPropertyName("to")]
@@ -40,6 +51,10 @@ public static class FileLinkRoles
             { "transcript", new Uri(Prefix + "transcript") },
             { "translation", new Uri(Prefix + "translation") }
         };
-        ProvidesKeywordFromUri = ProvidesUriFromKeyword.ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
+        // Uri.GetHashCode() ignores fragments in .NET, so use a comparer based on AbsoluteUri string
+        ProvidesKeywordFromUri = ProvidesUriFromKeyword.ToDictionary(
+            kvp => kvp.Value,
+            kvp => kvp.Key,
+            new UriAbsoluteStringComparer());
     }
 }
