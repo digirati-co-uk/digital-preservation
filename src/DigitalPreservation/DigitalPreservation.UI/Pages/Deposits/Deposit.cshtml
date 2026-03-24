@@ -97,7 +97,7 @@
                                 </button>
                             </li>
                             <li>
-                                <button disabled="@(!jobRunningOrArchived)" class="dropdown-item @(!jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ForceCompletePipelineRun">
+                                <button disabled="@(!jobRunningOrArchived || Model.Deposit?.Archived != null)" class="dropdown-item @(!jobRunningOrArchived || Model.Deposit?.Archived != null ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ForceCompletePipelineRun">
                                     <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
                                 </button>
                             </li>
@@ -295,7 +295,7 @@
     }
 
     
-    @if (jobRunningOrArchived && TempData["Valid"] == null)
+    @if (jobRunningOrArchived && TempData["Valid"] == null && Model.Deposit?.Archived == null)
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <p>This deposit has a metadata pipeline being run by @Model.Deposit!.LockedBy?.GetSlug() . <br/> 
