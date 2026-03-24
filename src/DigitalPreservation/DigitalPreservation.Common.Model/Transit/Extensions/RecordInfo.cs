@@ -11,7 +11,7 @@ public partial class RecordInfo
     public List<RecordIdentifier> RecordIdentifiers { get; set; } = [];
 
     public const string CompactDelimiter = "-|-";
-    public string? ToCompactString()
+    public string? ToCompactString(string? delimiter = null)
     {
         if (RecordIdentifiers.Count > 0)
         {
@@ -21,7 +21,7 @@ public partial class RecordInfo
             {
                 if (index > 0)
                 {
-                    sb.Append(CompactDelimiter);
+                    sb.Append(delimiter ?? CompactDelimiter);
                 }
                 var identifier = RecordIdentifiers[index];
                 sb.Append(identifier.Value);

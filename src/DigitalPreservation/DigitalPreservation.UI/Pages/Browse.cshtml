@@ -2,6 +2,7 @@
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Import
 @using DigitalPreservation.UI.Features
+@using DigitalPreservation.UI.Pages.Shared
 @using DigitalPreservation.Utils
 @model BrowseModel
 @{
@@ -291,7 +292,7 @@
                     {
                         <th scope="col">Type</th>
                         <th scope="col">Format</th>
-                        <th scope="col">Access</th>
+                        <th scope="col">Metadata</th>
                         <th scope="col">☣</th>
                     }
                 </tr>
@@ -356,9 +357,24 @@
                             else 
                             {
                                 <td aria-label="td-type"></td>
-                                <th aria-label="td-format"></th>
-                                <th aria-label="td-access"></th>
-                                <th aria-label="td-virus"></th>
+                                <td aria-label="td-format"></td>
+                                <td aria-label="td-access">
+                                    @{
+                                        var localPath = Model.GetLocalPath(container);
+                                        if (localPath != null)
+                                        {
+                                            var metsContainer = Model.MetsWorkingDirectory?.FindDirectory(localPath);
+                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsContainer);
+                                            for (var i = 0; i < items.Count; i++)
+                                            {
+                                                if (i > 0) { <br/> }
+                                                var item = items[i];
+                                                <small class="@(item.Inherited ? "text-secondary" : "")">@item.Label: <em><strong>@item.Text</strong></em></small>
+                                            }
+                                        }
+                                    }
+                                </td>
+                                <td aria-label="td-virus"></td>
                             }
                         </tr>
                     }
@@ -390,7 +406,17 @@
                                     var fileFormatMetadata = metsBinary?.GetFileFormatMetadata();
                                     var virusMetadata = metsBinary?.GetVirusScanMetadata();
                                     <td aria-label="td-format" title="@fileFormatMetadata?.FormatName">@fileFormatMetadata?.PronomKey</td>
-                                    <td aria-label="td-access">@string.Join(", ", metsBinary?.AccessRestrictions ?? [])</td>
+                                    <td aria-label="td-access">
+                                        @{
+                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsBinary);
+                                            for (var i = 0; i < items.Count; i++)
+                                            {
+                                                if (i > 0) { <br/> }
+                                                var item = items[i];
+                                                <small class="@(item.Inherited ? "text-secondary" : "")">@item.Label: <em><strong>@item.Text</strong></em></small>
+                                            }
+                                        }
+                                    </td>
 
                                     @if (virusMetadata is { HasVirus: true })
                                     {
@@ -652,9 +678,6 @@
         }
     }
     
-
-
-
-</script>
-
+    </script>
 }
+

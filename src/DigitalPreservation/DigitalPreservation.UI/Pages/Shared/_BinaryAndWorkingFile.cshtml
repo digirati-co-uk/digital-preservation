@@ -1,4 +1,5 @@
-﻿@using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
+﻿@using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.Transit.Extensions.Metadata
 @using DigitalPreservation.Utils
 
 @model (DigitalPreservation.Common.Model.Binary?, DigitalPreservation.Common.Model.Transit.WorkingFile?) 
@@ -102,6 +103,45 @@
         <tr>
             <th scope="row">Content</th>
             <td>🚫 <a href="@binary.Content">Binary content (Storage API)</a></td>
+        </tr>
+    }
+    @if (workingFile != null)
+    {
+        <tr>
+            <th scope="row">Explicit access</th>
+            <td>@(string.Join(", ", workingFile.AccessRestrictions ?? []))</td>
+        </tr>
+        <tr>
+            <th scope="row">Evaluated access</th>
+            <td>@(string.Join(", ", workingFile.EffectiveAccessRestrictions))</td>
+        </tr>
+        <tr>
+            <th scope="row">Explicit rights</th>
+            <td>@{
+                    if (workingFile.RightsStatement != null)
+                    {
+                        <strong>@RightsStatement.GetShortLabel(workingFile.RightsStatement)</strong>
+                        <span>@workingFile.RightsStatement</span>
+                    }
+                }</td>
+        </tr>
+        <tr>
+            <th scope="row">Evaluated rights</th>
+            <td>@{
+                    if (workingFile.RightsStatement != null)
+                    {
+                        <strong>@RightsStatement.GetShortLabel(workingFile.EffectiveRightsStatement)</strong>
+                        <span>@workingFile.RightsStatement</span>
+                    }
+                }</td>
+        </tr>
+        <tr>
+            <th scope="row">Explicit record info</th>
+            <td>@(workingFile.RecordInfo?.ToCompactString(", "))</td>
+        </tr>
+        <tr>
+            <th scope="row">Evaluated record info</th>
+            <td>@(workingFile.EffectiveRecordInfo?.ToCompactString(", "))</td>
         </tr>
     }
 

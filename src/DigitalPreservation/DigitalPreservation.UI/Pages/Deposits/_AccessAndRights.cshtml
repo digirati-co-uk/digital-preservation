@@ -1,6 +1,6 @@
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Transit.Combined
-@using DigitalPreservation.Common.Model.Transit.Extensions
+@using DigitalPreservation.UI.Pages.Shared
 @model (CombinedBase, string, string?)
 
 @{
@@ -8,8 +8,6 @@
     var display = Model.Item2;
     var base64ToolOutput = Model.Item3; 
 }
-
-
 
 <a class="mods-launcher" 
     data-bs-toggle="modal" data-bs-target="#modsModal"
@@ -24,45 +22,12 @@
 
 @{
     // Collect display items as (label, text, inherited). Inherited items render in muted style.
-    var items = new List<(string Label, string Text, bool Inherited)>();
-
-    if (combinedBase.AccessRestrictions.Count > 0)
+    var items = ModsMetadataDisplayBuilder.GetDisplayItems(combinedBase);
+    for (var i = 0; i < items.Count; i++)
     {
-        if (!combinedBase.EffectiveAccessRestrictions.SequenceEqual(combinedBase.AccessRestrictions))
-            throw new NotSupportedException("Effective access restrictions don't equal explicit access restrictions");
-        items.Add(("Access", string.Join(", ", combinedBase.AccessRestrictions), false));
-    }
-    else if (combinedBase.EffectiveAccessRestrictions.Count > 0)
-    {
-        items.Add(("Access", string.Join(", ", combinedBase.EffectiveAccessRestrictions), true));
-    }
-
-    if (combinedBase.RightsStatement != null)
-    {
-        if (combinedBase.EffectiveRightsStatement != combinedBase.RightsStatement)
-            throw new NotSupportedException("Effective rights statement does not equal explicit rights statement");
-        items.Add(("Rights", RightsStatement.GetShortLabel(combinedBase.RightsStatement) ?? "", false));
-    }
-    else if (combinedBase.EffectiveRightsStatement != null)
-    {
-        items.Add(("Rights", RightsStatement.GetShortLabel(combinedBase.EffectiveRightsStatement) ?? "", true));
-    }
-
-    if (combinedBase.RecordInfo != null)
-    {
-        if (!combinedBase.RecordInfo.HasSameIdentifiers(combinedBase.EffectiveRecordInfo))
-            throw new NotSupportedException("Effective record identifiers do not equal explicit record identifiers");
-        items.Add(("Record", combinedBase.RecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ") ?? "", false));
-    }
-    else if (combinedBase.EffectiveRecordInfo != null)
-    {
-        items.Add(("Record", combinedBase.EffectiveRecordInfo.ToCompactString()?.Replace(RecordInfo.CompactDelimiter, ", ") ?? "", true));
+        if (i > 0) { <span>; </span> }
+        var item = items[i];
+        <small class="@(item.Inherited ? "text-secondary" : "")">@item.Label: <em><strong>@item.Text</strong></em></small>
     }
 }
 
-@for (var i = 0; i < items.Count; i++)
-{
-    if (i > 0) { <span>; </span> }
-    var item = items[i];
-    <small class="@(item.Inherited ? "text-secondary" : "")">@item.Label: <em><strong>@item.Text</strong></em></small>
-}
