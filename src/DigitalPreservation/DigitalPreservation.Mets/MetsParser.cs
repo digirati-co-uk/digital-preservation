@@ -22,14 +22,16 @@ public class MetsParser(
         Dictionary<string, XElement> DmdSecMap,
         Dictionary<string, XElement> FileMap,
         Dictionary<string, XElement> TechMdMap,
-        Dictionary<string, XElement> DigiprovMdMap
+        Dictionary<string, XElement> DigiprovMdMap,
+        Dictionary<string, XElement> PhysDivMap,
+        Dictionary<string, string> FileGrpUseMap
     );
     
     /// <summary>
     /// Builds lookup dictionaries for efficient O(1) access to METS elements by ID.
     /// This is equivalent to the Python version's amd_map, file_map, and tech_map.
     /// </summary>
-    private static MetsLookupMaps BuildLookupMaps(XDocument xMets)
+    private static MetsLookupMaps BuildLookupMaps(XDocument xMets, XElement physicalStructMap)
     {
         // Build amdSec map: ID -> XElement
         var amdSecMap = xMets.Descendants(XNames.MetsAmdSec)
@@ -40,7 +42,7 @@ public class MetsParser(
         var dmdSecMap = xMets.Descendants(XNames.MetsDmdSec)
             .Where(el => el.Attribute("ID") != null)
             .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
-        
+
         // Build file map: ID -> XElement (from fileSec)
         var fileMap = xMets.Descendants(XNames.MetsFile)
             .Where(el => el.Attribute("ID") != null)
@@ -56,7 +58,20 @@ public class MetsParser(
             .Where(el => el.Attribute("ID") != null)
             .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
 
-        return new MetsLookupMaps(amdSecMap, dmdSecMap, fileMap, techMdMap, digiprovMdMap);
+        // Build physical div map: ID -> XElement (for smLink logical→physical resolution)
+        var physDivMap = physicalStructMap.Descendants(XNames.MetsDiv)
+            .Where(el => el.Attribute("ID") != null)
+            .ToDictionary(el => el.Attribute("ID")!.Value, el => el);
+
+        // Build fileGrp USE map: file ID -> USE attribute of parent fileGrp
+        var fileGrpUseMap = xMets.Descendants(XNames.MetsFileGrp)
+            .SelectMany(grp => grp.Elements(XNames.MetsFile).Select(f => (
+                Id: f.Attribute("ID")?.Value,
+                Use: grp.Attribute("USE")?.Value ?? "")))
+            .Where(x => x.Id != null)
+            .ToDictionary(x => x.Id!, x => x.Use);
+
+        return new MetsLookupMaps(amdSecMap, dmdSecMap, fileMap, techMdMap, digiprovMdMap, physDivMap, fileGrpUseMap);
     }
     
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
@@ -241,9 +256,9 @@ public class MetsParser(
 
         // This relies on all directories having labels not just some
         Stack<string> directoryLabels = new();
-        
+
         // Build lookup maps once before traversal for O(1) access during processing
-        var lookupMaps = BuildLookupMaps(xMets);
+        var lookupMaps = BuildLookupMaps(xMets, physicalStructMap);
 
         var filesWithExplicitRights = new HashSet<string>();
         ProcessChildStructDivs(mets, parent, directoryLabels, lookupMaps, filesWithExplicitRights);
@@ -262,17 +277,27 @@ public class MetsParser(
             folder.Files.Add(file);
         }
 
-        // Parse structLink file-to-file links
+        // Parse structLink file-to-file links (arcrole-based, e.g. audio→transcript)
         ParseStructLinks(xMets, lookupMaps, mets.Files);
+
+        // Infer file links from physical div groupings (e.g. OBJECTS+ALTO in same div → transcript)
+        InferFileLinksFromPhysicalDivs(physicalStructMap, lookupMaps, mets.Files);
 
         // Parse logical structMaps into LogicalRange trees
         mets.LogicalStructures.AddRange(ParseLogicalStructMaps(xMets, lookupMaps));
+
+        // Build flat maps of logical div ID → range and → depth for smLink resolution
+        var (logicalRangeMap, logicalDivDepth) = BuildLogicalRangeMapAndDepth(mets.LogicalStructures);
+
+        // Resolve smLink logical→physical associations: populate LogicalRange.Files (deepest-only)
+        // and build fileToAssociatedRange for metadata inheritance of all files in referenced physical divs
+        var fileToAssociatedRange = ApplySmLinkLogicalFileRefs(xMets, logicalRangeMap, logicalDivDepth, lookupMaps);
 
         // Build map of file paths to logical ranges that reference them as whole-file fptrs
         var fileToWholeFileRanges = BuildFileToWholeFileRangesMap(mets.LogicalStructures);
 
         // Compute effective (inherited) metadata for all physical and logical resources
-        ComputeEffectiveMetadata(mets, fileToWholeFileRanges, filesWithExplicitRights);
+        ComputeEffectiveMetadata(mets, fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
     }
 
     private void ProcessChildStructDivs(MetsFileWrapper mets, XElement parent,
@@ -719,6 +744,170 @@ public class MetsParser(
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Logical range map helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static (Dictionary<string, LogicalRange> rangeMap, Dictionary<string, int> depthMap)
+        BuildLogicalRangeMapAndDepth(List<LogicalRange> ranges)
+    {
+        var rangeMap = new Dictionary<string, LogicalRange>();
+        var depthMap = new Dictionary<string, int>();
+        foreach (var range in ranges)
+            CollectLogicalRangeInfo(range, 0, rangeMap, depthMap);
+        return (rangeMap, depthMap);
+    }
+
+    private static void CollectLogicalRangeInfo(
+        LogicalRange range, int depth,
+        Dictionary<string, LogicalRange> rangeMap,
+        Dictionary<string, int> depthMap)
+    {
+        rangeMap[range.Id] = range;
+        depthMap[range.Id] = depth;
+        foreach (var child in range.Ranges)
+            CollectLogicalRangeInfo(child, depth + 1, rangeMap, depthMap);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // smLink logical→physical resolution (Goobi-style)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Handles mets:smLink elements that connect logical div IDs to physical div IDs (Goobi-style),
+    /// as opposed to the arcrole-based file-to-file links handled by <see cref="ParseStructLinks"/>.
+    ///
+    /// Uses a "deepest-only" rule: when multiple logical ranges claim the same physical div,
+    /// files are assigned only to the deepest (most specific) range, preserving a clean
+    /// non-overlapping hierarchy suitable for IIIF manifest building.
+    ///
+    /// Primary (non-ALTO) files are added to <see cref="LogicalRange.Files"/> for IIIF canvas painting.
+    /// All files in referenced physical divs (including ALTO) are tracked in the returned
+    /// fileToAssociatedRange map so they can inherit effective metadata from their logical range.
+    /// </summary>
+    private static Dictionary<string, LogicalRange> ApplySmLinkLogicalFileRefs(
+        XDocument xMets,
+        Dictionary<string, LogicalRange> logicalRangeMap,
+        Dictionary<string, int> logicalDivDepth,
+        MetsLookupMaps lookupMaps)
+    {
+        var fileToAssociatedRange = new Dictionary<string, LogicalRange>();
+        var structLink = xMets.Descendants(XNames.MetsStructLink).FirstOrDefault();
+        if (structLink == null) return fileToAssociatedRange;
+
+        // Pass 1: for each physical div, determine the deepest logical range that claims it
+        var physDivToDeepest = new Dictionary<string, (LogicalRange range, int depth)>();
+        foreach (var smLink in structLink.Elements(XNames.MetsSmLink))
+        {
+            var fromId = smLink.Attribute(XNames.XLinkFrom)?.Value;
+            var toId = smLink.Attribute(XNames.XLinkTo)?.Value;
+            if (fromId == null || toId == null) continue;
+            if (!logicalRangeMap.TryGetValue(fromId, out var logicalRange)) continue;
+            if (!lookupMaps.PhysDivMap.ContainsKey(toId)) continue;
+
+            var depth = logicalDivDepth.GetValueOrDefault(fromId, 0);
+            if (!physDivToDeepest.TryGetValue(toId, out var current) || depth > current.depth)
+                physDivToDeepest[toId] = (logicalRange, depth);
+        }
+
+        // Build fileToAssociatedRange: ALL files in each physical div → their deepest logical range
+        foreach (var (physDivId, (deepestRange, _)) in physDivToDeepest)
+        {
+            if (!lookupMaps.PhysDivMap.TryGetValue(physDivId, out var physDiv)) continue;
+            foreach (var fptr in physDiv.Elements(XNames.MetsFptr))
+            {
+                var fileId = fptr.Attribute("FILEID")?.Value;
+                if (fileId == null) continue;
+                var localPath = lookupMaps.FileMap.TryGetValue(fileId, out var fileEl)
+                    ? fileEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
+                    : null;
+                if (localPath != null)
+                    fileToAssociatedRange[localPath] = deepestRange;
+            }
+        }
+
+        // Pass 2: populate LogicalRange.Files in smLink document order, deepest-only
+        foreach (var smLink in structLink.Elements(XNames.MetsSmLink))
+        {
+            var fromId = smLink.Attribute(XNames.XLinkFrom)?.Value;
+            var toId = smLink.Attribute(XNames.XLinkTo)?.Value;
+            if (fromId == null || toId == null) continue;
+            if (!logicalRangeMap.TryGetValue(fromId, out var logicalRange)) continue;
+            if (!physDivToDeepest.TryGetValue(toId, out var deepest)) continue;
+            if (!ReferenceEquals(deepest.range, logicalRange)) continue; // not the deepest claimant
+
+            if (!lookupMaps.PhysDivMap.TryGetValue(toId, out var physDiv)) continue;
+            foreach (var fptr in physDiv.Elements(XNames.MetsFptr))
+            {
+                var fileId = fptr.Attribute("FILEID")?.Value;
+                if (fileId == null) continue;
+                var localPath = lookupMaps.FileMap.TryGetValue(fileId, out var fileEl)
+                    ? fileEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
+                    : null;
+                if (localPath == null) continue;
+
+                // Only primary (non-ALTO) files go into LogicalRange.Files for IIIF canvas painting
+                var use = lookupMaps.FileGrpUseMap.GetValueOrDefault(fileId, "");
+                if (!string.Equals(use, "ALTO", StringComparison.OrdinalIgnoreCase))
+                    logicalRange.Files.Add(new FilePointer { LocalPath = localPath });
+            }
+        }
+
+        return fileToAssociatedRange;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Physical div file link inference (OBJECTS+ALTO → transcript)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Infers FileLink relationships from physical div structure: when a physical div contains
+    /// fptrs to both a USE=OBJECTS file and a USE=ALTO file, the ALTO file is a transcript
+    /// of the OBJECTS file.
+    /// </summary>
+    private static void InferFileLinksFromPhysicalDivs(
+        XElement physicalStructMap,
+        MetsLookupMaps lookupMaps,
+        List<WorkingFile> files)
+    {
+        if (lookupMaps.FileGrpUseMap.Count == 0) return;
+
+        var fileByPath = files.ToDictionary(f => f.LocalPath, f => f);
+        var transcript = FileLinkRoles.FromIiifProvides("transcript");
+
+        foreach (var div in physicalStructMap.Descendants(XNames.MetsDiv))
+        {
+            var fptrs = div.Elements(XNames.MetsFptr).ToList();
+            if (fptrs.Count < 2) continue;
+
+            string? objectsPath = null;
+            string? altoPath = null;
+
+            foreach (var fptr in fptrs)
+            {
+                var fileId = fptr.Attribute("FILEID")?.Value;
+                if (fileId == null) continue;
+                var localPath = lookupMaps.FileMap.TryGetValue(fileId, out var fileEl)
+                    ? fileEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
+                    : null;
+                if (localPath == null) continue;
+
+                var use = lookupMaps.FileGrpUseMap.GetValueOrDefault(fileId, "");
+                if (string.Equals(use, "OBJECTS", StringComparison.OrdinalIgnoreCase))
+                    objectsPath = localPath;
+                else if (string.Equals(use, "ALTO", StringComparison.OrdinalIgnoreCase))
+                    altoPath = localPath;
+            }
+
+            if (objectsPath != null && altoPath != null
+                && fileByPath.TryGetValue(objectsPath, out var objectsFile)
+                && !objectsFile.Links.Any(l => l.To == altoPath))
+            {
+                objectsFile.Links.Add(new FileLink { To = altoPath, Role = transcript });
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // structLink parsing
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -913,6 +1102,7 @@ public class MetsParser(
     private static void ComputeEffectiveMetadata(
         MetsFileWrapper mets,
         Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        Dictionary<string, LogicalRange> fileToAssociatedRange,
         HashSet<string> filesWithExplicitRights)
     {
         var physRoot = mets.PhysicalStructure!;
@@ -920,24 +1110,27 @@ public class MetsParser(
         var rootRights = physRoot.RightsStatement;
         var rootRecordInfo = physRoot.RecordInfo;
 
+        // Logical ranges are computed first so their EffectiveAccessRestrictions and
+        // EffectiveRecordInfo are available when physical files inherit from them below.
+        foreach (var range in mets.LogicalStructures)
+        {
+            ComputeEffectiveForLogicalRange(range, rootAccess, rootRights);
+        }
+
         physRoot.EffectiveAccessRestrictions = rootAccess;
         physRoot.EffectiveRightsStatement = rootRights;
         physRoot.EffectiveRecordInfo = rootRecordInfo;
 
         foreach (var file in physRoot.Files)
         {
-            SetFileEffective(file, rootAccess, rootRights, rootRecordInfo, fileToWholeFileRanges, filesWithExplicitRights);
+            SetFileEffective(file, rootAccess, rootRights, rootRecordInfo,
+                fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
         }
 
         foreach (var dir in physRoot.Directories)
         {
-            ComputeEffectiveForDirectory(dir, rootAccess, rootRights, rootRecordInfo, fileToWholeFileRanges, filesWithExplicitRights);
-        }
-
-        // Logical ranges inherit access/rights from PHYS_ROOT only (not from objects/ or other physical divs)
-        foreach (var range in mets.LogicalStructures)
-        {
-            ComputeEffectiveForLogicalRange(range, rootAccess, rootRights);
+            ComputeEffectiveForDirectory(dir, rootAccess, rootRights, rootRecordInfo,
+                fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
         }
     }
 
@@ -947,6 +1140,7 @@ public class MetsParser(
         Uri? parentRights,
         RecordInfo? parentRecordInfo,
         Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        Dictionary<string, LogicalRange> fileToAssociatedRange,
         HashSet<string> filesWithExplicitRights)
     {
         var effectiveAccess = dir.AccessRestrictions is { Count: > 0 } ? dir.AccessRestrictions : parentAccess;
@@ -959,12 +1153,14 @@ public class MetsParser(
 
         foreach (var file in dir.Files)
         {
-            SetFileEffective(file, effectiveAccess, effectiveRights, effectiveRecordInfo, fileToWholeFileRanges, filesWithExplicitRights);
+            SetFileEffective(file, effectiveAccess, effectiveRights, effectiveRecordInfo,
+                fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
         }
 
         foreach (var subDir in dir.Directories)
         {
-            ComputeEffectiveForDirectory(subDir, effectiveAccess, effectiveRights, effectiveRecordInfo, fileToWholeFileRanges, filesWithExplicitRights);
+            ComputeEffectiveForDirectory(subDir, effectiveAccess, effectiveRights, effectiveRecordInfo,
+                fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
         }
     }
 
@@ -974,25 +1170,42 @@ public class MetsParser(
         Uri? parentRights,
         RecordInfo? parentRecordInfo,
         Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
+        Dictionary<string, LogicalRange> fileToAssociatedRange,
         HashSet<string> filesWithExplicitRights)
     {
-        file.EffectiveAccessRestrictions = file.AccessRestrictions is { Count: > 0 }
-            ? file.AccessRestrictions
-            : parentAccess;
+        // Access: own → physical parent → logical range (when physical parent has nothing)
+        if (file.AccessRestrictions is { Count: > 0 })
+            file.EffectiveAccessRestrictions = file.AccessRestrictions;
+        else if (parentAccess.Count > 0)
+            file.EffectiveAccessRestrictions = parentAccess;
+        else if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assocForAccess)
+                 && assocForAccess.EffectiveAccessRestrictions.Count > 0)
+            file.EffectiveAccessRestrictions = assocForAccess.EffectiveAccessRestrictions;
+        else
+            file.EffectiveAccessRestrictions = [];
+
         // If the div had an explicit use-and-reproduction element (even with an invalid value like "null(?)"),
         // use the file's own rights (which may be null) rather than inheriting from the physical parent.
         file.EffectiveRightsStatement = (file.RightsStatement != null || filesWithExplicitRights.Contains(file.LocalPath))
             ? file.RightsStatement
             : parentRights;
 
-        // RecordInfo: own value → exactly-one whole-file logical range → physical parent
+        // RecordInfo: own → exactly-one whole-file logical range (effective) → smLink-associated range → physical parent
         if (file.RecordInfo != null)
         {
             file.EffectiveRecordInfo = file.RecordInfo;
         }
         else if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var ranges) && ranges.Count == 1)
         {
-            file.EffectiveRecordInfo = ranges[0].RecordInfo;
+            // Use EffectiveRecordInfo so ranges that inherit from a parent (e.g. Goobi child sections)
+            // propagate the ancestor's record info correctly.
+            file.EffectiveRecordInfo = ranges[0].EffectiveRecordInfo;
+        }
+        else if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assocForRecord))
+        {
+            // For files not in LogicalRange.Files directly (e.g. ALTO files in Goobi-style METS),
+            // inherit from the logical range associated with their physical div.
+            file.EffectiveRecordInfo = assocForRecord.EffectiveRecordInfo;
         }
         else
         {
@@ -1002,19 +1215,19 @@ public class MetsParser(
 
     private static void ComputeEffectiveForLogicalRange(
         LogicalRange range,
-        List<string> physRootAccess,
-        Uri? physRootRights)
+        List<string> parentEffectiveAccess,
+        Uri? parentEffectiveRights,
+        RecordInfo? parentEffectiveRecordInfo = null)
     {
-        // Logical ranges inherit access/rights from PHYS_ROOT only, not from objects/ or other physical divs
         range.EffectiveAccessRestrictions = range.AccessRestrictions is { Count: > 0 }
             ? range.AccessRestrictions
-            : physRootAccess;
-        range.EffectiveRightsStatement = range.RightsStatement ?? physRootRights;
-        range.EffectiveRecordInfo = range.RecordInfo;
+            : parentEffectiveAccess;
+        range.EffectiveRightsStatement = range.RightsStatement ?? parentEffectiveRights;
+        range.EffectiveRecordInfo = range.RecordInfo ?? parentEffectiveRecordInfo;
 
         foreach (var child in range.Ranges)
         {
-            ComputeEffectiveForLogicalRange(child, physRootAccess, physRootRights);
+            ComputeEffectiveForLogicalRange(child, range.EffectiveAccessRestrictions, range.EffectiveRightsStatement, range.EffectiveRecordInfo);
         }
     }
 
