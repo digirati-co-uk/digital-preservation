@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace.Requests;
 using LateApexEarlySpeed.Xunit.Assertion.Json;
@@ -31,9 +32,13 @@ public class WorkspaceManager(
     public string? MetsName { get; private set; }
     
     
-    public async Task<Result> SetModsInformation(string localPath, List<string> rootAccessRestrictions, Uri? rootRightsStatement)
+    public async Task<Result> SetModsInformation(string localPath, 
+        List<string> rootAccessRestrictions, 
+        Uri? rootRightsStatement, 
+        IEnumerable<RecordIdentifier> recordIdentifiers)
     {
-        var result = await mediator.Send(new SetModsInformation(Deposit.Files!, localPath, Deposit.MetsETag!, rootAccessRestrictions, rootRightsStatement));
+        var result = await mediator.Send(new SetModsInformation(Deposit.Files!, localPath, Deposit.MetsETag!, 
+            rootAccessRestrictions, rootRightsStatement, recordIdentifiers));
         return result;
     }
 

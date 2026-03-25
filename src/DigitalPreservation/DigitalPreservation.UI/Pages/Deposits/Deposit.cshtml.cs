@@ -17,6 +17,7 @@ using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
 using DigitalPreservation.Common.Model.Transit.Combined;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
@@ -483,11 +484,12 @@ public class DepositModel(
         [FromForm] string modsContext,
         [FromForm] bool modsContextIsFile,
         [FromForm] List<string> accessRestrictions,
-        [FromForm] Uri? rightsStatement)
+        [FromForm] Uri? rightsStatement,
+        [FromForm] RecordIdentifier[] recordIdentifiers)
     {        
         if (await BindDeposit(id))
         {
-            var result = await WorkspaceManager.SetModsInformation(modsContext, accessRestrictions, rightsStatement);
+            var result = await WorkspaceManager.SetModsInformation(modsContext, accessRestrictions, rightsStatement, recordIdentifiers);
             if (result.Success)
             {
                 TempData["AccessConditionsUpdated"] = "Access Restrictions and Rights Statement updated.";

@@ -62,7 +62,7 @@ public partial class RecordInfo
         return true;
     }
 
-    public static RecordInfo? FromCompactString(string compactString)
+    public static RecordInfo? FromCompactString(string compactString, string? delimiter = null)
     {
         if (string.IsNullOrWhiteSpace(compactString))
         {
@@ -70,7 +70,7 @@ public partial class RecordInfo
         }
     
         var recordInfo = new RecordInfo();
-        var parts = compactString.Split(CompactDelimiter);
+        var parts = compactString.Split(delimiter ?? CompactDelimiter);
         foreach (var part in parts)
         {
             var match = RecordIdentifierStringForm().Match(part);
@@ -78,8 +78,8 @@ public partial class RecordInfo
             {
                 recordInfo.RecordIdentifiers.Add(new RecordIdentifier
                 {
-                    Value =  match.Groups[2].Value,
-                    Source = match.Groups[1].Value
+                    Value =  match.Groups[1].Value,
+                    Source = match.Groups[2].Value
                 });
             }
         }

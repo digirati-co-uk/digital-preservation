@@ -849,9 +849,11 @@
                 function populateModsModalFromAttributes(launcher){
 
                     let accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
+                    let nonEditableAccessRestrictions = document.getElementById("nonEditableAccessRestrictions");
                     let rightsStatementSelect = document.getElementById("rightsStatementSelect");
-                    accessRestrictionsSelect.selectedIndex = -1;
-                    rightsStatementSelect.selectedIndex = -1;
+                    let nonEditableRightsStatement = document.getElementById("nonEditableRightsStatement");
+                    let recordInfoDynamicForm = document.getElementById("recordInfoDynamicForm");
+                    let nonEditableRecordInfo = document.getElementById("nonEditableRecordInfo");
                     // and clear recordInfo form
                     
                     let accessConditionList = launcher.getAttribute("data-access");
@@ -872,28 +874,94 @@
                         windowOpener.addEventListener("click", () => openHtmlStringInNewTab(base64ToolOutput));
                     }
                     
-                    if(accessConditionList.length > 0){
-                        let accessConditions = accessConditionList.split(",");
-                        for (const option of accessRestrictionsSelect.options) {
-                            if(accessConditions.includes(option.value)){
-                                option.selected = true;
+                    if(accessRestrictionsSelect){
+                        accessRestrictionsSelect.selectedIndex = -1;
+                        if(accessConditionList.length > 0){
+                            let accessConditions = accessConditionList.split(",");
+                            for (const option of accessRestrictionsSelect.options) {
+                                if(accessConditions.includes(option.value)){
+                                    option.selected = true;
+                                }
                             }
+                        }
+                    } else if (nonEditableAccessRestrictions){
+                        if(accessConditionList.length > 0){
+                            nonEditableAccessRestrictions.innerHTML = "";
+                            for (const ac of accessConditionList.split(",")) {
+                                let acLi = document.createElement("li");
+                                acLi.innerHTML = `<strong>${ac}</strong>`;
+                                nonEditableAccessRestrictions.appendChild(acLi);
+                            }
+                        } else {
+                            nonEditableAccessRestrictions.innerHTML = "<li><em>no explicit access restrictions</em></li>";
                         }
                     }
                     
-                    if(rightsStatement){
-                        let rsUri = rightsStatements[rightsStatement].value;
-                        for (const option of rightsStatementSelect.options) {
-                            if(option.value === rsUri){
-                                option.selected = true;
+                    if(rightsStatementSelect){
+                        rightsStatementSelect.selectedIndex = -1;
+                        if(rightsStatement){
+                            let rsUri = rightsStatements[rightsStatement].value;
+                            for (const option of rightsStatementSelect.options) {
+                                if(option.value === rsUri){
+                                    option.selected = true;
+                                }
                             }
+                        }                        
+                    } else if (nonEditableRightsStatement){
+                        if(rightsStatement){
+                            nonEditableRightsStatement.innerHTML = `<strong>${rightsStatement}</strong><br/>${rightsStatements[rightsStatement].value}`;
+                        } else {
+                            nonEditableRightsStatement.innerHTML = "<ul><li><em>no explicit rights</em></li></ul>";
                         }
                     }
                     
-                    if(recordInfoCompact){
-                        // TODO: populate recordInfo form elements
-                    }
-                    
+                    if(recordInfoDynamicForm){
+                        recordInfoDynamicForm.innerHTML = "";
+                        if(recordInfoCompact){
+                            let recordIdentifiers = recordInfoFromCompactString(recordInfoCompact);
+                            for(let i = 0; i<recordIdentifiers.length; i++){
+                                const recordIdentifier = recordIdentifiers[i];
+                                let riEl = createRecordIdentifierElement(i, recordIdentifier);
+                                recordInfoDynamicForm.appendChild(riEl);
+                                document.getElementById(`recordInfoDelete_${i}`).addEventListener("click", (event) => {
+                                    let riDiv = event.target.closest("div");
+                                    riDiv.parentElement.removeChild(riDiv);
+                                });
+                            }                            
+                        }
+                    } else if (nonEditableRecordInfo){
+                        nonEditableRecordInfo.innerHTML = "<li><em>no explicit record info</em></li>";
+                        if(recordInfoCompact){
+                            let recordIdentifiers = recordInfoFromCompactString(recordInfoCompact);
+                            for(const recordIdentifier of recordIdentifiers){
+                                let riLi = document.createElement("li");
+                                riLi.innerText = `<strong>${recordIdentifier.source}:</strong> ${recordIdentifier.value}`;
+                                nonEditableRecordInfo.appendChild(riLi);
+                            }
+                            nonEditableRecordInfo.innerHTML = recordInfoCompact;
+                        } 
+                    }                    
+                }
+                
+                function createRecordIdentifierElement(index, recordIdentifier){
+                    let s1 = `<div class="input-group mb-3 record-info-container" id="recordIdentifiers_${index}" data-record-info-index="${index}">
+                        <input type="hidden" name="RecordIdentifiers.index" value="${index}"/>
+                        <span class="input-group-text">Source</span>
+                        <select id="recordInfoSourceSelect_${index}" class="form-select" name="RecordIdentifiers[${index}].Source">`
+                    let s2 = "";
+                    for(const source of recordInfoSources){
+                        s2 += `<option value="${source}"${ source === recordIdentifier.source ? " selected" : ""}>${source}</option>`
+                    }                
+                    let s3 = `</select>
+                        <span class="input-group-text">Value</span>
+                        <input id="recordInfoValue_${index}" type="text" class="form-control" 
+                            name="RecordIdentifiers[${index}].Value" value="${recordIdentifier.value}">
+                        <button id="recordInfoDelete_${index}" data-recordinfo-div="recordIdentifiers_${index}" 
+                            class="btn btn-outline-primary" type="button">Delete</button>
+                    </div>`;
+                    let e = document.createElement("div");
+                    e.innerHTML = s1 + s2 + s3;
+                    return e.firstChild;
                 }
             </script>
             <form class="single-submit" method="post" asp-page-handler="SetRightsAndAccess">
@@ -947,6 +1015,47 @@
                             <p id="nonEditableRightsStatement">(no rights statement)</p>
                         }
                     </div>
+                    <div class="mb-3">
+                        <label id="recordInfoLabel" for="recordInfoDynamicForm" class="form-label">Record Identifiers</label>
+                        @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        {
+                            <div id="recordInfoDynamicForm"></div>
+                            @* <div class="input-group mb-3" id="recordIdentifiers_0"> *@
+                            @*     <input type="hidden" name="RecordIdentifiers.index" value="0"/> *@
+                            @*     <span class="input-group-text">Source</span> *@
+                            @*     <select id="recordInfoSourceSelect_0" class="form-select" name="RecordIdentifiers[0].Source"></select> *@
+                            @*     <span class="input-group-text">Value</span> *@
+                            @*     <input id="recordInfoValue_0" type="text" class="form-control" name="RecordIdentifiers[0].Value"> *@
+                            @* </div> *@
+                            <button id="recordInfoAddAnother" class="btn btn-outline-primary" type="button">Add another</button>
+                            <script>
+                                let recordInfoAddAnother = document.getElementById("recordInfoAddAnother");
+                                recordInfoAddAnother.addEventListener("click", () => {
+                                    let highestIndex = -1;
+                                    const riDivs = document.getElementsByClassName("record-info-container");
+                                    for(let i = 0; i < riDivs.length; i++){
+                                        const riDiv = riDivs[i];
+                                        const riIndex = Number(riDiv.getAttribute("data-record-info-index"));
+                                        if(riIndex > highestIndex){
+                                            highestIndex = riIndex;
+                                        }
+                                    }
+                                    let riEl = createRecordIdentifierElement(highestIndex + 1, {"source": null, "value": ""});
+                                    document.getElementById("recordInfoDynamicForm").appendChild(riEl);
+                                    document.getElementById(`recordInfoDelete_${highestIndex + 1}`).addEventListener("click", (event) => {
+                                        let riDiv = event.target.closest("div");
+                                        riDiv.parentElement.removeChild(riDiv);
+                                    });
+                                });
+                            </script>
+                        }
+                        else
+                        {
+                            <ul id="nonEditableRecordInfo">
+                                <li>none</li>
+                            </ul>
+                        }
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <input type="hidden" id="modsContext" name="modsContext">
@@ -977,6 +1086,8 @@
         {
             WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         }))
+    
+    const recordInfoSources = [ "EMu", "Identity Service" ]; // TODO: from config
     
     const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
     const rows = document.getElementsByClassName("deposit-row");
@@ -1183,7 +1294,33 @@
                 clicked = true;
             }
         });
-    }    
+    }
+
+    const COMPACT_DELIMITER = "-|-";
+
+    // Matches "value(source)" — the source is always in the final set of parens
+    const RECORD_IDENTIFIER_RE = /^(.*)\(([^)]*)\)$/;
+
+    /**
+     * @@param {string} compactString
+     * @@param {string} [delimiter]
+     * @@returns {{ source: string, value: string }[] | null}
+     */
+    function recordInfoFromCompactString(compactString, delimiter = COMPACT_DELIMITER) {
+        if (!compactString || !compactString.trim()) {
+            return null;
+        }
+
+        const identifiers = [];
+        for (const part of compactString.split(delimiter)) {
+            const match = RECORD_IDENTIFIER_RE.exec(part);
+            if (match) {
+                identifiers.push({ value: match[1], source: match[2] });
+            }
+        }
+
+        return identifiers;
+    }
 
 
 </script>
