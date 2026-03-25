@@ -12,6 +12,9 @@ namespace XmlGen.Tests.Experimental.Creating;
 public class Liddle
 {
     private readonly MetsManager metsManager;
+    
+    private const string MetsFilePathBasic = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\liddle.basic.mets.xml";
+    private const string MetsFilePathExtended = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\liddle.extended.mets.xml";
 
     public Liddle()
     {
@@ -29,13 +32,22 @@ public class Liddle
         var metadataManager = new MetadataManager(premisManager, premisManagerExif, premisEventManager);
         metsManager = new MetsManager(parser1, storage, metadataManager);
     }
+    
+    [Fact]
+    public async Task Basic_Liddle_Mets()
+    {
+        var metsFi = new FileInfo(MetsFilePathBasic);
+        var metsUri = new Uri(metsFi.FullName);
+        var mets = await Basic_Liddle(metsUri);
+        await metsManager.WriteMets(mets);
+    }
 
     [Fact(Skip = "Experimental")]
-    public async Task Extended_Mets()
+    public async Task Extended_Liddle_Mets()
     {
-        var mets = await Basic_Liddle();
-
-        //await metsManager.WriteMets(mets);
+        var metsFi = new FileInfo(MetsFilePathExtended);
+        var metsUri = new Uri(metsFi.FullName);
+        var mets = await Basic_Liddle(metsUri);
 
         // The archivist doesn't assign any identifier to the root of the object
         // because it doesn't correspond to any particular archival record; it's neither a collection nor an item
@@ -204,12 +216,10 @@ public class Liddle
         await metsManager.WriteMets(mets);
     }
 
-    public async Task<FullMets> Basic_Liddle()
+    private async Task<FullMets> Basic_Liddle(Uri metsUri)
     {
         var name = "Liddle Tapes 1 and 2";
-        var metsFi = new FileInfo("C:\\git\\uol-dlip\\design\\complex-mets\\liddle.mets.xml");
-        var metsUri = new Uri(metsFi.FullName);
-        var result = await metsManager.CreateStandardMets(new Uri(metsFi.FullName), name);
+        var result = await metsManager.CreateStandardMets(metsUri, name);
 
         result.Success.Should().BeTrue();
         result.Value.Should().NotBeNull();

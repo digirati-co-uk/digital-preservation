@@ -13,7 +13,8 @@ public class ResponseBook
 {
     private readonly MetsManager metsManager;
 
-    private const string MetsFilePathBasic = "C:\\git\\uol-dlip\\design\\complex-mets\\response-book.basic.mets.xml";
+    private const string MetsFilePathBasic = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\response-book.basic.mets.xml";
+    private const string MetsFilePathExtended = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\response-book.extended.mets.xml";
 
     public ResponseBook()
     {
@@ -44,7 +45,7 @@ public class ResponseBook
     [Fact(Skip = "Experimental")]
     public async Task Extended_ResponseBook_Mets()
     {
-        var metsFi = new FileInfo(MetsFilePathBasic);
+        var metsFi = new FileInfo(MetsFilePathExtended);
         var metsUri = new Uri(metsFi.FullName);
         var mets = await Basic_Response_Book(metsUri);
 
