@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
@@ -40,7 +40,7 @@ public class MetsManager(
         ModsManager.SetModsForDiv(mets, physRoot, mods);
         return (file, mets);
     }
-    
+
 
     public async Task<Result> WriteMets(FullMets fullMets)
     {
@@ -56,7 +56,7 @@ public class MetsManager(
     {
         return await HandleSingleChange(workingRoot, depositETag, workingFile, null);
     }
-    
+
     public async Task<Result> HandleCreateFolder(Uri workingRoot, WorkingDirectory workingDirectory, string depositETag)
     {
         return await HandleSingleChange(workingRoot, depositETag, workingDirectory, null);
@@ -66,20 +66,20 @@ public class MetsManager(
     {
         return await HandleSingleChange(workingRoot, depositETag, null, localPath);
     }
-    
+
     private async Task<Result> HandleSingleChange(Uri workingRoot, string? depositETag, WorkingBase? workingBase, string? deletePath)
     {
         var result = await GetFullMets(workingRoot, depositETag);
         if (result.Success)
         {
             var fullMets = result.Value!;
-            
+
             var editMetsResult = EditMets(workingBase, deletePath, fullMets);
             if (editMetsResult.Success)
             {
                 await WriteMets(fullMets);
                 return Result.Ok();
-            } 
+            }
 
             return editMetsResult;
         }
@@ -98,161 +98,119 @@ public class MetsManager(
 
     private Result EditMets(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
     {
-        // Add workingBase to METS
-        // This is where our non-opaque phys structmap IDs come into play.
-        // This may not be a good idea. But without it, we need a more complex way of
-        // finding the METS parts, like the XDocument parsing in MetsParser.
-
         var localPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath)!;
         var (contextDiv, parent, foundDepth, totalDepth) = LocateMetsDivByLocalPath(fullMets, localPath);
 
-        // contextDiv might be the file itself, or a parent or grandparent directory.
-        // But for this atomic upload file handler we will not allow any Directory creation, that
-        // must have already happened in HandleCreateFolder
-        // i.e., we must already be at the last or penultimate member of elements
         if (foundDepth == totalDepth)
         {
             if (deletePath is not null)
-            {
-                // we have arrived at an existing file or folder which is being DELETED
-                if (workingBase is null)
-                {
-                    return DeleteDiv(contextDiv, fullMets, parent, localPath);
-                }
-                return Result.Fail(ErrorCodes.BadRequest, "Cannot supply a WorkingBase and a deletePath.");
-            }
-
-            // we have arrived at an existing file or folder which is being OVERWRITTEN
-            if (workingBase is not WorkingDirectory || contextDiv.Type == "Directory")
-            {
-                if (workingBase is not WorkingFile workingFile)
-                {
-                    if (workingBase is WorkingDirectory workingDirectory)
-                    {
-                        if (contextDiv.Type != "Directory")
-                            return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
-
-                        // Is there anything else that could be done here?
-                        if (workingDirectory.Name.HasText())
-                        {
-                            // and is it even done on hasText?
-                            contextDiv.Label = workingDirectory.Name;
-                        }
-                        
-                        // UPDATE an existing Directory
-                        PopulateDmdFromResource(fullMets, workingDirectory, contextDiv);
-                    }
-                    else
-                    {
-                        return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
-                    }
-                }
-                else
-                {
-                    if (contextDiv.Type != "Item")
-                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
-
-                    var (file, _) = SetFileAndFileGroup(contextDiv, fullMets);
-
-                    if (file.FLocat[0].Href != localPath)
-                        return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
-
-                    // UPDATE AN EXISTING FILE
-                    PopulateDmdFromResource(fullMets, workingFile, contextDiv);
-                    return metadataManager.ProcessAllFileMetadata(fullMets, contextDiv, workingFile, localPath);
-
-                }
-            }
-            else
-            {
-                return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
-            }
+                return DeleteDiv(contextDiv, fullMets, parent, localPath);
+            if (workingBase is WorkingFile workingFile)
+                return UpdateExistingFile(contextDiv, fullMets, workingFile, localPath);
+            if (workingBase is WorkingDirectory workingDirectory)
+                return UpdateExistingDirectory(fullMets, workingDirectory, contextDiv);
+            return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
         }
-        else if (foundDepth == totalDepth - 1)
+
+        if (foundDepth == totalDepth - 1)
         {
             if (deletePath is not null)
                 return Result.Fail(ErrorCodes.NotFound, "Can't find a file or folder to delete.");
-
-            // div is a directory
-            if (contextDiv.Type != "Directory")
+            if (contextDiv.Type != Constants.DirectoryType)
                 return Result.Fail(ErrorCodes.BadRequest, "Parent path is not a Directory");
-
-            if (workingBase is null)
-                return Result.Fail(ErrorCodes.BadRequest, "No working directory or working file supplied to add.");
-
-            var physId = Constants.PhysIdPrefix + localPath;
-            var admId = Constants.AdmIdPrefix + localPath;
-            var techId = Constants.TechIdPrefix + localPath;
-
-            if (workingBase is not WorkingFile workingFile)
-            {
-                if (workingBase is WorkingDirectory workingDirectory)
-                {
-                    // Add a new Directory Div 
-                    var childDirectoryDiv = new DivType
-                    {
-                        Type = Constants.DirectoryType,
-                        Label = workingDirectory.Name ?? localPath.GetSlug(),
-                        Id = physId,
-                        Admid = { admId }
-                    };
-                    contextDiv.Div.Add(childDirectoryDiv);
-                    var premisFile = new FileFormatMetadata
-                    {
-                        Source = Constants.Mets,
-                        OriginalName = localPath, // workingDirectory.LocalPath
-                        StorageLocation = null // storageLocation
-                    };
-                    fullMets.Mets.AmdSec.Add(metadataManager.GetAmdSecType(premisFile, admId, techId));
-                    PopulateDmdFromResource(fullMets, workingDirectory, childDirectoryDiv);
-                }
-                else
-                {
-                    return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
-                }
-            }
-            else
-            {
-                // Add a new File (Item) Div 
-                var fileId = Constants.FileIdPrefix + localPath;
-                var childItemDiv = new DivType
-                {
-                    Type = Constants.ItemType,
-                    Label = workingFile.Name ?? localPath.GetSlug(),
-                    Id = physId,
-                    Fptr = { new DivTypeFptr { Fileid = fileId } }
-                };
-                contextDiv.Div.Add(childItemDiv);
-
-                PopulateDmdFromResource(fullMets, workingFile, childItemDiv);
-                var metadataResult = metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, localPath, true);
-                if (metadataResult.Failure)
-                    return metadataResult;
-            }
-
-            // Now we need to ensure the child items are in alphanumeric order by name...
-            // how do we do that? We can't sort a Collection<T> in place, and we can't 
-            // create a new Collection and assign it to Div
-
-            var childList = new List<DivType>(contextDiv.Div);
-            contextDiv.Div.Clear();
-            // We will order case-insensitive; we want to match what a typical file explorer would do.
-            // What about the original ordering? For born digital, is there such a thing?
-            // How do we know what sort order the creator of the archive applied to their view?
-            // Later we can implement something that can set order.
-            foreach (var divType in childList.OrderBy(d => d.Label.ToLowerInvariant()))
-            {
-                contextDiv.Div.Add(divType);
-            }
-        }
-        else
-        {
-            var message = "Could not edit METS because not all parts of the path '" + localPath +
-                          "' have been added to METS.";
-            return Result.Fail(ErrorCodes.BadRequest, message);
+            if (workingBase is WorkingFile workingFile)
+                return AddNewFile(contextDiv, fullMets, workingFile, localPath);
+            if (workingBase is WorkingDirectory workingDirectory)
+                return AddNewDirectory(contextDiv, fullMets, workingDirectory, localPath);
+            return Result.Fail(ErrorCodes.BadRequest, "No working directory or working file supplied to add.");
         }
 
+        return Result.Fail(ErrorCodes.BadRequest,
+            $"Could not edit METS because not all parts of the path '{localPath}' have been added to METS.");
+    }
+
+    private Result UpdateExistingFile(DivType contextDiv, FullMets fullMets, WorkingFile workingFile, string localPath)
+    {
+        if (contextDiv.Type != Constants.ItemType)
+            return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
+
+        var (file, _) = SetFileAndFileGroup(contextDiv, fullMets);
+        if (file.FLocat[0].Href != localPath)
+            return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
+
+        PopulateDmdFromResource(fullMets, workingFile, contextDiv);
+        return metadataManager.ProcessAllFileMetadata(fullMets, contextDiv, workingFile, localPath);
+    }
+
+    private Result UpdateExistingDirectory(FullMets fullMets, WorkingDirectory workingDirectory, DivType contextDiv)
+    {
+        if (contextDiv.Type != Constants.DirectoryType)
+            return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
+
+        if (workingDirectory.Name.HasText())
+            contextDiv.Label = workingDirectory.Name;
+
+        PopulateDmdFromResource(fullMets, workingDirectory, contextDiv);
         return Result.Ok();
+    }
+
+    private Result AddNewFile(DivType parentDiv, FullMets fullMets, WorkingFile workingFile, string localPath)
+    {
+        var physId = Constants.PhysIdPrefix + localPath;
+        var fileId = Constants.FileIdPrefix + localPath;
+
+        var childItemDiv = new DivType
+        {
+            Type = Constants.ItemType,
+            Label = workingFile.Name ?? localPath.GetSlug(),
+            Id = physId,
+            Fptr = { new DivTypeFptr { Fileid = fileId } }
+        };
+        parentDiv.Div.Add(childItemDiv);
+
+        PopulateDmdFromResource(fullMets, workingFile, childItemDiv);
+        var metadataResult = metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, localPath, true);
+        if (metadataResult.Failure)
+            return metadataResult;
+
+        SortChildDivs(parentDiv);
+        return Result.Ok();
+    }
+
+    private Result AddNewDirectory(DivType parentDiv, FullMets fullMets, WorkingDirectory workingDirectory, string localPath)
+    {
+        var physId = Constants.PhysIdPrefix + localPath;
+        var admId = Constants.AdmIdPrefix + localPath;
+        var techId = Constants.TechIdPrefix + localPath;
+
+        var childDirectoryDiv = new DivType
+        {
+            Type = Constants.DirectoryType,
+            Label = workingDirectory.Name ?? localPath.GetSlug(),
+            Id = physId,
+            Admid = { admId }
+        };
+        parentDiv.Div.Add(childDirectoryDiv);
+
+        var premisFile = new FileFormatMetadata
+        {
+            Source = Constants.Mets,
+            OriginalName = localPath,
+            StorageLocation = null
+        };
+        fullMets.Mets.AmdSec.Add(metadataManager.GetAmdSecType(premisFile, admId, techId));
+        PopulateDmdFromResource(fullMets, workingDirectory, childDirectoryDiv);
+
+        SortChildDivs(parentDiv);
+        return Result.Ok();
+    }
+
+    private static void SortChildDivs(DivType div)
+    {
+        var childList = new List<DivType>(div.Div);
+        div.Div.Clear();
+        foreach (var child in childList.OrderBy(d => d.Label.ToLowerInvariant()))
+            div.Div.Add(child);
     }
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()
@@ -262,11 +220,11 @@ public class MetsManager(
             MetsHdr = new()
             {
                 Createdate = DateTime.Now,
-                Agent = { 
+                Agent = {
                     new MetsTypeMetsHdrAgent
                     {
-                        Role = MetsTypeMetsHdrAgentRole.Creator, 
-                        Type = MetsTypeMetsHdrAgentType.Other, 
+                        Role = MetsTypeMetsHdrAgentRole.Creator,
+                        Type = MetsTypeMetsHdrAgentType.Other,
                         Othertype = "SOFTWARE",
                         Name = Constants.MetsCreatorAgent
                     }
@@ -283,8 +241,8 @@ public class MetsManager(
                     new MetsTypeFileSecFileGrp { Use = "OBJECTS" }
                 }
             },
-            StructMap = 
-            { 
+            StructMap =
+            {
                 new StructMapType
                 {
                     Type = "PHYSICAL",
@@ -292,9 +250,9 @@ public class MetsManager(
                     {
                         Id = "PHYS_ROOT",
                         Label = WorkingDirectory.DefaultRootName,
-                        Type = Constants.DirectoryType,  
+                        Type = Constants.DirectoryType,
                         Dmdid = { Constants.DmdPhysRoot },
-                        Div = { 
+                        Div = {
                             new DivType
                             {
                                 Id = Constants.MetadataDivId,  // do this with premis:originalName metadata for directories?
@@ -302,7 +260,7 @@ public class MetsManager(
                                 Label = FolderNames.Metadata,
                                 Dmdid = { $"{Constants.DmdIdPrefix}{FolderNames.Metadata}" },
                                 Admid = { $"{Constants.AdmIdPrefix}{FolderNames.Metadata}" }
-                            }, 
+                            },
                             new DivType
                             {
                                 Id = Constants.ObjectsDivId,  // do this with premis:originalName metadata for directories?
@@ -330,11 +288,11 @@ public class MetsManager(
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };
-        
+
         return mets;
     }
-    
-    
+
+
     private static Result DeleteDiv(DivType div, FullMets fullMets, DivType? parent, string? operationPath)
     {
         if (div.Div.Count > 0)
@@ -364,7 +322,7 @@ public class MetsManager(
         // for both Files and Directories
         var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == admId);
         fullMets.Mets.AmdSec.Remove(amdSec);
-        
+
         if (div.Dmdid.Count != 0)
         {
             var dmdId = div.Dmdid.Count > 1 ? string.Join(" ", div.Dmdid) : div.Dmdid[0];
@@ -384,7 +342,7 @@ public class MetsManager(
         var file = fileGroup.File.Single(f => f.Id == fileId);
         return (file, fileGroup);
     }
-        
+
     private (DivType contextDiv, DivType? parent, int foundDepth, int totalDepth) LocateMetsDivByLocalPath(FullMets fullMets, string localPath)
     {
         var elements = localPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -500,12 +458,12 @@ public class MetsManager(
         var div = LocateMetsDivByDivId(mets, divId)!;
         SetRecordInfoForDiv(mets, div, recordInfo);
     }
-    
+
     private static void SetRecordInfoForDiv(FullMets mets, DivType div, RecordInfo recordInfo)
     {
         var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true);
         if (mods is null) return;
-        
+
         mods.SetRecordInfo(recordInfo);
         ModsManager.SetModsForDiv(mets.Mets, div, mods);
     }
@@ -515,7 +473,7 @@ public class MetsManager(
         var (div, _, _, _) = LocateMetsDivByLocalPath(mets, localPath);
         SetRightsStatementForDiv(mets, div, rightsStatement);
     }
-    
+
     public void SetRightsStatementByDivId(FullMets mets, string divId, Uri? rightsStatement)
     {
         var div = LocateMetsDivByDivId(mets, divId)!;
@@ -526,7 +484,7 @@ public class MetsManager(
     {
         var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true);
         if (mods is null) return;
-        
+
         mods.RemoveAccessConditions(Constants.UseAndReproduction);
         if (rightsStatement is not null)
         {
@@ -552,7 +510,7 @@ public class MetsManager(
     {
         var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true);
         if (mods is null) return;
-        
+
         mods.RemoveAccessConditions(Constants.RestrictionOnAccess);
         foreach (var accessRestriction in accessRestrictions)
         {
