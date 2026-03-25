@@ -85,6 +85,14 @@ public static class ModsManager
     }
     
     
+    public static void SetTitle(this ModsDefinition modsDefinition, string name, string? language = null)
+    {
+        modsDefinition.TitleInfo.Clear();
+        var titleInfo = new TitleInfoDefinition();
+        titleInfo.Title.Add(new StringPlusLanguage { Value = name, Lang = language });
+        modsDefinition.TitleInfo.Add(titleInfo);
+    }
+
     public static void SetRecordInfo(this ModsDefinition modsDefinition, RecordInfo recordInfo)
     {
         modsDefinition.RecordInfo.Clear();

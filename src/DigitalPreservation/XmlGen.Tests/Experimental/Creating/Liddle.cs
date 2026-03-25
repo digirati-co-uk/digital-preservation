@@ -42,7 +42,7 @@ public class Liddle
         await metsManager.WriteMets(mets);
     }
 
-    [Fact(Skip = "Experimental")]
+    [Fact]
     public async Task Extended_Liddle_Mets()
     {
         var metsFi = new FileInfo(MetsFilePathExtended);

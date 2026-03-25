@@ -521,26 +521,142 @@ public class MetsManager(
 
     public void SetStructMap(FullMets mets, LogicalRange logSm)
     {
-        throw new NotImplementedException();
+        var existing = mets.Mets.StructMap
+            .FirstOrDefault(sm => sm.Type == "LOGICAL" && sm.Div?.Id == logSm.Id);
+        if (existing != null)
+        {
+            RemoveLogicalStructMapDmdSecs(mets, existing.Div);
+            mets.Mets.StructMap.Remove(existing);
+        }
+
+        mets.Mets.StructMap.Add(new StructMapType
+        {
+            Type = "LOGICAL",
+            Div = BuildLogicalDiv(mets, logSm)
+        });
+    }
+
+    private DivType BuildLogicalDiv(FullMets mets, LogicalRange range)
+    {
+        var div = new DivType
+        {
+            Id = range.Id,
+            Type = range.Type,
+            Label = range.Name
+        };
+
+        if (range.Name != null || range.RecordInfo != null)
+        {
+            var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true)!;
+            mods.SetTitle(range.Name ?? string.Empty);
+            if (range.RecordInfo != null)
+                mods.SetRecordInfo(range.RecordInfo);
+            ModsManager.SetModsForDiv(mets.Mets, div, mods);
+        }
+
+        foreach (var fp in range.Files)
+            div.Fptr.Add(BuildFptr(fp));
+
+        foreach (var child in range.Ranges)
+            div.Div.Add(BuildLogicalDiv(mets, child));
+
+        return div;
+    }
+
+    private static DivTypeFptr BuildFptr(FilePointer fp)
+    {
+        var fileId = Constants.FileIdPrefix + fp.LocalPath;
+
+        if (fp.BeginTime.HasValue || fp.EndTime.HasValue)
+        {
+            return new DivTypeFptr
+            {
+                Area = new AreaType
+                {
+                    Fileid = fileId,
+                    Betype = AreaTypeBetype.Time,
+                    Begin = fp.BeginTime.HasValue ? MetsTimeCode.FromSeconds(fp.BeginTime.Value) : null,
+                    End = fp.EndTime.HasValue ? MetsTimeCode.FromSeconds(fp.EndTime.Value) : null
+                }
+            };
+        }
+
+        if (fp.Region != null)
+        {
+            return new DivTypeFptr
+            {
+                Area = new AreaType
+                {
+                    Fileid = fileId,
+                    Shape = AreaTypeShape.Rect,
+                    Coords = $"{fp.Region.X1},{fp.Region.Y1},{fp.Region.X2},{fp.Region.Y2}"
+                }
+            };
+        }
+
+        return new DivTypeFptr { Fileid = fileId };
+    }
+
+    private static void RemoveLogicalStructMapDmdSecs(FullMets mets, DivType div)
+    {
+        foreach (var dmdId in div.Dmdid)
+        {
+            var dmdSec = mets.Mets.DmdSec.FirstOrDefault(d => d.Id == dmdId);
+            if (dmdSec != null)
+                mets.Mets.DmdSec.Remove(dmdSec);
+        }
+        foreach (var child in div.Div)
+            RemoveLogicalStructMapDmdSecs(mets, child);
     }
 
     public void SetStructMapOrder(FullMets mets, string[] ids)
     {
-        throw new NotImplementedException();
+        var logicalMaps = mets.Mets.StructMap
+            .Where(sm => sm.Type == "LOGICAL")
+            .ToDictionary(sm => sm.Div.Id);
+
+        foreach (var map in logicalMaps.Values)
+            mets.Mets.StructMap.Remove(map);
+
+        foreach (var id in ids)
+        {
+            if (logicalMaps.TryGetValue(id, out var map))
+                mets.Mets.StructMap.Add(map);
+        }
     }
 
     public void RemoveStructMap(FullMets mets, string id)
     {
-        throw new NotImplementedException();
+        var existing = mets.Mets.StructMap
+            .FirstOrDefault(sm => sm.Type == "LOGICAL" && sm.Div?.Id == id);
+        if (existing == null) return;
+
+        RemoveLogicalStructMapDmdSecs(mets, existing.Div);
+        mets.Mets.StructMap.Remove(existing);
     }
 
     public void LinkFile(FullMets mets, string from, string to, Uri role)
     {
-        throw new NotImplementedException();
+        mets.Mets.StructLink ??= new MetsTypeStructLink();
+        mets.Mets.StructLink.SmLink.Add(new StructLinkTypeSmLink
+        {
+            From = Constants.FileIdPrefix + from,
+            To = Constants.FileIdPrefix + to,
+            Arcrole = role.ToString()
+        });
     }
 
     public void UnLinkFile(FullMets mets, string from, string to, Uri role)
     {
-        throw new NotImplementedException();
+        if (mets.Mets.StructLink == null) return;
+
+        var fromId = Constants.FileIdPrefix + from;
+        var toId = Constants.FileIdPrefix + to;
+        var arcrole = role.ToString();
+
+        var link = mets.Mets.StructLink.SmLink
+            .FirstOrDefault(sl => sl.From == fromId && sl.To == toId && sl.Arcrole == arcrole);
+        if (link != null)
+            mets.Mets.StructLink.SmLink.Remove(link);
     }
 }

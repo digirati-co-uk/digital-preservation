@@ -42,7 +42,7 @@ public class ResponseBook
         await metsManager.WriteMets(mets);
     }
 
-    [Fact(Skip = "Experimental")]
+    [Fact]
     public async Task Extended_ResponseBook_Mets()
     {
         var metsFi = new FileInfo(MetsFilePathExtended);

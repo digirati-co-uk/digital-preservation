@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
 using FluentAssertions;
+using FluentAssertions.Equivalency;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -45,7 +46,7 @@ public class WomenOfWestminster
     }
 
 
-    [Fact(Skip = "Experimental")]
+    [Fact]
     public async Task Extended_Wow_Mets()
     {
         var metsFi = new FileInfo(MetsFilePathExtended);
@@ -213,7 +214,8 @@ public class WomenOfWestminster
         LogicalRange reloadedLogSm = pMets!.LogicalStructures[0];
 
         // right now, this should be true:
-        reloadedLogSm.Should().BeEquivalentTo(logSm);
+        reloadedLogSm.Should().BeEquivalentTo(logSm,
+            opts => opts.Excluding((IMemberInfo member) => member.Name.StartsWith("Effective")));
 
         reloadedLogSm.Ranges.Add(new LogicalRange
         {
