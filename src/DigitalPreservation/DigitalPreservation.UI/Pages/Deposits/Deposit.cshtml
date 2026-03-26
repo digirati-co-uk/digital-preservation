@@ -204,68 +204,15 @@
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
             
-            @{
-                List<string> mismatchMessages = [];
-                List<string> exifMismatchMessages = [];
-            }
-
-            @foreach (var detailMismatch in Model.FileMisMatches)
+            @foreach (var item in Model.MismatchDisplayItems)
             {
-                foreach (var fileMismatch in detailMismatch.Item1)
+                @if (item.Differences != null)
                 {
-                    if (!(fileMismatch.MetadataType.ToLower() == "exifmetadata"))
-                    {
-                        switch (fileMismatch.Field.ToLower())
-                        {
-                            case "contenttype":
-                                mismatchMessages.Add($"Content type: Deposit [{fileMismatch.ValueInDeposit}], Mets [{fileMismatch.ValueInMets}]");
-                                break;
-                            case "pronomkey":
-                                mismatchMessages.Add("Pronom key");
-                                break;
-                            case "formatname":
-                                mismatchMessages.Add("Format name");
-                                break;
-                            case "digest":
-                                mismatchMessages.Add("Digest");
-                                break;
-                            case "hasvirus":
-                                mismatchMessages.Add("Has virus");
-                                break;
-                            case "virusfound":
-                                mismatchMessages.Add("Virus found");
-                                break;
-                            case "virusdefinition":
-                                mismatchMessages.Add("Virus definition");
-                                break;
-                            case "(missing section)":
-                                mismatchMessages.Add("Missing metadata section: " + (fileMismatch.ValueInDeposit ?? fileMismatch.ValueInMets ?? "not specified"));
-                                break;
-                            default:
-                                mismatchMessages.Add("undocumented difference");
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        exifMismatchMessages.Add(fileMismatch.Field);
-                    }
+                    <p>@item.FilePath (Differences: @item.Differences)</p>
                 }
-
-                if (mismatchMessages.Any())
+                @if (item.ExifDifferences != null)
                 {
-                    var differencesString = String.Join(", ", mismatchMessages.Select(x => x.ToString()).ToArray());
-                    <p>@detailMismatch.Item2 (Differences: @differencesString)</p>
-
-                    mismatchMessages.Clear();
-                }
-
-                if (exifMismatchMessages.Any())
-                {
-                    var differencesString = String.Join(", ", exifMismatchMessages.Select(x => x.ToString()).ToArray());
-                    <p>@detailMismatch.Item2 Exif Metadata: (Differences: @differencesString)</p>
-
-                    exifMismatchMessages.Clear();
+                    <p>@item.FilePath Exif Metadata: (Differences: @item.ExifDifferences)</p>
                 }
             }
             

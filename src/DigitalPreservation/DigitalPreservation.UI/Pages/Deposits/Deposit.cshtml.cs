@@ -37,8 +37,6 @@ public class DepositModel(
     public Deposit? Deposit { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
     
-    // NB there is no equivalent ImportJobResults at the Model level because we lazily load it
-    // Whereas for pipeline jobs we need to know if there are any up front.
     public List<ProcessPipelineResult> PipelineJobResults { get; set; } = [];
     public ProcessPipelineResult? RunningPipelineJob { get; set; }
 
@@ -49,6 +47,37 @@ public class DepositModel(
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
     public List<string> FilesWithViruses { get; set; } = [];
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
+
+    public record MismatchDisplay(string FilePath, string? Differences, string? ExifDifferences);
+
+    public IEnumerable<MismatchDisplay> MismatchDisplayItems => FileMisMatches.Select(m =>
+    {
+        var regular = m.Item1
+            .Where(f => !f.MetadataType.Equals("exifmetadata", StringComparison.OrdinalIgnoreCase))
+            .Select(DescribeField);
+        var exif = m.Item1
+            .Where(f => f.MetadataType.Equals("exifmetadata", StringComparison.OrdinalIgnoreCase))
+            .Select(f => f.Field);
+        var regularJoined = string.Join(", ", regular);
+        var exifJoined = string.Join(", ", exif);
+        return new MismatchDisplay(
+            m.Item2,
+            regularJoined.Length > 0 ? regularJoined : null,
+            exifJoined.Length > 0 ? exifJoined : null);
+    });
+
+    private static string DescribeField(CombinedFile.FileMisMatch m) => m.Field.ToLower() switch
+    {
+        "contenttype" => $"Content type: Deposit [{m.ValueInDeposit}], Mets [{m.ValueInMets}]",
+        "pronomkey" => "Pronom key",
+        "formatname" => "Format name",
+        "digest" => "Digest",
+        "hasvirus" => "Has virus",
+        "virusfound" => "Virus found",
+        "virusdefinition" => "Virus definition",
+        "(missing section)" => $"Missing metadata section: {m.ValueInDeposit ?? m.ValueInMets ?? "not specified"}",
+        _ => "undocumented difference"
+    };
     
     public bool IsLockedByOtherUser()
     {
