@@ -48,6 +48,18 @@ public class DepositModel(
 
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
     public List<string> FilesWithViruses { get; set; } = [];
+    public List<ImportJobResult> ImportJobResults { get; set; } = [];
+    
+    public bool IsLockedByOtherUser()
+    {
+        return Deposit?.LockedBy != null && Deposit.LockedBy.GetSlug() != User.GetCallerIdentity();
+    }
+
+    public bool CanBeWorkedOn()
+    {
+        if (IsLockedByOtherUser()) return false;
+        return Deposit is { Active: true } && Deposit.Status != DepositStates.Exporting;
+    }
 
     public async Task OnGet(
         [FromRoute] string id,
@@ -75,6 +87,7 @@ public class DepositModel(
                 }
             }
 
+            ImportJobResults = await GetImportJobResults();
             (PipelineJobResults, RunningPipelineJob) = await GetCleanedPipelineJobsRunning();
 
             if (Deposit.Status != DepositStates.Exporting)
