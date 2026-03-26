@@ -737,7 +737,7 @@ public class DepositModel(
         if (await BindDeposit(id))
         {
             var newId = $"LOG_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-            var stub = new LogicalRange { Id = newId, Type = "Collection", Name = "New logical structure" };
+            var stub = new LogicalRange { Id = newId, Type = "Collection", Name = "Logical" };
             var result = await WorkspaceManager.SetLogicalStructMap(stub);
             if (result.Success)
             {

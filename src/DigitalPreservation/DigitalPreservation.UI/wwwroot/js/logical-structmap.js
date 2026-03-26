@@ -3,6 +3,8 @@
 
 const logicalStructMapState = {};  // { [structmapId]: LogicalRange (deep clone) }
 
+let logicalStructMapDirty = false;
+
 let addFilesTargetStructmapId = null;
 let addFilesTargetRangeId = null;
 
@@ -24,13 +26,21 @@ document.addEventListener('DOMContentLoaded', () => {
     createEditRangeModal();
     wireModsModalIntercept();
 
-    // Wire save forms: populate hidden JSON input before submit
+    // Warn on navigation/refresh when there are unsaved changes
+    window.addEventListener('beforeunload', e => {
+        if (logicalStructMapDirty) {
+            e.preventDefault();
+        }
+    });
+
+    // Wire save forms: populate hidden JSON input before submit, clear dirty flag
     document.querySelectorAll('[id^="logicalStructMapJson_"]').forEach(input => {
         const structmapId = input.id.replace('logicalStructMapJson_', '');
         const form = input.closest('form');
         if (form) {
             form.addEventListener('submit', () => {
                 input.value = JSON.stringify(logicalStructMapState[structmapId]);
+                logicalStructMapDirty = false;
             });
         }
     });
@@ -45,124 +55,130 @@ function renderLogicalStructMap(structmapId) {
     if (!container) return;
     const lsm = logicalStructMapState[structmapId];
     container.innerHTML = '';
-    if (lsm) container.appendChild(renderRange(lsm, structmapId, true));
+    if (!lsm) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('table-responsive', 'small');
+    const table = document.createElement('table');
+    table.classList.add('table', 'table-hover', 'table-striped', 'table-sm', 'deposit-table');
+    const tbody = document.createElement('tbody');
+    renderRangeRows(lsm, structmapId, tbody, 1, true);
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+    container.appendChild(wrapper);
 }
 
-function renderRange(range, structmapId, isRoot) {
-    const div = document.createElement('div');
-    div.classList.add('logical-range', 'border', 'rounded', 'p-2', 'mb-2', 'bg-body-tertiary');
-    div.setAttribute('data-range-id', range.id);
+function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
+    // --- Range row ---
+    const tr = document.createElement('tr');
 
-    // Header: type badge | name | action buttons
-    const header = document.createElement('div');
-    header.classList.add('d-flex', 'align-items-center', 'gap-2', 'flex-wrap');
-
-    const typeBadge = document.createElement('span');
-    typeBadge.classList.add('badge', 'bg-secondary', 'text-white');
-    typeBadge.textContent = range.type || '(no type)';
-    header.appendChild(typeBadge);
-
-    const nameSpan = document.createElement('span');
-    nameSpan.classList.add('fw-semibold', 'flex-grow-1');
-    nameSpan.textContent = range.name || range.id;
-    header.appendChild(nameSpan);
-
-    const actions = document.createElement('div');
-    actions.classList.add('btn-group', 'btn-group-sm');
-
-    actions.appendChild(makeBtn('+ Range', ['btn-outline-primary'],
+    const actionsTd = document.createElement('td');
+    actionsTd.classList.add('dep-actions');
+    const actionsDiv = document.createElement('div');
+    actionsDiv.classList.add('d-flex', 'gap-1', 'align-items-center');
+    actionsDiv.appendChild(makeActionLink('folder-plus', 'Add child range',
         () => addChildRange(structmapId, range.id)));
-    actions.appendChild(makeBtn('+ Files', ['btn-outline-success'],
+    actionsDiv.appendChild(makeActionLink('file-earmark-plus', 'Add files',
         () => openFilePickerModal(structmapId, range.id)));
-    actions.appendChild(makeBtn('Metadata', ['btn-outline-info'],
+    actionsDiv.appendChild(makeActionLink('info-square', 'Metadata',
         () => openModsModalForRange(structmapId, range.id)));
-    actions.appendChild(makeBtn('Edit', ['btn-outline-secondary'],
+    actionsDiv.appendChild(makeActionLink('pencil', 'Edit name and type',
         () => openEditRangeModal(range.name ?? '', range.type ?? 'Item', ({ name, type }) => {
             range.name = name || null;
             range.type = type;
             renderLogicalStructMap(structmapId);
         })));
-
     if (!isRoot) {
-        actions.appendChild(makeBtn('↑', ['btn-outline-secondary'],
+        actionsDiv.appendChild(makeActionLink('arrow-up', 'Move up',
             () => moveRange(structmapId, range.id, -1)));
-        actions.appendChild(makeBtn('↓', ['btn-outline-secondary'],
+        actionsDiv.appendChild(makeActionLink('arrow-down', 'Move down',
             () => moveRange(structmapId, range.id, 1)));
-        actions.appendChild(makeBtn('×', ['btn-outline-danger'],
-            () => removeRange(structmapId, range.id)));
+    }
+    actionsTd.appendChild(actionsDiv);
+    tr.appendChild(actionsTd);
+
+    const nameTd = document.createElement('td');
+    nameTd.style.paddingLeft = `${1.3 * depth}rem`;
+    nameTd.innerHTML = `<svg class="bi"><use xlink:href="#folder"/></svg> `;
+    const typeBadge = document.createElement('span');
+    typeBadge.classList.add('badge', 'bg-secondary', 'me-1');
+    typeBadge.textContent = range.type || '(no type)';
+    nameTd.appendChild(typeBadge);
+    const nameSpan = document.createElement('strong');
+    nameSpan.textContent = range.name || range.id;
+    nameTd.appendChild(nameSpan);
+    const metaText = buildMetadataSummaryText(range);
+    if (metaText) {
+        const metaSpan = document.createElement('span');
+        metaSpan.classList.add('text-body-secondary', 'ms-2');
+        metaSpan.textContent = metaText;
+        nameTd.appendChild(metaSpan);
+    }
+    tr.appendChild(nameTd);
+
+    const deleteTd = document.createElement('td');
+    deleteTd.style.width = '1%';
+    deleteTd.style.textAlign = 'right';
+    if (!isRoot) {
+        deleteTd.appendChild(makeActionLink('trash', 'Delete range',
+            () => removeRange(structmapId, range.id), 'link-danger'));
+    }
+    tr.appendChild(deleteTd);
+    tbody.appendChild(tr);
+
+    // --- File pointer rows ---
+    for (const fp of range.files) {
+        const fileTr = document.createElement('tr');
+
+        const fileActionsTd = document.createElement('td');
+        fileActionsTd.classList.add('dep-actions');
+        fileTr.appendChild(fileActionsTd);
+
+        const fileNameTd = document.createElement('td');
+        fileNameTd.style.paddingLeft = `${1.3 * (depth + 1)}rem`;
+        fileNameTd.innerHTML = `<svg class="bi"><use xlink:href="#file-earmark"/></svg> `;
+        fileNameTd.appendChild(document.createTextNode(fp.localPath));
+        fileTr.appendChild(fileNameTd);
+
+        const fileDeleteTd = document.createElement('td');
+        fileDeleteTd.style.width = '1%';
+        fileDeleteTd.style.textAlign = 'right';
+        fileDeleteTd.appendChild(makeActionLink('trash', 'Remove from range',
+            () => removeFileFromRange(structmapId, range.id, fp.localPath), 'link-danger'));
+        fileTr.appendChild(fileDeleteTd);
+
+        tbody.appendChild(fileTr);
     }
 
-    header.appendChild(actions);
-    div.appendChild(header);
-
-    // Metadata summary
-    const metaSummary = buildMetadataSummary(range);
-    if (metaSummary) div.appendChild(metaSummary);
-
-    // Files list
-    if (range.files && range.files.length > 0) {
-        const filesList = document.createElement('ul');
-        filesList.classList.add('list-unstyled', 'ms-2', 'mt-1', 'mb-0');
-        for (const fp of range.files) {
-            const li = document.createElement('li');
-            li.classList.add('d-flex', 'align-items-center', 'gap-1', 'small', 'text-body-secondary');
-            const removeBtn = makeBtn('×', ['btn-outline-danger', 'btn-sm', 'py-0', 'px-1'],
-                () => removeFileFromRange(structmapId, range.id, fp.localPath));
-            const pathSpan = document.createElement('span');
-            pathSpan.textContent = fp.localPath;
-            li.appendChild(removeBtn);
-            li.appendChild(pathSpan);
-            filesList.appendChild(li);
-        }
-        div.appendChild(filesList);
+    // --- Child ranges (recursive) ---
+    for (const child of range.ranges) {
+        renderRangeRows(child, structmapId, tbody, depth + 1, false);
     }
-
-    // Child ranges
-    if (range.ranges && range.ranges.length > 0) {
-        const childrenDiv = document.createElement('div');
-        childrenDiv.classList.add('ms-3', 'mt-2');
-        for (const child of range.ranges) {
-            childrenDiv.appendChild(renderRange(child, structmapId, false));
-        }
-        div.appendChild(childrenDiv);
-    }
-
-    return div;
 }
 
-function buildMetadataSummary(range) {
+function makeActionLink(icon, title, onClick, linkClass = 'link-primary') {
+    const a = document.createElement('a');
+    a.classList.add(linkClass);
+    a.setAttribute('role', 'button');
+    a.setAttribute('title', title);
+    a.innerHTML = `<svg class="bi"><use xlink:href="#${icon}"/></svg>`;
+    a.addEventListener('click', e => { e.preventDefault(); onClick(); });
+    return a;
+}
+
+function buildMetadataSummaryText(range) {
     const parts = [];
-
-    if (range.accessRestrictions && range.accessRestrictions.length > 0) {
-        parts.push('Access: ' + range.accessRestrictions.join(', '));
-    }
+    if (range.accessRestrictions?.length > 0)
+        parts.push(range.accessRestrictions.join(', '));
     if (range.rightsStatement) {
-        const shortLabel = getRightsShortLabel(range.rightsStatement);
-        parts.push('Rights: ' + (shortLabel || range.rightsStatement));
+        const label = getRightsShortLabel(range.rightsStatement);
+        if (label) parts.push(label);
     }
-    if (range.recordInfo && range.recordInfo.recordIdentifiers && range.recordInfo.recordIdentifiers.length > 0) {
+    if (range.recordInfo?.recordIdentifiers?.length > 0) {
         const ri = range.recordInfo.recordIdentifiers;
-        const display = ri.length === 1
-            ? `${ri[0].value} (${ri[0].source})`
-            : `${ri.length} identifiers`;
-        parts.push('ID: ' + display);
+        parts.push(ri.length === 1 ? `${ri[0].value} (${ri[0].source})` : `${ri.length} IDs`);
     }
-
-    if (!parts.length) return null;
-
-    const summary = document.createElement('div');
-    summary.classList.add('small', 'text-body-secondary', 'mt-1');
-    summary.textContent = parts.join(' · ');
-    return summary;
-}
-
-function makeBtn(text, extraClasses, onClick) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.classList.add('btn', ...extraClasses);
-    btn.textContent = text;
-    btn.addEventListener('click', onClick);
-    return btn;
+    return parts.length ? parts.join(' · ') : null;
 }
 
 // ----------------------------------------------------------------
@@ -198,6 +214,10 @@ function findStructmapIdForRange(rangeId) {
 // Operations
 // ----------------------------------------------------------------
 
+function markDirty() {
+    logicalStructMapDirty = true;
+}
+
 function addChildRange(structmapId, parentId) {
     const root = logicalStructMapState[structmapId];
     const parent = findRange(root, parentId);
@@ -211,6 +231,7 @@ function addChildRange(structmapId, parentId) {
             files: [],
             effectiveAccessRestrictions: []
         });
+        markDirty();
         renderLogicalStructMap(structmapId);
     });
 }
@@ -221,9 +242,9 @@ function removeRange(structmapId, id) {
     if (!result) return;
     if (!confirm('Remove this range and all its children?')) return;
     result.parent.ranges.splice(result.index, 1);
+    markDirty();
     renderLogicalStructMap(structmapId);
 }
-
 
 function moveRange(structmapId, id, direction) {
     const root = logicalStructMapState[structmapId];
@@ -234,6 +255,7 @@ function moveRange(structmapId, id, direction) {
     if (newIndex < 0 || newIndex >= parent.ranges.length) return;
     const [item] = parent.ranges.splice(index, 1);
     parent.ranges.splice(newIndex, 0, item);
+    markDirty();
     renderLogicalStructMap(structmapId);
 }
 
@@ -246,6 +268,7 @@ function addFilesToRange(structmapId, rangeId, localPaths) {
             range.files.push({ localPath: lp });
         }
     }
+    markDirty();
     renderLogicalStructMap(structmapId);
 }
 
@@ -254,6 +277,7 @@ function removeFileFromRange(structmapId, rangeId, localPath) {
     const range = findRange(root, rangeId);
     if (!range) return;
     range.files = range.files.filter(f => f.localPath !== localPath);
+    markDirty();
     renderLogicalStructMap(structmapId);
 }
 
@@ -266,6 +290,7 @@ function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatem
     range.recordInfo = recordIdentifiers.length > 0
         ? { recordIdentifiers }
         : null;
+    markDirty();
     renderLogicalStructMap(structmapId);
 }
 
@@ -458,7 +483,11 @@ function createFilePickerModal() {
                 </div>
                 <div class="modal-body">
                     <input type="text" id="filePickerSearch" class="form-control mb-2" placeholder="Filter files...">
-                    <div id="filePickerList" style="max-height:400px;overflow-y:auto;"></div>
+                    <div class="form-check border-bottom pb-2 mb-1">
+                        <input type="checkbox" class="form-check-input" id="filePickerSelectAll">
+                        <label class="form-check-label small fw-semibold" for="filePickerSelectAll">Select all filtered</label>
+                    </div>
+                    <div id="filePickerList" style="max-height:50vh;overflow-y:auto;"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -470,6 +499,20 @@ function createFilePickerModal() {
 
     document.getElementById('filePickerSearch').addEventListener('input', e => {
         filterFilePickerList(e.target.value);
+        updateFilePickerSelectAll();
+    });
+
+    document.getElementById('filePickerSelectAll').addEventListener('change', e => {
+        const checked = e.target.checked;
+        document.querySelectorAll('#filePickerList .file-picker-item').forEach(item => {
+            if (item.style.display === 'none') return;
+            const cb = item.querySelector('input[type=checkbox]');
+            if (cb) cb.checked = checked;
+        });
+    });
+
+    document.getElementById('filePickerList').addEventListener('change', () => {
+        updateFilePickerSelectAll();
     });
 
     document.getElementById('addFilesConfirmBtn').addEventListener('click', () => {
@@ -490,6 +533,23 @@ function filterFilePickerList(filter) {
     });
 }
 
+function updateFilePickerSelectAll() {
+    const selectAll = document.getElementById('filePickerSelectAll');
+    if (!selectAll) return;
+    const visible = Array.from(document.querySelectorAll('#filePickerList .file-picker-item'))
+        .filter(item => item.style.display !== 'none')
+        .map(item => item.querySelector('input[type=checkbox]'))
+        .filter(Boolean);
+    if (visible.length === 0) {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+    } else {
+        const checkedCount = visible.filter(cb => cb.checked).length;
+        selectAll.indeterminate = checkedCount > 0 && checkedCount < visible.length;
+        selectAll.checked = checkedCount === visible.length;
+    }
+}
+
 function openFilePickerModal(structmapId, rangeId) {
     addFilesTargetStructmapId = structmapId;
     addFilesTargetRangeId = rangeId;
@@ -497,6 +557,8 @@ function openFilePickerModal(structmapId, rangeId) {
     const list = document.getElementById('filePickerList');
     list.innerHTML = '';
     document.getElementById('filePickerSearch').value = '';
+    const selectAll = document.getElementById('filePickerSelectAll');
+    if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
 
     const files = (typeof physicalFilePaths !== 'undefined' ? physicalFilePaths : []).filter(Boolean);
     const root = logicalStructMapState[structmapId];
