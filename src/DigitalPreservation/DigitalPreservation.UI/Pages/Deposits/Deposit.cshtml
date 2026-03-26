@@ -107,6 +107,15 @@
                                 <svg class="bi"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
                             </button>
                         </li>
+                        @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        {
+                            <li>
+                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="CreateLogicalStructMap">
+                                    <svg class="bi"><use xlink:href="#diagram-3"/></svg>
+                                    <span class="ms-2">Create logical structure</span>
+                                </button>
+                            </li>
+                        }
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <button @(jobRunning ? " disabled=disabled" : "") class="dropdown-item @(jobRunning ? "text-secondary" : "text-primary")" type="button" id="selectNonMets">
@@ -283,92 +292,56 @@
                     </fieldset>
                 </form>
                 
-                @if (Model.Deposit.Status != DepositStates.Exporting)
-                {                
-                    if (Model.RootCombinedDirectory != null)
-                    {
-                        <div class="table-responsive small">
-                            <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
-                                <thead>
-                                <tr>
-                                    <th scope="col"></th>
-                                    <th scope="col" class="dep-actions"></th>
-                                    <th scope="col">Name (and path)</th>
-                                    <th scope="col">Hash</th>
-                                    <th scope="col">Size</th>
-                                    <th scope="col">Type</th>
-                                    <th scope="col">Pronom</th>
-                                    <th scope="col">Virus</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                @if (Model.WorkspaceManager.IsBagItLayout)
-                                {
-                                    <tr>
-                                        <td colspan="8">
-                                            <svg class="bi"><use xlink:href="#bag-heart"/></svg>
-                                            <em>This Deposit uses BagIt layout on disk/S3.</em>
-                                        </td>
-                                    </tr>
-                                }
-                                @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(Model.RootCombinedDirectory,
-                                        Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
-                                        Model.Deposit.Active, Model.IsLockedByOtherUser(), 
-                                        new Counter());
-                                    @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
-                                }
-                                </tbody>
-                            </table>
-                        </div>
-                        <p><small>
-                            @{
-                                var totals = Model.RootCombinedDirectory.GetSizeTotals();
-                            }
-                            @totals.TotalFileCount <text> files in </text> @totals.TotalDirectoryCount <text> directories.</text><br/>
-                            @StringUtils.FormatFileSize(totals.TotalSizeInDeposit, withSpace: true, fallbackIfNull: " - ") <text> in Deposit, </text>
-                            @StringUtils.FormatFileSize(totals.TotalSizeInMets, withSpace: true, fallbackIfNull: " - ") <text> in METS, </text>
-                            @StringUtils.FormatFileSize(totals.TotalSize, withSpace: true, fallbackIfNull: " - ") <text> Overall. </text><br/>
-                            Deposit structure built @(Model.RootCombinedDirectory.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
-                       
-                            @{
-                                if (Request.Query["showCalculation"] == "true")
-                                {
-                                    <br/><span>----</span>
-                                    foreach (var msg in totals.Messages)
-                                    {
-                                        <br/>@msg
-                                    }
-                                }
-                            
-                            } 
-                        </small></p>
-                        if (totals.Discrepancies.Count > 0)
+                @{
+                    var hasLogical = Model.LogicalStructMaps.Any();
+                }
+                @if (hasLogical)
+                {
+                    <ul class="nav nav-tabs mb-2" id="structMapTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="physicalTab-tab" data-bs-toggle="tab" data-bs-target="#physicalTab" type="button" role="tab">
+                                <svg class="bi"><use xlink:href="#hdd"/></svg><span class="ms-1">Physical</span>
+                            </button>
+                        </li>
+                        @foreach (var lsm in Model.LogicalStructMaps)
                         {
-                            <div class="alert alert-danger" role="alert">
-                                <p>Discrepancies in file sizes</p>
-                                <ul>
-                                    @foreach (var discrepancy in totals.Discrepancies)
-                                    {
-                                        <li>@discrepancy.Key : Deposit=@discrepancy.Value.Item1, METS=@discrepancy.Value.Item2</li>
-                                    }
-                                </ul>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="logicalTab_@(lsm.Id)-tab" data-bs-toggle="tab" data-bs-target="#logicalTab_@lsm.Id" type="button" role="tab">
+                                    <svg class="bi"><use xlink:href="#diagram-3"/></svg><span class="ms-1">@(lsm.Name ?? lsm.Id)</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="physicalTab" role="tabpanel">
+                            @await Html.PartialAsync("_DepositPhysicalFiles", Model)
+                        </div>
+                        @foreach (var lsm in Model.LogicalStructMaps)
+                        {
+                            <div class="tab-pane fade" id="logicalTab_@lsm.Id" role="tabpanel">
+                                <div id="logicalEditor_@lsm.Id" data-structmap-id="@lsm.Id"></div>
+                                <div class="mt-2">
+                                    <form method="post" asp-page-handler="SaveLogicalStructMap">
+                                        <input type="hidden" name="structMapId" value="@lsm.Id">
+                                        <input type="hidden" name="logicalStructMapJson" id="logicalStructMapJson_@lsm.Id">
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Save</span>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger ms-2"
+                                                data-bs-toggle="modal" data-bs-target="#deleteLogicalModal_@lsm.Id">
+                                            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         }
-                    }
-                    else
-                    {
-                        <p>No files have been uploaded yet.</p>
-                    }
-                }
-                @if (Model.Deposit.Status == DepositStates.Exporting)
-                {
-                    <div class="alert alert-danger" role="alert">
-                        <p>The server is currently exporting files into this Deposit.</p>
                     </div>
                 }
+                else
+                {
+                    @await Html.PartialAsync("_DepositPhysicalFiles", Model)
+                }
 
-                
                 <hr/>
                 
                 
@@ -857,6 +830,38 @@
     </div>
 </div>
 
+@* ------------------- DELETE LOGICAL STRUCTMAP MODALS *@
+
+@foreach (var lsm in Model.LogicalStructMaps)
+{
+    <div class="modal fade" id="deleteLogicalModal_@lsm.Id" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form class="single-submit" method="post" asp-page-handler="DeleteLogicalStructMap">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5">
+                            <svg class="bi"><use xlink:href="#trash"/></svg>
+                            <span class="ms-2">Delete logical structure</span>
+                        </h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Delete the logical structure <strong>@(lsm.Name ?? lsm.Id)</strong>?</p>
+                        <p class="text-secondary small">This does not affect the physical files or METS physical structure.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <input type="hidden" name="structMapId" value="@lsm.Id">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">
+                            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
 @* END MODALS *@
 
 
@@ -866,8 +871,19 @@
         const rightsStatements = @Html.Raw(JsonSerializer.Serialize(RightsStatement.ByShortLabel,
         new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
         const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
+        const logicalStructMapsData = @Html.Raw(Model.LogicalStructMapsJson);
+        const physicalFilePaths = @Html.Raw(Model.PhysicalFilePathsJson);
     </script>
     <script src="~/js/deposit.js" asp-append-version="true"></script>
+    <script src="~/js/logical-structmap.js" asp-append-version="true"></script>
+    @if (TempData["ActiveTab"] != null)
+    {
+        <script>
+            const activeTabId = '@TempData["ActiveTab"]';
+            const tabEl = document.getElementById('logicalTab_' + activeTabId + '-tab');
+            if (tabEl) { bootstrap.Tab.getOrCreateInstance(tabEl).show(); }
+        </script>
+    }
 }
 
 @if (TempData["Context"] != null)

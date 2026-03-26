@@ -47,6 +47,17 @@ public class DepositModel(
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
     public List<string> FilesWithViruses { get; set; } = [];
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
+    public List<LogicalRange> LogicalStructMaps { get; set; } = [];
+
+    public string LogicalStructMapsJson => JsonSerializer.Serialize(
+        LogicalStructMaps,
+        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+    public string PhysicalFilePathsJson => JsonSerializer.Serialize(
+        RootCombinedDirectory?.Flatten().Item2
+            .Where(f => f.LocalPath != null && f.LocalPath.StartsWith("objects/"))
+            .Select(f => f.LocalPath)
+        ?? []);
 
     public record MismatchDisplay(string FilePath, string? Differences, string? ExifDifferences);
 
@@ -118,6 +129,7 @@ public class DepositModel(
 
             ImportJobResults = await GetImportJobResults();
             (PipelineJobResults, RunningPipelineJob) = await GetCleanedPipelineJobsRunning();
+            LogicalStructMaps = WorkspaceManager.LogicalStructures;
 
             if (Deposit.Status != DepositStates.Exporting)
             {
@@ -717,6 +729,83 @@ public class DepositModel(
             }
         }
 
+        return Redirect($"/deposits/{id}");
+    }
+
+    public async Task<IActionResult> OnPostCreateLogicalStructMap([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var newId = $"LOG_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            var stub = new LogicalRange { Id = newId, Type = "Collection", Name = "New logical structure" };
+            var result = await WorkspaceManager.SetLogicalStructMap(stub);
+            if (result.Success)
+            {
+                TempData["ActiveTab"] = newId;
+                TempData["Updated"] = "Logical structure created.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
+        }
+        return Redirect($"/deposits/{id}");
+    }
+
+    public async Task<IActionResult> OnPostSaveLogicalStructMap(
+        [FromRoute] string id,
+        [FromForm] string logicalStructMapJson)
+    {
+        if (await BindDeposit(id))
+        {
+            LogicalRange? logicalRange;
+            try
+            {
+                logicalRange = JsonSerializer.Deserialize<LogicalRange>(logicalStructMapJson,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (JsonException ex)
+            {
+                TempData["Error"] = "Could not parse logical structure: " + ex.Message;
+                return Redirect($"/deposits/{id}");
+            }
+
+            if (logicalRange == null)
+            {
+                TempData["Error"] = "Logical structure was empty.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            var result = await WorkspaceManager.SetLogicalStructMap(logicalRange);
+            if (result.Success)
+            {
+                TempData["ActiveTab"] = logicalRange.Id;
+                TempData["Updated"] = "Logical structure saved.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
+        }
+        return Redirect($"/deposits/{id}");
+    }
+
+    public async Task<IActionResult> OnPostDeleteLogicalStructMap(
+        [FromRoute] string id,
+        [FromForm] string structMapId)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await WorkspaceManager.RemoveLogicalStructMap(structMapId);
+            if (result.Success)
+            {
+                TempData["Updated"] = "Logical structure deleted.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage;
+            }
+        }
         return Redirect($"/deposits/{id}");
     }
 }

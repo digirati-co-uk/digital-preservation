@@ -545,7 +545,9 @@ public class MetsManager(
             Label = range.Name
         };
 
-        if (range.Name != null || range.RecordInfo != null)
+        bool needsMods = range.Name != null || range.RecordInfo != null
+            || range.AccessRestrictions is { Count: > 0 } || range.RightsStatement != null;
+        if (needsMods)
         {
             var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true)!;
             mods.SetTitle(range.Name ?? string.Empty);
@@ -553,6 +555,12 @@ public class MetsManager(
                 mods.SetRecordInfo(range.RecordInfo);
             ModsManager.SetModsForDiv(mets.Mets, div, mods);
         }
+
+        if (range.AccessRestrictions is { Count: > 0 })
+            SetAccessRestrictionsForDiv(mets, div, range.AccessRestrictions);
+
+        if (range.RightsStatement != null)
+            SetRightsStatementForDiv(mets, div, range.RightsStatement);
 
         foreach (var fp in range.Files)
             div.Fptr.Add(BuildFptr(fp));
