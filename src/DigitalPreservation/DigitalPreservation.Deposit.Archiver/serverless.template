@@ -1,4 +1,4 @@
-﻿{
+{
   "AWSTemplateFormatVersion": "2010-09-09",
   "Transform": "AWS::Serverless-2016-10-31",
   "Description": "An AWS Serverless Application. This template is partially managed by Amazon.Lambda.Annotations (v1.8.0.0).",
@@ -37,7 +37,7 @@
         "ImageUri": ".",
         "ImageConfig": {
           "Command": [
-            "DigitalPreservation.Deposit.Archiver::DigitalPreservation.Deposit.Archiver.Functions::Get"
+            "DigitalPreservation.Deposit.Archiver::DigitalPreservation.Deposit.Archiver.Functions_Get_Generated::Get"
           ]
         },
         "Events": {
