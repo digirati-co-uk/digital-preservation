@@ -167,16 +167,16 @@ jobs:
           role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}
 
     deploy-deposit-archiver-builder:
-    if: (inputs.deploy_dotnet == 'true')
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.target_env }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/ecr-retag
-        name: retag image
-        with:
-          source-image: ${{ vars.ECR_PREFIX }}/dlip-pres-deposit-archiver
-          source-tag: ${{ inputs.image_tag }}
-          target-tag: ${{ inputs.target_env }}
-          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
-  #TODO: bump lambda    
+      if: (inputs.deploy_dotnet == 'true')
+      runs-on: ubuntu-latest
+      environment: ${{ inputs.target_env }}
+      steps:
+        - uses: actions/checkout@v4
+        - uses: ./.github/actions/ecr-retag
+          name: retag image
+          with:
+            source-image: ${{ vars.ECR_PREFIX }}/dlip-pres-deposit-archiver
+            source-tag: ${{ inputs.image_tag }}
+            target-tag: ${{ inputs.target_env }}
+            iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+    #TODO: bump lambda    
