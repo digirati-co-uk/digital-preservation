@@ -26,4 +26,4 @@ WORKDIR /var/task
 COPY --from=publish /app/publish .
 
 # Set the entry point to the function handler
-ENTRYPOINT ["/lambda-entrypoint.sh","DotnetFunction::DotnetFunction.Function::FunctionHandler"]
+CMD ["DotnetFunction::DotnetFunction.Function::FunctionHandler"]
