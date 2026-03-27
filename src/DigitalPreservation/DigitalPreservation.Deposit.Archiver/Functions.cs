@@ -60,9 +60,10 @@ public class Functions
     ///// </remarks>
     ///// <param name="context">Information about the invocation, function, and execution environment</param>
     ///// <returns>The response as an implicit <see cref="APIGatewayProxyResponse"/></returns>
-    ///     //[RestApi(LambdaHttpMethod.Get, "/")]
-    //[LambdaFunction(PackageType = LambdaPackageType.Image)]
-    public async Task<IHttpResult> FunctionHandler(ILambdaContext context)
+    ///     //
+    [LambdaFunction(PackageType = LambdaPackageType.Image)]
+    [RestApi(LambdaHttpMethod.Get, "/")]
+    public async Task<IHttpResult> Get(ILambdaContext context)
     {
         var lastModifiedBefore = -Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
         var query = new DepositQuery
