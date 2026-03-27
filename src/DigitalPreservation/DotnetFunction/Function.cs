@@ -122,7 +122,7 @@ public class Function
     /// <param name="input"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    //[LambdaFunction(PackageType = LambdaPackageType.Image)]
+    [LambdaFunction(PackageType = LambdaPackageType.Image)]
     public async Task<Dictionary<string, dynamic>> FunctionHandler(ILambdaContext context)
     {
         //var t = serviceCollection
