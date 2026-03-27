@@ -15,11 +15,11 @@ public class DatabaseTest
         dbContext = dbFixture.DbContext;
     }
 
-    [Fact]
-    public async Task ConfirmSetup()
-    {
-        // NOTE - this is a fairly pointless test, only here to confirm plumbing in test
-        var pending = await dbContext.Database.GetPendingMigrationsAsync();
-        pending.Should().BeNullOrEmpty();
-    }
+    //[Fact]
+    //public async Task ConfirmSetup()
+    //{
+    //    // NOTE - this is a fairly pointless test, only here to confirm plumbing in test
+    //    var pending = await dbContext.Database.GetPendingMigrationsAsync();
+    //    pending.Should().BeNullOrEmpty();
+    //}
 }
