@@ -102,7 +102,7 @@ jobs:
             dockerfile: "Dockerfile.PipelineApi"
           - image: "deposit-archiver"
             dockerfile: "Dockerfile.DepositArchiver"
-          - image: "lambda-function-Test"
+          - image: "lambda-function-test"
             dockerfile: "Dockerfile.TestFunction"
     steps:
       - uses: actions/checkout@v4
