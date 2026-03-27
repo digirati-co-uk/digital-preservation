@@ -1,6 +1,9 @@
-﻿using Amazon.Lambda.Annotations;
+﻿using Amazon;
+using Amazon.Lambda.Annotations;
 using Amazon.Lambda.Annotations.APIGateway;
 using Amazon.Lambda.Core;
+using Amazon.SecretsManager;
+using Amazon.SecretsManager.Model;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.DepositHelpers;
@@ -9,8 +12,11 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
+using DigitalPreservation.Core.Configuration;
+using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Polly;
 using Polly.Retry;
@@ -29,6 +35,7 @@ public class Function
     //private readonly IIdentityMinter identityMinter;
     private List<ArchiveDepositJob> archiveJobsList = [];
     private int deletedCount;
+    private static IServiceProvider services;
 
     private readonly IServiceProvider _serviceProvider;
 
@@ -36,6 +43,66 @@ public class Function
         .Handle<Exception>()
         .WaitAndRetryAsync(retryCount: 3, //Common.ConfigHelper.WelcomeEmail.MaxRetries
             _ => TimeSpan.FromMilliseconds(10000)); //Common.ConfigHelper.WelcomeEmail.RetryTimeout
+
+    public static Func<IServiceCollection> ConfigureServices = () =>
+    {
+        var serviceCollection = new ServiceCollection();
+        //serviceCollection.AddHttpClient("client", client =>
+        //{
+        //    client.BaseAddress = new Uri("someurl");
+        //});
+
+        var builder = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", false);
+
+        var configuration = builder.Build();
+
+        serviceCollection.ConfigureForwardedHeaders()
+            .AddHttpContextAccessor()
+            .AddMediatR(cfg =>
+            {
+                cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
+            })
+            .AddMachinePreservationClient(configuration, "ArchiverLambda", "https://preservation-api-dev.library.leeds.ac.uk");
+
+        var fromServerlessTemplateoauthAzureSecret = "/preservation/dev/ui/oauth_azure";//Environment.GetEnvironmentVariable("OAUTH_AZURE_SECRET");
+        var clientBaseAddress = Environment.GetEnvironmentVariable("CLIENT_BASE_ADDRESS");
+        var secretJsonString = GetSecretValue(fromServerlessTemplateoauthAzureSecret!, "eu-west-1");
+
+        var secretModel = System.Text.Json.JsonSerializer.Deserialize<AuthProviderModel>(secretJsonString);
+
+        var accessTokenProviderOptions = new AccessTokenProviderOptions
+        {
+            ClientId = secretModel?.ClientId,
+            ClientSecret = secretModel?.ClientSecret,
+            TenantId = secretModel?.TenantId
+        };
+        serviceCollection.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
+        serviceCollection.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+
+        //var builder = new ConfigurationBuilder()
+        //    .SetBasePath(Directory.GetCurrentDirectory())
+        //    .AddJsonFile("appsettings.json", false);
+
+        //serviceCollection.AddTransient<IPreservationApiClient, PreservationApiClient>();
+
+
+        services = serviceCollection.BuildServiceProvider();
+        return serviceCollection;
+    };
+
+   
+    IServiceCollection serviceCollection;
+    public Function()
+    {
+        //var serviceCollection = new ServiceCollection();
+        //services = Startup.ConfigureServices(serviceCollection);
+        serviceCollection = ConfigureServices();
+
+
+ //clientBaseAddress
+    }
     /// <summary>
     /// Default constructor that Lambda will invoke.
     /// </summary>
@@ -55,17 +122,34 @@ public class Function
     /// <param name="input"></param>
     /// <param name="context"></param>
     /// <returns></returns>
-    [LambdaFunction(PackageType = LambdaPackageType.Image)]
-    public Dictionary<string, dynamic> FunctionHandler(ILambdaContext context)
+    //[LambdaFunction(PackageType = LambdaPackageType.Image)]
+    public async Task<Dictionary<string, dynamic>> FunctionHandler(ILambdaContext context)
     {
+        //var t = serviceCollection
         string name = "bm";
         string message = string.Format("Hello, {0}!", name);
-        //var instance = _serviceProvider.GetService<IPreservationApiClient>();
-        //
+        var preservationApiClient = services.GetService<IPreservationApiClient>();
+
+        var lastModifiedBefore = -Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
+        var query = new DepositQuery
+        {
+            Status = "preserved",
+            OrderBy = DepositQuery.LastModified,
+            Page = 0,
+            PageSize = 25, //Convert.ToInt32(Environment.GetEnvironmentVariable("BATCH_SIZE")),
+            Ascending = true,
+            ShowAll = true,
+            Archived = false,
+            LastModifiedBefore = DateTime.UtcNow.AddMonths(6)
+        };
+
+        var deposits = await preservationApiClient.GetDeposits(query, CancellationToken.None);
+       
+
         return new Dictionary<string, dynamic>
         {
             { "statusCode", 200 },
-            { "body", message }
+            { "body", deposits.Value!.Deposits.Count }
         };
 
         //var lastModifiedBefore = -Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
@@ -322,4 +406,18 @@ public class Function
 
     //    return Result.OkNotNull(workspaceManager);
     //}
+
+    private static string GetSecretValue(string secretName, string region)
+    {
+        var client = new AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(region));
+
+        var request = new GetSecretValueRequest()
+        {
+            SecretId = secretName,
+            VersionStage = "AWSCURRENT"
+        };
+
+        var response = client.GetSecretValueAsync(request).GetAwaiter().GetResult();
+        return response.SecretString;
+    }
 }
