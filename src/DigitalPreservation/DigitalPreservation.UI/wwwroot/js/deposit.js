@@ -97,6 +97,133 @@ function populateModsModalFromAttributes(launcher){
             nonEditableRecordInfo.innerHTML = recordInfoCompact;
         }
     }
+
+    // File links section — only shown for files
+    const isFile = launcher.getAttribute('data-is-file') === 'true';
+    const fileLinksSection = document.getElementById('fileLinksSection');
+    if (fileLinksSection) {
+        fileLinksSection.style.display = isFile ? '' : 'none';
+        if (isFile) {
+            let links = [];
+            try { links = JSON.parse(launcher.getAttribute('data-links') || '[]'); } catch {}
+            populateFileLinksList(links);
+            populateFileLinkTargetSelect();
+        }
+    }
+}
+
+// ----------------------------------------------------------------
+// File links modal state
+// ----------------------------------------------------------------
+
+let currentFileLinks = [];
+
+function populateFileLinksList(links) {
+    currentFileLinks = links.map(l => ({ to: l.to, role: l.role }));
+    renderFileLinksList();
+    refreshFileLinkRoleSelect();
+}
+
+function renderFileLinksList() {
+    const list = document.getElementById('fileLinksList');
+    const nonEditable = document.getElementById('nonEditableFileLinks');
+
+    if (list) {
+        list.innerHTML = '';
+        currentFileLinks.forEach((link, i) => {
+            const roleLabel = getRoleLabelFromUri(link.role) || link.role || '(unknown role)';
+            const item = document.createElement('div');
+            item.classList.add('input-group', 'mb-1', 'small');
+            item.innerHTML = `<span class="input-group-text">${roleLabel}</span>
+                              <span class="form-control">${link.to}</span>
+                              <button type="button" class="btn btn-outline-danger" data-link-index="${i}">Remove</button>`;
+            item.querySelector('button').addEventListener('click', () => {
+                currentFileLinks.splice(i, 1);
+                renderFileLinksList();
+                refreshFileLinkRoleSelect();
+            });
+            list.appendChild(item);
+        });
+    } else if (nonEditable) {
+        if (currentFileLinks.length === 0) {
+            nonEditable.innerHTML = '<li><em>no file links</em></li>';
+        } else {
+            nonEditable.innerHTML = '';
+            for (const link of currentFileLinks) {
+                const li = document.createElement('li');
+                li.textContent = `${getRoleLabelFromUri(link.role) || link.role}: ${link.to}`;
+                nonEditable.appendChild(li);
+            }
+        }
+    }
+}
+
+function refreshFileLinkRoleSelect() {
+    const roleSelect = document.getElementById('fileLinkRoleSelect');
+    const addBtn = document.getElementById('fileLinkAddBtn');
+    if (!roleSelect) return;
+    const usedRoles = new Set(currentFileLinks.map(l => l.role));
+    roleSelect.innerHTML = '';
+    let hasOptions = false;
+    for (const [keyword, uri] of Object.entries(typeof fileLinkRoles !== 'undefined' ? fileLinkRoles : {})) {
+        if (!usedRoles.has(uri)) {
+            const opt = document.createElement('option');
+            opt.value = uri;
+            opt.textContent = keyword;
+            roleSelect.appendChild(opt);
+            hasOptions = true;
+        }
+    }
+    if (addBtn) addBtn.disabled = !hasOptions;
+}
+
+function populateFileLinkTargetSelect() {
+    const sel = document.getElementById('fileLinkTargetSelect');
+    if (!sel) return;
+    const currentPath = modsContext?.value ?? '';
+    sel.innerHTML = '';
+    const files = typeof physicalFilePaths !== 'undefined' ? physicalFilePaths : [];
+    for (const path of files) {
+        if (!path || path === currentPath) continue;
+        const opt = document.createElement('option');
+        opt.value = path;
+        opt.textContent = path;
+        sel.appendChild(opt);
+    }
+}
+
+function getRoleLabelFromUri(uri) {
+    if (!uri || typeof fileLinkRoles === 'undefined') return null;
+    for (const [keyword, u] of Object.entries(fileLinkRoles)) {
+        if (u === uri) return keyword;
+    }
+    return null;
+}
+
+const fileLinkAddBtn = document.getElementById('fileLinkAddBtn');
+if (fileLinkAddBtn) {
+    fileLinkAddBtn.addEventListener('click', () => {
+        const roleSelect = document.getElementById('fileLinkRoleSelect');
+        const targetSelect = document.getElementById('fileLinkTargetSelect');
+        const role = roleSelect?.value;
+        const to = targetSelect?.value;
+        if (!role || !to) return;
+        if (currentFileLinks.some(l => l.role === role)) return; // duplicate role guard
+        currentFileLinks.push({ to, role });
+        renderFileLinksList();
+        refreshFileLinkRoleSelect();
+    });
+}
+
+// Serialize currentFileLinks to hidden field before modsModal form submits
+const modsForm = document.querySelector('#modsModal form');
+if (modsForm) {
+    modsForm.addEventListener('submit', () => {
+        const hiddenField = document.getElementById('fileLinksJson');
+        if (hiddenField && document.getElementById('fileLinksSection')?.style.display !== 'none') {
+            hiddenField.value = JSON.stringify(currentFileLinks);
+        }
+    });
 }
 
 function createRecordIdentifierElement(index, recordIdentifier){

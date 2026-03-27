@@ -59,6 +59,24 @@ public class DepositModel(
             .Select(f => f.LocalPath)
         ?? []);
 
+    public string FileLinkRolesJson => JsonSerializer.Serialize(
+        FileLinkRoles.ProvidesUriFromKeyword.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.AbsoluteUri));
+
+    public string PhysicalFileLinksDataJson
+    {
+        get
+        {
+            var dict = new Dictionary<string, object>();
+            foreach (var f in RootCombinedDirectory?.Flatten().Item2 ?? [])
+            {
+                var links = f.FileInMets?.Links ?? [];
+                if (links.Count > 0 && f.LocalPath != null)
+                    dict[f.LocalPath] = links.Select(l => new { to = l.To, role = l.Role?.AbsoluteUri }).ToList();
+            }
+            return JsonSerializer.Serialize(dict);
+        }
+    }
+
     public record MismatchDisplay(string FilePath, string? Differences, string? ExifDifferences);
 
     public IEnumerable<MismatchDisplay> MismatchDisplayItems => FileMisMatches.Select(m =>
@@ -539,11 +557,18 @@ public class DepositModel(
         [FromForm] bool modsContextIsFile,
         [FromForm] List<string> accessRestrictions,
         [FromForm] Uri? rightsStatement,
-        [FromForm] RecordIdentifier[] recordIdentifiers)
-    {        
+        [FromForm] RecordIdentifier[] recordIdentifiers,
+        [FromForm] string? fileLinksJson)
+    {
         if (await BindDeposit(id))
         {
-            var result = await WorkspaceManager.SetModsInformation(modsContext, accessRestrictions, rightsStatement, recordIdentifiers);
+            List<FileLink>? fileLinks = null;
+            if (modsContextIsFile && !string.IsNullOrEmpty(fileLinksJson))
+            {
+                try { fileLinks = JsonSerializer.Deserialize<List<FileLink>>(fileLinksJson); }
+                catch { /* ignore malformed */ }
+            }
+            var result = await WorkspaceManager.SetModsInformation(modsContext, accessRestrictions, rightsStatement, recordIdentifiers, fileLinks);
             if (result.Success)
             {
                 TempData["AccessConditionsUpdated"] = "Access Restrictions and Rights Statement updated.";

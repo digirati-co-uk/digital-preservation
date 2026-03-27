@@ -667,4 +667,19 @@ public class MetsManager(
         if (link != null)
             mets.Mets.StructLink.SmLink.Remove(link);
     }
+
+    public void SetFileLinks(FullMets mets, string localPath, List<FileLink> links)
+    {
+        // Remove all existing outgoing smLinks from this file
+        if (mets.Mets.StructLink != null)
+        {
+            var fromId = Constants.FileIdPrefix + localPath;
+            var toRemove = mets.Mets.StructLink.SmLink.Where(sl => sl.From == fromId).ToList();
+            foreach (var sl in toRemove)
+                mets.Mets.StructLink.SmLink.Remove(sl);
+        }
+        // Add the new links
+        foreach (var link in links.Where(l => l.Role != null))
+            LinkFile(mets, localPath, link.To, link.Role!);
+    }
 }

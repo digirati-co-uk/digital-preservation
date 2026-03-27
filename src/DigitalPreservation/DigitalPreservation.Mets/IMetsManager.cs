@@ -53,4 +53,6 @@ public interface IMetsManager
     // from and to are always physical file paths (?)
     void LinkFile(FullMets mets, string from, string to, Uri role);
     void UnLinkFile(FullMets mets, string from, string to, Uri role);
+    // Replace all outgoing links from a file with the supplied list
+    void SetFileLinks(FullMets mets, string localPath, List<FileLink> links);
 }

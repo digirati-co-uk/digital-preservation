@@ -814,10 +814,27 @@
                             </ul>
                         }
                     </div>
+                    <div class="mb-3" id="fileLinksSection" style="display:none">
+                        <label class="form-label">File Links</label>
+                        <div id="fileLinksList"></div>
+                        @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        {
+                            <div class="input-group mt-2" id="fileLinkAddRow">
+                                <select id="fileLinkRoleSelect" class="form-select" style="max-width:12rem"></select>
+                                <select id="fileLinkTargetSelect" class="form-select"></select>
+                                <button type="button" id="fileLinkAddBtn" class="btn btn-outline-primary">Add</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <ul id="nonEditableFileLinks"><li><em>no file links</em></li></ul>
+                        }
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <input type="hidden" id="modsContext" name="modsContext">
                     <input type="hidden" id="modsContextIsFile" name="modsContextIsFile">
+                    <input type="hidden" id="fileLinksJson" name="fileLinksJson">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                     {
@@ -873,9 +890,12 @@
         const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
         const logicalStructMapsData = @Html.Raw(Model.LogicalStructMapsJson);
         const physicalFilePaths = @Html.Raw(Model.PhysicalFilePathsJson);
+        const fileLinkRoles = @Html.Raw(Model.FileLinkRolesJson);
+        const physicalFileLinksData = @Html.Raw(Model.PhysicalFileLinksDataJson);
     </script>
     <script src="~/js/deposit.js" asp-append-version="true"></script>
     <script src="~/js/logical-structmap.js" asp-append-version="true"></script>
+    <script src="~/js/file-links.js" asp-append-version="true"></script>
     @if (TempData["ActiveTab"] != null)
     {
         <script>
