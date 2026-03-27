@@ -26,4 +26,4 @@ WORKDIR /var/task
 COPY --from=publish /app/publish .
 
 # Set the entry point to the function handler
-ENTRYPOINT ["/lambda-entrypoint.sh","DigitalPreservation.Deposit.Archiver::DigitalPreservation.Deposit.Archiver.Functions::FunctionHandler"]
+ENTRYPOINT ["/lambda-entrypoint.sh","DigitalPreservation.Deposit.Archiver::DigitalPreservation.Deposit.Archiver.Functions_Get_Generated::Get"]
