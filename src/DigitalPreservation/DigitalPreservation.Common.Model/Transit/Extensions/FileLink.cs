@@ -34,13 +34,15 @@ public static class FileLinkRoles
     {
         ProvidesUriFromKeyword = new Dictionary<string, Uri>
         {
+            { "transcript", new Uri(Prefix + "transcript") },
+            { "translation", new Uri(Prefix + "translation") },
             { "closedCaptions", new Uri(Prefix + "closedCaptions") },
             { "alternativeText", new Uri(Prefix + "alternativeText") },
             { "longDescription", new Uri(Prefix + "longDescription") },
             { "highContrastAudio", new Uri(Prefix + "highContrastAudio") },
             { "highContrastDisplay", new Uri(Prefix + "highContrastDisplay") },
-            { "transcript", new Uri(Prefix + "transcript") },
-            { "translation", new Uri(Prefix + "translation") }
+            
+            { "supplementing", new Uri(Prefix + "supplementing") }
         };
         // Uri.GetHashCode() ignores fragments in .NET, so use a comparer based on AbsoluteUri string
         ProvidesKeywordFromUri = ProvidesUriFromKeyword.ToDictionary(
