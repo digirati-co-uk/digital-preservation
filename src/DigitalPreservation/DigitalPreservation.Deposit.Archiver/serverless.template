@@ -2,56 +2,7 @@
   "AWSTemplateFormatVersion": "2010-09-09",
   "Transform": "AWS::Serverless-2016-10-31",
   "Description": "An AWS Serverless Application. This template is partially managed by Amazon.Lambda.Annotations (v1.8.0.0).",
-  "Resources": {
-    "DigitalPreservationDepositArchiverFunctionsGetGenerated": {
-      "Type": "AWS::Serverless::Function",
-      "Metadata": {
-        "Tool": "Amazon.Lambda.Annotations",
-        "SyncedEvents": [
-          "RootGet"
-        ],
-        "SyncedEventProperties": {
-          "RootGet": [
-            "Path",
-            "Method"
-          ]
-        }
-      },
-      "Properties": {
-        "MemorySize": 512,
-        "Timeout": 30,
-        "Policies": [
-          "AWSLambdaBasicExecutionRole"
-        ],
-        "Environment": {
-          "Variables": {
-            "OAUTH_AZURE_SECRET": "/preservation/dev/ui/oauth_azure",
-            "TMP_FILES_PATH": "/tmp/markerfile",
-            "DIRECTORY_SEPARATOR": "/",
-            "BATCH_SIZE": "25",
-            "LAST_MODIFIED_MONTHS": "6",
-            "CLIENT_BASE_ADDRESS": "https://preservation-api-dev.library.leeds.ac.uk"
-          }
-        },
-        "PackageType": "Image",
-        "ImageUri": ".",
-        "ImageConfig": {
-          "Command": [
-            "DigitalPreservation.Deposit.Archiver::DigitalPreservation.Deposit.Archiver.Functions_Get_Generated::Get"
-          ]
-        },
-        "Events": {
-          "RootGet": {
-            "Type": "Api",
-            "Properties": {
-              "Path": "/",
-              "Method": "GET"
-            }
-          }
-        }
-      }
-    }
-  },
+  "Resources": {},
   "Outputs": {
     "ApiURL": {
       "Description": "API endpoint URL for dev environment",
