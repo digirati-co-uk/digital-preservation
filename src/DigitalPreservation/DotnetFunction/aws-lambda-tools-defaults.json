@@ -12,6 +12,5 @@
   "function-memory-size": 512,
   "function-timeout": 30,
   "image-command": "DotnetFunction::DotnetFunction.Function::FunctionHandler",
-  "docker-host-build-output-dir": "./bin/Release/lambda-publish",
-  "function-runtime": "dotnet8"
+  "docker-host-build-output-dir": "./bin/Release/lambda-publish"
 }
