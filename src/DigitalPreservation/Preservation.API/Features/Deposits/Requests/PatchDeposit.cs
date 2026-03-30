@@ -36,15 +36,18 @@ public class PatchDepositHandler(
         {
             bool? archivalGroupExists = null;
             var mintedId = request.Deposit.Id!.GetSlug();
-            
-            var (agExists, validateAgResult) = await ArchivalGroupRequestValidator
-                .ValidateArchivalGroup(dbContext, storageApiClient, request.Deposit, mintedId);
 
-            if (agExists.HasValue) archivalGroupExists = agExists.Value;
-
-            if (validateAgResult.Failure)
+            if (!request.Deposit.Archived.HasValue)
             {
-                return Result.FailNotNull<Deposit>(validateAgResult.ErrorCode!, validateAgResult.ErrorMessage);
+                var (agExists, validateAgResult) = await ArchivalGroupRequestValidator
+                    .ValidateArchivalGroup(dbContext, storageApiClient, request.Deposit, mintedId);
+
+                if (agExists.HasValue) archivalGroupExists = agExists.Value;
+
+                if (validateAgResult.Failure)
+                {
+                    return Result.FailNotNull<Deposit>(validateAgResult.ErrorCode!, validateAgResult.ErrorMessage);
+                }
             }
             
             var entity = await dbContext.Deposits.SingleAsync(

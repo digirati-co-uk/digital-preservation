@@ -30,10 +30,12 @@ public class Functions
     private List<ArchiveDepositJob> archiveJobsList = [];
     private int deletedCount;
 
-    private static readonly AsyncRetryPolicy<Result<ArchiveJobResult>> RetryArchiveDepositResult = Policy<Result<ArchiveJobResult>>
-        .Handle<Exception>()
-        .WaitAndRetryAsync(retryCount: 3, //Common.ConfigHelper.WelcomeEmail.MaxRetries
-            _ => TimeSpan.FromMilliseconds(10000)); //Common.ConfigHelper.WelcomeEmail.RetryTimeout
+    private static readonly AsyncRetryPolicy<Result<ArchiveJobResult>> RetryArchiveDepositResult =
+        Policy<Result<ArchiveJobResult>>
+            .Handle<Exception>()
+            .WaitAndRetryAsync(retryCount: 3,
+                _ => TimeSpan.FromMilliseconds(10000));
+
     /// <summary>
     /// Default constructor that Lambda will invoke.
     /// </summary>
@@ -44,23 +46,6 @@ public class Functions
         this.identityMinter = identityMinter;
     }
 
-
-    ///// <summary>
-    ///// A Lambda function to respond to HTTP Get methods from API Gateway
-    ///// </summary>
-    ///// <remarks>
-    ///// This uses the <see href="https://github.com/aws/aws-lambda-dotnet/blob/master/Libraries/src/Amazon.Lambda.Annotations/README.md">Lambda Annotations</see> 
-    ///// programming model to bridge the gap between the Lambda programming model and a more idiomatic .NET model.
-    ///// 
-    ///// This automatically handles reading parameters from an <see cref="APIGatewayProxyRequest"/>
-    ///// as well as syncing the function definitions to serverless.template each time you build.
-    ///// 
-    ///// If you do not wish to use this model and need to manipulate the API Gateway 
-    ///// objects directly, see the accompanying Readme.md for instructions.
-    ///// </remarks>
-    ///// <param name="context">Information about the invocation, function, and execution environment</param>
-    ///// <returns>The response as an implicit <see cref="APIGatewayProxyResponse"/></returns>
-    ///     //
     [LambdaFunction(PackageType = LambdaPackageType.Image)]
     [RestApi(LambdaHttpMethod.Get, "/")]
     public async Task<IHttpResult> Get(ILambdaContext context)
@@ -102,7 +87,6 @@ public class Functions
                 var workspaceManager = await GetWorkspaceManager(depositId, true);
                 var releaseLock = await preservationApiClient.ReleaseDepositLock(deposit, CancellationToken.None);
 
-                //check if in deposit archiver jobs table with errors - dont try again
                 var previousDepositArchiverJob = await preservationApiClient.GetArchiveJobResult(depositId, CancellationToken.None);
 
                 if (previousDepositArchiverJob is { Success: true, Value.Errors: not null } && previousDepositArchiverJob.Value.Errors.Any())
