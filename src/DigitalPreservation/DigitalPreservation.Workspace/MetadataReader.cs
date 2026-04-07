@@ -165,7 +165,9 @@ public class MetadataReader : IMetadataReader
         brunnhildeCommonPrefix = AllowForObjectsAndMetadata(brunnhildeCommonPrefix);
 
         var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
-        AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
+
+        if (brunnhildeAVResult.Success)
+            AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
 
         exifMetadataList = await GetExifOutputForAllFiles();
 
@@ -230,10 +232,13 @@ public class MetadataReader : IMetadataReader
 
         foreach (var file in objectsFiles)
         {
-            if (infectedLocalPaths.Count <= 0)
-                return;
+            var alreadyVirusScanMetadata = false;
+            if (infectedLocalPaths.Count > 0)
+            {
+                alreadyVirusScanMetadata = infectedLocalPaths.Any(s => file.Filename != null && file.Filename.Contains(s));
+            }
 
-            if (infectedLocalPaths.Any(s => file.Filename != null && file.Filename.Contains(s)))
+            if (alreadyVirusScanMetadata)
                 continue;
 
             var localPath = file.Filename.RemoveStart(siegfriedFilesCommonParent).RemoveStart("/"); // check this!
