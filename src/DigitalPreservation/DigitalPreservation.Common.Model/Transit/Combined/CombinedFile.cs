@@ -442,7 +442,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
     public List<string> GetDistinctDigests()
     {
-        if (FileInDeposit != null && DepositFileFormatMetadata != null && FileInDeposit.Modified > FileInDeposit.GetDigestMetadata()?.Timestamp))
+        if (FileInDeposit != null && DepositFileFormatMetadata != null && FileInDeposit.Modified > FileInDeposit.GetDigestMetadata()?.Timestamp)
             DepositFileFormatMetadata!.Digest = null;
 
         var distinctDigests = new List<string?>
