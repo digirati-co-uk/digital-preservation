@@ -230,13 +230,10 @@ public class MetadataReader : IMetadataReader
 
         foreach (var file in objectsFiles)
         {
-            var alreadyVirusScanMetadata = false;
-            if (infectedLocalPaths.Count > 0)
-            {
-                alreadyVirusScanMetadata = infectedLocalPaths.Any(s => file.Filename != null && file.Filename.Contains(s));
-            }
+            if (infectedLocalPaths.Count <= 0)
+                return;
 
-            if (alreadyVirusScanMetadata)
+            if (infectedLocalPaths.Any(s => file.Filename != null && file.Filename.Contains(s)))
                 continue;
 
             var localPath = file.Filename.RemoveStart(siegfriedFilesCommonParent).RemoveStart("/"); // check this!
