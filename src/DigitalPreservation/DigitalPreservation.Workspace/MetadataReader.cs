@@ -112,7 +112,7 @@ public class MetadataReader : IMetadataReader
                 {
                     Source = "BagIt",
                     Digest = kvp.Value.ToLowerInvariant(),
-                    Timestamp = bagitTimestamp //TODO: this should be the value the manifest-sha256 should be
+                    Timestamp = bagitTimestamp
                 });
             }
         }
