@@ -165,7 +165,9 @@ public class MetadataReader : IMetadataReader
         brunnhildeCommonPrefix = AllowForObjectsAndMetadata(brunnhildeCommonPrefix);
 
         var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
-        AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
+
+        if (brunnhildeAVResult.Success)
+            AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
 
         exifMetadataList = await GetExifOutputForAllFiles();
 
