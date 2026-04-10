@@ -7,6 +7,7 @@ public static class FolderNames
     public const string Objects = "objects";
     public const string Metadata = "metadata";
     public const string BagItData = "data";
+    public const string MetadataAdHoc = "ad-hoc";
 
     public static bool PathIsKnownFirstLevelDirectory(string localPath)
     {
