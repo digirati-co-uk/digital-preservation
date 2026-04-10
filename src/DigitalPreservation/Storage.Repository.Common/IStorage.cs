@@ -66,4 +66,12 @@ public interface IStorage
     static string DepositFileSystem => "__METSlike.json";
     Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest);
     Task<Result<Stream?>> GetStream(Uri binaryOrigin);
+
+    static List<string?> BagitFiles  =>
+    [
+        "bagit.txt",
+        "bag-info.txt",
+        "manifest-sha256.txt",
+        "tagmanifest-sha256.txt"
+    ];
 }
