@@ -195,6 +195,7 @@ public class ProcessPipelineJobHandler(
         {
             streamReader?.Dispose();
             CleanupProcessFolder(request.DepositId);
+            CleanupBagitProcessFolder(request.DepositId);
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
         }
     }
@@ -205,6 +206,14 @@ public class ProcessPipelineJobHandler(
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
         Directory.Delete(metadataPathForProcessDelete, true);
+    }
+
+    private void CleanupBagitProcessFolder(string depositName)
+    {
+        var processFolderBagit = pipelineToolOptions.Value.ProcessFolderBagit;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
+        var metadataPathForBagitProcessDelete = $"{processFolderBagit}{separator}{depositName}";
+        Directory.Delete(metadataPathForBagitProcessDelete, true);
     }
 
     private async Task<ProcessPipelineResult> ExecuteBrunnhilde(ExecutePipelineJob request,
