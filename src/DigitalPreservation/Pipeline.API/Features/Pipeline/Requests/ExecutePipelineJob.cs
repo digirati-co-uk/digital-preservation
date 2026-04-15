@@ -528,7 +528,7 @@ public class ProcessPipelineJobHandler(
         var testPath = $"{FolderNames.Metadata}";
         foreach (var directory in directories)
         {
-            if (directory.LocalPath!.StartsWith(testPath) && directory.LocalPath.ToLower() != "metadata" && !directory.LocalPath.StartsWith("metadata/ad-hoc"))
+            if (directory.LocalPath!.StartsWith(testPath) && directory.LocalPath.ToLower() != "metadata" && !directory.LocalPath.StartsWith(FolderNames.MetadataAdHoc))
             {
                 deleteSelection.Items.Add(new MinimalItem
                 {
@@ -541,7 +541,7 @@ public class ProcessPipelineJobHandler(
 
         foreach (var file in files)
         {
-            if (file.LocalPath!.StartsWith(testPath) && !file.LocalPath.StartsWith("metadata/ad-hoc"))
+            if (file.LocalPath!.StartsWith(testPath) && !file.LocalPath.StartsWith(FolderNames.MetadataAdHoc))
             {
                 deleteSelection.Items.Add(new MinimalItem
                 {

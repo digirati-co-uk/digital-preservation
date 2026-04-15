@@ -45,7 +45,7 @@ public class Storage(
                 case TemplateType.RootLevel:
                     await PutDirectory(FolderNames.Objects, key, root);
                     var metadataDirRoot = await PutDirectory(FolderNames.Metadata, key, root);
-                    await PutDirectory(FolderNames.MetadataAdHoc, key + metadataDirRoot.Name + "/", metadataDirRoot);
+                    await PutDirectory(FolderNames.AdHoc, key + metadataDirRoot.Name + "/", metadataDirRoot);
                     break;
                 case TemplateType.BagIt:
                 {
@@ -53,7 +53,7 @@ public class Storage(
                     var dataKey = $"{key}{FolderNames.BagItData}/";
                     await PutDirectory(FolderNames.Objects, dataKey, dataDir);
                     var metadataDir = await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
-                    await PutDirectory(FolderNames.MetadataAdHoc, dataKey + metadataDir.Name + "/", metadataDir);
+                    await PutDirectory(FolderNames.AdHoc, dataKey + metadataDir.Name + "/", metadataDir);
                         break;
                 }
             }
