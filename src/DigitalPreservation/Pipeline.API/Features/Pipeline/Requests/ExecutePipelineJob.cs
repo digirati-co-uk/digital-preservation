@@ -1141,7 +1141,21 @@ public class ProcessPipelineJobHandler(
                         if (!entry.Key.StartsWith("data/objects")) continue;
                         var oldEntryDigest = oldBagItSha256Values.FirstOrDefault(x => x.Key == entry.Key).Value;
                         if (entry.Value != oldEntryDigest)
-                            logger.LogInformation("objects file {entryKey} digests dont match between old and new manifests", entry.Key);
+                        {
+                            // can we compare the last modified dates of the original and current files?
+                            // What is the date of the original manifest?
+                            // If the modified date of this file is AFTER the modified date of the Manifest, then it's OK,
+                            // we are OK with the sha256 being different.
+                            // But if the lastmodified date of the file is <= the original bagit manifest creation date,
+                            // it's an error. 
+                            // However the lastmodified date will alwats be later than the creation date of the original
+                            // manifest, because it is uploaded to S3 after being bagged.
+                            
+                            // What information could we use to determine that a file has been replaced since the original
+                            // bagit manifest was created?
+                            logger.LogInformation(
+                                "objects file {entryKey} digests dont match between old and new manifests", entry.Key);
+                        };
                     }
                 }
             }
