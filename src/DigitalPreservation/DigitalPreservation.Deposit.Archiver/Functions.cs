@@ -27,14 +27,14 @@ public class Functions
     private readonly IPreservationApiClient preservationApiClient;
     private readonly WorkspaceManagerFactory workspaceManagerFactory;
     private readonly IIdentityMinter identityMinter;
-    private List<ArchiveDepositJob> archiveJobsList = [];
+    private readonly List<ArchiveDepositJob> archiveJobsList = [];
     private int deletedCount;
 
     private static readonly AsyncRetryPolicy<Result<ArchiveJobResult>> RetryArchiveDepositResult =
         Policy<Result<ArchiveJobResult>>
             .Handle<Exception>()
             .WaitAndRetryAsync(retryCount: 3,
-                _ => TimeSpan.FromMilliseconds(10000));
+                _ => TimeSpan.FromMilliseconds(3000));
 
     /// <summary>
     /// Default constructor that Lambda will invoke.
@@ -60,7 +60,7 @@ public class Functions
             Ascending = true,
             ShowAll = true,
             Archived = false,
-            LastModifiedBefore = DateTime.UtcNow.AddMonths(lastModifiedBefore)
+            LastModifiedBefore = DateTime.UtcNow.AddMonths(lastModifiedBefore) //only archive if older than 6 months
         };
 
         var deposits = await preservationApiClient.GetDeposits(query, CancellationToken.None);
@@ -123,7 +123,7 @@ public class Functions
                         var deleteFilesResult = await DeleteDepositFiles(workspaceManager.Value);
 
                         if(!deleteFilesResult.Success) 
-                            Log.Logger.Error("Could not delete archived.txt file for {depositId} Error message: {errorMessage}", depositId, deleteFilesResult.ErrorMessage);
+                            Log.Logger.Error("Could not delete deposit files for {depositId} Error message: {errorMessage}", depositId, deleteFilesResult.ErrorMessage);
                     }
 
                     var index = archiveJobsList.IndexOf(archivedDeposit);
@@ -135,7 +135,7 @@ public class Functions
 
 
                 if (patchDeposit.Success)
-                    Log.Logger.Error("Successfully patched deposit for {depositId}", depositId);
+                    Log.Logger.Information("Successfully patched deposit for {depositId}", depositId);
             }
         }
 
