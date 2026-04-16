@@ -442,19 +442,20 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
     public List<string> GetDistinctDigests()
     {
-        if (FileInDeposit != null && DepositFileFormatMetadata != null && FileInDeposit.Modified > FileInDeposit.GetDigestMetadata()?.Timestamp)
-            DepositFileFormatMetadata!.Digest = null;
-
-        var distinctDigests = new List<string?>
+        var distinctDigests = new List<string>
         {
-            FileInMets?.Digest,
-            DepositFileFormatMetadata?.Digest,
-            FileInDeposit?.Digest
-        }.Where(digest => digest.HasText())
+            FileInMets?.Digest ?? string.Empty,
+            FileInDeposit?.Digest ?? string.Empty
+        };
+
+        if (FileInDeposit != null && DepositFileFormatMetadata != null &&
+            FileInDeposit.Modified > FileInDeposit.GetDigestMetadata()?.Timestamp)
+            distinctDigests.Add(DepositFileFormatMetadata?.Digest ?? string.Empty);
+
+        return distinctDigests.Where(digest => digest.HasText())
             .Distinct()
-            .Select(digest => digest!) // flip to non-nullable
+            .Select(digest => digest!)
             .ToList();
-        return distinctDigests;
     }
 
     public string? GetSingleDigest()
