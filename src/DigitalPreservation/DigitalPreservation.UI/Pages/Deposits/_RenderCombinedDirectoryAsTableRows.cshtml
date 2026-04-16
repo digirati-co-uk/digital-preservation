@@ -87,7 +87,7 @@ File is in both
 @foreach (var file in combinedDirectory.Files)
 {
     var isMetadata = FolderNames.IsMetadata(file.LocalPath!);
-    if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem || IStorage.BagitFiles.Contains(file.LocalPath?.GetSlug()))
+    if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem || FolderNames.BagitFiles.Contains(file.LocalPath?.GetSlug()))
     {
         continue; // this file is hidden
     }

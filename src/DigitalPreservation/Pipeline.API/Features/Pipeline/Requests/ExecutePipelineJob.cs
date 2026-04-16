@@ -352,7 +352,22 @@ public class ProcessPipelineJobHandler(
                 }
                 else
                 {
-                    logger.LogInformation("Could not successfully bagged and validated objects files digests for {depositId}", request.DepositId);
+                    await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+                    CleanupProcessFolder(request.DepositId);
+                    CleanupBagitProcessFolder(request.DepositId);
+
+                    return new ProcessPipelineResult
+                    {
+                        Status = PipelineJobStates.CompletedWithErrors,
+                        Errors =
+                        [
+                            new Error
+                            {
+                                Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} had an issue running bagit, bagging and/or validating objects files digests"
+                            }
+                        ],
+                        CleanupProcessJob = true
+                    };
                 }
             }
 
@@ -1121,37 +1136,56 @@ public class ProcessPipelineJobHandler(
 
                 var workingDirectory = workingDirectoryResult.Value!;
 
+                var root = await workspaceManager.RefreshCombinedDirectory();
+                var (_, files) = root.Value!.Flatten();
+
+                var objectsFiles = files.Where(x => x.LocalPath != null && x.LocalPath.StartsWith(FolderNames.Objects)).ToList();
                 var rootFile = workingDirectory.Files.FirstOrDefault(x => x.LocalPath == "manifest-sha256.txt");
 
                 Dictionary<string, string>? oldBagItSha256Values = null;
                 if (rootFile != null)
                 {
+                    if (!File.Exists($"{depositPath}{separator}manifest-sha256.txt"))
+                    {
+                        logger.LogError("Could not find old manifest file");
+                        return false;
+                    }
+
                     var oldManifestStream = new MemoryStream(await File.ReadAllBytesAsync($"{depositPath}{separator}manifest-sha256.txt", cancellationToken));
+                    if (oldManifestStream.Length <= 0)
+                    {
+                        logger.LogError("Old manifest file is empty");
+                        return false;
+                    }
+
                     oldBagItSha256Values = await ReadBagItSha256(oldManifestStream);
                 }
 
-                if (oldBagItSha256Values != null)
+                if (oldBagItSha256Values != null && objectsFiles.Any())
                 {
                     var manifestStream = new MemoryStream(await File.ReadAllBytesAsync($"{processFolderBagitDeposit}{separator}manifest-sha256.txt", cancellationToken));
+                    
                     var bagItSha256Values = await ReadBagItSha256(manifestStream);
 
-                    //compare new bagit digest values with old bagit values
                     foreach (var entry in bagItSha256Values)
                     {
-                        if (!entry.Key.StartsWith("data/objects")) continue;
-                        var oldEntryDigest = oldBagItSha256Values.FirstOrDefault(x => x.Key == entry.Key).Value;
-                        if (entry.Value != oldEntryDigest)
+                        if (!entry.Key.StartsWith($"{FolderNames.BagItData}/{FolderNames.Objects}")) continue;
+ 
+                        if (oldBagItSha256Values.TryGetValue(entry.Key, out var oldEntryDigest) && entry.Value == oldEntryDigest) continue;
                         {
-                            // Check the value of this file's sha256 from METS - combinedFile.FileInMets.Digest
-                            // If this is the same as the new bagit sha256 manifest value, we're good, and we don't mind
-                            // that the entrie are different.
-                            
-                            // BUT if the value in METS is not the same as the new manifest value - something has gone
-                            // wrong, the file may be corrupt, this should be a failure condition and we should return an ERROR.
-                            // "Digest mismatch - METS file and Bagit disagree on digest for objects/...filename"
-                            logger.LogInformation(
-                                "objects file {entryKey} digests dont match between old and new manifests", entry.Key);
-                        };
+                            logger.LogInformation("new objects file {entryKey} digest doesn't match with old manifest digest value", entry.Key);
+                            var metsFile = objectsFiles.FirstOrDefault(x => x.LocalPath == entry.Key.RemoveStart($"{FolderNames.BagItData}/"));
+
+                            //check bagit digest with mets file
+                            var digestInMets = metsFile?.FileInMets?.Digest;
+
+                            if (entry.Value == digestInMets) continue;
+
+                            logger.LogError(
+                                "Digest mismatch - METS file and Bagit disagree on digest for file {entryKey}",
+                                entry.Key);
+                            return false;
+                        }
                     }
                 }
             }
@@ -1221,11 +1255,13 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<(List<Result<SingleFileUploadResult>?> uploadFileResult, bool forceComplete, bool cleanupProcess)> UploadBagitFilesToRoot(
-        ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken) //string sourcePathForFiles, string sourcePathForFilesAndDirectories,
+        ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
+        var processFolderBagitDeposit = $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{request.DepositId}";
+
         try
         {
-
             var (forceCompleteBeforeUpload, cleanupProcessBeforeUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
             if (forceCompleteBeforeUpload || cleanupProcessBeforeUpload)
@@ -1235,11 +1271,7 @@ public class ProcessPipelineJobHandler(
                 return (uploadFileResult: [], forceCompleteBeforeUpload, cleanupProcessBeforeUpload);
             }
 
-
             var uploadFileResult = new List<Result<SingleFileUploadResult>?>();
-
-            var separator = pipelineToolOptions.Value.DirectorySeparator;
-            var processFolderBagitDeposit = $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{request.DepositId}";
 
             foreach (var filePath in Directory.GetFiles($"{processFolderBagitDeposit}", "*.*", SearchOption.TopDirectoryOnly))
             {
@@ -1279,12 +1311,13 @@ public class ProcessPipelineJobHandler(
         catch (Exception ex)
         {
             await TryReleaseLock(request, deposit, cancellationToken);
-            //logger.LogError(ex, " Caught error in copy files recursively from {sourcePathForFilesAndDirectories} to {depositPath}", sourcePathForFilesAndDirectories, depositPath);
+            logger.LogError(ex, " Caught error in copying files recursively from {processFolderBagitDeposit} to {depositPath}", processFolderBagitDeposit, deposit.Id);
             return (uploadFileResult: [], false, false);
         }
 
         return (uploadFileResult: [], false, false);
     }
+
 }
 
 
