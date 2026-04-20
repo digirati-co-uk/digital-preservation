@@ -19,4 +19,5 @@ public static class Constants
     public const string DirectoryType = "Directory";
     public const string ItemType = "Item";
     public const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
+    public const string NullRightsStatement = "null";
 }

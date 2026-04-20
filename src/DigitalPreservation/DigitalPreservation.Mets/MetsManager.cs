@@ -480,6 +480,31 @@ public class MetsManager(
         SetRightsStatementForDiv(mets, div, rightsStatement);
     }
 
+    // Writes a UseAndReproduction element with a non-URI sentinel value so that the
+    // parser sees an explicit rights decision and suppresses inheritance, without
+    // asserting any particular rights URI. Distinct from SetRightsStatementByPath(null),
+    // which removes the element and allows parent rights to flow through.
+    public void SuppressRightsInheritanceByPath(FullMets mets, string localPath)
+    {
+        var (div, _, _, _) = LocateMetsDivByLocalPath(mets, localPath);
+        SuppressRightsInheritanceForDiv(mets, div);
+    }
+
+    public void SuppressRightsInheritanceByDivId(FullMets mets, string divId)
+    {
+        var div = LocateMetsDivByDivId(mets, divId)!;
+        SuppressRightsInheritanceForDiv(mets, div);
+    }
+
+    private static void SuppressRightsInheritanceForDiv(FullMets mets, DivType div)
+    {
+        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true);
+        if (mods is null) return;
+        mods.RemoveAccessConditions(Constants.UseAndReproduction);
+        mods.AddAccessCondition(Constants.NullRightsStatement, Constants.UseAndReproduction);
+        ModsManager.SetModsForDiv(mets.Mets, div, mods);
+    }
+
     private static void SetRightsStatementForDiv(FullMets mets, DivType div, Uri? rightsStatement)
     {
         var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true);

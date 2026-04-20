@@ -1,5 +1,7 @@
-﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.XmlGen.Premis.V3;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Serialization;
@@ -119,6 +121,49 @@ public class PremisManagerExif
         if (string.IsNullOrEmpty(property)) return;
         if (file is not null)
             AddSignificantProperty(file, property, fileExifMetadata.TagValue ?? string.Empty);
+    }
+
+    // Merges extent values into premis:significantProperties, checking for conflicts with any
+    // properties already present (from Exif or any other source). Throws MetadataException if
+    // a property has already been written with a different value.
+    public void PatchExtent(PremisComplexType premis, ExtentMetadata extentMetadata)
+    {
+        if (premis.Object.FirstOrDefault(po => po is File) is not File file)
+        {
+            file = new File();
+            premis.Object.Add(file);
+        }
+
+        if (extentMetadata.Duration.HasValue)
+            PatchSignificantProperty(file, "Duration",
+                extentMetadata.Duration.Value.ToString("G", CultureInfo.InvariantCulture));
+
+        if (extentMetadata.PixelWidth.HasValue)
+            PatchSignificantProperty(file, "ImageWidth",
+                extentMetadata.PixelWidth.Value.ToString(CultureInfo.InvariantCulture));
+
+        if (extentMetadata.PixelHeight.HasValue)
+            PatchSignificantProperty(file, "ImageHeight",
+                extentMetadata.PixelHeight.Value.ToString(CultureInfo.InvariantCulture));
+    }
+
+    // Adds a significantProperty if not already present; if it is already present (from any source),
+    // verifies the value matches and throws if not.
+    private void PatchSignificantProperty(File file, string propertyName, string value)
+    {
+        var existing = file.SignificantProperties
+            .FirstOrDefault(sp => sp.SignificantPropertiesType?.Value == propertyName);
+
+        if (existing != null)
+        {
+            var existingValue = existing.SignificantPropertiesValue.FirstOrDefault();
+            if (existingValue != value)
+                throw new MetadataException(
+                    $"Conflicting values for significantProperties/{propertyName}: '{existingValue}' vs '{value}'");
+            return;
+        }
+
+        AddSignificantProperty(file, propertyName, value);
     }
 
     private void AddSignificantProperty(File file, string propertyName, string metadataValue)

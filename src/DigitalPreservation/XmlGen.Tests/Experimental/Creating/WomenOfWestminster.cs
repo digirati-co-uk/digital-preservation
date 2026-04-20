@@ -73,7 +73,7 @@ public class WomenOfWestminster
 
         // The archivist marks some files as not for publication
         metsManager.SetAccessRestrictionsByPath(mets, "objects/angela-eagle-redacted.m4a", ["Closed"]);
-        metsManager.SetRightsStatementByPath(mets, "objects/angela-eagle-redacted.m4a", null); //???
+        metsManager.SuppressRightsInheritanceByPath(mets, "objects/angela-eagle-redacted.m4a");
 
 
         // The archivist creates a "presentation" structure over the raw files, aligned with EMu archival description.

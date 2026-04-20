@@ -34,6 +34,8 @@ public interface IMetsManager
     void SetRecordInfoByDivId(FullMets mets, string divId, RecordInfo recordInfo);
     void SetRightsStatementByPath(FullMets mets, string localPath, Uri? rightsStatement);
     void SetRightsStatementByDivId(FullMets mets, string divId, Uri? rightsStatement);
+    void SuppressRightsInheritanceByPath(FullMets mets, string localPath);
+    void SuppressRightsInheritanceByDivId(FullMets mets, string divId);
     void SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions);
     void SetAccessRestrictionsByDivId(FullMets mets, string divId, List<string> accessRestrictions);
 
