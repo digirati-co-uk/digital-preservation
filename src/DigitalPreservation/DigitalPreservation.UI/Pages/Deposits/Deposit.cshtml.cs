@@ -252,18 +252,11 @@ public class DepositModel(
                 TempData["Error"] = "Could not read deposit file system.";
                 return Redirect($"/deposits/{id}");
             }
-            var wbsToAdd = new List<WorkingBase>();
-            var contentRoot = combinedResult.Value;
-            foreach (var item in minimalItems)
-            {
-                WorkingBase? wbToAdd = item.IsDirectory
-                    ? contentRoot.FindDirectory(item.RelativePath)?.DirectoryInDeposit?.ToRootLayout()
-                    : contentRoot.FindFile(item.RelativePath)?.FileInDeposit?.ToRootLayout();
-                if (wbToAdd != null)
-                {
-                    wbsToAdd.Add(wbToAdd);
-                }
-            }
+            var contentRoot = combinedResult.Value!;
+            var wbsToAdd = minimalItems
+                .Select(m => m.ResolveFromContentRoot(contentRoot))
+                .OfType<WorkingBase>()
+                .ToList();
             var result = await WorkspaceManager.AddItemsToMets(wbsToAdd, User.GetCallerIdentity());
             if (result.Success)
             {

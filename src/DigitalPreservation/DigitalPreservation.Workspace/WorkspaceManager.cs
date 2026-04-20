@@ -55,6 +55,11 @@ public class WorkspaceManager(
         return result;
     }
 
+    /// <summary>
+    /// Returns the layout on disk - does not adjunct for BagIt layout
+    /// </summary>
+    /// <param name="refresh">Read from storage rather than cached file system view</param>
+    /// <returns></returns>
     public async Task<Result<WorkingDirectory?>> GetFileSystemWorkingDirectory(bool refresh = false)
     {
         var readFilesResult = await mediator.Send(new GetWorkingDirectory(
