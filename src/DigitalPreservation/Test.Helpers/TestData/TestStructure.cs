@@ -3,7 +3,7 @@ using DigitalPreservation.Common.Model.Transit;
 
 namespace Test.Helpers.TestData;
 
-public class TestStructure
+public static class TestStructure
 {
     public static WorkingDirectory GetBagItTestStructure()
     {
