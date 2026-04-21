@@ -80,17 +80,11 @@ public class PipelineController(
 
             var depositPath = Path.GetFullPath(Path.Combine(baseDirectory, depositFilesModel.DepositId));
 
-            //var separator = pipelineToolOptions.Value.DirectorySeparator;
-
-            //var directory = mountPath + separator + depositFilesModel.DepositId;
-
             var allDirectories = Directory.GetDirectories(depositPath, "*", SearchOption.AllDirectories);
-
-            //var workingDirectory = await GetWorkingDirectory(baseDirectory);
 
             ProcessDirectory(depositPath);
 
-            model.WorkingDirectory = baseDirectory;//workingDirectory;
+            model.WorkingDirectory = baseDirectory;
             model.FilesInTarget = files;
             model.Directories = allDirectories;
             model.DiskSpace = GetDf(depositPath);
