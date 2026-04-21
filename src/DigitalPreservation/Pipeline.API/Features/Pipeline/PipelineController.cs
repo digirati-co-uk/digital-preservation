@@ -8,6 +8,8 @@ using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
 using System.Diagnostics;
 using DigitalPreservation.Common.Model.Results;
+using Microsoft.Extensions.Options;
+using Pipeline.API.Config;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -17,6 +19,7 @@ namespace Pipeline.API.Features.Pipeline;
 public class PipelineController(
     IMediator mediator,
     ILogger<PipelineController> logger,
+    IOptions<StorageOptions> storageOptions,
     IIdentityMinter identityMinter) : Controller
 {
     private readonly List<string>? files = [];
@@ -54,30 +57,43 @@ public class PipelineController(
     public async Task<DirectoryModel> CheckDepositFolderAndContents([FromQuery] DepositFilesModel depositFilesModel,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation($"Checking deposit folder {depositFilesModel.DepositNameOrPath} and contents exist.");
+        logger.LogInformation($"Checking deposit folder {depositFilesModel.DepositId} and contents exist.");
 
         var model = new DirectoryModel();
 
         try
         {
 
-            if (string.IsNullOrEmpty(depositFilesModel.DepositNameOrPath))
+            if (string.IsNullOrEmpty(depositFilesModel.DepositId))
             {
                 model.Errors.Add("DepositNameOrPath is null or empty");
                 return await Task.FromResult(model);
             }
 
-            var allDirectories =
-                Directory.GetDirectories(depositFilesModel.DepositNameOrPath, "*", SearchOption.AllDirectories);
+            if (storageOptions.Value.FileMountPath == null)
+            {
+                model.Errors.Add("File Mount path option setting is null");
+                return await Task.FromResult(model);
+            }
 
-            var workingDirectory = await GetWorkingDirectory(depositFilesModel.DepositNameOrPath);
+            var baseDirectory = Path.GetFullPath(storageOptions.Value.FileMountPath);
 
-            ProcessDirectory(depositFilesModel.DepositNameOrPath);
+            var depositPath = Path.GetFullPath(Path.Combine(baseDirectory, depositFilesModel.DepositId));
 
-            model.WorkingDirectory = workingDirectory;
+            //var separator = pipelineToolOptions.Value.DirectorySeparator;
+
+            //var directory = mountPath + separator + depositFilesModel.DepositId;
+
+            var allDirectories = Directory.GetDirectories(depositPath, "*", SearchOption.AllDirectories);
+
+            //var workingDirectory = await GetWorkingDirectory(baseDirectory);
+
+            ProcessDirectory(depositPath);
+
+            model.WorkingDirectory = baseDirectory;//workingDirectory;
             model.FilesInTarget = files;
             model.Directories = allDirectories;
-            model.DiskSpace = GetDf(depositFilesModel.DepositNameOrPath);
+            model.DiskSpace = GetDf(depositPath);
 
             logger.LogInformation("Returned from CheckDepositFolderExists");
         }
@@ -108,37 +124,6 @@ public class PipelineController(
         {
             ProcessDirectory(subdirectory);
         }
-
-    }
-
-    private async Task<string?> GetWorkingDirectory(string? targetDirectory)
-    {
-        try
-        {
-            Process process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "bash",
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    WorkingDirectory = targetDirectory
-                }
-            };
-            process.Start();
-            await process.StandardInput.WriteLineAsync("echo \"$PWD\"");
-            var output = await process.StandardOutput.ReadLineAsync();
-
-            return output;
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "error getting working directory");
-        }
-
-        return null;
 
     }
 
