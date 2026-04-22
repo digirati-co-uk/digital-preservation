@@ -26,7 +26,7 @@ public class GetArchiveJobResultForDepositHandler(
             .OrderByDescending(x => x.EndTime)
             .ToListAsync(cancellationToken);
 
-        var archiveJobEntity = archiveJobEntityList.OrderByDescending(x => x.EndTime).Take(1).FirstOrDefault();
+        var archiveJobEntity = archiveJobEntityList.FirstOrDefault();
 
         if (!(archiveJobEntityList.Count > 0) || archiveJobEntity == null)
         {
