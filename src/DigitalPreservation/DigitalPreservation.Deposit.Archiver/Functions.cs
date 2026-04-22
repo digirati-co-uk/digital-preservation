@@ -28,7 +28,6 @@ public class Functions
     private readonly WorkspaceManagerFactory workspaceManagerFactory;
     private readonly IIdentityMinter identityMinter;
     private readonly List<ArchiveDepositJob> archiveJobsList = [];
-    private int deletedCount;
 
     private readonly AsyncRetryPolicy<Result<ArchiveJobResult>> retryArchiveDepositResult =
         Policy<Result<ArchiveJobResult>>
@@ -309,12 +308,11 @@ public class Functions
         job.EndTime = endTime;
         job.BatchNumber = batch.BatchNumber;
         job.Id = identityMinter.MintIdentity("ArchiveJobIdentifier");
-        job.DeletedCount = deletedCount;
+        job.DeletedCount = job.DeletedCount;
     }
 
     private void ResetArchiveState()
     {
-        deletedCount = 0;
         archiveJobsList.Clear();
     }
 
@@ -383,7 +381,7 @@ public class Functions
         var archiveDepositJob = new ArchiveDepositJob
         {
             DepositId = depositId,
-            DepositUri = depositUri.AbsoluteUri,
+            DepositUri = depositUri.AbsoluteUri
         };
 
         if (deleteFilesResult.Success || (deleteFilesResult.ErrorMessage != null && deleteFilesResult.ErrorMessage.Contains("No items to delete.")))
@@ -399,7 +397,7 @@ public class Functions
             else
             {
                 Log.Logger.Information("Uploaded marker file for deposit {depositId}", depositId);
-                deletedCount += 1;
+                archiveDepositJob.DeletedCount = deleteFilesResult.Value?.Items.Count;
             }
         }
 

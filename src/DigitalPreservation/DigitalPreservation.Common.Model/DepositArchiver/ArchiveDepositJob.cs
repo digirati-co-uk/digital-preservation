@@ -16,7 +16,7 @@ public class ArchiveDepositJob
     public DateTime? StartTime { get; set; }
     public DateTime? EndTime { get; set; }
 
-    public int? DeletedCount { get; set; }
+    public int? DeletedCount { get; set; } //files deleted from deposit
     public string? Errors { get; set; }
 
     public string? BatchNumber { get; set; }
