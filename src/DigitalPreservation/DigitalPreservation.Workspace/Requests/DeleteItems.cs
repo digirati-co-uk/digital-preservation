@@ -106,15 +106,13 @@ public class DeleteItemsHandler(
                             ErrorCodes.NotFound, $"File {item.RelativePath} not found.");
                     }
 
-                    if (fileToDelete != null && !fileToDelete.LocalPath!.Contains('/'))
+                    if (fileToDelete != null &&
+                        !fileToDelete.LocalPath!.Contains('/') &&
+                        request.DeleteSelection.NonDeletableRootFiles != null &&
+                        request.DeleteSelection.NonDeletableRootFiles.Contains(fileToDelete.LocalPath!))
                     {
-                        //root file
-                        if (request.DeleteSelection.NonDeletableRootFiles != null &&
-                            request.DeleteSelection.NonDeletableRootFiles.Contains(fileToDelete.LocalPath!))
-                        {
-                            failedDeleteResult = Result.FailNotNull<ItemsAffected>(
-                                ErrorCodes.BadRequest, "You cannot delete files in the root.");
-                        }
+                        failedDeleteResult = Result.FailNotNull<ItemsAffected>(
+                            ErrorCodes.BadRequest, "You cannot delete files in the root.");
                     }
                 }
 

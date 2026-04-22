@@ -30,7 +30,7 @@ public class Startup
     /// the lifetime of the Lambda compute container. Services injected as parameters are created within the scope
     /// of the function invocation.
     /// </summary>
-    public void ConfigureServices(IServiceCollection services)
+    public static void ConfigureServices(IServiceCollection services)
     {
         var fromServerlessTemplateoauthAzureSecret = Environment.GetEnvironmentVariable("OAUTH_AZURE_SECRET");
         var clientBaseAddress = Environment.GetEnvironmentVariable("CLIENT_BASE_ADDRESS");

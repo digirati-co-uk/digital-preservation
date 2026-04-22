@@ -232,7 +232,7 @@ public class Functions
         return job.Errors.Contains("No items to delete.");
     }
 
-    private async Task HandlePatchFailure(
+    private static async Task HandlePatchFailure(
         string depositId,
         string? errorMessage,
         Result<WorkspaceManager> workspaceManager,

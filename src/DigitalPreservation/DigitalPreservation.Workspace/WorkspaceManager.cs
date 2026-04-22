@@ -266,12 +266,16 @@ public class WorkspaceManager(
         }
 
         var slug = PreservedResource.MakeValidSlug(sourceFileName);
-        if (parentDirectory.Directories.Any(d => d.LocalPath!.GetSlug() == slug) ||
-            parentDirectory.Files.Any(f => f.LocalPath!.GetSlug() == slug))
+
+        if (!archiverFile &&
+            (parentDirectory.Directories.Any(d => d.LocalPath!.GetSlug() == slug) ||
+             parentDirectory.Files.Any(f => f.LocalPath!.GetSlug() == slug)))
         {
-            if (!archiverFile)
-                return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.BadRequest, "This file name conflicts with " + slug);
+            return Result.FailNotNull<SingleFileUploadResult>(
+                ErrorCodes.BadRequest,
+                "This file name conflicts with " + slug);
         }
+
 
         var uploadFileResult = await mediator.Send(new UploadFileToDeposit(
             IsBagItLayout,
