@@ -180,18 +180,3 @@ jobs:
           target-tag: ${{ inputs.target_env }}
           iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
   #TODO: bump lambda
-
-  deploy-lambda-function-testbuilder:
-    if: (inputs.deploy_dotnet == 'true')
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.target_env }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/ecr-retag
-        name: retag image
-        with:
-          source-image: ${{ vars.ECR_PREFIX }}/dlip-pres-lambda-function-test
-          source-tag: ${{ inputs.image_tag }}
-          target-tag: ${{ inputs.target_env }}
-          iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
-  #TODO: bump lambda

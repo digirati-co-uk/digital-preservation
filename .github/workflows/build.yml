@@ -102,8 +102,6 @@ jobs:
             dockerfile: "Dockerfile.PipelineApi"
           - image: "deposit-archiver"
             dockerfile: "Dockerfile.DepositArchiver"
-          - image: "lambda-function-test"
-            dockerfile: "Dockerfile.TestFunction"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-build-and-push
