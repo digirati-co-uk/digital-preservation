@@ -467,14 +467,14 @@ public class PreservationApiClient(
             var res = await preservationHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage", cancellationToken);
             return res;
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            logger.LogError(ex, "Error occured while checking if Fedora is alive");
+            logger.LogError(e, "Error occured while checking if Fedora is alive");
             return new ConnectivityCheckResult
             {
                 Name = ConnectivityCheckResult.DigitalPreservationBackEnd,
                 Success = false,
-                Error = ex.Message
+                Error = e.Message
             };
         }
     }
@@ -486,14 +486,14 @@ public class PreservationApiClient(
             var res = await preservationHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-s3", cancellationToken);
             return res;
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            logger.LogError(ex, "Error occured while checking if Preservation API can see S3");
+            logger.LogError(e, "Error occured while checking if Preservation API can see S3");
             return new ConnectivityCheckResult
             {
                 Name = ConnectivityCheckResult.PreservationApiReadS3,
                 Success = false,
-                Error = ex.Message
+                Error = e.Message
             };
         }
     }
@@ -505,14 +505,14 @@ public class PreservationApiClient(
             var res = await preservationHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-storage-s3", cancellationToken);
             return res;
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            logger.LogError(ex, "Error occured while checking if Preservation API can see that Storage API can see S3");
+            logger.LogError(e, "Error occured while checking if Preservation API can see that Storage API can see S3");
             return new ConnectivityCheckResult
             {
                 Name = ConnectivityCheckResult.StorageApiReadS3,
                 Success = false,
-                Error = ex.Message
+                Error = e.Message
             };
         }
     }
@@ -582,10 +582,10 @@ public class PreservationApiClient(
 
             return await response.ToFailNotNullResult<LogPipelineStatusResult>("Unable to update pipeline status.");
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            logger.LogError(ex, ex.Message);
-            return Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, ex.Message);
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, e.Message);
         }
 
 
@@ -655,10 +655,10 @@ public class PreservationApiClient(
 
             return await response.ToFailNotNullResult<ArchiveJobResult>("Unable to archive deposit.");
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            logger.LogError(ex, ex.Message);
-            return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, ex.Message);
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

@@ -101,8 +101,11 @@ public class PatchDepositHandler(
         }
     }
 
-    private async Task<(bool Success, Data.Entities.Deposit? Value, Result<Deposit>? Result)> GetAndValidateDeposit(string mintedId, string callerIdentity, CancellationToken token)
+    private async Task<(bool Success, Data.Entities.Deposit? Value, Result<Deposit>? Result)> GetAndValidateDeposit(string? mintedId, string callerIdentity, CancellationToken token)
     {
+        if(string.IsNullOrEmpty(mintedId))
+            return (false, null, Result.FailNotNull<Deposit>(ErrorCodes.BadRequest, "Invalid Deposit Id"));
+
         var entity = await dbContext.Deposits.SingleAsync(
             d => d.MintedId == mintedId,
             cancellationToken: token);

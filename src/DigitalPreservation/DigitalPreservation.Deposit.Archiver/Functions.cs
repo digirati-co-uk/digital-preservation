@@ -65,16 +65,19 @@ public class Functions
             return HttpResults.Ok("No deposits to archive");
         }
 
-        LogDeposits(deposits.Value.Deposits.Count);
-
-        var batchContext = StartBatch();
-
-        foreach (var deposit in deposits.Value.Deposits)
+        if (deposits.Value != null)
         {
-            await ProcessDeposit(deposit);
-        }
+            LogDeposits(deposits.Value.Deposits.Count);
 
-        await PersistArchiveJobs(batchContext);
+            var batchContext = StartBatch();
+
+            foreach (var deposit in deposits.Value.Deposits)
+            {
+                await ProcessDeposit(deposit);
+            }
+
+            await PersistArchiveJobs(batchContext);
+        }
 
         ResetArchiveState();
 
@@ -82,7 +85,7 @@ public class Functions
         return HttpResults.Ok("Deposits archived");
     }
 
-    private DepositQuery BuildDepositQuery()
+    private static DepositQuery BuildDepositQuery()
     {
         var lastModifiedBeforeMonths =
             -Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
@@ -100,12 +103,12 @@ public class Functions
         };
     }
 
-    private bool HasDeposits(Result<DepositQueryPage> deposits)
+    private static bool HasDeposits(Result<DepositQueryPage> deposits)
     {
         return deposits.Value?.Deposits is { Count: > 0 };
     }
 
-    private void LogDeposits(int count)
+    private static void LogDeposits(int count)
     {
         Log.Logger.Information("Got deposits for archiving from preservation API");
         Log.Logger.Information("Deposits count {depositsCount}", count);
@@ -150,7 +153,7 @@ public class Functions
             await preservationApiClient.GetArchiveJobResult(depositId, CancellationToken.None);
 
         if (previousJob is { Success: true, Value.Errors: not null } &&
-            previousJob.Value.Errors.Any())
+            previousJob.Value.Errors.Length > 0)
         {
             Log.Logger.Information(
                 "Previous archiver job run for this deposit {depositId} had errors",
@@ -218,7 +221,7 @@ public class Functions
         Log.Logger.Information("Successfully patched deposit for {depositId}", depositId);
     }
 
-    private bool IsArchivableResult(ArchiveDepositJob? job)
+    private static bool IsArchivableResult(ArchiveDepositJob? job)
     {
         if (job == null)
             return false;
@@ -233,7 +236,7 @@ public class Functions
         string depositId,
         string? errorMessage,
         Result<WorkspaceManager> workspaceManager,
-        ArchiveDepositJob archivedDeposit)
+        ArchiveDepositJob? archivedDeposit)
     {
         Log.Logger.Error(
             "issue patching deposit for {depositId} Error message: {errorMessage}",
@@ -254,7 +257,7 @@ public class Functions
             }
         }
 
-        archivedDeposit.Errors = errorMessage;
+        if (archivedDeposit != null) archivedDeposit.Errors = errorMessage;
     }
 
     private async Task PersistArchiveJobs(BatchContext batch)
@@ -326,7 +329,7 @@ public class Functions
 
         return Result.OkNotNull(workspaceManager);
     }
-    private async Task<Result<ItemsAffected>> DeleteDepositFiles(WorkspaceManager workspaceManager)
+    private static async Task<Result<ItemsAffected>> DeleteDepositFiles(WorkspaceManager workspaceManager)
     {
         // This is an expensive operation (refresh=true):
         var root = await workspaceManager.RefreshCombinedDirectory();
@@ -398,11 +401,14 @@ public class Functions
         archiveJobsList.Add(archiveDepositJob);
     }
 
-    private async Task<Result<SingleFileUploadResult>> UploadMarkerFile(WorkspaceManager workspaceManager)
+    private static async Task<Result<SingleFileUploadResult>> UploadMarkerFile(WorkspaceManager workspaceManager)
     {
         var tmpPath = Environment.GetEnvironmentVariable("TMP_FILES_PATH");
         var directorySeparator = Environment.GetEnvironmentVariable("DIRECTORY_SEPARATOR");
 
+        if(tmpPath == null)
+            return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError, "TMP_FILES_PATH environment variable is not set.");
+        
         Directory.CreateDirectory(tmpPath);
         await File.WriteAllTextAsync($"{tmpPath}{directorySeparator}archived.txt", DateTime.UtcNow.ToString("s"), CancellationToken.None);
 

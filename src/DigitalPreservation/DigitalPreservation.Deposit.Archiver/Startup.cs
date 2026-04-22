@@ -90,7 +90,7 @@ public class Startup
         services.AddSingleton<WorkspaceManagerFactory>();
     }
 
-    private string GetSecretValue(string secretName, string region)
+    private static string GetSecretValue(string secretName, string region)
     {
         var client = new AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(region));
 

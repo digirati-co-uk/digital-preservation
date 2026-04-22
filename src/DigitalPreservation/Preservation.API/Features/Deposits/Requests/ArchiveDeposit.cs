@@ -1,4 +1,5 @@
 ﻿using Amazon.SimpleNotificationService;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
@@ -22,6 +23,9 @@ public class ArchiveDepositHandler(
 {
     public async Task<Result> Handle(ArchiveDeposit request, CancellationToken cancellationToken)
     {
+        if(string.IsNullOrEmpty(request.ArchiveDepositJob.DepositId) || string.IsNullOrEmpty(request.ArchiveDepositJob.DepositUri))
+            return Result.Fail(ErrorCodes.BadRequest, "Null or empty deposit id and/or URI");
+
         var newArchiveJob = new DepositArchiveJob
         {
             DepositId = request.ArchiveDepositJob.DepositId,

@@ -28,7 +28,7 @@ public class GetArchiveJobResultForDepositHandler(
 
         var archiveJobEntity = archiveJobEntityList.OrderByDescending(x => x.EndTime).Take(1).FirstOrDefault();
 
-        if (!archiveJobEntityList.Any() || archiveJobEntity == null)
+        if (!(archiveJobEntityList.Count > 0) || archiveJobEntity == null)
         {
             return Result.Fail<ArchiveJobResult>(ErrorCodes.NotFound,
                 $" deposit {request.DepositId}");
