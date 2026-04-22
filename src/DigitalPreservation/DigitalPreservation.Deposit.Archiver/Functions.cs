@@ -30,7 +30,7 @@ public class Functions
     private readonly List<ArchiveDepositJob> archiveJobsList = [];
     private int deletedCount;
 
-    private static readonly AsyncRetryPolicy<Result<ArchiveJobResult>> RetryArchiveDepositResult =
+    private readonly AsyncRetryPolicy<Result<ArchiveJobResult>> retryArchiveDepositResult =
         Policy<Result<ArchiveJobResult>>
             .Handle<Exception>()
             .WaitAndRetryAsync(retryCount: 3,
@@ -46,12 +46,48 @@ public class Functions
         this.identityMinter = identityMinter;
     }
 
+
     [LambdaFunction(PackageType = LambdaPackageType.Image)]
     [RestApi(LambdaHttpMethod.Get, "/")]
     public async Task<IHttpResult> Get(ILambdaContext context)
     {
-        var lastModifiedBefore = -Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
-        var query = new DepositQuery
+        var query = BuildDepositQuery();
+
+        var deposits = await preservationApiClient.GetDeposits(query, CancellationToken.None);
+
+        if (!HasDeposits(deposits))
+        {
+            Log.Logger.Error(
+                "No deposits returned {errorCode} {errorMessage}",
+                deposits.ErrorCode,
+                deposits.ErrorMessage);
+
+            return HttpResults.Ok("No deposits to archive");
+        }
+
+        LogDeposits(deposits.Value.Deposits.Count);
+
+        var batchContext = StartBatch();
+
+        foreach (var deposit in deposits.Value.Deposits)
+        {
+            await ProcessDeposit(deposit);
+        }
+
+        await PersistArchiveJobs(batchContext);
+
+        ResetArchiveState();
+
+        context.Logger.LogInformation("Handling the 'Get' Request");
+        return HttpResults.Ok("Deposits archived");
+    }
+
+    private DepositQuery BuildDepositQuery()
+    {
+        var lastModifiedBeforeMonths =
+            -Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
+
+        return new DepositQuery
         {
             Status = "preserved",
             OrderBy = DepositQuery.LastModified,
@@ -60,175 +96,236 @@ public class Functions
             Ascending = true,
             ShowAll = true,
             Archived = false,
-            LastModifiedBefore = DateTime.UtcNow.AddMonths(lastModifiedBefore) //only archive if older than 6 months
+            LastModifiedBefore = DateTime.UtcNow.AddMonths(lastModifiedBeforeMonths)
         };
+    }
 
-        var deposits = await preservationApiClient.GetDeposits(query, CancellationToken.None);
+    private bool HasDeposits(Result<DepositQueryPage> deposits)
+    {
+        return deposits.Value?.Deposits is { Count: > 0 };
+    }
 
-        if (deposits.Value != null && deposits.Value.Deposits.Count > 0)
+    private void LogDeposits(int count)
+    {
+        Log.Logger.Information("Got deposits for archiving from preservation API");
+        Log.Logger.Information("Deposits count {depositsCount}", count);
+    }
+
+    private BatchContext StartBatch()
+    {
+        return new BatchContext
         {
-            Log.Logger.Information("Got deposits for archiving from preservation API");
-            Log.Logger.Information("Deposits count {depositsCount}", deposits.Value?.Deposits.Count);
+            StartTime = DateTime.UtcNow,
+            BatchNumber = identityMinter.MintIdentity("ArchiveJob")
+        };
+    }
+
+    private sealed record BatchContext
+    {
+        public DateTime StartTime { get; init; }
+        public string BatchNumber { get; init; } = string.Empty;
+    }
+
+    private async Task ProcessDeposit(Common.Model.PreservationApi.Deposit deposit)
+    {
+        var depositId = deposit.Id?.Segments[^1];
+        if (depositId is null)
+            return;
+
+        if (await HasPreviousFailedArchive(depositId))
+            return;
+
+        var workspaceManager = await GetWorkspaceManager(depositId, true);
+
+        await ReleaseLock(deposit, depositId);
+
+        await TryArchiveDeposit(deposit, depositId, workspaceManager);
+
+        await TryPatchDeposit(deposit, depositId, workspaceManager);
+    }
+
+    private async Task<bool> HasPreviousFailedArchive(string depositId)
+    {
+        var previousJob =
+            await preservationApiClient.GetArchiveJobResult(depositId, CancellationToken.None);
+
+        if (previousJob is { Success: true, Value.Errors: not null } &&
+            previousJob.Value.Errors.Any())
+        {
+            Log.Logger.Information(
+                "Previous archiver job run for this deposit {depositId} had errors",
+                depositId);
+            return true;
         }
-        else
+
+        return false;
+    }
+
+    private async Task ReleaseLock(Common.Model.PreservationApi.Deposit deposit, string depositId)
+    {
+        var result =
+            await preservationApiClient.ReleaseDepositLock(deposit, CancellationToken.None);
+
+        if (result.Failure)
         {
-            Log.Logger.Error("No deposits returned {errorCode} {errorMessage}", deposits.ErrorCode, deposits.ErrorMessage);
+            Log.Logger.Information("issue releasing lock for {depositId}", depositId);
+        }
+    }
+
+    private async Task TryArchiveDeposit(
+        Common.Model.PreservationApi.Deposit deposit,
+        string depositId,
+        Result<WorkspaceManager> workspaceManager)
+    {
+        if (workspaceManager.Value == null || deposit.Files == null)
+            return;
+
+        Log.Logger.Information("Calling archive for deposit {depositId}", depositId);
+
+        await Archive(workspaceManager.Value, depositId, deposit.Files);
+    }
+
+    private async Task TryPatchDeposit(
+        Common.Model.PreservationApi.Deposit deposit,
+        string depositId,
+        Result<WorkspaceManager> workspaceManager)
+    {
+        var archivedDeposit = archiveJobsList.FirstOrDefault(x => x.DepositId == depositId);
+
+        Log.Logger.Information(
+            "Archived deposit is not null for deposit {archivedDeposit}. Deposit Uri: {depositUri}",
+            archivedDeposit != null,
+            archivedDeposit?.DepositUri);
+
+        if (!IsArchivableResult(archivedDeposit))
+            return;
+
+        deposit.Archived = DateTime.UtcNow;
+
+        var patchResult =
+            await preservationApiClient.UpdateDeposit(deposit, CancellationToken.None);
+
+        if (patchResult.Failure)
+        {
+            await HandlePatchFailure(
+                depositId,
+                patchResult.ErrorMessage,
+                workspaceManager,
+                archivedDeposit);
+            return;
         }
 
-        var startTime = DateTime.UtcNow;
-        var batchNumber = identityMinter.MintIdentity("ArchiveJob");
+        Log.Logger.Information("Successfully patched deposit for {depositId}", depositId);
+    }
 
-        if (deposits.Value?.Deposits is { Count: > 0 })
+    private bool IsArchivableResult(ArchiveDepositJob? job)
+    {
+        if (job == null)
+            return false;
+
+        if (string.IsNullOrEmpty(job.Errors))
+            return true;
+
+        return job.Errors.Contains("No items to delete.");
+    }
+
+    private async Task HandlePatchFailure(
+        string depositId,
+        string? errorMessage,
+        Result<WorkspaceManager> workspaceManager,
+        ArchiveDepositJob archivedDeposit)
+    {
+        Log.Logger.Error(
+            "issue patching deposit for {depositId} Error message: {errorMessage}",
+            depositId,
+            errorMessage);
+
+        if (workspaceManager.Value != null)
         {
-            foreach (var deposit in deposits.Value?.Deposits!)
+            var deleteResult =
+                await DeleteDepositFiles(workspaceManager.Value);
+
+            if (!deleteResult.Success)
             {
-                var depositId = deposit.Id?.Segments[^1];
-                if (depositId is null) continue;
-                var workspaceManager = await GetWorkspaceManager(depositId, true);
-                var releaseLock = await preservationApiClient.ReleaseDepositLock(deposit, CancellationToken.None);
-
-                var previousDepositArchiverJob = await preservationApiClient.GetArchiveJobResult(depositId, CancellationToken.None);
-
-                if (previousDepositArchiverJob is { Success: true, Value.Errors: not null } && previousDepositArchiverJob.Value.Errors.Any())
-                {
-                    Log.Logger.Information("Previous archiver job run for this deposit {depositId} had errors", depositId);
-                    continue;
-                }
-
-                if (releaseLock.Failure)
-                    Log.Logger.Information("issue releasing lock for {depositId}", depositId);
-
-                if (workspaceManager.Value != null && deposit.Files != null)
-                {
-                    Log.Logger.Information("Calling archive for deposit {depositId}", depositId);
-                    await Archive(workspaceManager.Value, depositId, deposit.Files);
-                }
-
-                var archivedDeposit = archiveJobsList.FirstOrDefault(x => x.DepositId == depositId);
-                Log.Logger.Information("Archived deposit is not null for deposit {archivedDeposit}. Deposit Uri: {depositUri}", archivedDeposit != null, archivedDeposit?.DepositUri);
-
-                if (archivedDeposit == null || (!string.IsNullOrEmpty(archivedDeposit.Errors) && !archivedDeposit.Errors.Contains("No items to delete."))) continue;
-
-                Log.Logger.Information("No errors and Items to delete for deposit id {depositId}", depositId);
-                deposit.Archived = DateTime.UtcNow;
-                
-                var patchDeposit = await preservationApiClient.UpdateDeposit(deposit, CancellationToken.None);
-
-                if (patchDeposit.Failure)
-                {
-                    Log.Logger.Error("issue patching deposit for {depositId} Error message: {errorMessage}", depositId, patchDeposit.ErrorMessage);
-                        
-                    if (workspaceManager.Value != null)
-                    {
-                        var deleteFilesResult = await DeleteDepositFiles(workspaceManager.Value);
-
-                        if(!deleteFilesResult.Success) 
-                            Log.Logger.Error("Could not delete deposit files for {depositId} Error message: {errorMessage}", depositId, deleteFilesResult.ErrorMessage);
-                    }
-
-                    var index = archiveJobsList.IndexOf(archivedDeposit);
-                    if (index > -1)
-                    {
-                        archiveJobsList[index].Errors = patchDeposit.ErrorMessage;
-                    }
-                }
-
-
-                if (patchDeposit.Success)
-                    Log.Logger.Information("Successfully patched deposit for {depositId}", depositId);
+                Log.Logger.Error(
+                    "Could not delete deposit files for {depositId} Error message: {errorMessage}",
+                    depositId,
+                    deleteResult.ErrorMessage);
             }
         }
 
-        var endTime = DateTime.UtcNow;
-
-        foreach (var archiveJob in archiveJobsList)
-        {
-            archiveJob.StartTime = startTime;
-            archiveJob.EndTime = endTime;
-            archiveJob.BatchNumber = batchNumber;
-            archiveJob.Id = identityMinter.MintIdentity("ArchiveJobIdentifier");
-            archiveJob.DeletedCount = deletedCount;
-
-            var archiveJobResult = await RetryArchiveDepositResult.ExecuteAsync(() =>
-                preservationApiClient.ArchiveDeposit(archiveJob, CancellationToken.None));
-
-            if (archiveJobResult.Success)
-                Log.Logger.Information("Successfully archived deposit {depositId} in batch {batchNumber}", archiveJob.DepositId, batchNumber);
-            
-            if (archiveJobResult.Failure)
-                Log.Logger.Information("Issue archiving deposit {depositId} in batch {batchNumber} with error message {errorMessage}", archiveJob.DepositId, batchNumber, archiveJobResult.ErrorMessage);
-
-        }
-
-        //re-initialise
-        deletedCount = 0;
-        archiveJobsList.Clear();
-        context.Logger.LogInformation("Handling the 'Get' Request");
-        return HttpResults.Ok("Deposits archived");
+        archivedDeposit.Errors = errorMessage;
     }
 
-    public async Task Archive(WorkspaceManager workspaceManager, string depositId, Uri depositUri)
+    private async Task PersistArchiveJobs(BatchContext batch)
     {
-        var deleteFilesResult = await DeleteDepositFiles(workspaceManager);
+        var endTime = DateTime.UtcNow;
 
-        var archiveDepositJob = new ArchiveDepositJob
+        foreach (var job in archiveJobsList)
         {
-            DepositId = depositId,
-            DepositUri = depositUri.AbsoluteUri,
-        };
+            PopulateArchiveJob(job, batch, endTime);
 
-        if (deleteFilesResult.Success || (deleteFilesResult.ErrorMessage != null && deleteFilesResult.ErrorMessage.Contains("No items to delete.")))
-        {
-            Log.Logger.Information("Successfully deleted files for deposit {depositId}", depositId);
-            var markerFileUploadResult = await UploadMarkerFile(workspaceManager);
+            var result = await retryArchiveDepositResult.ExecuteAsync(() =>
+                preservationApiClient.ArchiveDeposit(job, CancellationToken.None));
 
-            if (!markerFileUploadResult.Success)
+            if (result.Success)
             {
-                Log.Logger.Error("Errors uploading marker file for deposit {depositId} Error message: {errorMessage}", depositId, markerFileUploadResult.ErrorMessage);
-                archiveDepositJob.Errors += markerFileUploadResult.ErrorMessage;
+                Log.Logger.Information(
+                    "Successfully archived deposit {depositId} in batch {batchNumber}",
+                    job.DepositId,
+                    batch.BatchNumber);
             }
             else
             {
-                Log.Logger.Information("Uploaded marker file for deposit {depositId}", depositId);
-                deletedCount += 1;
+                Log.Logger.Information(
+                    "Issue archiving deposit {depositId} in batch {batchNumber} with error message {errorMessage}",
+                    job.DepositId,
+                    batch.BatchNumber,
+                    result.ErrorMessage);
             }
         }
-
-        if (deleteFilesResult.Failure)
-        {
-            archiveDepositJob.Errors = deleteFilesResult.ErrorMessage;
-            Log.Logger.Information("Errors deleting files from deposit {depositId}", depositId);
-        }
-
-
-        archiveJobsList.Add(archiveDepositJob);
     }
 
-    private async Task<Result<SingleFileUploadResult>> UploadMarkerFile(WorkspaceManager workspaceManager)
+    private void PopulateArchiveJob(
+        ArchiveDepositJob job,
+        BatchContext batch,
+        DateTime endTime)
     {
-        var tmpPath = Environment.GetEnvironmentVariable("TMP_FILES_PATH");
-        var directorySeparator = Environment.GetEnvironmentVariable("DIRECTORY_SEPARATOR");
-
-        Directory.CreateDirectory(tmpPath);
-        await File.WriteAllTextAsync($"{tmpPath}{directorySeparator}archived.txt", DateTime.UtcNow.ToString("s"), CancellationToken.None);
-
-        Result<SingleFileUploadResult>? uploadMarkerFile;
-
-        var fi = new FileInfo($"{tmpPath}{directorySeparator}archived.txt");
-        var checksum = Checksum.Sha256FromFile(fi);
-
-        await using (Stream stream = File.OpenRead($"{tmpPath}{directorySeparator}archived.txt"))
-        {
-            uploadMarkerFile = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, "archived.txt",
-                checksum!, "archived.txt", "text/plain", "", "archiver", true, true);
-        }
-
-        if (File.Exists($"{tmpPath}{directorySeparator}archived.txt"))
-            File.Delete($"{tmpPath}{directorySeparator}archived.txt");
-
-        return uploadMarkerFile;
+        job.StartTime = batch.StartTime;
+        job.EndTime = endTime;
+        job.BatchNumber = batch.BatchNumber;
+        job.Id = identityMinter.MintIdentity("ArchiveJobIdentifier");
+        job.DeletedCount = deletedCount;
     }
 
+    private void ResetArchiveState()
+    {
+        deletedCount = 0;
+        archiveJobsList.Clear();
+    }
+
+    private async Task<Result<WorkspaceManager>> GetWorkspaceManager(
+        string depositId,
+        bool refresh,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await preservationApiClient.GetDeposit(depositId, cancellationToken);
+        if (response.Failure || response.Value == null)
+        {
+            return Result.FailNotNull<WorkspaceManager>(response.ErrorCode ?? ErrorCodes.UnknownError,
+                $"Could not archive deposit {depositId} as could not find the deposit.");
+        }
+
+        var deposit = response.Value;
+        var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit, refresh);
+
+        foreach (var warning in workspaceManager.Warnings)
+        {
+            Log.Logger.Warning(warning);
+        }
+
+        return Result.OkNotNull(workspaceManager);
+    }
     private async Task<Result<ItemsAffected>> DeleteDepositFiles(WorkspaceManager workspaceManager)
     {
         // This is an expensive operation (refresh=true):
@@ -265,27 +362,65 @@ public class Functions
         return resultDelete;
     }
 
-    private async Task<Result<WorkspaceManager>> GetWorkspaceManager(
-        string depositId,
-        bool refresh,
-        CancellationToken cancellationToken = default)
+    public async Task Archive(WorkspaceManager workspaceManager, string depositId, Uri depositUri)
     {
-        var response = await preservationApiClient.GetDeposit(depositId, cancellationToken);
-        if (response.Failure || response.Value == null)
+        var deleteFilesResult = await DeleteDepositFiles(workspaceManager);
+
+        var archiveDepositJob = new ArchiveDepositJob
         {
-            return Result.FailNotNull<WorkspaceManager>(response.ErrorCode ?? ErrorCodes.UnknownError,
-                $"Could not archive deposit {depositId} as could not find the deposit.");
+            DepositId = depositId,
+            DepositUri = depositUri.AbsoluteUri,
+        };
+
+        if (deleteFilesResult.Success || (deleteFilesResult.ErrorMessage != null && deleteFilesResult.ErrorMessage.Contains("No items to delete.")))
+        {
+            Log.Logger.Information("Successfully deleted files for deposit {depositId}", depositId);
+            var markerFileUploadResult = await UploadMarkerFile(workspaceManager);
+
+            if (!markerFileUploadResult.Success)
+            {
+                Log.Logger.Error("Errors uploading marker file for deposit {depositId} Error message: {errorMessage}", depositId, markerFileUploadResult.ErrorMessage);
+                archiveDepositJob.Errors += markerFileUploadResult.ErrorMessage;
+            }
+            else
+            {
+                Log.Logger.Information("Uploaded marker file for deposit {depositId}", depositId);
+                deletedCount += 1;
+            }
         }
 
-        var deposit = response.Value;
-        var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit, refresh);
-
-        foreach (var warning in workspaceManager.Warnings)
+        if (deleteFilesResult.Failure)
         {
-            Log.Logger.Warning(warning);
+            archiveDepositJob.Errors = deleteFilesResult.ErrorMessage;
+            Log.Logger.Information("Errors deleting files from deposit {depositId}", depositId);
         }
 
-        return Result.OkNotNull(workspaceManager);
+        archiveJobsList.Add(archiveDepositJob);
+    }
+
+    private async Task<Result<SingleFileUploadResult>> UploadMarkerFile(WorkspaceManager workspaceManager)
+    {
+        var tmpPath = Environment.GetEnvironmentVariable("TMP_FILES_PATH");
+        var directorySeparator = Environment.GetEnvironmentVariable("DIRECTORY_SEPARATOR");
+
+        Directory.CreateDirectory(tmpPath);
+        await File.WriteAllTextAsync($"{tmpPath}{directorySeparator}archived.txt", DateTime.UtcNow.ToString("s"), CancellationToken.None);
+
+        Result<SingleFileUploadResult>? uploadMarkerFile;
+
+        var fi = new FileInfo($"{tmpPath}{directorySeparator}archived.txt");
+        var checksum = Checksum.Sha256FromFile(fi);
+
+        await using (Stream stream = File.OpenRead($"{tmpPath}{directorySeparator}archived.txt"))
+        {
+            uploadMarkerFile = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, "archived.txt",
+                checksum!, "archived.txt", "text/plain", "", "archiver", true, true);
+        }
+
+        if (File.Exists($"{tmpPath}{directorySeparator}archived.txt"))
+            File.Delete($"{tmpPath}{directorySeparator}archived.txt");
+
+        return uploadMarkerFile;
     }
 
 }
