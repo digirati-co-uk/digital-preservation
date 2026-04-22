@@ -64,11 +64,19 @@ public class Startup
             })
             .AddMachinePreservationClient(configuration, "ArchiverLambda", clientBaseAddress);
 
+        // NOT blocking request threads
+        var authProvider = SecretsCache
+            .GetAsync(
+                Environment.GetEnvironmentVariable("OAUTH_AZURE_SECRET")!,
+                "eu-west-1")
+            .GetAwaiter()
+            .GetResult();
+        
         var accessTokenProviderOptions = new AccessTokenProviderOptions
         {
-            ClientId = secretModel?.ClientId,
-            ClientSecret = secretModel?.ClientSecret,
-            TenantId = secretModel?.TenantId
+            ClientId = authProvider.ClientId,
+            ClientSecret = authProvider.ClientSecret,
+            TenantId = authProvider.TenantId
         };
         services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
         services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
@@ -101,4 +109,5 @@ public class Startup
         var response = client.GetSecretValueAsync(request).GetAwaiter().GetResult();
         return response.SecretString;
     }
+
 }
