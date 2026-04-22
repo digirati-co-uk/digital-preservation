@@ -49,21 +49,15 @@ public class PatchDepositHandler(
                     return Result.FailNotNull<Deposit>(validateAgResult.ErrorCode!, validateAgResult.ErrorMessage);
                 }
             }
-            
-            var entity = await dbContext.Deposits.SingleAsync(
-                d => d.MintedId == mintedId, cancellationToken: cancellationToken);
 
-            if (entity.Status == DepositStates.Exporting)
+            var entityReturn = await GetAndValidateDeposit(mintedId, callerIdentity, cancellationToken);
+            if (entityReturn.Result != null && entityReturn.Result.Failure)
             {
-                return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is being exported");
+                return entityReturn.Result!;
             }
-            logger.LogInformation("Deposit.LockedBy is {lockedBy}", entity.LockedBy);
-            if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
-            {
-                logger.LogWarning("Deposit is locked by {otherLockOwner}, returning Conflict", entity.LockedBy);
-                return Result.FailNotNull<Deposit>(ErrorCodes.Conflict, "Deposit is locked by " + entity.LockedBy);
-            }
-            
+
+            var entity = entityReturn.Value!;
+
             // there are only some patchable fields
             if (request.Deposit.SubmissionText.HasText())
             {
@@ -106,4 +100,40 @@ public class PatchDepositHandler(
             return Result.FailNotNull<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
+
+    private async Task<(bool Success, Data.Entities.Deposit? Value, Result<Deposit>? Result)> GetAndValidateDeposit(string mintedId, string callerIdentity, CancellationToken token)
+    {
+        var entity = await dbContext.Deposits.SingleAsync(
+            d => d.MintedId == mintedId,
+            cancellationToken: token);
+
+        if (entity.Status == DepositStates.Exporting)
+        {
+            return (
+                false,
+                null,
+                Result.FailNotNull<Deposit>(
+                    ErrorCodes.Conflict,
+                    "Deposit is being exported"));
+        }
+
+        logger.LogInformation("Deposit.LockedBy is {lockedBy}", entity.LockedBy);
+
+        if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
+        {
+            logger.LogWarning(
+                "Deposit is locked by {otherLockOwner}, returning Conflict",
+                entity.LockedBy);
+
+            return (
+                false,
+                null,
+                Result.FailNotNull<Deposit>(
+                    ErrorCodes.Conflict,
+                    "Deposit is locked by " + entity.LockedBy));
+        }
+
+        return (true, entity, null);
+    }
+
 }
