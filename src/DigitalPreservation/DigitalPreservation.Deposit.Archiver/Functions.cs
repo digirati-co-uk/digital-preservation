@@ -107,9 +107,10 @@ public class Functions
             Page = 0,
             PageSize = Convert.ToInt32(Environment.GetEnvironmentVariable("BATCH_SIZE")),
             Ascending = true,
-            ShowAll = true,
+            ShowAll = false,
             Archived = false,
-            LastModifiedBefore = cutoffDate
+            LastModifiedBefore = cutoffDate,
+            Active = false
         };
     }
 

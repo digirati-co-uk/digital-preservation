@@ -18,6 +18,7 @@ public class DepositQuery : QueryBase
     public bool? ShowAll { get; set; }
     public bool? ShowForm { get; set; }
     public bool? Archived { get; set; }
+    public bool? Active { get; set; }
 
     public override bool NoTerms()
     {

@@ -131,7 +131,15 @@ public class GetDepositsHandler(
                 }
                 else
                 {
-                    predicate = predicate.And(x => x.Active == true);
+                    if (q.Active.HasValue && q.Active is false)
+                    {
+                        predicate = predicate.And(x => x.Active == false);
+                    }
+                    else
+                    {
+                        predicate = predicate.And(x => x.Active == true);
+                    }
+
                 }
 
                 if (q.Status.HasText())
