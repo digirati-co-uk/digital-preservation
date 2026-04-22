@@ -44,15 +44,38 @@ public class GetDistinctDigestsTests
     // BagIt, no pipeline
 
     [Fact]
-    public void BagItOnly_NoSiegfried_BagItDigestNotIncludedInDistincts()
+    public void BagItOnly_NoSiegfried_FreshFile_BagItDigestIncluded()
     {
-        // Without pipeline, GetFileFormatMetadata() returns null for objects/ files,
-        // so DepositFileFormatMetadata is null and the BagIt DigestMetadata never
-        // enters GetDistinctDigests regardless of timestamp.
+        // Without pipeline, the fix still correctly includes the BagIt digest for a fresh
+        // file (Modified <= BagItTimestamp). The old code never included it (gated on
+        // DepositFileFormatMetadata being non-null, which required Siegfried to have run).
         var depositFile = new WorkingFile
         {
             LocalPath = "objects/file.jpg",
             Modified = FileModifiedBeforeBagIt,
+            Digest = "bagit-digest",
+            Metadata =
+            [
+                new DigestMetadata { Source = "BagIt", Digest = "bagit-digest", Timestamp = BagItTimestamp }
+            ]
+        };
+        var metsFile = new WorkingFile { LocalPath = "objects/file.jpg", Digest = "bagit-digest" };
+        var combined = new CombinedFile(depositFile, metsFile);
+
+        combined.GetDistinctDigests().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void BagItOnly_NoSiegfried_BagItMetsDigestMismatch_ReturnsTwoDigests()
+    {
+        // Fresh file, BagIt digest does not match METS digest — a real mismatch.
+        // The fix correctly surfaces this; the old code would have missed it (BagIt
+        // digest was never included without pipeline).
+        var depositFile = new WorkingFile
+        {
+            LocalPath = "objects/file.jpg",
+            Modified = FileModifiedBeforeBagIt,
+            Digest = "bagit-digest",
             Metadata =
             [
                 new DigestMetadata { Source = "BagIt", Digest = "bagit-digest", Timestamp = BagItTimestamp }
@@ -61,7 +84,7 @@ public class GetDistinctDigestsTests
         var metsFile = new WorkingFile { LocalPath = "objects/file.jpg", Digest = "mets-digest" };
         var combined = new CombinedFile(depositFile, metsFile);
 
-        combined.GetDistinctDigests().Should().NotContain("bagit-digest");
+        combined.GetDistinctDigests().Should().HaveCount(2);
     }
 
     // BagIt + pipeline, files unchanged
@@ -119,10 +142,9 @@ public class GetDistinctDigestsTests
     [Fact]
     public void GetDigestMetadata_ThrowsWhenBagItAndSiegfriedDigestsDiffer()
     {
-        // This is the exact post-pipeline state the PR is supposed to fix:
-        // BagIt manifest has the old digest, Siegfried computed the new digest.
-        // GetDigestMetadata() throws MetadataException rather than returning a timestamp,
-        // so the condition in GetDistinctDigests cannot evaluate safely.
+        // GetDigestMetadata() aggregates all IDigestMetadata sources. When BagIt and
+        // Siegfried disagree it throws MetadataException. The fix avoids calling
+        // GetDigestMetadata() in GetDistinctDigests so this never triggers there.
         var depositFile = new WorkingFile
         {
             LocalPath = "objects/file.jpg",
@@ -139,12 +161,10 @@ public class GetDistinctDigestsTests
     }
 
     [Fact]
-    public void GetDistinctDigests_WhenBagItAndSiegfriedDigestsDiffer_Throws()
+    public void GetDistinctDigests_WhenBagItDigestIsStale_ExcludesBagItDigestAndReturnsSingleDigest()
     {
-        // When the stale-BagIt scenario actually occurs, the condition
-        // `FileInDeposit.GetDigestMetadata()?.Timestamp` throws MetadataException
-        // rather than returning a clean mismatch count. This is the bug the PR targets
-        // but does not fix correctly.
+        // The fix scenario: file was modified after the BagIt manifest was written (pipeline ran).
+        // The stale BagIt digest should be excluded; only the METS and actual file digests remain.
         var depositFile = new WorkingFile
         {
             LocalPath = "objects/file.jpg",
@@ -159,10 +179,29 @@ public class GetDistinctDigestsTests
         var metsFile = new WorkingFile { LocalPath = "objects/file.jpg", Digest = "new-digest" };
         var combined = new CombinedFile(depositFile, metsFile);
 
-        // The fix should make this return a single digest ("new-digest") without throwing.
-        // Currently it throws because GetDigestMetadata() is called inside the condition.
-        var act = () => combined.GetDistinctDigests();
-        act.Should().Throw<MetadataException>();
+        var digests = combined.GetDistinctDigests();
+        digests.Should().ContainSingle().Which.Should().Be("new-digest");
+        digests.Should().NotContain("old-digest");
+    }
+
+    [Fact]
+    public void GetDistinctDigests_WhenBagItDigestIsFresh_IncludesBagItDigest()
+    {
+        // File was NOT modified after the BagIt manifest — digest is still valid and included.
+        var depositFile = new WorkingFile
+        {
+            LocalPath = "objects/file.jpg",
+            Modified = FileModifiedBeforeBagIt,
+            Digest = "digest-a",
+            Metadata =
+            [
+                new DigestMetadata { Source = "BagIt", Digest = "digest-a", Timestamp = BagItTimestamp }
+            ]
+        };
+        var metsFile = new WorkingFile { LocalPath = "objects/file.jpg", Digest = "digest-a" };
+        var combined = new CombinedFile(depositFile, metsFile);
+
+        combined.GetDistinctDigests().Should().ContainSingle();
     }
 
     private static CombinedFile MakeCombined(string? metsDigest, string? fileDigest)

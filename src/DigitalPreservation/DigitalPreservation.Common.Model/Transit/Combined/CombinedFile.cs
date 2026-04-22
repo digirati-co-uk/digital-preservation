@@ -448,9 +448,14 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             FileInDeposit?.Digest ?? string.Empty
         };
 
-        if (FileInDeposit != null && DepositFileFormatMetadata != null &&
-            FileInDeposit.Modified > FileInDeposit.GetDigestMetadata()?.Timestamp)
-            distinctDigests.Add(DepositFileFormatMetadata?.Digest ?? string.Empty);
+        var bagItEntry = FileInDeposit?.Metadata
+            .OfType<DigestMetadata>()
+            .FirstOrDefault(m => m.Source == "BagIt");
+
+        // Only include the BagIt digest if the file has not been modified since the manifest was written.
+        // If Modified > bagItEntry.Timestamp the BagIt digest is stale and should be discarded.
+        if (bagItEntry != null && FileInDeposit!.Modified <= bagItEntry.Timestamp)
+            distinctDigests.Add(bagItEntry.Digest ?? string.Empty);
 
         return distinctDigests.Where(digest => digest.HasText())
             .Distinct()
