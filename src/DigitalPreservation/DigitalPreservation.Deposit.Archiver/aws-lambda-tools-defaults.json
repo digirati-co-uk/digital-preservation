@@ -12,7 +12,6 @@
   "template": "serverless.template",
   "template-parameters": "",
   "docker-host-build-output-dir": "./bin/Release/lambda-publish",
-  "s3-bucket": "dlip-pres-dev-deposits",
   "stack-name": "DepositArchiverLambdaFunction",
   "function-handler": "DigitalPreservation.Deposit.Archiver::DigitalPreservation.Deposit.Archiver.Functions_Get_Generated::Get"
 }

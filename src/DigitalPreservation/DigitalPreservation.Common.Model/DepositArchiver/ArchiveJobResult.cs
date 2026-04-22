@@ -23,14 +23,14 @@ public class ArchiveJobResult : Resource
     /// Timestamp indicating when the API finished processing the job. Will be null/missing until then.
     /// </summary>
     [JsonPropertyName("dateBegun")]
-    [JsonPropertyOrder(611)]
+    [JsonPropertyOrder(610)]
     public DateTime? DateBegun { get; set; }
 
     /// <summary>
     /// Timestamp indicating when the archiver finished processing the job. Will be null/missing until then.
     /// </summary>
     [JsonPropertyName("dateFinished")]
-    [JsonPropertyOrder(610)]
+    [JsonPropertyOrder(611)]
     public DateTime? DateFinished { get; set; }
 
     /// <summary>
