@@ -87,8 +87,18 @@ public class Functions
 
     private static DepositQuery BuildDepositQuery()
     {
-        var lastModifiedBeforeMonths =
-            -Convert.ToInt32(Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
+        var rawMonthsValue = Convert.ToInt32(
+            Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
+
+        var months = Math.Abs(rawMonthsValue);
+
+        if (months == 0)
+        {
+            throw new InvalidOperationException(
+                "LAST_MODIFIED_MONTHS must be a non-zero value.");
+        }
+
+        var cutoffDate = DateTime.UtcNow.AddMonths(-months);
 
         return new DepositQuery
         {
@@ -99,7 +109,7 @@ public class Functions
             Ascending = true,
             ShowAll = true,
             Archived = false,
-            LastModifiedBefore = DateTime.UtcNow.AddMonths(lastModifiedBeforeMonths)
+            LastModifiedBefore = cutoffDate
         };
     }
 

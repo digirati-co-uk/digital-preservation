@@ -179,4 +179,3 @@ jobs:
           source-tag: ${{ inputs.image_tag }}
           target-tag: ${{ inputs.target_env }}
           iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
-  #TODO: bump lambda
