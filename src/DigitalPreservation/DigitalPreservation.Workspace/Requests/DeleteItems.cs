@@ -90,6 +90,12 @@ public class DeleteItemsHandler(
                             ErrorCodes.BadRequest, "You cannot delete the objects directory.");
                     }
 
+                    if (deleteDirectory.LocalPath == FolderNames.MetadataAdHoc)
+                    {
+                        failedDeleteResult = Result.FailNotNull<ItemsAffected>(
+                            ErrorCodes.BadRequest, "You cannot delete the metadata ad-hoc directory.");
+                    }
+
                     if (deleteDirectory.Files.Count > 0)
                     {
                         failedDeleteResult = Result.FailNotNull<ItemsAffected>(

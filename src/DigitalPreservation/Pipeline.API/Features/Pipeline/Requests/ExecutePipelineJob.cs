@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
@@ -12,7 +13,6 @@ using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
 using System.Text;
-using DigitalPreservation.Common.Model.Transit.Combined;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -528,7 +528,7 @@ public class ProcessPipelineJobHandler(
         var testPath = $"{FolderNames.Metadata}";
         foreach (var directory in directories)
         {
-            if (directory.LocalPath!.StartsWith(testPath) && directory.LocalPath.ToLower() != "metadata" )
+            if (directory.LocalPath!.StartsWith(testPath) && directory.LocalPath.ToLower() != "metadata" && !directory.LocalPath.StartsWith(FolderNames.MetadataAdHoc))
             {
                 deleteSelection.Items.Add(new MinimalItem
                 {
@@ -541,7 +541,7 @@ public class ProcessPipelineJobHandler(
 
         foreach (var file in files)
         {
-            if (file.LocalPath!.StartsWith(testPath))
+            if (file.LocalPath!.StartsWith(testPath) && !file.LocalPath.StartsWith(FolderNames.MetadataAdHoc))
             {
                 deleteSelection.Items.Add(new MinimalItem
                 {
