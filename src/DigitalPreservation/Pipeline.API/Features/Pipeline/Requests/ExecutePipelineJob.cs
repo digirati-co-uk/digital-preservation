@@ -1,5 +1,4 @@
-﻿using Azure.Core;
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -13,10 +12,7 @@ using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
-using System.Diagnostics.Eventing.Reader;
 using System.Text;
-using System.Threading;
-using Serilog;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -366,7 +362,7 @@ public class ProcessPipelineJobHandler(
                                 Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} had an issue running bagit, bagging and/or validating objects files digests"
                             }
                         ],
-                        CleanupProcessJob = true
+                        CleanupProcessJob = false
                     };
                 }
             }
@@ -1102,102 +1098,181 @@ public class ProcessPipelineJobHandler(
         }
     }
 
-
-    private async Task<bool> BagAndCheckObjectFileDigests(WorkspaceManager workspaceManager, string depositId, string metadataPathForProcessFilesAndDirectories, string depositPath, CancellationToken cancellationToken)
+    private async Task<bool> BagAndCheckObjectFileDigests(
+        WorkspaceManager workspaceManager,
+        string depositId,
+        string metadataPathForProcessFilesAndDirectories,
+        string depositPath,
+        CancellationToken cancellationToken)
     {
-        bool bagitExecutionSuccess;
-
         try
         {
             var separator = pipelineToolOptions.Value.DirectorySeparator;
-            var processFolderBagitDeposit = $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{depositId}";
+            var processFolderBagitDeposit =
+                $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{depositId}";
 
-            using var processBagit = new Process();
+            PrepareBagitWorkspace(
+                metadataPathForProcessFilesAndDirectories,
+                depositPath,
+                processFolderBagitDeposit,
+                separator);
 
-            CopyDirectory(metadataPathForProcessFilesAndDirectories, $"{processFolderBagitDeposit}{separator}metadata", true);
-            CopyDirectory($"{depositPath}{separator}data{separator}objects", $"{processFolderBagitDeposit}{separator}objects", true);
-
-            processBagit.StartInfo.FileName = pipelineToolOptions.Value.PathToPython;
-            processBagit.StartInfo.Arguments = $" {pipelineToolOptions.Value.PathToBagit} --source-organization uol-dlip --sha256  {processFolderBagitDeposit} ";
-            processBagit.StartInfo.UseShellExecute = false;
-            processBagit.StartInfo.RedirectStandardOutput = true;
-            processBagit.StartInfo.RedirectStandardError = true;
-            processBagit.StartInfo.CreateNoWindow = true;
-
-            processBagit.Start();
-
-            await processBagit.WaitForExitAsync(cancellationToken);
-
-            bagitExecutionSuccess = processBagit.ExitCode == 0;
-
-            if (bagitExecutionSuccess)
+            if (!await RunBagItProcess(processFolderBagitDeposit, cancellationToken))
             {
-                var workingDirectoryResult = await workspaceManager.GetFileSystemWorkingDirectory();
-
-                var workingDirectory = workingDirectoryResult.Value!;
-
-                var root = await workspaceManager.RefreshCombinedDirectory();
-                var (_, files) = root.Value!.Flatten();
-
-                var objectsFiles = files.Where(x => x.LocalPath != null && x.LocalPath.StartsWith(FolderNames.Objects)).ToList();
-                var rootFile = workingDirectory.Files.FirstOrDefault(x => x.LocalPath == "manifest-sha256.txt");
-
-                Dictionary<string, string>? oldBagItSha256Values = null;
-                if (rootFile != null)
-                {
-                    if (!File.Exists($"{depositPath}{separator}manifest-sha256.txt"))
-                    {
-                        logger.LogError("Could not find old manifest file");
-                        return false;
-                    }
-
-                    var oldManifestStream = new MemoryStream(await File.ReadAllBytesAsync($"{depositPath}{separator}manifest-sha256.txt", cancellationToken));
-                    if (oldManifestStream.Length <= 0)
-                    {
-                        logger.LogError("Old manifest file is empty");
-                        return false;
-                    }
-
-                    oldBagItSha256Values = await ReadBagItSha256(oldManifestStream);
-                }
-
-                if (oldBagItSha256Values != null && objectsFiles.Any())
-                {
-                    var manifestStream = new MemoryStream(await File.ReadAllBytesAsync($"{processFolderBagitDeposit}{separator}manifest-sha256.txt", cancellationToken));
-                    
-                    var bagItSha256Values = await ReadBagItSha256(manifestStream);
-
-                    foreach (var entry in bagItSha256Values)
-                    {
-                        if (!entry.Key.StartsWith($"{FolderNames.BagItData}/{FolderNames.Objects}")) continue;
- 
-                        if (oldBagItSha256Values.TryGetValue(entry.Key, out var oldEntryDigest) && entry.Value == oldEntryDigest) continue;
-                        {
-                            logger.LogInformation("new objects file {entryKey} digest doesn't match with old manifest digest value", entry.Key);
-                            var metsFile = objectsFiles.FirstOrDefault(x => x.LocalPath == entry.Key.RemoveStart($"{FolderNames.BagItData}/"));
-
-                            //check bagit digest with mets file
-                            var digestInMets = metsFile?.FileInMets?.Digest;
-
-                            if (entry.Value == digestInMets) continue;
-
-                            logger.LogError(
-                                "Digest mismatch - METS file and Bagit disagree on digest for file {entryKey}",
-                                entry.Key);
-                            return false;
-                        }
-                    }
-                }
+                return false;
             }
+
+            return await VerifyObjectDigests(
+                workspaceManager,
+                depositPath,
+                processFolderBagitDeposit,
+                separator,
+                cancellationToken);
         }
         catch (Exception e)
         {
-            logger.LogError("Issue running the bagit process for deposit {deposit}. Error message: {error}", depositId, e.Message);
+            logger.LogError(
+                "Issue running the bagit process for deposit {deposit}. Error message: {error}",
+                depositId,
+                e.Message);
+            return false;
+        }
+    }
+
+    //--------------------------------------------------------------
+
+    private void PrepareBagitWorkspace(
+        string metadataPath,
+        string depositPath,
+        string processFolder,
+        string separator)
+    {
+        CopyDirectory(metadataPath, $"{processFolder}{separator}metadata", true);
+        CopyDirectory(
+            $"{depositPath}{separator}data{separator}objects",
+            $"{processFolder}{separator}objects",
+            true);
+    }
+    //----------------------------------------------------------------
+
+    private async Task<bool> RunBagItProcess(
+        string processFolderBagitDeposit,
+        CancellationToken cancellationToken)
+    {
+        using var processBagit = new Process
+        {
+            StartInfo =
+        {
+            FileName = pipelineToolOptions.Value.PathToPython,
+            Arguments =
+                $" {pipelineToolOptions.Value.PathToBagit} --source-organization uol-dlip --sha256  {processFolderBagitDeposit} ",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        }
+        };
+
+        processBagit.Start();
+        await processBagit.WaitForExitAsync(cancellationToken);
+
+        return processBagit.ExitCode == 0;
+    }
+    //---------------------------------------------------------------------
+    private async Task<bool> VerifyObjectDigests(
+        WorkspaceManager workspaceManager,
+        string depositPath,
+        string processFolderBagitDeposit,
+        string separator,
+        CancellationToken cancellationToken)
+    {
+        //var workingDirectory = (await workspaceManager.GetFileSystemWorkingDirectory()).Value!;
+        var root = (await workspaceManager.RefreshCombinedDirectory()).Value!;
+        var (_, files) = root.Flatten();
+
+        var objectsFiles = files
+            .Where(x => x.LocalPath?.StartsWith(FolderNames.Objects) == true)
+            .ToList();
+
+        var oldManifestPath = $"{depositPath}{separator}manifest-sha256.txt";
+
+        if (!File.Exists(oldManifestPath))
+        {
+            logger.LogError("Could not find old manifest file");
             return false;
         }
 
-        return bagitExecutionSuccess;
+        var oldManifestBytes = await File.ReadAllBytesAsync(oldManifestPath, cancellationToken);
+
+        if (oldManifestBytes.Length == 0)
+        {
+            logger.LogError("Old manifest file is empty");
+            return false;
+        }
+
+        var oldBagItSha256Values =
+            await ReadBagItSha256(new MemoryStream(oldManifestBytes));
+
+        if (!objectsFiles.Any())
+        {
+            return true;
+        }
+
+        var newManifestPath =
+            $"{processFolderBagitDeposit}{separator}manifest-sha256.txt";
+
+        var newBagItSha256Values =
+            await ReadBagItSha256(
+                new MemoryStream(
+                    await File.ReadAllBytesAsync(newManifestPath, cancellationToken)));
+
+        return CompareObjectDigests(
+            oldBagItSha256Values,
+            newBagItSha256Values,
+            objectsFiles);
     }
+    //-------------------------------------------------------
+    private bool CompareObjectDigests(
+        Dictionary<string, string> oldDigests,
+        Dictionary<string, string> newDigests,
+        List<CombinedFile> objectsFiles)
+    {
+        foreach (var (key, newDigest) in newDigests)
+        {
+            if (!key.StartsWith($"{FolderNames.BagItData}/{FolderNames.Objects}"))
+            {
+                continue;
+            }
+
+            if (oldDigests.TryGetValue(key, out var oldDigest) &&
+                oldDigest == newDigest)
+            {
+                continue;
+            }
+
+            logger.LogInformation(
+                "new objects file {entryKey} digest doesn't match with old manifest digest value",
+                key);
+
+            var metsFile = objectsFiles.FirstOrDefault(
+                x => x.LocalPath == key.RemoveStart($"{FolderNames.BagItData}/"));
+
+            var digestInMets = metsFile?.FileInMets?.Digest;
+
+            if (digestInMets == newDigest)
+            {
+                continue;
+            }
+
+            logger.LogError(
+                "Digest mismatch - METS file and Bagit disagree on digest for file {entryKey}",
+                key);
+            return false;
+        }
+
+        return true;
+    }
+
 
     private async Task<Dictionary<string, string>> ReadBagItSha256(Stream stream)
     {
