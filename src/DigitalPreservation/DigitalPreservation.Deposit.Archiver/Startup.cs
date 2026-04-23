@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
+using DigitalPreservation.Deposit.Archiver.Helpers;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Microsoft.Extensions.Configuration;

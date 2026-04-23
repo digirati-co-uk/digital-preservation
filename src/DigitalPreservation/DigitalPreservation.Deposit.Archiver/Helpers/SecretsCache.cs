@@ -4,6 +4,8 @@ using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 using DigitalPreservation.Deposit.Archiver;
 
+namespace DigitalPreservation.Deposit.Archiver.Helpers;
+
 public static class SecretsCache
 {
     private static Task<AuthProviderModel>? _cachedSecret;

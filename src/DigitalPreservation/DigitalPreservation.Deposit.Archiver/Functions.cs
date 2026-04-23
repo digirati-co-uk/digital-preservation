@@ -308,7 +308,6 @@ public class Functions
         job.EndTime = endTime;
         job.BatchNumber = batch.BatchNumber;
         job.Id = identityMinter.MintIdentity("ArchiveJobIdentifier");
-        job.DeletedCount = job.DeletedCount;
     }
 
     private void ResetArchiveState()
