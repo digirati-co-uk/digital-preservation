@@ -347,7 +347,7 @@ public class ProcessPipelineJobHandler(
                 var success = await BagAndCheckObjectFileDigests(workspaceManager, request.DepositId, metadataPathForProcessFilesAndDirectories, depositPath, cancellationToken);
                 if (success)
                 {
-                    logger.LogInformation("Successfully bagged and validated objects files digests for {depositId}", request.DepositId);
+                    logger.LogInformation("Successfully bagged and validated objects files digests for {DepositId}", request.DepositId);
                 }
                 else
                 {
@@ -383,7 +383,7 @@ public class ProcessPipelineJobHandler(
             var deleteBrunnhildeResult = await DeleteBrunnhildeFoldersAndFiles(request, workspaceManager);
             if (deleteBrunnhildeResult.Failure)
             {
-                logger.LogError("Brunnhilde deletion failed: " + deleteBrunnhildeResult.CodeAndMessage());
+                logger.LogError("Brunnhilde deletion failed: {Error}", deleteBrunnhildeResult.CodeAndMessage());
                 // Do we just go ahead anyway?
             }
 
@@ -447,7 +447,7 @@ public class ProcessPipelineJobHandler(
             {
                 var (uploadBagitFilesResultList, forceBagitCompleteUpload, forceBagitCompleteUploadCleanupProcess) = await UploadBagitFilesToRoot(request, workspaceManager.Deposit, cancellationToken);
 
-                if (!uploadBagitFilesResultList.Any())
+                if (uploadBagitFilesResultList.Count == 0)
                 {
                     await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
 
@@ -487,7 +487,7 @@ public class ProcessPipelineJobHandler(
             var pipelineJobsResult = await UpdateJobStatus(request, PipelineJobStates.MetadataCreated, CancellationToken.None);
 
             if (pipelineJobsResult.Value?.Errors is { Length: 0 })
-                logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run metadataCreated status logged",
+                logger.LogInformation("Job {JobIdentifier} and deposit {DepositId} pipeline run metadataCreated status logged",
                     request.JobIdentifier, request.DepositId);
 
             var metsResult = await AddObjectsToMets(request, depositPath);
@@ -1152,10 +1152,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception e)
         {
-            logger.LogError(
-                "Issue running the bagit process for deposit {deposit}. Error message: {error}",
-                depositId,
-                e.Message);
+            logger.LogError(e, "Issue running the bagit process for deposit {Deposit}", depositId);
             return false;
         }
     }
@@ -1233,7 +1230,7 @@ public class ProcessPipelineJobHandler(
         var oldBagItSha256Values =
             await ReadBagItSha256(new MemoryStream(oldManifestBytes));
 
-        if (!objectsFiles.Any())
+        if (objectsFiles.Count == 0)
         {
             return true;
         }
@@ -1271,7 +1268,7 @@ public class ProcessPipelineJobHandler(
             }
 
             logger.LogInformation(
-                "new objects file {entryKey} digest doesn't match with old manifest digest value",
+                "new objects file {EntryKey} digest doesn't match with old manifest digest value",
                 key);
 
             var metsFile = objectsFiles.FirstOrDefault(
@@ -1285,7 +1282,7 @@ public class ProcessPipelineJobHandler(
             }
 
             logger.LogError(
-                "Digest mismatch - METS file and Bagit disagree on digest for file {entryKey}",
+                "Digest mismatch - METS file and Bagit disagree on digest for file {EntryKey}",
                 key);
             return false;
         }
@@ -1294,7 +1291,7 @@ public class ProcessPipelineJobHandler(
     }
 
 
-    private async Task<Dictionary<string, string>> ReadBagItSha256(Stream stream)
+    private static async Task<Dictionary<string, string>> ReadBagItSha256(Stream stream)
     {
         var txt = await GetTextFromStream(stream);
         var bagItSha256Values1 = new Dictionary<string, string>();
@@ -1317,7 +1314,7 @@ public class ProcessPipelineJobHandler(
         return txt;
     }
 
-    private void CopyDirectory(string sourceDir, string destinationDir, bool recursive)
+    private static void CopyDirectory(string sourceDir, string destinationDir, bool recursive)
     {
         // Get information about the source directory
         var dir = new DirectoryInfo(sourceDir);
@@ -1399,14 +1396,14 @@ public class ProcessPipelineJobHandler(
                 logger.LogInformation(" uploadFile.Value.Context {context}", uploadFile?.Value?.Context);
             }
 
-            if (uploadFileResult.Any())
+            if (uploadFileResult.Count > 0)
                 return (uploadFileResult, false, false);
 
         }
         catch (Exception ex)
         {
             await TryReleaseLock(request, deposit, cancellationToken);
-            logger.LogError(ex, " Caught error in copying files recursively from {processFolderBagitDeposit} to {depositPath}", processFolderBagitDeposit, deposit.Id);
+            logger.LogError(ex, "Caught error in copying files recursively from {ProcessFolderBagitDeposit} to {DepositId}", processFolderBagitDeposit, deposit.Id);
             return (uploadFileResult: [], false, false);
         }
 
