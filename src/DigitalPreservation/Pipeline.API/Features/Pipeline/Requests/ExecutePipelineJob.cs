@@ -191,7 +191,10 @@ public class ProcessPipelineJobHandler(
         {
             streamReader?.Dispose();
             CleanupProcessFolder(request.DepositId);
-            CleanupBagitProcessFolder(request.DepositId);
+            if (workspace.IsBagItLayout)
+            {
+                CleanupBagitProcessFolder(request.DepositId);
+            }
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
         }
     }
