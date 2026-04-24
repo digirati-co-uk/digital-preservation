@@ -399,7 +399,7 @@ public class MetsParser(
                 
                 // In contrast, we assume (for now) that DMDID is always on the mets:div; no file itself has DMD.
 
-                var fileId = fptr.Attribute("FILEID")!.Value;
+                var fileId = fptr.GetRequiredFileId();
                 var fileEl = lookupMaps.FileMap[fileId];
                 var mimeType =
                     fileEl.Attribute("MIMETYPE")
@@ -695,7 +695,7 @@ public class MetsParser(
     }
 
 
-    private (List<string>?, Uri?, RecordInfo?, bool) GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
+    private static (List<string>?, Uri?, RecordInfo?, bool) GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
     {
         // data gathered sparsely from optional MODS
         // We assume that the DMD is always linked from the mets:Div, never from a file
@@ -705,39 +705,35 @@ public class MetsParser(
         bool rightsExplicitlySet = false;
 
         var dmdId = div.Attribute("DMDID")?.Value;
-        if (dmdId.HasText())
+        if (!dmdId.HasText()) return (null, null, null, false);
+        if (!lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd)) return (null, null, null, false);
+
+        foreach (var accessConditionEl in dmd.Descendants(XNames.ModsAccessCondition))
         {
-            if (lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd))
+            var condType = accessConditionEl.Attribute("type")?.Value;
+            if (condType is Constants.RestrictionOnAccess or "status") // "status" is Goobi access cond
             {
-                var accessConditionEls = dmd.Descendants(XNames.ModsAccessCondition);
-                foreach (var accessConditionEl in accessConditionEls)
-                {
-                    var condType = accessConditionEl.Attribute("type")?.Value;
-                    if (condType == Constants.RestrictionOnAccess || condType == "status") // "status" is Goobi access cond
-                    {
-                        accessRestrictions ??= [];
-                        accessRestrictions.Add(accessConditionEl.Value);
-                    }
-                    if (accessConditionEl.Attribute("type")?.Value == Constants.UseAndReproduction)
-                    {
-                        // The element is present — rights was explicitly addressed in this DMDID.
-                        // If the value isn't a valid URI (e.g. "null(?)"), rightsStatement stays null,
-                        // but we still record that rights was explicitly set so inheritance is suppressed.
-                        rightsExplicitlySet = true;
-                        Uri.TryCreate(accessConditionEl.Value, UriKind.Absolute, out rightsStatement);
-                    }
-                }
-                var recordIdentifierEls = dmd.Descendants(XNames.ModsRecordIdentifier);
-                foreach (var recordIdentifierEl in recordIdentifierEls)
-                {
-                    recordInfo ??= new RecordInfo();
-                    recordInfo.RecordIdentifiers.Add(new RecordIdentifier()
-                    {
-                        Source = recordIdentifierEl.Attribute("source")!.Value,
-                        Value = recordIdentifierEl.Value
-                    });
-                }
+                accessRestrictions ??= [];
+                accessRestrictions.Add(accessConditionEl.Value);
             }
+            else if (condType == Constants.UseAndReproduction)
+            {
+                // The element is present — rights was explicitly addressed in this DMDID.
+                // If the value isn't a valid URI (e.g. "null(?)"), rightsStatement stays null,
+                // but we still record that rights was explicitly set so inheritance is suppressed.
+                rightsExplicitlySet = true;
+                Uri.TryCreate(accessConditionEl.Value, UriKind.Absolute, out rightsStatement);
+            }
+        }
+
+        foreach (var recordIdentifierEl in dmd.Descendants(XNames.ModsRecordIdentifier))
+        {
+            recordInfo ??= new RecordInfo();
+            recordInfo.RecordIdentifiers.Add(new RecordIdentifier()
+            {
+                Source = recordIdentifierEl.Attribute("source")!.Value,
+                Value = recordIdentifierEl.Value
+            });
         }
 
         return (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet);
@@ -813,16 +809,7 @@ public class MetsParser(
         foreach (var (physDivId, (deepestRange, _)) in physDivToDeepest)
         {
             if (!lookupMaps.PhysDivMap.TryGetValue(physDivId, out var physDiv)) continue;
-            foreach (var fptr in physDiv.Elements(XNames.MetsFptr))
-            {
-                var fileId = fptr.Attribute("FILEID")?.Value;
-                if (fileId == null) continue;
-                var localPath = lookupMaps.FileMap.TryGetValue(fileId, out var fileEl)
-                    ? fileEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
-                    : null;
-                if (localPath != null)
-                    fileToAssociatedRange[localPath] = deepestRange;
-            }
+            MapFilePathsToRange(physDiv, lookupMaps, deepestRange, fileToAssociatedRange);
         }
 
         // Pass 2: populate LogicalRange.Files in smLink document order, deepest-only
@@ -836,20 +823,8 @@ public class MetsParser(
             if (!ReferenceEquals(deepest.range, logicalRange)) continue; // not the deepest claimant
 
             if (!lookupMaps.PhysDivMap.TryGetValue(toId, out var physDiv)) continue;
-            foreach (var fptr in physDiv.Elements(XNames.MetsFptr))
-            {
-                var fileId = fptr.Attribute("FILEID")?.Value;
-                if (fileId == null) continue;
-                var localPath = lookupMaps.FileMap.TryGetValue(fileId, out var fileEl)
-                    ? fileEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
-                    : null;
-                if (localPath == null) continue;
-
-                // Only primary (non-ALTO) files go into LogicalRange.Files for IIIF canvas painting
-                var use = lookupMaps.FileGrpUseMap.GetValueOrDefault(fileId, "");
-                if (!string.Equals(use, "ALTO", StringComparison.OrdinalIgnoreCase))
-                    logicalRange.Files.Add(new FilePointer { LocalPath = localPath });
-            }
+            // Only primary (non-ALTO) files go into LogicalRange.Files for IIIF canvas painting
+            AddNonAltoFilesToRange(physDiv, lookupMaps, logicalRange);
         }
 
         return fileToAssociatedRange;
@@ -884,7 +859,7 @@ public class MetsParser(
 
             foreach (var fptr in fptrs)
             {
-                var fileId = fptr.Attribute("FILEID")?.Value;
+                var fileId = fptr.GetFileId();
                 if (fileId == null) continue;
                 var localPath = lookupMaps.FileMap.TryGetValue(fileId, out var fileEl)
                     ? fileEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
@@ -927,12 +902,8 @@ public class MetsParser(
 
             if (fromId == null || toId == null) continue;
 
-            var fromPath = lookupMaps.FileMap.TryGetValue(fromId, out var fromEl)
-                ? fromEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
-                : null;
-            var toPath = lookupMaps.FileMap.TryGetValue(toId, out var toEl)
-                ? toEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
-                : null;
+            var fromPath = GetLocalPathForFileId(fromId, lookupMaps);
+            var toPath = GetLocalPathForFileId(toId, lookupMaps);
 
             if (fromPath == null || toPath == null) continue;
             if (!fileByPath.TryGetValue(fromPath, out var sourceFile)) continue;
@@ -1002,7 +973,7 @@ public class MetsParser(
         if (areaEl != null)
         {
             // Area reference: time segment or image region
-            var fileId = areaEl.Attribute("FILEID")?.Value ?? fptr.Attribute("FILEID")?.Value;
+            var fileId = areaEl.GetFileId() ?? fptr.GetFileId();
             if (fileId == null) return null;
             var localPath = GetLocalPathForFileId(fileId, lookupMaps);
             if (localPath == null) return null;
@@ -1039,7 +1010,7 @@ public class MetsParser(
         else
         {
             // Whole-file reference
-            var fileId = fptr.Attribute("FILEID")?.Value;
+            var fileId = fptr.GetFileId();
             if (fileId == null) return null;
             var localPath = GetLocalPathForFileId(fileId, lookupMaps);
             if (localPath == null) return null;
@@ -1047,13 +1018,39 @@ public class MetsParser(
         }
     }
 
-    private string? GetLocalPathForFileId(string fileId, MetsLookupMaps lookupMaps)
+    private static string? GetLocalPathForFileId(string? fileId, MetsLookupMaps lookupMaps)
     {
+        if (fileId == null) return null;
         if (!lookupMaps.FileMap.TryGetValue(fileId, out var fileEl)) return null;
         return fileEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value;
     }
 
-    private string? GetNameFromDmd(XElement div, MetsLookupMaps lookupMaps)
+    private static void MapFilePathsToRange(
+        XElement physDiv, MetsLookupMaps lookupMaps,
+        LogicalRange range, Dictionary<string, LogicalRange> fileToAssociatedRange)
+    {
+        foreach (var fptr in physDiv.Elements(XNames.MetsFptr))
+        {
+            var localPath = GetLocalPathForFileId(fptr.GetFileId(), lookupMaps);
+            if (localPath != null)
+                fileToAssociatedRange[localPath] = range;
+        }
+    }
+
+    private static void AddNonAltoFilesToRange(XElement physDiv, MetsLookupMaps lookupMaps, LogicalRange range)
+    {
+        foreach (var fptr in physDiv.Elements(XNames.MetsFptr))
+        {
+            var fileId = fptr.GetFileId();
+            var localPath = GetLocalPathForFileId(fileId, lookupMaps);
+            if (localPath == null) continue;
+            var use = lookupMaps.FileGrpUseMap.GetValueOrDefault(fileId!, "");
+            if (!string.Equals(use, "ALTO", StringComparison.OrdinalIgnoreCase))
+                range.Files.Add(new FilePointer { LocalPath = localPath });
+        }
+    }
+
+    private static string? GetNameFromDmd(XElement div, MetsLookupMaps lookupMaps)
     {
         var dmdId = div.Attribute("DMDID")?.Value;
         if (!dmdId.HasText()) return null;
@@ -1231,4 +1228,19 @@ public class MetsParser(
         }
     }
 
+}
+
+internal static class ParserX
+{
+    private const string FileId = "FILEID";
+    
+    public static string GetRequiredFileId(this XElement fptr)
+    {
+        return fptr.Attribute(FileId)!.Value;
+    }
+    
+    public static string? GetFileId(this XElement fptr)
+    {
+        return fptr.Attribute(FileId)?.Value;
+    }
 }

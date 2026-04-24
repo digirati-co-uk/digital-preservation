@@ -20,4 +20,6 @@ public static class Constants
     public const string ItemType = "Item";
     public const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
     public const string NullRightsStatement = "null";
+
+    public const string Physical = "PHYSICAL";
 }

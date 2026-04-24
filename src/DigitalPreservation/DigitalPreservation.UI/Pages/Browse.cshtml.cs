@@ -59,7 +59,7 @@ public class BrowseModel(
         }
         if(ShouldRedirectToMetsView(pathUnderRoot, view))
         {
-            return Redirect("/browse/" + CachedArchivalGroup.GetPathUnderRoot() 
+            return Redirect("/browse/" + CachedArchivalGroup!.GetPathUnderRoot() 
                                       + "?view=mets" + (version.HasText() ? "&version=" + version : ""));           
         }
         if (Resource == null)

@@ -297,38 +297,38 @@
                 }
                 @if (hasLogical)
                 {
-                    <ul class="nav nav-tabs mb-2" id="structMapTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
+                    <div class="nav nav-tabs mb-2" id="structMapTabs" role="tablist">
+                        <div class="nav-item">
                             <button class="nav-link active" id="physicalTab-tab" data-bs-toggle="tab" data-bs-target="#physicalTab" type="button" role="tab">
                                 <svg class="bi"><use xlink:href="#hdd"/></svg><span class="ms-1">Physical</span>
                             </button>
-                        </li>
+                        </div>
                         @foreach (var lsm in Model.LogicalStructMaps)
                         {
-                            <li class="nav-item" role="presentation">
+                            <div class="nav-item">
                                 <button class="nav-link" id="logicalTab_@(lsm.Id)-tab" data-bs-toggle="tab" data-bs-target="#logicalTab_@lsm.Id" type="button" role="tab">
                                     <svg class="bi"><use xlink:href="#diagram-3"/></svg><span class="ms-1">@(lsm.Name ?? lsm.Id)</span>
                                 </button>
-                            </li>
+                            </div>
                         }
-                    </ul>
+                    </div>
                     <div class="tab-content">
                         <div class="tab-pane fade show active" id="physicalTab" role="tabpanel">
                             @await Html.PartialAsync("_DepositPhysicalFiles", Model)
                         </div>
-                        @foreach (var lsm in Model.LogicalStructMaps)
+                        @foreach (var id in Model.LogicalStructMaps.Select(lsm => lsm.Id))
                         {
-                            <div class="tab-pane fade" id="logicalTab_@lsm.Id" role="tabpanel">
-                                <div id="logicalEditor_@lsm.Id" data-structmap-id="@lsm.Id"></div>
+                            <div class="tab-pane fade" id="logicalTab_@id" role="tabpanel">
+                                <div id="logicalEditor_@id" data-structmap-id="@id"></div>
                                 <div class="mt-2">
                                     <form method="post" asp-page-handler="SaveLogicalStructMap">
-                                        <input type="hidden" name="structMapId" value="@lsm.Id">
-                                        <input type="hidden" name="logicalStructMapJson" id="logicalStructMapJson_@lsm.Id">
+                                        <input type="hidden" name="structMapId" value="@id">
+                                        <input type="hidden" name="logicalStructMapJson" id="logicalStructMapJson_@id">
                                         <button type="submit" class="btn btn-sm btn-primary">
                                             <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Save</span>
                                         </button>
                                         <button type="button" class="btn btn-sm btn-danger ms-2"
-                                                data-bs-toggle="modal" data-bs-target="#deleteLogicalModal_@lsm.Id">
+                                                data-bs-toggle="modal" data-bs-target="#deleteLogicalModal_@id">
                                             <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
                                         </button>
                                     </form>

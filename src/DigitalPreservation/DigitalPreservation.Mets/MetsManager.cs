@@ -142,7 +142,7 @@ public class MetsManager(
         return metadataManager.ProcessAllFileMetadata(fullMets, contextDiv, workingFile, localPath);
     }
 
-    private Result UpdateExistingDirectory(FullMets fullMets, WorkingDirectory workingDirectory, DivType contextDiv)
+    private static Result UpdateExistingDirectory(FullMets fullMets, WorkingDirectory workingDirectory, DivType contextDiv)
     {
         if (contextDiv.Type != Constants.DirectoryType)
             return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
@@ -245,7 +245,7 @@ public class MetsManager(
             {
                 new StructMapType
                 {
-                    Type = "PHYSICAL",
+                    Type = Constants.Physical,
                     Div = new DivType
                     {
                         Id = "PHYS_ROOT",
@@ -343,11 +343,11 @@ public class MetsManager(
         return (file, fileGroup);
     }
 
-    private (DivType contextDiv, DivType? parent, int foundDepth, int totalDepth) LocateMetsDivByLocalPath(FullMets fullMets, string localPath)
+    private static (DivType contextDiv, DivType? parent, int foundDepth, int totalDepth) LocateMetsDivByLocalPath(FullMets fullMets, string localPath)
     {
         var elements = localPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        var div = fullMets.Mets.StructMap.Single(sm => sm.Type == "PHYSICAL").Div!;
+        var div = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
         DivType? parent = null;
         var testPath = string.Empty;
         var counter = 0;
@@ -375,17 +375,17 @@ public class MetsManager(
         return (div, parent, counter, elements.Length);
     }
 
-    private DivType? LocateMetsDivByDivId(FullMets fullMets, string divId)
+    private static DivType? LocateMetsDivByDivId(FullMets fullMets, string divId)
     {
         // look in the physical structMap first, there should be only one
-        var physDiv = fullMets.Mets.StructMap.Single(sm => sm.Type == "PHYSICAL").Div!;
+        var physDiv = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
         var foundInPhysical = FindDiv(physDiv, divId);
         if (foundInPhysical != null)
         {
             return foundInPhysical;
         }
 
-        foreach (var smType in fullMets.Mets.StructMap.Where(sm => sm.Type != "PHYSICAL"))
+        foreach (var smType in fullMets.Mets.StructMap.Where(sm => sm.Type != Constants.Physical))
         {
             var foundInOther = FindDiv(smType.Div, divId);
             if (foundInOther != null)
@@ -397,7 +397,7 @@ public class MetsManager(
         return null;
     }
 
-    private DivType? FindDiv(DivType div, string divId)
+    private static DivType? FindDiv(DivType div, string divId)
     {
         if (div.Id == divId)
         {
@@ -426,7 +426,7 @@ public class MetsManager(
     /// <param name="mets"></param>
     /// <param name="resource"></param>
     /// <param name="div"></param>
-    private void PopulateDmdFromResource(FullMets mets, ResourceBase resource, DivType div)
+    private static void PopulateDmdFromResource(FullMets mets, ResourceBase resource, DivType div)
     {
         if (resource.AccessRestrictions != null)
         {
@@ -531,7 +531,7 @@ public class MetsManager(
         SetAccessRestrictionsForDiv(mets, div, accessRestrictions);
     }
 
-    private void SetAccessRestrictionsForDiv(FullMets mets, DivType div, List<string> accessRestrictions)
+    private static void SetAccessRestrictionsForDiv(FullMets mets, DivType div, List<string> accessRestrictions)
     {
         var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true);
         if (mods is null) return;
@@ -561,7 +561,7 @@ public class MetsManager(
         });
     }
 
-    private DivType BuildLogicalDiv(FullMets mets, LogicalRange range)
+    private static DivType BuildLogicalDiv(FullMets mets, LogicalRange range)
     {
         var div = new DivType
         {
