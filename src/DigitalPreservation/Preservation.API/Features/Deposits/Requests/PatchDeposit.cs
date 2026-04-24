@@ -125,7 +125,7 @@ public class PatchDepositHandler(
         if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
         {
             logger.LogWarning(
-                "Deposit is locked by {otherLockOwner}, returning Conflict",
+                "Deposit is locked by {OtherLockOwner}, returning Conflict",
                 entity.LockedBy);
 
             return (

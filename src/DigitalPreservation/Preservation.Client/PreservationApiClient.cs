@@ -584,7 +584,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Error calling pipeline status endpoint");
             return Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, e.Message);
         }
 
@@ -636,7 +636,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Error getting archive job result");
             return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -657,7 +657,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Error archiving deposit");
             return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }

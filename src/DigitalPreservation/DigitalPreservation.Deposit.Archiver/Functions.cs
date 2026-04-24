@@ -57,7 +57,7 @@ public class Functions
         if (!HasDeposits(deposits))
         {
             Log.Logger.Error(
-                "No deposits returned {errorCode} {errorMessage}",
+                "No deposits returned {ErrorCode} {ErrorMessage}",
                 deposits.ErrorCode,
                 deposits.ErrorMessage);
 
@@ -121,7 +121,7 @@ public class Functions
     private static void LogDeposits(int count)
     {
         Log.Logger.Information("Got deposits for archiving from preservation API");
-        Log.Logger.Information("Deposits count {depositsCount}", count);
+        Log.Logger.Information("Deposits count {DepositsCount}", count);
     }
 
     private BatchContext StartBatch()
@@ -166,7 +166,7 @@ public class Functions
             previousJob.Value.Errors.Length > 0)
         {
             Log.Logger.Information(
-                "Previous archiver job run for this deposit {depositId} had errors",
+                "Previous archiver job run for this deposit {DepositId} had errors",
                 depositId);
             return true;
         }
@@ -181,7 +181,7 @@ public class Functions
 
         if (result.Failure)
         {
-            Log.Logger.Information("issue releasing lock for {depositId}", depositId);
+            Log.Logger.Information("issue releasing lock for {DepositId}", depositId);
         }
     }
 
@@ -193,7 +193,7 @@ public class Functions
         if (workspaceManager.Value == null || deposit.Files == null)
             return;
 
-        Log.Logger.Information("Calling archive for deposit {depositId}", depositId);
+        Log.Logger.Information("Calling archive for deposit {DepositId}", depositId);
 
         await Archive(workspaceManager.Value, depositId, deposit.Files);
     }
@@ -206,7 +206,7 @@ public class Functions
         var archivedDeposit = archiveJobsList.FirstOrDefault(x => x.DepositId == depositId);
 
         Log.Logger.Information(
-            "Archived deposit is not null for deposit {archivedDeposit}. Deposit Uri: {depositUri}",
+            "Archived deposit is not null for deposit {ArchivedDeposit}. Deposit Uri: {DepositUri}",
             archivedDeposit != null,
             archivedDeposit?.DepositUri);
 
@@ -228,7 +228,7 @@ public class Functions
             return;
         }
 
-        Log.Logger.Information("Successfully patched deposit for {depositId}", depositId);
+        Log.Logger.Information("Successfully patched deposit for {DepositId}", depositId);
     }
 
     private static bool IsArchivableResult(ArchiveDepositJob? job)
@@ -249,7 +249,7 @@ public class Functions
         ArchiveDepositJob? archivedDeposit)
     {
         Log.Logger.Error(
-            "issue patching deposit for {depositId} Error message: {errorMessage}",
+            "issue patching deposit for {DepositId} Error message: {ErrorMessage}",
             depositId,
             errorMessage);
 
@@ -261,7 +261,7 @@ public class Functions
             if (!deleteResult.Success)
             {
                 Log.Logger.Error(
-                    "Could not delete deposit files for {depositId} Error message: {errorMessage}",
+                    "Could not delete deposit files for {DepositId} Error message: {ErrorMessage}",
                     depositId,
                     deleteResult.ErrorMessage);
             }
@@ -284,14 +284,14 @@ public class Functions
             if (result.Success)
             {
                 Log.Logger.Information(
-                    "Successfully archived deposit {depositId} in batch {batchNumber}",
+                    "Successfully archived deposit {DepositId} in batch {BatchNumber}",
                     job.DepositId,
                     batch.BatchNumber);
             }
             else
             {
                 Log.Logger.Information(
-                    "Issue archiving deposit {depositId} in batch {batchNumber} with error message {errorMessage}",
+                    "Issue archiving deposit {DepositId} in batch {BatchNumber} with error message {ErrorMessage}",
                     job.DepositId,
                     batch.BatchNumber,
                     result.ErrorMessage);
@@ -354,17 +354,14 @@ public class Functions
         var metadataPath = $"{FolderNames.Metadata}";
         var objectsPath = $"{FolderNames.Objects}";
 
-        foreach (var file in files)
+        foreach (var file in files.Where(f => f.LocalPath!.StartsWith(metadataPath) || f.LocalPath!.StartsWith(objectsPath)))
         {
-            if (file.LocalPath!.StartsWith(metadataPath) || file.LocalPath!.StartsWith(objectsPath))
+            deleteSelection.Items.Add(new MinimalItem
             {
-                deleteSelection.Items.Add(new MinimalItem
-                {
-                    IsDirectory = false,
-                    RelativePath = file.LocalPath,
-                    Whereabouts = Whereabouts.Both
-                });
-            }
+                IsDirectory = false,
+                RelativePath = file.LocalPath,
+                Whereabouts = Whereabouts.Both
+            });
         }
 
         var resultDelete = await workspaceManager.DeleteItems(deleteSelection, "Deposit.Archiver");
@@ -384,17 +381,17 @@ public class Functions
 
         if (deleteFilesResult.Success || (deleteFilesResult.ErrorMessage != null && deleteFilesResult.ErrorMessage.Contains("No items to delete.")))
         {
-            Log.Logger.Information("Successfully deleted files for deposit {depositId}", depositId);
+            Log.Logger.Information("Successfully deleted files for deposit {DepositId}", depositId);
             var markerFileUploadResult = await UploadMarkerFile(workspaceManager);
 
             if (!markerFileUploadResult.Success)
             {
-                Log.Logger.Error("Errors uploading marker file for deposit {depositId} Error message: {errorMessage}", depositId, markerFileUploadResult.ErrorMessage);
+                Log.Logger.Error("Errors uploading marker file for deposit {DepositId} Error message: {ErrorMessage}", depositId, markerFileUploadResult.ErrorMessage);
                 archiveDepositJob.Errors += markerFileUploadResult.ErrorMessage;
             }
             else
             {
-                Log.Logger.Information("Uploaded marker file for deposit {depositId}", depositId);
+                Log.Logger.Information("Uploaded marker file for deposit {DepositId}", depositId);
                 archiveDepositJob.DeletedCount = deleteFilesResult.Value?.Items.Count;
             }
         }
@@ -402,7 +399,7 @@ public class Functions
         if (deleteFilesResult.Failure)
         {
             archiveDepositJob.Errors = deleteFilesResult.ErrorMessage;
-            Log.Logger.Information("Errors deleting files from deposit {depositId}", depositId);
+            Log.Logger.Information("Errors deleting files from deposit {DepositId}", depositId);
         }
 
         archiveJobsList.Add(archiveDepositJob);
