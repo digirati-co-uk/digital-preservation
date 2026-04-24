@@ -442,9 +442,27 @@ public class ProcessPipelineJobHandler(
             {
                 var (uploadBagitFilesResultList, forceBagitCompleteUpload, forceBagitCompleteUploadCleanupProcess) = await UploadBagitFilesToRoot(request, workspaceManager.Deposit, cancellationToken);
 
+                if (!uploadBagitFilesResultList.Any())
+                {
+                    await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+
+                    return new ProcessPipelineResult
+                    {
+                        Status = PipelineJobStates.CompletedWithErrors,
+                        Errors =
+                        [
+                            new Error
+                            {
+                                Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} had an issue uploading Bagit root files to S3"
+                            }
+                        ],
+                        CleanupProcessJob = false
+                    };
+                }
+
                 if (forceBagitCompleteUpload || forceBagitCompleteUploadCleanupProcess)
                 {
-                    return await ForceCompleteReturn(forceCompleteUploadCleanupProcess, request, workspaceManager.Deposit, cancellationToken);
+                    return await ForceCompleteReturn(forceBagitCompleteUploadCleanupProcess, request, workspaceManager.Deposit, cancellationToken);
                 }
 
                 foreach (var uploadFileResult in uploadBagitFilesResultList)
@@ -1184,7 +1202,6 @@ public class ProcessPipelineJobHandler(
         string separator,
         CancellationToken cancellationToken)
     {
-        //var workingDirectory = (await workspaceManager.GetFileSystemWorkingDirectory()).Value!;
         var root = (await workspaceManager.RefreshCombinedDirectory()).Value!;
         var (_, files) = root.Flatten();
 
@@ -1197,7 +1214,7 @@ public class ProcessPipelineJobHandler(
         if (!File.Exists(oldManifestPath))
         {
             logger.LogError("Could not find old manifest file");
-            return false;
+            return true;
         }
 
         var oldManifestBytes = await File.ReadAllBytesAsync(oldManifestPath, cancellationToken);
@@ -1205,7 +1222,7 @@ public class ProcessPipelineJobHandler(
         if (oldManifestBytes.Length == 0)
         {
             logger.LogError("Old manifest file is empty");
-            return false;
+            return true;
         }
 
         var oldBagItSha256Values =
