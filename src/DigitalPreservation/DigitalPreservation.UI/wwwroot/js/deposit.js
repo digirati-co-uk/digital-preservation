@@ -12,10 +12,10 @@ function populateModsModalFromAttributes(launcher){
     let nonEditableRecordInfo = document.getElementById("nonEditableRecordInfo");
     // and clear recordInfo form
 
-    let accessConditionList = launcher.getAttribute("data-access");
-    let rightsStatement = launcher.getAttribute("data-rights");
-    let recordInfoCompact = launcher.getAttribute("data-recordinfo");
-    let base64ToolOutput = launcher.getAttribute("data-tool-output");
+    let accessConditionList = launcher.dataset.access;
+    let rightsStatement = launcher.dataset.rights;
+    let recordInfoCompact = launcher.dataset.recordinfo;
+    let base64ToolOutput = launcher.dataset.toolOutput;
     document.getElementById("modsLocalPathInfo").innerHTML = modsContext.value;
     // document.getElementById("accessRestrictionsHelp").innerHTML = "Set access restriction(s) on " + modsContextPath;
     // document.getElementById("rightsStatementHelp").innerHTML = "Set rights statement on " + modsContextPath;
@@ -99,13 +99,13 @@ function populateModsModalFromAttributes(launcher){
     }
 
     // File links section — only shown for files
-    const isFile = launcher.getAttribute('data-is-file') === 'true';
+    const isFile = launcher.dataset.isFile === 'true';
     const fileLinksSection = document.getElementById('fileLinksSection');
     if (fileLinksSection) {
         fileLinksSection.style.display = isFile ? '' : 'none';
         if (isFile) {
             let links = [];
-            try { links = JSON.parse(launcher.getAttribute('data-links') || '[]'); } catch {}
+            try { links = JSON.parse(launcher.dataset.links || '[]'); } catch {}
             populateFileLinksList(links);
             populateFileLinkTargetSelect();
         }
@@ -255,7 +255,7 @@ if(recordInfoAddAnother) {
         const riDivs = document.getElementsByClassName("record-info-container");
         for(let i = 0; i < riDivs.length; i++){
             const riDiv = riDivs[i];
-            const riIndex = Number(riDiv.getAttribute("data-record-info-index"));
+            const riIndex = Number(riDiv.dataset.recordInfoIndex);
             if(riIndex > highestIndex){
                 highestIndex = riIndex;
             }
@@ -304,10 +304,10 @@ document.getElementById("selectNonMets").addEventListener("click", () => {
     for(const itemSelector of itemSelectors)
     {
         const row = itemSelector.closest("tr");
-        if (row.getAttribute("data-whereabouts") === "Deposit"){
+        if (row.dataset.whereabouts === "Deposit"){
             itemSelector.checked = true;
         }
-        if (row.getAttribute("data-mismatches")?.toLowerCase() === "true"){
+        if (row.dataset.mismatches?.toLowerCase() === "true"){
             itemSelector.checked = true;
         }
     }
@@ -337,15 +337,15 @@ document.getElementById("deleteSelection").addEventListener("click", () => {
     {
         if (itemSelector.checked){
             const row = itemSelector.closest("tr");
-            const type = row.getAttribute("data-type");
-            const relativePath = row.getAttribute("data-path");
-            const isMetadata = row.getAttribute("data-metadata").toLowerCase() === "true";
+            const type = row.dataset.type;
+            const relativePath = row.dataset.path;
+            const isMetadata = row.dataset.metadata.toLowerCase() === "true";
             if(isMetadata){
                 metadataCount++;
                 continue;
             }
             if (relativePath && (type === "directory" || type === "file")){
-                const whereabouts = row.getAttribute("data-whereabouts");
+                const whereabouts = row.dataset.whereabouts;
                 const item = {
                     path: relativePath,
                     isDir: (type === "directory"),
@@ -396,10 +396,10 @@ document.getElementById("addSelectionToMets").addEventListener("click", () => {
     {
         if (itemSelector.checked){
             const row = itemSelector.closest("tr");
-            const type = row.getAttribute("data-type");
-            const relativePath = row.getAttribute("data-path");
+            const type = row.dataset.type;
+            const relativePath = row.dataset.path;
             if (relativePath && (type === "directory" || type === "file")){
-                const whereabouts = row.getAttribute("data-whereabouts");
+                const whereabouts = row.dataset.whereabouts;
                 if(whereabouts === "Deposit" || whereabouts === "Both"){
                     const item = {
                         path: relativePath,
@@ -443,16 +443,16 @@ confirmDepositDelete.addEventListener("change", () => {
 
 let clicked = false;
 for (const row of rows) {
-    const path = row.getAttribute("data-path");
+    const path = row.dataset.path;
     if (!(path === "objects" || path.startsWith("objects/")))
     {
         continue;
     }
     row.addEventListener('click', (event) => {
         const row = event.currentTarget;
-        const path = row.getAttribute("data-path");
+        const path = row.dataset.path;
         console.log("Click event on row for path: " + path);
-        const isFile = row.getAttribute("data-type") === "file";
+        const isFile = row.dataset.type === "file";
         newFileContext.value = path;
         newFolderContext.value = path;
         modsContext.value = path;

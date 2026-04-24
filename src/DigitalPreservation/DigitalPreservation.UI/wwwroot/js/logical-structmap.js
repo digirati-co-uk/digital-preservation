@@ -432,7 +432,7 @@ function readRightsStatementUriFromForm() {
 function readRecordIdentifiersFromForm() {
     const result = [];
     document.querySelectorAll('.record-info-container').forEach(container => {
-        const index = container.getAttribute('data-record-info-index');
+        const index = container.dataset.recordInfoIndex;
         const sourceEl = document.getElementById(`recordInfoSourceSelect_${index}`);
         const valueEl = document.getElementById(`recordInfoValue_${index}`);
         if (sourceEl && valueEl && valueEl.value.trim()) {

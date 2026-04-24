@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Process each physical file row
     const fileRows = document.querySelectorAll('tr[data-type="file"][data-path]');
     for (const row of fileRows) {
-        const path = row.getAttribute('data-path');
+        const path = row.dataset.path;
         if (!path) continue;
 
         // Assign a stable anchor ID
