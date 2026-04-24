@@ -1,6 +1,4 @@
-﻿using System.Net;
-using System.Text.Json;
-using Amazon.S3;
+﻿using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
@@ -11,6 +9,8 @@ using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Storage.Repository.Common.S3;
+using System.Net;
+using System.Text.Json;
 
 namespace Storage.Repository.Common;
 
@@ -43,15 +43,17 @@ public class Storage(
             {
                 case TemplateType.RootLevel:
                     await PutDirectory(FolderNames.Objects, key, root);
-                    await PutDirectory(FolderNames.Metadata, key, root);
+                    var metadataDirRoot = await PutDirectory(FolderNames.Metadata, key, root);
+                    await PutDirectory(FolderNames.AdHoc, key + metadataDirRoot.Name + "/", metadataDirRoot);
                     break;
                 case TemplateType.BagIt:
                 {
                     var dataDir = await PutDirectory(FolderNames.BagItData, key, root);
                     var dataKey = $"{key}{FolderNames.BagItData}/";
                     await PutDirectory(FolderNames.Objects, dataKey, dataDir);
-                    await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
-                    break;
+                    var metadataDir = await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
+                    await PutDirectory(FolderNames.AdHoc, dataKey + metadataDir.Name + "/", metadataDir);
+                        break;
                 }
             }
             var depositFileSystemKey = key + IStorage.DepositFileSystem;

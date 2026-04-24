@@ -238,7 +238,7 @@ public class WorkspaceManager(
 
 
     public async Task<Result<SingleFileUploadResult>> UploadSingleSmallFile(
-        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity, bool allowFilesOutsideObjects = false, bool archiverFile = false)
+        Stream stream, long size, string sourceFileName, string checksum, string fileName, string contentType, string? context, string callerIdentity,  bool allowFilesOutsideObjects = false, bool bagitFile = false, bool archiverFile = false)
     {
         var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
@@ -266,10 +266,8 @@ public class WorkspaceManager(
         }
 
         var slug = PreservedResource.MakeValidSlug(sourceFileName);
-
-        if (!archiverFile &&
-            (parentDirectory.Directories.Any(d => d.LocalPath!.GetSlug() == slug) ||
-             parentDirectory.Files.Any(f => f.LocalPath!.GetSlug() == slug)))
+        if (!bagitFile && !archiverFile && (parentDirectory.Directories.Any(d => d.LocalPath!.GetSlug() == slug) ||
+                                            parentDirectory.Files.Any(f => f.LocalPath!.GetSlug() == slug)))
         {
             return Result.FailNotNull<SingleFileUploadResult>(
                 ErrorCodes.BadRequest,
@@ -288,6 +286,7 @@ public class WorkspaceManager(
             fileName,
             contentType,
             Deposit.MetsETag!,
+            bagitFile,
             !archiverFile));
         if (uploadFileResult.Success)
         {

@@ -97,11 +97,11 @@ public class Functions
                 "LAST_MODIFIED_MONTHS must be a non-zero value.");
         }
 
-        var cutoffDate = DateTime.UtcNow.AddMonths(-months);
+        var cutoffDate = DateTime.UtcNow.AddMonths(-1);
 
         return new DepositQuery
         {
-            Status = "preserved",
+            Status = "new",
             OrderBy = DepositQuery.LastModified,
             Page = 0,
             PageSize = Convert.ToInt32(Environment.GetEnvironmentVariable("BATCH_SIZE")),
@@ -427,7 +427,7 @@ public class Functions
         await using (Stream stream = File.OpenRead($"{tmpPath}{directorySeparator}archived.txt"))
         {
             uploadMarkerFile = await workspaceManager.UploadSingleSmallFile(stream, stream.Length, "archived.txt",
-                checksum!, "archived.txt", "text/plain", "", "archiver", true, true);
+                checksum!, "archived.txt", "text/plain", "", "archiver", true, false, true);
         }
 
         if (File.Exists($"{tmpPath}{directorySeparator}archived.txt"))

@@ -30,7 +30,7 @@ File is in both
     <tr class="deposit-row @("where-" + where)" 
         data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@isMetadata">
         <td aria-label="select-row">
-            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
+            @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath) && combinedDirectory.LocalPath != FolderNames.MetadataAdHoc)
             {
                 <input class="form-check-input item-selector item-directory" type="checkbox" 
                        value="@combinedDirectory.LocalPath" id="@("is-" + Model.RowCounter.Count)">
@@ -87,7 +87,7 @@ File is in both
 @foreach (var file in combinedDirectory.Files)
 {
     var isMetadata = FolderNames.IsMetadata(file.LocalPath!);
-    if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem)
+    if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem || FolderNames.BagitFiles.Contains(file.LocalPath?.GetSlug()))
     {
         continue; // this file is hidden
     }
