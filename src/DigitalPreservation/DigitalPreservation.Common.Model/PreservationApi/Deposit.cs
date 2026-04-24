@@ -95,6 +95,10 @@ public class Deposit : Resource
     [JsonPropertyName("lockDate")]
     public DateTime? LockDate { get; set; }
 
+    [JsonPropertyOrder(703)]
+    [JsonPropertyName("archived")]
+    public DateTime? Archived { get; set; }
+
     public const string BasePathElement = "deposits";
     
     /// <summary>
@@ -124,8 +128,9 @@ public static class DepositStates
     public const string Exporting = "exporting";
     public const string Preserved = "preserved";
     public const string Error = "error";
+    public const string Archived = "archived";
 
-    public static readonly string[] All = [New, Exporting, Preserved, Error];
+    public static readonly string[] All = [New, Exporting, Preserved, Error, Archived];
 }
 
 public enum TemplateType

@@ -138,11 +138,21 @@ public class DeleteItemsHandler(
                             ErrorCodes.NotFound, $"File {item.RelativePath} not found.");
                     }
 
-                    if (fileToDelete != null && !fileToDelete.LocalPath!.Contains('/'))
+
+                    if (fileToDelete != null)
                     {
-                        failedDeleteResult = Result.FailNotNull<ItemsAffected>(
-                            ErrorCodes.BadRequest, "You cannot delete files in the root.");
+                        // Root file = no directory separator
+                        var isRootFile = !fileToDelete.LocalPath!.Contains('/');
+                        var deletableFiles = FolderNames.BagitFiles.Concat(["archived.txt"]).ToList();
+                        var isDeletableFile = deletableFiles.Contains(fileToDelete.LocalPath!);
+
+                        if (isRootFile && !isDeletableFile)
+                        {
+                            failedDeleteResult = Result.FailNotNull<ItemsAffected>(
+                                ErrorCodes.BadRequest, "You cannot delete protected files in the root.");
+                        }
                     }
+
                 }
 
                 // this is the DeleteObject code

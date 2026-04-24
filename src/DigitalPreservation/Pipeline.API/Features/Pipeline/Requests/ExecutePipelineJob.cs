@@ -827,7 +827,7 @@ public class ProcessPipelineJobHandler(
             return (null, false, false);
 
         var stream = GetFileStream(filePath);
-        var result = await UploadFileToBucketDeposit(request, stream, filePath, contextPath, checksum);
+        var result = await UploadFileToBucketDeposit(request, stream, filePath, contextPath, checksum, bagitFile);
 
 
         if (!result.Success)
@@ -846,7 +846,7 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(
-        ExecutePipelineJob request, Stream stream, string filePath, string? contextPath, string checksum)
+        ExecutePipelineJob request, Stream stream, string filePath, string? contextPath, string checksum, bool bagitFile = false)
     {
         // This is potentially expensive as it needs a NEW WorkspaceManager each time
         // TODO: We need a batch operation on WorkspaceManager to upload a set of small files.
@@ -861,8 +861,9 @@ public class ProcessPipelineJobHandler(
                     "Could not find file content type");
 
             var workspaceManagerResult = await GetWorkspaceManager(request, true);
+
             var result = await workspaceManagerResult.Value!.UploadSingleSmallFile(
-                stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, request.GetUserName(), string.IsNullOrEmpty(contextPath), true);
+                stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, request.GetUserName(), true, bagitFile); //bagit file
 
             return result;
         }

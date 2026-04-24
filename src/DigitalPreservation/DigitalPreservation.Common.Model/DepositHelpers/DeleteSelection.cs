@@ -29,4 +29,5 @@ public class DeleteSelection
     public bool DeleteFromRoot { get; set; } = false;
 
     public string[]? ContinueIfFail { get; set; } = [];
+
 }
