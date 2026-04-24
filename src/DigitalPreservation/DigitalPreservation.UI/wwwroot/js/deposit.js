@@ -3,39 +3,36 @@
 // -------------------------------------------------------------- 
 
 function populateModsModalFromAttributes(launcher){
+    const accessConditionList = launcher.dataset.access;
+    const rightsStatement = launcher.dataset.rights;
+    const recordInfoCompact = launcher.dataset.recordinfo;
+    const base64ToolOutput = launcher.dataset.toolOutput;
 
-    let accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
-    let nonEditableAccessRestrictions = document.getElementById("nonEditableAccessRestrictions");
-    let rightsStatementSelect = document.getElementById("rightsStatementSelect");
-    let nonEditableRightsStatement = document.getElementById("nonEditableRightsStatement");
-    let recordInfoDynamicForm = document.getElementById("recordInfoDynamicForm");
-    let nonEditableRecordInfo = document.getElementById("nonEditableRecordInfo");
-    // and clear recordInfo form
-
-    let accessConditionList = launcher.dataset.access;
-    let rightsStatement = launcher.dataset.rights;
-    let recordInfoCompact = launcher.dataset.recordinfo;
-    let base64ToolOutput = launcher.dataset.toolOutput;
     document.getElementById("modsLocalPathInfo").innerHTML = modsContext.value;
-    // document.getElementById("accessRestrictionsHelp").innerHTML = "Set access restriction(s) on " + modsContextPath;
-    // document.getElementById("rightsStatementHelp").innerHTML = "Set rights statement on " + modsContextPath;
-    // document.getElementById("recordInfoHelp").innerHTML = "Set record identifiers on " + modsContextPath;
 
-    let toolOutputLink = document.getElementById("toolOutputLink");
-    // remove event listeners
+    const toolOutputLink = document.getElementById("toolOutputLink");
     toolOutputLink.innerHTML = "";
     if(base64ToolOutput){
-        let windowOpener = document.createElement('a');
+        const windowOpener = document.createElement('a');
         toolOutputLink.appendChild(windowOpener);
         windowOpener.addEventListener("click", () => openHtmlStringInNewTab(base64ToolOutput));
     }
 
+    applyAccessRestrictions(accessConditionList);
+    applyRightsStatement(rightsStatement);
+    applyRecordInfo(recordInfoCompact);
+    applyFileLinksSection(launcher);
+}
+
+function applyAccessRestrictions(accessConditionList){
+    const accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
+    const nonEditableAccessRestrictions = document.getElementById("nonEditableAccessRestrictions");
     if(accessRestrictionsSelect){
         accessRestrictionsSelect.selectedIndex = -1;
         if(accessConditionList.length > 0){
-            let accessConditions = accessConditionList.split(",");
+            const accessConditions = new Set(accessConditionList.split(","));
             for (const option of accessRestrictionsSelect.options) {
-                if(accessConditions.includes(option.value)){
+                if(accessConditions.has(option.value)){
                     option.selected = true;
                 }
             }
@@ -44,7 +41,7 @@ function populateModsModalFromAttributes(launcher){
         if(accessConditionList.length > 0){
             nonEditableAccessRestrictions.innerHTML = "";
             for (const ac of accessConditionList.split(",")) {
-                let acLi = document.createElement("li");
+                const acLi = document.createElement("li");
                 acLi.innerHTML = `<strong>${ac}</strong>`;
                 nonEditableAccessRestrictions.appendChild(acLi);
             }
@@ -52,11 +49,15 @@ function populateModsModalFromAttributes(launcher){
             nonEditableAccessRestrictions.innerHTML = "<li><em>no explicit access restrictions</em></li>";
         }
     }
+}
 
+function applyRightsStatement(rightsStatement){
+    const rightsStatementSelect = document.getElementById("rightsStatementSelect");
+    const nonEditableRightsStatement = document.getElementById("nonEditableRightsStatement");
     if(rightsStatementSelect){
         rightsStatementSelect.selectedIndex = -1;
         if(rightsStatement){
-            let rsUri = rightsStatements[rightsStatement].value;
+            const rsUri = rightsStatements[rightsStatement].value;
             for (const option of rightsStatementSelect.options) {
                 if(option.value === rsUri){
                     option.selected = true;
@@ -70,17 +71,21 @@ function populateModsModalFromAttributes(launcher){
             nonEditableRightsStatement.innerHTML = "<ul><li><em>no explicit rights</em></li></ul>";
         }
     }
+}
 
+function applyRecordInfo(recordInfoCompact){
+    const recordInfoDynamicForm = document.getElementById("recordInfoDynamicForm");
+    const nonEditableRecordInfo = document.getElementById("nonEditableRecordInfo");
     if(recordInfoDynamicForm){
         recordInfoDynamicForm.innerHTML = "";
         if(recordInfoCompact){
-            let recordIdentifiers = recordInfoFromCompactString(recordInfoCompact);
+            const recordIdentifiers = recordInfoFromCompactString(recordInfoCompact);
             for(let i = 0; i<recordIdentifiers.length; i++){
                 const recordIdentifier = recordIdentifiers[i];
-                let riEl = createRecordIdentifierElement(i, recordIdentifier);
+                const riEl = createRecordIdentifierElement(i, recordIdentifier);
                 recordInfoDynamicForm.appendChild(riEl);
                 document.getElementById(`recordInfoDelete_${i}`).addEventListener("click", (event) => {
-                    let riDiv = event.target.closest("div");
+                    const riDiv = event.target.closest("div");
                     riDiv.parentElement.removeChild(riDiv);
                 });
             }
@@ -88,17 +93,18 @@ function populateModsModalFromAttributes(launcher){
     } else if (nonEditableRecordInfo){
         nonEditableRecordInfo.innerHTML = "<li><em>no explicit record info</em></li>";
         if(recordInfoCompact){
-            let recordIdentifiers = recordInfoFromCompactString(recordInfoCompact);
+            const recordIdentifiers = recordInfoFromCompactString(recordInfoCompact);
             for(const recordIdentifier of recordIdentifiers){
-                let riLi = document.createElement("li");
+                const riLi = document.createElement("li");
                 riLi.innerText = `<strong>${recordIdentifier.source}:</strong> ${recordIdentifier.value}`;
                 nonEditableRecordInfo.appendChild(riLi);
             }
             nonEditableRecordInfo.innerHTML = recordInfoCompact;
         }
     }
+}
 
-    // File links section — only shown for files
+function applyFileLinksSection(launcher){
     const isFile = launcher.dataset.isFile === 'true';
     const fileLinksSection = document.getElementById('fileLinksSection');
     if (fileLinksSection) {

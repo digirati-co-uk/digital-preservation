@@ -5,7 +5,7 @@ using DigitalPreservation.Common.Model.Transit.Extensions;
 
 namespace DigitalPreservation.UI.Pages.Shared;
 
-public class ModsMetadataDisplayBuilder
+public static class ModsMetadataDisplayBuilder
 {
     public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(CombinedBase? combinedBase)
     {
