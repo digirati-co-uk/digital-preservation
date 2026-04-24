@@ -44,7 +44,6 @@ public class ProcessPipelineJobHandler(
     private Guid brunnhildeProcessId = Guid.Parse("6BFB4FE2-E17E-423C-A889-426A0ADF4DF1");
     private Guid monitorForceCompleteId = Guid.Parse("97BD55BA-B039-460F-BDC9-34DAD57920C5");
     private Dictionary<Guid, CancellationTokenSource> tokensCatalog = new();
-
     /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
     /// (e.g., GetCombinedDirectory(true))
@@ -192,6 +191,10 @@ public class ProcessPipelineJobHandler(
         {
             streamReader?.Dispose();
             CleanupProcessFolder(request.DepositId);
+            if (workspace.IsBagItLayout)
+            {
+                CleanupBagitProcessFolder(request.DepositId);
+            }
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
         }
     }
@@ -202,6 +205,14 @@ public class ProcessPipelineJobHandler(
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
         Directory.Delete(metadataPathForProcessDelete, true);
+    }
+
+    private void CleanupBagitProcessFolder(string depositName)
+    {
+        var processFolderBagit = pipelineToolOptions.Value.ProcessFolderBagit;
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
+        var metadataPathForBagitProcessDelete = $"{processFolderBagit}{separator}{depositName}";
+        Directory.Delete(metadataPathForBagitProcessDelete, true);
     }
 
     private async Task<ProcessPipelineResult> ExecuteBrunnhilde(ExecutePipelineJob request,
@@ -314,8 +325,51 @@ public class ProcessPipelineJobHandler(
         var brunnhildeExecutionSuccess = result.Contains("Brunnhilde characterization complete.");
         logger.LogInformation("Brunnhilde result success: {brunnhildeExecutionSuccess}", brunnhildeExecutionSuccess);
 
+        // Now our workspaceManager is out of date, because METS has been modified.
+        // So we can't use it again for further *content modifications*.
+        // But we can use it for other properties, e.g. workspaceManager.IsBagItLayout won't have changed.
+
+        var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
+            ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
+            : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
+
+        logger.LogInformation("metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}",
+            metadataPathForProcessFilesAndDirectories);
+        logger.LogInformation(
+            "metadataPathForProcessDirectories after brunnhilde process {metadataPathForProcessDirectories}",
+            metadataPathForProcessFilesAndDirectories);
+        logger.LogInformation("depositName after brunnhilde process {depositId}", request.DepositId);
+
         if (brunnhildeExecutionSuccess)
         {
+            if (workspaceManager.IsBagItLayout)
+            {
+                var success = await BagAndCheckObjectFileDigests(workspaceManager, request.DepositId, metadataPathForProcessFilesAndDirectories, depositPath, cancellationToken);
+                if (success)
+                {
+                    logger.LogInformation("Successfully bagged and validated objects files digests for {DepositId}", request.DepositId);
+                }
+                else
+                {
+                    await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+                    CleanupProcessFolder(request.DepositId);
+                    CleanupBagitProcessFolder(request.DepositId);
+
+                    return new ProcessPipelineResult
+                    {
+                        Status = PipelineJobStates.CompletedWithErrors,
+                        Errors =
+                        [
+                            new Error
+                            {
+                                Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} had an issue running bagit, bagging and/or validating objects files digests"
+                            }
+                        ],
+                        CleanupProcessJob = false
+                    };
+                }
+            }
+
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
             logger.LogInformation("Brunnhilde creation successful");
 
@@ -329,24 +383,10 @@ public class ProcessPipelineJobHandler(
             var deleteBrunnhildeResult = await DeleteBrunnhildeFoldersAndFiles(request, workspaceManager);
             if (deleteBrunnhildeResult.Failure)
             {
-                logger.LogInformation("Brunnhilde deletion failed: " + deleteBrunnhildeResult.CodeAndMessage());
+                logger.LogError("Brunnhilde deletion failed: {Error}", deleteBrunnhildeResult.CodeAndMessage());
                 // Do we just go ahead anyway?
             }
 
-            // Now our workspaceManager is out of date, because METS has been modified.
-            // So we can't use it again for further *content modifications*.
-            // But we can use it for other properties, e.g. workspaceManager.IsBagItLayout won't have changed.
-
-            var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
-                ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
-                : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
-
-            logger.LogInformation("metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}",
-                metadataPathForProcessFilesAndDirectories);
-            logger.LogInformation(
-                "metadataPathForProcessDirectories after brunnhilde process {metadataPathForProcessDirectories}",
-                metadataPathForProcessFilesAndDirectories);
-            logger.LogInformation("depositName after brunnhilde process {depositId}", request.DepositId);
 
             var (forceCompleteAfterDelete, cleanupProcessJobAfterDelete) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
@@ -386,7 +426,6 @@ public class ProcessPipelineJobHandler(
                 };
             }
 
-
             if (forceCompleteUpload || forceCompleteUploadCleanupProcess)
             {
                 return await ForceCompleteReturn(forceCompleteUploadCleanupProcess, request, workspaceManager.Deposit, cancellationToken);
@@ -404,6 +443,38 @@ public class ProcessPipelineJobHandler(
                     uploadFileResult?.Success);
             }
 
+            if (workspaceManager.IsBagItLayout)
+            {
+                var (uploadBagitFilesResultList, forceBagitCompleteUpload, forceBagitCompleteUploadCleanupProcess) = await UploadBagitFilesToRoot(request, workspaceManager.Deposit, cancellationToken);
+
+                if (uploadBagitFilesResultList.Count == 0)
+                {
+                    await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+
+                    return new ProcessPipelineResult
+                    {
+                        Status = PipelineJobStates.CompletedWithErrors,
+                        Errors =
+                        [
+                            new Error
+                            {
+                                Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} had an issue uploading Bagit root files to S3"
+                            }
+                        ],
+                        CleanupProcessJob = false
+                    };
+                }
+                
+                if (forceBagitCompleteUpload || forceBagitCompleteUploadCleanupProcess)
+                {
+                    return await ForceCompleteReturn(forceBagitCompleteUploadCleanupProcess, request, workspaceManager.Deposit, cancellationToken);
+                }
+
+                foreach (var uploadFileResult in uploadBagitFilesResultList)
+                {
+                    logger.LogInformation("{context} upload Success: {success}", uploadFileResult?.Value?.Context, uploadFileResult?.Success);
+                }
+            }
 
             var (forceCompleteAfterUploads, cleanupProcessJobAfterUploads) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
@@ -416,7 +487,7 @@ public class ProcessPipelineJobHandler(
             var pipelineJobsResult = await UpdateJobStatus(request, PipelineJobStates.MetadataCreated, CancellationToken.None);
 
             if (pipelineJobsResult.Value?.Errors is { Length: 0 })
-                logger.LogInformation("Job {jobIdentifier} and deposit {depositId} pipeline run metadataCreated status logged",
+                logger.LogInformation("Job {JobIdentifier} and deposit {DepositId} pipeline run metadataCreated status logged",
                     request.JobIdentifier, request.DepositId);
 
             var metsResult = await AddObjectsToMets(request, depositPath);
@@ -517,6 +588,10 @@ public class ProcessPipelineJobHandler(
         // This is an expensive operation (refresh=true):
         var root = await workspaceManager.RefreshCombinedDirectory();
 
+        var workingDirectoryResult = await workspaceManager.GetFileSystemWorkingDirectory();
+
+        var workingDirectory = workingDirectoryResult.Value!;
+
         var (directories, files) = root.Value!.Flatten();
         var deleteSelection = new DeleteSelection
         {
@@ -525,6 +600,23 @@ public class ProcessPipelineJobHandler(
             Deposit = null,
             Items = []
         };
+
+        if (workspaceManager.IsBagItLayout)
+        {
+            deleteSelection.DeleteFromRoot = true;
+            var bagitFiles = workingDirectory.Files.Where(x => !x.LocalPath.Contains("METSlike.json"));
+
+            foreach (var bagitFile in bagitFiles)
+            {
+                deleteSelection.Items.Add(new MinimalItem
+                {
+                    IsDirectory = false,
+                    RelativePath = bagitFile.LocalPath,
+                    Whereabouts = Whereabouts.Both
+                });
+            }
+        }
+
         var testPath = $"{FolderNames.Metadata}";
         foreach (var directory in directories)
         {
@@ -686,10 +778,10 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<(Result<SingleFileUploadResult>?, bool, bool)> UploadFileToDepositOnS3(ExecutePipelineJob request, string filePath,
-        string? sourcePath, Deposit deposit, CancellationToken cancellationToken)
+        string? sourcePath, Deposit deposit, CancellationToken cancellationToken, bool bagitFile = false)
     {
         var context = new StringBuilder();
-        var metadataContext = "metadata";
+        var metadataContext =  bagitFile ? string.Empty : "metadata";
         context.Append(metadataContext);
 
         var (forceCompleteUploadS3, cleanupProcessUploadS3) = await CheckIfForceComplete(request, deposit, cancellationToken);
@@ -702,7 +794,11 @@ public class ProcessPipelineJobHandler(
         }
 
         if (!filePath.Contains(BrunnhildeFolderName) && !string.IsNullOrWhiteSpace(sourcePath))
-            return (null, false, false);
+        {
+            if(!bagitFile)
+                return (null, false, false);
+        }
+
 
         var fi = new FileInfo(filePath);
 
@@ -713,7 +809,7 @@ public class ProcessPipelineJobHandler(
 
         var contextPath = string.Empty;
 
-        if (!string.IsNullOrWhiteSpace(sourcePath))
+        if (!bagitFile && !string.IsNullOrWhiteSpace(sourcePath))
         {
             contextPath = metadataContext + "/" + Path.GetRelativePath(
                 sourcePath,
@@ -766,7 +862,7 @@ public class ProcessPipelineJobHandler(
 
             var workspaceManagerResult = await GetWorkspaceManager(request, true);
             var result = await workspaceManagerResult.Value!.UploadSingleSmallFile(
-                stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, request.GetUserName(), true);
+                stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, request.GetUserName(), string.IsNullOrEmpty(contextPath), true);
 
             return result;
         }
@@ -1022,6 +1118,298 @@ public class ProcessPipelineJobHandler(
             logger.LogError("Issue running exif tool for objects in the object path {ObjectPath} error {Exception}", objectPath, e.Message);
         }
     }
+
+    private async Task<bool> BagAndCheckObjectFileDigests(
+        WorkspaceManager workspaceManager,
+        string depositId,
+        string metadataPathForProcessFilesAndDirectories,
+        string depositPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var separator = pipelineToolOptions.Value.DirectorySeparator;
+            var processFolderBagitDeposit =
+                $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{depositId}";
+
+            PrepareBagitWorkspace(
+                metadataPathForProcessFilesAndDirectories,
+                depositPath,
+                processFolderBagitDeposit,
+                separator);
+
+            if (!await RunBagItProcess(processFolderBagitDeposit, cancellationToken))
+            {
+                return false;
+            }
+
+            return await VerifyObjectDigests(
+                workspaceManager,
+                depositPath,
+                processFolderBagitDeposit,
+                separator,
+                cancellationToken);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Issue running the bagit process for deposit {Deposit}", depositId);
+            return false;
+        }
+    }
+
+    //--------------------------------------------------------------
+
+    private void PrepareBagitWorkspace(
+        string metadataPath,
+        string depositPath,
+        string processFolder,
+        string separator)
+    {
+        CopyDirectory(metadataPath, $"{processFolder}{separator}metadata", true);
+        CopyDirectory(
+            $"{depositPath}{separator}data{separator}objects",
+            $"{processFolder}{separator}objects",
+            true);
+    }
+    //----------------------------------------------------------------
+
+    private async Task<bool> RunBagItProcess(
+        string processFolderBagitDeposit,
+        CancellationToken cancellationToken)
+    {
+        using var processBagit = new Process
+        {
+            StartInfo =
+        {
+            FileName = pipelineToolOptions.Value.PathToPython,
+            Arguments =
+                $" {pipelineToolOptions.Value.PathToBagit} --source-organization uol-dlip --sha256  {processFolderBagitDeposit} ",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        }
+        };
+
+        processBagit.Start();
+        await processBagit.WaitForExitAsync(cancellationToken);
+
+        return processBagit.ExitCode == 0;
+    }
+    //---------------------------------------------------------------------
+    private async Task<bool> VerifyObjectDigests(
+        WorkspaceManager workspaceManager,
+        string depositPath,
+        string processFolderBagitDeposit,
+        string separator,
+        CancellationToken cancellationToken)
+    {
+        var root = (await workspaceManager.RefreshCombinedDirectory()).Value!;
+        var (_, files) = root.Flatten();
+
+        var objectsFiles = files
+            .Where(x => x.LocalPath?.StartsWith(FolderNames.Objects) == true)
+            .ToList();
+
+        var oldManifestPath = $"{depositPath}{separator}manifest-sha256.txt";
+
+        if (!File.Exists(oldManifestPath))
+        {
+            logger.LogError("Could not find old manifest file");
+            return true;
+        }
+
+        var oldManifestBytes = await File.ReadAllBytesAsync(oldManifestPath, cancellationToken);
+
+        if (oldManifestBytes.Length == 0)
+        {
+            logger.LogError("Old manifest file is empty");
+            return true;
+        }
+
+        var oldBagItSha256Values =
+            await ReadBagItSha256(new MemoryStream(oldManifestBytes));
+
+        if (objectsFiles.Count == 0)
+        {
+            return true;
+        }
+
+        var newManifestPath =
+            $"{processFolderBagitDeposit}{separator}manifest-sha256.txt";
+
+        var newBagItSha256Values =
+            await ReadBagItSha256(
+                new MemoryStream(
+                    await File.ReadAllBytesAsync(newManifestPath, cancellationToken)));
+
+        return CompareObjectDigests(
+            oldBagItSha256Values,
+            newBagItSha256Values,
+            objectsFiles);
+    }
+    //-------------------------------------------------------
+    private bool CompareObjectDigests(
+        Dictionary<string, string> oldDigests,
+        Dictionary<string, string> newDigests,
+        List<CombinedFile> objectsFiles)
+    {
+        foreach (var (key, newDigest) in newDigests)
+        {
+            if (!key.StartsWith($"{FolderNames.BagItData}/{FolderNames.Objects}"))
+            {
+                continue;
+            }
+
+            if (oldDigests.TryGetValue(key, out var oldDigest) &&
+                oldDigest == newDigest)
+            {
+                continue;
+            }
+
+            logger.LogInformation(
+                "new objects file {EntryKey} digest doesn't match with old manifest digest value",
+                key);
+
+            var metsFile = objectsFiles.FirstOrDefault(
+                x => x.LocalPath == key.RemoveStart($"{FolderNames.BagItData}/"));
+
+            var digestInMets = metsFile?.FileInMets?.Digest;
+
+            if (digestInMets == newDigest)
+            {
+                continue;
+            }
+
+            logger.LogError(
+                "Digest mismatch - METS file and Bagit disagree on digest for file {EntryKey}",
+                key);
+            return false;
+        }
+
+        return true;
+    }
+
+
+    private static async Task<Dictionary<string, string>> ReadBagItSha256(Stream stream)
+    {
+        var txt = await GetTextFromStream(stream);
+        var bagItSha256Values1 = new Dictionary<string, string>();
+        foreach (var line in txt.Split('\n'))
+        {
+            var parts = line.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 2)
+            {
+                bagItSha256Values1.Add(parts[1], parts[0]);
+            }
+        }
+
+        return bagItSha256Values1;
+    }
+
+    private static async Task<string> GetTextFromStream(Stream stream)
+    {
+        using var reader = new StreamReader(stream);
+        var txt = await reader.ReadToEndAsync();
+        return txt;
+    }
+
+    private static void CopyDirectory(string sourceDir, string destinationDir, bool recursive)
+    {
+        // Get information about the source directory
+        var dir = new DirectoryInfo(sourceDir);
+
+        // Check if the source directory exists
+        if (!dir.Exists)
+            throw new DirectoryNotFoundException($"Source directory not found: {dir.FullName}");
+
+        // Cache directories before we start copying
+        var dirs = dir.GetDirectories();
+
+        if (!Directory.Exists(destinationDir))
+            // Create the destination directory
+            Directory.CreateDirectory(destinationDir);
+
+        // Get the files in the source directory and copy to the destination directory
+        foreach (var file in dir.GetFiles())
+        {
+            var targetFilePath = Path.Combine(destinationDir, file.Name);
+            file.CopyTo(targetFilePath);
+        }
+
+        // If recursive and copying subdirectories, recursively call this method
+        if (!recursive) return;
+        foreach (var subDir in dirs)
+        {
+            var newDestinationDir = Path.Combine(destinationDir, subDir.Name);
+            CopyDirectory(subDir.FullName, newDestinationDir, true);
+        }
+    }
+
+    private async Task<(List<Result<SingleFileUploadResult>?> uploadFileResult, bool forceComplete, bool cleanupProcess)> UploadBagitFilesToRoot(
+        ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
+    {
+        var separator = pipelineToolOptions.Value.DirectorySeparator;
+        var processFolderBagitDeposit = $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{request.DepositId}";
+
+        try
+        {
+            var (forceCompleteBeforeUpload, cleanupProcessBeforeUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
+            // At this point we have not modified the METS file, the ETag for this workspace is still valid
+            if (forceCompleteBeforeUpload || cleanupProcessBeforeUpload)
+            {
+                await TryReleaseLock(request, deposit, cancellationToken);
+                logger.LogInformation("Exited UploadBagitFilesToRoot() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
+                return (uploadFileResult: [], forceCompleteBeforeUpload, cleanupProcessBeforeUpload);
+            }
+
+            var uploadFileResult = new List<Result<SingleFileUploadResult>?>();
+
+            foreach (var filePath in Directory.GetFiles($"{processFolderBagitDeposit}", "*.*", SearchOption.TopDirectoryOnly))
+            {
+                logger.LogInformation("Upload file path {filePath}", filePath);
+                if (filesToIgnore.Any(filePath.Contains))
+                    continue;
+
+                var (forceCompleteFileUpload, cleanupProcessFileUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
+                // At this point we have not modified the METS file, the ETag for this workspace is still valid
+                if (forceCompleteFileUpload || cleanupProcessFileUpload)
+                {
+                    await TryReleaseLock(request, deposit, cancellationToken);
+                    logger.LogInformation("Exited UploadBagitFilesToRoot() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
+                    return (uploadFileResult: [], forceCompleteFileUpload, cleanupProcessFileUpload);
+                }
+
+                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, processFolderBagitDeposit, deposit, cancellationToken, true);
+                if (uploadFileToS3Result != null && (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess || !uploadFileToS3Result.Success))
+                {
+                    await TryReleaseLock(request, deposit, cancellationToken);
+                    logger.LogInformation("Exited UploadBagitFilesToRoot() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
+                    return (uploadFileResult: [], uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess);
+                }
+
+                uploadFileResult.Add(uploadFileToS3Result);
+            }
+
+            foreach (var uploadFile in uploadFileResult)
+            {
+                logger.LogInformation(" uploadFile.Value.Context {context}", uploadFile?.Value?.Context);
+            }
+
+            if (uploadFileResult.Count > 0)
+                return (uploadFileResult, false, false);
+
+        }
+        catch (Exception ex)
+        {
+            await TryReleaseLock(request, deposit, cancellationToken);
+            logger.LogError(ex, "Caught error in copying files recursively from {ProcessFolderBagitDeposit} to {DepositId}", processFolderBagitDeposit, deposit.Id);
+            return (uploadFileResult: [], false, false);
+        }
+
+        return (uploadFileResult: [], false, false);
+    }
+
 }
 
 

@@ -39,6 +39,32 @@ public class DeleteItemsHandler(
         var s3Uri = new AmazonS3Uri(request.DepositFiles);
         FullMets? mets = null;
         bool metsHasBeenWrittenTo = false;
+
+        if (request.DeleteSelection.DeleteFromRoot)
+        {
+            //only delete root files
+            foreach (var rootDeletionItem in request.DeleteSelection.Items.Where(x => !x.RelativePath.Contains("/"))) //.Where(x => x.)
+            {
+                var dor = new DeleteObjectRequest
+                {
+                    BucketName = s3Uri.Bucket,
+                    Key = s3Uri.Key + rootDeletionItem.RelativePath.TrimStart('/')
+                };
+                var response = await s3Client.DeleteObjectAsync(dor, cancellationToken);
+
+                if (response.HttpStatusCode == HttpStatusCode.NoContent)
+                {
+                    goodResult.Items.Add(rootDeletionItem);
+                }
+                else
+                {
+                    return Result.FailNotNull<ItemsAffected>(
+                        response.HttpStatusCode.ToString(), $"Failed to delete {rootDeletionItem.RelativePath} from root of deposit-files.");
+                }
+            }
+
+        }
+
         if (request.DeleteSelection.DeleteFromMets)
         {
             var metsResult = await metsManager.GetFullMets(request.DepositFiles, request.DepositETag);
@@ -53,7 +79,7 @@ public class DeleteItemsHandler(
             }
         }
         
-        var deepestFirst = request.DeleteSelection.Items
+        var deepestFirst = request.DeleteSelection.Items.Where(x => x.RelativePath.Contains("/"))
             .OrderByDescending(item => item.RelativePath.Count(c => c == '/'));
         foreach (var item in deepestFirst)
         {

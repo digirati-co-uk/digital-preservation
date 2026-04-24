@@ -41,4 +41,12 @@ public static class FolderNames
             localPath == $"{BagItData}/{Metadata}" || 
             localPath == Metadata;
     }
+
+    public static List<string?> BagitFiles =>
+    [
+        "bagit.txt",
+        "bag-info.txt",
+        "manifest-sha256.txt",
+        "tagmanifest-sha256.txt"
+    ];
 }
