@@ -65,5 +65,5 @@ public interface IStorage
     Task<Result<BulkDeleteResult>> EmptyStorageLocation(Uri storageLocation, CancellationToken cancellationToken);
     static string DepositFileSystem => "__METSlike.json";
     Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest);
-    Task<Result<Stream?>> GetStream(Uri binaryOrigin);
+    Task<Result<(Stream? ResponseStream, DateTime LastModified)>> GetStream(Uri binaryOrigin);
 }

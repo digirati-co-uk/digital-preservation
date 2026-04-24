@@ -567,7 +567,7 @@ public class Storage(
         return Result.Ok(expected);
     }
 
-    public async Task<Result<Stream?>> GetStream(Uri binaryOrigin)
+    public async Task<Result<(Stream? ResponseStream, DateTime LastModified)>> GetStream(Uri binaryOrigin)
     {
         var s3Uri = new AmazonS3Uri(binaryOrigin);
         var s3Req = new GetObjectRequest
@@ -579,13 +579,14 @@ public class Storage(
             var s3Resp = await s3Client.GetObjectAsync(s3Req);
             if (s3Resp.HttpStatusCode == HttpStatusCode.OK)
             {
-                return Result.Ok(s3Resp.ResponseStream);
+                return Result.Ok<(Stream?, DateTime)>((s3Resp.ResponseStream, s3Resp.LastModified));
             }
-            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get stream for " + binaryOrigin);
+            return Result.Fail<(Stream?, DateTime)>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get stream for " + binaryOrigin);
         }
         catch (AmazonS3Exception e)
         {
-            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)e.StatusCode), "Could not get stream for " + binaryOrigin);
+            return Result.Fail<(Stream?, DateTime)>(ErrorCodes.GetErrorCode((int)e.StatusCode), "Could not get stream for " + binaryOrigin);
         }
     }
+
 }
