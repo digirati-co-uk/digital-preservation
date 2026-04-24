@@ -34,7 +34,7 @@ public class ArchiveDepositHandler(
             EndTime = request.ArchiveDepositJob.EndTime,
             BatchNumber = request.ArchiveDepositJob.BatchNumber!,
             Id = request.ArchiveDepositJob.Id!,
-            DeletedCount = request.ArchiveDepositJob.DeletedCount!.Value,
+            DeletedCount = request.ArchiveDepositJob.DeletedCount ?? 0,
             Errors = request.ArchiveDepositJob.Errors
         };
 

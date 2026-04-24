@@ -97,7 +97,7 @@ public class Functions
                 "LAST_MODIFIED_MONTHS must be a non-zero value.");
         }
 
-        var cutoffDate = DateTime.UtcNow.AddMonths(-1);
+        var cutoffDate = DateTime.UtcNow.AddMonths(-months);
 
         return new DepositQuery
         {
