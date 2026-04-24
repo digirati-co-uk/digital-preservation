@@ -190,8 +190,11 @@ public class ProcessPipelineJobHandler(
         finally
         {
             streamReader?.Dispose();
-            if (workspace.IsBagItLayout) CleanupBagitProcessFolder(request.DepositId);
-            CleanupBagitProcessFolder(request.DepositId);
+            CleanupProcessFolder(request.DepositId);
+            if (workspace.IsBagItLayout)
+            {
+                CleanupBagitProcessFolder(request.DepositId);
+            }
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
         }
     }
