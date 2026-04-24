@@ -26,5 +26,4 @@ public class DeleteSelection
 
     public string[]? ContinueIfFail { get; set; } = [];
 
-    public string[]? NonDeletableRootFiles { get; set; } = [];
 }

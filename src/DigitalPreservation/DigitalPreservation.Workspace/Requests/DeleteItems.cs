@@ -111,14 +111,10 @@ public class DeleteItemsHandler(
                     {
                         // Root file = no directory separator
                         var isRootFile = !fileToDelete.LocalPath!.Contains('/');
+                        var deletableFiles = FolderNames.BagitFiles.Concat(["archived.txt"]).ToList();
+                        var isDeletableFile = deletableFiles.Contains(fileToDelete.LocalPath!);
 
-                        var isProtectedRootFile =
-                            isRootFile &&
-                            request.DeleteSelection.NonDeletableRootFiles != null &&
-                            request.DeleteSelection.NonDeletableRootFiles.Contains(fileToDelete.LocalPath!);
-
-
-                        if (isProtectedRootFile)
+                        if (isRootFile && !isDeletableFile)
                         {
                             failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                                 ErrorCodes.BadRequest, "You cannot delete protected files in the root.");

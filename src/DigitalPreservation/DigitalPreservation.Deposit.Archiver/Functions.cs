@@ -348,8 +348,7 @@ public class Functions
             DeleteFromDepositFiles = true,
             DeleteFromMets = false,
             Deposit = null,
-            Items = [],
-            NonDeletableRootFiles = ["mets.xml", "__METSlike.json"]
+            Items = []
         };
 
         var metadataPath = $"{FolderNames.Metadata}";
@@ -357,7 +356,7 @@ public class Functions
 
         foreach (var file in files)
         {
-            if (file.LocalPath!.StartsWith(metadataPath) || file.LocalPath!.StartsWith(objectsPath) || !deleteSelection.NonDeletableRootFiles.Contains(file.LocalPath))
+            if (file.LocalPath!.StartsWith(metadataPath) || file.LocalPath!.StartsWith(objectsPath))
             {
                 deleteSelection.Items.Add(new MinimalItem
                 {
