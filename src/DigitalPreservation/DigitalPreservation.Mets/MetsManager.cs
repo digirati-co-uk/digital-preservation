@@ -547,7 +547,7 @@ public class MetsManager(
     public void SetStructMap(FullMets mets, LogicalRange logSm)
     {
         var existing = mets.Mets.StructMap
-            .FirstOrDefault(sm => sm.Type == "LOGICAL" && sm.Div?.Id == logSm.Id);
+            .FirstOrDefault(sm => sm.Type == Constants.Logical && sm.Div?.Id == logSm.Id);
         if (existing != null)
         {
             RemoveLogicalStructMapDmdSecs(mets, existing.Div);
@@ -556,7 +556,7 @@ public class MetsManager(
 
         mets.Mets.StructMap.Add(new StructMapType
         {
-            Type = "LOGICAL",
+            Type = Constants.Logical,
             Div = BuildLogicalDiv(mets, logSm)
         });
     }
@@ -645,7 +645,7 @@ public class MetsManager(
     public void SetStructMapOrder(FullMets mets, string[] ids)
     {
         var logicalMaps = mets.Mets.StructMap
-            .Where(sm => sm.Type == "LOGICAL")
+            .Where(sm => sm.Type == Constants.Logical)
             .ToDictionary(sm => sm.Div.Id);
 
         foreach (var map in logicalMaps.Values)
@@ -661,7 +661,7 @@ public class MetsManager(
     public void RemoveStructMap(FullMets mets, string id)
     {
         var existing = mets.Mets.StructMap
-            .FirstOrDefault(sm => sm.Type == "LOGICAL" && sm.Div?.Id == id);
+            .FirstOrDefault(sm => sm.Type == Constants.Logical && sm.Div?.Id == id);
         if (existing == null) return;
 
         RemoveLogicalStructMapDmdSecs(mets, existing.Div);

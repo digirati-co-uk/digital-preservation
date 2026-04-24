@@ -155,20 +155,17 @@ public static class ModsManager
 
     public static ModsDefinition? GetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, bool createDmd = false)
     {
-        if (div.Dmdid.Count == 0)
+        if (div.Dmdid.Count == 0 && createDmd)
         {
             // There is no DMDID on this div
-            if (createDmd)
+            if (div.Id.StartsWith(Constants.PhysIdPrefix))
             {
-                if (div.Id.StartsWith(Constants.PhysIdPrefix))
-                {
-                    div.Dmdid.Add(Constants.DmdIdPrefix + div.Id.RemoveStart(Constants.PhysIdPrefix));
-                }
-                else
-                {
-                    // A logical structMap div that might have been supplied by the client
-                    div.Dmdid.Add(Constants.DmdIdPrefix + div.Id);
-                }
+                div.Dmdid.Add(Constants.DmdIdPrefix + div.Id.RemoveStart(Constants.PhysIdPrefix));
+            }
+            else
+            {
+                // A logical structMap div that might have been supplied by the client
+                div.Dmdid.Add(Constants.DmdIdPrefix + div.Id);
             }
         }
         var normalised = string.Join(' ', div.Dmdid);

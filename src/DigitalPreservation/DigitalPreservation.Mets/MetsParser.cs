@@ -790,7 +790,24 @@ public class MetsParser(
         var structLink = xMets.Descendants(XNames.MetsStructLink).FirstOrDefault();
         if (structLink == null) return fileToAssociatedRange;
 
-        // Pass 1: for each physical div, determine the deepest logical range that claims it
+        var physDivToDeepest = BuildPhysDivToDeepestMap(structLink, logicalRangeMap, logicalDivDepth, lookupMaps);
+
+        foreach (var (physDivId, (deepestRange, _)) in physDivToDeepest)
+        {
+            if (!lookupMaps.PhysDivMap.TryGetValue(physDivId, out var physDiv)) continue;
+            MapFilePathsToRange(physDiv, lookupMaps, deepestRange, fileToAssociatedRange);
+        }
+
+        PopulateLogicalRangeFilesFromSmLinks(structLink, logicalRangeMap, physDivToDeepest, lookupMaps);
+        return fileToAssociatedRange;
+    }
+
+    private static Dictionary<string, (LogicalRange range, int depth)> BuildPhysDivToDeepestMap(
+        XElement structLink,
+        Dictionary<string, LogicalRange> logicalRangeMap,
+        Dictionary<string, int> logicalDivDepth,
+        MetsLookupMaps lookupMaps)
+    {
         var physDivToDeepest = new Dictionary<string, (LogicalRange range, int depth)>();
         foreach (var smLink in structLink.Elements(XNames.MetsSmLink))
         {
@@ -804,15 +821,15 @@ public class MetsParser(
             if (!physDivToDeepest.TryGetValue(toId, out var current) || depth > current.depth)
                 physDivToDeepest[toId] = (logicalRange, depth);
         }
+        return physDivToDeepest;
+    }
 
-        // Build fileToAssociatedRange: ALL files in each physical div → their deepest logical range
-        foreach (var (physDivId, (deepestRange, _)) in physDivToDeepest)
-        {
-            if (!lookupMaps.PhysDivMap.TryGetValue(physDivId, out var physDiv)) continue;
-            MapFilePathsToRange(physDiv, lookupMaps, deepestRange, fileToAssociatedRange);
-        }
-
-        // Pass 2: populate LogicalRange.Files in smLink document order, deepest-only
+    private static void PopulateLogicalRangeFilesFromSmLinks(
+        XElement structLink,
+        Dictionary<string, LogicalRange> logicalRangeMap,
+        Dictionary<string, (LogicalRange range, int depth)> physDivToDeepest,
+        MetsLookupMaps lookupMaps)
+    {
         foreach (var smLink in structLink.Elements(XNames.MetsSmLink))
         {
             var fromId = smLink.Attribute(XNames.XLinkFrom)?.Value;
@@ -820,14 +837,10 @@ public class MetsParser(
             if (fromId == null || toId == null) continue;
             if (!logicalRangeMap.TryGetValue(fromId, out var logicalRange)) continue;
             if (!physDivToDeepest.TryGetValue(toId, out var deepest)) continue;
-            if (!ReferenceEquals(deepest.range, logicalRange)) continue; // not the deepest claimant
-
+            if (!ReferenceEquals(deepest.range, logicalRange)) continue;
             if (!lookupMaps.PhysDivMap.TryGetValue(toId, out var physDiv)) continue;
-            // Only primary (non-ALTO) files go into LogicalRange.Files for IIIF canvas painting
             AddNonAltoFilesToRange(physDiv, lookupMaps, logicalRange);
         }
-
-        return fileToAssociatedRange;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -854,24 +867,7 @@ public class MetsParser(
             var fptrs = div.Elements(XNames.MetsFptr).ToList();
             if (fptrs.Count < 2) continue;
 
-            string? objectsPath = null;
-            string? altoPath = null;
-
-            foreach (var fptr in fptrs)
-            {
-                var fileId = fptr.GetFileId();
-                if (fileId == null) continue;
-                var localPath = lookupMaps.FileMap.TryGetValue(fileId, out var fileEl)
-                    ? fileEl.Elements(XNames.MetsFLocat).FirstOrDefault()?.Attribute(XNames.XLinkHref)?.Value
-                    : null;
-                if (localPath == null) continue;
-
-                var use = lookupMaps.FileGrpUseMap.GetValueOrDefault(fileId, "");
-                if (string.Equals(use, "OBJECTS", StringComparison.OrdinalIgnoreCase))
-                    objectsPath = localPath;
-                else if (string.Equals(use, "ALTO", StringComparison.OrdinalIgnoreCase))
-                    altoPath = localPath;
-            }
+            var (objectsPath, altoPath) = ClassifyDivFptrs(fptrs, lookupMaps);
 
             if (objectsPath != null && altoPath != null
                 && fileByPath.TryGetValue(objectsPath, out var objectsFile)
@@ -880,6 +876,25 @@ public class MetsParser(
                 objectsFile.Links.Add(new FileLink { To = altoPath, Role = transcript });
             }
         }
+    }
+
+    private static (string? objectsPath, string? altoPath) ClassifyDivFptrs(
+        IEnumerable<XElement> fptrs, MetsLookupMaps lookupMaps)
+    {
+        string? objectsPath = null;
+        string? altoPath = null;
+        foreach (var fptr in fptrs)
+        {
+            var fileId = fptr.GetFileId();
+            var localPath = GetLocalPathForFileId(fileId, lookupMaps);
+            if (localPath == null) continue;
+            var use = lookupMaps.FileGrpUseMap.GetValueOrDefault(fileId!, "");
+            if (string.Equals(use, "OBJECTS", StringComparison.OrdinalIgnoreCase))
+                objectsPath = localPath;
+            else if (string.Equals(use, "ALTO", StringComparison.OrdinalIgnoreCase))
+                altoPath = localPath;
+        }
+        return (objectsPath, altoPath);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -979,43 +994,46 @@ public class MetsParser(
             if (localPath == null) return null;
 
             var fp = new FilePointer { LocalPath = localPath };
-            var betype = areaEl.Attribute("BETYPE")?.Value;
-            var shape = areaEl.Attribute("SHAPE")?.Value;
-
-            if (string.Equals(betype, "TIME", StringComparison.OrdinalIgnoreCase))
-            {
-                // Temporal reference: BEGIN/END are time codes (HH:MM:SS or HH:MM:SS.sss)
-                var begin = areaEl.Attribute("BEGIN")?.Value;
-                var end = areaEl.Attribute("END")?.Value;
-                try
-                {
-                    if (begin != null) fp.BeginTime = MetsTimeCode.ToSeconds(begin);
-                    if (end != null) fp.EndTime = MetsTimeCode.ToSeconds(end);
-                }
-                catch (FormatException e)
-                {
-                    logger.LogWarning(e, "Unable to parse time code in mets:area element");
-                }
-            }
-            else if (string.Equals(shape, "RECT", StringComparison.OrdinalIgnoreCase))
-            {
-                // Spatial reference: axis-aligned rectangle via SHAPE="RECT" and COORDS="x1,y1,x2,y2".
-                // CIRCLE and POLY are not currently supported.
-                var coords = areaEl.Attribute("COORDS")?.Value;
-                fp.Region = MetsAreaCoords.TryParseRect(shape, coords);
-            }
-            // Other BETYPE values (BYTE, IDREF, SMPTR, XPTR) and SHAPE values are not currently supported.
+            ApplyAreaProperties(areaEl, fp);
             return fp;
         }
-        else
+
+        // Whole-file reference
+        var wholeFileId = fptr.GetFileId();
+        if (wholeFileId == null) return null;
+        var wholePath = GetLocalPathForFileId(wholeFileId, lookupMaps);
+        if (wholePath == null) return null;
+        return new FilePointer { LocalPath = wholePath };
+    }
+
+    private void ApplyAreaProperties(XElement areaEl, FilePointer fp)
+    {
+        var betype = areaEl.Attribute("BETYPE")?.Value;
+        var shape = areaEl.Attribute("SHAPE")?.Value;
+
+        if (string.Equals(betype, "TIME", StringComparison.OrdinalIgnoreCase))
         {
-            // Whole-file reference
-            var fileId = fptr.GetFileId();
-            if (fileId == null) return null;
-            var localPath = GetLocalPathForFileId(fileId, lookupMaps);
-            if (localPath == null) return null;
-            return new FilePointer { LocalPath = localPath };
+            // Temporal reference: BEGIN/END are time codes (HH:MM:SS or HH:MM:SS.sss)
+            var begin = areaEl.Attribute("BEGIN")?.Value;
+            var end = areaEl.Attribute("END")?.Value;
+            try
+            {
+                if (begin != null) fp.BeginTime = MetsTimeCode.ToSeconds(begin);
+                if (end != null) fp.EndTime = MetsTimeCode.ToSeconds(end);
+            }
+            catch (FormatException e)
+            {
+                logger.LogWarning(e, "Unable to parse time code in mets:area element");
+            }
         }
+        else if (string.Equals(shape, "RECT", StringComparison.OrdinalIgnoreCase))
+        {
+            // Spatial reference: axis-aligned rectangle via SHAPE="RECT" and COORDS="x1,y1,x2,y2".
+            // CIRCLE and POLY are not currently supported.
+            var coords = areaEl.Attribute("COORDS")?.Value;
+            fp.Region = MetsAreaCoords.TryParseRect(shape, coords);
+        }
+        // Other BETYPE values (BYTE, IDREF, SMPTR, XPTR) and SHAPE values are not currently supported.
     }
 
     private static string? GetLocalPathForFileId(string? fileId, MetsLookupMaps lookupMaps)

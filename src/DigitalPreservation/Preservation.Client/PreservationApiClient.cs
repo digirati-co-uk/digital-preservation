@@ -111,7 +111,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not get all agents");
             return Result.FailNotNull<List<Uri>>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -136,7 +136,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not update deposit");
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -157,7 +157,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not delete deposit");
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -229,7 +229,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not create deposit");
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -290,7 +290,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not get import job results for deposit");
             return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -315,7 +315,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not get import job result");
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -341,7 +341,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not get diff import job");
             return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -370,7 +370,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not send diff import job");
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -397,7 +397,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not get deposit");
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -420,7 +420,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not get METS with eTag");
             return Result.Fail<(string, string)>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -442,7 +442,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not get parsed deposit METS");
             return Result.FailNotNull<string>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -559,7 +559,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not get get pipeline job results for deposit");
             return Result.FailNotNull<List<ProcessPipelineResult>>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -584,7 +584,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Unexpected error");
+            logger.LogError(e, "Could not get pipeline job result");
             return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.UnknownError, e.Message);
         }
     }

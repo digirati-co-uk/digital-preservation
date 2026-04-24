@@ -22,4 +22,5 @@ public static class Constants
     public const string NullRightsStatement = "null";
 
     public const string Physical = "PHYSICAL";
+    public const string Logical = "LOGICAL";
 }
