@@ -31,6 +31,8 @@ public class Startup
     /// the lifetime of the Lambda compute container. Services injected as parameters are created within the scope
     /// of the function invocation.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2325:Methods and properties that don't access instance data should be static",
+        Justification = "AWS Lambda annotations source generator requires an instance method.")]
     public void ConfigureServices(IServiceCollection services)
     {
         var fromServerlessTemplateoauthAzureSecret = Environment.GetEnvironmentVariable("OAUTH_AZURE_SECRET");

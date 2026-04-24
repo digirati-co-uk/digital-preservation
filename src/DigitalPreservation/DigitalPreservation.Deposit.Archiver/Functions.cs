@@ -359,7 +359,7 @@ public class Functions
             deleteSelection.Items.Add(new MinimalItem
             {
                 IsDirectory = false,
-                RelativePath = file.LocalPath,
+                RelativePath = file.LocalPath!,
                 Whereabouts = Whereabouts.Both
             });
         }
