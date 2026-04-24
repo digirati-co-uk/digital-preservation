@@ -13,8 +13,8 @@ public class Liddle
 {
     private readonly MetsManager metsManager;
     
-    private const string MetsFilePathBasic = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\liddle.basic.mets.xml";
-    private const string MetsFilePathExtended = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\liddle.extended.mets.xml";
+    private const string MetsFilePathBasic = "Outputs/liddle.basic.mets.xml";
+    private const string MetsFilePathExtended = "Outputs/liddle.extended.mets.xml";
 
     public Liddle()
     {

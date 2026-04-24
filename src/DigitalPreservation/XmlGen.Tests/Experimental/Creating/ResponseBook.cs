@@ -13,8 +13,8 @@ public class ResponseBook
 {
     private readonly MetsManager metsManager;
 
-    private const string MetsFilePathBasic = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\response-book.basic.mets.xml";
-    private const string MetsFilePathExtended = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\response-book.extended.mets.xml";
+    private const string MetsFilePathBasic = "Outputs/response-book.basic.mets.xml";
+    private const string MetsFilePathExtended = "Outputs/response-book.extended.mets.xml";
 
     public ResponseBook()
     {

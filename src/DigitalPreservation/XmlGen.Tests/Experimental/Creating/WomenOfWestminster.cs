@@ -15,8 +15,8 @@ public class WomenOfWestminster
     private readonly MetsManager metsManager;
     private readonly MetsParser parser;
 
-    private const string MetsFilePathBasic = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\wow.basic.mets.xml";
-    private const string MetsFilePathExtended = "C:\\git\\uol-dlip\\design\\complex-mets\\gen\\wow.extended.mets.xml";
+    private const string MetsFilePathBasic = "Outputs/wow.basic.mets.xml";
+    private const string MetsFilePathExtended = "Outputs/wow.extended.mets.xml";
 
     public WomenOfWestminster()
     {
