@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof logicalStructMapsData === 'undefined' || !logicalStructMapsData.length) return;
 
     for (const lsm of logicalStructMapsData) {
-        logicalStructMapState[lsm.id] = JSON.parse(JSON.stringify(lsm));
+        logicalStructMapState[lsm.id] = structuredClone(lsm);
         renderLogicalStructMap(lsm.id);
     }
 
@@ -399,13 +399,10 @@ function openModsModalForRange(structmapId, rangeId) {
     const root = logicalStructMapState[structmapId];
     const range = root ? findRange(root, rangeId) : null;
     const launcher = document.createElement('span');
-    launcher.setAttribute('data-access',
-        (range?.accessRestrictions ?? []).join(','));
-    launcher.setAttribute('data-rights',
-        getRightsShortLabel(range?.rightsStatement) ?? '');
-    launcher.setAttribute('data-recordinfo',
-        toRecordInfoCompact(range?.recordInfo) ?? '');
-    launcher.setAttribute('data-tool-output', '');
+    launcher.dataset.access = (range?.accessRestrictions ?? []).join(',');
+    launcher.dataset.rights = getRightsShortLabel(range?.rightsStatement) ?? '';
+    launcher.dataset.recordinfo = toRecordInfoCompact(range?.recordInfo) ?? '';
+    launcher.dataset.toolOutput = '';
 
     if (typeof populateModsModalFromAttributes === 'function') {
         populateModsModalFromAttributes(launcher);
@@ -435,7 +432,7 @@ function readRecordIdentifiersFromForm() {
         const index = container.dataset.recordInfoIndex;
         const sourceEl = document.getElementById(`recordInfoSourceSelect_${index}`);
         const valueEl = document.getElementById(`recordInfoValue_${index}`);
-        if (sourceEl && valueEl && valueEl.value.trim()) {
+        if (sourceEl && valueEl?.value.trim()) {
             result.push({ source: sourceEl.value, value: valueEl.value.trim() });
         }
     });
@@ -560,7 +557,7 @@ function openFilePickerModal(structmapId, rangeId) {
     const selectAll = document.getElementById('filePickerSelectAll');
     if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
 
-    const files = (typeof physicalFilePaths !== 'undefined' ? physicalFilePaths : []).filter(Boolean);
+    const files = (typeof physicalFilePaths === 'undefined' ? [] : physicalFilePaths).filter(Boolean);
     const root = logicalStructMapState[structmapId];
     const range = root ? findRange(root, rangeId) : null;
     const alreadyAdded = new Set((range?.files || []).map(f => f.localPath));
@@ -568,7 +565,7 @@ function openFilePickerModal(structmapId, rangeId) {
     for (const path of files) {
         const item = document.createElement('div');
         item.classList.add('file-picker-item', 'form-check');
-        const safeId = 'fp_' + path.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeId = 'fp_' + path.replaceAll(/[^a-zA-Z0-9]/g, '_');
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.classList.add('form-check-input');

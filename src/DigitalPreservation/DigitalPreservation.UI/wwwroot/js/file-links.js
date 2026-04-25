@@ -4,24 +4,29 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof physicalFileLinksData === 'undefined') return;
+    const reverseLinks = buildReverseLinks(physicalFileLinksData);
+    decorateFileRows(reverseLinks);
+});
 
-    // Build reverse index: targetPath → [{from, role}]
+// Build reverse index: targetPath → [{from, role}]
+function buildReverseLinks(data) {
     const reverseLinks = {};
-    for (const [fromPath, links] of Object.entries(physicalFileLinksData)) {
+    for (const [fromPath, links] of Object.entries(data)) {
         for (const link of links) {
             if (!reverseLinks[link.to]) reverseLinks[link.to] = [];
             reverseLinks[link.to].push({ from: fromPath, role: link.role });
         }
     }
+    return reverseLinks;
+}
 
-    // Process each physical file row
+function decorateFileRows(reverseLinks) {
     const fileRows = document.querySelectorAll('tr[data-type="file"][data-path]');
     for (const row of fileRows) {
         const path = row.dataset.path;
         if (!path) continue;
 
-        // Assign a stable anchor ID
-        const safeId = 'frow-' + path.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeId = 'frow-' + path.replaceAll(/[^a-zA-Z0-9]/g, '_');
         row.id = safeId;
 
         const forwardLinks = physicalFileLinksData[path] || [];
@@ -33,27 +38,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const nameTd = nameSpan?.closest('td');
         if (!nameTd) continue;
 
-        // Forward links (→)
         for (const link of forwardLinks) {
-            const targetSafeId = 'frow-' + link.to.replace(/[^a-zA-Z0-9]/g, '_');
+            const targetSafeId = 'frow-' + link.to.replaceAll(/[^a-zA-Z0-9]/g, '_');
             const label = getRoleLabelFromUri(link.role) || link.role || '→';
             nameTd.appendChild(makeFileLinkArrow('→', targetSafeId, label, 'link-primary'));
         }
 
-        // Back links (←)
         for (const bl of backLinks) {
-            const sourceSafeId = 'frow-' + bl.from.replace(/[^a-zA-Z0-9]/g, '_');
+            const sourceSafeId = 'frow-' + bl.from.replaceAll(/[^a-zA-Z0-9]/g, '_');
             const label = getRoleLabelFromUri(bl.role) || bl.role || '←';
             nameTd.appendChild(makeFileLinkArrow('←', sourceSafeId, label + ' (linked from)', 'link-secondary'));
         }
     }
-});
+}
 
 function makeFileLinkArrow(text, targetRowId, title, linkClass) {
     const a = document.createElement('a');
     a.href = '#' + targetRowId;
     a.classList.add('ms-1', 'text-decoration-none', linkClass);
-    a.setAttribute('data-target-row', targetRowId);
+    a.dataset.targetRow = targetRowId;
     a.setAttribute('title', title);
     a.textContent = text;
     a.addEventListener('mouseenter', () => {
