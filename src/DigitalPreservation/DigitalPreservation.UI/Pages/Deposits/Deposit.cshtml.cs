@@ -27,6 +27,7 @@ public class DepositModel(
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
     IOptions<PipelineOptions> pipelineOptions,
+    IOptions<PreservationOptions> preservationOptions,
     IConfiguration configuration,
     ILogger<DepositModel> logger) : PageModel
 {
@@ -62,6 +63,8 @@ public class DepositModel(
 
     public string FileLinkRolesJson => JsonSerializer.Serialize( // NOSONAR: cannot be static — Razor Pages views require instance properties on the model
         FileLinkRoles.ProvidesUriFromKeyword.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.AbsoluteUri));
+    public string RecordInfoSourcesJson => JsonSerializer.Serialize( // NOSONAR: cannot be static — Razor Pages views require instance properties on the model
+        preservationOptions.Value.RecordInfoSources);
 
     public const string TempDataUpdated = "Updated";
     public const string TempDataError = "Error";
@@ -81,6 +84,7 @@ public class DepositModel(
             return JsonSerializer.Serialize(dict);
         }
     }
+
 
     public record MismatchDisplay(string FilePath, string? Differences, string? ExifDifferences);
 

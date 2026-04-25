@@ -26,7 +26,6 @@ function populateModsModalFromAttributes(launcher){
 
 function applyAccessRestrictions(accessConditionList){
     const accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
-    const nonEditableAccessRestrictions = document.getElementById("nonEditableAccessRestrictions");
     if(accessRestrictionsSelect){
         accessRestrictionsSelect.selectedIndex = -1;
         if(accessConditionList.length > 0){
@@ -37,17 +36,19 @@ function applyAccessRestrictions(accessConditionList){
                 }
             }
         }
-    } else if (nonEditableAccessRestrictions){
-        if(accessConditionList.length > 0){
-            nonEditableAccessRestrictions.innerHTML = "";
-            for (const ac of accessConditionList.split(",")) {
-                const acLi = document.createElement("li");
-                acLi.innerHTML = `<strong>${ac}</strong>`;
-                nonEditableAccessRestrictions.appendChild(acLi);
-            }
-        } else {
-            nonEditableAccessRestrictions.innerHTML = "<li><em>no explicit access restrictions</em></li>";
+        return;
+    }
+    const nonEditableAccessRestrictions = document.getElementById("nonEditableAccessRestrictions");
+    if(!nonEditableAccessRestrictions) return;
+    if(accessConditionList.length > 0){
+        nonEditableAccessRestrictions.innerHTML = "";
+        for (const ac of accessConditionList.split(",")) {
+            const acLi = document.createElement("li");
+            acLi.innerHTML = `<strong>${ac}</strong>`;
+            nonEditableAccessRestrictions.appendChild(acLi);
         }
+    } else {
+        nonEditableAccessRestrictions.innerHTML = "<li><em>no explicit access restrictions</em></li>";
     }
 }
 
@@ -86,7 +87,7 @@ function applyRecordInfo(recordInfoCompact){
                 recordInfoDynamicForm.appendChild(riEl);
                 document.getElementById(`recordInfoDelete_${i}`).addEventListener("click", (event) => {
                     const riDiv = event.target.closest("div");
-                    riDiv.parentElement.removeChild(riDiv);
+                    riDiv.remove();
                 });
             }
         }
@@ -172,13 +173,12 @@ function refreshFileLinkRoleSelect() {
     roleSelect.innerHTML = '';
     let hasOptions = false;
     for (const [keyword, uri] of Object.entries(typeof fileLinkRoles !== 'undefined' ? fileLinkRoles : {})) {
-        if (!usedRoles.has(uri)) {
-            const opt = document.createElement('option');
-            opt.value = uri;
-            opt.textContent = keyword;
-            roleSelect.appendChild(opt);
-            hasOptions = true;
-        }
+        if (usedRoles.has(uri)) continue;
+        const opt = document.createElement('option');
+        opt.value = uri;
+        opt.textContent = keyword;
+        roleSelect.appendChild(opt);
+        hasOptions = true;
     }
     if (addBtn) addBtn.disabled = !hasOptions;
 }
@@ -270,13 +270,11 @@ if(recordInfoAddAnother) {
         document.getElementById("recordInfoDynamicForm").appendChild(riEl);
         document.getElementById(`recordInfoDelete_${highestIndex + 1}`).addEventListener("click", (event) => {
             let riDiv = event.target.closest("div");
-            riDiv.parentElement.removeChild(riDiv);
+            riDiv.remove();
         });
     });    
 }
 
-
-const recordInfoSources = [ "EMu", "Identity Service" ]; // TODO: from config
 const rows = document.getElementsByClassName("deposit-row");
 const newFolderContext = document.getElementById("newFolderContext");
 const newFolderContextIsFile = document.getElementById("newFolderContextIsFile");
@@ -327,108 +325,85 @@ deleteFromMetsAndDepositRadio.addEventListener("change", () => {
     deleteButton.removeAttribute("disabled");
 });
 
-document.getElementById("deleteSelection").addEventListener("click", () => {
+function buildDeleteSelectionPayload(itemSelectors) {
+    const deleteSelectionObject = { items: [] };
+    let summary = "<table>";
+    let metadataCount = 0;
+    for(const itemSelector of itemSelectors) {
+        if (!itemSelector.checked) continue;
+        const row = itemSelector.closest("tr");
+        const type = row.dataset.type;
+        const relativePath = row.dataset.path;
+        const isMetadata = row.dataset.metadata.toLowerCase() === "true";
+        if(isMetadata){ metadataCount++; continue; }
+        if (relativePath && (type === "directory" || type === "file")){
+            const whereabouts = row.dataset.whereabouts;
+            const item = { path: relativePath, isDir: (type === "directory"), where: whereabouts };
+            deleteSelectionObject.items.push(item);
+            summary += `<tr><td>${whereabouts} - </td><td>${item.isDir ? "🗀" : "🗎"}</td><td>${relativePath}</td></tr>`;
+        }
+    }
+    summary += "</table>";
+    return { deleteSelectionObject, summary, metadataCount };
+}
 
+document.getElementById("deleteSelection").addEventListener("click", () => {
     deleteFromDepositRadio.checked = false;
     deleteFromMetsAndDepositRadio.checked = false;
     deleteButton.setAttribute("disabled", "true");
     deleteFromDepositRadio.setAttribute("disabled", "true");
     deleteFromMetsAndDepositRadio.setAttribute("disabled", "true");
 
-    const itemSelectors = document.getElementsByClassName("item-selector");
-    const deleteSelectionObject = { items: [] };
-    let summary = "<table>";
-    let metadataCount = 0;
-    for(const itemSelector of itemSelectors)
-    {
-        if (itemSelector.checked){
-            const row = itemSelector.closest("tr");
-            const type = row.dataset.type;
-            const relativePath = row.dataset.path;
-            const isMetadata = row.dataset.metadata.toLowerCase() === "true";
-            if(isMetadata){
-                metadataCount++;
-                continue;
-            }
-            if (relativePath && (type === "directory" || type === "file")){
-                const whereabouts = row.dataset.whereabouts;
-                const item = {
-                    path: relativePath,
-                    isDir: (type === "directory"),
-                    where: whereabouts
-                };
-                deleteSelectionObject.items.push(item);
-                summary += "<tr><td>";
-                summary += whereabouts;
-                summary += " - </td><td>";
-                summary += item.isDir ? "🗀" : "🗎";
-                summary += "</td><td>";
-                summary += relativePath;
-                summary += "</td></tr>";
-            }
-        }
-    }
-    summary += "</table>";
+    const { deleteSelectionObject, summary, metadataCount } = buildDeleteSelectionPayload(
+        document.getElementsByClassName("item-selector"));
 
-    if(metadataCount > 0)
-    {
+    if(metadataCount > 0) {
         deleteItemHelp.innerHTML = `<div class="alert alert-danger" role="alert"><p>${metadataCount} item(s) are in the metadata folder, these cannot be deleted.</p></div>`;
         document.getElementById("deleteSelectionObject").value = "";
-    }
-    else
-    {
+    } else {
         if (deleteSelectionObject.items.length > 0){
             deleteItemHelp.innerHTML = summary;
             deleteFromMetsAndDepositRadio.removeAttribute("disabled");
-            if (archivalGroupExists){
-                deleteFromDepositRadio.removeAttribute("disabled");
-            }
+            if (archivalGroupExists){ deleteFromDepositRadio.removeAttribute("disabled"); }
         } else {
-            deleteItemHelp.innerHTML = "<p>There are no items selected.</p>"
+            deleteItemHelp.innerHTML = "<p>There are no items selected.</p>";
         }
         document.getElementById("deleteSelectionObject").value = JSON.stringify(deleteSelectionObject);
     }
 });
 
 
-document.getElementById("addSelectionToMets").addEventListener("click", () => {
-
-    addToMetsButton.setAttribute("disabled", "true");
-
-    const itemSelectors = document.getElementsByClassName("item-selector");
+function buildAddToMetsPayload(itemSelectors) {
     const addToMetsObject = [];
     let summary = "<table>";
-    for(const itemSelector of itemSelectors)
-    {
-        if (itemSelector.checked){
-            const row = itemSelector.closest("tr");
-            const type = row.dataset.type;
-            const relativePath = row.dataset.path;
-            if (relativePath && (type === "directory" || type === "file")){
-                const whereabouts = row.dataset.whereabouts;
-                if(whereabouts === "Deposit" || whereabouts === "Both"){
-                    const item = {
-                        path: relativePath,
-                        isDir: (type === "directory"),
-                        where: whereabouts
-                    };
-                    addToMetsObject.push(item);
-                    summary += "<tr><td>";
-                    summary += item.isDir ? "🗀" : "🗎";
-                    summary += " - </td><td>";
-                    summary += relativePath;
-                    summary += "</td></tr>";
-                }
-            }
-        }
+    for(const itemSelector of itemSelectors) {
+        if (!itemSelector.checked) continue;
+        const row = itemSelector.closest("tr");
+        const type = row.dataset.type;
+        const relativePath = row.dataset.path;
+        if (!relativePath || (type !== "directory" && type !== "file")) continue;
+        const whereabouts = row.dataset.whereabouts;
+        if (whereabouts !== "Deposit" && whereabouts !== "Both") continue;
+        const item = { path: relativePath, isDir: (type === "directory"), where: whereabouts };
+        addToMetsObject.push(item);
+        summary += `<tr><td>${item.isDir ? "🗀" : "🗎"} - </td><td>${relativePath}</td></tr>`;
     }
     summary += "</table>";
+    return { addToMetsObject, summary };
+}
+
+document.getElementById("addSelectionToMets").addEventListener("click", () => {
+    addToMetsButton.setAttribute("disabled", "true");
+
+    const { addToMetsObject, summary } = buildAddToMetsPayload(
+        document.getElementsByClassName("item-selector"));
+
     document.getElementById("addToMetsObject").value = JSON.stringify(addToMetsObject);
     if (addToMetsObject.length > 0){
         addToMetsHelp.innerHTML = summary;
         addToMetsButton.removeAttribute("disabled");
     } else {
-        addToMetsHelp.innerHTML = "<p>There are no items selected.</p>"
+        addToMetsHelp.innerHTML = "<p>There are no items selected.</p>";
     }
 });
 

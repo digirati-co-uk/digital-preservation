@@ -886,12 +886,13 @@
     <script>
         // Data needed by scripts
         const rightsStatements = @Html.Raw(JsonSerializer.Serialize(RightsStatement.ByShortLabel,
-        new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+            new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
         const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
         const logicalStructMapsData = @Html.Raw(Model.LogicalStructMapsJson);
         const physicalFilePaths = @Html.Raw(Model.PhysicalFilePathsJson);
         const fileLinkRoles = @Html.Raw(Model.FileLinkRolesJson);
         const physicalFileLinksData = @Html.Raw(Model.PhysicalFileLinksDataJson);
+        const recordInfoSources = @Html.Raw(Model.RecordInfoSourcesJson);
     </script>
     <script src="~/js/deposit.js" asp-append-version="true"></script>
     <script src="~/js/logical-structmap.js" asp-append-version="true"></script>
