@@ -172,7 +172,7 @@ function refreshFileLinkRoleSelect() {
     const usedRoles = new Set(currentFileLinks.map(l => l.role));
     roleSelect.innerHTML = '';
     let hasOptions = false;
-    for (const [keyword, uri] of Object.entries(typeof fileLinkRoles !== 'undefined' ? fileLinkRoles : {})) {
+    for (const [keyword, uri] of Object.entries(typeof fileLinkRoles === 'undefined' ? {} : fileLinkRoles)) {
         if (usedRoles.has(uri)) continue;
         const opt = document.createElement('option');
         opt.value = uri;
@@ -188,7 +188,7 @@ function populateFileLinkTargetSelect() {
     if (!sel) return;
     const currentPath = modsContext?.value ?? '';
     sel.innerHTML = '';
-    const files = typeof physicalFilePaths !== 'undefined' ? physicalFilePaths : [];
+    const files = typeof physicalFilePaths === 'undefined' ? [] : physicalFilePaths;
     for (const path of files) {
         if (!path || path === currentPath) continue;
         const opt = document.createElement('option');
@@ -259,8 +259,7 @@ if(recordInfoAddAnother) {
     recordInfoAddAnother.addEventListener("click", () => {
         let highestIndex = -1;
         const riDivs = document.getElementsByClassName("record-info-container");
-        for(let i = 0; i < riDivs.length; i++){
-            const riDiv = riDivs[i];
+        for(const riDiv of riDivs){
             const riIndex = Number(riDiv.dataset.recordInfoIndex);
             if(riIndex > highestIndex){
                 highestIndex = riIndex;
@@ -442,7 +441,7 @@ for (const row of rows) {
         modsContextIsFile.value = isFile;
 
         let modsLauncher = event.target.closest('a');
-        if(modsLauncher && modsLauncher.classList.contains("mods-launcher")){
+        if(modsLauncher?.classList.contains("mods-launcher")){
             populateModsModalFromAttributes(modsLauncher);
         }
 
@@ -468,7 +467,7 @@ const RECORD_IDENTIFIER_RE = /^(.*)\(([^)]*)\)$/;
  * @returns {{ source: string, value: string }[] | null}
  */
 function recordInfoFromCompactString(compactString, delimiter = COMPACT_DELIMITER) {
-    if (!compactString || !compactString.trim()) {
+    if (!compactString?.trim()) {
         return null;
     }
 
@@ -500,10 +499,10 @@ fileSelector.addEventListener('change', () => {
 });
 
 function hashFile() {
-    readBinaryFile(fileSelector.files[0])
+    fileSelector.files[0].arrayBuffer()
         .then(function (result) {
             result = new Uint8Array(result);
-            return window.crypto.subtle.digest("SHA-256", result);
+            return globalThis.crypto.subtle.digest("SHA-256", result);
         })
         .then(function (result) {
             result = new Uint8Array(result);
@@ -511,24 +510,10 @@ function hashFile() {
         });
 }
 
-function readBinaryFile(file) {
-    return new Promise((resolve) => {
-        const fr = new FileReader();
-        fr.onload = () => {
-            resolve(fr.result);
-        };
-        fr.readAsArrayBuffer(file);
-    });
-}
-
 function Uint8ArrayToHexString(ui8array) {
-    let hexString = "",
-        h;
-    for (let i = 0; i < ui8array.length; i++) {
-        h = ui8array[i].toString(16);
-        if (h.length === 1) {
-            h = "0" + h;
-        }
+    let hexString = "";
+    for (const byte of ui8array) {
+        const h = byte.toString(16).padStart(2, "0");
         hexString += h;
     }
     const p = Math.pow(2, Math.ceil(Math.log2(hexString.length)));

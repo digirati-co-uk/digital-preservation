@@ -22,8 +22,7 @@ using DigitalPreservation.Common.Model.Transit.Extensions;
 namespace DigitalPreservation.UI.Pages.Deposits;
 
 public class DepositModel(
-    IMediator mediator, 
-    IOptions<PreservationOptions> options,
+    IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
     IOptions<PipelineOptions> pipelineOptions,
@@ -535,7 +534,7 @@ public class DepositModel(
             // feels like this URI should not be constructed here
             if (agPathUnderRoot.HasText())
             {
-                deposit.ArchivalGroup = new Uri($"{options.Value.Root}{PreservedResource.BasePathElement}/{agPathUnderRoot}");
+                deposit.ArchivalGroup = new Uri($"{preservationOptions.Value.Root}{PreservedResource.BasePathElement}/{agPathUnderRoot}");
             }
             deposit.ArchivalGroupName = agName;
             var saveDepositResult = await mediator.Send(new UpdateDeposit(deposit));
