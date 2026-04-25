@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Wire save forms: populate hidden JSON input before submit, clear dirty flag
+    // Wire save forms: populate hidden JSON input before submit, clear dirty flag and indicator
     document.querySelectorAll('[id^="logicalStructMapJson_"]').forEach(input => {
         const structmapId = input.id.replace('logicalStructMapJson_', '');
         const form = input.closest('form');
@@ -41,6 +41,11 @@ document.addEventListener('DOMContentLoaded', () => {
             form.addEventListener('submit', () => {
                 input.value = JSON.stringify(logicalStructMapState[structmapId]);
                 logicalStructMapDirty = false;
+                document.getElementById(`logicalTab_${structmapId}-tab`)
+                    ?.querySelector('.dirty-indicator')?.remove();
+                const saveBtn = form.querySelector('button[type="submit"]');
+                saveBtn.disabled = true;
+                saveBtn.classList.replace('btn-warning', 'btn-primary');
             });
         }
     });
@@ -86,6 +91,7 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
         () => openEditRangeModal(range.name ?? '', range.type ?? 'Item', ({ name, type }) => {
             range.name = name || null;
             range.type = type;
+            markDirty(structmapId);
             renderLogicalStructMap(structmapId);
         })));
     if (!isRoot) {
@@ -214,8 +220,23 @@ function findStructmapIdForRange(rangeId) {
 // Operations
 // ----------------------------------------------------------------
 
-function markDirty() {
+function markDirty(structmapId) {
     logicalStructMapDirty = true;
+    const tab = document.getElementById(`logicalTab_${structmapId}-tab`);
+    if (tab && !tab.querySelector('.dirty-indicator')) {
+        const dot = document.createElement('span');
+        dot.className = 'dirty-indicator me-1 dirty-pulse';
+        dot.title = 'Unsaved changes';
+        dot.textContent = '●';
+        dot.style.color = 'var(--bs-warning)';
+        tab.prepend(dot);
+    }
+    const saveBtn = document.getElementById(`logicalStructMapJson_${structmapId}`)
+        ?.closest('form')?.querySelector('button[type="submit"]');
+    if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.classList.replace('btn-primary', 'btn-warning');
+    }
 }
 
 function addChildRange(structmapId, parentId) {
@@ -231,7 +252,7 @@ function addChildRange(structmapId, parentId) {
             files: [],
             effectiveAccessRestrictions: []
         });
-        markDirty();
+        markDirty(structmapId);
         renderLogicalStructMap(structmapId);
     });
 }
@@ -242,7 +263,7 @@ function removeRange(structmapId, id) {
     if (!result) return;
     if (!confirm('Remove this range and all its children?')) return;
     result.parent.ranges.splice(result.index, 1);
-    markDirty();
+    markDirty(structmapId);
     renderLogicalStructMap(structmapId);
 }
 
@@ -255,7 +276,7 @@ function moveRange(structmapId, id, direction) {
     if (newIndex < 0 || newIndex >= parent.ranges.length) return;
     const [item] = parent.ranges.splice(index, 1);
     parent.ranges.splice(newIndex, 0, item);
-    markDirty();
+    markDirty(structmapId);
     renderLogicalStructMap(structmapId);
 }
 
@@ -268,7 +289,7 @@ function addFilesToRange(structmapId, rangeId, localPaths) {
             range.files.push({ localPath: lp });
         }
     }
-    markDirty();
+    markDirty(structmapId);
     renderLogicalStructMap(structmapId);
 }
 
@@ -277,7 +298,7 @@ function removeFileFromRange(structmapId, rangeId, localPath) {
     const range = findRange(root, rangeId);
     if (!range) return;
     range.files = range.files.filter(f => f.localPath !== localPath);
-    markDirty();
+    markDirty(structmapId);
     renderLogicalStructMap(structmapId);
 }
 
@@ -290,7 +311,7 @@ function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatem
     range.recordInfo = recordIdentifiers.length > 0
         ? { recordIdentifiers }
         : null;
-    markDirty();
+    markDirty(structmapId);
     renderLogicalStructMap(structmapId);
 }
 

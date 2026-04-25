@@ -231,7 +231,16 @@ tr.where-both td {
 }
 
 .deposit-row a.mods-launcher {
-    padding: 0; 
+    padding: 0;
     border: 0;
-    
+
+}
+
+@keyframes dirty-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+}
+
+.dirty-pulse {
+    animation: dirty-pulse 1.5s ease-in-out infinite;
 }

@@ -233,12 +233,16 @@ if (modsForm) {
 }
 
 function createRecordIdentifierElement(index, recordIdentifier){
+    // Ensure the existing source is always selectable, even if no longer in the configured list.
+    const sources = recordIdentifier.source && !recordInfoSources.includes(recordIdentifier.source)
+        ? [recordIdentifier.source, ...recordInfoSources]
+        : recordInfoSources;
     let s1 = `<div class="input-group mb-3 record-info-container" id="recordIdentifiers_${index}" data-record-info-index="${index}">
                         <input type="hidden" name="RecordIdentifiers.index" value="${index}"/>
                         <span class="input-group-text">Source</span>
                         <select id="recordInfoSourceSelect_${index}" class="form-select" name="RecordIdentifiers[${index}].Source">`
     let s2 = "";
-    for(const source of recordInfoSources){
+    for(const source of sources){
         s2 += `<option value="${source}"${ source === recordIdentifier.source ? " selected" : ""}>${source}</option>`
     }
     let s3 = `</select>
@@ -254,24 +258,32 @@ function createRecordIdentifierElement(index, recordIdentifier){
 }
 
 // Script to wire up "Add another" record identifier button
-let recordInfoAddAnother = document.getElementById("recordInfoAddAnother");
+const recordInfoAddAnother = document.getElementById("recordInfoAddAnother");
 if(recordInfoAddAnother) {
-    recordInfoAddAnother.addEventListener("click", () => {
-        let highestIndex = -1;
-        const riDivs = document.getElementsByClassName("record-info-container");
-        for(const riDiv of riDivs){
-            const riIndex = Number(riDiv.dataset.recordInfoIndex);
-            if(riIndex > highestIndex){
-                highestIndex = riIndex;
+    if(recordInfoSources.length === 0) {
+        recordInfoAddAnother.disabled = true;
+        const msg = document.createElement('p');
+        msg.classList.add('text-muted', 'small', 'mt-1');
+        msg.textContent = 'No record identifier sources available';
+        recordInfoAddAnother.insertAdjacentElement('afterend', msg);
+    } else {
+        recordInfoAddAnother.addEventListener("click", () => {
+            let highestIndex = -1;
+            const riDivs = document.getElementsByClassName("record-info-container");
+            for(const riDiv of riDivs){
+                const riIndex = Number(riDiv.dataset.recordInfoIndex);
+                if(riIndex > highestIndex){
+                    highestIndex = riIndex;
+                }
             }
-        }
-        let riEl = createRecordIdentifierElement(highestIndex + 1, {"source": null, "value": ""});
-        document.getElementById("recordInfoDynamicForm").appendChild(riEl);
-        document.getElementById(`recordInfoDelete_${highestIndex + 1}`).addEventListener("click", (event) => {
-            let riDiv = event.target.closest("div");
-            riDiv.remove();
+            const riEl = createRecordIdentifierElement(highestIndex + 1, {"source": null, "value": ""});
+            document.getElementById("recordInfoDynamicForm").appendChild(riEl);
+            document.getElementById(`recordInfoDelete_${highestIndex + 1}`).addEventListener("click", (event) => {
+                const riDiv = event.target.closest("div");
+                riDiv.remove();
+            });
         });
-    });    
+    }
 }
 
 const rows = document.getElementsByClassName("deposit-row");

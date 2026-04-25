@@ -15,5 +15,5 @@ public class PreservationOptions
     
     public string? ManifestHost { get; set; }
 
-    public string[] RecordInfoSources { get; set; } = ["Unknown source"];
+    public string[] RecordInfoSources { get; set; } = [];
 }
