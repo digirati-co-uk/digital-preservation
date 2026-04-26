@@ -7,8 +7,10 @@ using DigitalPreservation.Core.Web;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
+using IIIF.Serialisation;
 using LeedsDlipServices.Identity;
 using MediatR;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
 
@@ -88,6 +90,20 @@ public class DepositsController(
             return Ok(mfw);
         }
         return this.StatusResponseFromResult(wrapper);
+    }
+    
+    [HttpGet("{id}/iiif", Name = "GetDepositAsIIIFManifest")]
+    [ProducesResponseType<MetsFileWrapper>(200)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    public async Task<IActionResult> GetDepositAsIIIF([FromRoute] string id)
+    {
+        var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, Request.GetDisplayUrl()));
+        if (manifestResult is { Success: true, Value: not null })
+        {
+            return Content(manifestResult.Value.AsJson(), "application/json");
+        }
+        return this.StatusResponseFromResult(manifestResult);
     }
 
 

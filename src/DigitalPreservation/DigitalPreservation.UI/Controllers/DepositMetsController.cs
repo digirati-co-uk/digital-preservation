@@ -46,5 +46,25 @@ public class DepositMetsController(
         }
         return ControllerX.GetProblemObjectResult(parsedJsonResult);
     }
+    
+    /// <summary>
+    /// Get a vanilla IIIF representation of the Deposit, suitable for taking into a Manifest Editor
+    /// (The enhanced IIIF-P model is only suitable for a preserved deposit)
+    /// </summary>
+    /// <param name="id"></param>
+    /// <returns></returns>
+    [Route("iiif")]
+    [HttpGet]
+    [Produces("application/json")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetIIIF([FromRoute] string id)
+    {
+        var parsedJsonResult = await preservationApiClient.GetIIIF(id, CancellationToken.None);
+        if (parsedJsonResult.Success)
+        {
+            return Content(parsedJsonResult.Value!, "application/json");
+        }
+        return ControllerX.GetProblemObjectResult(parsedJsonResult);
+    }
 }
 

@@ -427,9 +427,20 @@ public class PreservationApiClient(
 
     public async Task<Result<string>> GetParsedDepositMets(string depositId, CancellationToken cancellationToken)
     {
+        var relPath = $"/deposits/{depositId}/parsed-mets";
+        return await ProxyStringFromPreservationApi(cancellationToken, relPath);
+    }    
+    
+    public async Task<Result<string>> GetIIIF(string depositId, CancellationToken cancellationToken)
+    {
+        var relPath = $"/deposits/{depositId}/iiif";
+        return await ProxyStringFromPreservationApi(cancellationToken, relPath);
+    }
+
+    private async Task<Result<string>> ProxyStringFromPreservationApi(CancellationToken cancellationToken, string relPath)
+    {
         try
         {
-            var relPath = $"/deposits/{depositId}/parsed-mets";
             var uri = new Uri(relPath, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
@@ -438,14 +449,16 @@ public class PreservationApiClient(
                 var content = await response.Content.ReadAsStringAsync(cancellationToken);
                 return Result.OkNotNull(content);
             }
-            return await response.ToFailNotNullResult<string>("Unable to get Parsed METS");
+            return await response.ToFailNotNullResult<string>("Unable to GET " + relPath);
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Could not get parsed deposit METS");
+            logger.LogError(e, "Could not GET {RelPath}", relPath);
             return Result.FailNotNull<string>(ErrorCodes.UnknownError, e.Message);
         }
     }
+
+
 
     public async Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken)
     {
