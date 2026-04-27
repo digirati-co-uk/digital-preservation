@@ -101,7 +101,7 @@ public class Functions
 
         return new DepositQuery
         {
-            Status = "new",
+            Status = "preserved",
             OrderBy = DepositQuery.LastModified,
             Page = 0,
             PageSize = Convert.ToInt32(Environment.GetEnvironmentVariable("BATCH_SIZE")),
