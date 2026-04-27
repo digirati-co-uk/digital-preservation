@@ -244,3 +244,19 @@ tr.where-both td {
 .dirty-pulse {
     animation: dirty-pulse 1.5s ease-in-out infinite;
 }
+
+/* Inline access/rights/record metadata icons */
+.dep-meta-item .bi {
+    width: 0.8rem;
+    height: 0.8rem;
+}
+
+.dep-meta-inherited {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.deposit-row:hover .dep-meta-inherited {
+    opacity: 1;
+    color: #333;
+}

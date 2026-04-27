@@ -33,21 +33,19 @@ function decorateFileRows(reverseLinks) {
         const backLinks = reverseLinks[path] || [];
         if (!forwardLinks.length && !backLinks.length) continue;
 
-        // Find the name <td> (the one with aria-label="name" inside it)
-        const nameSpan = row.querySelector('[aria-label="name"]');
-        const nameTd = nameSpan?.closest('td');
-        if (!nameTd) continue;
+        const linksTd = row.querySelector('td[aria-label="file-links"]');
+        if (!linksTd) continue;
 
         for (const link of forwardLinks) {
             const targetSafeId = 'frow-' + link.to.replaceAll(/[^a-zA-Z0-9]/g, '_');
             const label = getRoleLabelFromUri(link.role) || link.role || '→';
-            nameTd.appendChild(makeFileLinkArrow('→', targetSafeId, label, 'link-primary'));
+            linksTd.appendChild(makeFileLinkArrow('→', targetSafeId, label, 'link-primary'));
         }
 
         for (const bl of backLinks) {
             const sourceSafeId = 'frow-' + bl.from.replaceAll(/[^a-zA-Z0-9]/g, '_');
             const label = getRoleLabelFromUri(bl.role) || bl.role || '←';
-            nameTd.appendChild(makeFileLinkArrow('←', sourceSafeId, label + ' (linked from)', 'link-secondary'));
+            linksTd.appendChild(makeFileLinkArrow('←', sourceSafeId, label + ' (linked from)', 'link-secondary'));
         }
     }
 }
