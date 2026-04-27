@@ -851,12 +851,12 @@
 
 @foreach (var lsm in Model.LogicalStructMaps)
 {
-    <div class="modal fade" id="deleteLogicalModal_@lsm.Id" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="deleteLogicalModal_@lsm.Id" tabindex="-1" aria-labelledby="deleteLogicalModalLabel_@lsm.Id" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <form class="single-submit" method="post" asp-page-handler="DeleteLogicalStructMap">
                     <div class="modal-header">
-                        <h1 class="modal-title fs-5">
+                        <h1 class="modal-title fs-5" id="deleteLogicalModalLabel_@lsm.Id">
                             <svg class="bi"><use xlink:href="#trash"/></svg>
                             <span class="ms-2">Delete logical structure</span>
                         </h1>
