@@ -288,7 +288,17 @@ public class MetsManager(
                                 Type = Constants.DirectoryType,
                                 Label = FolderNames.Metadata,
                                 Dmdid = { $"DMD_{FolderNames.Metadata}" },
-                                Admid = { $"ADM_{FolderNames.Metadata}" }
+                                Admid = { $"ADM_{FolderNames.Metadata}" },
+                                Div = 
+                                    {
+                                        new DivType
+                                        {
+                                            Id = $"{Constants.MetadataDivId}/{FolderNames.AdHoc}",  // do this with premis:originalName metadata for directories?
+                                            Type = Constants.DirectoryType,
+                                            Label = FolderNames.AdHoc,
+                                            Admid = { $"ADM_{FolderNames.Metadata}/{FolderNames.AdHoc}" }
+                                        }
+                                    }
                             }, 
                             new DivType
                             {
@@ -313,7 +323,12 @@ public class MetsManager(
                     {
                         Source = Constants.Mets, OriginalName = FolderNames.Metadata
                     },
-                    $"{Constants.AdmIdPrefix}{FolderNames.Metadata}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}")
+                    $"{Constants.AdmIdPrefix}{FolderNames.Metadata}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}"),
+                metadataManager.GetAmdSecType(new FileFormatMetadata
+                    {
+                        Source = Constants.Mets, OriginalName = $"{FolderNames.MetadataAdHoc}" 
+                    },
+                    $"{Constants.AdmIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };
