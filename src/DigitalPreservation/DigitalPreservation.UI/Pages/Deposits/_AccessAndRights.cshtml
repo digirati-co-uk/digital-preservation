@@ -28,13 +28,21 @@
     data-links="@fileLinksJson">@display</a>
 
 @{
-    // Collect display items as (label, text, inherited). Inherited items render in muted style.
     var items = ModsMetadataDisplayBuilder.GetDisplayItems(combinedBase);
-    for (var i = 0; i < items.Count; i++)
+    foreach (var item in items)
     {
-        if (i > 0) { <span>; </span> }
-        var item = items[i];
-        <small class="@(item.Inherited ? "text-secondary" : "")">@item.Label: <em><strong>@item.Text</strong></em></small>
+        var iconId = item.Label switch { "Access" => "lock", "Rights" => "file-earmark-text", _ => "database-check" };
+        <small class="dep-meta-item @(item.Inherited ? "dep-meta-inherited" : "dep-meta-asserted") ms-1">
+            <svg class="bi"><use xlink:href="#@iconId"/></svg>
+            @if (item.Inherited)
+            {
+                @item.Text
+            }
+            else
+            {
+                <em><strong>@item.Text</strong></em>
+            }
+        </small>
     }
 }
 
