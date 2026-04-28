@@ -1133,6 +1133,11 @@ public class ProcessPipelineJobHandler(
             var processFolderBagitDeposit =
                 $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{depositId}";
 
+            logger.LogInformation("metadataPathForProcessFilesAndDirectories {metadataPathForProcessFilesAndDirectories}", metadataPathForProcessFilesAndDirectories);
+            logger.LogInformation("depositPath {depositPath}", depositPath);
+            logger.LogInformation("processFolderBagitDeposit {processFolderBagitDeposit}", processFolderBagitDeposit);
+            logger.LogInformation("separator {separator}", separator);
+
             PrepareBagitWorkspace(
                 metadataPathForProcessFilesAndDirectories,
                 depositPath,
@@ -1166,6 +1171,7 @@ public class ProcessPipelineJobHandler(
         string processFolder,
         string separator)
     {
+        logger.LogInformation("in PrepareBagitWorkspace");
         CopyDirectory(metadataPath, $"{processFolder}{separator}metadata", true);
         CopyDirectory(
             $"{depositPath}{separator}data{separator}objects",
@@ -1315,11 +1321,13 @@ public class ProcessPipelineJobHandler(
         return txt;
     }
 
-    private static void CopyDirectory(string sourceDir, string destinationDir, bool recursive)
+    private void CopyDirectory(string sourceDir, string destinationDir, bool recursive)
     {
         // Get information about the source directory
         var dir = new DirectoryInfo(sourceDir);
 
+        logger.LogInformation("line 1324 sourceDir {sourceDir}", sourceDir);
+        logger.LogInformation("Directory exists {dir.Exists}", dir.Exists);
         // Check if the source directory exists
         if (!dir.Exists)
             throw new DirectoryNotFoundException($"Source directory not found: {dir.FullName}");
