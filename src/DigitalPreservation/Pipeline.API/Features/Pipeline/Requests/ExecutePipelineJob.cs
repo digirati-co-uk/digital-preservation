@@ -1326,8 +1326,10 @@ public class ProcessPipelineJobHandler(
         // Get information about the source directory
         var dir = new DirectoryInfo(sourceDir);
 
+        var dirExists = dir.Exists;
+        logger.LogInformation("Directory exists {dirExists}", dirExists);
         logger.LogInformation("line 1324 sourceDir {sourceDir}", sourceDir);
-        logger.LogInformation("Directory exists {dir.Exists}", dir.Exists);
+
         // Check if the source directory exists
         if (!dir.Exists)
             throw new DirectoryNotFoundException($"Source directory not found: {dir.FullName}");
