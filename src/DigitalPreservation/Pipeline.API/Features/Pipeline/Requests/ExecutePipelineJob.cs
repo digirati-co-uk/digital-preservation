@@ -1172,6 +1172,7 @@ public class ProcessPipelineJobHandler(
         string separator)
     {
         logger.LogInformation("in PrepareBagitWorkspace");
+
         CopyDirectory(metadataPath, $"{processFolder}{separator}metadata", true);
         CopyDirectory(
             $"{depositPath}{separator}data{separator}objects",
@@ -1323,38 +1324,53 @@ public class ProcessPipelineJobHandler(
 
     private void CopyDirectory(string sourceDir, string destinationDir, bool recursive)
     {
-        // Get information about the source directory
-        var dir = new DirectoryInfo(sourceDir);
-
-        var dirExists = dir.Exists;
-        logger.LogInformation("Directory exists {dirExists}", dirExists);
-        logger.LogInformation("line 1324 sourceDir {sourceDir}", sourceDir);
-
-        // Check if the source directory exists
-        if (!dir.Exists)
-            throw new DirectoryNotFoundException($"Source directory not found: {dir.FullName}");
-
-        // Cache directories before we start copying
-        var dirs = dir.GetDirectories();
-
-        if (!Directory.Exists(destinationDir))
-            // Create the destination directory
-            Directory.CreateDirectory(destinationDir);
-
-        // Get the files in the source directory and copy to the destination directory
-        foreach (var file in dir.GetFiles())
+        try
         {
-            var targetFilePath = Path.Combine(destinationDir, file.Name);
-            file.CopyTo(targetFilePath);
+            // Get information about the source directory
+            var dir = new DirectoryInfo(sourceDir);
+
+            var dirExists = dir.Exists;
+            logger.LogInformation("Directory exists {dirExists}", dirExists);
+            logger.LogInformation("line 1324 sourceDir {sourceDir}", sourceDir);
+
+            // Check if the source directory exists
+            if (!dir.Exists)
+                throw new DirectoryNotFoundException($"Source directory not found: {dir.FullName}");
+
+            // Cache directories before we start copying
+            var dirs = dir.GetDirectories();
+
+            if (!Directory.Exists(destinationDir))
+                // Create the destination directory
+                Directory.CreateDirectory(destinationDir);
+
+            // Get the files in the source directory and copy to the destination directory
+            foreach (var file in dir.GetFiles())
+            {
+                logger.LogInformation("source file {sourceFile}", file);
+                var targetFilePath = Path.Combine(destinationDir, file.Name);
+                logger.LogInformation("target file {targetFile}", file);
+                var fileCopied = file.CopyTo(targetFilePath);
+                logger.LogInformation("file copied {fileCopied}", fileCopied.Name);
+            }
+
+            // If recursive and copying subdirectories, recursively call this method
+            if (!recursive) return;
+            foreach (var subDir in dirs)
+            {
+                logger.LogInformation("destinationDir: {destinationDir}", destinationDir);
+                logger.LogInformation("subDir.Name: {subDirName}", subDir.Name);
+                var newDestinationDir = Path.Combine(destinationDir, subDir.Name);
+                logger.LogInformation("newDestinationDir: {newDestinationDir}", newDestinationDir);
+
+                CopyDirectory(subDir.FullName, newDestinationDir, true);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "error in CopyDirectory");
         }
 
-        // If recursive and copying subdirectories, recursively call this method
-        if (!recursive) return;
-        foreach (var subDir in dirs)
-        {
-            var newDestinationDir = Path.Combine(destinationDir, subDir.Name);
-            CopyDirectory(subDir.FullName, newDestinationDir, true);
-        }
     }
 
     private async Task<(List<Result<SingleFileUploadResult>?> uploadFileResult, bool forceComplete, bool cleanupProcess)> UploadBagitFilesToRoot(
