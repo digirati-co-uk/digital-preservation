@@ -13,4 +13,5 @@ public class PipelineToolOptions
     public string? PathToBagit { get; set; }
 
     public string? ProcessFolderBagit { get; set; }
+    public string? IsDeployed { get; set; }
 }

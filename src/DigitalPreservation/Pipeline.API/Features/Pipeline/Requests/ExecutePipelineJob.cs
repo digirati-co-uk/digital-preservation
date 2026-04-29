@@ -1206,15 +1206,22 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation("in RunBagItProcess");
         try
         {
-            logger.LogInformation("bagit command belwo:-");
+            var isDeployed = Convert.ToBoolean(pipelineToolOptions.Value.IsDeployed);
+            var filename = isDeployed ? pipelineToolOptions.Value.PathToBagit : pipelineToolOptions.Value.PathToPython;
+            var bagitPath = isDeployed ? string.Empty : pipelineToolOptions.Value.PathToBagit;
+
+            logger.LogInformation($"isDeployed {isDeployed}");
+            logger.LogInformation($"filename {filename}");
+            logger.LogInformation($"bagitPath {bagitPath}");
+            logger.LogInformation("bagit command below:-");
             logger.LogInformation($" {pipelineToolOptions.Value.PathToBagit} --source-organization uol-dlip --sha256  {processFolderBagitDeposit}");
             using var processBagit = new Process
             {
                 StartInfo =
                 {
-                    FileName = pipelineToolOptions.Value.PathToPython,
+                    FileName = filename,
                     Arguments =
-                        $" {pipelineToolOptions.Value.PathToBagit} --source-organization uol-dlip --sha256  {processFolderBagitDeposit} ",
+                        $" {bagitPath} --source-organization uol-dlip --sha256  {processFolderBagitDeposit} ",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
