@@ -42,7 +42,6 @@ RUN apt-get install -y exiftool
 #bagit
 RUN pip3 install bagit
 RUN pip3 install bagit --upgrade
-RUN bagit.py -V
 
 
 # Update tools cron job
