@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Xml.Linq;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.Transit;
@@ -603,5 +604,163 @@ public class MetsManagerTests
         result.Success.Should().BeFalse();
         result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
         result.ErrorMessage.Should().Contain(Constants.MetsCreatorAgent);
+    }
+
+    [Fact]
+    public async Task Empty_Mets_Metadata_Dir_Contains_AdHoc_SubDirectory()
+    {
+        var metsFi = new FileInfo("Outputs/empty-mets-adhoc-struct.xml");
+        var result = await metsManager.CreateStandardMets(new Uri(metsFi.FullName), "Ad-Hoc Structure Test");
+
+        result.Success.Should().BeTrue();
+
+        var metadataDir = result.Value!.PhysicalStructure!.Directories
+            .Single(d => d.Name == FolderNames.Metadata);
+
+        metadataDir.Directories.Should().HaveCount(1);
+        metadataDir.Directories[0].Name.Should().Be(FolderNames.AdHoc);
+        metadataDir.Directories[0].LocalPath.Should().Be(FolderNames.MetadataAdHoc);
+    }
+
+    [Fact]
+    public async Task Empty_Mets_Has_AmdSec_Entry_For_AdHoc_Folder()
+    {
+        var metsFi = new FileInfo("Outputs/empty-mets-adhoc-amdsec.xml");
+        var result = await metsManager.CreateStandardMets(new Uri(metsFi.FullName), "Ad-Hoc AmdSec Test");
+
+        result.Success.Should().BeTrue();
+
+        var xDoc = result.Value!.XDocument!;
+        var expectedAdmId = $"{Constants.AdmIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}";
+        var expectedTechId = $"{Constants.TechIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}";
+
+        var amdSec = xDoc.Descendants(XNames.MetsAmdSec)
+            .SingleOrDefault(a => a.Attribute("ID")?.Value == expectedAdmId);
+
+        amdSec.Should().NotBeNull($"expected an amdSec with ID '{expectedAdmId}'");
+
+        var techMd = amdSec!.Descendants(XNames.MetsTechMD)
+            .SingleOrDefault(t => t.Attribute("ID")?.Value == expectedTechId);
+
+        techMd.Should().NotBeNull($"expected a techMD with ID '{expectedTechId}'");
+
+        var originalName = techMd!.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
+        originalName.Should().Be(FolderNames.MetadataAdHoc);
+    }
+
+    [Fact]
+    public async Task Empty_Mets_Metadata_Dir_AdHoc_Has_Correct_StructMap_Div()
+    {
+        var metsFi = new FileInfo("Outputs/empty-mets-adhoc-div.xml");
+        var result = await metsManager.CreateStandardMets(new Uri(metsFi.FullName), "Ad-Hoc Div Test");
+
+        result.Success.Should().BeTrue();
+
+        var xDoc = result.Value!.XDocument!;
+        var metsNs = XNames.mets;
+
+        var metadataDiv = xDoc.Descendants(metsNs + "div")
+            .SingleOrDefault(d => d.Attribute("LABEL")?.Value == FolderNames.Metadata
+                                  && d.Attribute("TYPE")?.Value == Constants.DirectoryType);
+
+        metadataDiv.Should().NotBeNull("the metadata div must exist in the structMap");
+
+        var adHocDiv = metadataDiv!.Elements(metsNs + "div")
+            .SingleOrDefault(d => d.Attribute("LABEL")?.Value == FolderNames.AdHoc
+                                  && d.Attribute("TYPE")?.Value == Constants.DirectoryType);
+
+        adHocDiv.Should().NotBeNull("the ad-hoc div must be a direct child of the metadata div");
+
+        var expectedAdmId = $"{Constants.AdmIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}";
+        adHocDiv!.Attribute("ADMID")?.Value.Should().Be(expectedAdmId);
+    }
+
+    /// <summary>
+    /// Comprehensive snapshot assertion for <c>GetEmptyMets</c>. Verifies every built-in div
+    /// and amdSec so that any regression (wrong label, wrong ID, wrong hierarchy, missing
+    /// ad-hoc entry) is caught. Follows the AssertDirectoryDiv pattern used in
+    /// MetsManagerDeepStructureTests (experimental/complex-mets-partial branch).
+    /// </summary>
+    [Fact]
+    public async Task GetEmptyMets_Skeleton_Has_Correct_Complete_Structure()
+    {
+        var metsFi = new FileInfo("Outputs/empty-mets-skeleton.xml");
+        var metsUri = new Uri(metsFi.FullName);
+        var result = await metsManager.CreateStandardMets(metsUri, "Skeleton Assertion");
+        result.Success.Should().BeTrue();
+
+        // --- Parser round-trip ---
+
+        var root = result.Value!.PhysicalStructure!;
+        root.Directories.Should().HaveCount(2);
+
+        var metadataDir = root.Directories.Single(d => d.Name == FolderNames.Metadata);
+        var objectsDir  = root.Directories.Single(d => d.Name == FolderNames.Objects);
+
+        objectsDir.Directories.Should().BeEmpty("objects starts with no subdirectories");
+        metadataDir.Directories.Should().HaveCount(1, "metadata must contain only the ad-hoc subdir");
+
+        var adHocDir = metadataDir.Directories.Single();
+        adHocDir.Name.Should().Be(FolderNames.AdHoc);
+        adHocDir.LocalPath.Should().Be(FolderNames.MetadataAdHoc);
+
+        // --- Raw XML: total element counts ---
+
+        var doc = result.Value.XDocument!;
+
+        // 3 built-in amdSecs: objects, metadata, metadata/ad-hoc
+        doc.Descendants(XNames.MetsAmdSec).Should().HaveCount(3,
+            "empty METS must have exactly 3 amdSec entries (objects, metadata, metadata/ad-hoc)");
+
+        // 4 divs: PHYS_ROOT + metadata + ad-hoc + objects
+        doc.Descendants(XNames.MetsDiv).Should().HaveCount(4,
+            "empty METS must have exactly 4 structMap divs (PHYS_ROOT, metadata, ad-hoc, objects)");
+
+        // --- Per-div assertions (mirrors AssertDirectoryDiv in MetsManagerDeepStructureTests) ---
+
+        AssertBuiltInDirectoryDiv(doc, FolderNames.Objects,       FolderNames.Objects);
+        AssertBuiltInDirectoryDiv(doc, FolderNames.Metadata,      FolderNames.Metadata);
+        AssertBuiltInDirectoryDiv(doc, FolderNames.MetadataAdHoc, FolderNames.AdHoc);
+
+        // --- Hierarchy: ad-hoc must be a direct child of metadata, not of objects or PHYS_ROOT ---
+
+        var metadataDiv = doc.Descendants(XNames.MetsDiv)
+            .Single(d => d.Attribute("ID")?.Value == Constants.MetadataDivId);
+
+        metadataDiv.Elements(XNames.MetsDiv).Should().HaveCount(1,
+            "metadata div must have exactly one direct child (ad-hoc)");
+        metadataDiv.Elements(XNames.MetsDiv).Single().Attribute("LABEL")?.Value
+            .Should().Be(FolderNames.AdHoc);
+
+        doc.Descendants(XNames.MetsDiv)
+            .Single(d => d.Attribute("ID")?.Value == Constants.ObjectsDivId)
+            .Elements(XNames.MetsDiv).Should().BeEmpty(
+                "objects div must have no child divs in an empty METS");
+    }
+
+    /// <summary>
+    /// Mirrors the <c>AssertDirectoryDiv</c> helper in <c>MetsManagerDeepStructureTests</c>
+    /// (experimental/complex-mets-partial branch). Verifies that a mets:div with
+    /// ID="PHYS_{localPath}", TYPE=Directory, LABEL=expectedLabel, and ADMID="ADM_{localPath}"
+    /// exists, and that a matching mets:amdSec with ID="ADM_{localPath}" is present.
+    /// </summary>
+    private static void AssertBuiltInDirectoryDiv(XDocument doc, string localPath, string expectedLabel)
+    {
+        var physId = $"PHYS_{localPath}";
+        var admId  = $"ADM_{localPath}";
+
+        var divEl = doc.Descendants(XNames.MetsDiv)
+            .FirstOrDefault(d => d.Attribute("ID")?.Value == physId);
+        divEl.Should().NotBeNull($"expected Directory div with ID='{physId}'");
+        divEl!.Attribute("TYPE")?.Value.Should().Be(Constants.DirectoryType,
+            $"div '{physId}' must have TYPE=Directory");
+        divEl.Attribute("LABEL")?.Value.Should().Be(expectedLabel,
+            $"div '{physId}' must have LABEL='{expectedLabel}'");
+        divEl.Attribute("ADMID")?.Value.Should().Be(admId,
+            $"div '{physId}' must have ADMID='{admId}'");
+
+        doc.Descendants(XNames.MetsAmdSec)
+            .Should().Contain(a => (string?)a.Attribute("ID") == admId,
+                $"expected amdSec with ID='{admId}'");
     }
 }
