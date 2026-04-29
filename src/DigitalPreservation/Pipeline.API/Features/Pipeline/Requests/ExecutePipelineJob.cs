@@ -190,11 +190,11 @@ public class ProcessPipelineJobHandler(
         finally
         {
             streamReader?.Dispose();
-            CleanupProcessFolder(request.DepositId);
-            if (workspace.IsBagItLayout)
-            {
-                CleanupBagitProcessFolder(request.DepositId);
-            }
+            //CleanupProcessFolder(request.DepositId);
+            //if (workspace.IsBagItLayout)
+            //{
+            //    CleanupBagitProcessFolder(request.DepositId);
+            //}
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
         }
     }
@@ -364,8 +364,8 @@ public class ProcessPipelineJobHandler(
                 else
                 {
                     await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-                    CleanupProcessFolder(request.DepositId);
-                    CleanupBagitProcessFolder(request.DepositId);
+                    //CleanupProcessFolder(request.DepositId);
+                    //CleanupBagitProcessFolder(request.DepositId);
 
                     return new ProcessPipelineResult
                     {
@@ -1400,7 +1400,7 @@ public class ProcessPipelineJobHandler(
             {
                 logger.LogInformation("source file {sourceFile}", file);
                 var targetFilePath = Path.Combine(destinationDir, file.Name);
-                logger.LogInformation("target file {targetFile}", file);
+                logger.LogInformation("target file {targetFile}", targetFilePath);
                 var fileCopied = file.CopyTo(targetFilePath);
                 logger.LogInformation("file copied {fileCopied}", fileCopied.Name);
             }
