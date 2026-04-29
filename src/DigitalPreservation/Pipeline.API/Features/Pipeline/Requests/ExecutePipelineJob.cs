@@ -190,11 +190,11 @@ public class ProcessPipelineJobHandler(
         finally
         {
             streamReader?.Dispose();
-            //CleanupProcessFolder(request.DepositId);
-            //if (workspace.IsBagItLayout)
-            //{
-            //    CleanupBagitProcessFolder(request.DepositId);
-            //}
+            CleanupProcessFolder(request.DepositId);
+            if (workspace.IsBagItLayout)
+            {
+                CleanupBagitProcessFolder(request.DepositId);
+            }
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
         }
     }
@@ -364,8 +364,6 @@ public class ProcessPipelineJobHandler(
                 else
                 {
                     await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-                    //CleanupProcessFolder(request.DepositId);
-                    //CleanupBagitProcessFolder(request.DepositId);
 
                     return new ProcessPipelineResult
                     {
