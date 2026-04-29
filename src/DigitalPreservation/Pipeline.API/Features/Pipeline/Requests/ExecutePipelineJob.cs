@@ -204,7 +204,13 @@ public class ProcessPipelineJobHandler(
         var processFolder = pipelineToolOptions.Value.ProcessFolder;
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
-        Directory.Delete(metadataPathForProcessDelete, true);
+
+        var dir = new DirectoryInfo(metadataPathForProcessDelete);
+
+        logger.LogInformation("In clean up brunnhilde process deposit folder exists {dirExists}", dir.Exists);
+
+        if(dir.Exists)
+            Directory.Delete(metadataPathForProcessDelete, true);
     }
 
     private void CleanupBagitProcessFolder(string depositName)
@@ -212,7 +218,13 @@ public class ProcessPipelineJobHandler(
         var processFolderBagit = pipelineToolOptions.Value.ProcessFolderBagit;
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForBagitProcessDelete = $"{processFolderBagit}{separator}{depositName}";
-        Directory.Delete(metadataPathForBagitProcessDelete, true);
+
+        var dir = new DirectoryInfo(metadataPathForBagitProcessDelete);
+
+        logger.LogInformation("In clean up bagit process deposit folder exists {dirExists}", dir.Exists);
+
+        if (dir.Exists)
+            Directory.Delete(metadataPathForBagitProcessDelete, true);
     }
 
     private async Task<ProcessPipelineResult> ExecuteBrunnhilde(ExecutePipelineJob request,
