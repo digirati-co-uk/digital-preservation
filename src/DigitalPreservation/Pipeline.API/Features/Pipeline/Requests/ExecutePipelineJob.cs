@@ -1206,6 +1206,8 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation("in RunBagItProcess");
         try
         {
+            logger.LogInformation("bagit command belwo:-");
+            logger.LogInformation($" {pipelineToolOptions.Value.PathToBagit} --source-organization uol-dlip --sha256  {processFolderBagitDeposit}");
             using var processBagit = new Process
             {
                 StartInfo =
