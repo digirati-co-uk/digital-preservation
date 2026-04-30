@@ -1287,7 +1287,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "exception caught in VerifyObjectDigests {message}", e.Message);
+            logger.LogError(e, "exception caught in VerifyObjectDigests");
             return false;
         }
 
@@ -1338,7 +1338,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "exception caught in CompareObjectDigests {message}", e.Message);
+            logger.LogError(e, "exception caught in CompareObjectDigests");
             return false;
         }
 
