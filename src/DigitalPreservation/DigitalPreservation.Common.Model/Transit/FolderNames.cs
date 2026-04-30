@@ -8,7 +8,7 @@ public static class FolderNames
     public const string Metadata = "metadata";
     public const string BagItData = "data";
     public const string AdHoc = "ad-hoc";
-    public const string MetadataAdHoc = $"{Metadata}/{AdHoc}";
+    public const string MetadataAdHoc = $"{Metadata}/{AdHoc}"; // TODO: #188 do not use this as an ID component
 
     public static bool PathIsKnownFirstLevelDirectory(string localPath)
     {
