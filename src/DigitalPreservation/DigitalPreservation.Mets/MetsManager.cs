@@ -284,7 +284,7 @@ public class MetsManager(
                         Div = { 
                             new DivType
                             {
-                                Id = Constants.MetadataDivId,  // do this with premis:originalName metadata for directories?
+                                Id = Constants.MetadataDivId,
                                 Type = Constants.DirectoryType,
                                 Label = FolderNames.Metadata,
                                 Dmdid = { $"DMD_{FolderNames.Metadata}" },
@@ -293,16 +293,17 @@ public class MetsManager(
                                     {
                                         new DivType
                                         {
-                                            Id = $"{Constants.MetadataDivId}/{FolderNames.AdHoc}",  // do this with premis:originalName metadata for directories?
+                                            Id = Constants.MetadataAdHocDivId,
                                             Type = Constants.DirectoryType,
                                             Label = FolderNames.AdHoc,
-                                            Admid = { $"ADM_{FolderNames.Metadata}/{FolderNames.AdHoc}" }
+                                            Admid = { $"ADM_{FolderNames.MetadataAdHoc}" },
+                                            Dmdid = { $"DMD_{FolderNames.MetadataAdHoc}" },
                                         }
                                     }
                             }, 
                             new DivType
                             {
-                                Id = Constants.ObjectsDivId,  // do this with premis:originalName metadata for directories?
+                                Id = Constants.ObjectsDivId,
                                 Type = Constants.DirectoryType,
                                 Label = FolderNames.Objects,
                                 Dmdid = { $"DMD_{FolderNames.Objects}" },
@@ -326,7 +327,7 @@ public class MetsManager(
                     $"{Constants.AdmIdPrefix}{FolderNames.Metadata}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}"),
                 metadataManager.GetAmdSecType(new FileFormatMetadata
                     {
-                        Source = Constants.Mets, OriginalName = $"{FolderNames.MetadataAdHoc}" 
+                        Source = Constants.Mets, OriginalName = FolderNames.MetadataAdHoc
                     },
                     $"{Constants.AdmIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}")
             }
