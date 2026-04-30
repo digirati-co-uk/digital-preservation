@@ -329,7 +329,7 @@ public class MetsManager(
                     {
                         Source = Constants.Mets, OriginalName = FolderNames.MetadataAdHoc
                     },
-                    $"{Constants.AdmIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}")
+                    $"{Constants.AdmIdPrefix}{FolderNames.MetadataAdHoc}", $"{Constants.TechIdPrefix}{FolderNames.MetadataAdHoc}")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };
