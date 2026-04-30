@@ -1183,19 +1183,11 @@ public class ProcessPipelineJobHandler(
     {
         logger.LogInformation("in PrepareBagitWorkspace");
 
-        try
-        {
-            CopyDirectory(metadataPath, $"{processFolder}{separator}metadata", true);
-            CopyDirectory(
-                $"{depositPath}{separator}data{separator}objects",
-                $"{processFolder}{separator}objects",
-                true);
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "exception caught in PrepareBagitWorkspace {message}", e.Message);
-            throw;
-        }
+        CopyDirectory(metadataPath, $"{processFolder}{separator}metadata", true);
+        CopyDirectory(
+            $"{depositPath}{separator}data{separator}objects",
+            $"{processFolder}{separator}objects",
+            true);
 
     }
     //----------------------------------------------------------------
