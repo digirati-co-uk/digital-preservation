@@ -10,8 +10,8 @@ public class PipelineToolOptions
     public string? ExifToolLocation { get; set; }
     public int? ReleaseLockAttemptTime { get; set; }
     public string? PipelineMetadataFolders { get; set; }
-    public string? PathToBagit { get; set; }
-
     public string? ProcessFolderBagit { get; set; }
-    public string? IsDeployed { get; set; }
+    public string? BagitScript { get; set; }
+    public string? BagitProcessFilename { get; set; }
+
 }

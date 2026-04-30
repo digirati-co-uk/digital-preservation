@@ -1194,6 +1194,7 @@ public class ProcessPipelineJobHandler(
         catch (Exception e)
         {
             logger.LogError(e, "exception caught in PrepareBagitWorkspace {message}", e.Message);
+            throw;
         }
 
     }
@@ -1206,22 +1207,17 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation("in RunBagItProcess");
         try
         {
-            var isDeployed = Convert.ToBoolean(pipelineToolOptions.Value.IsDeployed);
-            var filename = isDeployed ? pipelineToolOptions.Value.PathToBagit : pipelineToolOptions.Value.PathToPython;
-            var bagitPath = isDeployed ? string.Empty : pipelineToolOptions.Value.PathToBagit;
+            logger.LogInformation("pipelineToolOptions.Value.BagitProcessFilename: {bagitProcessFilename}", pipelineToolOptions.Value.BagitProcessFilename);
+            logger.LogInformation("pipelineToolOptions.Value.BagitScript: {bagitScript}", pipelineToolOptions.Value.BagitScript);
+            logger.LogInformation("processFolderBagitDeposit {depositInProcessFolder}", processFolderBagitDeposit);
 
-            logger.LogInformation($"isDeployed {isDeployed}");
-            logger.LogInformation($"filename {filename}");
-            logger.LogInformation($"bagitPath {bagitPath}");
-            logger.LogInformation("bagit command below:-");
-            logger.LogInformation($" {pipelineToolOptions.Value.PathToBagit} --source-organization uol-dlip --sha256  {processFolderBagitDeposit}");
             using var processBagit = new Process
             {
                 StartInfo =
                 {
-                    FileName = filename,
+                    FileName = pipelineToolOptions.Value.BagitProcessFilename,
                     Arguments =
-                        $" {bagitPath} --source-organization uol-dlip --sha256  {processFolderBagitDeposit} ",
+                        $" {pipelineToolOptions.Value.BagitScript}  {processFolderBagitDeposit} ",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
