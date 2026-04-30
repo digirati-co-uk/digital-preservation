@@ -1233,7 +1233,7 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "exception caught in RunBagItProcess {message}", e.Message);
+            logger.LogError(e, "exception caught in RunBagItProcess");
             return false;
         }
     }
