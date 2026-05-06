@@ -5,9 +5,11 @@ using FakeItEasy;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Preservation.API.Features.Deposits;
 using Preservation.API.Features.Deposits.Requests;
+using Preservation.API.IIIF;
 
 
 namespace Preservation.API.Tests.PreservationApiClient;
@@ -23,7 +25,8 @@ public class DepositsControllerTests
         controller = new DepositsController(
             A.Fake<ILogger<DepositsController>>(),
             mediator,
-            workspaceFactory)
+            workspaceFactory,
+            new ManifestBuilder(new MemoryCache(new MemoryCacheOptions())))
         {
             ControllerContext = new ControllerContext
             {

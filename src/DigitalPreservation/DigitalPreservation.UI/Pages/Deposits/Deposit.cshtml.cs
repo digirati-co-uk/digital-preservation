@@ -586,22 +586,7 @@ public class DepositModel(
 
     public string? GetDisplayTitle()
     {
-        if (Deposit == null)
-        {
-            return Id;
-        }
-
-        if (Deposit.ArchivalGroupName.HasText())
-        {
-            return Deposit.ArchivalGroupName;
-        }
-
-        if (Deposit.ArchivalGroup != null)
-        {
-            return Deposit.ArchivalGroup.GetPathUnderRoot()!;
-        }
-
-        return Deposit.Id?.GetSlug();
+        return Deposit == null ? Id : Deposit.GetDisplayTitle();
     }
     
     public async Task<List<ImportJobResult>> GetImportJobResults()

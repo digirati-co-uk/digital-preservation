@@ -10,9 +10,11 @@ using DigitalPreservation.Workspace;
 using IIIF.Serialisation;
 using LeedsDlipServices.Identity;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
+using Preservation.API.IIIF;
 
 namespace Preservation.API.Features.Deposits;
 
@@ -22,7 +24,8 @@ namespace Preservation.API.Features.Deposits;
 public class DepositsController(
     ILogger<DepositsController> logger,
     IMediator mediator,
-    WorkspaceManagerFactory workspaceManagerFactory
+    WorkspaceManagerFactory workspaceManagerFactory,
+    ManifestBuilder manifestBuilder
     ) : ControllerBase
 {
     [HttpGet(Name = "ListDeposits")]
@@ -92,20 +95,41 @@ public class DepositsController(
         return this.StatusResponseFromResult(wrapper);
     }
     
+    /// <summary>
+    /// Access-controlled request for IIIF Manifest
+    /// Will redirect to a tokenised URL for the Manifest
+    /// </summary>
+    /// <param name="id"></param>
+    /// <returns></returns>
     [HttpGet("{id}/iiif", Name = "GetDepositAsIIIFManifest")]
+    public IActionResult GetDepositAsIIIF([FromRoute] string id)
+    {
+        var mediaServerToken = manifestBuilder.GetToken($"{User.Identity?.Name}/deposit/{id}");
+        var manifestBaseUrl = $"{Request.GetDisplayUrl()}/-token/{mediaServerToken}";
+        return Redirect(manifestBaseUrl);
+    }
+    
+    [AllowAnonymous]
+    [HttpGet("{id}/iiif-token/{token}", Name = "GetDepositAsIIIFManifestWithToken")]
     [ProducesResponseType<MetsFileWrapper>(200)]
     [ProducesResponseType<ProblemDetails>(404, "application/json")]
     [ProducesResponseType<ProblemDetails>(401, "application/json")]
-    public async Task<IActionResult> GetDepositAsIIIF([FromRoute] string id)
+    public async Task<IActionResult> GetDepositAsIIIFManifestWithToken([FromRoute] string id, [FromRoute] string token)
     {
-        var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, Request.GetDisplayUrl()));
-        if (manifestResult is { Success: true, Value: not null })
+        var key = manifestBuilder.GetKey(token);
+        if (key.HasText() && key.GetSlug() == id)
         {
-            return Content(manifestResult.Value.AsJson(), "application/json");
+            var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, Request.GetDisplayUrl(), token));
+            if (manifestResult is { Success: true, Value: not null })
+            {
+                return Content(manifestResult.Value.AsJson(), "application/json");
+            }
+            return this.StatusResponseFromResult(manifestResult);
+            
         }
-        return this.StatusResponseFromResult(manifestResult);
-    }
 
+        return Unauthorized();
+    }
 
 
     [HttpPost("{id}/mets", Name = "AddDepositItemsToMets")]

@@ -107,6 +107,21 @@ public class Deposit : Resource
         return null;
     }
 
+    public string? GetDisplayTitle()
+    {
+        if (ArchivalGroupName.HasText())
+        {
+            return ArchivalGroupName;
+        }
+
+        if (ArchivalGroup != null)
+        {
+            return ArchivalGroup.GetPathUnderRoot()!;
+        }
+
+        return Id?.GetSlug();
+    }
+
 }
 
 public static class DepositStates

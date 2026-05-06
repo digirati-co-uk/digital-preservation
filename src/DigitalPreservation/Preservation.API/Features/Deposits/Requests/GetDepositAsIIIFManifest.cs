@@ -1,20 +1,24 @@
 ﻿using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Mets;
+using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
-using IIIF.Presentation;
 using IIIF.Presentation.V3;
+using IIIF.Presentation.V3.Strings;
 using MediatR;
 using Preservation.API.Data;
+using Preservation.API.IIIF;
 using Preservation.API.Mutation;
 using Storage.Client;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class GetDepositAsIIIFManifest(string id, string baseUrl) : IRequest<Result<Manifest>>
+public class GetDepositAsIIIFManifest(string id, string baseUrl, string mediaServerBaseUrl) : IRequest<Result<Manifest>>
 {
     public string Id { get; } = id;
     public string BaseUrl { get; } = baseUrl;
+    
+    public string MediaServerBaseUrl { get; } = mediaServerBaseUrl;
 }
 
 public class GetDepositAsIIIFManifestHandler(
@@ -23,7 +27,8 @@ public class GetDepositAsIIIFManifestHandler(
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator,
-    WorkspaceManagerFactory workspaceManagerFactory) : 
+    WorkspaceManagerFactory workspaceManagerFactory,
+    ManifestBuilder manifestBuilder) : 
     GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory), IRequestHandler<GetDepositAsIIIFManifest, Result<Manifest>>
 {
     public async Task<Result<Manifest>> Handle(GetDepositAsIIIFManifest request, CancellationToken cancellationToken)
@@ -39,31 +44,46 @@ public class GetDepositAsIIIFManifestHandler(
             return Result.FailNotNull<Manifest>(wrapperResult.ErrorCode!, wrapperResult.ErrorMessage);
         }
         var deposit = getDepositResult.Value!;
-        var wrapper = wrapperResult.Value;
-        var manifest = MakeManifest(deposit, wrapper, request.BaseUrl);
+        var wrapper = wrapperResult.Value!;
+        var manifest = MakeDepositManifest(deposit, wrapper, request.BaseUrl);
+        manifestBuilder.MakeCanvasesAndRanges(manifest, wrapper, request.MediaServerBaseUrl);
         return Result.OkNotNull(manifest);
     }
 
-    private Manifest MakeManifest(Deposit deposit, MetsFileWrapper? wrapper, string manifestBaseUrl)
+    private Manifest MakeDepositManifest(Deposit deposit, MetsFileWrapper wrapper, string manifestBaseUrl)
     {
+        const string none = "none";
+        const string en = "en";
         var manifest = new Manifest
         {
-            Id = manifestBaseUrl
+            Id = manifestBaseUrl,
+            Label = new LanguageMap(none, deposit.GetDisplayTitle() ?? "(no name)"),
+            Metadata = [
+                new LabelValuePair(en, "Total files", $"{wrapper?.Files.Count ?? 0}"),
+                new LabelValuePair(none, "Archival Group Name", deposit.ArchivalGroupName ?? " - "),
+                new LabelValuePair(none, "Archival Group Uri", deposit.ArchivalGroup?.ToString() ?? " - "),
+                new LabelValuePair(none, "Archival Group exists", deposit.ArchivalGroupExists.ToString()),
+                new LabelValuePair(en, "Status", deposit.Status),
+                new LabelValuePair(en, "Submission text", deposit.SubmissionText ?? " - "),
+                new LabelValuePair(en, "Created", GetDateDisplay(deposit.Created)),
+                new LabelValuePair(none, "Created by", deposit.CreatedBy?.GetSlug() ?? " - "),
+                new LabelValuePair(en, "Last modified", GetDateDisplay(deposit.LastModified)),
+                new LabelValuePair(none, "Last modified by", deposit.LastModifiedBy?.GetSlug() ?? " - "),
+                new LabelValuePair(en, "Preserved", GetDateDisplay(deposit.Preserved)),
+                new LabelValuePair(none, "Preserved by", deposit.PreservedBy?.GetSlug() ?? " - "),
+                new LabelValuePair(none, "Preserved version", deposit.VersionPreserved ?? " - "),
+                new LabelValuePair(en, "Exported", GetDateDisplay(deposit.Exported)),
+                new LabelValuePair(none, "Exported by", deposit.ExportedBy?.GetSlug() ?? " - "),
+                new LabelValuePair(none, "Exported version", deposit.VersionExported ?? " - "),
+            ]
         };
-        
-        // label and metadata from AG / path / deposit - whatever is available at time
-        
-        // flatten files (already flat) into `items`
-        //   thumbnails and large derivatives
-        //   create on demand (not automatically) - from basic image formats
-        //   Where to keep them? In deposit? Bit shaky. Another s3 location?  __thumbnails directory /large /small
-        //   
-        // turn logical structmap into ranges
-        // what else
-        
-        
-        
-        manifest.EnsurePresentation3Context();
         return manifest;
+    }
+
+
+
+    private string? GetDateDisplay(DateTime? dt)
+    {
+        return !dt.HasValue ? " - " : dt?.ToLocalTime().ToString("s").Replace("T", " ");
     }
 }
