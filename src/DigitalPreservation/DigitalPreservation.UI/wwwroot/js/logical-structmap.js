@@ -327,6 +327,7 @@ function createEditRangeModal() {
     modal.id = 'editRangeModal';
     modal.setAttribute('tabindex', '-1');
     modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('aria-labelledby', 'editRangeModalTitle');
     const typeOptions = RANGE_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
     modal.innerHTML = `
         <div class="modal-dialog">
@@ -489,11 +490,12 @@ function createFilePickerModal() {
     modal.id = 'addFilesToRangeModal';
     modal.setAttribute('tabindex', '-1');
     modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('aria-labelledby', 'addFilesToRangeModalTitle');
     modal.innerHTML = `
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">
+                    <h5 class="modal-title" id="addFilesToRangeModalTitle">
                         <svg class="bi"><use xlink:href="#file-earmark-plus"/></svg>
                         <span class="ms-2">Add files to range</span>
                     </h5>
