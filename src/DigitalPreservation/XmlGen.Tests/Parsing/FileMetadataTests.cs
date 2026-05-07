@@ -10,6 +10,46 @@ namespace XmlGen.Tests.Parsing;
 public class FileMetadataTests : MetsParserTestBase
 {
     // Minimal reusable inline XML template pieces
+
+    // Wraps significant properties at the correct premis:object level (siblings of objectCharacteristics)
+    private static string SigProp(string type, string value) => $"""
+        <premis:significantProperties>
+          <premis:significantPropertiesType>{type}</premis:significantPropertiesType>
+          <premis:significantPropertiesValue>{value}</premis:significantPropertiesValue>
+        </premis:significantProperties>
+        """;
+
+    private static string FullMetsWithSigProps(string sigPropsXml) => $"""
+        <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                   xmlns:xlink="http://www.w3.org/1999/xlink"
+                   xmlns:premis="http://www.loc.gov/premis/v3">
+          <mets:amdSec ID="ADM_objects/video.mov">
+            <mets:techMD ID="TECH_objects/video.mov">
+              <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                  <premis:object>
+                    {sigPropsXml}
+                    <premis:objectCharacteristics/>
+                  </premis:object>
+                </mets:xmlData>
+              </mets:mdWrap>
+            </mets:techMD>
+          </mets:amdSec>
+          <mets:fileSec>
+            <mets:fileGrp>
+              <mets:file ID="FILE_1" MIMETYPE="video/quicktime">
+                <mets:FLocat xlink:href="objects/video.mov"/>
+              </mets:file>
+            </mets:fileGrp>
+          </mets:fileSec>
+          <mets:structMap TYPE="PHYSICAL">
+            <mets:div ADMID="ADM_objects/video.mov">
+              <mets:fptr FILEID="FILE_1"/>
+            </mets:div>
+          </mets:structMap>
+        </mets:mets>
+        """;
+
     private static string AmdSecWithPremis(string admId, string premisBody) => $"""
         <mets:amdSec ID="{admId}">
           <mets:techMD ID="TECH_{admId.Substring(4)}">
@@ -357,5 +397,38 @@ public class FileMetadataTests : MetsParserTestBase
         // Second fptr in the same div does not get format metadata (Goobi behaviour)
         altoFile.Digest.Should().BeNull();
         altoFile.Metadata.OfType<FileFormatMetadata>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Duration_as_plain_seconds_is_parsed_from_significantProperties()
+    {
+        var xml = FullMetsWithSigProps(SigProp("Duration", "596.0"));
+
+        var mets = Parse(xml);
+
+        var extent = mets.Files[0].Metadata.OfType<ExtentMetadata>().Single();
+        extent.Duration.Should().BeApproximately(596.0, precision: 0.0001);
+    }
+
+    [Fact]
+    public void Duration_as_hh_mm_ss_timecode_is_converted_to_seconds()
+    {
+        // Exif stores duration in h:mm:ss format; the parser must convert to seconds
+        var xml = FullMetsWithSigProps(SigProp("Duration", "0:09:56"));
+
+        var mets = Parse(xml);
+
+        var extent = mets.Files[0].Metadata.OfType<ExtentMetadata>().Single();
+        extent.Duration.Should().BeApproximately(596.0, precision: 0.0001);
+    }
+
+    [Fact]
+    public void Duration_with_unrecognised_format_is_silently_ignored()
+    {
+        var xml = FullMetsWithSigProps(SigProp("Duration", "not-a-duration"));
+
+        var mets = Parse(xml);
+
+        mets.Files[0].Metadata.OfType<ExtentMetadata>().Should().BeEmpty();
     }
 }
