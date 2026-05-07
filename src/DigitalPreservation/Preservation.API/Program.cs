@@ -20,6 +20,7 @@ using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using Microsoft.OpenApi.Models;
+using Preservation.API.IIIF;
 using Storage.Repository.Common.Mets.StorageImpl;
 
 
@@ -57,6 +58,7 @@ try
 
 
     builder.Services
+        .AddMemoryCache()
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
         .AddMediatR(cfg =>
@@ -81,6 +83,7 @@ try
         .AddSingleton<PremisEventManagerVirus>()
         .AddSingleton<IMetsStorage, S3MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
+        .AddSingleton<ManifestBuilder>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()
         .AddPreservationContext(builder.Configuration)

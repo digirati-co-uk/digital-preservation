@@ -105,7 +105,7 @@ public class DepositsController(
     public IActionResult GetDepositAsIIIF([FromRoute] string id)
     {
         var mediaServerToken = manifestBuilder.GetToken($"{User.Identity?.Name}/deposit/{id}");
-        var manifestBaseUrl = $"{Request.GetDisplayUrl()}/-token/{mediaServerToken}";
+        var manifestBaseUrl = $"{Request.GetDisplayUrl()}-token/{mediaServerToken}";
         return Redirect(manifestBaseUrl);
     }
     
