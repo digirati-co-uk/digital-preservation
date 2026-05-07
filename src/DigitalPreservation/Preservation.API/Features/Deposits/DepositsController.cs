@@ -105,7 +105,13 @@ public class DepositsController(
     public IActionResult GetDepositAsIIIF([FromRoute] string id)
     {
         var mediaServerToken = manifestBuilder.GetToken($"{User.Identity?.Name}/deposit/{id}");
-        var manifestBaseUrl = $"{Request.GetDisplayUrl()}-token/{mediaServerToken}";
+        var reqUrl = Request.GetDisplayUrl();
+        var q = reqUrl.IndexOf('?');
+        if (q > 0)
+        {
+            reqUrl = reqUrl[..q];
+        }
+        var manifestBaseUrl = $"{reqUrl}-token/{mediaServerToken}";
         return Redirect(manifestBaseUrl);
     }
     
@@ -119,7 +125,11 @@ public class DepositsController(
         var key = manifestBuilder.GetKey(token);
         if (key.HasText() && key.GetSlug() == id)
         {
-            var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, Request.GetDisplayUrl(), token));
+            var reqUrl = Request.GetDisplayUrl();
+            var root = reqUrl[..reqUrl.IndexOf('/', 8)];
+            var iiifBaseUrl = $"{root}/deposits/{id}/iiif/";
+            var mediaServerBaseUrl = $"{root}/media/{token}/deposit/{id}/";
+            var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, reqUrl, iiifBaseUrl, mediaServerBaseUrl));
             if (manifestResult is { Success: true, Value: not null })
             {
                 return Content(manifestResult.Value.AsJson(), "application/json");

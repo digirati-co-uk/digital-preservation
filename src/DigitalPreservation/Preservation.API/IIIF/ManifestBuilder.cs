@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
@@ -61,23 +62,52 @@ public class ManifestBuilder(IMemoryCache memoryCache)
         return null;
     }
 
-    public void MakeCanvasesAndRanges(Manifest manifest, MetsFileWrapper wrapper, string mediaServerBaseUrl)
+    public void MakeCanvasesAndRanges(Manifest manifest, MetsFileWrapper wrapper, string plainBaseUrl, string mediaServerBaseUrl)
     {
         const string none = "none";
         var canvasMap = new Dictionary<string, Canvas>();
+        
+        // establish which files are targets of links before building canvases
+        var linkTargets = new Dictionary<string, List<WorkingFile>>();
+        foreach (var file in wrapper.Files)
+        {
+            foreach (var fileLink in file.Links)
+            {
+                if (!linkTargets.TryGetValue(fileLink.To, out var from))
+                {
+                    from = [];
+                    linkTargets[fileLink.To] = from;
+                }
+
+                from.Add(file);
+            }
+        }
+
         // The following can be made to work with deposits and preserved items
         manifest.Items = [];
         foreach (var file in wrapper.Files)
         {
+            if (!file.LocalPath.StartsWith("objects/"))
+            {
+                continue;
+            }
             if (file.ContentType.IsNullOrWhiteSpace())
             {
+                continue;
+            }
+            
+            if (linkTargets.TryGetValue(file.LocalPath, out _))
+            {
+                // This file is the target of a link from another file, so we may nopt want to make a Canvas from it.
+                // Assume for now it's always an "adjunct" - it may not be in future so the logic will get more
+                // complex - there could be links between canvases. We'd examine the _role_ of the link.
                 continue;
             }
 
             var escapedLocal = file.LocalPath.EscapePathElements();
             var canvas = new Canvas
             {
-                Id = $"{manifest.Id}/canvases/{escapedLocal}",
+                Id = $"{plainBaseUrl}canvases/{escapedLocal}",
                 Label = new LanguageMap(none, file.LocalPath)
             };
             var extents = file.Metadata.OfType<ExtentMetadata>().SingleOrDefault();
@@ -89,14 +119,14 @@ public class ManifestBuilder(IMemoryCache memoryCache)
             }
             var paintingAnno = new PaintingAnnotation
             {
-                Id = $"{canvas.Id}/annopage/painting",
+                Id = $"{canvas.Id}/painting/annotation",
                 Target = new Canvas { Id = canvas.Id }
             };
             canvas.Items =
             [
                 new AnnotationPage
                 {
-                    Id = $"{canvas.Id}/annopage",
+                    Id = $"{canvas.Id}/painting",
                     Items = [ paintingAnno ]
                 }
             ];
@@ -178,7 +208,38 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                         Label = canvas.Label
                     }
                 ];
+            }
 
+            foreach (var fileLink in file.Links)
+            {
+                var role = fileLink.Role?.ToString();
+                if (role.HasText() && role.EndsWith("transcript"))
+                {
+                    canvas.Annotations =
+                    [
+                        new AnnotationPage
+                        {
+                            Id = $"{canvas.Id}/annotations",
+                            Items = 
+                            [
+                                new GeneralAnnotation("supplementing")
+                                {
+                                    Body = 
+                                    [
+                                        new ExternalResource("Text")
+                                        {
+                                            Id = $"{mediaServerBaseUrl}file/{fileLink.To.EscapePathElements()}",
+                                            Label = new LanguageMap("en", "Transcript"),
+                                            Format = "text/vtt"
+                                        }
+                                    ],
+                                    Target = new Canvas { Id = canvas.Id }
+                                }
+                            ]
+
+                        }
+                    ];
+                }
             }
             
             manifest.Items.Add(canvas);
@@ -191,7 +252,7 @@ public class ManifestBuilder(IMemoryCache memoryCache)
             foreach (var range in wrapper.LogicalStructures)
             {
                 manifest.Structures ??= [];
-                manifest.Structures.Add(MakeRange(range, canvasMap, $"{manifest.Id}/ranges/"));
+                manifest.Structures.Add(MakeRange(range, canvasMap, $"{plainBaseUrl}ranges/"));
             }
         }
         

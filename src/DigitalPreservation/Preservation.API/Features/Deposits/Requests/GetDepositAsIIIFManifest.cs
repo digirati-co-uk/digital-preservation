@@ -13,11 +13,12 @@ using Storage.Client;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
-public class GetDepositAsIIIFManifest(string id, string baseUrl, string mediaServerBaseUrl) : IRequest<Result<Manifest>>
+public class GetDepositAsIIIFManifest(string id, string tokenBaseUrl, string plainBaseUrl, string mediaServerBaseUrl) : IRequest<Result<Manifest>>
 {
     public string Id { get; } = id;
-    public string BaseUrl { get; } = baseUrl;
-    
+    public string TokenBaseUrl { get; } = tokenBaseUrl;
+    public string PlainBaseUrl { get; } = plainBaseUrl;
+
     public string MediaServerBaseUrl { get; } = mediaServerBaseUrl;
 }
 
@@ -45,8 +46,8 @@ public class GetDepositAsIIIFManifestHandler(
         }
         var deposit = getDepositResult.Value!;
         var wrapper = wrapperResult.Value!;
-        var manifest = MakeDepositManifest(deposit, wrapper, request.BaseUrl);
-        manifestBuilder.MakeCanvasesAndRanges(manifest, wrapper, request.MediaServerBaseUrl);
+        var manifest = MakeDepositManifest(deposit, wrapper, request.TokenBaseUrl);
+        manifestBuilder.MakeCanvasesAndRanges(manifest, wrapper, request.PlainBaseUrl, request.MediaServerBaseUrl);
         return Result.OkNotNull(manifest);
     }
 
