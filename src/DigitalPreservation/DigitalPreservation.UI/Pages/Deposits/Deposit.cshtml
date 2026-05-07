@@ -558,6 +558,10 @@
                 <div class="modal-footer">
                     <input type="hidden" id="newFileContext" name="newFileContext">
                     <input type="hidden" id="newFileContextIsFile" name="contextIsFile">
+                    <span id="fileSize" class="text-body-secondary small me-auto d-none"></span>
+                    <div id="fileSizeWarning" class="alert alert-warning py-1 px-2 mb-0 d-none" role="alert">
+                        File is larger than 2 GB — upload may be slow or unreliable on poor connections.
+                    </div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></button>
                 </div>

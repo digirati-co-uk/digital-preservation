@@ -501,14 +501,29 @@ function recordInfoFromCompactString(compactString, delimiter = COMPACT_DELIMITE
 
 const fileSelector = document.getElementById('depositFile');
 const checksum = document.getElementById('checksum');
+const fileSize = document.getElementById('fileSize');
+const fileSizeWarning = document.getElementById('fileSizeWarning');
 const fileName = document.getElementById('depositFileName');
 const fileContentType = document.getElementById('depositFileContentType');
 
+const LARGE_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+
 fileSelector.addEventListener('change', () => {
+    const file = fileSelector.files[0];
     hashFile();
-    fileName.value = fileSelector.files[0].name;
-    fileContentType.value = fileSelector.files[0].type;
+    fileName.value = file.name;
+    fileContentType.value = file.type;
+    fileSize.textContent = formatFileSize(file.size);
+    fileSize.classList.remove('d-none');
+    fileSizeWarning.classList.toggle('d-none', file.size <= LARGE_FILE_BYTES);
 });
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
 
 function hashFile() {
     fileSelector.files[0].arrayBuffer()
