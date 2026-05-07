@@ -671,10 +671,14 @@ public class MetsParser(
         {
             var spType = sp.Element(XNames.PremisSignificantPropertiesType)?.Value;
             var spValue = sp.Element(XNames.PremisSignificantPropertiesValue)?.Value;
-            if (spType == "Duration" && double.TryParse(spValue,
-                    System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out var dur))
-                duration = dur;
+            if (spType == "Duration")
+            {
+                if (double.TryParse(spValue, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var dur))
+                    duration = dur;
+                else if (spValue != null)
+                    try { duration = MetsTimeCode.ToSeconds(spValue); } catch (FormatException) { }
+            }
             else if (spType == "ImageWidth" && int.TryParse(spValue, out var w))
                 pixelWidth = w;
             else if (spType == "ImageHeight" && int.TryParse(spValue, out var h))
