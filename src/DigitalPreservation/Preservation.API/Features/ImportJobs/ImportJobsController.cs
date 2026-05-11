@@ -19,7 +19,7 @@ namespace Preservation.API.Features.ImportJobs;
 public class ImportJobsController(
     ILogger<ImportJobsController> logger,
     IMediator mediator, 
-    ResourceMutator resourceMutator) : Controller
+    ResourceMutator resourceMutator) : ControllerBase
 {    
     [HttpGet("diff", Name = "GetDiffImportJob")]
     [ProducesResponseType<ImportJob>(200, "application/json")]

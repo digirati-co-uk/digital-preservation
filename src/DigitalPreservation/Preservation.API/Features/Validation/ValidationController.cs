@@ -7,7 +7,7 @@ namespace Preservation.API.Features.Validation;
 
 [Route("[controller]")]
 [ApiController]
-public class ValidationController(IStorageApiClient storageApiClient) : Controller
+public class ValidationController(IStorageApiClient storageApiClient) : ControllerBase
 {    
     [HttpGet("archivalgroup/{*archivalGroupPath}", Name ="TestArchivalGroupPath")]
     [ProducesResponseType<ArchivalGroup>(200, "application/json")]

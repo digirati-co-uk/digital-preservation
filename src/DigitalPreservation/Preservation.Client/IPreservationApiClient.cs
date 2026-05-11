@@ -55,10 +55,11 @@ public interface IPreservationApiClient
     Task<Result<List<Uri>>> GetAllAgents(CancellationToken cancellationToken);
     
     Task<Result<(string, string)>> GetMetsWithETag(string depositId, CancellationToken cancellationToken);
+    Task<Result<string>> GetParsedDepositMets(string depositId, CancellationToken cancellationToken);
     
     Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot);
     Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken);
-    Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, CancellationToken cancellationToken = default);
+    Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, bool parsedJson = false, CancellationToken cancellationToken = default);
     
     Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken);
     Task<Result> ReleaseDepositLock(Deposit deposit, CancellationToken cancellationToken);

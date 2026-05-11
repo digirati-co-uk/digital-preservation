@@ -426,6 +426,28 @@ public class PreservationApiClient(
         }
     }
 
+    public async Task<Result<string>> GetParsedDepositMets(string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var relPath = $"/deposits/{depositId}/parsed-mets";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                return Result.OkNotNull(content);
+            }
+            return await response.ToFailNotNullResult<string>("Unable to get Parsed METS");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<string>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<(Stream?, string?)> GetContentStream(string repositoryPath, CancellationToken cancellationToken)
     {
         var path = "/content/" + repositoryPath
@@ -444,10 +466,10 @@ public class PreservationApiClient(
         return (null, null);
     }
 
-    public async Task<(Stream?, string?)> GetMetsStream(string archivalGrouprepositoryPath, CancellationToken cancellationToken)
+    public async Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, bool parsedJson = false, CancellationToken cancellationToken = default)
     {
-        var queryString = "?view=mets";
-        var uri = new Uri(archivalGrouprepositoryPath + queryString, UriKind.Relative);
+        var queryString = "?view=" + (parsedJson ? "parsed-mets" : "mets");
+        var uri = new Uri(archivalGroupPathUnderRoot + queryString, UriKind.Relative);
         var req = new HttpRequestMessage(HttpMethod.Get, uri);
         var response = await preservationHttpClient.SendAsync(req, cancellationToken);
         if (response.IsSuccessStatusCode)

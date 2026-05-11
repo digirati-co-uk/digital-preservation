@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
@@ -337,6 +338,7 @@ public class MetsManager(
         return mets;
     }
     
+    [Obsolete("Replace calls to this with GetAccessRestrictions")]
     public List<string> GetRootAccessRestrictions(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
@@ -369,6 +371,7 @@ public class MetsManager(
         ModsManager.SetRootMods(fullMets.Mets, mods);
     }
     
+    [Obsolete("Replace calls to this with GetRightsStatement")]
     public Uri? GetRootRightsStatement(FullMets fullMets)
     {
         var mods = ModsManager.GetRootMods(fullMets.Mets);
@@ -449,5 +452,47 @@ public class MetsManager(
         }
 
         return (counter, parent, div, elements, operationPath, testPath);
+    }
+    
+    
+    
+    public void SetRecordIdentifier(FullMets mets, string locator, string source, string value)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void SetRightsStatement(FullMets mets, string locator, Uri? rightsStatement)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void SetAccessRestrictions(FullMets mets, string locator, List<string> accessRestrictions)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void SetStructMap(FullMets mets, LogicalRange logSm)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void SetStructMapOrder(FullMets mets, string[] ids)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void RemoveStructMap(FullMets mets, string id)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void LinkFile(FullMets mets, string from, string to, Uri role)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void UnLinkFile(FullMets mets, string from, string to, Uri role)
+    {
+        throw new NotImplementedException();
     }
 }
