@@ -29,7 +29,8 @@ public class CreateDepositFromIdentifierHandler(
     IStorage storage,
     IMetsManager metsManager,
     MetsFromArchivalGroup metsFromArchivalGroup,
-    WorkspaceManagerFactory workspaceManagerFactory) : 
+    WorkspaceManagerFactory workspaceManagerFactory,
+    IMetsParser metsParser) : 
     CreateDepositBase(
         logger, 
         dbContext, 
@@ -39,7 +40,8 @@ public class CreateDepositFromIdentifierHandler(
         storage, 
         metsManager,
         metsFromArchivalGroup,
-        workspaceManagerFactory), 
+        workspaceManagerFactory,
+        metsParser), 
     IRequestHandler<CreateDepositFromIdentifier, Result<Deposit?>>
 {
     private readonly IIdentityService identityService1 = identityService;
