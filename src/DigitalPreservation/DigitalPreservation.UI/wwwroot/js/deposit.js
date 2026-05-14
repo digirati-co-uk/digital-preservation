@@ -547,3 +547,36 @@ function Uint8ArrayToHexString(ui8array) {
     hexString = hexString.padStart(p, "0");
     return hexString;
 }
+
+// --------------------------------------------------------------
+// ------------------- Metadata folder collapse
+// --------------------------------------------------------------
+(function () {
+    const headerRow = document.querySelector('tr[data-metadata-root="true"]');
+    if (!headerRow) return;
+
+    const childRows = [];
+    let next = headerRow.nextElementSibling;
+    while (next && next.getAttribute('data-metadata') === 'true') {
+        childRows.push(next);
+        next = next.nextElementSibling;
+    }
+    if (childRows.length === 0) return;
+
+    childRows.forEach(r => { r.style.display = 'none'; });
+
+    const btn = headerRow.querySelector('[data-metadata-toggle]');
+    if (!btn) return;
+
+    btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+        childRows.forEach(r => { r.style.display = isExpanded ? 'none' : ''; });
+        btn.setAttribute('aria-expanded', String(!isExpanded));
+        const icon = btn.querySelector('svg');
+        if (icon) {
+            icon.style.transform = isExpanded ? '' : 'rotate(90deg)';
+        }
+    });
+})();
