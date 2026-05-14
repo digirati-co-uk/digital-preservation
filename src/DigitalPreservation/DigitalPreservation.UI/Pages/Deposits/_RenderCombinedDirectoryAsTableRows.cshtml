@@ -24,12 +24,14 @@ File is in both
 @if (combinedDirectory.LocalPath.HasText())
 {
     var isMetadata = FolderNames.IsMetadata(combinedDirectory.LocalPath);
+    var isMetadataRoot = combinedDirectory.LocalPath == FolderNames.Metadata
+        || combinedDirectory.LocalPath == $"{FolderNames.BagItData}/{FolderNames.Metadata}";
     depth = combinedDirectory.LocalPath.Split('/').Length;
     string where = combinedDirectory.Whereabouts.ToString().ToLowerInvariant();
     string displayName = combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug();
-    
-    <tr class="deposit-row @("where-" + where)" 
-        data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@isMetadata">
+
+    <tr class="deposit-row @("where-" + where)"
+        data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@(isMetadata ? "true" : "false")" data-metadata-root="@(isMetadataRoot ? "true" : "false")">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath))
             {
@@ -52,12 +54,21 @@ File is in both
         <td style="padding-left: @(1.3 * depth)rem">
             <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg>
             @if (combinedDirectory.LocalPath == "objects" || combinedDirectory.LocalPath.StartsWith("objects/"))
-            { 
+            {
                 @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)combinedDirectory, displayName, null as string))
             }
             else
             {
                 <span title="@combinedDirectory.LocalPath" aria-label="name">@displayName</span>
+                @if (isMetadataRoot)
+                {
+                    var metaTotals = combinedDirectory.GetSizeTotals();
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 me-1 border-0 align-baseline"
+                            data-metadata-toggle aria-expanded="false" aria-label="Toggle metadata folder">
+                        <svg class="bi"><use xlink:href="#chevron-right"/></svg>
+                    </button>
+                    <small class="text-body-secondary">@metaTotals.TotalFileCount files in @metaTotals.TotalDirectoryCount folders</small>
+                }
             }
         </td>
         <td></td>
@@ -85,7 +96,7 @@ File is in both
     string where = file.Whereabouts.ToString().ToLowerInvariant();
     bool mismatches = file.MisMatches.Any();
     <tr class="deposit-row @("where-" + where)" 
-        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-mismatches="@mismatches" data-metadata="@isMetadata">
+        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-mismatches="@mismatches" data-metadata="@(isMetadata ? "true" : "false")">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && file.LocalPath != "mets.xml")
             {
