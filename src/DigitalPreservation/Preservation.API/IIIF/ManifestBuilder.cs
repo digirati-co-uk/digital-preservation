@@ -265,6 +265,24 @@ public class ManifestBuilder(IMemoryCache memoryCache)
             Id = $"{rangeBaseUrl}{logicalRange.Id}",
             Label = new LanguageMap("en", label)
         };
+        if (logicalRange.AccessRestrictions != null)
+        {
+            iiifRange.Metadata ??= [];
+            iiifRange.Metadata.AddRange(logicalRange.AccessRestrictions.Select(
+                a => new LabelValuePair("en", "access restriction", a)));
+        }
+        if (logicalRange.RightsStatement != null)
+        {
+            iiifRange.Rights = logicalRange.RightsStatement.ToString();
+        }
+
+        if (logicalRange.RecordInfo != null)
+        {
+            iiifRange.Metadata ??= [];
+            iiifRange.Metadata.AddRange(logicalRange.RecordInfo.RecordIdentifiers.Select(
+                r => new LabelValuePair("en", $"record identifier: {r.Source}", r.Value)));
+        }
+
         foreach (var childRange in logicalRange.Ranges)
         {
             iiifRange.Items ??= [];
