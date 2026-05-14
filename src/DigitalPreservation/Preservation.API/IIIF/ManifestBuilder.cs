@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
@@ -17,17 +20,11 @@ namespace Preservation.API.IIIF;
 
 public class ManifestBuilder(IMemoryCache memoryCache)
 {    
-    public static string GetSessionMediaServerBaseUrl(string depositId)
-    {
-        var token = GetSessionToken();
-        return $"{depositId}/media/{token}/";
-    }
-
     private static string GetSessionToken()
     {
         using var sha256 = SHA256.Create();
-        var token = Checksum.HashFromString(Guid.NewGuid().ToString("N") + DateTime.Now.Ticks, sha256);
-        return token;
+        var longToken = Checksum.HashFromString(Guid.NewGuid().ToString("N") + DateTime.Now.Ticks, sha256);
+        return new string(longToken.Where((_, i) => i % 2 == 0).ToArray());
     }
 
     public string GetToken(string key)
@@ -138,7 +135,7 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                 var thumbSize = Size.Confine(100, size);
                 paintingAnno.Body = new Image
                 {
-                    Id = $"{mediaServerBaseUrl}image/{escapedLocal}/full/{mainSize.Width},{mainSize.Height}/0/default.jpg",
+                    Id = $"{mediaServerBaseUrl}imagesvc/{escapedLocal}/full/{mainSize.Width},{mainSize.Height}/0/default.jpg",
                     Width = mainSize.Width,
                     Height = mainSize.Height,
                     Format = "image/jpeg"
@@ -147,7 +144,7 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                 [
                     new Image
                     {
-                        Id = $"{mediaServerBaseUrl}image/{escapedLocal}/full/{thumbSize.Width},{thumbSize.Height}/0/default.jpg",
+                        Id = $"{mediaServerBaseUrl}imagesvc/{escapedLocal}/full/{thumbSize.Width},{thumbSize.Height}/0/default.jpg",
                         Width = thumbSize.Width,
                         Height = thumbSize.Height,
                         Format = "image/jpeg"
@@ -213,6 +210,7 @@ public class ManifestBuilder(IMemoryCache memoryCache)
             foreach (var fileLink in file.Links)
             {
                 var role = fileLink.Role?.ToString();
+                var target = wrapper.Files.Single(f => f.LocalPath == fileLink.To);
                 if (role.HasText() && role.EndsWith("transcript"))
                 {
                     canvas.Annotations =
@@ -228,9 +226,9 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                                     [
                                         new ExternalResource("Text")
                                         {
-                                            Id = $"{mediaServerBaseUrl}file/{fileLink.To.EscapePathElements()}",
+                                            Id = $"{mediaServerBaseUrl}file/{target.LocalPath.EscapePathElements()}",
                                             Label = new LanguageMap("en", "Transcript"),
-                                            Format = "text/vtt"
+                                            Format = target.ContentType
                                         }
                                     ],
                                     Target = new Canvas { Id = canvas.Id }
@@ -275,7 +273,11 @@ public class ManifestBuilder(IMemoryCache memoryCache)
 
         foreach (var filePointer in logicalRange.Files)
         {
-            var canvas = canvasMap[filePointer.LocalPath];
+            if (!canvasMap.TryGetValue(filePointer.LocalPath, out var canvas))
+            {
+                continue;
+            }
+
             var canvasRef = new Canvas { Id = canvas.Id };
             var fragment = "";
             // TODO: use FragmentSelector once in iiif-net

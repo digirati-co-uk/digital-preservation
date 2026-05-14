@@ -66,4 +66,9 @@ public interface IStorage
     static string DepositFileSystem => "__METSlike.json";
     Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest);
     Task<Result<Stream?>> GetStream(Uri binaryOrigin);
+    /// <summary>
+    /// Returns a stream covering only the requested byte range. The caller is responsible for
+    /// building the Content-Range response header; the stream contains exactly the requested bytes.
+    /// </summary>
+    Task<Result<Stream?>> GetRangedStream(Uri binaryOrigin, long from, long? to);
 }

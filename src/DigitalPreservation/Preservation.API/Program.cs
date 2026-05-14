@@ -57,6 +57,12 @@ try
     builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
 
 
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("AllowAll", policy =>
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+    });
+
     builder.Services
         .AddMemoryCache()
         .ConfigureForwardedHeaders()
@@ -181,7 +187,19 @@ try
         .TryRunMigrations(builder.Configuration, app.Logger);
 
 
-    app.UseCors("AllowAll");
+    // Chrome's Private Network Access check: public origins (e.g. a viewer on theseusviewer.org)
+    // hitting localhost must receive this header in the preflight response. ASP.NET Core's CORS
+    // middleware does not add it automatically. In production the API is on a public address so
+    // browsers never send Access-Control-Request-Private-Network and this is a no-op.
+    app.Use((context, next) =>
+    {
+        if (context.Request.Headers.ContainsKey("Access-Control-Request-Private-Network"))
+        {
+            context.Response.Headers.Append("Access-Control-Allow-Private-Network", "true");
+        }
+        return next(context);
+    });
+    app.UseCors(); // policy applied per-endpoint via [EnableCors] — not globally
 
     //Auth
     if (useAuthFeatureFlag)

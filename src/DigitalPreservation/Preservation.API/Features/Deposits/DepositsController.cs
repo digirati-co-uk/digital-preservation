@@ -11,6 +11,7 @@ using IIIF.Serialisation;
 using LeedsDlipServices.Identity;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
@@ -116,6 +117,7 @@ public class DepositsController(
     }
     
     [AllowAnonymous]
+    [EnableCors("AllowAll")]
     [HttpGet("{id}/iiif-token/{token}", Name = "GetDepositAsIIIFManifestWithToken")]
     [ProducesResponseType<MetsFileWrapper>(200)]
     [ProducesResponseType<ProblemDetails>(404, "application/json")]
