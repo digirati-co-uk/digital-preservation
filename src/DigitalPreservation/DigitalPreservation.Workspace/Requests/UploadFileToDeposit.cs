@@ -98,7 +98,7 @@ public class UploadFileToDepositHandler(
                     Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
                 };
                 var saveResult = await storage.AddToDepositFileSystem(request.RootUri, file, cancellationToken);
-                if (saveResult.Success && request.UpdateMets)
+                if (saveResult.Success && request.UpdateMets && !request.BagitFile)
                 {
                     var result = await metsManager.HandleSingleFileUpload(request.RootUri, file, request.MetsETag);
                     if (result.Success)
