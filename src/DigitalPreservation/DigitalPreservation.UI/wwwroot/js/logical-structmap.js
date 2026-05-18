@@ -470,7 +470,7 @@ function getRightsShortLabel(uri) {
     for (const [key, rs] of Object.entries(rightsStatements)) {
         if (rs.value === uri) return key;
     }
-    return null;
+    return uri;
 }
 
 function toRecordInfoCompact(recordInfo) {

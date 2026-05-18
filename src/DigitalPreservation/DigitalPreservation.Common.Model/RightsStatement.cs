@@ -162,6 +162,6 @@ public class RightsStatement
         {
             rs = CreativeCommons.SingleOrDefault(x => x.Value == modelRootRightsStatement);
         }
-        return rs?.ShortLabel ?? rs?.Value.ToString() ?? string.Empty;
+        return rs?.ShortLabel ?? modelRootRightsStatement.ToString();
     }
 }

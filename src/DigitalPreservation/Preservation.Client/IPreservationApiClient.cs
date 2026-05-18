@@ -92,4 +92,6 @@ public interface IPreservationApiClient
     Task<Result<ArchiveJobResult>> GetArchiveJobResult(string depositId, CancellationToken cancellationToken);
     Task<Result<ArchiveJobResult>> ArchiveDeposit([FromBody] ArchiveDepositJob archiveDepositJob,
         CancellationToken cancellationToken);
+
+    Task<Result<List<AccessRestriction>>> GetAccessConditions(CancellationToken cancellationToken = default);
 }

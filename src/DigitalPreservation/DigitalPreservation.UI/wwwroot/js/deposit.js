@@ -30,6 +30,15 @@ function applyAccessRestrictions(accessConditionList){
         accessRestrictionsSelect.selectedIndex = -1;
         if(accessConditionList.length > 0){
             const accessConditions = new Set(accessConditionList.split(","));
+            const existingValues = new Set(Array.from(accessRestrictionsSelect.options).map(o => o.value));
+            for (const ac of accessConditions) {
+                if (!existingValues.has(ac)) {
+                    const option = document.createElement("option");
+                    option.value = ac;
+                    option.text = ac;
+                    accessRestrictionsSelect.appendChild(option);
+                }
+            }
             for (const option of accessRestrictionsSelect.options) {
                 if(accessConditions.has(option.value)){
                     option.selected = true;
@@ -58,16 +67,22 @@ function applyRightsStatement(rightsStatement){
     if(rightsStatementSelect){
         rightsStatementSelect.selectedIndex = -1;
         if(rightsStatement){
-            const rsUri = rightsStatements[rightsStatement].value;
-            for (const option of rightsStatementSelect.options) {
-                if(option.value === rsUri){
-                    option.selected = true;
-                }
+            const rsEntry = rightsStatements[rightsStatement];
+            const rsUri = rsEntry ? rsEntry.value : rightsStatement;
+            let matchingOption = Array.from(rightsStatementSelect.options).find(o => o.value === rsUri);
+            if (!matchingOption) {
+                matchingOption = document.createElement("option");
+                matchingOption.value = rsUri;
+                matchingOption.text = rsUri;
+                rightsStatementSelect.appendChild(matchingOption);
             }
+            matchingOption.selected = true;
         }
     } else if (nonEditableRightsStatement){
         if(rightsStatement){
-            nonEditableRightsStatement.innerHTML = `<strong>${rightsStatement}</strong><br/>${rightsStatements[rightsStatement].value}`;
+            const rsEntry = rightsStatements[rightsStatement];
+            const rsUri = rsEntry ? rsEntry.value : rightsStatement;
+            nonEditableRightsStatement.innerHTML = `<strong>${rightsStatement}</strong><br/>${rsUri}`;
         } else {
             nonEditableRightsStatement.innerHTML = "<ul><li><em>no explicit rights</em></li></ul>";
         }

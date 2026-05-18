@@ -786,7 +786,7 @@
                         @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <select multiple id="accessRestrictionsSelect" class="form-select" name="accessRestrictions" aria-labelledby="accessRestrictionsSelectLabel">
-                                @foreach (var accessRestriction in AccessRestriction.All)
+                                @foreach (var accessRestriction in Model.AccessConditions)
                                 {
                                     <!option value="@accessRestriction.Value">@accessRestriction.Label</!option>
                                 }

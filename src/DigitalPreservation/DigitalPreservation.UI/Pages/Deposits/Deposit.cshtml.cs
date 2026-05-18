@@ -48,6 +48,7 @@ public class DepositModel(
     public List<string> FilesWithViruses { get; set; } = [];
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
     public List<LogicalRange> LogicalStructMaps { get; set; } = [];
+    public List<AccessRestriction> AccessConditions { get; set; } = [];
 
     private static readonly JsonSerializerOptions CamelCaseOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private static readonly JsonSerializerOptions CaseInsensitiveOptions = new() { PropertyNameCaseInsensitive = true };
@@ -133,6 +134,9 @@ public class DepositModel(
         [FromQuery] bool writeToStorage = false)
     {
         await BindDeposit(id, readFromStorage, writeToStorage);
+        var conditionsResult = await preservationApiClient.GetAccessConditions(HttpContext.RequestAborted);
+        if (conditionsResult.Success)
+            AccessConditions = conditionsResult.Value!;
     }
 
     private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
