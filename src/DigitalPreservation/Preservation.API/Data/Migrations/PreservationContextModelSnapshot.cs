@@ -92,6 +92,10 @@ namespace Preservation.API.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("archival_group_path_under_root");
 
+                    b.Property<DateTime?>("Archived")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived");
+
                     b.Property<DateTime>("Created")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -170,6 +174,48 @@ namespace Preservation.API.Data.Migrations
                         .HasName("pk_deposits");
 
                     b.ToTable("deposits", (string)null);
+                });
+
+            modelBuilder.Entity("Preservation.API.Data.Entities.DepositArchiveJob", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BatchNumber")
+                        .HasColumnType("text")
+                        .HasColumnName("batch_number");
+
+                    b.Property<int>("DeletedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("deleted_count");
+
+                    b.Property<string>("DepositId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("deposit_id");
+
+                    b.Property<string>("DepositUri")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("deposit_uri");
+
+                    b.Property<DateTime?>("EndTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_time");
+
+                    b.Property<string>("Errors")
+                        .HasColumnType("text")
+                        .HasColumnName("errors");
+
+                    b.Property<DateTime>("StartTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_time");
+
+                    b.HasKey("Id")
+                        .HasName("pk_deposit_archive_jobs");
+
+                    b.ToTable("deposit_archive_jobs", (string)null);
                 });
 
             modelBuilder.Entity("Preservation.API.Data.Entities.ImportJob", b =>

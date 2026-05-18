@@ -1,4 +1,6 @@
-﻿using DigitalPreservation.Common.Model.Import;
+﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.DepositArchiver;
+using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.UI.Features.Preservation.Requests;
@@ -59,6 +61,20 @@ public class DepositJobResultFetcher()
         var pipelineJobResults = pipelineJobsResult.Value!;
 
         return Result.OkNotNull(pipelineJobResults);
+
+    }
+
+    public static async Task<Result<ArchiveJobResult?>> GetArchiveJobResult(string depositId, IMediator mediator)
+    {
+        var archiveJobResult = await mediator.Send(new GetArchiveJobResult(depositId));
+        if (archiveJobResult.Failure)
+        {
+            return Result.Fail<ArchiveJobResult?>(ErrorCodes.BadRequest, "no archive job for deposit");
+        }
+
+        var archiveJob = archiveJobResult.Value!;
+
+        return Result.Ok(archiveJob);
 
     }
 }

@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.DepositHelpers;
+﻿using DigitalPreservation.Common.Model.DepositArchiver;
+using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
@@ -456,5 +457,18 @@ public class DepositsController(
         return this.StatusResponseFromResult(setActiveResult, successStatusCode: 204);
     }
 
+    [HttpPost("archive-job", Name = "LogArchiveJob")]
+
+    [ProducesResponseType(204)]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
+    public async Task<IActionResult> LogArchiveJob([FromBody] ArchiveDepositJob archiveDepositJob)
+    {
+        var archiveJobStatusResult = await mediator.Send(new ArchiveDeposit(archiveDepositJob));
+
+        return this.StatusResponseFromResult(archiveJobStatusResult, successStatusCode: 204);
+    }
 
 }

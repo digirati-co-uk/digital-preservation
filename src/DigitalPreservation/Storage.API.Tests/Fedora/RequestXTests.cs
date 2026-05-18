@@ -4,6 +4,13 @@ namespace Storage.API.Tests.Fedora;
 
 public class RequestXTests
 {
+    private static string[] Lines(HttpRequestMessage msg) =>
+        ((StringContent)msg.Content!).ReadAsStringAsync().Result
+            .Split(["\r\n", "\r", "\n"], StringSplitOptions.RemoveEmptyEntries);
+
+    private static string[] Expected(string s) =>
+        s.Split(["\r\n", "\r", "\n"], StringSplitOptions.RemoveEmptyEntries);
+
     [Fact]
     public void Single_Rdf_Statement_Simple_Name()
     {
@@ -14,11 +21,10 @@ public class RequestXTests
         msg.WithName("Simple name");
         
         // Assert
-        ((StringContent)msg.Content!).ReadAsStringAsync().Result.Should()
-            .Be("""
-                        PREFIX dc: <http://purl.org/dc/elements/1.1/>
-                        <> dc:title "Simple name" .
-                        """);
+        Lines(msg).Should().Equal(Expected("""
+            PREFIX dc: <http://purl.org/dc/elements/1.1/>
+            <> dc:title "Simple name" .
+            """));
     }
 
     [Fact]
@@ -31,10 +37,9 @@ public class RequestXTests
         msg.WithName("Barth Bridge. Original drawing used in \"The Yorkshire Dales\" (1956), page 156");
 
         // Assert
-        ((StringContent)msg.Content!).ReadAsStringAsync().Result.Should()
-            .Be("""
-                PREFIX dc: <http://purl.org/dc/elements/1.1/>
-                <> dc:title "Barth Bridge. Original drawing used in \"The Yorkshire Dales\" (1956), page 156" .
-                """);
+        Lines(msg).Should().Equal(Expected("""
+            PREFIX dc: <http://purl.org/dc/elements/1.1/>
+            <> dc:title "Barth Bridge. Original drawing used in \"The Yorkshire Dales\" (1956), page 156" .
+            """));
     }
 }

@@ -16,6 +16,7 @@ public static class Constants
     public const string DmdPhysRoot = "DMD_PHYS_ROOT";
     public const string ObjectsDivId = PhysIdPrefix + FolderNames.Objects;
     public const string MetadataDivId = PhysIdPrefix + FolderNames.Metadata;
+    public const string MetadataAdHocDivId = $"{MetadataDivId}/{FolderNames.AdHoc}";
     public const string DirectoryType = "Directory";
     public const string ItemType = "Item";
     public const string VirusProvEventPrefix = "digiprovMD_ClamAV_";

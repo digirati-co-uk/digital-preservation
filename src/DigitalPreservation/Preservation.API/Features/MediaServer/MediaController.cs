@@ -177,11 +177,11 @@ public class MediaController(
         }
 
         var fullStreamResult = await workspaceManager.GetStream(fileUri);
-        if (fullStreamResult is not { Success: true, Value: not null })
+        if (fullStreamResult is not { Success: true, Value.Item1: not null })
             return new NotFoundResult();
         if (item.Size.HasValue)
             httpContext.Response.ContentLength = item.Size.Value;
-        return new FileStreamResult(fullStreamResult.Value, contentType);
+        return new FileStreamResult(fullStreamResult.Value.Item1!, contentType);
     }
 
     private static IActionResult ServePlaceholder(string localPath)
@@ -195,14 +195,14 @@ public class MediaController(
     {
         var fileUri = new Uri(origin.ToString().TrimEnd('/') + "/" + realLocalPath);
         var streamResult = await workspaceManager.GetStream(fileUri);
-        if (streamResult is not { Success: true, Value: not null })
+        if (streamResult is not { Success: true, Value.Item1: not null })
             return new NotFoundResult();
 
         var parts = size.Split(',');
         var w = parts[0].Length > 0 && int.TryParse(parts[0], out var pw) ? pw : 0;
         var h = parts.Length > 1 && parts[1].Length > 0 && int.TryParse(parts[1], out var ph) ? ph : 0;
 
-        using var image = await Image.LoadAsync(streamResult.Value);
+        using var image = await Image.LoadAsync(streamResult.Value.Item1!);
         image.Mutate(x => x.Resize(new ResizeOptions
         {
             Size = new SixLabors.ImageSharp.Size(w, h),

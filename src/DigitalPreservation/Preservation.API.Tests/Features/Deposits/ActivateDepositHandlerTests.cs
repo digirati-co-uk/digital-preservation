@@ -18,15 +18,19 @@ public class ActivateDepositHandlerTests
         this.fixture = fixture;
     }
 
-    [Fact]
-    public async Task Handle_Fails_When_DeactivatingNewDeposit()
+    [Theory]
+    [InlineData(DepositStates.New)]
+    [InlineData(DepositStates.Exporting)]
+    [InlineData(DepositStates.Preserved)]
+    [InlineData(DepositStates.Archived)]
+    public async Task Handle_Fails_When_DeactivatingDepositInNonErrorState(string status)
     {
         await using var context = fixture.CreateNewAuthServiceContext();
         var mintedId = $"dep-{Guid.NewGuid()}";
         var deposit = new DepositEntity
         {
             MintedId = mintedId,
-            Status = DepositStates.New,
+            Status = status,
             Active = true,
             Created = DateTime.UtcNow,
             CreatedBy = "tester",
@@ -42,10 +46,36 @@ public class ActivateDepositHandlerTests
         var result = await handler.Handle(new ActivateDeposit(mintedId, false, principal), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        result.ErrorCode.Should().Be(ErrorCodes.NotFound);
-
         await context.Entry(deposit).ReloadAsync();
         deposit.Active.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_Succeeds_When_DeactivatingErrorDeposit()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var mintedId = $"dep-{Guid.NewGuid()}";
+        var deposit = new DepositEntity
+        {
+            MintedId = mintedId,
+            Status = DepositStates.Error,
+            Active = true,
+            Created = DateTime.UtcNow,
+            CreatedBy = "tester",
+            LastModified = DateTime.UtcNow,
+            LastModifiedBy = "tester"
+        };
+        context.Deposits.Add(deposit);
+        await context.SaveChangesAsync();
+
+        var handler = new ActivateDepositHandler(new NullLogger<ActivateDepositHandler>(), context);
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "tester") }, "test"));
+
+        var result = await handler.Handle(new ActivateDeposit(mintedId, false, principal), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        await context.Entry(deposit).ReloadAsync();
+        deposit.Active.Should().BeFalse();
     }
 
     [Fact]
@@ -72,7 +102,6 @@ public class ActivateDepositHandlerTests
         var result = await handler.Handle(new ActivateDeposit(mintedId, true, principal), CancellationToken.None);
 
         result.Success.Should().BeTrue();
-
         await context.Entry(deposit).ReloadAsync();
         deposit.Active.Should().BeTrue();
     }

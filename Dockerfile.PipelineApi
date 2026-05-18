@@ -31,14 +31,17 @@ RUN sf -update
 #brunnhilde    
 RUN apt-get install python3-full python3-pip -y
 RUN rm /usr/lib/python3.11/EXTERNALLY-MANAGED
-RUN pip3 install brunnhilde
-RUN pip3 install brunnhilde --upgrade
+RUN pip3 install --upgrade brunnhilde
 RUN brunnhilde.py -V
 #clam av
 RUN apt-get install clamav clamav-freshclam -y 
 RUN freshclam
 # Exif Tool for metadata extraction
 RUN apt-get install -y exiftool
+
+#bagit
+RUN pip3 install bagit
+RUN pip3 install bagit --upgrade
 
 
 # Update tools cron job

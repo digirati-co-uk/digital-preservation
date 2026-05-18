@@ -65,7 +65,7 @@ public interface IStorage
     Task<Result<BulkDeleteResult>> EmptyStorageLocation(Uri storageLocation, CancellationToken cancellationToken);
     static string DepositFileSystem => "__METSlike.json";
     Task<Result<string?>> GetExpectedDigest(Uri? binaryOrigin, string? binaryDigest);
-    Task<Result<Stream?>> GetStream(Uri binaryOrigin);
+    Task<Result<(Stream? ResponseStream, DateTime LastModified)>> GetStream(Uri binaryOrigin);
     /// <summary>
     /// Returns a stream covering only the requested byte range together with the actual number of
     /// bytes in the response. The caller uses <see cref="RangedStreamResult.RangedContentLength"/>

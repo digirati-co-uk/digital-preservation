@@ -1,6 +1,6 @@
-﻿using System.Net.Http.Json;
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
+using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -13,6 +13,7 @@ using LeedsDlipServices.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
+using System.Net.Http.Json;
 
 namespace Preservation.Client;
 
@@ -501,14 +502,14 @@ public class PreservationApiClient(
             var res = await preservationHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage", cancellationToken);
             return res;
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            logger.LogError(ex, "Error occured while checking if Fedora is alive");
+            logger.LogError(e, "Error occured while checking if Fedora is alive");
             return new ConnectivityCheckResult
             {
                 Name = ConnectivityCheckResult.DigitalPreservationBackEnd,
                 Success = false,
-                Error = ex.Message
+                Error = e.Message
             };
         }
     }
@@ -520,14 +521,14 @@ public class PreservationApiClient(
             var res = await preservationHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-s3", cancellationToken);
             return res;
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            logger.LogError(ex, "Error occured while checking if Preservation API can see S3");
+            logger.LogError(e, "Error occured while checking if Preservation API can see S3");
             return new ConnectivityCheckResult
             {
                 Name = ConnectivityCheckResult.PreservationApiReadS3,
                 Success = false,
-                Error = ex.Message
+                Error = e.Message
             };
         }
     }
@@ -539,14 +540,14 @@ public class PreservationApiClient(
             var res = await preservationHttpClient.GetFromJsonAsync<ConnectivityCheckResult>("/storage/check-storage-s3", cancellationToken);
             return res;
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            logger.LogError(ex, "Error occured while checking if Preservation API can see that Storage API can see S3");
+            logger.LogError(e, "Error occured while checking if Preservation API can see that Storage API can see S3");
             return new ConnectivityCheckResult
             {
                 Name = ConnectivityCheckResult.StorageApiReadS3,
                 Success = false,
-                Error = ex.Message
+                Error = e.Message
             };
         }
     }
@@ -616,10 +617,10 @@ public class PreservationApiClient(
 
             return await response.ToFailNotNullResult<LogPipelineStatusResult>("Unable to update pipeline status.");
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            logger.LogError(ex, ex.Message);
-            return Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, ex.Message);
+            logger.LogError(e, "Error calling pipeline status endpoint");
+            return Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, e.Message);
         }
 
 
@@ -647,6 +648,53 @@ public class PreservationApiClient(
         }
 
         return await response.ToFailResult("Unable to Deactivate deposit");
+    }
+
+    public async Task<Result<ArchiveJobResult>> GetArchiveJobResult(string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var relPath = $"/DepositArchiveJobs/{depositId}";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var jobResult = await response.Content.ReadFromJsonAsync<ArchiveJobResult>(cancellationToken: cancellationToken);
+                if (jobResult is not null)
+                {
+                    return Result.OkNotNull(jobResult);
+                }
+                return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
+            }
+            return await response.ToFailNotNullResult<ArchiveJobResult>("Unable to get archive run job result");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error getting archive job result");
+            return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<ArchiveJobResult>> ArchiveDeposit([FromBody] ArchiveDepositJob archiveDepositJob, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = new Uri("/Deposits/archive-job", UriKind.Relative);
+            var response = await preservationHttpClient.PostAsJsonAsync(uri, archiveDepositJob, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return Result.OkNotNull(new ArchiveJobResult { Status = "Success", DepositId = archiveDepositJob.DepositId });
+            }
+
+            return await response.ToFailNotNullResult<ArchiveJobResult>("Unable to archive deposit.");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error archiving deposit");
+            return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
     }
 
 }
