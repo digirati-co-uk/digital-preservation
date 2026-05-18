@@ -11,6 +11,7 @@ using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using LeedsDlipServices.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 using System.Net.Http.Json;
@@ -19,6 +20,7 @@ namespace Preservation.Client;
 
 public class PreservationApiClient(
     HttpClient httpClient,
+    IMemoryCache memoryCache,
     ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
     private readonly HttpClient preservationHttpClient = httpClient;
@@ -694,6 +696,30 @@ public class PreservationApiClient(
         {
             logger.LogError(e, "Error archiving deposit");
             return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<List<AccessRestriction>>> GetAccessConditions(CancellationToken cancellationToken = default)
+    {
+        const string cacheKey = "preservation:access-conditions";
+        if (memoryCache.TryGetValue(cacheKey, out List<AccessRestriction>? cached))
+            return Result.OkNotNull(cached!);
+        try
+        {
+            var response = await preservationHttpClient.GetAsync("/access-conditions", cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var conditions = await response.Content.ReadFromJsonAsync<List<AccessRestriction>>(
+                    cancellationToken: cancellationToken) ?? [];
+                memoryCache.Set(cacheKey, conditions, TimeSpan.FromHours(1));
+                return Result.OkNotNull(conditions);
+            }
+            return await response.ToFailNotNullResult<List<AccessRestriction>>("Unable to get access conditions");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not get access conditions");
+            return Result.FailNotNull<List<AccessRestriction>>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

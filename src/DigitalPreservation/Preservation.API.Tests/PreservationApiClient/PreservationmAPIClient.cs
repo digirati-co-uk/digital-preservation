@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using DigitalPreservation.Common.Model.PreservationApi;
 using FakeItEasy;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Preservation.API.Tests.PreservationApiClient;
@@ -23,7 +24,7 @@ public class PreservationApiClientTests
             .Returns(Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
 
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://api") };
-        var client = new Client.PreservationApiClient(httpClient, NullLogger<Client.PreservationApiClient>.Instance);
+        var client = new Client.PreservationApiClient(httpClient, new MemoryCache(new MemoryCacheOptions()), NullLogger<Client.PreservationApiClient>.Instance);
 
         // Act
         var result = await client.DeactivateDeposit(deposit, CancellationToken.None);
@@ -44,7 +45,7 @@ public class PreservationApiClientTests
             .Returns(Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)));
 
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://api") };
-        var client = new Client.PreservationApiClient(httpClient, NullLogger<Client.PreservationApiClient>.Instance);
+        var client = new Client.PreservationApiClient(httpClient, new MemoryCache(new MemoryCacheOptions()), NullLogger<Client.PreservationApiClient>.Instance);
 
         var result = await client.DeactivateDeposit(deposit, CancellationToken.None);
 
