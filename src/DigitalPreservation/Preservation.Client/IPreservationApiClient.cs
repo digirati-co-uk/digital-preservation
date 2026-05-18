@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
+using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -88,6 +89,7 @@ public interface IPreservationApiClient
 
     Task<Result> ActivateDeposit(Deposit deposit, CancellationToken cancellationToken);
     Task<Result> DeactivateDeposit(Deposit deposit, CancellationToken cancellationToken);
-
-
+    Task<Result<ArchiveJobResult>> GetArchiveJobResult(string depositId, CancellationToken cancellationToken);
+    Task<Result<ArchiveJobResult>> ArchiveDeposit([FromBody] ArchiveDepositJob archiveDepositJob,
+        CancellationToken cancellationToken);
 }

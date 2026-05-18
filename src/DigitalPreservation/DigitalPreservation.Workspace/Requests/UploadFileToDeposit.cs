@@ -23,7 +23,9 @@ public class UploadFileToDeposit(
     string checksum, 
     string depositFileName, 
     string contentType,
-    string metsETag) : IRequest<Result<WorkingFile?>>
+    string metsETag,
+    bool bagitFile,
+    bool updateMets = true) : IRequest<Result<WorkingFile?>>
 {
     public bool IsBagItLayout { get; } = isBagItLayout;
     public Uri RootUri { get; } = rootUri;
@@ -35,6 +37,8 @@ public class UploadFileToDeposit(
     public string DepositFileName { get; } = depositFileName;
     public string ContentType { get; } = contentType;
     public string MetsETag { get; } = metsETag;
+    public bool BagitFile { get; set; } = bagitFile;
+    public bool UpdateMets { get; set; } = updateMets;
 }
 
 public class UploadFileToDepositHandler(
@@ -46,7 +50,7 @@ public class UploadFileToDepositHandler(
     {
         // TODO: This needs to prevent overlapping calls (repeated requests for the same object, or two uploads trying to update METS)
         var s3Uri = new AmazonS3Uri(request.RootUri);
-        var keyPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent;
+        var keyPath = request.BagitFile ? string.Empty : FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent;
         var fullKey = StringUtils.BuildPath(false, s3Uri.Key, keyPath, request.Slug);
         var req = new PutObjectRequest
         {
@@ -94,7 +98,7 @@ public class UploadFileToDepositHandler(
                     Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
                 };
                 var saveResult = await storage.AddToDepositFileSystem(request.RootUri, file, cancellationToken);
-                if (saveResult.Success)
+                if (saveResult.Success && request.UpdateMets && !request.BagitFile)
                 {
                     var result = await metsManager.HandleSingleFileUpload(request.RootUri, file, request.MetsETag);
                     if (result.Success)

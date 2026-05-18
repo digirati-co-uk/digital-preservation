@@ -41,13 +41,15 @@ public class MetadataReader : IMetadataReader
     private async Task FindMetadata()
     {
         var timestamp = DateTime.UtcNow;
+        var bagitTimestamp = DateTime.UtcNow;
         bool isBagItLayout = false;
         // use storage to read and parse all sources of metadata
         var bagitSha256ManifestResult = await storage.GetStream(rootUri.AppendEscapedSlug("manifest-sha256.txt"));
-        if (bagitSha256ManifestResult is { Success: true, Value: not null })
+        if (bagitSha256ManifestResult is { Success: true, Value.ResponseStream: not null })
         {
             isBagItLayout = true;
-            await ReadBagItSha256(bagitSha256ManifestResult.Value);
+            await ReadBagItSha256(bagitSha256ManifestResult.Value.ResponseStream!);
+            bagitTimestamp = bagitSha256ManifestResult.Value.LastModified;
             // Look for other bagit manifests? (non sha-256)
         }
         // It still might be a bagit layout but without any root bagit files yet
@@ -73,14 +75,14 @@ public class MetadataReader : IMetadataReader
         if (await storage.Exists(brunnhildeProbe))
         {
             brunnhildeSiegfriedOutput = await ParseSiegfriedOutput(brunnhildeRoot.AppendEscapedSlug("siegfried.csv"));
-            if (brunnhildeAVResult is { Success: true, Value: not null })
+            if (brunnhildeAVResult is { Success: true, Value.ResponseStream: not null })
             {
-                infectedFiles = await ReadInfectedFilePaths(brunnhildeAVResult.Value);
+                infectedFiles = await ReadInfectedFilePaths(brunnhildeAVResult.Value.ResponseStream!);
             }
             var brunnhildeHtmlResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("report.html"));
-            if (brunnhildeHtmlResult is { Success: true, Value: not null })
+            if (brunnhildeHtmlResult is { Success: true, Value.ResponseStream: not null })
             {
-                var brunnhildeHtml = await GetTextFromStream(brunnhildeHtmlResult.Value);
+                var brunnhildeHtml = await GetTextFromStream(brunnhildeHtmlResult.Value.ResponseStream!);
                 GetMetadataList("metadata/brunnhilde/report.html").Add(
                     new ToolOutput
                     {
@@ -110,7 +112,7 @@ public class MetadataReader : IMetadataReader
                 {
                     Source = "BagIt",
                     Digest = kvp.Value.ToLowerInvariant(),
-                    Timestamp = timestamp
+                    Timestamp = bagitTimestamp
                 });
             }
         }
@@ -142,12 +144,12 @@ public class MetadataReader : IMetadataReader
 
         var virusDefinition = string.Empty;
         var virusDefinitionFileExists = await storage.Exists(virusDefinitionRoot);
-        if (virusDefinitionFileExists && brunnhildeAVResult is { Success: true, Value: not null })
+        if (virusDefinitionFileExists && brunnhildeAVResult is { Success: true, Value.ResponseStream: not null })
         {
             var virusDefinitionResult = await storage.GetStream(virusDefinitionRoot);
-            if (virusDefinitionResult is { Success: true, Value: not null })
+            if (virusDefinitionResult is { Success: true, Value.ResponseStream: not null })
             {
-                virusDefinition = await GetTextFromStream(virusDefinitionResult.Value);
+                virusDefinition = await GetTextFromStream(virusDefinitionResult.Value.ResponseStream!);
             }
         }
 
@@ -155,9 +157,9 @@ public class MetadataReader : IMetadataReader
         {
             var brunnhildeVirusLogResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("logs").AppendEscapedSlug("viruscheck-log.txt"));
 
-            if (brunnhildeVirusLogResult is { Success: true, Value: not null })
+            if (brunnhildeVirusLogResult is { Success: true, Value.ResponseStream: not null })
             {
-                virusDefinition = await GetVirusDefinitionFromBrunnhilde(brunnhildeVirusLogResult.Value);
+                virusDefinition = await GetVirusDefinitionFromBrunnhilde(brunnhildeVirusLogResult.Value.ResponseStream!);
             }
         }
 
@@ -382,11 +384,11 @@ public class MetadataReader : IMetadataReader
     private async Task<SiegfriedOutput?> ParseSiegfriedOutput(Uri siegfriedUri)
     {
         var streamResult = await storage.GetStream(siegfriedUri);
-        if (streamResult is not { Success: true, Value: not null })
+        if (streamResult is not { Success: true, Value.ResponseStream: not null })
         {
             return null;
         }
-        var txt = await GetTextFromStream(streamResult.Value);
+        var txt = await GetTextFromStream(streamResult.Value.ResponseStream!);
 
         // first assume that the extension corresponds to the data - it might not!
         // (if siegfried used without format and > output.xxx being consistent)
@@ -508,8 +510,8 @@ public class MetadataReader : IMetadataReader
         var metadataRoot = workingRootUri.AppendEscapedSlug("metadata");
         var exifResult = await storage.GetStream(metadataRoot.AppendEscapedSlug("exif").AppendEscapedSlug("exif_output.txt"));
 
-        if (exifResult.Value == null) return [];
-        var txt = await GetTextFromStream(exifResult.Value);
+        if (exifResult.Value.ResponseStream == null) return [];
+        var txt = await GetTextFromStream(exifResult.Value.ResponseStream);
         return ParseExifToolOutput(txt);
 
     }

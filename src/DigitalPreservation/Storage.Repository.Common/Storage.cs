@@ -1,6 +1,4 @@
-﻿using System.Net;
-using System.Text.Json;
-using Amazon.S3;
+﻿using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
@@ -11,6 +9,8 @@ using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Storage.Repository.Common.S3;
+using System.Net;
+using System.Text.Json;
 
 namespace Storage.Repository.Common;
 
@@ -43,15 +43,17 @@ public class Storage(
             {
                 case TemplateType.RootLevel:
                     await PutDirectory(FolderNames.Objects, key, root);
-                    await PutDirectory(FolderNames.Metadata, key, root);
+                    var metadataDirRoot = await PutDirectory(FolderNames.Metadata, key, root);
+                    await PutDirectory(FolderNames.AdHoc, key + metadataDirRoot.Name + "/", metadataDirRoot);
                     break;
                 case TemplateType.BagIt:
                 {
                     var dataDir = await PutDirectory(FolderNames.BagItData, key, root);
                     var dataKey = $"{key}{FolderNames.BagItData}/";
                     await PutDirectory(FolderNames.Objects, dataKey, dataDir);
-                    await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
-                    break;
+                    var metadataDir = await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
+                    await PutDirectory(FolderNames.AdHoc, dataKey + metadataDir.Name + "/", metadataDir);
+                        break;
                 }
             }
             var depositFileSystemKey = key + IStorage.DepositFileSystem;
@@ -565,7 +567,7 @@ public class Storage(
         return Result.Ok(expected);
     }
 
-    public async Task<Result<Stream?>> GetStream(Uri binaryOrigin)
+    public async Task<Result<(Stream? ResponseStream, DateTime LastModified)>> GetStream(Uri binaryOrigin)
     {
         var s3Uri = new AmazonS3Uri(binaryOrigin);
         var s3Req = new GetObjectRequest
@@ -577,13 +579,14 @@ public class Storage(
             var s3Resp = await s3Client.GetObjectAsync(s3Req);
             if (s3Resp.HttpStatusCode == HttpStatusCode.OK)
             {
-                return Result.Ok(s3Resp.ResponseStream);
+                return Result.Ok<(Stream?, DateTime)>((s3Resp.ResponseStream, s3Resp.LastModified));
             }
-            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get stream for " + binaryOrigin);
+            return Result.Fail<(Stream?, DateTime)>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get stream for " + binaryOrigin);
         }
         catch (AmazonS3Exception e)
         {
-            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)e.StatusCode), "Could not get stream for " + binaryOrigin);
+            return Result.Fail<(Stream?, DateTime)>(ErrorCodes.GetErrorCode((int)e.StatusCode), "Could not get stream for " + binaryOrigin);
         }
     }
+
 }

@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using DigitalPreservation.Mets;
 using Storage.Repository.Common.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -29,7 +29,8 @@ public class CreateDepositHandler(
     IStorage storage,
     IMetsManager metsManager,
     MetsFromArchivalGroup metsFromArchivalGroup,
-    WorkspaceManagerFactory workspaceManagerFactory
+    WorkspaceManagerFactory workspaceManagerFactory,
+    IMetsParser metsParser
     ) : 
         CreateDepositBase(
             logger, 
@@ -40,7 +41,8 @@ public class CreateDepositHandler(
             storage, 
             metsManager, 
             metsFromArchivalGroup,
-            workspaceManagerFactory), 
+            workspaceManagerFactory,
+            metsParser), 
         IRequestHandler<CreateDeposit, Result<Deposit?>>
 {
     public async Task<Result<Deposit?>> Handle(CreateDeposit request, CancellationToken cancellationToken)

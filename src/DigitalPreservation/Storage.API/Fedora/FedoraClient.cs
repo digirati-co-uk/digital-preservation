@@ -656,9 +656,9 @@ internal class FedoraClient(
         {
             logger.LogInformation("Getting stream from storage content at origin {origin}", binary.Origin);
             var streamResult = await storage.GetStream(binary.Origin!);
-            if (streamResult is { Success: true, Value: not null })
+            if (streamResult is { Success: true, Value.ResponseStream: not null })
             {
-                putStream = streamResult.Value;
+                putStream = streamResult.Value.ResponseStream!;
             }
             else
             {

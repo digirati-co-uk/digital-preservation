@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Auth;
 using MediatR;
@@ -33,9 +34,9 @@ public class ActivateDepositHandler : IRequestHandler<ActivateDeposit, Result>
             return Result.Fail(ErrorCodes.NotFound, "No deposit for ID " + request.Id);
         }
         //guard
-        if (!request.Active && entity.Status == "new")
+        if (!request.Active && entity.Status != DepositStates.Error)
         {
-            return Result.Fail(ErrorCodes.NotFound, "deposit.active = false not allowed on deposit.status == new" + request.Id);
+            return Result.Fail(ErrorCodes.BadRequest, $"deposit.active = false not allowed when deposit.status != error (id: {request.Id})");
         }
         
         var callerIdentity = request.User.GetCallerIdentity();

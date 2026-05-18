@@ -131,12 +131,26 @@ public class GetDepositsHandler(
                 }
                 else
                 {
-                    predicate = predicate.And(x => x.Active == true);
+                    if (q.Active.HasValue && q.Active is false)
+                    {
+                        predicate = predicate.And(x => !x.Active);
+                    }
+                    else
+                    {
+                        predicate = predicate.And(x => x.Active == true);
+                    }
+
                 }
 
                 if (q.Status.HasText())
                 {
                     predicate = predicate.And(x => x.Status == q.Status);
+                }
+
+                if (q.Archived.HasValue)
+                {
+                    predicate = q.Archived == true ? predicate.And(x => x.Archived.HasValue) : predicate.And(x => !x.Archived.HasValue);
+                    // We need at least one predicate so...
                 }
 
                 queryable = dbContext.Deposits.Where(predicate);

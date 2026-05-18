@@ -1,11 +1,11 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.LogHelpers;
-using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using LeedsDlipServices.Identity;
 using Preservation.API.Data;
@@ -26,7 +26,8 @@ public class CreateDepositBase(
     IStorage storage,
     IMetsManager metsManager,
     MetsFromArchivalGroup metsFromArchivalGroup,
-    WorkspaceManagerFactory workspaceManagerFactory)
+    WorkspaceManagerFactory workspaceManagerFactory,
+    IMetsParser metsParser)
 {
     protected async Task<Result<Deposit?>> HandleBase(CreateDeposit request, CancellationToken cancellationToken)
     {        
@@ -119,6 +120,7 @@ public class CreateDepositBase(
                 storageMapForExport,
                 request.Deposit.VersionExported,
                 agNameFromDeposit,
+                request.Deposit,
                 cancellationToken);
 
             if (metsResult.Failure)
@@ -127,7 +129,7 @@ public class CreateDepositBase(
                 return Result.Fail<Deposit?>(metsResult.ErrorCode!, metsResult.ErrorMessage);
             }
             logger.LogInformation("Result from EnsureMets is success " + metsResult.Success);
-            
+
             var metadataReader = await MetadataReader.Create(storage, filesLocation.Value!);
             await storage.GenerateDepositFileSystem(filesLocation.Value!, true, metadataReader.Decorate, cancellationToken);
 
@@ -175,7 +177,22 @@ public class CreateDepositBase(
                 // But here we didn't, so just do a quick update (it won't take long)
                 await workspaceManagerFactory.CreateAsync(createdDeposit, true);
             }
-            
+
+            if (!request.Export) return Result.Ok(createdDeposit);
+
+            var wrapperResult = await metsParser.GetMetsFileWrapper(createdDeposit.Files!);
+
+            var metadataFolder = wrapperResult.Value?.PhysicalStructure!.FindDirectory(FolderNames.Metadata);
+
+            if (metadataFolder == null)
+                await CreateFolderInMets(FolderNames.Metadata, FolderNames.Metadata, createdDeposit);
+
+            var adHocFolder = wrapperResult.Value?.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc);
+
+            if (adHocFolder == null)
+                await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
+
+
             return Result.Ok(createdDeposit);
         }
         catch (Exception e)
@@ -185,15 +202,16 @@ public class CreateDepositBase(
         }
         
     }
-    
-      private async Task<Result> EnsureMets(
+
+    private async Task<Result> EnsureMets(
         TemplateType templateType,
-        Uri filesLocation, 
-        Uri? archivalGroupUri, 
-        bool archivalGroupExists, 
-        StorageMap? storageMapForExport, 
-        string? ocflVersion, 
+        Uri filesLocation,
+        Uri? archivalGroupUri,
+        bool archivalGroupExists,
+        StorageMap? storageMapForExport,
+        string? ocflVersion,
         string? agNameFromDeposit,
+        Deposit deposit,
         CancellationToken cancellationToken = default)
     {
         // We need to ensure that there is a METS file in the deposit.
@@ -208,7 +226,9 @@ public class CreateDepositBase(
         {
             // the simplest case - but still only for templated Deposits
             // e.g., Goobi will supply a METS as its next step
-            logger.LogInformation("Archival Group does not yet exist, and template={templateType}, so create a standard METS file", templateType);
+            logger.LogInformation(
+                "Archival Group does not yet exist, and template={templateType}, so create a standard METS file",
+                templateType);
             // Standard or BagIt layout?
             var metsLocation = FolderNames.GetFilesLocation(filesLocation, templateType == TemplateType.BagIt);
             var result = await metsManager.CreateStandardMets(metsLocation, agNameFromDeposit);
@@ -216,6 +236,7 @@ public class CreateDepositBase(
             {
                 return Result.Ok();
             }
+
             logger.LogError("Unable to create standard METS: " + result.CodeAndMessage());
             return Result.Fail(result.ErrorCode!, result.ErrorMessage);
         }
@@ -227,8 +248,10 @@ public class CreateDepositBase(
             // list its root at the correct version
             if (storageMapForExport is null)
             {
-                logger.LogInformation("Not already retrieved, so fetch archival group " + archivalGroupUri + ", version " + ocflVersion);
-                var storageMapResult = await storageApiClient.GetStorageMap(archivalGroupUri!.GetPathUnderRoot()!, ocflVersion);
+                logger.LogInformation("Not already retrieved, so fetch archival group " + archivalGroupUri +
+                                      ", version " + ocflVersion);
+                var storageMapResult =
+                    await storageApiClient.GetStorageMap(archivalGroupUri!.GetPathUnderRoot()!, ocflVersion);
                 if (storageMapResult is { Success: true, Value: not null })
                 {
                     logger.LogInformation("Storage Map retrieved: " + storageMapResult.Value.Version.OcflVersion);
@@ -239,22 +262,25 @@ public class CreateDepositBase(
                     logger.LogError("Unable to fetch Storage Map: " + storageMapResult.CodeAndMessage());
                     return Result.Fail(
                         storageMapResult.ErrorCode ?? ErrorCodes.UnknownError,
-                        storageMapResult.ErrorMessage ?? "Could not retrieve storage map to look for METS: " + archivalGroupUri);
+                        storageMapResult.ErrorMessage ??
+                        "Could not retrieve storage map to look for METS: " + archivalGroupUri);
                 }
             }
             else
             {
                 storageMap = storageMapForExport;
             }
-            
+
             // An exported Archival Group is, for now, always in our root-level template, not in BagIt format
 
 
             var metsFile = storageMap.Files.Values.FirstOrDefault(f => MetsUtils.IsMetsFile(f.FullPath))?.FullPath;
             if (metsFile is null)
             {
-                logger.LogWarning("No METS file found in Archival Group " + archivalGroupUri + ", version " + ocflVersion);
+                logger.LogWarning("No METS file found in Archival Group " + archivalGroupUri + ", version " +
+                                  ocflVersion);
             }
+
             if (metsFile is null && templateType != TemplateType.None)
             {
                 logger.LogWarning("Creating Standard METS file in AG " + archivalGroupUri + ", version " + ocflVersion);
@@ -264,13 +290,15 @@ public class CreateDepositBase(
                 // Otherwise what would it mean to add METS to an older version?
                 if (storageMap.Version.OcflVersion != storageMap.HeadVersion.OcflVersion)
                 {
-                    return Result.Fail(ErrorCodes.UnknownError, 
+                    return Result.Fail(ErrorCodes.UnknownError,
                         "If exporting an Archival Group that doesn't have a METS, you can only export the HEAD version.");
                 }
+
                 var archivalGroupResult = await storageApiClient.GetArchivalGroup(archivalGroupUri!.AbsolutePath);
                 if (archivalGroupResult is { Success: true, Value: not null })
                 {
-                    var result = await metsFromArchivalGroup.CreateStandardMets(filesLocation, archivalGroupResult.Value,
+                    var result = await metsFromArchivalGroup.CreateStandardMets(filesLocation,
+                        archivalGroupResult.Value,
                         agNameFromDeposit);
                     if (result is { Success: true, Value: not null })
                     {
@@ -280,27 +308,47 @@ public class CreateDepositBase(
                     logger.LogError("Unable to create Standard METS file, " + result.CodeAndMessage());
                     return Result.Fail(result.ErrorCode!, result.ErrorMessage);
                 }
-                return Result.Fail(ErrorCodes.UnknownError, 
+
+                return Result.Fail(ErrorCodes.UnknownError,
                     "Could not load Archival Group {}.");
             }
 
             if (metsFile is not null && storageMapForExport is null)
             {
-                logger.LogInformation("There is a METS file, but this isn't an export, so we need to copy it into the Deposit.");
+                logger.LogInformation(
+                    "There is a METS file, but this isn't an export, so we need to copy it into the Deposit.");
                 var storageArchivalGroupUri = resourceMutator.MutatePreservationApiUri(archivalGroupUri);
                 // For now this will always export to the root
-                var exportMetsResult = await storageApiClient.ExportArchivalGroupMetsOnly(storageArchivalGroupUri!, filesLocation, ocflVersion, cancellationToken);
+                var exportMetsResult = await storageApiClient.ExportArchivalGroupMetsOnly(storageArchivalGroupUri!,
+                    filesLocation, ocflVersion, cancellationToken);
                 if (exportMetsResult is { Success: true, Value: not null, Value.DateFinished: not null })
                 {
                     return Result.Ok();
                 }
+
                 logger.LogError("Unable to copy METS file to deposit: " + exportMetsResult.CodeAndMessage());
                 return Result.Fail(exportMetsResult.ErrorCode!, exportMetsResult.ErrorMessage);
             }
         }
+
         // No action
         logger.LogInformation("Ensure METS concludes no METS file should be created.");
+
         return Result.Ok();
     }
-    
+
+    private async Task CreateFolderInMets(string pathName, string folderName, Deposit deposit)
+    {
+        var dir = new WorkingDirectory
+        {
+            LocalPath = FolderNames.GetPathPrefix(deposit.Template == TemplateType.BagIt) + pathName,
+            Name = folderName,
+            Modified = DateTime.UtcNow
+        };
+
+        var dirForMets = deposit.Template == TemplateType.BagIt ? dir.ToRootLayout() : dir;
+
+        await metsManager.HandleCreateFolder(deposit.Files!, dirForMets, deposit.MetsETag!);
+    }
+
 }
