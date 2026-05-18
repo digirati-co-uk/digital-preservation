@@ -148,6 +148,8 @@ public class Functions
         if (await HasPreviousFailedArchive(depositId))
             return;
 
+        Log.Logger.Information("Last modified date before patching for {DepositId} is {LastModified}", depositId, deposit.LastModified);
+
         var workspaceManager = await GetWorkspaceManager(depositId, true);
 
         await ReleaseLock(deposit, depositId);
@@ -228,6 +230,8 @@ public class Functions
             return;
         }
 
+        Log.Logger.Information("Last modified date after patching for {DepositId} is {LastModified}", depositId, patchResult.Value!.LastModified);
+        Log.Logger.Information("Archived date after patching for {DepositId} is {Archived}", depositId, patchResult.Value!.Archived);
         Log.Logger.Information("Successfully patched deposit for {DepositId}", depositId);
     }
 
