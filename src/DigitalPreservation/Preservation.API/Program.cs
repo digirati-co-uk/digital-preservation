@@ -60,7 +60,8 @@ try
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowAll", policy =>
-            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()
+                  .WithExposedHeaders("X-IIIF-Post-Url"));
     });
 
     builder.Services
@@ -89,6 +90,7 @@ try
         .AddSingleton<PremisEventManagerVirus>()
         .AddSingleton<IMetsStorage, S3MetsStorage>()
         .AddSingleton<WorkspaceManagerFactory>()
+        .AddSingleton<ITokenService, TokenService>()
         .AddSingleton<ManifestBuilder>()
         .AddPreservationHealthChecks()
         .AddCorrelationIdHeaderPropagation()

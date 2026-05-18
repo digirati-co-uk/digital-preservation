@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -13,58 +9,18 @@ using IIIF.Presentation.V3;
 using IIIF.Presentation.V3.Annotation;
 using IIIF.Presentation.V3.Content;
 using IIIF.Presentation.V3.Strings;
-using Microsoft.Extensions.Caching.Memory;
 using Range = IIIF.Presentation.V3.Range;
 
 namespace Preservation.API.IIIF;
 
-public class ManifestBuilder(IMemoryCache memoryCache)
-{    
-    private static string GetSessionToken()
-    {
-        using var sha256 = SHA256.Create();
-        var longToken = Checksum.HashFromString(Guid.NewGuid().ToString("N") + DateTime.Now.Ticks, sha256);
-        return new string(longToken.Where((_, i) => i % 2 == 0).ToArray());
-    }
-
-    public string GetToken(string key)
-    {
-        if(memoryCache.TryGetValue(key, out string? token))
-        {
-            if (token.HasText())
-            {
-                return token;
-            }
-        }
-
-        token = GetSessionToken();
-        var cacheEntryOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(TimeSpan.FromMinutes(56)) // assume token is valid for 1 hour
-            .SetSlidingExpiration(TimeSpan.FromMinutes(55));
-        memoryCache.Set(key, token, cacheEntryOptions);
-        memoryCache.Set(token, key, cacheEntryOptions);
-        return token;
-    }
-
-    public string? GetKey(string token)
-    {
-        if(memoryCache.TryGetValue(token, out string? key))
-        {
-            if (key.HasText())
-            {
-                return key;
-            }
-        }
-
-        return null;
-    }
-
+public class ManifestBuilder
+{
     public void MakeCanvasesAndRanges(Manifest manifest, MetsFileWrapper wrapper, string plainBaseUrl, string mediaServerBaseUrl)
     {
         const string none = "none";
         var canvasMap = new Dictionary<string, Canvas>();
-        
-        // establish which files are targets of links before building canvases
+
+        // Establish which files are targets of links before building canvases
         var linkTargets = new Dictionary<string, List<WorkingFile>>();
         foreach (var file in wrapper.Files)
         {
@@ -75,29 +31,21 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                     from = [];
                     linkTargets[fileLink.To] = from;
                 }
-
                 from.Add(file);
             }
         }
 
-        // The following can be made to work with deposits and preserved items
         manifest.Items = [];
         foreach (var file in wrapper.Files)
         {
             if (!file.LocalPath.StartsWith("objects/"))
-            {
                 continue;
-            }
             if (file.ContentType.IsNullOrWhiteSpace())
-            {
                 continue;
-            }
-            
+
             if (linkTargets.TryGetValue(file.LocalPath, out _))
             {
-                // This file is the target of a link from another file, so we may nopt want to make a Canvas from it.
-                // Assume for now it's always an "adjunct" - it may not be in future so the logic will get more
-                // complex - there could be links between canvases. We'd examine the _role_ of the link.
+                // Adjunct file (e.g. transcript target) — skipped as a canvas; served via file/ URL.
                 continue;
             }
 
@@ -124,10 +72,10 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                 new AnnotationPage
                 {
                     Id = $"{canvas.Id}/painting",
-                    Items = [ paintingAnno ]
+                    Items = [paintingAnno]
                 }
             ];
-            
+
             if (file.ContentType.StartsWith("image/") && canvas is { Width: > 0, Height: > 0 })
             {
                 var size = new Size(canvas.Width.Value, canvas.Height.Value);
@@ -151,7 +99,6 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                     }
                 ];
             }
-
             else if (file.ContentType.StartsWith("video/") && canvas is { Width: > 0, Height: > 0, Duration: > 0 })
             {
                 paintingAnno.Body = new Video
@@ -162,8 +109,17 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                     Duration = canvas.Duration,
                     Format = file.ContentType
                 };
+                canvas.Rendering =
+                [
+                    new ExternalResource("Video")
+                    {
+                        Id = $"{mediaServerBaseUrl}video/{escapedLocal}",
+                        Format = file.ContentType,
+                        Behavior = ["original"],
+                        Label = canvas.Label
+                    }
+                ];
             }
-            
             else if (file.ContentType.StartsWith("audio/") && canvas is { Duration: > 0 })
             {
                 paintingAnno.Body = new Sound
@@ -172,12 +128,20 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                     Duration = canvas.Duration,
                     Format = file.ContentType
                 };
+                canvas.Rendering =
+                [
+                    new ExternalResource("Sound")
+                    {
+                        Id = $"{mediaServerBaseUrl}audio/{escapedLocal}",
+                        Format = file.ContentType,
+                        Behavior = ["original"],
+                        Label = canvas.Label
+                    }
+                ];
             }
-
             else
             {
                 canvas.Behavior = ["placeholder"];
-                // Not a file with renderable extent
                 paintingAnno.Body = new Image
                 {
                     Id = $"{mediaServerBaseUrl}placeholder/canvas.png",
@@ -199,52 +163,52 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                 [
                     new ExternalResource("Text")
                     {
-                        Id = $"{mediaServerBaseUrl}placeholder/rendering.png",
+                        Id = $"{mediaServerBaseUrl}file/{escapedLocal}",
                         Format = file.ContentType,
-                        Behavior = [ "original" ],
+                        Behavior = ["original"],
                         Label = canvas.Label
                     }
                 ];
             }
 
+            // Collect all transcript annotations into a single AnnotationPage
+            var transcriptItems = new List<IAnnotation>();
             foreach (var fileLink in file.Links)
             {
                 var role = fileLink.Role?.ToString();
-                var target = wrapper.Files.Single(f => f.LocalPath == fileLink.To);
-                if (role.HasText() && role.EndsWith("transcript"))
+                if (!role.HasText() || !role.EndsWith("transcript")) continue;
+                var target = wrapper.Files.SingleOrDefault(f => f.LocalPath == fileLink.To);
+                if (target == null) continue;
+                transcriptItems.Add(new GeneralAnnotation("supplementing")
                 {
-                    canvas.Annotations =
+                    Body =
                     [
-                        new AnnotationPage
+                        new ExternalResource("Text")
                         {
-                            Id = $"{canvas.Id}/annotations",
-                            Items = 
-                            [
-                                new GeneralAnnotation("supplementing")
-                                {
-                                    Body = 
-                                    [
-                                        new ExternalResource("Text")
-                                        {
-                                            Id = $"{mediaServerBaseUrl}file/{target.LocalPath.EscapePathElements()}",
-                                            Label = new LanguageMap("en", "Transcript"),
-                                            Format = target.ContentType
-                                        }
-                                    ],
-                                    Target = new Canvas { Id = canvas.Id }
-                                }
-                            ]
-
+                            Id = $"{mediaServerBaseUrl}file/{target.LocalPath.EscapePathElements()}",
+                            Label = new LanguageMap("en", "Transcript"),
+                            Format = target.ContentType
                         }
-                    ];
-                }
+                    ],
+                    Target = new Canvas { Id = canvas.Id }
+                });
             }
-            
+            if (transcriptItems.Count > 0)
+            {
+                canvas.Annotations =
+                [
+                    new AnnotationPage
+                    {
+                        Id = $"{canvas.Id}/annotations",
+                        Items = transcriptItems
+                    }
+                ];
+            }
+
             manifest.Items.Add(canvas);
             canvasMap[file.LocalPath] = canvas;
         }
 
-        // Now turn logical structMap into ranges
         if (wrapper.LogicalStructures.Count > 0)
         {
             foreach (var range in wrapper.LogicalStructures)
@@ -253,32 +217,34 @@ public class ManifestBuilder(IMemoryCache memoryCache)
                 manifest.Structures.Add(MakeRange(range, canvasMap, $"{plainBaseUrl}ranges/"));
             }
         }
-        
+
         manifest.EnsurePresentation3Context();
     }
 
     private Range MakeRange(LogicalRange logicalRange, Dictionary<string, Canvas> canvasMap, string rangeBaseUrl)
     {
-        var label = $"{logicalRange.Type}: {logicalRange.Name ?? logicalRange.Id}"; 
+        var label = $"{logicalRange.Type}: {logicalRange.Name ?? logicalRange.Id}";
         var iiifRange = new Range
         {
             Id = $"{rangeBaseUrl}{logicalRange.Id}",
-            Label = new LanguageMap("en", label)
+            Label = new LanguageMap("en", label),
+            Metadata =
+            [
+                new LabelValuePair("en", "Type", logicalRange.Type),
+                new LabelValuePair("en", "Name", logicalRange.Name ?? ""),
+                new LabelValuePair("en", "id", logicalRange.Id)
+            ]
         };
         if (logicalRange.AccessRestrictions != null)
         {
-            iiifRange.Metadata ??= [];
             iiifRange.Metadata.AddRange(logicalRange.AccessRestrictions.Select(
                 a => new LabelValuePair("en", "access restriction", a)));
         }
         if (logicalRange.RightsStatement != null)
-        {
             iiifRange.Rights = logicalRange.RightsStatement.ToString();
-        }
 
         if (logicalRange.RecordInfo != null)
         {
-            iiifRange.Metadata ??= [];
             iiifRange.Metadata.AddRange(logicalRange.RecordInfo.RecordIdentifiers.Select(
                 r => new LabelValuePair("en", $"record identifier: {r.Source}", r.Value)));
         }
@@ -292,39 +258,29 @@ public class ManifestBuilder(IMemoryCache memoryCache)
         foreach (var filePointer in logicalRange.Files)
         {
             if (!canvasMap.TryGetValue(filePointer.LocalPath, out var canvas))
-            {
                 continue;
-            }
 
             var canvasRef = new Canvas { Id = canvas.Id };
             var fragment = "";
-            // TODO: use FragmentSelector once in iiif-net
             if (filePointer.BeginTime > 0)
             {
                 fragment = $"t={filePointer.BeginTime}";
                 if (filePointer.EndTime > filePointer.BeginTime)
-                {
                     fragment += $",{filePointer.EndTime}";
-                }
             }
             if (filePointer.Region != null)
             {
-                if (fragment.HasText())
-                {
-                    fragment += "&";
-                }
+                if (fragment.HasText()) fragment += "&";
                 fragment +=
                     $"xywh={filePointer.Region.X1},{filePointer.Region.Y1},{filePointer.Region.X2 - filePointer.Region.X1},{filePointer.Region.Y2 - filePointer.Region.Y1}";
             }
-
             if (fragment.HasText())
-            {
                 canvasRef.Id += $"#{fragment}";
-            }
+
             iiifRange.Items ??= [];
             iiifRange.Items.Add(canvasRef);
         }
-        
+
         return iiifRange;
     }
 }

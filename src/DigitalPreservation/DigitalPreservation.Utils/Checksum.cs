@@ -29,12 +29,6 @@ public class Checksum
         return null;
     }
 
-    public static string HashFromString(string s, HashAlgorithm hashAlgorithm)
-    {
-        var hashValue = hashAlgorithm.ComputeHash(Encoding.UTF8.GetBytes(s));
-        return FromByteArray(hashValue);
-    }
-
     public static string? Sha256FromFile(FileInfo fileInfo)
     {
         using SHA256 sha256 = SHA256.Create();

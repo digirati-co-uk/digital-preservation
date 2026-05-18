@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.IO;
 using System.Text.Json;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -11,7 +9,6 @@ using IIIFSize = IIIF.Size;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.IIIF;
 using SixLabors.ImageSharp;
@@ -24,16 +21,16 @@ namespace Preservation.API.Features.MediaServer;
 [ApiController]
 [EnableCors("AllowAll")]
 public class MediaController(
-    ILogger<MediaController> logger,
     IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory,
-    ManifestBuilder manifestBuilder
+    ITokenService tokenService
 ) : ControllerBase
 {
     private static readonly Lazy<byte[]> CanvasPlaceholder = new(() => GeneratePlaceholderPng(1000, 800));
     private static readonly Lazy<byte[]> ThumbPlaceholder = new(() => GeneratePlaceholderPng(100, 80));
 
     [AllowAnonymous]
+    // Level-0 image service: only /full/{w,h}/0/default.jpg is supported, plus /info.json
     [HttpGet("{token}/{source}/{sourceId}/{type}/{**localPath}", Name = "GetMedia")]
     public async Task<IActionResult> GetMedia(
         [FromRoute] string token,
@@ -43,26 +40,21 @@ public class MediaController(
         [FromRoute] string localPath)
     {
         if (source != "deposit")
-        {
-            throw new NotSupportedException("Only serve media from deposits for now");
-        }
+            return BadRequest(new ProblemDetails { Title = "Unsupported source", Detail = "Only 'deposit' is supported." });
 
         if (!ValidateLocalPath(localPath))
-        {
             return Unauthorized();
-        }
 
-        var key = manifestBuilder.GetKey(token);
+        var key = tokenService.GetKey(token);
         if (!key.HasText() || key.GetSlug() != sourceId)
-        {
-            return Unauthorized();
-        }
+            return Problem(
+                title: "Session expired",
+                detail: "The IIIF session token has expired or is invalid. Re-open the manifest from the preservation system.",
+                statusCode: 401);
 
         var depositResult = await mediator.Send(new GetDeposit(sourceId));
         if (depositResult is not { Success: true, Value: not null })
-        {
             return NotFound();
-        }
 
         var deposit = depositResult.Value;
         var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit);
@@ -70,12 +62,11 @@ public class MediaController(
         var workingDirectory = workingDirectoryResult.Value;
 
         if (workingDirectory == null)
-        {
             return NotFound();
-        }
 
         if (type == "placeholder")
         {
+            Response.Headers.CacheControl = "public, max-age=86400, immutable";
             return ServePlaceholder(localPath);
         }
 
@@ -86,35 +77,36 @@ public class MediaController(
 
         if (type == "imagesvc")
         {
-            string realLocalPath;
             var elements = localPath.Split('/');
 
             if (elements[^1] == "info.json")
             {
-                realLocalPath = localPath[..^"/info.json".Length];
+                var realLocalPath = localPath[..^"/info.json".Length];
                 var mediaItem = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + realLocalPath);
                 var imageBaseUrl = Request.GetDisplayUrl();
                 imageBaseUrl = imageBaseUrl[..imageBaseUrl.LastIndexOf("/info.json", StringComparison.Ordinal)];
+                Response.Headers.CacheControl = "private, max-age=600";
                 return InfoJson(imageBaseUrl, mediaItem);
             }
 
-            if (elements[^1] == "default.jpg" && elements[^2] == "0" && elements[^4] == "full")
+            // /full/{w,h}/0/default.jpg — requires at least 4 segments after the file path
+            if (elements.Length >= 4 && elements[^1] == "default.jpg" && elements[^2] == "0" && elements[^4] == "full")
             {
                 var size = elements[^3];
                 var imageApi = $"/full/{size}/0/default.jpg";
-                realLocalPath = localPath[..^imageApi.Length];
+                var realLocalPath = localPath[..^imageApi.Length];
+                Response.Headers.CacheControl = "private, max-age=3600";
+                Response.Headers.ETag = ImageETag(realLocalPath, size);
                 return await ImageFromImageService(workspaceManager, origin, realLocalPath, size);
             }
 
-            // Bare imagesvc URL with no IIIF params — redirect to info.json if the file exists
+            // Bare imagesvc URL — redirect to info.json if the file exists
             if (elements.Length >= 4)
             {
                 var testRealLocalPath = string.Join('/', elements[..^4]);
                 var testMediaItem = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + testRealLocalPath);
                 if (testMediaItem != null)
-                {
                     return Redirect(Request.GetDisplayUrl() + "/info.json");
-                }
             }
 
             return NotFound();
@@ -122,13 +114,15 @@ public class MediaController(
 
         var item = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + localPath);
         if (item == null)
-        {
             return NotFound();
-        }
 
+        Response.Headers.CacheControl = "private, max-age=3600";
+        Response.Headers.ETag = FileETag(localPath, item.Size);
         return await ProxyFileWithByteRangeSupport(workspaceManager, origin, localPath, item, HttpContext);
     }
 
+    // ValidateLocalPath guards against path traversal in the S3 key.
+    // FindFile() is the authoritative gate (exact-match against deposit tree), so this is defence-in-depth.
     private static bool ValidateLocalPath(string localPath)
     {
         if (string.IsNullOrEmpty(localPath)) return false;
@@ -140,6 +134,12 @@ public class MediaController(
         }
         return true;
     }
+
+    private static string FileETag(string localPath, long? size) =>
+        $"W/\"{localPath.GetHashCode():x}-{size ?? 0}\"";
+
+    private static string ImageETag(string localPath, string sizeParam) =>
+        $"W/\"{localPath.GetHashCode():x}-{sizeParam.GetHashCode():x}\"";
 
     private static async Task<IActionResult> ProxyFileWithByteRangeSupport(
         WorkspaceManager workspaceManager, Uri origin, string localPath, WorkingFile item, HttpContext httpContext)
@@ -161,33 +161,26 @@ public class MediaController(
                 var to = r.To;
                 var streamResult = await workspaceManager.GetRangedStream(fileUri, from, to);
                 if (streamResult is not { Success: true, Value: not null })
-                {
                     return new NotFoundResult();
-                }
 
-                // Compute the actual end byte for the Content-Range header.
-                // item.Size should be populated from the deposit file system.
-                var totalSize = item.Size;
-                var actualTo = to ?? (totalSize.HasValue ? totalSize.Value - 1 : from);
-                var totalPart = totalSize.HasValue ? totalSize.Value.ToString() : "*";
+                var rangedLength = streamResult.Value.RangedContentLength;
+                var actualTo    = to ?? (from + rangedLength - 1);
+                // Use item.Size when available; derive from ranged response when to=null (open-ended range)
+                var knownTotal  = item.Size ?? (to == null ? from + rangedLength : (long?)null);
+                var totalPart   = knownTotal.HasValue ? knownTotal.Value.ToString() : "*";
 
                 httpContext.Response.StatusCode = StatusCodes.Status206PartialContent;
                 httpContext.Response.Headers.ContentRange = $"bytes {from}-{actualTo}/{totalPart}";
                 httpContext.Response.ContentLength = actualTo - from + 1;
-                return new FileStreamResult(streamResult.Value, contentType);
+                return new FileStreamResult(streamResult.Value.Stream, contentType);
             }
         }
 
-        // No Range header — serve the full file
         var fullStreamResult = await workspaceManager.GetStream(fileUri);
         if (fullStreamResult is not { Success: true, Value: not null })
-        {
             return new NotFoundResult();
-        }
         if (item.Size.HasValue)
-        {
             httpContext.Response.ContentLength = item.Size.Value;
-        }
         return new FileStreamResult(fullStreamResult.Value, contentType);
     }
 
@@ -203,9 +196,7 @@ public class MediaController(
         var fileUri = new Uri(origin.ToString().TrimEnd('/') + "/" + realLocalPath);
         var streamResult = await workspaceManager.GetStream(fileUri);
         if (streamResult is not { Success: true, Value: not null })
-        {
             return new NotFoundResult();
-        }
 
         var parts = size.Split(',');
         var w = parts[0].Length > 0 && int.TryParse(parts[0], out var pw) ? pw : 0;
@@ -228,32 +219,30 @@ public class MediaController(
     {
         var extents = mediaItem?.Metadata.OfType<ExtentMetadata>().SingleOrDefault();
         if (extents is not { PixelWidth: > 0, PixelHeight: > 0 })
-        {
             return new NotFoundResult();
-        }
 
-        var original = new IIIFSize(extents.PixelWidth.Value, extents.PixelHeight.Value);
-        var mainSize = IIIFSize.Confine(1200, original);
+        var original  = new IIIFSize(extents.PixelWidth.Value, extents.PixelHeight.Value);
+        var mainSize  = IIIFSize.Confine(1200, original);
         var thumbSize = IIIFSize.Confine(100, original);
 
         var info = new Dictionary<string, object>
         {
             ["@context"] = "http://iiif.io/api/image/3/context.json",
-            ["id"] = imageBaseUrl,
-            ["type"] = "ImageService3",
+            ["id"]       = imageBaseUrl,
+            ["type"]     = "ImageService3",
             ["protocol"] = "http://iiif.io/api/image",
-            ["profile"] = "level0",
-            ["width"] = extents.PixelWidth.Value,
-            ["height"] = extents.PixelHeight.Value,
-            ["sizes"] = new[]
+            ["profile"]  = "level0",
+            ["width"]    = extents.PixelWidth.Value,
+            ["height"]   = extents.PixelHeight.Value,
+            ["sizes"]    = new[]
             {
                 new { width = thumbSize.Width, height = thumbSize.Height },
-                new { width = mainSize.Width, height = mainSize.Height }
+                new { width = mainSize.Width,  height = mainSize.Height  }
             }
         };
         return new ContentResult
         {
-            Content = JsonSerializer.Serialize(info),
+            Content     = JsonSerializer.Serialize(info),
             ContentType = "application/json"
         };
     }
@@ -265,5 +254,4 @@ public class MediaController(
         image.SaveAsPng(ms);
         return ms.ToArray();
     }
-
 }

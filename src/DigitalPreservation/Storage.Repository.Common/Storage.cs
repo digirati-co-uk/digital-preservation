@@ -587,7 +587,7 @@ public class Storage(
         }
     }
 
-    public async Task<Result<Stream?>> GetRangedStream(Uri binaryOrigin, long from, long? to)
+    public async Task<Result<RangedStreamResult?>> GetRangedStream(Uri binaryOrigin, long from, long? to)
     {
         var s3Uri = new AmazonS3Uri(binaryOrigin);
         var s3Req = new GetObjectRequest
@@ -603,13 +603,13 @@ public class Storage(
             var s3Resp = await s3Client.GetObjectAsync(s3Req);
             if (s3Resp.HttpStatusCode == HttpStatusCode.PartialContent || s3Resp.HttpStatusCode == HttpStatusCode.OK)
             {
-                return Result.Ok(s3Resp.ResponseStream);
+                return Result.Ok(new RangedStreamResult(s3Resp.ResponseStream, s3Resp.ContentLength));
             }
-            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get ranged stream for " + binaryOrigin);
+            return Result.Fail<RangedStreamResult>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get ranged stream for " + binaryOrigin);
         }
         catch (AmazonS3Exception e)
         {
-            return Result.Fail<Stream>(ErrorCodes.GetErrorCode((int)e.StatusCode), "Could not get ranged stream for " + binaryOrigin);
+            return Result.Fail<RangedStreamResult>(ErrorCodes.GetErrorCode((int)e.StatusCode), "Could not get ranged stream for " + binaryOrigin);
         }
     }
 }

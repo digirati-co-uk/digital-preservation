@@ -73,6 +73,32 @@ function renderLogicalStructMap(structmapId) {
     container.appendChild(wrapper);
 }
 
+function formatTime(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function fpAnnotation(fp) {
+    const parts = [];
+    if (fp.beginTime != null || fp.endTime != null) {
+        const begin = fp.beginTime != null ? formatTime(fp.beginTime) : '?';
+        const end   = fp.endTime   != null ? formatTime(fp.endTime)   : '?';
+        parts.push(`⏱ ${begin} – ${end}`);
+    }
+    if (fp.region != null) {
+        const r = fp.region;
+        parts.push(`▭ ${r.x1},${r.y1} – ${r.x2},${r.y2}`);
+    }
+    if (!parts.length) return null;
+    const small = document.createElement('small');
+    small.className = 'text-muted ms-3';
+    small.textContent = parts.join('   ');
+    return small;
+}
+
 function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
     // --- Range row ---
     const tr = document.createElement('tr');
@@ -144,13 +170,17 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
         fileNameTd.style.paddingLeft = `${1.3 * (depth + 1)}rem`;
         fileNameTd.innerHTML = `<svg class="bi"><use xlink:href="#file-earmark"/></svg> `;
         fileNameTd.appendChild(document.createTextNode(fp.localPath));
+        const annotation = fpAnnotation(fp);
+        if (annotation) fileNameTd.appendChild(annotation);
         fileTr.appendChild(fileNameTd);
 
         const fileDeleteTd = document.createElement('td');
         fileDeleteTd.style.width = '1%';
         fileDeleteTd.style.textAlign = 'right';
-        fileDeleteTd.appendChild(makeActionLink('trash', 'Remove from range',
-            () => removeFileFromRange(structmapId, range.id, fp.localPath), 'link-danger'));
+        if (!annotation) {
+            fileDeleteTd.appendChild(makeActionLink('trash', 'Remove from range',
+                () => removeFileFromRange(structmapId, range.id, fp.localPath), 'link-danger'));
+        }
         fileTr.appendChild(fileDeleteTd);
 
         tbody.appendChild(fileTr);
