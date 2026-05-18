@@ -527,21 +527,21 @@ public class MetsManagerDeepStructureTests
         // --- Total element counts as a sanity check ---
 
         // 9 user-added directories (3 series + 6 children) plus the built-in
-        // objects and metadata divs = 11 Directory divs total, plus one per file.
+        // objects, metadata, and metadata/ad-hoc divs = 12 Directory divs total, plus one per file.
         var allDivs = doc.Descendants(MetsNs + "div").ToList();
-        // 25 files + 13 directories (PHYS_ROOT + metadata + objects + 10 user-added) = 38 divs
-        allDivs.Should().HaveCount(38);
+        // 25 files + 14 directories (PHYS_ROOT + metadata + metadata/ad-hoc + objects + 10 user-added) = 39 divs
+        allDivs.Should().HaveCount(39);
 
         // 25 files in the fileSec
         var fileEls = doc.Descendants(MetsNs + "file").ToList();
         fileEls.Should().HaveCount(25);
 
         // One amdSec per file (25) + one per directory that has an amdSec:
-        //   built-in (objects, metadata) + 10 user-added (series-a, sub-a1, sub-a1-deep,
-        //   sub-a1-deeper, sub-a2, series-b, sub-b1, sub-b2, appendix, series-c) = 12
-        // PHYS_ROOT has no amdSec.  Total: 25 + 12 = 37.
+        //   built-in (objects, metadata, metadata/ad-hoc) + 10 user-added (series-a, sub-a1, sub-a1-deep,
+        //   sub-a1-deeper, sub-a2, series-b, sub-b1, sub-b2, appendix, series-c) = 13
+        // PHYS_ROOT has no amdSec.  Total: 25 + 13 = 38.
         var amdSecs = doc.Descendants(MetsNs + "amdSec").ToList();
-        amdSecs.Should().HaveCount(37);
+        amdSecs.Should().HaveCount(38);
     }
 
     // Verifies that a Directory div exists with correct TYPE, LABEL and ADMID,

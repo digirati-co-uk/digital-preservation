@@ -267,7 +267,7 @@ public class MetsManager(
                                             Id = Constants.MetadataAdHocDivId,
                                             Type = Constants.DirectoryType,
                                             Label = FolderNames.AdHoc,
-                                            Admid = { $"{Constants.DmdIdPrefix}{FolderNames.MetadataAdHoc}" },
+                                            Admid = { $"{Constants.AdmIdPrefix}{FolderNames.MetadataAdHoc}" },
                                             Dmdid = { $"{Constants.DmdIdPrefix}{FolderNames.MetadataAdHoc}" },
                                         }
                                     }
