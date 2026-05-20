@@ -49,11 +49,13 @@ public class DepositModel(
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
     public List<LogicalRange> LogicalStructMaps { get; set; } = [];
     public List<AccessRestriction> AccessConditions { get; set; } = [];
+    public List<string> RangeTypes { get; set; } = [];
 
     private static readonly JsonSerializerOptions CamelCaseOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private static readonly JsonSerializerOptions CaseInsensitiveOptions = new() { PropertyNameCaseInsensitive = true };
 
     public string LogicalStructMapsJson => JsonSerializer.Serialize(LogicalStructMaps, CamelCaseOptions);
+    public string RangeTypesJson => JsonSerializer.Serialize(RangeTypes, CamelCaseOptions);
 
     public string PhysicalFilePathsJson => JsonSerializer.Serialize(
         RootCombinedDirectory?.Flatten().Item2
@@ -137,6 +139,9 @@ public class DepositModel(
         var conditionsResult = await preservationApiClient.GetAccessConditions(HttpContext.RequestAborted);
         if (conditionsResult.Success)
             AccessConditions = conditionsResult.Value!;
+        var rangeTypesResult = await preservationApiClient.GetRangeTypes(HttpContext.RequestAborted);
+        if (rangeTypesResult.Success && rangeTypesResult.Value!.Count > 0)
+            RangeTypes = rangeTypesResult.Value!;
     }
 
     private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)

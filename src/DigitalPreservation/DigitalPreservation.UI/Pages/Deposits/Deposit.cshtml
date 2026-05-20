@@ -911,6 +911,7 @@
             new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
         const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
         const logicalStructMapsData = @Html.Raw(Model.LogicalStructMapsJson);
+        const rangeTypes = @Html.Raw(Model.RangeTypesJson);
         const physicalFilePaths = @Html.Raw(Model.PhysicalFilePathsJson);
         const fileLinkRoles = @Html.Raw(Model.FileLinkRolesJson);
         const physicalFileLinksData = @Html.Raw(Model.PhysicalFileLinksDataJson);

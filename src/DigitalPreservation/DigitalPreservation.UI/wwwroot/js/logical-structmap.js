@@ -319,8 +319,6 @@ function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatem
 // Edit range modal (name + type)
 // ----------------------------------------------------------------
 
-const RANGE_TYPES = ['Collection', 'Item'];
-
 function createEditRangeModal() {
     const modal = document.createElement('div');
     modal.classList.add('modal', 'fade');
@@ -328,7 +326,6 @@ function createEditRangeModal() {
     modal.setAttribute('tabindex', '-1');
     modal.setAttribute('aria-hidden', 'true');
     modal.setAttribute('aria-labelledby', 'editRangeModalTitle');
-    const typeOptions = RANGE_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
     modal.innerHTML = `
         <div class="modal-dialog">
             <div class="modal-content">
@@ -343,7 +340,7 @@ function createEditRangeModal() {
                     </div>
                     <div class="mb-3">
                         <label for="editRangeType" class="form-label">Type</label>
-                        <select class="form-select" id="editRangeType">${typeOptions}</select>
+                        <select class="form-select" id="editRangeType"></select>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -372,7 +369,19 @@ function openEditRangeModal(currentName, currentType, onConfirm) {
     editRangeCallback = onConfirm;
     document.getElementById('editRangeName').value = currentName;
     const typeSelect = document.getElementById('editRangeType');
-    typeSelect.value = RANGE_TYPES.includes(currentType) ? currentType : RANGE_TYPES[0];
+    // Rebuild options, adding the existing type if it isn't in the configured list
+    typeSelect.innerHTML = '';
+    const typesToShow = rangeTypes.includes(currentType)
+        ? rangeTypes
+        : [...rangeTypes, currentType];
+    for (const t of typesToShow) {
+        const option = document.createElement('option');
+        option.value = t;
+        option.textContent = t;
+        typeSelect.appendChild(option);
+    }
+    typeSelect.value = currentType || rangeTypes[0];
+
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editRangeModal')).show();
 }
 
