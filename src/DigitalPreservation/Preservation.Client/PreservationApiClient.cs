@@ -723,4 +723,28 @@ public class PreservationApiClient(
         }
     }
 
+    public async Task<Result<List<string>>> GetRangeTypes(CancellationToken cancellationToken = default)
+    {
+        const string cacheKey = "preservation:range-types";
+        if (memoryCache.TryGetValue(cacheKey, out List<string>? cached))
+            return Result.OkNotNull(cached!);
+        try
+        {
+            var response = await preservationHttpClient.GetAsync("/range-types", cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var rangeTypes = await response.Content.ReadFromJsonAsync<List<string>>(
+                    cancellationToken: cancellationToken) ?? [];
+                memoryCache.Set(cacheKey, rangeTypes, TimeSpan.FromHours(1));
+                return Result.OkNotNull(rangeTypes);
+            }
+            return await response.ToFailNotNullResult<List<string>>("Unable to get range types");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not get range types");
+            return Result.FailNotNull<List<string>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
 }

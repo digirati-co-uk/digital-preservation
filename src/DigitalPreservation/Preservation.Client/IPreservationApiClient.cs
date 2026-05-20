@@ -95,4 +95,5 @@ public interface IPreservationApiClient
         CancellationToken cancellationToken);
 
     Task<Result<List<AccessRestriction>>> GetAccessConditions(CancellationToken cancellationToken = default);
+    Task<Result<List<string>>> GetRangeTypes(CancellationToken cancellationToken = default);
 }
