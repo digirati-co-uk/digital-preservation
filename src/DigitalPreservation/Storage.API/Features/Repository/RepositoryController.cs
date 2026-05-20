@@ -12,7 +12,7 @@ namespace Storage.API.Features.Repository;
 
 [Route(PreservedResource.BasePathElement + "/{*path}")]
 [ApiController]
-public class RepositoryController(IMediator mediator) : Controller
+public class RepositoryController(IMediator mediator) : ControllerBase
 {
     [HttpGet(Name = "Browse")]
     [ProducesResponseType<Container>(200, "application/json")]

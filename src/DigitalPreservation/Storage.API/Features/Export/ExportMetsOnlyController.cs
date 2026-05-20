@@ -12,7 +12,7 @@ namespace Storage.API.Features.Export;
 [ApiController]
 public class ExportMetsOnlyController(
     IMediator mediator,
-    ILogger<ExportMetsOnlyController> logger) : Controller
+    ILogger<ExportMetsOnlyController> logger) : ControllerBase
 {
     [HttpPost(Name = "Export mets Synchronously")]
     [Produces<ExportResource>]

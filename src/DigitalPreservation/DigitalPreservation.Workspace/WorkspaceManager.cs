@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace.Requests;
 using LateApexEarlySpeed.Xunit.Assertion.Json;
@@ -30,14 +31,27 @@ public class WorkspaceManager(
     public bool Editable { get; private set; }
     public string? MetsName { get; private set; }
     
-    // TODO: In phase 2, replace these with always an operation on a CombinedDirectory -> METS Directory, including the workspace root.
-    public List<string> RootAccessRestrictions { get; private set; } = [];
-    public Uri? RootRightsStatement { get; private set; }
     
-    
-    public async Task<Result> SetAccessConditions(List<string> rootAccessRestrictions, Uri? rootRightsStatement)
+    public async Task<Result> SetLogicalStructMap(LogicalRange logicalRange)
     {
-        var result = await mediator.Send(new SetRootAccessConditions(Deposit.Files!, Deposit.MetsETag!, rootAccessRestrictions, rootRightsStatement));
+        var result = await mediator.Send(new SetLogicalStructMap(Deposit.Files!, Deposit.MetsETag!, logicalRange));
+        return result;
+    }
+
+    public async Task<Result> RemoveLogicalStructMap(string id)
+    {
+        var result = await mediator.Send(new RemoveLogicalStructMap(Deposit.Files!, Deposit.MetsETag!, id));
+        return result;
+    }
+
+    public async Task<Result> SetModsInformation(string localPath,
+        List<string> rootAccessRestrictions,
+        Uri? rootRightsStatement,
+        IEnumerable<RecordIdentifier> recordIdentifiers,
+        List<FileLink>? fileLinks = null)
+    {
+        var result = await mediator.Send(new SetModsInformation(Deposit.Files!, localPath, Deposit.MetsETag!,
+            rootAccessRestrictions, rootRightsStatement, recordIdentifiers, fileLinks));
         return result;
     }
 
@@ -59,6 +73,9 @@ public class WorkspaceManager(
     
     
     private Result<CombinedDirectory?>? rootCombinedDirectoryResult;
+    private MetsFileWrapper? metsFileWrapper;
+
+    public List<LogicalRange> LogicalStructures => metsFileWrapper?.LogicalStructures ?? [];
 
     public Result<CombinedDirectory?> GetRootCombinedDirectory()
     {
@@ -104,9 +121,6 @@ public class WorkspaceManager(
             {
                 HasValidFiles = true;
             }
-
-            RootAccessRestrictions = metsWrapper?.RootAccessConditions ?? [];
-            RootRightsStatement = metsWrapper?.RootRightsStatement;
             return Result.Ok(apparentRoot);
         }
 
@@ -119,11 +133,11 @@ public class WorkspaceManager(
         var result = await metsParser.GetMetsFileWrapper(Deposit.Files!, true);
         if (result is { Success: true, Value: not null })
         {
-            var metsWrapper = result.Value;
-            MetsPath = metsWrapper.Self?.LocalPath ?? MetsPath;
-            Editable = metsWrapper.Editable;
-            MetsName = metsWrapper.Name;
-            return metsWrapper;
+            metsFileWrapper = result.Value;
+            MetsPath = metsFileWrapper.Self?.LocalPath ?? MetsPath;
+            Editable = metsFileWrapper.Editable;
+            MetsName = metsFileWrapper.Name;
+            return metsFileWrapper;
         }
         Warnings.Add("Could not obtain METS file wrapper");
         return null;

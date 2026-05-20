@@ -747,39 +747,47 @@ public class MetsManagerWithPremis
     // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task Can_Set_And_Get_Root_Access_Restrictions()
+    public async Task Can_Set_And_Get_Objects_Access_Restrictions()
     {
         var (metsUri, eTag) = await CreateEmptyMets("premis-access-restrictions.xml");
         var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
-
+        fullMets.Mets.DmdSec.Should().HaveCount(1, "The root dmd section only is created"); 
+        
         // Initially empty
-        metsManager.GetRootAccessRestrictions(fullMets).Should().BeEmpty();
+        var wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        wrapper.PhysicalStructure!.AccessRestrictions.Should().BeNull();
+        wrapper.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects").AccessRestrictions.Should().BeNull();
 
-        // Set two restrictions and write
-        metsManager.SetRootAccessRestrictions(fullMets, ["Restricted", "Leeds only"]);
+        // Set two restrictions on objects and write
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["Restricted", "Leeds only"]);
         await metsManager.WriteMets(fullMets);
 
-        // Read back — passing null for eTag bypasses the ETag check after our own write
-        var fullMets2 = (await metsManager.GetFullMets(metsUri, null)).Value!;
-        var restrictions = metsManager.GetRootAccessRestrictions(fullMets2);
-        restrictions.Should().HaveCount(2);
-        restrictions.Should().Contain("Restricted");
-        restrictions.Should().Contain("Leeds only");
+        wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        wrapper.PhysicalStructure!.AccessRestrictions.Should().BeNull();
+        var objectsAccessRestrictions = wrapper.PhysicalStructure!.Directories
+            .Single(d => d.LocalPath == "objects").AccessRestrictions;
+        objectsAccessRestrictions.Should().HaveCount(2);
+        objectsAccessRestrictions.Should().Contain("Restricted");
+        objectsAccessRestrictions.Should().Contain("Leeds only");
 
         // Replace with a single restriction
-        metsManager.SetRootAccessRestrictions(fullMets2, ["Open access"]);
-        await metsManager.WriteMets(fullMets2);
-
-        var fullMets3 = (await metsManager.GetFullMets(metsUri, null)).Value!;
-        var restrictions2 = metsManager.GetRootAccessRestrictions(fullMets3);
-        restrictions2.Should().ContainSingle().Which.Should().Be("Open access");
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["Open access"]);
+        await metsManager.WriteMets(fullMets);
+        
+        wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        wrapper.PhysicalStructure!.AccessRestrictions.Should().BeNull();
+        objectsAccessRestrictions = wrapper.PhysicalStructure!.Directories
+            .Single(d => d.LocalPath == "objects").AccessRestrictions;
+        objectsAccessRestrictions.Should().ContainSingle().Which.Should().Be("Open access");
 
         // Clear
-        metsManager.SetRootAccessRestrictions(fullMets3, []);
-        await metsManager.WriteMets(fullMets3);
-
-        var fullMets4 = (await metsManager.GetFullMets(metsUri, null)).Value!;
-        metsManager.GetRootAccessRestrictions(fullMets4).Should().BeEmpty();
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects", []);
+        await metsManager.WriteMets(fullMets);
+        wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        wrapper.PhysicalStructure!.AccessRestrictions.Should().BeNull();
+        objectsAccessRestrictions = wrapper.PhysicalStructure!.Directories
+            .Single(d => d.LocalPath == "objects").AccessRestrictions;
+        objectsAccessRestrictions.Should().BeNull();
     }
 
     [Fact]
@@ -787,32 +795,43 @@ public class MetsManagerWithPremis
     {
         var (metsUri, eTag) = await CreateEmptyMets("premis-rights-statement.xml");
         var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
-
+    
         // Initially null
-        metsManager.GetRootRightsStatement(fullMets).Should().BeNull();
-
+        var wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        wrapper.PhysicalStructure!.RightsStatement.Should().BeNull();
+        wrapper.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects").RightsStatement.Should().BeNull();
+    
         // Set a rights URI and write
         var ccBy = new Uri("https://creativecommons.org/licenses/by/4.0/");
-        metsManager.SetRootRightsStatement(fullMets, ccBy);
+        metsManager.SetRightsStatementByPath(fullMets, "objects", ccBy);
         await metsManager.WriteMets(fullMets);
-
-        var fullMets2 = (await metsManager.GetFullMets(metsUri, null)).Value!;
-        metsManager.GetRootRightsStatement(fullMets2).Should().Be(ccBy);
-
+        
+        wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        wrapper.PhysicalStructure!.RightsStatement.Should().BeNull();
+        var rightsStatement = wrapper.PhysicalStructure!.Directories
+            .Single(d => d.LocalPath == "objects").RightsStatement;
+        rightsStatement.Should().Be(ccBy);
+    
         // Update to a different URI
         var inC = new Uri("https://rightsstatements.org/page/InC/1.0/");
-        metsManager.SetRootRightsStatement(fullMets2, inC);
-        await metsManager.WriteMets(fullMets2);
-
-        var fullMets3 = (await metsManager.GetFullMets(metsUri, null)).Value!;
-        metsManager.GetRootRightsStatement(fullMets3).Should().Be(inC);
-
+        metsManager.SetRightsStatementByPath(fullMets, "objects", inC);
+        await metsManager.WriteMets(fullMets);
+        
+        wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        wrapper.PhysicalStructure!.RightsStatement.Should().BeNull();
+        rightsStatement = wrapper.PhysicalStructure!.Directories
+            .Single(d => d.LocalPath == "objects").RightsStatement;
+        rightsStatement.Should().Be(inC);
+        
         // Clear (set to null)
-        metsManager.SetRootRightsStatement(fullMets3, null);
-        await metsManager.WriteMets(fullMets3);
-
-        var fullMets4 = (await metsManager.GetFullMets(metsUri, null)).Value!;
-        metsManager.GetRootRightsStatement(fullMets4).Should().BeNull();
+        metsManager.SetRightsStatementByPath(fullMets, "objects", null);
+        await metsManager.WriteMets(fullMets);
+    
+        wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
+        wrapper.PhysicalStructure!.RightsStatement.Should().BeNull();
+        rightsStatement = wrapper.PhysicalStructure!.Directories
+            .Single(d => d.LocalPath == "objects").RightsStatement;
+        rightsStatement.Should().BeNull();
     }
 
     // -----------------------------------------------------------------------
@@ -928,14 +947,14 @@ public class MetsManagerWithPremis
     {
         // MetsManager.SetRootAccessRestrictions / SetRootRightsStatement write MODS
         // accessCondition elements. PopulateFromMets must read these back into
-        // MetsFileWrapper.RootAccessConditions and RootRightsStatement.
+        // ResourceBase.AccessConditions and ResourceBase.RightsStatement.
         // This is the path the UI uses — it reads MetsFileWrapper, not FullMets.
 
         var (metsUri, eTag) = await CreateEmptyMets("parser-access-conditions.xml");
         var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
 
-        metsManager.SetRootAccessRestrictions(fullMets, ["Restricted", "Leeds only"]);
-        metsManager.SetRootRightsStatement(fullMets, new Uri("https://creativecommons.org/licenses/by/4.0/"));
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["Restricted", "Leeds only"]);
+        metsManager.SetRightsStatementByPath(fullMets, "objects", new Uri("https://creativecommons.org/licenses/by/4.0/"));
         await metsManager.WriteMets(fullMets);
 
         // Read back via parser (MetsFileWrapper path, not FullMets)
@@ -943,20 +962,22 @@ public class MetsManagerWithPremis
         parseResult.Success.Should().BeTrue();
         var wrapper = parseResult.Value!;
 
-        wrapper.RootAccessConditions.Should().HaveCount(2);
-        wrapper.RootAccessConditions.Should().Contain("Restricted");
-        wrapper.RootAccessConditions.Should().Contain("Leeds only");
-        wrapper.RootRightsStatement.Should().Be(new Uri("https://creativecommons.org/licenses/by/4.0/"));
+        var objects = wrapper.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects");
+        objects.AccessRestrictions.Should().HaveCount(2);
+        objects.AccessRestrictions.Should().Contain("Restricted");
+        objects.AccessRestrictions.Should().Contain("Leeds only");
+        objects.RightsStatement.Should().Be(new Uri("https://creativecommons.org/licenses/by/4.0/"));
 
         // Update and re-check
         var fullMets2 = (await metsManager.GetFullMets(metsUri, null)).Value!;
-        metsManager.SetRootAccessRestrictions(fullMets2, ["Open access"]);
-        metsManager.SetRootRightsStatement(fullMets2, null);
+        metsManager.SetAccessRestrictionsByPath(fullMets2, "objects", ["Open access"]);
+        metsManager.SetRightsStatementByPath(fullMets2, "objects", null);
         await metsManager.WriteMets(fullMets2);
 
         var parseResult2 = await parser.GetMetsFileWrapper(metsUri);
         var wrapper2 = parseResult2.Value!;
-        wrapper2.RootAccessConditions.Should().ContainSingle().Which.Should().Be("Open access");
-        wrapper2.RootRightsStatement.Should().BeNull();
+        objects = wrapper2.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects");
+        objects.AccessRestrictions.Should().ContainSingle().Which.Should().Be("Open access");
+        objects.RightsStatement.Should().BeNull();
     }
 }

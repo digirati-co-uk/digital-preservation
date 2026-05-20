@@ -1,0 +1,93 @@
+@using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.PreservationApi
+@using DigitalPreservation.Common.Model.Transit.Combined
+@using DigitalPreservation.UI.Features
+@using DigitalPreservation.UI.Pages.Deposits
+@using DigitalPreservation.Utils
+@model DepositModel
+
+@if (Model.Deposit!.Status != DepositStates.Exporting)
+{
+    if (Model.RootCombinedDirectory != null)
+    {
+        <div class="table-responsive small" id="physicalFilesWrapper">
+            <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
+                <thead>
+                <tr>
+                    <th scope="col"></th>
+                    <th scope="col" class="dep-actions"></th>
+                    <th scope="col">Name (and path)</th>
+                    <th scope="col" class="dep-actions"></th>
+                    <th scope="col">Hash</th>
+                    <th scope="col">Size</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Pronom</th>
+                    <th scope="col">Virus</th>
+                </tr>
+                </thead>
+                <tbody>
+                @if (Model.WorkspaceManager.IsBagItLayout)
+                {
+                    <tr>
+                        <td colspan="9">
+                            <svg class="bi"><use xlink:href="#bag-heart"/></svg>
+                            <em>This Deposit uses BagIt layout on disk/S3.</em>
+                        </td>
+                    </tr>
+                }
+                @{
+                    var wrapper = new CombinedDirectoryRecursionWrapper(Model.RootCombinedDirectory,
+                        Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
+                        Model.Deposit.Active, Model.IsLockedByOtherUser(),
+                        new Counter());
+                    @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
+                }
+                </tbody>
+            </table>
+        </div>
+        <p><small>
+            @{
+                var totals = Model.RootCombinedDirectory.GetSizeTotals();
+            }
+            @totals.TotalFileCount <text> files in </text> @totals.TotalDirectoryCount <text> directories.</text><br/>
+            @StringUtils.FormatFileSize(totals.TotalSizeInDeposit, withSpace: true, fallbackIfNull: " - ") <text> in Deposit, </text>
+            @StringUtils.FormatFileSize(totals.TotalSizeInMets, withSpace: true, fallbackIfNull: " - ") <text> in METS, </text>
+            @StringUtils.FormatFileSize(totals.TotalSize, withSpace: true, fallbackIfNull: " - ") <text> Overall. </text><br/>
+            Deposit structure built @(Model.RootCombinedDirectory.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
+
+            @{
+                if (Context.Request.Query["showCalculation"] == "true")
+                {
+                    <br/><span>----</span>
+                    foreach (var msg in totals.Messages)
+                    {
+                        <br/>@msg
+                    }
+                }
+
+            }
+        </small></p>
+        if (totals.Discrepancies.Count > 0)
+        {
+            <div class="alert alert-danger" role="alert">
+                <p>Discrepancies in file sizes</p>
+                <ul>
+                    @foreach (var discrepancy in totals.Discrepancies)
+                    {
+                        <li>@discrepancy.Key : Deposit=@discrepancy.Value.Item1, METS=@discrepancy.Value.Item2</li>
+                    }
+                </ul>
+            </div>
+        }
+    }
+    else
+    {
+        <p>No files have been uploaded yet.</p>
+    }
+}
+@if (Model.Deposit.Status == DepositStates.Exporting)
+{
+    <div class="alert alert-danger" role="alert">
+        <p>The server is currently exporting files into this Deposit.</p>
+    </div>
+}

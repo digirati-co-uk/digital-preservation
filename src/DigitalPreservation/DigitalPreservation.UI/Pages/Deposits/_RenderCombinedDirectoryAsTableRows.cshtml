@@ -24,11 +24,14 @@ File is in both
 @if (combinedDirectory.LocalPath.HasText())
 {
     var isMetadata = FolderNames.IsMetadata(combinedDirectory.LocalPath);
+    var isMetadataRoot = combinedDirectory.LocalPath == FolderNames.Metadata
+        || combinedDirectory.LocalPath == $"{FolderNames.BagItData}/{FolderNames.Metadata}";
     depth = combinedDirectory.LocalPath.Split('/').Length;
     string where = combinedDirectory.Whereabouts.ToString().ToLowerInvariant();
-    
-    <tr class="deposit-row @("where-" + where)" 
-        data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@isMetadata">
+    string displayName = combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug();
+
+    <tr class="deposit-row @("where-" + where)"
+        data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@(isMetadata ? "true" : "false")" data-metadata-root="@(isMetadataRoot ? "true" : "false")">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath) && combinedDirectory.LocalPath != FolderNames.MetadataAdHoc)
             {
@@ -49,30 +52,30 @@ File is in both
             }
         </td>
         <td style="padding-left: @(1.3 * depth)rem">
-            <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg> <span title="@combinedDirectory.LocalPath" aria-label="name">@(combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug())</span>
-            @if (combinedDirectory.LocalPath == "objects")
+            <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg>
+            @if (combinedDirectory.LocalPath == "objects" || combinedDirectory.LocalPath.StartsWith("objects/"))
             {
-                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#accessConditionsModal" aria-label="Set rights and access conditions">
-                    <svg class="bi"><use xlink:href="#info-square"/></svg>
-                </a>
-                @if (Model.RootAccessRestrictions.Count > 0)
+                @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)combinedDirectory, displayName, null as string))
+            }
+            else
+            {
+                <span title="@combinedDirectory.LocalPath" aria-label="name">@displayName</span>
+                @if (isMetadataRoot)
                 {
-                    <small>Access: <em><strong>@string.Join(", ", Model.RootAccessRestrictions)</strong></em></small>
-                }
-                @if (Model.RootRightsStatement != null)
-                {
-                    if (Model.RootAccessRestrictions.Count > 0)
-                    {
-                        <span>; </span>
-                    }
-                    <small>Rights: <em><strong>@RightsStatement.GetShortLabel(Model.RootRightsStatement)</strong></em></small>
+                    var metaTotals = combinedDirectory.GetSizeTotals();
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 me-1 border-0 align-baseline"
+                            data-metadata-toggle aria-expanded="false" aria-label="Toggle metadata folder">
+                        <svg class="bi"><use xlink:href="#chevron-right"/></svg>
+                    </button>
+                    <small class="text-body-secondary">@metaTotals.TotalFileCount files in @metaTotals.TotalDirectoryCount folders</small>
                 }
             }
         </td>
         <td></td>
-       <td></td>
-       <td></td>
-       <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
         <td></td>
     </tr>
 }
@@ -80,7 +83,6 @@ File is in both
 {
     var wrapper = new CombinedDirectoryRecursionWrapper(
         dir, Model.MetsPath, Model.Editable, Model.Active, Model.LockedByOtherUser, 
-        Model.RootAccessRestrictions, Model.RootRightsStatement,
         Model.RowCounter);
     @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
 }
@@ -94,7 +96,7 @@ File is in both
     string where = file.Whereabouts.ToString().ToLowerInvariant();
     bool mismatches = file.MisMatches.Any();
     <tr class="deposit-row @("where-" + where)" 
-        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-mismatches="@mismatches" data-metadata="@isMetadata">
+        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-mismatches="@mismatches" data-metadata="@(isMetadata ? "true" : "false")">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && file.LocalPath != "mets.xml")
             {
@@ -115,48 +117,34 @@ File is in both
         <td class="dep-actions">
         </td>
         <td style="padding-left: @(1.3 * (depth + 1))rem">
-            <svg class="bi"><use xlink:href="#file-earmark@(where != "mets" ? "-plus" : "-text")"/></svg>
+            <svg class="bi"><use xlink:href="#file-earmark@(where != "both" ? "-plus" : "")"/></svg>
             <span aria-label="name" title="@file.LocalPath">
                 @if (file.LocalPath.HasText() && file.LocalPath == Model.MetsPath)
                 {
                     <a target="_blank" href="@(Context.Request.Path + "/mets")"><strong>@Model.MetsPath.GetSlug()</strong></a>
                 }
-                else if (isMetadata)
-                {
-                    var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
-                    if (toolOutput != null && toolOutput.Content.HasText())
-                    {
-                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
-                        var base64Encoded = System.Convert.ToBase64String(textBytes);
-
-                        <a href="javascript:openHtmlStringInNewTab('@base64Encoded');"><strong>@file.GetName()</strong></a>
-                    }
-                    else
-                    {
-                        @file.GetName();
-                    }
-                }
-                else if (!isMetadata)
-                {
-                    var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
-                    if (toolOutput != null && toolOutput.Content.HasText())
-                    {
-                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
-                        var base64Encoded = System.Convert.ToBase64String(textBytes);
-
-                        <a href="javascript:openHtmlStringInNewTab('@base64Encoded');"><strong>@file.GetName()</strong></a>
-                    }
-                    else
-                    {
-                        @file.GetName();
-                    }
-                }
                 else
                 {
-                    @(file.GetName() ?? "{{ NO LOCALPATH }}")
+                    string? base64EncodedToolOutput = null;
+                    var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
+                    if (toolOutput != null && toolOutput.Content.HasText())
+                    {
+                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
+                        base64EncodedToolOutput = Convert.ToBase64String(textBytes);
+                    }
+                    var displayName = file.GetName() ?? "{{ NO LOCAL PATH }}";
+                    if (isMetadata && base64EncodedToolOutput != null)
+                    {
+                        <a href="javascript:openHtmlStringInNewTab('@base64EncodedToolOutput');"><strong>@displayName</strong></a>
+                    }
+                    else
+                    {
+                        @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)file, displayName, base64EncodedToolOutput))
+                    }
                 }
             </span>
         </td>
+        <td aria-label="file-links"></td>
         @{
             var contentType = file.GetSingleContentTypeFromMetsAndDeposit();
             var contentTypeDisplay = contentType;

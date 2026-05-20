@@ -11,6 +11,7 @@ using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using LeedsDlipServices.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 using System.Net.Http.Json;
@@ -19,6 +20,7 @@ namespace Preservation.Client;
 
 public class PreservationApiClient(
     HttpClient httpClient,
+    IMemoryCache memoryCache,
     ILogger<PreservationApiClient> logger) : CommonApiBase(httpClient, logger), IPreservationApiClient
 {
     private readonly HttpClient preservationHttpClient = httpClient;
@@ -112,7 +114,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not get all agents");
             return Result.FailNotNull<List<Uri>>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -137,7 +139,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not update deposit");
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -158,7 +160,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not delete deposit");
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -230,7 +232,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not create deposit");
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -291,7 +293,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not get import job results for deposit");
             return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -316,7 +318,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not get import job result");
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -342,7 +344,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not get diff import job");
             return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -371,7 +373,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not send diff import job");
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -398,7 +400,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not get deposit");
             return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -421,8 +423,30 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not get METS with eTag");
             return Result.Fail<(string, string)>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<string>> GetParsedDepositMets(string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var relPath = $"/deposits/{depositId}/parsed-mets";
+            var uri = new Uri(relPath, UriKind.Relative);
+            var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                return Result.OkNotNull(content);
+            }
+            return await response.ToFailNotNullResult<string>("Unable to get Parsed METS");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not get parsed deposit METS");
+            return Result.FailNotNull<string>(ErrorCodes.UnknownError, e.Message);
         }
     }
 
@@ -444,10 +468,10 @@ public class PreservationApiClient(
         return (null, null);
     }
 
-    public async Task<(Stream?, string?)> GetMetsStream(string archivalGrouprepositoryPath, CancellationToken cancellationToken)
+    public async Task<(Stream?, string?)> GetMetsStream(string archivalGroupPathUnderRoot, bool parsedJson = false, CancellationToken cancellationToken = default)
     {
-        var queryString = "?view=mets";
-        var uri = new Uri(archivalGrouprepositoryPath + queryString, UriKind.Relative);
+        var queryString = "?view=" + (parsedJson ? "parsed-mets" : "mets");
+        var uri = new Uri(archivalGroupPathUnderRoot + queryString, UriKind.Relative);
         var req = new HttpRequestMessage(HttpMethod.Get, uri);
         var response = await preservationHttpClient.SendAsync(req, cancellationToken);
         if (response.IsSuccessStatusCode)
@@ -538,7 +562,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not get get pipeline job results for deposit");
             return Result.FailNotNull<List<ProcessPipelineResult>>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -563,7 +587,7 @@ public class PreservationApiClient(
         }
         catch (Exception e)
         {
-            logger.LogError(e, e.Message);
+            logger.LogError(e, "Could not get pipeline job result");
             return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.UnknownError, e.Message);
         }
     }
@@ -659,6 +683,54 @@ public class PreservationApiClient(
         {
             logger.LogError(e, "Error archiving deposit");
             return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<List<AccessRestriction>>> GetAccessConditions(CancellationToken cancellationToken = default)
+    {
+        const string cacheKey = "preservation:access-conditions";
+        if (memoryCache.TryGetValue(cacheKey, out List<AccessRestriction>? cached))
+            return Result.OkNotNull(cached!);
+        try
+        {
+            var response = await preservationHttpClient.GetAsync("/access-conditions", cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var conditions = await response.Content.ReadFromJsonAsync<List<AccessRestriction>>(
+                    cancellationToken: cancellationToken) ?? [];
+                memoryCache.Set(cacheKey, conditions, TimeSpan.FromHours(1));
+                return Result.OkNotNull(conditions);
+            }
+            return await response.ToFailNotNullResult<List<AccessRestriction>>("Unable to get access conditions");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not get access conditions");
+            return Result.FailNotNull<List<AccessRestriction>>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<List<string>>> GetRangeTypes(CancellationToken cancellationToken = default)
+    {
+        const string cacheKey = "preservation:range-types";
+        if (memoryCache.TryGetValue(cacheKey, out List<string>? cached))
+            return Result.OkNotNull(cached!);
+        try
+        {
+            var response = await preservationHttpClient.GetAsync("/range-types", cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var rangeTypes = await response.Content.ReadFromJsonAsync<List<string>>(
+                    cancellationToken: cancellationToken) ?? [];
+                memoryCache.Set(cacheKey, rangeTypes, TimeSpan.FromHours(1));
+                return Result.OkNotNull(rangeTypes);
+            }
+            return await response.ToFailNotNullResult<List<string>>("Unable to get range types");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not get range types");
+            return Result.FailNotNull<List<string>>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

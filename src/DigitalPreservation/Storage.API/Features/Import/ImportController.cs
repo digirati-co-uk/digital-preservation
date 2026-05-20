@@ -11,7 +11,7 @@ namespace Storage.API.Features.Import;
 [ApiController]
 public class ImportController(
     IMediator mediator,
-    ILogger<ImportController> logger) : Controller
+    ILogger<ImportController> logger) : ControllerBase
 {
 
     /// <summary>

@@ -9,7 +9,7 @@ namespace Storage.API.Features.Fedora;
 /// </summary>
 [ApiController]
 [Route("[controller]")]
-public class FedoraController(IMediator mediator) : Controller
+public class FedoraController(IMediator mediator) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> FedoraCheck()

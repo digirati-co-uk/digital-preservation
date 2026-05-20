@@ -4,7 +4,7 @@ using Preservation.Client;
 
 namespace DigitalPreservation.UI.Controllers;
 
-[Route("deposits/{id}/mets")]
+[Route("deposits/{id}")]
 public class DepositMetsController(
     IPreservationApiClient preservationApiClient) : Controller
 {
@@ -13,6 +13,7 @@ public class DepositMetsController(
     /// </summary>
     /// <param name="id"></param>
     /// <returns></returns>
+    [Route("mets")]
     [HttpGet]
     [Produces("application/xml")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -26,4 +27,24 @@ public class DepositMetsController(
         }
         return ControllerX.GetProblemObjectResult(metsResult);
     }
+    
+    /// <summary>
+    /// Proxy the METS JSON - for instructional purposes!
+    /// </summary>
+    /// <param name="id"></param>
+    /// <returns></returns>
+    [Route("parsed-mets")]
+    [HttpGet]
+    [Produces("application/json")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetParsed([FromRoute] string id)
+    {
+        var parsedJsonResult = await preservationApiClient.GetParsedDepositMets(id, CancellationToken.None);
+        if (parsedJsonResult.Success)
+        {
+            return Content(parsedJsonResult.Value!, "application/json");
+        }
+        return ControllerX.GetProblemObjectResult(parsedJsonResult);
+    }
 }
+

@@ -1,4 +1,5 @@
 ﻿@page "/deposits/{id}"
+@using System.Text.Json
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.Common.Model.Transit.Combined
@@ -7,19 +8,6 @@
 @using DigitalPreservation.Utils
 @model DepositModel
 
-@functions {
-
-    private bool IsLockedByOtherUser()
-    {
-        return Model.Deposit?.LockedBy != null && Model.Deposit.LockedBy.GetSlug() != User.GetCallerIdentity();
-    }
-
-    private bool CanBeWorkedOn()
-    {
-        if (IsLockedByOtherUser()) return false;
-        return Model.Deposit is { Active: true } && Model.Deposit.Status != DepositStates.Exporting;
-    }
-}
 @{
     ViewData["Title"] = Model.GetDisplayTitle();
     ViewData["section"] = "deposits";
@@ -38,7 +26,7 @@
     <div class="btn-toolbar mb-2 mb-md-0">
         @if (Model.Deposit is not null)
         {
-            <button @(CanBeWorkedOn() ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
+            <button @(Model.CanBeWorkedOn() ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
                 <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
             </button>
             <form class="single-submit" method="post">
@@ -119,6 +107,15 @@
                                 <svg class="bi"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
                             </button>
                         </li>
+                        @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        {
+                            <li>
+                                <button class="dropdown-item text-primary" type="submit" asp-page-handler="CreateLogicalStructMap">
+                                    <svg class="bi"><use xlink:href="#diagram-3"/></svg>
+                                    <span class="ms-2">Create logical structure</span>
+                                </button>
+                            </li>
+                        }
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <button @(jobRunningOrArchived ? " disabled=disabled" : "") class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="button" id="selectNonMets">
@@ -190,7 +187,7 @@
         </div>
     }
 
-    @if (IsLockedByOtherUser())
+    @if (Model.IsLockedByOtherUser())
     {
         <div class="alert alert-danger" role="alert">
             <p>This Deposit is locked by @Model.Deposit!.LockedBy?.GetSlug()</p>
@@ -223,68 +220,15 @@
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
             
-            @{
-                List<string> mismatchMessages = [];
-                List<string> exifMismatchMessages = [];
-            }
-
-            @foreach (var detailMismatch in Model.FileMisMatches)
+            @foreach (var item in Model.MismatchDisplayItems)
             {
-                foreach (var fileMismatch in detailMismatch.Item1)
+                @if (item.Differences != null)
                 {
-                    if (!(fileMismatch.MetadataType.ToLower() == "exifmetadata"))
-                    {
-                        switch (fileMismatch.Field.ToLower())
-                        {
-                            case "contenttype":
-                                mismatchMessages.Add($"Content type: Deposit [{fileMismatch.ValueInDeposit}], Mets [{fileMismatch.ValueInMets}]");
-                                break;
-                            case "pronomkey":
-                                mismatchMessages.Add("Pronom key");
-                                break;
-                            case "formatname":
-                                mismatchMessages.Add("Format name");
-                                break;
-                            case "digest":
-                                mismatchMessages.Add("Digest");
-                                break;
-                            case "hasvirus":
-                                mismatchMessages.Add("Has virus");
-                                break;
-                            case "virusfound":
-                                mismatchMessages.Add("Virus found");
-                                break;
-                            case "virusdefinition":
-                                mismatchMessages.Add("Virus definition");
-                                break;
-                            case "(missing section)":
-                                mismatchMessages.Add("Missing metadata section: " + (fileMismatch.ValueInDeposit ?? fileMismatch.ValueInMets ?? "not specified"));
-                                break;
-                            default:
-                                mismatchMessages.Add("undocumented difference");
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        exifMismatchMessages.Add(fileMismatch.Field);
-                    }
+                    <p>@item.FilePath (Differences: @item.Differences)</p>
                 }
-
-                if (mismatchMessages.Any())
+                @if (item.ExifDifferences != null)
                 {
-                    var differencesString = String.Join(", ", mismatchMessages.Select(x => x.ToString()).ToArray());
-                    <p>@detailMismatch.Item2 (Differences: @differencesString)</p>
-
-                    mismatchMessages.Clear();
-                }
-
-                if (exifMismatchMessages.Any())
-                {
-                    var differencesString = String.Join(", ", exifMismatchMessages.Select(x => x.ToString()).ToArray());
-                    <p>@detailMismatch.Item2 Exif Metadata: (Differences: @differencesString)</p>
-
-                    exifMismatchMessages.Clear();
+                    <p>@item.FilePath Exif Metadata: (Differences: @item.ExifDifferences)</p>
                 }
             }
             
@@ -311,7 +255,7 @@
             <div id="mainPanel" class="col">
 
                 <form method="post" asp-page-handler="UpdateProperties" class="single-submit collapse show" id="collapseAgDetails">
-                    <fieldset style="display: contents" @(CanBeWorkedOn() ? "" : " disabled=disabled")>
+                    <fieldset style="display: contents" @(Model.CanBeWorkedOn() ? "" : " disabled=disabled")>
 
                         @if (Model.Deposit.ArchivalGroupExists)
                         {
@@ -355,94 +299,56 @@
                     </fieldset>
                 </form>
                 
-                @if (Model.Deposit.Status != DepositStates.Exporting)
-                {                
-                    if (Model.RootCombinedDirectory != null)
-                    {
-                        <div class="table-responsive small">
-                            <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
-                                <thead>
-                                <tr>
-                                    <th scope="col"></th>
-                                    <th scope="col" class="dep-actions"></th>
-                                    <th scope="col">Name (and path)</th>
-                                    <th scope="col">Hash</th>
-                                    <th scope="col">Size</th>
-                                    <th scope="col">Type</th>
-                                    <th scope="col">Pronom</th>
-                                    <th scope="col">Virus</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                @if (Model.WorkspaceManager.IsBagItLayout)
-                                {
-                                    <tr>
-                                        <td colspan="8">
-                                            <svg class="bi"><use xlink:href="#bag-heart"/></svg>
-                                            <em>This Deposit uses BagIt layout on disk/S3.</em>
-                                        </td>
-                                    </tr>
-                                }
-                                @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(Model.RootCombinedDirectory,
-                                        Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
-                                        Model.Deposit.Active, IsLockedByOtherUser(), 
-                                        Model.WorkspaceManager.RootAccessRestrictions,
-                                        Model.WorkspaceManager.RootRightsStatement,
-                                        new Counter());
-                                    @await Html.PartialAsync("_RenderCombinedDirectoryAsTableRows", wrapper)
-                                }
-                                </tbody>
-                            </table>
+                @{
+                    var hasLogical = Model.LogicalStructMaps.Any();
+                }
+                @if (hasLogical)
+                {
+                    <div class="nav nav-tabs mb-2" id="structMapTabs" role="tablist">
+                        <div class="nav-item">
+                            <button class="nav-link active" id="physicalTab-tab" data-bs-toggle="tab" data-bs-target="#physicalTab" type="button" role="tab">
+                                <svg class="bi"><use xlink:href="#hdd"/></svg><span class="ms-1">Physical</span>
+                            </button>
                         </div>
-                        <p><small>
-                            @{
-                                var totals = Model.RootCombinedDirectory.GetSizeTotals();
-                            }
-                            @totals.TotalFileCount <text> files in </text> @totals.TotalDirectoryCount <text> directories.</text><br/>
-                            @StringUtils.FormatFileSize(totals.TotalSizeInDeposit, withSpace: true, fallbackIfNull: " - ") <text> in Deposit, </text>
-                            @StringUtils.FormatFileSize(totals.TotalSizeInMets, withSpace: true, fallbackIfNull: " - ") <text> in METS, </text>
-                            @StringUtils.FormatFileSize(totals.TotalSize, withSpace: true, fallbackIfNull: " - ") <text> Overall. </text><br/>
-                            Deposit structure built @(Model.RootCombinedDirectory.DirectoryInDeposit?.Modified.GetDateDisplay() ?? " - ")
-                       
-                            @{
-                                if (Request.Query["showCalculation"] == "true")
-                                {
-                                    <br/><span>----</span>
-                                    foreach (var msg in totals.Messages)
-                                    {
-                                        <br/>@msg
-                                    }
-                                }
-                            
-                            } 
-                        </small></p>
-                        if (totals.Discrepancies.Count > 0)
+                        @foreach (var lsm in Model.LogicalStructMaps)
                         {
-                            <div class="alert alert-danger" role="alert">
-                                <p>Discrepancies in file sizes</p>
-                                <ul>
-                                    @foreach (var discrepancy in totals.Discrepancies)
-                                    {
-                                        <li>@discrepancy.Key : Deposit=@discrepancy.Value.Item1, METS=@discrepancy.Value.Item2</li>
-                                    }
-                                </ul>
+                            <div class="nav-item">
+                                <button class="nav-link" id="logicalTab_@(lsm.Id)-tab" data-bs-toggle="tab" data-bs-target="#logicalTab_@lsm.Id" type="button" role="tab">
+                                    <svg class="bi"><use xlink:href="#diagram-3"/></svg><span class="ms-1">@(lsm.Name ?? lsm.Id)</span>
+                                </button>
                             </div>
                         }
-                    }
-                    else
-                    {
-                        <p>No files have been uploaded yet.</p>
-                    }
-                }
-                @if (Model.Deposit.Status == DepositStates.Exporting)
-                {
-                    <div class="alert alert-danger" role="alert">
-                        <p>The server is currently exporting files into this Deposit.</p>
+                    </div>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="physicalTab" role="tabpanel">
+                            @await Html.PartialAsync("_DepositPhysicalFiles", Model)
+                        </div>
+                        @foreach (var id in Model.LogicalStructMaps.Select(lsm => lsm.Id))
+                        {
+                            <div class="tab-pane fade" id="logicalTab_@id" role="tabpanel">
+                                <div id="logicalEditor_@id" data-structmap-id="@id"></div>
+                                <div class="mt-2">
+                                    <form method="post" asp-page-handler="SaveLogicalStructMap">
+                                        <input type="hidden" name="structMapId" value="@id">
+                                        <input type="hidden" name="logicalStructMapJson" id="logicalStructMapJson_@id">
+                                        <button type="submit" class="btn btn-sm btn-primary" disabled>
+                                            <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Save</span>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger ms-2"
+                                                data-bs-toggle="modal" data-bs-target="#deleteLogicalModal_@id">
+                                            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        }
                     </div>
                 }
+                else
+                {
+                    @await Html.PartialAsync("_DepositPhysicalFiles", Model)
+                }
 
-                
                 <hr/>
                 
                 
@@ -487,8 +393,7 @@
                 </div>
                     
                 @{
-                    var importJobResults = await Model.GetImportJobResults();
-                    if (importJobResults.Count == 0)
+                    if (Model.ImportJobResults.Count == 0)
                     {
                         <p>There are no submitted import jobs for this Deposit.</p>
                     }
@@ -508,7 +413,7 @@
                                 </tr>
                                 </thead>
                                 <tbody>
-                                @foreach (var result in importJobResults)
+                                @foreach (var result in Model.ImportJobResults)
                                 {
                                     <tr>
                                         <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
@@ -671,6 +576,10 @@
                 <div class="modal-footer">
                     <input type="hidden" id="newFileContext" name="newFileContext">
                     <input type="hidden" id="newFileContextIsFile" name="contextIsFile">
+                    <span id="fileSize" class="text-body-secondary small me-auto d-none"></span>
+                    <div id="fileSizeWarning" class="alert alert-warning py-1 px-2 mb-0 d-none" role="alert">
+                        File is larger than 2 GB — upload may be slow or unreliable on poor connections.
+                    </div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></button>
                 </div>
@@ -857,75 +766,99 @@
 </div>
 
 
-@* ------------------- RIGHTS AND ACCESS MODAL *@
+@* ------------------- RIGHTS, ACCESS AND RECORDINFO MODAL (mods) *@
 
-<div class="modal fade" id="accessConditionsModal" tabindex="-1" aria-labelledby="accessConditionsModalLabel" aria-hidden="true">
+<div class="modal fade" id="modsModal" tabindex="-1" aria-labelledby="modsModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            
             <form class="single-submit" method="post" asp-page-handler="SetRightsAndAccess">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="accessConditionsModalLabel"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Rights and Access</span></h1>
+                    <h1 class="modal-title fs-5" id="modsModalLabel"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Metadata</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
+                        <p class="small" id="modsLocalPathInfo"></p>
+                        <p class="small" id="toolOutputLink"></p>
+                    </div>
+                    <div class="mb-3">
                         <label id="accessRestrictionsSelectLabel" for="accessRestrictionsSelect" class="form-label">Access Restriction(s)</label>
-                        @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <select multiple id="accessRestrictionsSelect" class="form-select" name="accessRestrictions" aria-labelledby="accessRestrictionsSelectLabel">
-                                @foreach (var accessRestriction in AccessRestriction.All)
+                                @foreach (var accessRestriction in Model.AccessConditions)
                                 {
-                                    <!option value="@accessRestriction.Value" @(Model.WorkspaceManager.RootAccessRestrictions.Contains(accessRestriction.Value) ? " selected" : "")>@accessRestriction.Label</!option>
+                                    <!option value="@accessRestriction.Value">@accessRestriction.Label</!option>
                                 }
                             </select>
-                            <div id="accessRestrictionsHelp" class="form-text">
-                                Set access restriction(s) on root. <!-- TODO: when this can be done on any element in the hierarchy, display the accessConditionContext here -->
-                            </div>
+                            <div id="accessRestrictionsHelp" class="form-text small">Ctrl+click to deselect</div>
                         }
                         else
                         {
-                            @if (Model.WorkspaceManager.RootAccessRestrictions.Count == 0)
-                            {
-                                <p>(No access restrictions)</p>
-                            }
-                            else
-                            {
-                                <ul>
-                                    @foreach (var accessRestriction in Model.WorkspaceManager.RootAccessRestrictions)
-                                    {
-                                        <li>@accessRestriction</li>
-                                    }
-                                </ul> 
-                            }
+                            <ul id="nonEditableAccessRestrictions">
+                                <li>none</li>
+                            </ul>
                         }
                     </div>
                     <div class="mb-3">
                         <label id="rightsStatementSelectLabel" for="rightsStatementSelect" class="form-label">Rights statement</label>
-                        @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <select id="rightsStatementSelect" class="form-select" name="rightsStatement" aria-labelledby="rightsStatementSelectLabel">
-                                <!option value="" @(Model.WorkspaceManager.RootRightsStatement == null ? "" : " selected")>(none)</!option>
-                                @foreach (var rightsStatement in RightsStatement.All)
+                                <!option value="">(none)</!option>
+                                @foreach (var rightsStatement in RightsStatement.RightsStatements)
                                 {
-                                    <!option value="@rightsStatement.Value" @(Model.WorkspaceManager.RootRightsStatement == rightsStatement.Value ? " selected" : "")>@rightsStatement.Label</!option>
+                                    <!option value="@rightsStatement.Value">@rightsStatement.Label</!option>
+                                }
+                                @foreach (var creativeCommons in RightsStatement.CreativeCommons)
+                                {
+                                    <!option value="@creativeCommons.Value">@creativeCommons.Label</!option>
                                 }
                             </select>
-                            <div id="rightsStatementHelp" class="form-text">
-                                Set rights statement on root. <!-- TODO: when this can be done on any element in the hierarchy, display the accessConditionContext here -->
+                            @* <div id="rightsStatementHelp" class="form-text"></div> *@
+                        }
+                        else
+                        {
+                            <p id="nonEditableRightsStatement">(no rights statement)</p>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label id="recordInfoLabel" for="recordInfoDynamicForm" class="form-label">Record Identifiers</label>
+                        @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        {
+                            <div id="recordInfoDynamicForm"></div>
+                            <button id="recordInfoAddAnother" class="btn btn-outline-primary" type="button">Add another</button>
+                        }
+                        else
+                        {
+                            <ul id="nonEditableRecordInfo">
+                                <li>none</li>
+                            </ul>
+                        }
+                    </div>
+                    <div class="mb-3" id="fileLinksSection" style="display:none">
+                        <div class="form-label">File Links</div>
+                        <div id="fileLinksList"></div>
+                        @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        {
+                            <div class="input-group mt-2" id="fileLinkAddRow">
+                                <select id="fileLinkRoleSelect" class="form-select" style="max-width:12rem"></select>
+                                <select id="fileLinkTargetSelect" class="form-select"></select>
+                                <button type="button" id="fileLinkAddBtn" class="btn btn-outline-primary">Add</button>
                             </div>
                         }
                         else
                         {
-                            <p>@(Model.WorkspaceManager.RootRightsStatement == null ? "(no rights statement)" : Model.WorkspaceManager.RootRightsStatement)</p> 
+                            <ul id="nonEditableFileLinks"><li><em>no file links</em></li></ul>
                         }
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <input type="hidden" id="accessConditionContext" name="accessConditionContext">
-                    <input type="hidden" id="accessConditionContextIsFile" name="accessConditionContextIsFile">
+                    <input type="hidden" id="modsContext" name="modsContext">
+                    <input type="hidden" id="modsContextIsFile" name="modsContextIsFile">
+                    <input type="hidden" id="fileLinksJson" name="fileLinksJson">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    @if (CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                    @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                     {
                         <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Save</span></button>
                     }
@@ -936,276 +869,66 @@
     </div>
 </div>
 
+@* ------------------- DELETE LOGICAL STRUCTMAP MODALS *@
 
-
+@foreach (var lsm in Model.LogicalStructMaps)
+{
+    <div class="modal fade" id="deleteLogicalModal_@lsm.Id" tabindex="-1" aria-labelledby="deleteLogicalModalLabel_@lsm.Id" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form class="single-submit" method="post" asp-page-handler="DeleteLogicalStructMap">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="deleteLogicalModalLabel_@lsm.Id">
+                            <svg class="bi"><use xlink:href="#trash"/></svg>
+                            <span class="ms-2">Delete logical structure</span>
+                        </h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Delete the logical structure <strong>@(lsm.Name ?? lsm.Id)</strong>?</p>
+                        <p class="text-secondary small">This does not affect the physical files or METS physical structure.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <input type="hidden" name="structMapId" value="@lsm.Id">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">
+                            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
 
 @* END MODALS *@
 
 
-<script>
-    
-    const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
-    const rows = document.getElementsByClassName("deposit-row");
-
-    const newFolderContext = document.getElementById("newFolderContext");
-    const newFolderContextIsFile = document.getElementById("newFolderContextIsFile");
-    const newFileContext = document.getElementById("newFileContext");
-    const newFileContextIsFile = document.getElementById("newFileContextIsFile");
-    const accessConditionContext = document.getElementById("accessConditionContext");
-    const accessConditionContextIsFile = document.getElementById("accessConditionContextIsFile");
-    
-    const deleteButton = document.getElementById("deleteButton");
-    const deleteFromDepositRadio = document.getElementById("deleteFromDeposit");
-    const deleteFromMetsAndDepositRadio = document.getElementById("deleteFromMetsAndDeposit");
-    const deleteItemHelp = document.getElementById("deleteItemHelp");
-    
-    const deleteDepositButton = document.getElementById("deleteDepositButton");
-    const confirmDepositDelete = document.getElementById("confirmDepositDelete");
-
-    const addToMetsButton = document.getElementById("addToMetsButton");
-    const addToMetsHelp = document.getElementById("addToMetsHelp");
-
-    document.getElementById("toggleRhs").addEventListener("click", () => {
-        const sideState = localStorage.getItem("sidebarInfoPanel");
-        if (sideState === "hide"){
-            localStorage.setItem("sidebarInfoPanel", "show");
-        } else {
-            localStorage.setItem("sidebarInfoPanel", "hide");
-        }
-    });
-
-    document.getElementById("selectNonMets").addEventListener("click", () => {
-        const itemSelectors = document.getElementsByClassName("item-selector");
-        for(const itemSelector of itemSelectors)
-        {
-            const row = itemSelector.closest("tr");
-            if (row.getAttribute("data-whereabouts") === "Deposit"){
-                itemSelector.checked = true;
-            }
-            if (row.getAttribute("data-mismatches")?.toLowerCase() === "true"){
-                itemSelector.checked = true;
-            }
-        }
-    });
-
-    deleteFromDepositRadio.addEventListener("change", () => {
-        deleteButton.removeAttribute("disabled");
-    });
-
-    deleteFromMetsAndDepositRadio.addEventListener("change", () => {
-        deleteButton.removeAttribute("disabled");
-    });
-    
-    document.getElementById("deleteSelection").addEventListener("click", () => {
-
-        deleteFromDepositRadio.checked = false;
-        deleteFromMetsAndDepositRadio.checked = false;
-        deleteButton.setAttribute("disabled", "true");
-        deleteFromDepositRadio.setAttribute("disabled", "true");
-        deleteFromMetsAndDepositRadio.setAttribute("disabled", "true");
-        
-        const itemSelectors = document.getElementsByClassName("item-selector");
-        const deleteSelectionObject = { items: [] };
-        let summary = "<table>";
-        let metadataCount = 0;
-        for(const itemSelector of itemSelectors)
-        {
-            if (itemSelector.checked){
-                const row = itemSelector.closest("tr");
-                const type = row.getAttribute("data-type");
-                const relativePath = row.getAttribute("data-path");
-                const isMetadata = row.getAttribute("data-metadata").toLowerCase() === "true";
-                if(isMetadata){
-                    metadataCount++;
-                    continue;
-                }
-                if (relativePath && (type === "directory" || type === "file")){
-                    const whereabouts = row.getAttribute("data-whereabouts");
-                    const item = {
-                        path: relativePath,
-                        isDir: (type === "directory"),
-                        where: whereabouts
-                    };
-                    deleteSelectionObject.items.push(item);
-                    summary += "<tr><td>";
-                    summary += whereabouts;
-                    summary += " - </td><td>";
-                    summary += item.isDir ? "🗀" : "🗎";
-                    summary += "</td><td>";
-                    summary += relativePath;
-                    summary += "</td></tr>";
-                }       
-            }
-        }
-        summary += "</table>";
-        
-        if(metadataCount > 0)
-        {
-            deleteItemHelp.innerHTML = `<div class="alert alert-danger" role="alert"><p>${metadataCount} item(s) are in the metadata folder, these cannot be deleted.</p></div>`;
-            document.getElementById("deleteSelectionObject").value = "";            
-        }
-        else
-        {
-            if (deleteSelectionObject.items.length > 0){
-                deleteItemHelp.innerHTML = summary;
-                deleteFromMetsAndDepositRadio.removeAttribute("disabled");
-                if (archivalGroupExists){
-                    deleteFromDepositRadio.removeAttribute("disabled");
-                }
-            } else {
-                deleteItemHelp.innerHTML = "<p>There are no items selected.</p>"
-            }
-            document.getElementById("deleteSelectionObject").value = JSON.stringify(deleteSelectionObject);
-        }
-    });
-
-
-    document.getElementById("addSelectionToMets").addEventListener("click", () => {
-
-        addToMetsButton.setAttribute("disabled", "true");
-
-        const itemSelectors = document.getElementsByClassName("item-selector");
-        const addToMetsObject = [];
-        let summary = "<table>";
-        for(const itemSelector of itemSelectors)
-        {
-            if (itemSelector.checked){
-                const row = itemSelector.closest("tr");
-                const type = row.getAttribute("data-type");
-                const relativePath = row.getAttribute("data-path");
-                if (relativePath && (type === "directory" || type === "file")){
-                    const whereabouts = row.getAttribute("data-whereabouts");
-                    if(whereabouts === "Deposit" || whereabouts === "Both"){
-                        const item = {
-                            path: relativePath,
-                            isDir: (type === "directory"),
-                            where: whereabouts
-                        };
-                        addToMetsObject.push(item);
-                        summary += "<tr><td>";
-                        summary += item.isDir ? "🗀" : "🗎";
-                        summary += " - </td><td>";
-                        summary += relativePath;
-                        summary += "</td></tr>";
-                    }
-                }
-            }
-        }
-        summary += "</table>";
-        document.getElementById("addToMetsObject").value = JSON.stringify(addToMetsObject);
-        if (addToMetsObject.length > 0){
-            addToMetsHelp.innerHTML = summary;
-            addToMetsButton.removeAttribute("disabled");
-        } else {
-            addToMetsHelp.innerHTML = "<p>There are no items selected.</p>"
-        }
-    });
-    
-    
-    
-    document.getElementById("deleteDepositModal").addEventListener("show.bs.modal", () => {
-        confirmDepositDelete.checked = false;
-        deleteDepositButton.disabled = "disabled";
-    });
-    
-    confirmDepositDelete.addEventListener("change", () => {
-        if (confirmDepositDelete.checked){
-            deleteDepositButton.removeAttribute("disabled");
-        } else {
-            deleteDepositButton.disabled = "disabled";
-        }
-    });
-    
-    let clicked = false;
-    for (const row of rows) {
-        const path = row.getAttribute("data-path");
-        if (!(path === "objects" || path.startsWith("objects/")))
-        {
-            continue;
-        }
-        row.addEventListener('click', (event) => {
-            const row = event.currentTarget;
-
-            const path = row.getAttribute("data-path");
-            const isFile = row.getAttribute("data-type") === "file";
-            newFileContext.value = path;
-            newFolderContext.value = path;
-            accessConditionContext.value = path;
-            newFolderContextIsFile.value = isFile;
-            newFileContextIsFile.value = isFile;
-            accessConditionContextIsFile.value = isFile;
-            // deleteContext.value = path;
-            // deleteContextIsFile.value = isFile;
-            // deleteItemHelp.innerHTML = `You are about to delete the ${isFile ? "file" : "folder"}<br/><strong>${path}</strong>.`;
-            // deleteButton.removeAttribute("disabled");
-            
-            if (row.classList.contains("table-active")){
-                for (const r of rows) { r.classList.remove("table-active"); }
-                clicked = false;
-            } else {
-                for (const r of rows) { r.classList.remove("table-active"); }
-                row.classList.add("table-active");
-                clicked = true;
-            }
-        });
+@section Scripts{
+    <script>
+        // Data needed by scripts
+        const rightsStatements = @Html.Raw(JsonSerializer.Serialize(RightsStatement.ByShortLabel,
+            new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+        const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
+        const logicalStructMapsData = @Html.Raw(Model.LogicalStructMapsJson);
+        const rangeTypes = @Html.Raw(Model.RangeTypesJson);
+        const physicalFilePaths = @Html.Raw(Model.PhysicalFilePathsJson);
+        const fileLinkRoles = @Html.Raw(Model.FileLinkRolesJson);
+        const physicalFileLinksData = @Html.Raw(Model.PhysicalFileLinksDataJson);
+        const recordInfoSources = @Html.Raw(Model.RecordInfoSourcesJson);
+    </script>
+    <script src="~/js/deposit.js" asp-append-version="true"></script>
+    <script src="~/js/logical-structmap.js" asp-append-version="true"></script>
+    <script src="~/js/file-links.js" asp-append-version="true"></script>
+    @if (TempData["ActiveTab"] != null)
+    {
+        <script>
+            const activeTabId = '@TempData["ActiveTab"]';
+            const tabEl = document.getElementById('logicalTab_' + activeTabId + '-tab');
+            if (tabEl) { bootstrap.Tab.getOrCreateInstance(tabEl).show(); }
+        </script>
     }
-
-
-</script>
-
-<script>
-    
-    // script for Upload File modal id=uploadFileModal
-    
-    const fileSelector = document.getElementById('depositFile');
-    const checksum = document.getElementById('checksum');
-    const fileName = document.getElementById('depositFileName');
-    const fileContentType = document.getElementById('depositFileContentType');
-
-    fileSelector.addEventListener('change', () => {
-        hashFile();
-        fileName.value = fileSelector.files[0].name;
-        fileContentType.value = fileSelector.files[0].type;
-    });
-    
-    function hashFile() {
-      readBinaryFile(fileSelector.files[0])
-        .then(function (result) {
-          result = new Uint8Array(result);
-          return window.crypto.subtle.digest("SHA-256", result);
-        })
-        .then(function (result) {
-          result = new Uint8Array(result);
-          checksum.value = Uint8ArrayToHexString(result);
-        });
-    }
-
-    function readBinaryFile(file) {
-      return new Promise((resolve) => {
-        const fr = new FileReader();
-        fr.onload = () => {
-          resolve(fr.result);
-        };
-        fr.readAsArrayBuffer(file);
-      });
-    }
-
-    function Uint8ArrayToHexString(ui8array) {
-      let hexString = "",
-        h;
-      for (let i = 0; i < ui8array.length; i++) {
-        h = ui8array[i].toString(16);
-        if (h.length === 1) {
-          h = "0" + h;
-        }
-          hexString += h;
-      }
-      const p = Math.pow(2, Math.ceil(Math.log2(hexString.length)));
-        hexString = hexString.padStart(p, "0");
-      return hexString;
-    }
-  
-</script>
+}
 
 @if (TempData["Context"] != null)
 {

@@ -32,4 +32,4 @@ function openHtmlStringInNewTab(htmlString) {
     }).join(''));
     newWindow.document.write(raw);
     newWindow.document.close();
-};
+}

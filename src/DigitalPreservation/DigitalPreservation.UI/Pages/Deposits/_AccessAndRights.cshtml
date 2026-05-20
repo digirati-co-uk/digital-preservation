@@ -1,0 +1,48 @@
+@using System.Text.Json
+@using DigitalPreservation.Common.Model
+@using DigitalPreservation.Common.Model.Transit.Combined
+@using DigitalPreservation.UI.Pages.Shared
+@model (CombinedBase, string, string?)
+
+@{
+    var combinedBase = Model.Item1;
+    var display = Model.Item2;
+    var base64ToolOutput = Model.Item3;
+    var combinedFile = combinedBase as CombinedFile;
+    var isFile = combinedFile != null;
+    var fileLinks = combinedFile?.FileInMets?.Links ?? [];
+    var fileLinksJson = JsonSerializer.Serialize(fileLinks.Select(l => new { to = l.To, role = l.Role?.AbsoluteUri }));
+}
+
+<a class="mods-launcher"
+    data-bs-toggle="modal" data-bs-target="#modsModal"
+    data-tool-output="@base64ToolOutput"
+    aria-label="Set rights, access and record identifiers"
+    data-access="@string.Join(',', combinedBase.AccessRestrictions)"
+    data-eff-access="@string.Join(',', combinedBase.EffectiveAccessRestrictions)"
+    data-rights="@RightsStatement.GetShortLabel(combinedBase.RightsStatement)"
+    data-eff-rights="@RightsStatement.GetShortLabel(combinedBase.EffectiveRightsStatement)"
+    data-recordinfo="@combinedBase.RecordInfo?.ToCompactString()"
+    data-eff-recordinfo="@combinedBase.EffectiveRecordInfo?.ToCompactString()"
+    data-is-file="@(isFile ? "true" : "false")"
+    data-links="@fileLinksJson">@display</a>
+
+@{
+    var items = ModsMetadataDisplayBuilder.GetDisplayItems(combinedBase);
+    foreach (var item in items)
+    {
+        var iconId = item.Label switch { "Access" => "lock", "Rights" => "file-earmark-text", _ => "database-check" };
+        <small class="dep-meta-item @(item.Inherited ? "dep-meta-inherited" : "dep-meta-asserted") ms-1">
+            <svg class="bi"><use xlink:href="#@iconId"/></svg>
+            @if (item.Inherited)
+            {
+                @item.Text
+            }
+            else
+            {
+                <em><strong>@item.Text</strong></em>
+            }
+        </small>
+    }
+}
+

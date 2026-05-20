@@ -1,5 +1,7 @@
-﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.XmlGen.Premis.V3;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Serialization;
@@ -25,35 +27,13 @@ public class PremisManagerExif
         var premis = new PremisComplexType();
         var file = new File();
         premis.Object.Add(file);
-        var objectCharacteristics = new ObjectCharacteristicsComplexType();
-        file.ObjectCharacteristics.Add(objectCharacteristics);
-
-        if (exifMetadata == null) return premis;
-        var document = new XmlDocument();
-        var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
-
-        if (parentElement == null) return premis;
-
-        if (exifMetadata is { Tags: not null })
-        {
-            foreach (var fileExifMetadata in exifMetadata.Tags)
-            {
-                ProcessExifMetadataItem(file, fileExifMetadata, document, parentElement);
-            }
-        }
-
-        var parentExtension = new ObjectCharacteristicsExtension();
-        parentExtension.Any.Add(parentElement);
-
-        objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
-
+        file.ObjectCharacteristics.Add(new ObjectCharacteristicsComplexType());
+        Patch(premis, exifMetadata);
         return premis;
     }
 
     public void Patch(PremisComplexType premis, ExifMetadata? exifMetadata)
     {
-        // This is not just the same as Create because it shouldn't touch any fields existing
-        // in the premis:file already, other than those supplied
         if (premis.Object.FirstOrDefault(po => po is File) is not File file)
         {
             file = new File();
@@ -68,65 +48,125 @@ public class PremisManagerExif
         }
 
         if (exifMetadata is null) return;
+
+        // Only clear the exif XML extension blob — significant properties may have been set
+        // by other sources (e.g. PatchExtent) and are merged via PatchSignificantProperty.
+        foreach (var ext in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
+            objectCharacteristics.ObjectCharacteristicsExtension.Remove(ext);
+
         var document = new XmlDocument();
         var parentElement = GetXmlElement(new ExifTag { TagName = "ExifMetadata", TagValue = string.Empty }, document);
-
-        foreach (var extensionComplexType in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
-        {
-            objectCharacteristics.ObjectCharacteristicsExtension.Remove(extensionComplexType);
-        }
-
-        foreach (var significantPropertiesComplexType in file.SignificantProperties.ToList())
-        {
-            file.SignificantProperties.Remove(significantPropertiesComplexType);
-        }
-
         if (parentElement is null) return;
-        if (exifMetadata is { Tags: not null })
+
+        if (exifMetadata.Tags is not null)
         {
-            foreach (var fileExifMetadata in exifMetadata.Tags)
-            {
-                ProcessExifMetadataItem(file, fileExifMetadata, document, parentElement);
-            }
+            foreach (var tag in exifMetadata.Tags)
+                ProcessExifMetadataItem(document, parentElement, tag);
         }
 
         var parentExtension = new ObjectCharacteristicsExtension();
         parentExtension.Any.Add(parentElement);
-
         objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
+
+        if (exifMetadata.Tags is not null)
+            SetSignificantPropertiesFromTags(file, exifMetadata.Tags);
     }
 
-    private void ProcessExifMetadataItem(File? file, ExifTag? fileExifMetadata, XmlDocument document, XmlElement? parentElement)
+    private static void ProcessExifMetadataItem(XmlDocument document, XmlElement? parentElement, ExifTag? tag)
     {
-        if (fileExifMetadata is not null)
+        if (tag?.TagName is null or "") return;
+        var element = GetXmlElement(tag, document);
+        if (element is not null)
+            parentElement?.AppendChild(element);
+    }
+
+    private void SetSignificantPropertiesFromTags(File file, List<ExifTag> tags)
+    {
+        // ImageSize is ExifTool's composite tag representing the final video frame dimensions.
+        // It appears once and takes precedence over the per-track ImageWidth/ImageHeight tags,
+        // which repeat for each MOV track and may carry misleading values (e.g. a timecode
+        // track reporting 853x20 rather than the actual video frame dimensions 853x480).
+        var imageSize = FirstTag(tags, "imagesize");
+        if (imageSize?.TagValue is { } sizeVal)
         {
-            var element = GetXmlElement(fileExifMetadata, document);
-            if (element is not null)
-                parentElement?.AppendChild(element);
+            var parts = sizeVal.Split('x');
+            if (parts.Length == 2)
+            {
+                PatchSignificantProperty(file, "ImageWidth", parts[0]);
+                PatchSignificantProperty(file, "ImageHeight", parts[1]);
+            }
+        }
+        else
+        {
+            // SourceImageWidth/SourceImageHeight come from the video codec section and appear
+            // once. Fall back to the first ImageWidth/ImageHeight if those aren't present.
+            var w = FirstTag(tags, "sourceimagewidth")?.TagValue ?? FirstTag(tags, "imagewidth")?.TagValue;
+            var h = FirstTag(tags, "sourceimageheight")?.TagValue ?? FirstTag(tags, "imageheight")?.TagValue;
+            if (w is not null) PatchSignificantProperty(file, "ImageWidth", w);
+            if (h is not null) PatchSignificantProperty(file, "ImageHeight", h);
         }
 
-        if (fileExifMetadata is not null && string.IsNullOrEmpty(fileExifMetadata.TagName)) return;
-        if (fileExifMetadata is null) return;
-        var property = fileExifMetadata.TagName?.ToLower().Trim().Replace(" ", string.Empty) switch
-        {
-            "imageheight" => "ImageHeight",
-            "imagewidth" => "ImageWidth",
-            "duration" => "Duration",
-            "avgbitrate" => "Bitrate",
-            _ => string.Empty
-        };
+        if (FirstTag(tags, "duration")?.TagValue is { } duration)
+            PatchSignificantProperty(file, "Duration", duration);
 
-        if (string.IsNullOrEmpty(property)) return;
-        if (file is not null)
-            AddSignificantProperty(file, property, fileExifMetadata.TagValue ?? string.Empty);
+        if (FirstTag(tags, "avgbitrate")?.TagValue is { } bitrate)
+            PatchSignificantProperty(file, "Bitrate", bitrate);
     }
 
-    private void AddSignificantProperty(File file, string propertyName, string metadataValue)
+    private static ExifTag? FirstTag(List<ExifTag> tags, string normalizedName) =>
+        tags.FirstOrDefault(t => NormTag(t.TagName) == normalizedName);
+
+    private static string NormTag(string? name) =>
+        name?.ToLower().Trim().Replace(" ", string.Empty) ?? string.Empty;
+
+    // Merges extent values into premis:significantProperties, checking for conflicts with any
+    // properties already present (from Exif or any other source). Throws MetadataException if
+    // a property has already been written with a different value.
+    public void PatchExtent(PremisComplexType premis, ExtentMetadata extentMetadata)
+    {
+        if (premis.Object.FirstOrDefault(po => po is File) is not File file)
+        {
+            file = new File();
+            premis.Object.Add(file);
+        }
+
+        if (extentMetadata.Duration.HasValue)
+            PatchSignificantProperty(file, "Duration",
+                extentMetadata.Duration.Value.ToString("G", CultureInfo.InvariantCulture));
+
+        if (extentMetadata.PixelWidth.HasValue)
+            PatchSignificantProperty(file, "ImageWidth",
+                extentMetadata.PixelWidth.Value.ToString(CultureInfo.InvariantCulture));
+
+        if (extentMetadata.PixelHeight.HasValue)
+            PatchSignificantProperty(file, "ImageHeight",
+                extentMetadata.PixelHeight.Value.ToString(CultureInfo.InvariantCulture));
+    }
+
+    // Adds a significantProperty if not already present; if already present from any source,
+    // verifies the value matches and throws if not.
+    private void PatchSignificantProperty(File file, string propertyName, string value)
+    {
+        var existing = file.SignificantProperties
+            .FirstOrDefault(sp => sp.SignificantPropertiesType?.Value == propertyName);
+
+        if (existing != null)
+        {
+            var existingValue = existing.SignificantPropertiesValue.FirstOrDefault();
+            if (existingValue != value)
+                throw new MetadataException(
+                    $"Conflicting values for significantProperties/{propertyName}: '{existingValue}' vs '{value}'");
+            return;
+        }
+
+        AddSignificantProperty(file, propertyName, value);
+    }
+
+    private static void AddSignificantProperty(File file, string propertyName, string metadataValue)
     {
         var significantProperties = new SignificantPropertiesComplexType();
         file.SignificantProperties.Add(significantProperties);
 
-        //TODO: add value to significant properties
         significantProperties.SignificantPropertiesType = new StringPlusAuthority
         {
             Value = propertyName
@@ -158,7 +198,7 @@ public class PremisManagerExif
         return doc.DocumentElement;
     }
 
-    public XmlElement? GetXmlElement(ExifTag exifMetdata, XmlDocument document)
+    public static XmlElement? GetXmlElement(ExifTag exifMetdata, XmlDocument document)
     {
         try
         {
@@ -186,4 +226,3 @@ public class PremisManagerExif
         return namespaces;
     }
 }
-

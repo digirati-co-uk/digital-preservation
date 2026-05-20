@@ -7,7 +7,7 @@ namespace Preservation.API.Features.Agents;
 
 [Route("[controller]")]
 [ApiController]
-public class AgentsController(IMediator mediator) : Controller
+public class AgentsController(IMediator mediator) : ControllerBase
 {
     [HttpGet(Name = "ListAgents")]
     [ProducesResponseType<List<Uri>>(200, "application/json")]

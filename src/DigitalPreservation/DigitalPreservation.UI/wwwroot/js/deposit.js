@@ -1,0 +1,597 @@
+﻿// --------------------------------------------------------------
+// ------------------- RIGHTS, ACCESS AND RECORDINFO MODAL (mods)// 
+// -------------------------------------------------------------- 
+
+function populateModsModalFromAttributes(launcher){
+    const accessConditionList = launcher.dataset.access;
+    const rightsStatement = launcher.dataset.rights;
+    const recordInfoCompact = launcher.dataset.recordinfo;
+    const base64ToolOutput = launcher.dataset.toolOutput;
+
+    document.getElementById("modsLocalPathInfo").innerHTML = modsContext.value;
+
+    const toolOutputLink = document.getElementById("toolOutputLink");
+    toolOutputLink.innerHTML = "";
+    if(base64ToolOutput){
+        const windowOpener = document.createElement('a');
+        toolOutputLink.appendChild(windowOpener);
+        windowOpener.addEventListener("click", () => openHtmlStringInNewTab(base64ToolOutput));
+    }
+
+    applyAccessRestrictions(accessConditionList);
+    applyRightsStatement(rightsStatement);
+    applyRecordInfo(recordInfoCompact);
+    applyFileLinksSection(launcher);
+}
+
+function applyAccessRestrictions(accessConditionList){
+    const accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
+    if(accessRestrictionsSelect){
+        accessRestrictionsSelect.selectedIndex = -1;
+        if(accessConditionList.length > 0){
+            const accessConditions = new Set(accessConditionList.split(","));
+            const existingValues = new Set(Array.from(accessRestrictionsSelect.options).map(o => o.value));
+            for (const ac of accessConditions) {
+                if (!existingValues.has(ac)) {
+                    const option = document.createElement("option");
+                    option.value = ac;
+                    option.text = ac;
+                    accessRestrictionsSelect.appendChild(option);
+                }
+            }
+            for (const option of accessRestrictionsSelect.options) {
+                if(accessConditions.has(option.value)){
+                    option.selected = true;
+                }
+            }
+        }
+        return;
+    }
+    const nonEditableAccessRestrictions = document.getElementById("nonEditableAccessRestrictions");
+    if(!nonEditableAccessRestrictions) return;
+    if(accessConditionList.length > 0){
+        nonEditableAccessRestrictions.innerHTML = "";
+        for (const ac of accessConditionList.split(",")) {
+            const acLi = document.createElement("li");
+            acLi.innerHTML = `<strong>${ac}</strong>`;
+            nonEditableAccessRestrictions.appendChild(acLi);
+        }
+    } else {
+        nonEditableAccessRestrictions.innerHTML = "<li><em>no explicit access restrictions</em></li>";
+    }
+}
+
+function applyRightsStatement(rightsStatement){
+    const rightsStatementSelect = document.getElementById("rightsStatementSelect");
+    const nonEditableRightsStatement = document.getElementById("nonEditableRightsStatement");
+    if(rightsStatementSelect){
+        rightsStatementSelect.selectedIndex = -1;
+        if(rightsStatement){
+            const rsEntry = rightsStatements[rightsStatement];
+            const rsUri = rsEntry ? rsEntry.value : rightsStatement;
+            let matchingOption = Array.from(rightsStatementSelect.options).find(o => o.value === rsUri);
+            if (!matchingOption) {
+                matchingOption = document.createElement("option");
+                matchingOption.value = rsUri;
+                matchingOption.text = rsUri;
+                rightsStatementSelect.appendChild(matchingOption);
+            }
+            matchingOption.selected = true;
+        }
+    } else if (nonEditableRightsStatement){
+        if(rightsStatement){
+            const rsEntry = rightsStatements[rightsStatement];
+            const rsUri = rsEntry ? rsEntry.value : rightsStatement;
+            nonEditableRightsStatement.innerHTML = `<strong>${rightsStatement}</strong><br/>${rsUri}`;
+        } else {
+            nonEditableRightsStatement.innerHTML = "<ul><li><em>no explicit rights</em></li></ul>";
+        }
+    }
+}
+
+function applyRecordInfo(recordInfoCompact){
+    const recordInfoDynamicForm = document.getElementById("recordInfoDynamicForm");
+    const nonEditableRecordInfo = document.getElementById("nonEditableRecordInfo");
+    if(recordInfoDynamicForm){
+        recordInfoDynamicForm.innerHTML = "";
+        if(recordInfoCompact){
+            const recordIdentifiers = recordInfoFromCompactString(recordInfoCompact);
+            for(let i = 0; i<recordIdentifiers.length; i++){
+                const recordIdentifier = recordIdentifiers[i];
+                const riEl = createRecordIdentifierElement(i, recordIdentifier);
+                recordInfoDynamicForm.appendChild(riEl);
+                document.getElementById(`recordInfoDelete_${i}`).addEventListener("click", (event) => {
+                    const riDiv = event.target.closest("div");
+                    riDiv.remove();
+                });
+            }
+        }
+    } else if (nonEditableRecordInfo){
+        nonEditableRecordInfo.innerHTML = "<li><em>no explicit record info</em></li>";
+        if(recordInfoCompact){
+            const recordIdentifiers = recordInfoFromCompactString(recordInfoCompact);
+            for(const recordIdentifier of recordIdentifiers){
+                const riLi = document.createElement("li");
+                riLi.innerText = `<strong>${recordIdentifier.source}:</strong> ${recordIdentifier.value}`;
+                nonEditableRecordInfo.appendChild(riLi);
+            }
+            nonEditableRecordInfo.innerHTML = recordInfoCompact;
+        }
+    }
+}
+
+function applyFileLinksSection(launcher){
+    const isFile = launcher.dataset.isFile === 'true';
+    const fileLinksSection = document.getElementById('fileLinksSection');
+    if (fileLinksSection) {
+        fileLinksSection.style.display = isFile ? '' : 'none';
+        if (isFile) {
+            let links = [];
+            try { links = JSON.parse(launcher.dataset.links || '[]'); } catch {}
+            populateFileLinksList(links);
+            populateFileLinkTargetSelect();
+        }
+    }
+}
+
+// ----------------------------------------------------------------
+// File links modal state
+// ----------------------------------------------------------------
+
+let currentFileLinks = [];
+
+function populateFileLinksList(links) {
+    currentFileLinks = links.map(l => ({ to: l.to, role: l.role }));
+    renderFileLinksList();
+    refreshFileLinkRoleSelect();
+}
+
+function renderFileLinksList() {
+    const list = document.getElementById('fileLinksList');
+    const nonEditable = document.getElementById('nonEditableFileLinks');
+
+    if (list) {
+        list.innerHTML = '';
+        currentFileLinks.forEach((link, i) => {
+            const roleLabel = getRoleLabelFromUri(link.role) || link.role || '(unknown role)';
+            const item = document.createElement('div');
+            item.classList.add('input-group', 'mb-1', 'small');
+            item.innerHTML = `<span class="input-group-text">${roleLabel}</span>
+                              <span class="form-control">${link.to}</span>
+                              <button type="button" class="btn btn-outline-danger" data-link-index="${i}">Remove</button>`;
+            item.querySelector('button').addEventListener('click', () => {
+                currentFileLinks.splice(i, 1);
+                renderFileLinksList();
+                refreshFileLinkRoleSelect();
+            });
+            list.appendChild(item);
+        });
+    } else if (nonEditable) {
+        if (currentFileLinks.length === 0) {
+            nonEditable.innerHTML = '<li><em>no file links</em></li>';
+        } else {
+            nonEditable.innerHTML = '';
+            for (const link of currentFileLinks) {
+                const li = document.createElement('li');
+                li.textContent = `${getRoleLabelFromUri(link.role) || link.role}: ${link.to}`;
+                nonEditable.appendChild(li);
+            }
+        }
+    }
+}
+
+function refreshFileLinkRoleSelect() {
+    const roleSelect = document.getElementById('fileLinkRoleSelect');
+    const addBtn = document.getElementById('fileLinkAddBtn');
+    if (!roleSelect) return;
+    const usedRoles = new Set(currentFileLinks.map(l => l.role));
+    roleSelect.innerHTML = '';
+    let hasOptions = false;
+    for (const [keyword, uri] of Object.entries(typeof fileLinkRoles === 'undefined' ? {} : fileLinkRoles)) {
+        if (usedRoles.has(uri)) continue;
+        const opt = document.createElement('option');
+        opt.value = uri;
+        opt.textContent = keyword;
+        roleSelect.appendChild(opt);
+        hasOptions = true;
+    }
+    if (addBtn) addBtn.disabled = !hasOptions;
+}
+
+function populateFileLinkTargetSelect() {
+    const sel = document.getElementById('fileLinkTargetSelect');
+    if (!sel) return;
+    const currentPath = modsContext?.value ?? '';
+    sel.innerHTML = '';
+    const files = typeof physicalFilePaths === 'undefined' ? [] : physicalFilePaths;
+    for (const path of files) {
+        if (!path || path === currentPath) continue;
+        const opt = document.createElement('option');
+        opt.value = path;
+        opt.textContent = path;
+        sel.appendChild(opt);
+    }
+}
+
+function getRoleLabelFromUri(uri) {
+    if (!uri || typeof fileLinkRoles === 'undefined') return null;
+    for (const [keyword, u] of Object.entries(fileLinkRoles)) {
+        if (u === uri) return keyword;
+    }
+    return null;
+}
+
+const fileLinkAddBtn = document.getElementById('fileLinkAddBtn');
+if (fileLinkAddBtn) {
+    fileLinkAddBtn.addEventListener('click', () => {
+        const roleSelect = document.getElementById('fileLinkRoleSelect');
+        const targetSelect = document.getElementById('fileLinkTargetSelect');
+        const role = roleSelect?.value;
+        const to = targetSelect?.value;
+        if (!role || !to) return;
+        if (currentFileLinks.some(l => l.role === role)) return; // duplicate role guard
+        currentFileLinks.push({ to, role });
+        renderFileLinksList();
+        refreshFileLinkRoleSelect();
+    });
+}
+
+// Serialize currentFileLinks to hidden field before modsModal form submits
+const modsForm = document.querySelector('#modsModal form');
+if (modsForm) {
+    modsForm.addEventListener('submit', () => {
+        const hiddenField = document.getElementById('fileLinksJson');
+        if (hiddenField && document.getElementById('fileLinksSection')?.style.display !== 'none') {
+            hiddenField.value = JSON.stringify(currentFileLinks);
+        }
+    });
+}
+
+function createRecordIdentifierElement(index, recordIdentifier){
+    // Ensure the existing source is always selectable, even if no longer in the configured list.
+    const sources = recordIdentifier.source && !recordInfoSources.includes(recordIdentifier.source)
+        ? [recordIdentifier.source, ...recordInfoSources]
+        : recordInfoSources;
+    let s1 = `<div class="input-group mb-3 record-info-container" id="recordIdentifiers_${index}" data-record-info-index="${index}">
+                        <input type="hidden" name="RecordIdentifiers.index" value="${index}"/>
+                        <span class="input-group-text">Source</span>
+                        <select id="recordInfoSourceSelect_${index}" class="form-select" name="RecordIdentifiers[${index}].Source">`
+    let s2 = "";
+    for(const source of sources){
+        s2 += `<option value="${source}"${ source === recordIdentifier.source ? " selected" : ""}>${source}</option>`
+    }
+    let s3 = `</select>
+                        <span class="input-group-text">Value</span>
+                        <input id="recordInfoValue_${index}" type="text" class="form-control" 
+                            name="RecordIdentifiers[${index}].Value" value="${recordIdentifier.value}">
+                        <button id="recordInfoDelete_${index}" data-recordinfo-div="recordIdentifiers_${index}" 
+                            class="btn btn-outline-primary" type="button">Delete</button>
+                    </div>`;
+    let e = document.createElement("div");
+    e.innerHTML = s1 + s2 + s3;
+    return e.firstChild;
+}
+
+// Script to wire up "Add another" record identifier button
+const recordInfoAddAnother = document.getElementById("recordInfoAddAnother");
+if(recordInfoAddAnother) {
+    if(recordInfoSources.length === 0) {
+        recordInfoAddAnother.disabled = true;
+        const msg = document.createElement('p');
+        msg.classList.add('text-muted', 'small', 'mt-1');
+        msg.textContent = 'No record identifier sources available';
+        recordInfoAddAnother.insertAdjacentElement('afterend', msg);
+    } else {
+        recordInfoAddAnother.addEventListener("click", () => {
+            let highestIndex = -1;
+            const riDivs = document.getElementsByClassName("record-info-container");
+            for(const riDiv of riDivs){
+                const riIndex = Number(riDiv.dataset.recordInfoIndex);
+                if(riIndex > highestIndex){
+                    highestIndex = riIndex;
+                }
+            }
+            const riEl = createRecordIdentifierElement(highestIndex + 1, {"source": null, "value": ""});
+            document.getElementById("recordInfoDynamicForm").appendChild(riEl);
+            document.getElementById(`recordInfoDelete_${highestIndex + 1}`).addEventListener("click", (event) => {
+                const riDiv = event.target.closest("div");
+                riDiv.remove();
+            });
+        });
+    }
+}
+
+const rows = document.getElementsByClassName("deposit-row");
+const newFolderContext = document.getElementById("newFolderContext");
+const newFolderContextIsFile = document.getElementById("newFolderContextIsFile");
+const newFileContext = document.getElementById("newFileContext");
+const newFileContextIsFile = document.getElementById("newFileContextIsFile");
+const modsContext = document.getElementById("modsContext");
+const modsContextIsFile = document.getElementById("modsContextIsFile");
+
+const deleteButton = document.getElementById("deleteButton");
+const deleteFromDepositRadio = document.getElementById("deleteFromDeposit");
+const deleteFromMetsAndDepositRadio = document.getElementById("deleteFromMetsAndDeposit");
+const deleteItemHelp = document.getElementById("deleteItemHelp");
+
+const deleteDepositButton = document.getElementById("deleteDepositButton");
+const confirmDepositDelete = document.getElementById("confirmDepositDelete");
+
+const addToMetsButton = document.getElementById("addToMetsButton");
+const addToMetsHelp = document.getElementById("addToMetsHelp");
+
+document.getElementById("toggleRhs").addEventListener("click", () => {
+    const sideState = localStorage.getItem("sidebarInfoPanel");
+    if (sideState === "hide"){
+        localStorage.setItem("sidebarInfoPanel", "show");
+    } else {
+        localStorage.setItem("sidebarInfoPanel", "hide");
+    }
+});
+
+document.getElementById("selectNonMets").addEventListener("click", () => {
+    const itemSelectors = document.getElementsByClassName("item-selector");
+    for(const itemSelector of itemSelectors)
+    {
+        const row = itemSelector.closest("tr");
+        if (row.dataset.whereabouts === "Deposit"){
+            itemSelector.checked = true;
+        }
+        if (row.dataset.mismatches?.toLowerCase() === "true"){
+            itemSelector.checked = true;
+        }
+    }
+});
+
+deleteFromDepositRadio.addEventListener("change", () => {
+    deleteButton.removeAttribute("disabled");
+});
+
+deleteFromMetsAndDepositRadio.addEventListener("change", () => {
+    deleteButton.removeAttribute("disabled");
+});
+
+function buildDeleteSelectionPayload(itemSelectors) {
+    const deleteSelectionObject = { items: [] };
+    let summary = "<table>";
+    let metadataCount = 0;
+    for(const itemSelector of itemSelectors) {
+        if (!itemSelector.checked) continue;
+        const row = itemSelector.closest("tr");
+        const type = row.dataset.type;
+        const relativePath = row.dataset.path;
+        const isMetadata = row.dataset.metadata.toLowerCase() === "true";
+        if(isMetadata){ metadataCount++; continue; }
+        if (relativePath && (type === "directory" || type === "file")){
+            const whereabouts = row.dataset.whereabouts;
+            const item = { path: relativePath, isDir: (type === "directory"), where: whereabouts };
+            deleteSelectionObject.items.push(item);
+            summary += `<tr><td>${whereabouts} - </td><td>${item.isDir ? "🗀" : "🗎"}</td><td>${relativePath}</td></tr>`;
+        }
+    }
+    summary += "</table>";
+    return { deleteSelectionObject, summary, metadataCount };
+}
+
+document.getElementById("deleteSelection").addEventListener("click", () => {
+    deleteFromDepositRadio.checked = false;
+    deleteFromMetsAndDepositRadio.checked = false;
+    deleteButton.setAttribute("disabled", "true");
+    deleteFromDepositRadio.setAttribute("disabled", "true");
+    deleteFromMetsAndDepositRadio.setAttribute("disabled", "true");
+
+    const { deleteSelectionObject, summary, metadataCount } = buildDeleteSelectionPayload(
+        document.getElementsByClassName("item-selector"));
+
+    if(metadataCount > 0) {
+        deleteItemHelp.innerHTML = `<div class="alert alert-danger" role="alert"><p>${metadataCount} item(s) are in the metadata folder, these cannot be deleted.</p></div>`;
+        document.getElementById("deleteSelectionObject").value = "";
+    } else {
+        if (deleteSelectionObject.items.length > 0){
+            deleteItemHelp.innerHTML = summary;
+            deleteFromMetsAndDepositRadio.removeAttribute("disabled");
+            if (archivalGroupExists){ deleteFromDepositRadio.removeAttribute("disabled"); }
+        } else {
+            deleteItemHelp.innerHTML = "<p>There are no items selected.</p>";
+        }
+        document.getElementById("deleteSelectionObject").value = JSON.stringify(deleteSelectionObject);
+    }
+});
+
+
+function buildAddToMetsPayload(itemSelectors) {
+    const addToMetsObject = [];
+    let summary = "<table>";
+    for(const itemSelector of itemSelectors) {
+        if (!itemSelector.checked) continue;
+        const row = itemSelector.closest("tr");
+        const type = row.dataset.type;
+        const relativePath = row.dataset.path;
+        if (!relativePath || (type !== "directory" && type !== "file")) continue;
+        const whereabouts = row.dataset.whereabouts;
+        if (whereabouts !== "Deposit" && whereabouts !== "Both") continue;
+        const item = { path: relativePath, isDir: (type === "directory"), where: whereabouts };
+        addToMetsObject.push(item);
+        summary += `<tr><td>${item.isDir ? "🗀" : "🗎"} - </td><td>${relativePath}</td></tr>`;
+    }
+    summary += "</table>";
+    return { addToMetsObject, summary };
+}
+
+document.getElementById("addSelectionToMets").addEventListener("click", () => {
+    addToMetsButton.setAttribute("disabled", "true");
+
+    const { addToMetsObject, summary } = buildAddToMetsPayload(
+        document.getElementsByClassName("item-selector"));
+
+    document.getElementById("addToMetsObject").value = JSON.stringify(addToMetsObject);
+    if (addToMetsObject.length > 0){
+        addToMetsHelp.innerHTML = summary;
+        addToMetsButton.removeAttribute("disabled");
+    } else {
+        addToMetsHelp.innerHTML = "<p>There are no items selected.</p>";
+    }
+});
+
+
+
+document.getElementById("deleteDepositModal").addEventListener("show.bs.modal", () => {
+    confirmDepositDelete.checked = false;
+    deleteDepositButton.disabled = "disabled";
+});
+
+confirmDepositDelete.addEventListener("change", () => {
+    if (confirmDepositDelete.checked){
+        deleteDepositButton.removeAttribute("disabled");
+    } else {
+        deleteDepositButton.disabled = "disabled";
+    }
+});
+
+let clicked = false;
+for (const row of rows) {
+    const path = row.dataset.path;
+    if (!(path === "objects" || path.startsWith("objects/")))
+    {
+        continue;
+    }
+    row.addEventListener('click', (event) => {
+        const row = event.currentTarget;
+        const path = row.dataset.path;
+        console.log("Click event on row for path: " + path);
+        const isFile = row.dataset.type === "file";
+        newFileContext.value = path;
+        newFolderContext.value = path;
+        modsContext.value = path;
+        newFolderContextIsFile.value = isFile;
+        newFileContextIsFile.value = isFile;
+        modsContextIsFile.value = isFile;
+
+        let modsLauncher = event.target.closest('a');
+        if(modsLauncher?.classList.contains("mods-launcher")){
+            populateModsModalFromAttributes(modsLauncher);
+        }
+
+        if (row.classList.contains("table-active")){
+            for (const r of rows) { r.classList.remove("table-active"); }
+            clicked = false;
+        } else {
+            for (const r of rows) { r.classList.remove("table-active"); }
+            row.classList.add("table-active");
+            clicked = true;
+        }
+    });
+}
+
+const COMPACT_DELIMITER = "-|-";
+
+// Matches "value(source)" — the source is always in the final set of parens
+const RECORD_IDENTIFIER_RE = /^(.*)\(([^)]*)\)$/;
+
+/**
+ * @param {string} compactString
+ * @param {string} [delimiter]
+ * @returns {{ source: string, value: string }[] | null}
+ */
+function recordInfoFromCompactString(compactString, delimiter = COMPACT_DELIMITER) {
+    if (!compactString?.trim()) {
+        return null;
+    }
+
+    const identifiers = [];
+    for (const part of compactString.split(delimiter)) {
+        const match = RECORD_IDENTIFIER_RE.exec(part);
+        if (match) {
+            identifiers.push({ value: match[1], source: match[2] });
+        }
+    }
+
+    return identifiers;
+}
+
+
+// --------------------------------------------------------------
+// ---------------script for Upload File modal id=uploadFileModal
+// --------------------------------------------------------------
+
+const fileSelector = document.getElementById('depositFile');
+const checksum = document.getElementById('checksum');
+const fileSize = document.getElementById('fileSize');
+const fileSizeWarning = document.getElementById('fileSizeWarning');
+const fileName = document.getElementById('depositFileName');
+const fileContentType = document.getElementById('depositFileContentType');
+
+const LARGE_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+
+fileSelector.addEventListener('change', () => {
+    const file = fileSelector.files[0];
+    hashFile();
+    fileName.value = file.name;
+    fileContentType.value = file.type;
+    fileSize.textContent = formatFileSize(file.size);
+    fileSize.classList.remove('d-none');
+    fileSizeWarning.classList.toggle('d-none', file.size <= LARGE_FILE_BYTES);
+});
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function hashFile() {
+    fileSelector.files[0].arrayBuffer()
+        .then(function (result) {
+            result = new Uint8Array(result);
+            return globalThis.crypto.subtle.digest("SHA-256", result);
+        })
+        .then(function (result) {
+            result = new Uint8Array(result);
+            checksum.value = Uint8ArrayToHexString(result);
+        });
+}
+
+function Uint8ArrayToHexString(ui8array) {
+    let hexString = "";
+    for (const byte of ui8array) {
+        const h = byte.toString(16).padStart(2, "0");
+        hexString += h;
+    }
+    const p = Math.pow(2, Math.ceil(Math.log2(hexString.length)));
+    hexString = hexString.padStart(p, "0");
+    return hexString;
+}
+
+// --------------------------------------------------------------
+// ------------------- Metadata folder collapse
+// --------------------------------------------------------------
+(function () {
+    const headerRow = document.querySelector('tr[data-metadata-root="true"]');
+    if (!headerRow) return;
+
+    const childRows = [];
+    let next = headerRow.nextElementSibling;
+    while (next && next.getAttribute('data-metadata') === 'true') {
+        childRows.push(next);
+        next = next.nextElementSibling;
+    }
+    if (childRows.length === 0) return;
+
+    childRows.forEach(r => { r.style.display = 'none'; });
+
+    const btn = headerRow.querySelector('[data-metadata-toggle]');
+    if (!btn) return;
+
+    btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+        childRows.forEach(r => { r.style.display = isExpanded ? 'none' : ''; });
+        btn.setAttribute('aria-expanded', String(!isExpanded));
+        const icon = btn.querySelector('svg');
+        if (icon) {
+            icon.style.transform = isExpanded ? '' : 'rotate(90deg)';
+        }
+    });
+})();

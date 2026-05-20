@@ -11,7 +11,7 @@ namespace Preservation.API.Features.Search;
 
 [Route("search")]
 [ApiController]
-public class SearchController(IMediator mediator) : Controller
+public class SearchController(IMediator mediator) : ControllerBase
 {
     
     [HttpGet(Name = "Search")]

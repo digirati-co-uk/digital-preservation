@@ -17,15 +17,16 @@ using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
 using DigitalPreservation.Common.Model.Transit.Combined;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 
 namespace DigitalPreservation.UI.Pages.Deposits;
 
 public class DepositModel(
-    IMediator mediator, 
-    IOptions<PreservationOptions> options,
+    IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
     IOptions<PipelineOptions> pipelineOptions,
+    IOptions<PreservationOptions> preservationOptions,
     IConfiguration configuration,
     ILogger<DepositModel> logger) : PageModel
 {
@@ -36,8 +37,6 @@ public class DepositModel(
     public Deposit? Deposit { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
     
-    // NB there is no equivalent ImportJobResults at the Model level because we lazily load it
-    // Whereas for pipeline jobs we need to know if there are any up front.
     public List<ProcessPipelineResult> PipelineJobResults { get; set; } = [];
     public ProcessPipelineResult? RunningPipelineJob { get; set; }
 
@@ -47,6 +46,89 @@ public class DepositModel(
 
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
     public List<string> FilesWithViruses { get; set; } = [];
+    public List<ImportJobResult> ImportJobResults { get; set; } = [];
+    public List<LogicalRange> LogicalStructMaps { get; set; } = [];
+    public List<AccessRestriction> AccessConditions { get; set; } = [];
+    public List<string> RangeTypes { get; set; } = [];
+
+    private static readonly JsonSerializerOptions CamelCaseOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    private static readonly JsonSerializerOptions CaseInsensitiveOptions = new() { PropertyNameCaseInsensitive = true };
+
+    public string LogicalStructMapsJson => JsonSerializer.Serialize(LogicalStructMaps, CamelCaseOptions);
+    public string RangeTypesJson => JsonSerializer.Serialize(RangeTypes, CamelCaseOptions);
+
+    public string PhysicalFilePathsJson => JsonSerializer.Serialize(
+        RootCombinedDirectory?.Flatten().Item2
+            .Where(f => f.LocalPath != null && f.LocalPath.StartsWith("objects/"))
+            .Select(f => f.LocalPath)
+        ?? []);
+
+    public string FileLinkRolesJson => JsonSerializer.Serialize( // NOSONAR: cannot be static — Razor Pages views require instance properties on the model
+        FileLinkRoles.ProvidesUriFromKeyword.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.AbsoluteUri));
+    public string RecordInfoSourcesJson => JsonSerializer.Serialize( // NOSONAR: cannot be static — Razor Pages views require instance properties on the model
+        preservationOptions.Value.RecordInfoSources);
+
+    public const string TempDataUpdated = "Updated";
+    public const string TempDataError = "Error";
+    public const string TempDataActiveTab = "ActiveTab";
+    
+    public string PhysicalFileLinksDataJson
+    {
+        get
+        {
+            var dict = new Dictionary<string, object>();
+            foreach (var f in RootCombinedDirectory?.Flatten().Item2 ?? [])
+            {
+                var links = f.FileInMets?.Links ?? [];
+                if (links.Count > 0 && f.LocalPath != null)
+                    dict[f.LocalPath] = links.Select(l => new { to = l.To, role = l.Role?.AbsoluteUri }).ToList();
+            }
+            return JsonSerializer.Serialize(dict);
+        }
+    }
+
+
+    public record MismatchDisplay(string FilePath, string? Differences, string? ExifDifferences);
+
+    public IEnumerable<MismatchDisplay> MismatchDisplayItems => FileMisMatches.Select(m =>
+    {
+        var regular = m.Item1
+            .Where(f => !f.MetadataType.Equals("exifmetadata", StringComparison.OrdinalIgnoreCase))
+            .Select(DescribeField);
+        var exif = m.Item1
+            .Where(f => f.MetadataType.Equals("exifmetadata", StringComparison.OrdinalIgnoreCase))
+            .Select(f => f.Field);
+        var regularJoined = string.Join(", ", regular);
+        var exifJoined = string.Join(", ", exif);
+        return new MismatchDisplay(
+            m.Item2,
+            regularJoined.Length > 0 ? regularJoined : null,
+            exifJoined.Length > 0 ? exifJoined : null);
+    });
+
+    private static string DescribeField(CombinedFile.FileMisMatch m) => m.Field.ToLower() switch
+    {
+        "contenttype" => $"Content type: Deposit [{m.ValueInDeposit}], Mets [{m.ValueInMets}]",
+        "pronomkey" => "Pronom key",
+        "formatname" => "Format name",
+        "digest" => "Digest",
+        "hasvirus" => "Has virus",
+        "virusfound" => "Virus found",
+        "virusdefinition" => "Virus definition",
+        "(missing section)" => $"Missing metadata section: {m.ValueInDeposit ?? m.ValueInMets ?? "not specified"}",
+        _ => "undocumented difference"
+    };
+    
+    public bool IsLockedByOtherUser()
+    {
+        return Deposit?.LockedBy != null && Deposit.LockedBy.GetSlug() != User.GetCallerIdentity();
+    }
+
+    public bool CanBeWorkedOn()
+    {
+        if (IsLockedByOtherUser()) return false;
+        return Deposit is { Active: true } && Deposit.Status != DepositStates.Exporting;
+    }
 
     public async Task OnGet(
         [FromRoute] string id,
@@ -54,6 +136,12 @@ public class DepositModel(
         [FromQuery] bool writeToStorage = false)
     {
         await BindDeposit(id, readFromStorage, writeToStorage);
+        var conditionsResult = await preservationApiClient.GetAccessConditions(HttpContext.RequestAborted);
+        if (conditionsResult.Success)
+            AccessConditions = conditionsResult.Value!;
+        var rangeTypesResult = await preservationApiClient.GetRangeTypes(HttpContext.RequestAborted);
+        if (rangeTypesResult.Success && rangeTypesResult.Value!.Count > 0)
+            RangeTypes = rangeTypesResult.Value!;
     }
 
     private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
@@ -74,7 +162,9 @@ public class DepositModel(
                 }
             }
 
+            ImportJobResults = await GetImportJobResults();
             (PipelineJobResults, RunningPipelineJob) = await GetCleanedPipelineJobsRunning();
+            LogicalStructMaps = WorkspaceManager.LogicalStructures;
 
             if (Deposit.Status != DepositStates.Exporting)
             {
@@ -100,7 +190,7 @@ public class DepositModel(
         }
         else
         {
-            TempData["Error"] = getDepositResult.CodeAndMessage();
+            TempData[TempDataError] = getDepositResult.CodeAndMessage();
             return false;
         }
 
@@ -126,7 +216,7 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
         }
         return Redirect($"/deposits/{id}");
@@ -159,7 +249,7 @@ public class DepositModel(
                 return Redirect($"/deposits/{id}");
             }
 
-            TempData["Error"] = result.ErrorMessage;
+            TempData[TempDataError] = result.ErrorMessage;
         }
         
         return Redirect($"/deposits/{id}");
@@ -176,7 +266,7 @@ public class DepositModel(
             var combinedResult = await WorkspaceManager.RefreshCombinedDirectory();
             if (combinedResult is not { Success: true, Value: not null })
             {
-                TempData["Error"] = "Could not read deposit file system.";
+                TempData[TempDataError] = "Could not read deposit file system.";
                 return Redirect($"/deposits/{id}");
             }
             var contentRoot = combinedResult.Value!;
@@ -192,7 +282,7 @@ public class DepositModel(
                 return Redirect($"/deposits/{id}");
             }
 
-            TempData["Error"] = result.ErrorMessage;
+            TempData[TempDataError] = result.ErrorMessage;
         }
         
         return Redirect($"/deposits/{id}");
@@ -227,7 +317,7 @@ public class DepositModel(
 
         if (errorMessage.HasText())
         {
-            TempData["Error"] = errorMessage;
+            TempData[TempDataError] = errorMessage;
             return Redirect($"/deposits/{id}");
         }
 
@@ -261,7 +351,7 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
         }
 
@@ -285,7 +375,7 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
         }
 
@@ -304,7 +394,7 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
 
         }
@@ -323,12 +413,12 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
         }
         else
         {
-            TempData["Error"] = "Could not bind deposit on lock";
+            TempData[TempDataError] = "Could not bind deposit on lock";
         }
 
         return Redirect($"/deposits/{id}");
@@ -348,12 +438,12 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
         }
         else
         {
-            TempData["Error"] = "Could not bind deposit on run pipeline";
+            TempData[TempDataError] = "Could not bind deposit on run pipeline";
         }
 
         return Redirect($"/deposits/{id}");
@@ -372,12 +462,12 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result1.ErrorMessage;
+                TempData[TempDataError] = result1.ErrorMessage;
             }
         }
         else
         {
-            TempData["Error"] = "Could not bind deposit on force complete of pipeline";
+            TempData[TempDataError] = "Could not bind deposit on force complete of pipeline";
         }
 
         return Redirect($"/deposits/{id}");
@@ -394,7 +484,7 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
         }
 
@@ -409,7 +499,7 @@ public class DepositModel(
             TempData["Deleted"] = $"Deposit {id} successfully deleted.";
             return Redirect($"/deposits");
         }
-        TempData["Error"] = result.CodeAndMessage();
+        TempData[TempDataError] = result.CodeAndMessage();
         var getDepositResult = await mediator.Send(new GetDeposit(id));
         if (getDepositResult.Success)
         {
@@ -453,39 +543,49 @@ public class DepositModel(
             // feels like this URI should not be constructed here
             if (agPathUnderRoot.HasText())
             {
-                deposit.ArchivalGroup = new Uri($"{options.Value.Root}{PreservedResource.BasePathElement}/{agPathUnderRoot}");
+                deposit.ArchivalGroup = new Uri($"{preservationOptions.Value.Root}{PreservedResource.BasePathElement}/{agPathUnderRoot}");
             }
             deposit.ArchivalGroupName = agName;
             var saveDepositResult = await mediator.Send(new UpdateDeposit(deposit));
             if (saveDepositResult.Success)
             {
-                TempData["Updated"] = "Deposit successfully updated";
+                TempData[TempDataUpdated] = "Deposit successfully updated";
                 return Redirect($"/deposits/{id}");
             }
-            TempData["Error"] = saveDepositResult.CodeAndMessage();
+            TempData[TempDataError] = saveDepositResult.CodeAndMessage();
         }
         else
         {
-            TempData["Error"] = getDepositResult.CodeAndMessage();
+            TempData[TempDataError] = getDepositResult.CodeAndMessage();
         }
         return Redirect($"/deposits/{id}");
     }
 
     public async Task<IActionResult> OnPostSetRightsAndAccess(
         [FromRoute] string id,
+        [FromForm] string modsContext,
+        [FromForm] bool modsContextIsFile,
         [FromForm] List<string> accessRestrictions,
-        [FromForm] Uri? rightsStatement)
-    {        
+        [FromForm] Uri? rightsStatement,
+        [FromForm] RecordIdentifier[] recordIdentifiers,
+        [FromForm] string? fileLinksJson)
+    {
         if (await BindDeposit(id))
         {
-            var result = await WorkspaceManager.SetAccessConditions(accessRestrictions, rightsStatement);
+            List<FileLink>? fileLinks = null;
+            if (modsContextIsFile && !string.IsNullOrEmpty(fileLinksJson))
+            {
+                try { fileLinks = JsonSerializer.Deserialize<List<FileLink>>(fileLinksJson); }
+                catch { /* ignore malformed */ }
+            }
+            var result = await WorkspaceManager.SetModsInformation(modsContext, accessRestrictions, rightsStatement, recordIdentifiers, fileLinks);
             if (result.Success)
             {
                 TempData["AccessConditionsUpdated"] = "Access Restrictions and Rights Statement updated.";
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
         }
 
@@ -522,7 +622,7 @@ public class DepositModel(
             return importJobResults;
         }
 
-        TempData["Error"] = fetchResultsResult.CodeAndMessage();
+        TempData[TempDataError] = fetchResultsResult.CodeAndMessage();
         return [];
     }
 
@@ -535,7 +635,7 @@ public class DepositModel(
             return pipelineJobResults;
         }
 
-        TempData["Error"] = fetchResultsResult.CodeAndMessage();
+        TempData[TempDataError] = fetchResultsResult.CodeAndMessage();
         return [];
     }
 
@@ -642,7 +742,7 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
         }
 
@@ -660,10 +760,86 @@ public class DepositModel(
             }
             else
             {
-                TempData["Error"] = result.ErrorMessage;
+                TempData[TempDataError] = result.ErrorMessage;
             }
         }
 
+        return Redirect($"/deposits/{id}");
+    }
+
+    public async Task<IActionResult> OnPostCreateLogicalStructMap([FromRoute] string id)
+    {
+        if (await BindDeposit(id))
+        {
+            var newId = $"LOG_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            var stub = new LogicalRange { Id = newId, Type = "Collection", Name = "Logical" };
+            var result = await WorkspaceManager.SetLogicalStructMap(stub);
+            if (result.Success)
+            {
+                TempData[TempDataActiveTab] = newId;
+                TempData[TempDataUpdated] = "Logical structure created.";
+            }
+            else
+            {
+                TempData[TempDataError] = result.ErrorMessage;
+            }
+        }
+        return Redirect($"/deposits/{id}");
+    }
+
+    public async Task<IActionResult> OnPostSaveLogicalStructMap(
+        [FromRoute] string id,
+        [FromForm] string logicalStructMapJson)
+    {
+        if (await BindDeposit(id))
+        {
+            LogicalRange? logicalRange;
+            try
+            {
+                logicalRange = JsonSerializer.Deserialize<LogicalRange>(logicalStructMapJson, CaseInsensitiveOptions);
+            }
+            catch (JsonException ex)
+            {
+                TempData[TempDataError] = "Could not parse logical structure: " + ex.Message;
+                return Redirect($"/deposits/{id}");
+            }
+
+            if (logicalRange == null)
+            {
+                TempData[TempDataError] = "Logical structure was empty.";
+                return Redirect($"/deposits/{id}");
+            }
+
+            var result = await WorkspaceManager.SetLogicalStructMap(logicalRange);
+            if (result.Success)
+            {
+                TempData[TempDataActiveTab] = logicalRange.Id;
+                TempData[TempDataUpdated] = "Logical structure saved.";
+            }
+            else
+            {
+                TempData[TempDataError] = result.ErrorMessage;
+            }
+        }
+        return Redirect($"/deposits/{id}");
+    }
+
+    public async Task<IActionResult> OnPostDeleteLogicalStructMap(
+        [FromRoute] string id,
+        [FromForm] string structMapId)
+    {
+        if (await BindDeposit(id))
+        {
+            var result = await WorkspaceManager.RemoveLogicalStructMap(structMapId);
+            if (result.Success)
+            {
+                TempData[TempDataUpdated] = "Logical structure deleted.";
+            }
+            else
+            {
+                TempData[TempDataError] = result.ErrorMessage;
+            }
+        }
         return Redirect($"/deposits/{id}");
     }
 }

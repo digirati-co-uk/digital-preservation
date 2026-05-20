@@ -11,7 +11,7 @@ namespace Storage.API.Features.Export;
 [ApiController]
 public class ExportController(
     IMediator mediator,
-    ILogger<ExportController> logger) : Controller
+    ILogger<ExportController> logger) : ControllerBase
 {
     [HttpPost(Name = "QueueExport")]
     [Produces<ExportResource>]

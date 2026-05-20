@@ -4,31 +4,13 @@ using DigitalPreservation.Utils;
 namespace DigitalPreservation.Common.Model.Transit.Combined;
 
 public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, string? relativePath = null)
+    : CombinedBase<WorkingFile>(relativePath)
 {
-    public string? LocalPath
-    {
-        get
-        {
-            if (relativePath == null)
-            {
-                return FileInDeposit?.LocalPath ?? FileInMets?.LocalPath;
-            }
-            if (FileInDeposit == null)
-            {
-                return FileInMets?.LocalPath;
-            }
-
-            if (FileInDeposit.LocalPath.StartsWith($"{relativePath}/"))
-            {
-                return FileInDeposit.LocalPath.RemoveStart($"{relativePath}/");
-            }
-            // We're in the root of a BagIt 
-            return "../" +  FileInDeposit.LocalPath;
-        }
-    }
-    
     public WorkingFile? FileInDeposit { get; private set; } = fileInDeposit;
     public WorkingFile? FileInMets { get; private set; } = fileInMets;
+
+    protected override WorkingFile? InDeposit => FileInDeposit;
+    protected override WorkingFile? InMets => FileInMets;
 
     public void DeleteFileInDeposit()
     {
@@ -213,33 +195,6 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
         return misMatches;
     }
 
-
-    public Whereabouts Whereabouts
-    {
-        get
-        {
-            if (FileInDeposit is not null && FileInMets is not null)
-            {
-                return Whereabouts.Both;
-            }
-
-            if (FileInDeposit is not null)
-            {
-                if (relativePath.HasText() && !FileInDeposit.LocalPath.StartsWith(relativePath))
-                {
-                    return Whereabouts.Extra;
-                }
-                return Whereabouts.Deposit;
-            }
-
-            if (FileInMets is not null)
-            {
-                return Whereabouts.Mets;
-            }
-
-            return Whereabouts.Neither;
-        }
-    }
 
     public class FileMisMatch(string type, string field, string? valueInDeposit, string? valueInMets)
     {
@@ -473,6 +428,8 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     {
         return FileInMets?.Name ?? FileInDeposit?.Name ?? FileInMets?.GetSlug() ?? FileInDeposit?.GetSlug();
     }
+    
+    
 }
 
 public class ExifTagComparer : IEqualityComparer<ExifTag>
