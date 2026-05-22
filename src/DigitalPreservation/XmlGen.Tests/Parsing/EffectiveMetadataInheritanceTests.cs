@@ -6,15 +6,15 @@ namespace XmlGen.Tests.Parsing;
 /// Tests for EffectiveAccessRestrictions, EffectiveRightsStatement, and EffectiveRecordInfo —
 /// the inherited/computed values that walk up the physical and logical structure trees.
 ///
-/// NOT YET IMPLEMENTED: These tests are written test-first and will fail until the inheritance
-/// computation is added to the parser. Each test documents the specific rule being tested.
-///
 /// Inheritance rules (from comments in XmlGen.Tests.Experimental.Parsing):
 ///
 ///   Access / Rights (physical files and directories):
 ///     - Use the resource's own explicit value if present.
 ///     - Otherwise walk up the physical directory tree until a parent has the value.
-///     - Logical structure does not affect access or rights for physical files.
+///     - The physical tree always takes precedence: logical structure cannot override physical access.
+///     - If the physical tree yields nothing (no access anywhere from file up to root), fall back to
+///       the file's logical assignment — deepest structLink range (Goobi), or single whole-file fptr
+///       range (Leeds-native). This handles third-party METS where access lives only in logical DMDs.
 ///
 ///   RecordInfo (physical files):
 ///     - Use the resource's own explicit value if present.
@@ -28,6 +28,7 @@ namespace XmlGen.Tests.Parsing;
 ///     - Use the range's own explicit value if present.
 ///     - Otherwise inherit only from the physical structMap root div (DMDID="DMD_PHYS_ROOT").
 ///     - They do NOT inherit from the objects/ directory or other physical divs.
+/// 
 /// </summary>
 public class EffectiveMetadataInheritanceTests : MetsParserTestBase
 {
