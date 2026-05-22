@@ -9,25 +9,32 @@ namespace XmlGen.Tests.Parsing;
 /// Inheritance rules (from comments in XmlGen.Tests.Experimental.Parsing):
 ///
 ///   Access / Rights (physical files and directories):
-///     - Use the resource's own explicit value if present.
-///     - Otherwise walk up the physical directory tree until a parent has the value.
-///     - The physical tree always takes precedence: logical structure cannot override physical access.
-///     - If the physical tree yields nothing (no access anywhere from file up to root), fall back to
-///       the file's logical assignment — deepest structLink range (Goobi), or single whole-file fptr
-///       range (Leeds-native). This handles third-party METS where access lives only in logical DMDs.
+///     - (A1) Use the resource's own explicit value if present.
+///     - (A2) Otherwise walk up the physical directory tree until a parent has the value.
+///     - (A3) Physical takes precedence: logical structure cannot override physical access/rights.
+///     - (A4) If the physical tree yields nothing, fall back to the file's logical assignment:
+///              * exactly-one whole-file fptr range (Leeds-native fptr linkage), or
+///              * deepest structLink-associated range (Goobi smLink linkage).
+///            This handles METS where access lives entirely in logical DMDs.
+///     - (A5) If none of the above yields a value, effective access is empty / rights is null.
+///            Files in this state should be surfaced as a validation warning.
 ///
 ///   RecordInfo (physical files):
-///     - Use the resource's own explicit value if present.
-///     - Otherwise, if the file is referenced as a WHOLE-FILE fptr (no mets:area) in exactly
-///       one logical range, inherit that range's RecordInfo.
-///     - If referenced only via mets:area (time segment or image region), or in multiple ranges,
-///       fall back to the physical tree.
-///     - Otherwise walk up the physical directory tree.
+///     - (R1) Use the resource's own explicit value if present.
+///     - (R2) Otherwise, if referenced as a WHOLE-FILE fptr (no mets:area) in exactly one logical
+///            range, inherit that range's effective RecordInfo.
+///     - (R3) If referenced only via mets:area, or as a whole-file fptr in multiple ranges,
+///            fall back to the physical tree.
+///     - (R4) Otherwise walk up the physical directory tree.
 ///
-///   Logical ranges (EffectiveAccessRestrictions / EffectiveRightsStatement):
-///     - Use the range's own explicit value if present.
-///     - Otherwise inherit only from the physical structMap root div (DMDID="DMD_PHYS_ROOT").
-///     - They do NOT inherit from the objects/ directory or other physical divs.
+///   Logical ranges (EffectiveAccessRestrictions / EffectiveRightsStatement / EffectiveRecordInfo):
+///     - A logical range represents an archival entity (interview, item, sub-series).
+///       Its effective access/rights describe the access policy for that entity — used
+///       when building IIIF manifests, and as the source for file access inheritance when
+///       the physical tree is silent (rule A4 above).
+///     - Access/rights: own explicit value, else inherit from DMD_PHYS_ROOT only.
+///       Objects/ and other physical directories do NOT propagate to logical ranges.
+///     - RecordInfo: own explicit value, else inherit from the parent logical range.
 /// 
 /// </summary>
 public class EffectiveMetadataInheritanceTests : MetsParserTestBase
@@ -1033,6 +1040,719 @@ public class EffectiveMetadataInheritanceTests : MetsParserTestBase
         // RecordInfo is explicitly on the range, so effective == direct
         range.EffectiveRecordInfo.Should().NotBeNull();
         range.EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("ITEM/001");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PHYSICAL ACCESS / RIGHTS: MULTI-LEVEL TREE WALK
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void File_inherits_access_through_multiple_physical_directory_levels()
+    {
+        // Access is set on objects/, not on the intermediate sub-directory or the file.
+        // Rule A2: walk all the way up until a parent has a value.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_objects">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">Level1</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/sub/deep.txt">
+                <mets:techMD ID="TECH_objects/sub/deep.txt">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_deep" MIMETYPE="text/plain">
+                    <mets:FLocat xlink:href="objects/sub/deep.txt"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects" DMDID="DMD_objects">
+                  <mets:div ID="PHYS_objects/sub" TYPE="Directory" LABEL="sub">
+                    <!-- No DMDID on sub/ — no own access condition -->
+                    <mets:div ID="PHYS_objects/sub/deep.txt" TYPE="Item" ADMID="ADM_objects/sub/deep.txt">
+                      <mets:fptr FILEID="FILE_deep"/>
+                    </mets:div>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/sub/deep.txt");
+        file.AccessRestrictions.Should().BeNull();
+        file.EffectiveAccessRestrictions.Should().ContainSingle().Which.Should().Be("Level1");
+    }
+
+    [Fact]
+    public void Sub_directory_inherits_EffectiveAccessRestrictions_from_parent_directory()
+    {
+        // A directory with no own access condition should inherit from its parent.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_objects">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">Level1</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/sub/x.txt">
+                <mets:techMD ID="TECH_objects/sub/x.txt">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_x" MIMETYPE="text/plain">
+                    <mets:FLocat xlink:href="objects/sub/x.txt"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects" DMDID="DMD_objects">
+                  <mets:div ID="PHYS_objects/sub" TYPE="Directory" LABEL="sub">
+                    <mets:div ID="PHYS_objects/sub/x.txt" TYPE="Item" ADMID="ADM_objects/sub/x.txt">
+                      <mets:fptr FILEID="FILE_x"/>
+                    </mets:div>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var sub = mets.PhysicalStructure!.Directories[0].Directories[0];
+        sub.AccessRestrictions.Should().BeNull();
+        sub.EffectiveAccessRestrictions.Should().ContainSingle().Which.Should().Be("Level1");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PHYSICAL ACCESS / RIGHTS: LOGICAL FALLBACK (A4)
+    // The scenarios below only trigger the logical fallback because the physical
+    // tree is entirely silent on access — no access condition on objects/ or any
+    // ancestor.  This is the "Leeds-native logical access" pattern: all access
+    // is declared in logical DMDs, with every file covered by exactly one range.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void File_with_whole_file_fptr_in_exactly_one_range_inherits_access_when_physical_is_silent()
+    {
+        // Rule A4 (fptr path): physical tree has no access at all; file is in exactly one
+        // logical range which declares the access.  Mirrors the leeds-mets-version.xml scenario.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_LOG_open">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">dlip-open</mods:accessCondition>
+                      <mods:accessCondition type="use and reproduction">http://rightsstatements.org/vocab/InC/1.0/</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/doc.pdf">
+                <mets:techMD ID="TECH_objects/doc.pdf">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_doc" MIMETYPE="application/pdf">
+                    <mets:FLocat xlink:href="objects/doc.pdf"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects">
+                  <!-- No DMDID: objects/ has no access condition -->
+                  <mets:div ID="PHYS_objects/doc.pdf" TYPE="Item" ADMID="ADM_objects/doc.pdf">
+                    <mets:fptr FILEID="FILE_doc"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+              <mets:structMap TYPE="LOGICAL">
+                <mets:div TYPE="Collection" LABEL="Collection">
+                  <mets:div ID="LOG_open" TYPE="Item" DMDID="DMD_LOG_open">
+                    <mets:fptr FILEID="FILE_doc"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/doc.pdf");
+
+        // Physical tree is silent — effective access and rights come from the single logical range
+        file.EffectiveAccessRestrictions.Should().ContainSingle().Which.Should().Be("dlip-open");
+        file.EffectiveRightsStatement.Should().Be(new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
+    }
+
+    [Fact]
+    public void Physical_access_takes_precedence_over_logical_range_access()
+    {
+        // Rule A3: physical always beats logical, even when the file has a whole-file fptr
+        // in a logical range.  The range's access is irrelevant once the physical tree has
+        // a value.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_objects">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">Level1</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_LOG_open">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">dlip-open</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/doc.pdf">
+                <mets:techMD ID="TECH_objects/doc.pdf">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_doc" MIMETYPE="application/pdf">
+                    <mets:FLocat xlink:href="objects/doc.pdf"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects" DMDID="DMD_objects">
+                  <mets:div ID="PHYS_objects/doc.pdf" TYPE="Item" ADMID="ADM_objects/doc.pdf">
+                    <mets:fptr FILEID="FILE_doc"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+              <mets:structMap TYPE="LOGICAL">
+                <mets:div TYPE="Collection" LABEL="Collection">
+                  <mets:div ID="LOG_open" TYPE="Item" DMDID="DMD_LOG_open">
+                    <mets:fptr FILEID="FILE_doc"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/doc.pdf");
+
+        // Physical objects/ has "Level1" — this wins; the logical "dlip-open" is ignored
+        file.EffectiveAccessRestrictions.Should().ContainSingle().Which.Should().Be("Level1");
+    }
+
+    [Fact]
+    public void File_in_multiple_logical_ranges_gets_empty_access_when_physical_is_silent()
+    {
+        // Rule A4: ambiguity — file is a whole-file fptr in two ranges with different access.
+        // "Exactly one range" condition is not met, so the logical fallback is skipped.
+        // Rule A5: effective access is empty (validation warning territory).
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_LOG_open">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">dlip-open</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_LOG_closed">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">dlip-4-closed</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/doc.pdf">
+                <mets:techMD ID="TECH_objects/doc.pdf">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_doc" MIMETYPE="application/pdf">
+                    <mets:FLocat xlink:href="objects/doc.pdf"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects">
+                  <!-- No DMDID: objects/ has no access condition -->
+                  <mets:div ID="PHYS_objects/doc.pdf" TYPE="Item" ADMID="ADM_objects/doc.pdf">
+                    <mets:fptr FILEID="FILE_doc"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+              <mets:structMap TYPE="LOGICAL">
+                <mets:div TYPE="Collection" LABEL="Collection">
+                  <mets:div ID="LOG_open" TYPE="Item" DMDID="DMD_LOG_open">
+                    <mets:fptr FILEID="FILE_doc"/>
+                  </mets:div>
+                  <mets:div ID="LOG_closed" TYPE="Item" DMDID="DMD_LOG_closed">
+                    <mets:fptr FILEID="FILE_doc"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/doc.pdf");
+
+        // Ambiguous: two ranges claim the file with different access — falls through to empty
+        file.EffectiveAccessRestrictions.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void File_not_covered_by_any_logical_range_gets_empty_access_when_physical_is_silent()
+    {
+        // Rule A5: physical tree is silent and the file appears in no logical range.
+        // This is the "validation warning" case — the METS is structurally valid but
+        // the file has no derivable access.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_LOG_open">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">dlip-open</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/covered.pdf">
+                <mets:techMD ID="TECH_objects/covered.pdf">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>111</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:amdSec ID="ADM_objects/orphan.pdf">
+                <mets:techMD ID="TECH_objects/orphan.pdf">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>222</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_covered" MIMETYPE="application/pdf">
+                    <mets:FLocat xlink:href="objects/covered.pdf"/>
+                  </mets:file>
+                  <mets:file ID="FILE_orphan" MIMETYPE="application/pdf">
+                    <mets:FLocat xlink:href="objects/orphan.pdf"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects">
+                  <!-- No DMDID: objects/ has no access condition -->
+                  <mets:div ID="PHYS_objects/covered.pdf" TYPE="Item" ADMID="ADM_objects/covered.pdf">
+                    <mets:fptr FILEID="FILE_covered"/>
+                  </mets:div>
+                  <mets:div ID="PHYS_objects/orphan.pdf" TYPE="Item" ADMID="ADM_objects/orphan.pdf">
+                    <mets:fptr FILEID="FILE_orphan"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+              <mets:structMap TYPE="LOGICAL">
+                <mets:div TYPE="Collection" LABEL="Collection">
+                  <mets:div ID="LOG_open" TYPE="Item" DMDID="DMD_LOG_open">
+                    <mets:fptr FILEID="FILE_covered"/>
+                    <!-- FILE_orphan deliberately omitted — simulates the author forgetting a file -->
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var covered = mets.Files.Single(f => f.LocalPath == "objects/covered.pdf");
+        var orphan  = mets.Files.Single(f => f.LocalPath == "objects/orphan.pdf");
+
+        covered.EffectiveAccessRestrictions.Should().ContainSingle().Which.Should().Be("dlip-open");
+        orphan.EffectiveAccessRestrictions.Should().BeEmpty();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // RECORD INFO: OWN VALUE AND MULTIPLE-RANGE CASES
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void File_own_RecordInfo_takes_precedence_over_logical_range()
+    {
+        // Rule R1: a file's own explicit RecordInfo beats the logical range it belongs to.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_objects/file.wav">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:recordInfo>
+                        <mods:recordIdentifier source="EMu">OWN/001</mods:recordIdentifier>
+                      </mods:recordInfo>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_LOG_range">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:recordInfo>
+                        <mods:recordIdentifier source="EMu">RANGE/001</mods:recordIdentifier>
+                      </mods:recordInfo>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/file.wav">
+                <mets:techMD ID="TECH_objects/file.wav">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_wav" MIMETYPE="audio/x-wav">
+                    <mets:FLocat xlink:href="objects/file.wav"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects">
+                  <mets:div ID="PHYS_objects/file.wav" TYPE="Item"
+                            DMDID="DMD_objects/file.wav" ADMID="ADM_objects/file.wav">
+                    <mets:fptr FILEID="FILE_wav"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+              <mets:structMap TYPE="LOGICAL">
+                <mets:div TYPE="Collection" LABEL="C">
+                  <mets:div ID="LOG_range" TYPE="Item" DMDID="DMD_LOG_range">
+                    <mets:fptr FILEID="FILE_wav"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/file.wav");
+        file.RecordInfo.Should().NotBeNull();
+        file.EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("OWN/001");
+    }
+
+    [Fact]
+    public void File_in_multiple_whole_file_fptr_ranges_falls_back_to_physical_RecordInfo()
+    {
+        // Rule R3: file is a whole-file fptr in two different logical ranges.
+        // "Exactly one range" condition not met → falls back to physical objects/.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_objects">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:recordInfo>
+                        <mods:recordIdentifier source="EMu">COLL/001</mods:recordIdentifier>
+                      </mods:recordInfo>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_LOG_A">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:recordInfo>
+                        <mods:recordIdentifier source="EMu">ITEM/A</mods:recordIdentifier>
+                      </mods:recordInfo>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_LOG_B">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:recordInfo>
+                        <mods:recordIdentifier source="EMu">ITEM/B</mods:recordIdentifier>
+                      </mods:recordInfo>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/shared.wav">
+                <mets:techMD ID="TECH_objects/shared.wav">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_shared" MIMETYPE="audio/x-wav">
+                    <mets:FLocat xlink:href="objects/shared.wav"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects" DMDID="DMD_objects">
+                  <mets:div ID="PHYS_objects/shared.wav" TYPE="Item" ADMID="ADM_objects/shared.wav">
+                    <mets:fptr FILEID="FILE_shared"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+              <mets:structMap TYPE="LOGICAL">
+                <mets:div TYPE="Collection" LABEL="Coll">
+                  <mets:div ID="LOG_A" TYPE="Item" DMDID="DMD_LOG_A">
+                    <mets:fptr FILEID="FILE_shared"/>
+                  </mets:div>
+                  <mets:div ID="LOG_B" TYPE="Item" DMDID="DMD_LOG_B">
+                    <mets:fptr FILEID="FILE_shared"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/shared.wav");
+
+        // Two whole-file fptr ranges — ambiguous, falls back to physical objects/
+        file.EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("COLL/001");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LOGICAL RANGE EFFECTIVE VALUES: OWN VALUE BEATS DMD_PHYS_ROOT
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Logical_range_own_access_overrides_DMD_PHYS_ROOT_access()
+    {
+        // Even when DMD_PHYS_ROOT has an access condition, a logical range with its own
+        // explicit access should use that value rather than inheriting from DMD_PHYS_ROOT.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_PHYS_ROOT">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">ClosedCollection</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_LOG_0001">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="restriction on access">dlip-open</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/f.txt">
+                <mets:techMD ID="TECH_objects/f.txt">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_f" MIMETYPE="text/plain">
+                    <mets:FLocat xlink:href="objects/f.txt"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_ROOT" TYPE="Directory" LABEL="__ROOT" DMDID="DMD_PHYS_ROOT">
+                  <mets:div ID="PHYS_objects/f.txt" TYPE="Item" ADMID="ADM_objects/f.txt">
+                    <mets:fptr FILEID="FILE_f"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+              <mets:structMap TYPE="LOGICAL">
+                <mets:div TYPE="Collection" LABEL="Coll">
+                  <mets:div ID="LOG_0001" TYPE="Item" DMDID="DMD_LOG_0001">
+                    <mets:fptr FILEID="FILE_f"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var range = mets.LogicalStructures[0].Ranges[0];
+        range.AccessRestrictions.Should().ContainSingle().Which.Should().Be("dlip-open");
+
+        // Range's own value beats the DMD_PHYS_ROOT fallback
+        range.EffectiveAccessRestrictions.Should().ContainSingle().Which.Should().Be("dlip-open");
     }
 
     [Fact]
