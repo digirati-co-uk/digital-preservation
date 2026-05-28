@@ -15,7 +15,12 @@ namespace Preservation.API.IIIF;
 
 public class ManifestBuilder
 {
-    public void MakeCanvasesAndRanges(Manifest manifest, MetsFileWrapper wrapper, string plainBaseUrl, string mediaServerBaseUrl)
+    public void MakeCanvasesAndRanges(
+        Manifest manifest,
+        MetsFileWrapper wrapper,
+        string plainBaseUrl,
+        string? mediaServerBaseUrl,
+        Func<WorkingFile, string>? originUriResolver = null)
     {
         const string none = "none";
         var canvasMap = new Dictionary<string, Canvas>();
@@ -76,7 +81,8 @@ public class ManifestBuilder
                 }
             ];
 
-            if (file.ContentType.StartsWith("image/") && canvas is { Width: > 0, Height: > 0 })
+            // Image in Deposit: IIIF image service for mediaServer, scaled JPEG + thumbnail
+            if (file.ContentType.StartsWith("image/") && canvas is { Width: > 0, Height: > 0 } && originUriResolver == null)
             {
                 var size = new Size(canvas.Width.Value, canvas.Height.Value);
                 var mainSize = Size.Confine(1200, size);
@@ -99,11 +105,23 @@ public class ManifestBuilder
                     }
                 ];
             }
-            else if (file.ContentType.StartsWith("video/") && canvas is { Width: > 0, Height: > 0, Duration: > 0 })
+            else if (file.ContentType.StartsWith("image/") && originUriResolver != null)
             {
+                paintingAnno.Body = new Image
+                {
+                    Id = originUriResolver(file),
+                    Width = canvas.Width,
+                    Height = canvas.Height,
+                    Format = file.ContentType
+                };
+            }
+            // Video/audio: body type, structure, and rendering are the same in both modes — only the ID differs.
+            else if (file.ContentType.StartsWith("video/") && (originUriResolver != null || canvas is { Width: > 0, Height: > 0, Duration: > 0 }))
+            {
+                var id = originUriResolver?.Invoke(file) ?? $"{mediaServerBaseUrl}video/{escapedLocal}";
                 paintingAnno.Body = new Video
                 {
-                    Id = $"{mediaServerBaseUrl}video/{escapedLocal}",
+                    Id = id,
                     Width = canvas.Width,
                     Height = canvas.Height,
                     Duration = canvas.Duration,
@@ -113,18 +131,19 @@ public class ManifestBuilder
                 [
                     new ExternalResource("Video")
                     {
-                        Id = $"{mediaServerBaseUrl}video/{escapedLocal}",
+                        Id = id,
                         Format = file.ContentType,
                         Behavior = ["original"],
                         Label = canvas.Label
                     }
                 ];
             }
-            else if (file.ContentType.StartsWith("audio/") && canvas is { Duration: > 0 })
+            else if (file.ContentType.StartsWith("audio/") && (originUriResolver != null || canvas is { Duration: > 0 }))
             {
+                var id = originUriResolver?.Invoke(file) ?? $"{mediaServerBaseUrl}audio/{escapedLocal}";
                 paintingAnno.Body = new Sound
                 {
-                    Id = $"{mediaServerBaseUrl}audio/{escapedLocal}",
+                    Id = id,
                     Duration = canvas.Duration,
                     Format = file.ContentType
                 };
@@ -132,43 +151,63 @@ public class ManifestBuilder
                 [
                     new ExternalResource("Sound")
                     {
-                        Id = $"{mediaServerBaseUrl}audio/{escapedLocal}",
+                        Id = id,
                         Format = file.ContentType,
                         Behavior = ["original"],
                         Label = canvas.Label
                     }
                 ];
             }
+            // Placeholder: ExternalResource is not IPaintable, so for origin URI mode there is no painting body —
+            // the canvas carries only a rendering link pointing to the binary.
             else
             {
                 canvas.Behavior = ["placeholder"];
-                paintingAnno.Body = new Image
+                if (originUriResolver != null)
                 {
-                    Id = $"{mediaServerBaseUrl}placeholder/canvas.png",
-                    Width = 1000,
-                    Height = 800,
-                    Format = "image/png"
-                };
-                canvas.Thumbnail =
-                [
-                    new Image
+                    var uri = originUriResolver(file);
+                    canvas.Items = null; // no painting body
+                    canvas.Rendering =
+                    [
+                        new ExternalResource("Text")
+                        {
+                            Id = uri,
+                            Format = file.ContentType,
+                            Behavior = ["original"],
+                            Label = canvas.Label
+                        }
+                    ];
+                }
+                else
+                {
+                    paintingAnno.Body = new Image
                     {
-                        Id = $"{mediaServerBaseUrl}placeholder/thumb.png",
-                        Width = 100,
-                        Height = 80,
+                        Id = $"{mediaServerBaseUrl}placeholder/canvas.png",
+                        Width = 1000,
+                        Height = 800,
                         Format = "image/png"
-                    }
-                ];
-                canvas.Rendering =
-                [
-                    new ExternalResource("Text")
-                    {
-                        Id = $"{mediaServerBaseUrl}file/{escapedLocal}",
-                        Format = file.ContentType,
-                        Behavior = ["original"],
-                        Label = canvas.Label
-                    }
-                ];
+                    };
+                    canvas.Thumbnail =
+                    [
+                        new Image
+                        {
+                            Id = $"{mediaServerBaseUrl}placeholder/thumb.png",
+                            Width = 100,
+                            Height = 80,
+                            Format = "image/png"
+                        }
+                    ];
+                    canvas.Rendering =
+                    [
+                        new ExternalResource("Text")
+                        {
+                            Id = $"{mediaServerBaseUrl}file/{escapedLocal}",
+                            Format = file.ContentType,
+                            Behavior = ["original"],
+                            Label = canvas.Label
+                        }
+                    ];
+                }
             }
 
             // Collect all transcript annotations into a single AnnotationPage
@@ -179,13 +218,16 @@ public class ManifestBuilder
                 if (!role.HasText() || !role.EndsWith("transcript")) continue;
                 var target = wrapper.Files.SingleOrDefault(f => f.LocalPath == fileLink.To);
                 if (target == null) continue;
+                var transcriptBodyId = originUriResolver != null
+                    ? originUriResolver(target)
+                    : $"{mediaServerBaseUrl}file/{target.LocalPath.EscapePathElements()}";
                 transcriptItems.Add(new GeneralAnnotation("supplementing")
                 {
                     Body =
                     [
                         new ExternalResource("Text")
                         {
-                            Id = $"{mediaServerBaseUrl}file/{target.LocalPath.EscapePathElements()}",
+                            Id = transcriptBodyId,
                             Label = new LanguageMap("en", "Transcript"),
                             Format = target.ContentType
                         }
