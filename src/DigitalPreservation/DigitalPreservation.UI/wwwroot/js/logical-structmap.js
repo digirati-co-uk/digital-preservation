@@ -81,6 +81,16 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
     actionsTd.classList.add('dep-actions');
     const actionsDiv = document.createElement('div');
     actionsDiv.classList.add('d-flex', 'gap-1', 'align-items-center');
+    const rangeUpBtn = makeActionLink('arrow-up', 'Move up',
+        () => moveRange(structmapId, range.id, -1));
+    const rangeDownBtn = makeActionLink('arrow-down', 'Move down',
+        () => moveRange(structmapId, range.id, 1));
+    if (isRoot) {
+        rangeUpBtn.style.visibility = 'hidden';
+        rangeDownBtn.style.visibility = 'hidden';
+    }
+    actionsDiv.appendChild(rangeUpBtn);
+    actionsDiv.appendChild(rangeDownBtn);
     actionsDiv.appendChild(makeActionLink('folder-plus', 'Add child range',
         () => addChildRange(structmapId, range.id)));
     actionsDiv.appendChild(makeActionLink('file-earmark-plus', 'Add files',
@@ -94,12 +104,6 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
             markDirty(structmapId);
             renderLogicalStructMap(structmapId);
         })));
-    if (!isRoot) {
-        actionsDiv.appendChild(makeActionLink('arrow-up', 'Move up',
-            () => moveRange(structmapId, range.id, -1)));
-        actionsDiv.appendChild(makeActionLink('arrow-down', 'Move down',
-            () => moveRange(structmapId, range.id, 1)));
-    }
     actionsTd.appendChild(actionsDiv);
     tr.appendChild(actionsTd);
 
@@ -138,6 +142,13 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
 
         const fileActionsTd = document.createElement('td');
         fileActionsTd.classList.add('dep-actions');
+        const fileActionsDiv = document.createElement('div');
+        fileActionsDiv.classList.add('d-flex', 'gap-1', 'align-items-center');
+        fileActionsDiv.appendChild(makeActionLink('arrow-up', 'Move up',
+            () => moveFileInRange(structmapId, range.id, fp.localPath, -1)));
+        fileActionsDiv.appendChild(makeActionLink('arrow-down', 'Move down',
+            () => moveFileInRange(structmapId, range.id, fp.localPath, 1)));
+        fileActionsTd.appendChild(fileActionsDiv);
         fileTr.appendChild(fileActionsTd);
 
         const fileNameTd = document.createElement('td');
@@ -276,6 +287,20 @@ function moveRange(structmapId, id, direction) {
     if (newIndex < 0 || newIndex >= parent.ranges.length) return;
     const [item] = parent.ranges.splice(index, 1);
     parent.ranges.splice(newIndex, 0, item);
+    markDirty(structmapId);
+    renderLogicalStructMap(structmapId);
+}
+
+function moveFileInRange(structmapId, rangeId, localPath, direction) {
+    const root = logicalStructMapState[structmapId];
+    const range = findRange(root, rangeId);
+    if (!range) return;
+    const index = range.files.findIndex(f => f.localPath === localPath);
+    if (index === -1) return;
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= range.files.length) return;
+    const [item] = range.files.splice(index, 1);
+    range.files.splice(newIndex, 0, item);
     markDirty(structmapId);
     renderLogicalStructMap(structmapId);
 }
