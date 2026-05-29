@@ -1192,22 +1192,34 @@ public class MetsParser(
         Dictionary<string, LogicalRange> fileToAssociatedRange,
         HashSet<string> filesWithExplicitRights)
     {
-        // Access: own → physical parent → logical range (when physical parent has nothing)
+        // Access: own → physical parent → exactly-one whole-file fptr range → smLink-associated range → []
+        // Physical parent always takes precedence; logical is fallback only when the physical tree is silent.
         if (file.AccessRestrictions is { Count: > 0 })
             file.EffectiveAccessRestrictions = file.AccessRestrictions;
         else if (parentAccess.Count > 0)
             file.EffectiveAccessRestrictions = parentAccess;
+        else if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var wholeRangesForAccess)
+                 && wholeRangesForAccess.Count == 1
+                 && wholeRangesForAccess[0].EffectiveAccessRestrictions.Count > 0)
+            file.EffectiveAccessRestrictions = wholeRangesForAccess[0].EffectiveAccessRestrictions;
         else if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assocForAccess)
                  && assocForAccess.EffectiveAccessRestrictions.Count > 0)
             file.EffectiveAccessRestrictions = assocForAccess.EffectiveAccessRestrictions;
         else
             file.EffectiveAccessRestrictions = [];
 
+        // Rights: own/explicit → physical parent → exactly-one whole-file fptr range → null
         // If the div had an explicit use-and-reproduction element (even with an invalid value like "null(?)"),
-        // use the file's own rights (which may be null) rather than inheriting from the physical parent.
-        file.EffectiveRightsStatement = (file.RightsStatement != null || filesWithExplicitRights.Contains(file.LocalPath))
-            ? file.RightsStatement
-            : parentRights;
+        // use the file's own rights (which may be null) rather than inheriting.
+        if (file.RightsStatement != null || filesWithExplicitRights.Contains(file.LocalPath))
+            file.EffectiveRightsStatement = file.RightsStatement;
+        else if (parentRights != null)
+            file.EffectiveRightsStatement = parentRights;
+        else if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var wholeRangesForRights)
+                 && wholeRangesForRights.Count == 1)
+            file.EffectiveRightsStatement = wholeRangesForRights[0].EffectiveRightsStatement;
+        else
+            file.EffectiveRightsStatement = null;
 
         // RecordInfo: own → exactly-one whole-file logical range (effective) → smLink-associated range → physical parent
         if (file.RecordInfo != null)
