@@ -29,6 +29,11 @@ public static class FileLinkRoles
     {
         return ProvidesUriFromKeyword.GetValueOrDefault(keyword, Supplementing);
     }
+
+    public static string? ToIiifProvides(Uri? uri)
+    {
+        return uri == null ? null : ProvidesKeywordFromUri!.GetValueOrDefault(uri, null);
+    }
     
     static FileLinkRoles()
     {

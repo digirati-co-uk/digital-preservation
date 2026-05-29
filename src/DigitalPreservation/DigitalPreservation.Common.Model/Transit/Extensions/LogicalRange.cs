@@ -22,6 +22,8 @@ public class FilePointer
     public Rectangle? Region { get; set; }
     public double? BeginTime { get; set; }
     public double? EndTime { get; set; }
+    // Raw attributes from mets:area elements whose BETYPE/SHAPE we don't recognise, preserved for round-trip.
+    public Dictionary<string, string>? ExtraAreaAttributes { get; set; }
 }
 
 public class Rectangle

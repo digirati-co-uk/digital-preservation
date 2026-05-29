@@ -8,10 +8,16 @@ using DigitalPreservation.Core.Web;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
+using IIIF.Presentation.V3;
+using IIIF.Serialisation;
 using LeedsDlipServices.Identity;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
+using Preservation.API.IIIF;
 
 namespace Preservation.API.Features.Deposits;
 
@@ -21,7 +27,8 @@ namespace Preservation.API.Features.Deposits;
 public class DepositsController(
     ILogger<DepositsController> logger,
     IMediator mediator,
-    WorkspaceManagerFactory workspaceManagerFactory
+    WorkspaceManagerFactory workspaceManagerFactory,
+    ITokenService tokenService
     ) : ControllerBase
 {
     [HttpGet(Name = "ListDeposits")]
@@ -90,7 +97,86 @@ public class DepositsController(
         }
         return this.StatusResponseFromResult(wrapper);
     }
+    
+    /// <summary>
+    /// Access-controlled request for IIIF Manifest
+    /// Will redirect to a tokenised URL for the Manifest
+    /// </summary>
+    /// <param name="id"></param>
+    /// <returns></returns>
+    [HttpGet("{id}/iiif", Name = "GetDepositAsIIIFManifest")]
+    public IActionResult GetDepositAsIIIF([FromRoute] string id)
+    {
+        var token = tokenService.GetToken($"{User.GetCallerIdentity()}/deposit/{id}");
+        return RedirectToRoute("GetDepositAsIIIFManifestWithToken", new { id, token });
+    }
 
+    [AllowAnonymous]
+    [RequireFeatureFlag("EnableIiifMediaEndpoints")]
+    [EnableCors("AllowAll")]
+    [HttpGet("{id}/iiif-token/{token}", Name = "GetDepositAsIIIFManifestWithToken")]
+    [ProducesResponseType<Manifest>(200)]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    public async Task<IActionResult> GetDepositAsIIIFManifestWithToken([FromRoute] string id, [FromRoute] string token)
+    {
+        var key = tokenService.GetKey(token);
+        if (!key.HasText() || key.GetSlug() != id)
+            return SessionExpiredResult();
+
+        var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        var manifestUrl = Request.GetDisplayUrl();
+        var iiifBaseUrl = $"{root}/deposits/{id}/iiif/";
+        var mediaServerBaseUrl = $"{root}/media/{token}/deposit/{id}/";
+        var manifestResult = await mediator.Send(new GetDepositAsIIIFManifest(id, manifestUrl, iiifBaseUrl, mediaServerBaseUrl));
+        if (manifestResult is { Success: true, Value: not null })
+        {
+            Response.Headers["X-IIIF-Post-Url"] = manifestUrl;
+            return Content(manifestResult.Value.AsJson(), "application/json");
+        }
+        return this.StatusResponseFromResult(manifestResult);
+    }
+
+    [AllowAnonymous]
+    [RequireFeatureFlag("EnableIiifMediaEndpoints")]
+    [EnableCors("AllowAll")]
+    [HttpPost("{id}/iiif-token/{token}", Name = "PostIIIFManifestToDepositWithToken")]
+    public async Task<IActionResult> PostIIIFManifestToDepositWithToken([FromRoute] string id, [FromRoute] string token)
+    {
+        var key = tokenService.GetKey(token);
+        if (!key.HasText() || key.GetSlug() != id)
+            return SessionExpiredResult();
+
+        string rawJson;
+        using (var reader = new System.IO.StreamReader(Request.Body))
+            rawJson = await reader.ReadToEndAsync();
+
+        Manifest manifest;
+        try
+        {
+            manifest = IIIFSerialiserX.FromJson<Manifest>(rawJson);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not deserialise POSTed IIIF manifest for deposit {id}", id);
+            return BadRequest(new ProblemDetails { Title = "Invalid IIIF Manifest", Detail = ex.Message });
+        }
+
+        var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        var iiifBaseUrl = $"{root}/deposits/{id}/iiif/";
+
+        var result = await mediator.Send(
+            new UpdateLogicalStructMapsFromManifest(id, manifest, iiifBaseUrl, rawJson));
+
+        if (result.Success)
+            return NoContent();
+        return this.StatusResponseFromResult(result);
+    }
+
+    private ObjectResult SessionExpiredResult() => Problem(
+        title: "Session expired",
+        detail: "The IIIF session token has expired. Re-open the manifest from the preservation system to get a fresh link.",
+        statusCode: 401);
 
 
     [HttpPost("{id}/mets", Name = "AddDepositItemsToMets")]

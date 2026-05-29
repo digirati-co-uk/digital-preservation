@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Xml.Linq;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
@@ -411,6 +412,258 @@ public class MetsManagerLogicalStructTests
             .Should().Contain(d => (string?)d.Attribute("ID") == "LOG_0099");
         doc.Descendants(MetsNs + "dmdSec")
             .Should().Contain(d => (string?)d.Attribute("ID") == "DMD_LOG_0099");
+    }
+
+    // -----------------------------------------------------------------------
+    // SetStructMap — ExtraAreaAttributes round-trip
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task SetStructMap_ExtraAreaAttributes_FilePointer_Writes_Area_With_Preserved_Attributes()
+    {
+        // A FilePointer with ExtraAreaAttributes (unrecognised area type from a parsed METS)
+        // must produce a mets:area element carrying exactly those attributes, so that the
+        // XML is not silently changed when the user edits and saves the logical structure.
+
+        var metsUri = new Uri(new FileInfo("Outputs/logical-extra-area-write.xml").FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "Extra Area Write Test");
+        var fullMets = (await metsManager.GetFullMets(metsUri, createResult.Value!.ETag!)).Value!;
+        metsManager.AddToMets(fullMets, SimpleFile("objects/audio.wav", "audio.wav"));
+
+        var logSm = new LogicalRange
+        {
+            Id = "LOG_0000",
+            Type = "Collection",
+            Name = "Root",
+            Ranges =
+            [
+                new LogicalRange
+                {
+                    Id = "LOG_0001",
+                    Type = "Item",
+                    Name = "Byte-ranged segment",
+                    Files =
+                    [
+                        new FilePointer
+                        {
+                            LocalPath = "objects/audio.wav",
+                            ExtraAreaAttributes = new Dictionary<string, string>
+                            {
+                                ["BETYPE"] = "BYTE",
+                                ["BEGIN"]  = "0",
+                                ["END"]    = "44100"
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        metsManager.SetStructMap(fullMets, logSm);
+        await metsManager.WriteMets(fullMets);
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        var childDiv = doc.Descendants(MetsNs + "div")
+            .Single(d => (string?)d.Attribute("ID") == "LOG_0001");
+        var fptr = childDiv.Elements(MetsNs + "fptr").Single();
+
+        fptr.Attribute("FILEID").Should().BeNull("area element should be used, not direct FILEID");
+        var area = fptr.Elements(MetsNs + "area").Single();
+        area.Attribute("FILEID")!.Value.Should().Be("FILE_objects/audio.wav");
+        area.Attribute("BETYPE")!.Value.Should().Be("BYTE");
+        area.Attribute("BEGIN")!.Value.Should().Be("0");
+        area.Attribute("END")!.Value.Should().Be("44100");
+    }
+
+    [Fact]
+    public async Task SetStructMap_ExtraAreaAttributes_Round_Trips_Via_Parser()
+    {
+        // After SetStructMap + WriteMets, parsing the output must reconstruct a FilePointer
+        // with the same ExtraAreaAttributes, confirming the full parse → write → parse loop
+        // does not lose unrecognised area data.
+
+        var metsUri = new Uri(new FileInfo("Outputs/logical-extra-area-roundtrip.xml").FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "Extra Area Round-trip Test");
+        var fullMets = (await metsManager.GetFullMets(metsUri, createResult.Value!.ETag!)).Value!;
+        metsManager.AddToMets(fullMets, SimpleFile("objects/audio.wav", "audio.wav"));
+
+        var extraAttrs = new Dictionary<string, string>
+        {
+            ["BETYPE"] = "BYTE",
+            ["BEGIN"]  = "0",
+            ["END"]    = "44100"
+        };
+
+        var logSm = new LogicalRange
+        {
+            Id = "LOG_0000",
+            Type = "Collection",
+            Name = "Root",
+            Ranges =
+            [
+                new LogicalRange
+                {
+                    Id = "LOG_0001",
+                    Type = "Item",
+                    Name = "Byte-ranged segment",
+                    Files =
+                    [
+                        new FilePointer
+                        {
+                            LocalPath = "objects/audio.wav",
+                            ExtraAreaAttributes = extraAttrs
+                        }
+                    ]
+                }
+            ]
+        };
+
+        metsManager.SetStructMap(fullMets, logSm);
+        await metsManager.WriteMets(fullMets);
+
+        var parseResult = await parser.GetMetsFileWrapper(metsUri);
+        parseResult.Success.Should().BeTrue();
+        var parsedFp = parseResult.Value!.LogicalStructures.Single().Ranges.Single().Files.Single();
+
+        parsedFp.LocalPath.Should().Be("objects/audio.wav");
+        parsedFp.BeginTime.Should().BeNull();
+        parsedFp.EndTime.Should().BeNull();
+        parsedFp.Region.Should().BeNull();
+        parsedFp.ExtraAreaAttributes.Should().BeEquivalentTo(extraAttrs);
+    }
+
+    // -----------------------------------------------------------------------
+    // SetStructMap — combined time + region FilePointer
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task SetStructMap_Combined_Time_And_Region_FilePointer_Writes_Both_On_Same_Area_Element()
+    {
+        // When a FilePointer has both BeginTime/EndTime AND Region, BuildFptr must write
+        // all attributes on a single mets:area element so neither is silently dropped.
+        var metsUri = new Uri(new FileInfo("Outputs/logical-combined-area.xml").FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "Combined Area Test");
+        var fullMets = (await metsManager.GetFullMets(metsUri, createResult.Value!.ETag!)).Value!;
+        metsManager.AddToMets(fullMets, SimpleFile("objects/video.mp4", "video.mp4"));
+
+        var logSm = new LogicalRange
+        {
+            Id = "LOG_0000", Type = "Collection", Name = "Root",
+            Ranges =
+            [
+                new LogicalRange
+                {
+                    Id = "LOG_0001", Type = "Item", Name = "Clip",
+                    Files =
+                    [
+                        new FilePointer
+                        {
+                            LocalPath = "objects/video.mp4",
+                            BeginTime = 237.0,
+                            EndTime   = 250.0,
+                            Region    = new Rectangle { X1 = 10, Y1 = 20, X2 = 100, Y2 = 200 }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        metsManager.SetStructMap(fullMets, logSm);
+        await metsManager.WriteMets(fullMets);
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        var area = doc.Descendants(MetsNs + "div")
+            .Single(d => (string?)d.Attribute("ID") == "LOG_0001")
+            .Elements(MetsNs + "fptr").Single()
+            .Elements(MetsNs + "area").Single();
+
+        area.Attribute("BETYPE")!.Value.Should().Be("TIME");
+        area.Attribute("BEGIN")!.Value.Should().Be("00:03:57");
+        area.Attribute("END")!.Value.Should().Be("00:04:10");
+        area.Attribute("SHAPE")!.Value.Should().Be("RECT");
+        area.Attribute("COORDS")!.Value.Should().Be("10,20,100,200");
+    }
+
+    [Fact]
+    public async Task SetStructMap_Combined_Time_And_Region_Round_Trips_Via_Parser()
+    {
+        var metsUri = new Uri(new FileInfo("Outputs/logical-combined-roundtrip.xml").FullName);
+        var createResult = await metsManager.CreateStandardMets(metsUri, "Combined Round-trip Test");
+        var fullMets = (await metsManager.GetFullMets(metsUri, createResult.Value!.ETag!)).Value!;
+        metsManager.AddToMets(fullMets, SimpleFile("objects/video.mp4", "video.mp4"));
+
+        var logSm = new LogicalRange
+        {
+            Id = "LOG_0000", Type = "Collection", Name = "Root",
+            Ranges =
+            [
+                new LogicalRange
+                {
+                    Id = "LOG_0001", Type = "Item", Name = "Clip",
+                    Files = [ new FilePointer { LocalPath = "objects/video.mp4", BeginTime = 237.0, EndTime = 250.0, Region = new Rectangle { X1 = 10, Y1 = 20, X2 = 100, Y2 = 200 } } ]
+                }
+            ]
+        };
+
+        metsManager.SetStructMap(fullMets, logSm);
+        await metsManager.WriteMets(fullMets);
+
+        var parseResult = await parser.GetMetsFileWrapper(metsUri);
+        var fp = parseResult.Value!.LogicalStructures.Single().Ranges.Single().Files.Single();
+
+        fp.BeginTime.Should().Be(237.0);
+        fp.EndTime.Should().Be(250.0);
+        fp.Region.Should().NotBeNull();
+        fp.Region!.X1.Should().Be(10);
+        fp.Region.Y1.Should().Be(20);
+        fp.Region.X2.Should().Be(100);
+        fp.Region.Y2.Should().Be(200);
+    }
+
+    // -----------------------------------------------------------------------
+    // FilePointer JSON round-trip (mirrors OnPostSaveLogicalStructMap)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void FilePointer_Region_Survives_CamelCase_Serialize_Then_CaseInsensitive_Deserialize()
+    {
+        // Mirrors the exact serialization path in OnPostSaveLogicalStructMap:
+        //   server sends LogicalStructMapsJson with CamelCaseOptions
+        //   JS posts it back unchanged
+        //   server deserializes with CaseInsensitiveOptions
+        // Region must survive intact.
+        var camelCase        = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var caseInsensitive  = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        var original = new LogicalRange
+        {
+            Id = "LOG_0000", Type = "Collection", Name = "Root",
+            Ranges =
+            [
+                new LogicalRange
+                {
+                    Id = "LOG_0001", Type = "Item", Name = "Item",
+                    Files =
+                    [
+                        new FilePointer
+                        {
+                            LocalPath = "objects/page.tif",
+                            Region = new Rectangle { X1 = 10, Y1 = 20, X2 = 100, Y2 = 200 }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var json = JsonSerializer.Serialize(original, camelCase);
+        var deserialized = JsonSerializer.Deserialize<LogicalRange>(json, caseInsensitive);
+
+        var fp = deserialized!.Ranges.Single().Files.Single();
+        fp.Region.Should().NotBeNull("Region must survive the camelCase→CaseInsensitive round-trip");
+        fp.Region!.X1.Should().Be(10);
+        fp.Region.Y1.Should().Be(20);
+        fp.Region.X2.Should().Be(100);
+        fp.Region.Y2.Should().Be(200);
     }
 
     // -----------------------------------------------------------------------

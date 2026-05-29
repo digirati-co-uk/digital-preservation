@@ -12,6 +12,7 @@ using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace.Requests;
 using LateApexEarlySpeed.Xunit.Assertion.Json;
 using MediatR;
+using Storage.Repository.Common;
 
 namespace DigitalPreservation.Workspace;
 
@@ -70,6 +71,12 @@ public class WorkspaceManager(
         }
         return readFilesResult;
     }
+
+    public Task<Result<(Stream?, DateTime)>> GetStream(Uri fileUri)
+        => mediator.Send(new GetFileStream(fileUri));
+
+    public Task<Result<RangedStreamResult?>> GetRangedStream(Uri fileUri, long from, long? to)
+        => mediator.Send(new GetRangedFileStream(fileUri, from, to));
     
     
     private Result<CombinedDirectory?>? rootCombinedDirectoryResult;
