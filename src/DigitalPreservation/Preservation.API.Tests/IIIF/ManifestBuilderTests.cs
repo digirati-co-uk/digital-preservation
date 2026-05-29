@@ -103,12 +103,20 @@ public class ManifestBuilderTests
     }
 
     [Fact]
-    public void Video_WithExtents_HasRendering()
+    public void Video_WithExtents_HasNoRendering()
     {
         var manifest = BuildDeposit(Wrapper(MakeFile("objects/clip.mp4", "video/mp4", 1920, 1080, 120.0)));
-        SingleCanvas(manifest).Rendering!.Single().Id.Should().Be($"{MediaUrl}video/objects/clip.mp4");
+        SingleCanvas(manifest).Rendering.Should().BeNull();
     }
 
+    
+    [Fact]
+    public void Video_WithoutExtents_HasRendering()
+    {
+        var manifest = BuildDeposit(Wrapper(MakeFile("objects/clip.mp4", "video/mp4")));
+        SingleCanvas(manifest).Rendering!.Single().Id.Should().Be($"{MediaUrl}file/objects/clip.mp4");
+    }
+    
     // ─── deposit IIIF: audio ─────────────────────────────────────────────────────
 
     [Fact]
@@ -122,12 +130,19 @@ public class ManifestBuilderTests
     }
 
     [Fact]
-    public void Audio_WithDuration_HasRendering()
+    public void Audio_WithDuration_HasNoRendering()
     {
         var manifest = BuildDeposit(Wrapper(MakeFile("objects/track.mp3", "audio/mpeg", duration: 300.0)));
-        SingleCanvas(manifest).Rendering!.Single().Id.Should().Be($"{MediaUrl}audio/objects/track.mp3");
+        SingleCanvas(manifest).Rendering.Should().BeNull();
     }
 
+    [Fact]
+    public void Audio_WithoutDuration_HasRendering()
+    {
+        var manifest = BuildDeposit(Wrapper(MakeFile("objects/track.mp3", "audio/mpeg")));
+        SingleCanvas(manifest).Rendering!.Single().Id.Should().Be($"{MediaUrl}file/objects/track.mp3");
+    }
+    
     // ─── deposit IIIF: unknown type ──────────────────────────────────────────────
 
     [Fact]
@@ -294,7 +309,7 @@ public class ManifestBuilderTests
     }
 
     [Fact]
-    public void OriginUri_Video_UsesResolvedUriAsBody_AndRendering()
+    public void OriginUri_Video_UsesResolvedUriAsBody_NoRendering()
     {
         var file = MakeFile("objects/clip.mp4", "video/mp4", 1920, 1080, 120.0);
         const string origin = "https://host/repository/ag/objects/clip.mp4";
@@ -304,7 +319,7 @@ public class ManifestBuilderTests
         var body = GetBody(SingleCanvas(manifest));
         body.Should().BeOfType<Video>();
         body.Id.Should().Be(origin);
-        SingleCanvas(manifest).Rendering!.Single().Id.Should().Be(origin);
+        SingleCanvas(manifest).Rendering.Should().BeNull();
     }
 
     [Fact]
@@ -321,7 +336,7 @@ public class ManifestBuilderTests
     }
 
     [Fact]
-    public void OriginUri_OtherType_HasPlaceholderBehavior_AndRenderingOnly()
+    public void OriginUri_OtherType_HasPlaceholderBehavior()
     {
         var file = MakeFile("objects/doc.pdf", "application/pdf");
         const string origin = "https://host/repository/ag/objects/doc.pdf";
@@ -330,7 +345,7 @@ public class ManifestBuilderTests
 
         var canvas = SingleCanvas(manifest);
         canvas.Behavior.Should().Contain("placeholder");
-        canvas.Items.Should().BeNullOrEmpty();
+        GetBody(canvas).Id.Should().Be("placeholder/canvas.png");
         canvas.Rendering!.Single().Id.Should().Be(origin);
     }
 
