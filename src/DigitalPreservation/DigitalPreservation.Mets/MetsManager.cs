@@ -1,3 +1,4 @@
+using System.Xml;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -618,16 +619,19 @@ public class MetsManager(
 
         if (fp.BeginTime.HasValue || fp.EndTime.HasValue)
         {
-            return new DivTypeFptr
+            var area = new AreaType
             {
-                Area = new AreaType
-                {
-                    Fileid = fileId,
-                    Betype = AreaTypeBetype.Time,
-                    Begin = fp.BeginTime.HasValue ? MetsTimeCode.FromSeconds(fp.BeginTime.Value) : null,
-                    End = fp.EndTime.HasValue ? MetsTimeCode.FromSeconds(fp.EndTime.Value) : null
-                }
+                Fileid = fileId,
+                Betype = AreaTypeBetype.Time,
+                Begin = fp.BeginTime.HasValue ? MetsTimeCode.FromSeconds(fp.BeginTime.Value) : null,
+                End = fp.EndTime.HasValue ? MetsTimeCode.FromSeconds(fp.EndTime.Value) : null
             };
+            if (fp.Region != null)
+            {
+                area.Shape = AreaTypeShape.Rect;
+                area.Coords = $"{fp.Region.X1},{fp.Region.Y1},{fp.Region.X2},{fp.Region.Y2}";
+            }
+            return new DivTypeFptr { Area = area };
         }
 
         if (fp.Region != null)
@@ -641,6 +645,19 @@ public class MetsManager(
                     Coords = $"{fp.Region.X1},{fp.Region.Y1},{fp.Region.X2},{fp.Region.Y2}"
                 }
             };
+        }
+
+        if (fp.ExtraAreaAttributes is { Count: > 0 })
+        {
+            var area = new AreaType { Fileid = fileId };
+            var xmlDoc = new XmlDocument();
+            foreach (var (name, value) in fp.ExtraAreaAttributes)
+            {
+                var attr = xmlDoc.CreateAttribute(name);
+                attr.Value = value;
+                area.AnyAttribute.Add(attr);
+            }
+            return new DivTypeFptr { Area = area };
         }
 
         return new DivTypeFptr { Fileid = fileId };

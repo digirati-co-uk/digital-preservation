@@ -112,6 +112,7 @@ public class DepositsController(
     }
 
     [AllowAnonymous]
+    [RequireFeatureFlag("EnableIiifMediaEndpoints")]
     [EnableCors("AllowAll")]
     [HttpGet("{id}/iiif-token/{token}", Name = "GetDepositAsIIIFManifestWithToken")]
     [ProducesResponseType<Manifest>(200)]
@@ -137,6 +138,7 @@ public class DepositsController(
     }
 
     [AllowAnonymous]
+    [RequireFeatureFlag("EnableIiifMediaEndpoints")]
     [EnableCors("AllowAll")]
     [HttpPost("{id}/iiif-token/{token}", Name = "PostIIIFManifestToDepositWithToken")]
     public async Task<IActionResult> PostIIIFManifestToDepositWithToken([FromRoute] string id, [FromRoute] string token)

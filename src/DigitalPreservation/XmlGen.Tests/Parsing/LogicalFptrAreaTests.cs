@@ -77,4 +77,65 @@ public class LogicalFptrAreaTests : MetsParserTestBase
         fp.BeginTime.Should().BeNull();
         fp.EndTime.Should().BeNull();
     }
+
+    [Fact]
+    public void Combined_TIME_and_RECT_on_same_area_element_sets_both_BeginTime_and_Region()
+    {
+        // A single mets:area can carry both temporal (BETYPE/BEGIN/END) and spatial
+        // (SHAPE/COORDS) attributes simultaneously. Both must be parsed.
+        var xml = MetsWithAreaFptr("""BETYPE="TIME" BEGIN="00:03:57" END="00:04:10" SHAPE="RECT" COORDS="10,20,100,200" """);
+
+        var mets = Parse(xml);
+
+        var fp = mets.LogicalStructures[0].Files[0];
+        fp.BeginTime.Should().Be(237.0);
+        fp.EndTime.Should().Be(250.0);
+        fp.Region.Should().NotBeNull();
+        fp.Region!.X1.Should().Be(10);
+        fp.Region.Y1.Should().Be(20);
+        fp.Region.X2.Should().Be(100);
+        fp.Region.Y2.Should().Be(200);
+    }
+
+    [Fact]
+    public void Unrecognised_BETYPE_preserves_all_area_attributes_in_ExtraAreaAttributes()
+    {
+        // An area element with a BETYPE we don't handle (e.g. BYTE) must not be silently
+        // dropped: all its attributes (except FILEID) must be stored in ExtraAreaAttributes
+        // so that a round-trip through the manager can write them back unchanged.
+        var xml = MetsWithAreaFptr("""BETYPE="BYTE" BEGIN="0" END="1000" """);
+
+        var mets = Parse(xml);
+
+        var fp = mets.LogicalStructures[0].Files[0];
+        fp.LocalPath.Should().Be("objects/page.tif");
+        fp.BeginTime.Should().BeNull();
+        fp.EndTime.Should().BeNull();
+        fp.Region.Should().BeNull();
+        fp.ExtraAreaAttributes.Should().NotBeNull();
+        fp.ExtraAreaAttributes.Should().ContainKey("BETYPE").WhoseValue.Should().Be("BYTE");
+        fp.ExtraAreaAttributes.Should().ContainKey("BEGIN").WhoseValue.Should().Be("0");
+        fp.ExtraAreaAttributes.Should().ContainKey("END").WhoseValue.Should().Be("1000");
+        fp.ExtraAreaAttributes.Should().NotContainKey("FILEID");
+    }
+
+    [Fact]
+    public void Unrecognised_SHAPE_preserves_all_area_attributes_in_ExtraAreaAttributes()
+    {
+        // SHAPE=CIRCLE is not currently supported; its attributes must be preserved
+        // in ExtraAreaAttributes rather than silently discarded.
+        var xml = MetsWithAreaFptr("""SHAPE="CIRCLE" COORDS="300,300,200" """);
+
+        var mets = Parse(xml);
+
+        var fp = mets.LogicalStructures[0].Files[0];
+        fp.LocalPath.Should().Be("objects/page.tif");
+        fp.Region.Should().BeNull();
+        fp.BeginTime.Should().BeNull();
+        fp.EndTime.Should().BeNull();
+        fp.ExtraAreaAttributes.Should().NotBeNull();
+        fp.ExtraAreaAttributes.Should().ContainKey("SHAPE").WhoseValue.Should().Be("CIRCLE");
+        fp.ExtraAreaAttributes.Should().ContainKey("COORDS").WhoseValue.Should().Be("300,300,200");
+        fp.ExtraAreaAttributes.Should().NotContainKey("FILEID");
+    }
 }

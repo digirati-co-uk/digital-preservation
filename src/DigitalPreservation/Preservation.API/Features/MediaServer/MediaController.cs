@@ -30,6 +30,7 @@ public class MediaController(
     private static readonly Lazy<byte[]> ThumbPlaceholder = new(() => GeneratePlaceholderPng(100, 80));
 
     [AllowAnonymous]
+    [RequireFeatureFlag("EnableIiifMediaEndpoints")]
     // Level-0 image service: only /full/{w,h}/0/default.jpg is supported, plus /info.json
     [HttpGet("{token}/{source}/{sourceId}/{type}/{**localPath}", Name = "GetMedia")]
     public async Task<IActionResult> GetMedia(

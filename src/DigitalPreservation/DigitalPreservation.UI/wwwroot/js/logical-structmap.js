@@ -16,6 +16,8 @@ let modsTargetRangeId = null;
 
 let dragState = null; // { structmapId, rangeId, localPath }
 
+let editFilePointerCallback = null;
+
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof logicalStructMapsData === 'undefined' || !logicalStructMapsData.length) return;
 
@@ -26,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     createFilePickerModal();
     createEditRangeModal();
+    createEditFilePointerModal();
     wireModsModalIntercept();
     injectDragDropStyles();
 
@@ -210,10 +213,27 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
         fileActionsTd.classList.add('dep-actions');
         const fileActionsDiv = document.createElement('div');
         fileActionsDiv.classList.add('d-flex', 'gap-1', 'align-items-center');
-        fileActionsDiv.appendChild(makeActionLink('arrow-up', 'Move up',
-            () => moveFileInRange(structmapId, range.id, fp.localPath, -1)));
-        fileActionsDiv.appendChild(makeActionLink('arrow-down', 'Move down',
-            () => moveFileInRange(structmapId, range.id, fp.localPath, 1)));
+        const fileUpBtn = makeActionLink('arrow-up', 'Move up',
+            () => moveFileInRange(structmapId, range.id, fp, -1));
+        const fileDownBtn = makeActionLink('arrow-down', 'Move down',
+            () => moveFileInRange(structmapId, range.id, fp, 1));
+        if (range.files.length <= 1) {
+            fileUpBtn.style.visibility = 'hidden';
+            fileDownBtn.style.visibility = 'hidden';
+        }
+        fileActionsDiv.appendChild(fileUpBtn);
+        fileActionsDiv.appendChild(fileDownBtn);
+        fileActionsDiv.appendChild(makeActionLink('pencil', 'Edit extents',
+            () => openEditFilePointerModal(fp, result => {
+                fp.beginTime = result.beginTime;
+                fp.endTime = result.endTime;
+                fp.region = result.region;
+                if (result.beginTime != null || result.endTime != null || result.region != null) {
+                    fp.extraAreaAttributes = null;
+                }
+                markDirty(structmapId);
+                renderLogicalStructMap(structmapId);
+            })));
         fileActionsTd.appendChild(fileActionsDiv);
         fileTr.appendChild(fileActionsTd);
 
@@ -228,10 +248,8 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
         const fileDeleteTd = document.createElement('td');
         fileDeleteTd.style.width = '1%';
         fileDeleteTd.style.textAlign = 'right';
-        if (!annotation) {
-            fileDeleteTd.appendChild(makeActionLink('trash', 'Remove from range',
-                () => removeFileFromRange(structmapId, range.id, fp.localPath), 'link-danger'));
-        }
+        fileDeleteTd.appendChild(makeActionLink('trash', 'Remove from range',
+            () => removeFileFromRange(structmapId, range.id, fp), 'link-danger'));
         fileTr.appendChild(fileDeleteTd);
 
         tbody.appendChild(fileTr);
@@ -361,11 +379,11 @@ function moveRange(structmapId, id, direction) {
     renderLogicalStructMap(structmapId);
 }
 
-function moveFileInRange(structmapId, rangeId, localPath, direction) {
+function moveFileInRange(structmapId, rangeId, fp, direction) {
     const root = logicalStructMapState[structmapId];
     const range = findRange(root, rangeId);
     if (!range) return;
-    const index = range.files.findIndex(f => f.localPath === localPath);
+    const index = range.files.indexOf(fp);
     if (index === -1) return;
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= range.files.length) return;
@@ -388,11 +406,11 @@ function addFilesToRange(structmapId, rangeId, localPaths) {
     renderLogicalStructMap(structmapId);
 }
 
-function removeFileFromRange(structmapId, rangeId, localPath) {
+function removeFileFromRange(structmapId, rangeId, fp) {
     const root = logicalStructMapState[structmapId];
     const range = findRange(root, rangeId);
     if (!range) return;
-    range.files = range.files.filter(f => f.localPath !== localPath);
+    range.files = range.files.filter(f => f !== fp);
     markDirty(structmapId);
     renderLogicalStructMap(structmapId);
 }
@@ -712,6 +730,153 @@ function openFilePickerModal(structmapId, rangeId) {
 }
 
 // ----------------------------------------------------------------
+// Edit file pointer modal (time segment + area extents)
+// ----------------------------------------------------------------
+
+function formatTimeForInput(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function parseTimeInput(str) {
+    if (!str?.trim()) return null;
+    const parts = str.trim().split(':');
+    if (parts.length === 3) {
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const s = parseFloat(parts[2]);
+        if (!isNaN(h) && !isNaN(m) && !isNaN(s) && h >= 0 && m >= 0 && s >= 0)
+            return h * 3600 + m * 60 + s;
+    } else if (parts.length === 2) {
+        const m = parseInt(parts[0], 10);
+        const s = parseFloat(parts[1]);
+        if (!isNaN(m) && !isNaN(s) && m >= 0 && s >= 0)
+            return m * 60 + s;
+    }
+    return null;
+}
+
+function createEditFilePointerModal() {
+    const modal = document.createElement('div');
+    modal.classList.add('modal', 'fade');
+    modal.id = 'editFilePointerModal';
+    modal.setAttribute('tabindex', '-1');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('aria-labelledby', 'editFilePointerModalTitle');
+    modal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editFilePointerModalTitle">Edit file pointer extents</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-body-secondary mb-3" id="editFpPath"></p>
+                    <div id="editFpExtraWarning" class="alert alert-warning small py-2 d-none">
+                        This file pointer has area attributes that are not editable here and will be preserved unless you specify a time segment or area below.
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="editFpTimeEnabled">
+                            <label class="form-check-label fw-semibold" for="editFpTimeEnabled">Time segment</label>
+                        </div>
+                        <div id="editFpTimeFields" class="mt-2 ms-4" style="display:none">
+                            <div class="row g-2">
+                                <div class="col">
+                                    <label for="editFpTimeStart" class="form-label small">Start</label>
+                                    <input type="text" class="form-control form-control-sm" id="editFpTimeStart" placeholder="HH:MM:SS">
+                                </div>
+                                <div class="col">
+                                    <label for="editFpTimeEnd" class="form-label small">End</label>
+                                    <input type="text" class="form-control form-control-sm" id="editFpTimeEnd" placeholder="HH:MM:SS">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="editFpAreaEnabled">
+                            <label class="form-check-label fw-semibold" for="editFpAreaEnabled">Area (rectangle)</label>
+                        </div>
+                        <div id="editFpAreaFields" class="mt-2 ms-4" style="display:none">
+                            <div class="row g-2">
+                                <div class="col"><label for="editFpX1" class="form-label small">X1</label><input type="number" class="form-control form-control-sm" id="editFpX1" min="0"></div>
+                                <div class="col"><label for="editFpY1" class="form-label small">Y1</label><input type="number" class="form-control form-control-sm" id="editFpY1" min="0"></div>
+                                <div class="col"><label for="editFpX2" class="form-label small">X2</label><input type="number" class="form-control form-control-sm" id="editFpX2" min="0"></div>
+                                <div class="col"><label for="editFpY2" class="form-label small">Y2</label><input type="number" class="form-control form-control-sm" id="editFpY2" min="0"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="editFpConfirmBtn">Save</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+
+    document.getElementById('editFpTimeEnabled').addEventListener('change', e => {
+        document.getElementById('editFpTimeFields').style.display = e.target.checked ? '' : 'none';
+    });
+    document.getElementById('editFpAreaEnabled').addEventListener('change', e => {
+        document.getElementById('editFpAreaFields').style.display = e.target.checked ? '' : 'none';
+    });
+
+    document.getElementById('editFpConfirmBtn').addEventListener('click', () => {
+        const timeEnabled = document.getElementById('editFpTimeEnabled').checked;
+        const areaEnabled = document.getElementById('editFpAreaEnabled').checked;
+        const result = { beginTime: null, endTime: null, region: null };
+        if (timeEnabled) {
+            result.beginTime = parseTimeInput(document.getElementById('editFpTimeStart').value);
+            result.endTime   = parseTimeInput(document.getElementById('editFpTimeEnd').value);
+        }
+        if (areaEnabled) {
+            const x1 = parseInt(document.getElementById('editFpX1').value, 10);
+            const y1 = parseInt(document.getElementById('editFpY1').value, 10);
+            const x2 = parseInt(document.getElementById('editFpX2').value, 10);
+            const y2 = parseInt(document.getElementById('editFpY2').value, 10);
+            if (!isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2))
+                result.region = { x1, y1, x2, y2 };
+        }
+        bootstrap.Modal.getInstance(document.getElementById('editFilePointerModal')).hide();
+        if (editFilePointerCallback) editFilePointerCallback(result);
+        editFilePointerCallback = null;
+    });
+
+    document.getElementById('editFilePointerModal').addEventListener('hidden.bs.modal', () => {
+        editFilePointerCallback = null;
+    });
+}
+
+function openEditFilePointerModal(fp, onConfirm) {
+    editFilePointerCallback = onConfirm;
+
+    document.getElementById('editFpPath').textContent = fp.localPath;
+
+    const hasExtra = fp.extraAreaAttributes && Object.keys(fp.extraAreaAttributes).length > 0;
+    document.getElementById('editFpExtraWarning').classList.toggle('d-none', !hasExtra);
+
+    const hasTime = fp.beginTime != null || fp.endTime != null;
+    document.getElementById('editFpTimeEnabled').checked = hasTime;
+    document.getElementById('editFpTimeFields').style.display = hasTime ? '' : 'none';
+    document.getElementById('editFpTimeStart').value = fp.beginTime != null ? formatTimeForInput(fp.beginTime) : '';
+    document.getElementById('editFpTimeEnd').value   = fp.endTime   != null ? formatTimeForInput(fp.endTime)   : '';
+
+    const hasArea = fp.region != null;
+    document.getElementById('editFpAreaEnabled').checked = hasArea;
+    document.getElementById('editFpAreaFields').style.display = hasArea ? '' : 'none';
+    document.getElementById('editFpX1').value = fp.region?.x1 ?? '';
+    document.getElementById('editFpY1').value = fp.region?.y1 ?? '';
+    document.getElementById('editFpX2').value = fp.region?.x2 ?? '';
+    document.getElementById('editFpY2').value = fp.region?.y2 ?? '';
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('editFilePointerModal')).show();
+}
+
+// ----------------------------------------------------------------
 // Drag and drop
 // ----------------------------------------------------------------
 
@@ -748,13 +913,14 @@ function onFileDrop(e, targetStructmapId, targetRangeId, targetLocalPath, target
     const mid = targetTr.getBoundingClientRect().top + targetTr.getBoundingClientRect().height / 2;
     const insertBefore = e.clientY < mid;
 
-    // Remove from source
+    // Remove from source, preserving the full FilePointer object
+    const fpObj = srcRange.files.find(f => f.localPath === srcPath);
     srcRange.files = srcRange.files.filter(f => f.localPath !== srcPath);
 
     // Insert relative to target file
     const targetIdx = tgtRange.files.findIndex(f => f.localPath === targetLocalPath);
     const insertIdx = insertBefore ? targetIdx : targetIdx + 1;
-    tgtRange.files.splice(insertIdx < 0 ? tgtRange.files.length : insertIdx, 0, { localPath: srcPath });
+    tgtRange.files.splice(insertIdx < 0 ? tgtRange.files.length : insertIdx, 0, fpObj);
 
     markDirty(srcSmId);
     renderLogicalStructMap(srcSmId);
@@ -773,9 +939,10 @@ function onRangeDrop(e, targetStructmapId, targetRangeId) {
     const tgtRange = findRange(root, targetRangeId);
     if (!srcRange || !tgtRange) return;
 
+    const fpObj = srcRange.files.find(f => f.localPath === srcPath);
     srcRange.files = srcRange.files.filter(f => f.localPath !== srcPath);
     if (!tgtRange.files.some(f => f.localPath === srcPath)) {
-        tgtRange.files.push({ localPath: srcPath });
+        tgtRange.files.push(fpObj);
     }
 
     markDirty(srcSmId);

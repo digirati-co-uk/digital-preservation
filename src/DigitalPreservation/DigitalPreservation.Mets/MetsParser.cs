@@ -1029,6 +1029,11 @@ public class MetsParser(
             {
                 logger.LogWarning(e, "Unable to parse time code in mets:area element");
             }
+            // A single area element may also carry spatial attributes alongside time attributes.
+            if (string.Equals(shape, "RECT", StringComparison.OrdinalIgnoreCase))
+            {
+                fp.Region = MetsAreaCoords.TryParseRect(shape, areaEl.Attribute("COORDS")?.Value);
+            }
         }
         else if (string.Equals(shape, "RECT", StringComparison.OrdinalIgnoreCase))
         {
@@ -1037,7 +1042,15 @@ public class MetsParser(
             var coords = areaEl.Attribute("COORDS")?.Value;
             fp.Region = MetsAreaCoords.TryParseRect(shape, coords);
         }
-        // Other BETYPE values (BYTE, IDREF, SMPTR, XPTR) and SHAPE values are not currently supported.
+        else
+        {
+            // Unrecognised BETYPE/SHAPE — preserve all area attributes for round-trip, excluding FILEID
+            // which is handled separately as LocalPath.
+            fp.ExtraAreaAttributes = areaEl.Attributes()
+                .Where(a => !string.Equals(a.Name.LocalName, "FILEID", StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(a => a.Name.LocalName, a => a.Value);
+            logger.LogDebug("Preserving unrecognised mets:area attributes: {Attrs}", string.Join(", ", fp.ExtraAreaAttributes.Keys));
+        }
     }
 
     private static string? GetLocalPathForFileId(string? fileId, MetsLookupMaps lookupMaps)
