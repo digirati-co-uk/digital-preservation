@@ -14,6 +14,8 @@ let editRangeCallback = null;
 let modsTargetStructmapId = null;
 let modsTargetRangeId = null;
 
+let dragState = null; // { structmapId, rangeId, localPath }
+
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof logicalStructMapsData === 'undefined' || !logicalStructMapsData.length) return;
 
@@ -25,6 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
     createFilePickerModal();
     createEditRangeModal();
     wireModsModalIntercept();
+    injectDragDropStyles();
+
+    document.addEventListener('dragend', () => { clearDragVisuals(); dragState = null; });
 
     // Warn on navigation/refresh when there are unsaved changes
     window.addEventListener('beforeunload', e => {
@@ -107,6 +112,16 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
     actionsTd.classList.add('dep-actions');
     const actionsDiv = document.createElement('div');
     actionsDiv.classList.add('d-flex', 'gap-1', 'align-items-center');
+    const rangeUpBtn = makeActionLink('arrow-up', 'Move up',
+        () => moveRange(structmapId, range.id, -1));
+    const rangeDownBtn = makeActionLink('arrow-down', 'Move down',
+        () => moveRange(structmapId, range.id, 1));
+    if (isRoot) {
+        rangeUpBtn.style.visibility = 'hidden';
+        rangeDownBtn.style.visibility = 'hidden';
+    }
+    actionsDiv.appendChild(rangeUpBtn);
+    actionsDiv.appendChild(rangeDownBtn);
     actionsDiv.appendChild(makeActionLink('folder-plus', 'Add child range',
         () => addChildRange(structmapId, range.id)));
     actionsDiv.appendChild(makeActionLink('file-earmark-plus', 'Add files',
@@ -120,12 +135,6 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
             markDirty(structmapId);
             renderLogicalStructMap(structmapId);
         })));
-    if (!isRoot) {
-        actionsDiv.appendChild(makeActionLink('arrow-up', 'Move up',
-            () => moveRange(structmapId, range.id, -1)));
-        actionsDiv.appendChild(makeActionLink('arrow-down', 'Move down',
-            () => moveRange(structmapId, range.id, 1)));
-    }
     actionsTd.appendChild(actionsDiv);
     tr.appendChild(actionsTd);
 
@@ -156,14 +165,56 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
             () => removeRange(structmapId, range.id), 'link-danger'));
     }
     tr.appendChild(deleteTd);
+    tr.dataset.rowType = 'range';
+    tr.dataset.rangeId = range.id;
+    tr.addEventListener('dragover', e => {
+        if (!dragState) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        clearDragVisuals();
+        tr.classList.add('drag-target-range');
+    });
+    tr.addEventListener('dragleave', e => {
+        if (!tr.contains(e.relatedTarget)) tr.classList.remove('drag-target-range');
+    });
+    tr.addEventListener('drop', e => onRangeDrop(e, structmapId, range.id));
     tbody.appendChild(tr);
 
     // --- File pointer rows ---
     for (const fp of range.files) {
         const fileTr = document.createElement('tr');
+        fileTr.draggable = true;
+        fileTr.dataset.rowType = 'file';
+        fileTr.dataset.rangeId = range.id;
+        fileTr.dataset.filePath = fp.localPath;
+        fileTr.addEventListener('dragstart', e => {
+            dragState = { structmapId, rangeId: range.id, localPath: fp.localPath };
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', fp.localPath);
+            fileTr.classList.add('file-dragging');
+        });
+        fileTr.addEventListener('dragover', e => {
+            if (!dragState) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            clearDragVisuals();
+            const mid = fileTr.getBoundingClientRect().top + fileTr.getBoundingClientRect().height / 2;
+            fileTr.classList.add(e.clientY < mid ? 'drop-above' : 'drop-below');
+        });
+        fileTr.addEventListener('dragleave', e => {
+            if (!fileTr.contains(e.relatedTarget)) fileTr.classList.remove('drop-above', 'drop-below');
+        });
+        fileTr.addEventListener('drop', e => onFileDrop(e, structmapId, range.id, fp.localPath, fileTr));
 
         const fileActionsTd = document.createElement('td');
         fileActionsTd.classList.add('dep-actions');
+        const fileActionsDiv = document.createElement('div');
+        fileActionsDiv.classList.add('d-flex', 'gap-1', 'align-items-center');
+        fileActionsDiv.appendChild(makeActionLink('arrow-up', 'Move up',
+            () => moveFileInRange(structmapId, range.id, fp.localPath, -1)));
+        fileActionsDiv.appendChild(makeActionLink('arrow-down', 'Move down',
+            () => moveFileInRange(structmapId, range.id, fp.localPath, 1)));
+        fileActionsTd.appendChild(fileActionsDiv);
         fileTr.appendChild(fileActionsTd);
 
         const fileNameTd = document.createElement('td');
@@ -306,6 +357,20 @@ function moveRange(structmapId, id, direction) {
     if (newIndex < 0 || newIndex >= parent.ranges.length) return;
     const [item] = parent.ranges.splice(index, 1);
     parent.ranges.splice(newIndex, 0, item);
+    markDirty(structmapId);
+    renderLogicalStructMap(structmapId);
+}
+
+function moveFileInRange(structmapId, rangeId, localPath, direction) {
+    const root = logicalStructMapState[structmapId];
+    const range = findRange(root, rangeId);
+    if (!range) return;
+    const index = range.files.findIndex(f => f.localPath === localPath);
+    if (index === -1) return;
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= range.files.length) return;
+    const [item] = range.files.splice(index, 1);
+    range.files.splice(newIndex, 0, item);
     markDirty(structmapId);
     renderLogicalStructMap(structmapId);
 }
@@ -644,4 +709,75 @@ function openFilePickerModal(structmapId, rangeId) {
     }
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('addFilesToRangeModal')).show();
+}
+
+// ----------------------------------------------------------------
+// Drag and drop
+// ----------------------------------------------------------------
+
+function injectDragDropStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        tr.file-dragging { opacity: 0.4; }
+        tr.drop-above td  { box-shadow: inset 0  2px 0 var(--bs-primary); }
+        tr.drop-below td  { box-shadow: inset 0 -2px 0 var(--bs-primary); }
+        tr.drag-target-range td { background-color: var(--bs-primary-bg-subtle) !important; }
+        tr[draggable="true"] { cursor: grab; }
+    `;
+    document.head.appendChild(style);
+}
+
+function clearDragVisuals() {
+    document.querySelectorAll('.file-dragging, .drop-above, .drop-below, .drag-target-range')
+        .forEach(el => el.classList.remove('file-dragging', 'drop-above', 'drop-below', 'drag-target-range'));
+}
+
+function onFileDrop(e, targetStructmapId, targetRangeId, targetLocalPath, targetTr) {
+    e.preventDefault();
+    if (!dragState) return;
+    clearDragVisuals();
+
+    const { structmapId: srcSmId, rangeId: srcRangeId, localPath: srcPath } = dragState;
+    dragState = null;
+
+    const root = logicalStructMapState[srcSmId];
+    const srcRange = findRange(root, srcRangeId);
+    const tgtRange = findRange(root, targetRangeId);
+    if (!srcRange || !tgtRange) return;
+
+    const mid = targetTr.getBoundingClientRect().top + targetTr.getBoundingClientRect().height / 2;
+    const insertBefore = e.clientY < mid;
+
+    // Remove from source
+    srcRange.files = srcRange.files.filter(f => f.localPath !== srcPath);
+
+    // Insert relative to target file
+    const targetIdx = tgtRange.files.findIndex(f => f.localPath === targetLocalPath);
+    const insertIdx = insertBefore ? targetIdx : targetIdx + 1;
+    tgtRange.files.splice(insertIdx < 0 ? tgtRange.files.length : insertIdx, 0, { localPath: srcPath });
+
+    markDirty(srcSmId);
+    renderLogicalStructMap(srcSmId);
+}
+
+function onRangeDrop(e, targetStructmapId, targetRangeId) {
+    e.preventDefault();
+    if (!dragState) return;
+    clearDragVisuals();
+
+    const { structmapId: srcSmId, rangeId: srcRangeId, localPath: srcPath } = dragState;
+    dragState = null;
+
+    const root = logicalStructMapState[srcSmId];
+    const srcRange = findRange(root, srcRangeId);
+    const tgtRange = findRange(root, targetRangeId);
+    if (!srcRange || !tgtRange) return;
+
+    srcRange.files = srcRange.files.filter(f => f.localPath !== srcPath);
+    if (!tgtRange.files.some(f => f.localPath === srcPath)) {
+        tgtRange.files.push({ localPath: srcPath });
+    }
+
+    markDirty(srcSmId);
+    renderLogicalStructMap(srcSmId);
 }
