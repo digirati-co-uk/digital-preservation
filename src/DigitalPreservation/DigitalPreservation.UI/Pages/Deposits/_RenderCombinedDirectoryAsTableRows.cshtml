@@ -55,7 +55,7 @@ File is in both
             <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg>
             @if (combinedDirectory.LocalPath == "objects" || combinedDirectory.LocalPath.StartsWith("objects/"))
             {
-                @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)combinedDirectory, displayName, null as string))
+                @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)combinedDirectory, displayName))
             }
             else
             {
@@ -89,6 +89,7 @@ File is in both
 @foreach (var file in combinedDirectory.Files)
 {
     var isMetadata = FolderNames.IsMetadata(file.LocalPath!);
+    var hasToolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().Any() == true;
     if (file.LocalPath?.GetSlug() == IStorage.DepositFileSystem || FolderNames.BagitFiles.Contains(file.LocalPath?.GetSlug()))
     {
         continue; // this file is hidden
@@ -125,21 +126,14 @@ File is in both
                 }
                 else
                 {
-                    string? base64EncodedToolOutput = null;
-                    var toolOutput = file.FileInDeposit?.Metadata.OfType<ToolOutput>().SingleOrDefault();
-                    if (toolOutput != null && toolOutput.Content.HasText())
-                    {
-                        var textBytes = System.Text.Encoding.UTF8.GetBytes(toolOutput.Content);
-                        base64EncodedToolOutput = Convert.ToBase64String(textBytes);
-                    }
                     var displayName = file.GetName() ?? "{{ NO LOCAL PATH }}";
-                    if (isMetadata && base64EncodedToolOutput != null)
+                    if (isMetadata && hasToolOutput)
                     {
-                        <a href="javascript:openHtmlStringInNewTab('@base64EncodedToolOutput');"><strong>@displayName</strong></a>
+                        <a target="_blank" href="@(Context.Request.Path)/tool-output?path=@Uri.EscapeDataString(file.LocalPath!)"><strong>@displayName</strong></a>
                     }
                     else
                     {
-                        @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)file, displayName, base64EncodedToolOutput))
+                        @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)file, displayName))
                     }
                 }
             </span>
@@ -175,7 +169,15 @@ File is in both
                     <strong>☣</strong>
                 </label>
             </td>
-
+        }
+        else if (!isMetadata && hasToolOutput)
+        {
+            <td aria-label="td-virus">
+                <a target="_blank" href="@(Context.Request.Path)/tool-output?path=@Uri.EscapeDataString(file.LocalPath!)"
+                   title="View tool output" aria-label="View tool output" class="text-decoration-none">
+                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg>
+                </a>
+            </td>
         }
         else
         {

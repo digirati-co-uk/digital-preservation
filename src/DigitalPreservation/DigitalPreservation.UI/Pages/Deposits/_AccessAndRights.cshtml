@@ -2,12 +2,11 @@
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Transit.Combined
 @using DigitalPreservation.UI.Pages.Shared
-@model (CombinedBase, string, string?)
+@model (CombinedBase, string)
 
 @{
     var combinedBase = Model.Item1;
     var display = Model.Item2;
-    var base64ToolOutput = Model.Item3;
     var combinedFile = combinedBase as CombinedFile;
     var isFile = combinedFile != null;
     var fileLinks = combinedFile?.FileInMets?.Links ?? [];
@@ -16,7 +15,6 @@
 
 <a class="mods-launcher"
     data-bs-toggle="modal" data-bs-target="#modsModal"
-    data-tool-output="@base64ToolOutput"
     aria-label="Set rights, access and record identifiers"
     data-access="@string.Join(',', combinedBase.AccessRestrictions)"
     data-eff-access="@string.Join(',', combinedBase.EffectiveAccessRestrictions)"

@@ -6,17 +6,8 @@ function populateModsModalFromAttributes(launcher){
     const accessConditionList = launcher.dataset.access;
     const rightsStatement = launcher.dataset.rights;
     const recordInfoCompact = launcher.dataset.recordinfo;
-    const base64ToolOutput = launcher.dataset.toolOutput;
 
     document.getElementById("modsLocalPathInfo").innerHTML = modsContext.value;
-
-    const toolOutputLink = document.getElementById("toolOutputLink");
-    toolOutputLink.innerHTML = "";
-    if(base64ToolOutput){
-        const windowOpener = document.createElement('a');
-        toolOutputLink.appendChild(windowOpener);
-        windowOpener.addEventListener("click", () => openHtmlStringInNewTab(base64ToolOutput));
-    }
 
     applyAccessRestrictions(accessConditionList);
     applyRightsStatement(rightsStatement);
