@@ -184,17 +184,17 @@ function refreshFileLinkRoleSelect() {
     const roleSelect = document.getElementById('fileLinkRoleSelect');
     const addBtn = document.getElementById('fileLinkAddBtn');
     if (!roleSelect) return;
-    const usedRoles = new Set(currentFileLinks.map(l => l.role));
+    const previousValue = roleSelect.value;
     roleSelect.innerHTML = '';
     let hasOptions = false;
     for (const [keyword, uri] of Object.entries(typeof fileLinkRoles === 'undefined' ? {} : fileLinkRoles)) {
-        if (usedRoles.has(uri)) continue;
         const opt = document.createElement('option');
         opt.value = uri;
         opt.textContent = keyword;
         roleSelect.appendChild(opt);
         hasOptions = true;
     }
+    if (previousValue) roleSelect.value = previousValue;
     if (addBtn) addBtn.disabled = !hasOptions;
 }
 
@@ -229,7 +229,7 @@ if (fileLinkAddBtn) {
         const role = roleSelect?.value;
         const to = targetSelect?.value;
         if (!role || !to) return;
-        if (currentFileLinks.some(l => l.role === role)) return; // duplicate role guard
+        if (currentFileLinks.some(l => l.role === role && l.to === to)) return; // duplicate (role, target) guard
         currentFileLinks.push({ to, role });
         renderFileLinksList();
         refreshFileLinkRoleSelect();
