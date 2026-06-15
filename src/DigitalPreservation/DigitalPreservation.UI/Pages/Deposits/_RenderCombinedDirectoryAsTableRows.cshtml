@@ -31,7 +31,8 @@ File is in both
     string displayName = combinedDirectory.Name ?? combinedDirectory.LocalPath.GetSlug();
 
     <tr class="deposit-row @("where-" + where)"
-        data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@(isMetadata ? "true" : "false")" data-metadata-root="@(isMetadataRoot ? "true" : "false")">
+        data-path="@combinedDirectory.LocalPath" data-type="directory" data-whereabouts="@combinedDirectory.Whereabouts" data-metadata="@(isMetadata ? "true" : "false")" data-metadata-root="@(isMetadataRoot ? "true" : "false")"
+        style="@(isMetadata && !isMetadataRoot ? "display:none" : null)">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !FolderNames.PathIsKnownFirstLevelDirectory(combinedDirectory.LocalPath) && combinedDirectory.LocalPath != FolderNames.MetadataAdHoc)
             {
@@ -96,8 +97,9 @@ File is in both
     }
     string where = file.Whereabouts.ToString().ToLowerInvariant();
     bool mismatches = file.MisMatches.Any();
-    <tr class="deposit-row @("where-" + where)" 
-        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-mismatches="@mismatches" data-metadata="@(isMetadata ? "true" : "false")">
+    <tr class="deposit-row @("where-" + where)"
+        data-path="@file.LocalPath" data-type="file" data-whereabouts="@file.Whereabouts" data-mismatches="@mismatches" data-metadata="@(isMetadata ? "true" : "false")"
+        style="@(isMetadata ? "display:none" : null)">
         <td aria-label="select-row">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && file.LocalPath != "mets.xml")
             {

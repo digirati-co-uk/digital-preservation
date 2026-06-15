@@ -583,8 +583,9 @@ function Uint8ArrayToHexString(ui8array) {
     }
     if (childRows.length === 0) return;
 
-    childRows.forEach(r => { r.style.display = 'none'; });
-
+    // Child rows are rendered collapsed server-side (style="display:none") to avoid an
+    // expand-then-collapse flash on load; the toggle button starts aria-expanded="false".
+    // We only wire up the toggle here.
     const btn = headerRow.querySelector('[data-metadata-toggle]');
     if (!btn) return;
 
