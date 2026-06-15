@@ -1235,17 +1235,21 @@ public class MetsParser(
             file.EffectiveRightsStatement = null;
 
         // RecordInfo: own → exactly-one whole-file logical range (effective) → smLink-associated range → physical parent
+        // Logical inheritance only applies when the range actually has a (non-null) effective RecordInfo;
+        // a null from the logical range must not override a real RecordInfo asserted by a physical ancestor.
         if (file.RecordInfo != null)
         {
             file.EffectiveRecordInfo = file.RecordInfo;
         }
-        else if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var ranges) && ranges.Count == 1)
+        else if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var ranges) && ranges.Count == 1
+                 && ranges[0].EffectiveRecordInfo != null)
         {
             // Use EffectiveRecordInfo so ranges that inherit from a parent (e.g. Goobi child sections)
             // propagate the ancestor's record info correctly.
             file.EffectiveRecordInfo = ranges[0].EffectiveRecordInfo;
         }
-        else if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assocForRecord))
+        else if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assocForRecord)
+                 && assocForRecord.EffectiveRecordInfo != null)
         {
             // For files not in LogicalRange.Files directly (e.g. ALTO files in Goobi-style METS),
             // inherit from the logical range associated with their physical div.

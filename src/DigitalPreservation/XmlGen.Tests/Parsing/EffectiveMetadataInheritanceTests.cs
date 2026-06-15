@@ -919,6 +919,111 @@ public class EffectiveMetadataInheritanceTests : MetsParserTestBase
         page5.EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("PRI/2/999");
     }
 
+    [Fact]
+    public void File_in_logical_range_with_no_record_info_falls_back_to_physical_ancestor_rather_than_inheriting_null()
+    {
+        // Regression: a file referenced as a whole-file fptr in exactly one logical range
+        // must NOT inherit a null RecordInfo from that range when the range has none of its
+        // own (and none inherited from a parent logical range). A null logical value should
+        // not override a real RecordInfo asserted by a physical ancestor — the file falls
+        // through to the physical tree walk (R5) instead.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_objects">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:recordInfo>
+                        <mods:recordIdentifier source="identity-service">coll-pid</mods:recordIdentifier>
+                        <mods:recordIdentifier source="EMu">MS 9999</mods:recordIdentifier>
+                      </mods:recordInfo>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_LOG_0001">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:titleInfo><mods:title>Interview with Alice</mods:title></mods:titleInfo>
+                      <!-- No recordInfo on the logical range -->
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects">
+                <mets:techMD ID="TECH_objects">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics/>
+                        <premis:originalName>objects</premis:originalName>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:amdSec ID="ADM_objects/interview.m4a">
+                <mets:techMD ID="TECH_objects/interview.m4a">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_objects/interview.m4a" MIMETYPE="audio/m4a">
+                    <mets:FLocat xlink:href="objects/interview.m4a"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects"
+                          DMDID="DMD_objects" ADMID="ADM_objects">
+                  <mets:div ID="PHYS_objects/interview.m4a" TYPE="Item">
+                    <mets:fptr FILEID="FILE_objects/interview.m4a"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+              <mets:structMap TYPE="LOGICAL">
+                <mets:div TYPE="Collection" LABEL="Interviews">
+                  <mets:div ID="LOG_0001" TYPE="Item" LABEL="Alice" DMDID="DMD_LOG_0001">
+                    <mets:fptr FILEID="FILE_objects/interview.m4a"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/interview.m4a");
+        file.RecordInfo.Should().BeNull();
+
+        // The logical range LOG_0001 has no effective RecordInfo, so it must not override
+        // the real RecordInfo on the physical objects/ ancestor.
+        var range = mets.LogicalStructures[0].Ranges[0];
+        range.EffectiveRecordInfo.Should().BeNull();
+
+        file.EffectiveRecordInfo.Should().NotBeNull();
+        file.EffectiveRecordInfo!.RecordIdentifiers[0].Source.Should().Be("identity-service");
+        file.EffectiveRecordInfo.RecordIdentifiers[0].Value.Should().Be("coll-pid");
+        file.EffectiveRecordInfo.RecordIdentifiers[1].Source.Should().Be("EMu");
+        file.EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("MS 9999");
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // LOGICAL RANGE EFFECTIVE VALUES
     // ─────────────────────────────────────────────────────────────────────────

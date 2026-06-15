@@ -72,9 +72,9 @@ the explicit presence of the element is treated as an intentional override.
 | Step | Source | Condition |
 |------|--------|-----------|
 | R1 | File's own DMDID (`recordInfo`) | Own value present |
-| R2 | The file's single whole-file fptr logical range (effective) | File in exactly **one** range via fptr (no `area`) |
+| R2 | The file's single whole-file fptr logical range (effective) | File in exactly **one** range via fptr (no `area`) **and that range has a non-null effective RecordInfo** |
 | R3 | *(falls through if referenced by area, or by multiple whole-file fptrs)* | |
-| R4 | structLink-associated logical range | Goobi smLink mapping exists |
+| R4 | structLink-associated logical range | Goobi smLink mapping exists **and that range has a non-null effective RecordInfo** |
 | R5 | Walk up the physical directory tree | |
 
 Record info uses logical inheritance **ahead** of the physical tree walk (unlike access/rights,
@@ -86,6 +86,15 @@ claim it, so the fallback to physical (`objects/` → collection identifier) is 
 **Area references (R3).** A `mets:area` element refers to only *part* of a file (a time
 segment or image region). A file referenced only via area elements cannot belong to a
 single archival entity as a whole, so the logical inheritance step is skipped.
+
+**The logical range must actually have a RecordInfo (R2, R4).** Logical inheritance only
+overrides the physical walk when the range has something to assert. If a file's single fptr
+range (or its structLink-associated range) has a **null** effective RecordInfo — no record
+info of its own and none inherited from a parent logical range — that null does **not**
+override a real RecordInfo asserted by a physical ancestor. In that case R2/R4 are skipped
+and the file falls through to the physical tree walk (R5). Logical inheritance is a way for a
+range to *supply* a more specific archival identity than the physical tree, not a way for an
+empty range to *erase* one.
 
 ---
 
