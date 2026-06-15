@@ -453,30 +453,59 @@ confirmDepositDelete.addEventListener("change", () => {
     }
 });
 
+// Set the new-folder / upload-file context directly from the action icon that opened the modal.
+// Reading it from the modal's own show event (via relatedTarget) keeps the context correct
+// regardless of layout: the row-click handler below only matches "objects"-prefixed paths, so in
+// BagIt layout (where the tree is rooted at "data/objects") it never fires and the context would
+// otherwise be left empty — causing the folder to be created at the root, alongside objects.
+function setContextFromModalTrigger(modalId, contextField, contextIsFileField) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', (event) => {
+        const row = event.relatedTarget?.closest('tr.deposit-row');
+        if (!row) return;
+        contextField.value = row.dataset.path ?? '';
+        contextIsFileField.value = (row.dataset.type === 'file');
+    });
+}
+setContextFromModalTrigger('newFolderModal', newFolderContext, newFolderContextIsFile);
+setContextFromModalTrigger('uploadFileModal', newFileContext, newFileContextIsFile);
+
+// The rights/access/record-info (mods) modal is populated from the launcher (<a class="mods-launcher">)
+// that opened it. Same rationale as the folder/upload modals above: driving this from the modal's show
+// event makes it work in every layout — the row-click handler below only matches "objects"-prefixed
+// paths, so in BagIt layout (rooted at "data/objects") it never fires and the modal would otherwise open
+// with a stale or empty context.
+const modsModal = document.getElementById('modsModal');
+if (modsModal) {
+    modsModal.addEventListener('show.bs.modal', (event) => {
+        const launcher = event.relatedTarget;
+        const row = launcher?.closest('tr.deposit-row');
+        if (!row || !launcher.classList.contains('mods-launcher')) return;
+        modsContext.value = row.dataset.path ?? '';
+        modsContextIsFile.value = (row.dataset.type === 'file');
+        populateModsModalFromAttributes(launcher);
+    });
+}
+
+// The row-click handler is now only responsible for highlighting the selected row; the modals above
+// set their own context from the icon/launcher that triggered them.
+
+// True for rows within the objects tree in either layout: standard ("objects") or BagIt ("data/objects").
+function isObjectsPath(path) {
+    return path === "objects" || path.startsWith("objects/")
+        || path === "data/objects" || path.startsWith("data/objects/");
+}
+
 let clicked = false;
 for (const row of rows) {
     const path = row.dataset.path;
-    if (!(path === "objects" || path.startsWith("objects/")))
+    if (!isObjectsPath(path))
     {
         continue;
     }
     row.addEventListener('click', (event) => {
         const row = event.currentTarget;
-        const path = row.dataset.path;
-        console.log("Click event on row for path: " + path);
-        const isFile = row.dataset.type === "file";
-        newFileContext.value = path;
-        newFolderContext.value = path;
-        modsContext.value = path;
-        newFolderContextIsFile.value = isFile;
-        newFileContextIsFile.value = isFile;
-        modsContextIsFile.value = isFile;
-
-        let modsLauncher = event.target.closest('a');
-        if(modsLauncher?.classList.contains("mods-launcher")){
-            populateModsModalFromAttributes(modsLauncher);
-        }
-
         if (row.classList.contains("table-active")){
             for (const r of rows) { r.classList.remove("table-active"); }
             clicked = false;
