@@ -14,10 +14,11 @@ public static class ModsMetadataDisplayBuilder
             return [];
         }
         return GetDisplayItems(
-            combinedBase.AccessRestrictions, 
+            combinedBase.AccessRestrictions,
             combinedBase.EffectiveAccessRestrictions,
             combinedBase.RightsStatement,
             combinedBase.EffectiveRightsStatement,
+            combinedBase.RightsStatementSuppressed,
             combinedBase.RecordInfo,
             combinedBase.EffectiveRecordInfo);
     }
@@ -29,20 +30,22 @@ public static class ModsMetadataDisplayBuilder
             return [];
         }
         return GetDisplayItems(
-            resourceBase.AccessRestrictions, 
+            resourceBase.AccessRestrictions,
             resourceBase.EffectiveAccessRestrictions,
             resourceBase.RightsStatement,
             resourceBase.EffectiveRightsStatement,
+            resourceBase.RightsStatementSuppressed,
             resourceBase.RecordInfo,
             resourceBase.EffectiveRecordInfo);
     }
 
     private static List<(string Label, string Text, bool Inherited)> GetDisplayItems(
-        List<string>? accessRestrictions, 
-        List<string>? effectiveAccessRestrictions, 
-        Uri? rightsStatement, 
-        Uri? effectiveRightsStatement, 
-        RecordInfo? recordInfo, 
+        List<string>? accessRestrictions,
+        List<string>? effectiveAccessRestrictions,
+        Uri? rightsStatement,
+        Uri? effectiveRightsStatement,
+        bool rightsStatementSuppressed,
+        RecordInfo? recordInfo,
         RecordInfo? effectiveRecordInfo)
     {
         // Collect display items as (label, text, inherited). Inherited items render in muted style.
@@ -64,6 +67,11 @@ public static class ModsMetadataDisplayBuilder
             if (effectiveRightsStatement != rightsStatement)
                 throw new NotSupportedException("Effective rights statement does not equal explicit rights statement");
             items.Add(("Rights", RightsStatement.GetShortLabel(rightsStatement) ?? "", false));
+        }
+        else if (rightsStatementSuppressed)
+        {
+            // Explicit-but-empty rights: deliberately asserts "no rights" and does not inherit.
+            items.Add(("Rights", "none (not inherited)", false));
         }
         else if (effectiveRightsStatement != null)
         {

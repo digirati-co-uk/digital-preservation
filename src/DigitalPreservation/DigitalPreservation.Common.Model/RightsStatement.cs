@@ -5,6 +5,14 @@ namespace DigitalPreservation.Common.Model;
 
 public class RightsStatement
 {
+    /// <summary>
+    /// Sentinel value used by the rights-statement dropdown (and bound back on the server) to mean
+    /// "explicitly no rights — do not inherit". Distinct from an empty value, which means "clear the
+    /// explicit rights and inherit from the parent". Not a valid URI, so it never collides with a real
+    /// rights statement value.
+    /// </summary>
+    public const string DoNotInheritSentinel = "__do-not-inherit__";
+
     public static List<RightsStatement> RightsStatements { get; }
     public static List<RightsStatement> CreativeCommons { get; }
     

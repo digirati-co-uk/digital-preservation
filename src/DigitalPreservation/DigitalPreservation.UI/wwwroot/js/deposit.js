@@ -5,12 +5,13 @@
 function populateModsModalFromAttributes(launcher){
     const accessConditionList = launcher.dataset.access;
     const rightsStatement = launcher.dataset.rights;
+    const rightsSuppressed = launcher.dataset.rightsSuppressed === 'true';
     const recordInfoCompact = launcher.dataset.recordinfo;
 
     document.getElementById("modsLocalPathInfo").innerHTML = modsContext.value;
 
     applyAccessRestrictions(accessConditionList);
-    applyRightsStatement(rightsStatement);
+    applyRightsStatement(rightsStatement, rightsSuppressed);
     applyRecordInfo(recordInfoCompact);
     applyFileLinksSection(launcher);
 }
@@ -52,12 +53,15 @@ function applyAccessRestrictions(accessConditionList){
     }
 }
 
-function applyRightsStatement(rightsStatement){
+function applyRightsStatement(rightsStatement, rightsSuppressed){
     const rightsStatementSelect = document.getElementById("rightsStatementSelect");
     const nonEditableRightsStatement = document.getElementById("nonEditableRightsStatement");
     if(rightsStatementSelect){
         rightsStatementSelect.selectedIndex = -1;
-        if(rightsStatement){
+        if(rightsSuppressed){
+            // Explicit "no rights — do not inherit": select the sentinel option.
+            selectOptionByValue(rightsStatementSelect, rightsDoNotInheritSentinel);
+        } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
             const rsUri = rsEntry ? rsEntry.value : rightsStatement;
             let matchingOption = Array.from(rightsStatementSelect.options).find(o => o.value === rsUri);
@@ -68,9 +72,14 @@ function applyRightsStatement(rightsStatement){
                 rightsStatementSelect.appendChild(matchingOption);
             }
             matchingOption.selected = true;
+        } else {
+            // No explicit rights: select the "(inherit from parent)" option (empty value).
+            selectOptionByValue(rightsStatementSelect, "");
         }
     } else if (nonEditableRightsStatement){
-        if(rightsStatement){
+        if(rightsSuppressed){
+            nonEditableRightsStatement.innerHTML = "<ul><li><em>no rights (not inherited)</em></li></ul>";
+        } else if(rightsStatement){
             const rsEntry = rightsStatements[rightsStatement];
             const rsUri = rsEntry ? rsEntry.value : rightsStatement;
             nonEditableRightsStatement.innerHTML = `<strong>${rightsStatement}</strong><br/>${rsUri}`;
@@ -78,6 +87,11 @@ function applyRightsStatement(rightsStatement){
             nonEditableRightsStatement.innerHTML = "<ul><li><em>no explicit rights</em></li></ul>";
         }
     }
+}
+
+function selectOptionByValue(selectEl, value){
+    const option = Array.from(selectEl.options).find(o => o.value === value);
+    if (option) option.selected = true;
 }
 
 function applyRecordInfo(recordInfoCompact){

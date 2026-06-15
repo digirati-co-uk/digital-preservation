@@ -260,8 +260,7 @@ public class MetsParser(
         // Build lookup maps once before traversal for O(1) access during processing
         var lookupMaps = BuildLookupMaps(xMets, physicalStructMap);
 
-        var filesWithExplicitRights = new HashSet<string>();
-        ProcessChildStructDivs(mets, parent, directoryLabels, lookupMaps, filesWithExplicitRights);
+        ProcessChildStructDivs(mets, parent, directoryLabels, lookupMaps);
 
         // We should now have a flat list of WorkingFile, and a set of WorkingDirectories, with correct names
         // if supplied. Now assign the files to their directories.
@@ -297,11 +296,11 @@ public class MetsParser(
         var fileToWholeFileRanges = BuildFileToWholeFileRangesMap(mets.LogicalStructures);
 
         // Compute effective (inherited) metadata for all physical and logical resources
-        ComputeEffectiveMetadata(mets, fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
+        ComputeEffectiveMetadata(mets, fileToWholeFileRanges, fileToAssociatedRange);
     }
 
     private void ProcessChildStructDivs(MetsFileWrapper mets, XElement parent,
-        Stack<string> directoryLabels, MetsLookupMaps lookupMaps, HashSet<string> filesWithExplicitRights)
+        Stack<string> directoryLabels, MetsLookupMaps lookupMaps)
     {
         // We want to create MetsFileWrapper::PhysicalStructure (WorkingDirectories and WorkingFiles).
         // We can traverse the physical structmap, finding div type=Directory and div type=File
@@ -364,6 +363,7 @@ public class MetsParser(
                                 ];
                                 workingDirectory.AccessRestrictions = accessRestrictions;
                                 workingDirectory.RightsStatement = rightsStatement;
+                                workingDirectory.RightsStatementSuppressed = rightsExplicitlySet && rightsStatement == null;
                                 workingDirectory.RecordInfo = recordInfo;
                             }
                         }
@@ -622,10 +622,9 @@ public class MetsParser(
                 }
                 file.AccessRestrictions = accessRestrictions;
                 file.RightsStatement = rightsStatement;
+                // An explicit-but-empty rights element (present, no valid URI) suppresses inheritance.
+                file.RightsStatementSuppressed = rightsExplicitlySet && rightsStatement == null;
                 file.RecordInfo = recordInfo;
-
-                if (rightsExplicitlySet)
-                    filesWithExplicitRights.Add(flocat);
 
                 mets.Files.Add(file);
 
@@ -656,7 +655,7 @@ public class MetsParser(
 
             }
 
-            ProcessChildStructDivs(mets, div, directoryLabels, lookupMaps, filesWithExplicitRights);
+            ProcessChildStructDivs(mets, div, directoryLabels, lookupMaps);
         }
     }
 
@@ -1134,8 +1133,7 @@ public class MetsParser(
     private static void ComputeEffectiveMetadata(
         MetsFileWrapper mets,
         Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
-        Dictionary<string, LogicalRange> fileToAssociatedRange,
-        HashSet<string> filesWithExplicitRights)
+        Dictionary<string, LogicalRange> fileToAssociatedRange)
     {
         var physRoot = mets.PhysicalStructure!;
         var rootAccess = physRoot.AccessRestrictions ?? [];
@@ -1156,13 +1154,13 @@ public class MetsParser(
         foreach (var file in physRoot.Files)
         {
             SetFileEffective(file, rootAccess, rootRights, rootRecordInfo,
-                fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
+                fileToWholeFileRanges, fileToAssociatedRange);
         }
 
         foreach (var dir in physRoot.Directories)
         {
             ComputeEffectiveForDirectory(dir, rootAccess, rootRights, rootRecordInfo,
-                fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
+                fileToWholeFileRanges, fileToAssociatedRange);
         }
     }
 
@@ -1172,11 +1170,12 @@ public class MetsParser(
         Uri? parentRights,
         RecordInfo? parentRecordInfo,
         Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
-        Dictionary<string, LogicalRange> fileToAssociatedRange,
-        HashSet<string> filesWithExplicitRights)
+        Dictionary<string, LogicalRange> fileToAssociatedRange)
     {
         var effectiveAccess = dir.AccessRestrictions is { Count: > 0 } ? dir.AccessRestrictions : parentAccess;
-        var effectiveRights = dir.RightsStatement ?? parentRights;
+        // An explicit-but-empty rights statement suppresses inheritance: effective rights is null
+        // rather than the parent's value.
+        var effectiveRights = dir.RightsStatement ?? (dir.RightsStatementSuppressed ? null : parentRights);
         var effectiveRecordInfo = dir.RecordInfo ?? parentRecordInfo;
 
         dir.EffectiveAccessRestrictions = effectiveAccess;
@@ -1186,13 +1185,13 @@ public class MetsParser(
         foreach (var file in dir.Files)
         {
             SetFileEffective(file, effectiveAccess, effectiveRights, effectiveRecordInfo,
-                fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
+                fileToWholeFileRanges, fileToAssociatedRange);
         }
 
         foreach (var subDir in dir.Directories)
         {
             ComputeEffectiveForDirectory(subDir, effectiveAccess, effectiveRights, effectiveRecordInfo,
-                fileToWholeFileRanges, fileToAssociatedRange, filesWithExplicitRights);
+                fileToWholeFileRanges, fileToAssociatedRange);
         }
     }
 
@@ -1202,8 +1201,7 @@ public class MetsParser(
         Uri? parentRights,
         RecordInfo? parentRecordInfo,
         Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
-        Dictionary<string, LogicalRange> fileToAssociatedRange,
-        HashSet<string> filesWithExplicitRights)
+        Dictionary<string, LogicalRange> fileToAssociatedRange)
     {
         // Access: own → physical parent → exactly-one whole-file fptr range → smLink-associated range → []
         // Physical parent always takes precedence; logical is fallback only when the physical tree is silent.
@@ -1224,7 +1222,7 @@ public class MetsParser(
         // Rights: own/explicit → physical parent → exactly-one whole-file fptr range → null
         // If the div had an explicit use-and-reproduction element (even with an invalid value like "null(?)"),
         // use the file's own rights (which may be null) rather than inheriting.
-        if (file.RightsStatement != null || filesWithExplicitRights.Contains(file.LocalPath))
+        if (file.RightsStatement != null || file.RightsStatementSuppressed)
             file.EffectiveRightsStatement = file.RightsStatement;
         else if (parentRights != null)
             file.EffectiveRightsStatement = parentRights;

@@ -804,7 +804,8 @@
                         @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <select id="rightsStatementSelect" class="form-select" name="rightsStatement" aria-labelledby="rightsStatementSelectLabel">
-                                <!option value="">(none)</!option>
+                                <!option value="">(inherit from parent)</!option>
+                                <!option value="@RightsStatement.DoNotInheritSentinel">(none — do not inherit)</!option>
                                 @foreach (var rightsStatement in RightsStatement.RightsStatements)
                                 {
                                     <!option value="@rightsStatement.Value">@rightsStatement.Label</!option>
@@ -908,6 +909,7 @@
         // Data needed by scripts
         const rightsStatements = @Html.Raw(JsonSerializer.Serialize(RightsStatement.ByShortLabel,
             new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+        const rightsDoNotInheritSentinel = @Html.Raw(JsonSerializer.Serialize(RightsStatement.DoNotInheritSentinel));
         const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
         const logicalStructMapsData = @Html.Raw(Model.LogicalStructMapsJson);
         const rangeTypes = @Html.Raw(Model.RangeTypesJson);

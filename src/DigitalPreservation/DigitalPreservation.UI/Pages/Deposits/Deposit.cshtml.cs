@@ -566,7 +566,7 @@ public class DepositModel(
         [FromForm] string modsContext,
         [FromForm] bool modsContextIsFile,
         [FromForm] List<string> accessRestrictions,
-        [FromForm] Uri? rightsStatement,
+        [FromForm] string? rightsStatement,
         [FromForm] RecordIdentifier[] recordIdentifiers,
         [FromForm] string? fileLinksJson)
     {
@@ -578,7 +578,18 @@ public class DepositModel(
                 try { fileLinks = JsonSerializer.Deserialize<List<FileLink>>(fileLinksJson); }
                 catch { /* ignore malformed */ }
             }
-            var result = await WorkspaceManager.SetModsInformation(modsContext, accessRestrictions, rightsStatement, recordIdentifiers, fileLinks);
+
+            // The rights dropdown distinguishes three choices:
+            //   ""        → clear any explicit rights and inherit from the parent
+            //   sentinel  → explicitly no rights; stop inheriting (effective null)
+            //   a URI     → set that rights statement
+            var suppressRights = rightsStatement == RightsStatement.DoNotInheritSentinel;
+            Uri? rightsUri = null;
+            if (!suppressRights)
+            {
+                Uri.TryCreate(rightsStatement, UriKind.Absolute, out rightsUri);
+            }
+            var result = await WorkspaceManager.SetModsInformation(modsContext, accessRestrictions, rightsUri, suppressRights, recordIdentifiers, fileLinks);
             if (result.Success)
             {
                 TempData["AccessConditionsUpdated"] = "Access Restrictions and Rights Statement updated.";

@@ -13,6 +13,7 @@ public abstract class CombinedBase(string? relativePath = null)
     public List<string> EffectiveAccessRestrictions => InMetsBase?.EffectiveAccessRestrictions ?? [];
     public Uri? RightsStatement => InMetsBase?.RightsStatement;
     public Uri? EffectiveRightsStatement => InMetsBase?.EffectiveRightsStatement;
+    public bool RightsStatementSuppressed => InMetsBase?.RightsStatementSuppressed ?? false;
     public RecordInfo? RecordInfo => InMetsBase?.RecordInfo;
     public RecordInfo? EffectiveRecordInfo => InMetsBase?.EffectiveRecordInfo;
 }

@@ -20,6 +20,7 @@
     data-eff-access="@string.Join(',', combinedBase.EffectiveAccessRestrictions)"
     data-rights="@RightsStatement.GetShortLabel(combinedBase.RightsStatement)"
     data-eff-rights="@RightsStatement.GetShortLabel(combinedBase.EffectiveRightsStatement)"
+    data-rights-suppressed="@(combinedBase.RightsStatementSuppressed ? "true" : "false")"
     data-recordinfo="@combinedBase.RecordInfo?.ToCompactString()"
     data-eff-recordinfo="@combinedBase.EffectiveRecordInfo?.ToCompactString()"
     data-is-file="@(isFile ? "true" : "false")"

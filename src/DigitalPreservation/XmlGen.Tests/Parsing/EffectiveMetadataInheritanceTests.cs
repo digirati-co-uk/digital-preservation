@@ -189,7 +189,197 @@ public class EffectiveMetadataInheritanceTests : MetsParserTestBase
         var file = mets.Files.Single(f => f.LocalPath == "objects/doc.pdf");
 
         file.RightsStatement.Should().BeNull();
+        file.RightsStatementSuppressed.Should().BeFalse();
         file.EffectiveRightsStatement.Should().Be(inCopyright);
+    }
+
+    [Fact]
+    public void File_with_explicit_empty_rights_suppresses_inheritance_from_physical_parent()
+    {
+        // objects/ has "In Copyright". The child file has an explicit but empty/non-URI
+        // use-and-reproduction element. This is a deliberate "no rights" assertion that must
+        // STOP the file inheriting the parent's rights — effective rights is null, not InC.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_objects">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="use and reproduction">http://rightsstatements.org/vocab/InC/1.0/</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_objects/doc.pdf">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <!-- Explicit but empty rights: present, asserts no URI -->
+                      <mods:accessCondition type="use and reproduction"></mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects">
+                <mets:techMD ID="TECH_objects">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics/>
+                        <premis:originalName>objects</premis:originalName>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:amdSec ID="ADM_objects/doc.pdf">
+                <mets:techMD ID="TECH_objects/doc.pdf">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_doc" MIMETYPE="application/pdf">
+                    <mets:FLocat xlink:href="objects/doc.pdf"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects"
+                          DMDID="DMD_objects" ADMID="ADM_objects">
+                  <mets:div ID="PHYS_objects/doc.pdf" TYPE="Item"
+                            DMDID="DMD_objects/doc.pdf" ADMID="ADM_objects/doc.pdf">
+                    <mets:fptr FILEID="FILE_doc"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/doc.pdf");
+
+        // The element is present but carries no valid rights URI.
+        file.RightsStatement.Should().BeNull();
+        file.RightsStatementSuppressed.Should().BeTrue();
+
+        // Inheritance is suppressed: effective rights is null, NOT the parent's "In Copyright".
+        file.EffectiveRightsStatement.Should().BeNull();
+    }
+
+    [Fact]
+    public void Sub_directory_with_explicit_empty_rights_suppresses_inheritance_for_itself_and_its_files()
+    {
+        // objects/ has "In Copyright". A sub-directory has an explicit but empty rights element,
+        // so neither the sub-directory nor the files within it inherit the parent's rights.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_objects">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="use and reproduction">http://rightsstatements.org/vocab/InC/1.0/</mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:dmdSec ID="DMD_sub">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:mods>
+                      <mods:accessCondition type="use and reproduction"></mods:accessCondition>
+                    </mods:mods>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects">
+                <mets:techMD ID="TECH_objects">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics/>
+                        <premis:originalName>objects</premis:originalName>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:amdSec ID="ADM_objects/sub">
+                <mets:techMD ID="TECH_objects/sub">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics/>
+                        <premis:originalName>objects/sub</premis:originalName>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:amdSec ID="ADM_objects/sub/x.txt">
+                <mets:techMD ID="TECH_objects/sub/x.txt">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_x" MIMETYPE="text/plain">
+                    <mets:FLocat xlink:href="objects/sub/x.txt"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_objects" TYPE="Directory" LABEL="objects"
+                          DMDID="DMD_objects" ADMID="ADM_objects">
+                  <mets:div ID="PHYS_objects/sub" TYPE="Directory" LABEL="sub"
+                            DMDID="DMD_sub" ADMID="ADM_objects/sub">
+                    <mets:div ID="PHYS_objects/sub/x.txt" TYPE="Item" ADMID="ADM_objects/sub/x.txt">
+                      <mets:fptr FILEID="FILE_x"/>
+                    </mets:div>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var sub = mets.PhysicalStructure!.Directories[0].Directories[0];
+        sub.RightsStatement.Should().BeNull();
+        sub.RightsStatementSuppressed.Should().BeTrue();
+        sub.EffectiveRightsStatement.Should().BeNull();
+
+        var file = mets.Files.Single(f => f.LocalPath == "objects/sub/x.txt");
+        file.EffectiveRightsStatement.Should().BeNull();
     }
 
     [Fact]

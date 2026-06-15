@@ -48,11 +48,12 @@ public class WorkspaceManager(
     public async Task<Result> SetModsInformation(string localPath,
         List<string> rootAccessRestrictions,
         Uri? rootRightsStatement,
+        bool suppressRightsInheritance,
         IEnumerable<RecordIdentifier> recordIdentifiers,
         List<FileLink>? fileLinks = null)
     {
         var result = await mediator.Send(new SetModsInformation(Deposit.Files!, localPath, Deposit.MetsETag!,
-            rootAccessRestrictions, rootRightsStatement, recordIdentifiers, fileLinks));
+            rootAccessRestrictions, rootRightsStatement, suppressRightsInheritance, recordIdentifiers, fileLinks));
         return result;
     }
 

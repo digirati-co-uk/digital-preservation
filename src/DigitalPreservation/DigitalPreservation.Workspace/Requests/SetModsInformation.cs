@@ -12,6 +12,7 @@ public class SetModsInformation(
     string depositETag,
     List<string> accessRestrictions,
     Uri? rightsStatement,
+    bool suppressRightsInheritance,
     IEnumerable<RecordIdentifier> recordIdentifiers,
     List<FileLink>? fileLinks = null) : IRequest<Result>
 {
@@ -20,6 +21,13 @@ public class SetModsInformation(
     public string LocalPath { get; } = localPath;
     public List<string> AccessRestrictions { get; } = accessRestrictions;
     public Uri? RightsStatement { get; } = rightsStatement;
+
+    /// <summary>
+    /// When true, write an explicit-but-empty rights statement so the resource stops inheriting
+    /// rights from its ancestors (effective rights null). When false, <see cref="RightsStatement"/>
+    /// is applied directly — a null value clears the explicit rights and lets the parent's rights flow through.
+    /// </summary>
+    public bool SuppressRightsInheritance { get; } = suppressRightsInheritance;
 
     public RecordInfo RecordInfo { get; } = new(){ RecordIdentifiers = recordIdentifiers.ToList() };
     public string DepositETag { get; } = depositETag;
@@ -35,7 +43,10 @@ public class SetModsInformationHandler(IMetsManager metsManager) : IRequestHandl
         {
             var fullMets = metsResult.Value;
             metsManager.SetAccessRestrictionsByPath(fullMets, request.LocalPath, request.AccessRestrictions);
-            metsManager.SetRightsStatementByPath(fullMets, request.LocalPath, request.RightsStatement);
+            if (request.SuppressRightsInheritance)
+                metsManager.SuppressRightsInheritanceByPath(fullMets, request.LocalPath);
+            else
+                metsManager.SetRightsStatementByPath(fullMets, request.LocalPath, request.RightsStatement);
             metsManager.SetRecordInfoByPath(fullMets, request.LocalPath, request.RecordInfo);
             if (request.FileLinks != null)
                 metsManager.SetFileLinks(fullMets, request.LocalPath, request.FileLinks);
