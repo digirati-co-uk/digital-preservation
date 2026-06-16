@@ -350,4 +350,73 @@ public class MetsManagerMetadataTests
             .Single(d => d.Name == FolderNames.Objects);
         objectsDir.RightsStatement.Should().BeNull();
     }
+
+    // -----------------------------------------------------------------------
+    // Pruning redundant dmdSec / mods when all metadata is cleared
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task Clearing_All_Metadata_Removes_Redundant_DmdSec_And_Mods()
+    {
+        // After setting then clearing every piece of MODS metadata, the dmdSec must
+        // not survive as an empty <mods/> shell — it should be removed entirely,
+        // along with the div's now-dangling DMDID reference.
+
+        var (metsUri, fullMets) = await CreateMetsWithFile("Outputs/meta-prune-file.xml");
+
+        // Add some metadata...
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects/file.tif", ["Closed"]);
+        metsManager.SetRightsStatementByPath(fullMets, "objects/file.tif",
+            new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
+        metsManager.SetRecordInfoByPath(fullMets, "objects/file.tif", new RecordInfo
+        {
+            RecordIdentifiers = [new RecordIdentifier { Source = "EMu", Value = "REF/1" }]
+        });
+
+        // ...then clear it all again.
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects/file.tif", []);
+        metsManager.SetRightsStatementByPath(fullMets, "objects/file.tif", null);
+        metsManager.SetRecordInfoByPath(fullMets, "objects/file.tif", new RecordInfo());
+        await metsManager.WriteMets(fullMets);
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+
+        // No dmdSec for the file, and no empty mods left anywhere.
+        doc.Descendants(MetsNs + "dmdSec")
+            .Any(d => (string?)d.Attribute("ID") == "DMD_objects/file.tif")
+            .Should().BeFalse("the dmdSec should be removed once it carries no MODS information");
+
+        // The file div must no longer reference the removed dmdSec.
+        var fileDiv = doc.Descendants(MetsNs + "div")
+            .Single(d => (string?)d.Attribute("ID") == "PHYS_objects/file.tif");
+        fileDiv.Attribute("DMDID").Should().BeNull("the dangling DMDID reference should be dropped");
+    }
+
+    [Fact]
+    public async Task Clearing_One_Field_Keeps_DmdSec_When_Other_Metadata_Remains()
+    {
+        // Clearing only the access restriction must NOT remove the dmdSec while a
+        // record identifier is still present — only genuinely empty MODS is pruned.
+
+        var (metsUri, fullMets) = await CreateMetsWithFile("Outputs/meta-prune-keep.xml");
+
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects/file.tif", ["Closed"]);
+        metsManager.SetRecordInfoByPath(fullMets, "objects/file.tif", new RecordInfo
+        {
+            RecordIdentifiers = [new RecordIdentifier { Source = "EMu", Value = "REF/1" }]
+        });
+
+        // Clear only the access restriction; record info must survive.
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects/file.tif", []);
+        await metsManager.WriteMets(fullMets);
+
+        var parseResult = await parser.GetMetsFileWrapper(metsUri);
+        var objectsDir = parseResult.Value!.PhysicalStructure!.Directories
+            .Single(d => d.Name == FolderNames.Objects);
+        var file = objectsDir.Files.Single();
+        (file.AccessRestrictions == null || file.AccessRestrictions.Count == 0)
+            .Should().BeTrue("the access restriction was cleared");
+        file.RecordInfo.Should().NotBeNull("record info must survive clearing of an unrelated field");
+        file.RecordInfo!.RecordIdentifiers[0].Value.Should().Be("REF/1");
+    }
 }
