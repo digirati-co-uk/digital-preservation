@@ -172,15 +172,17 @@ public class CreateDepositBase(
 
             var wrapperResult = await metsParser.GetMetsFileWrapper(createdDeposit.Files!);
 
-            var metadataFolder = wrapperResult.Value?.PhysicalStructure!.FindDirectory(FolderNames.Metadata);
+            // Only ensure the metadata/ad-hoc folders when there is a METS file we created and can edit.
+            // For template=None or third-party METS there is nothing to write to, and HandleCreateFolder
+            // would fail internally (GetFullMets returns NotFound / BadRequest).
+            if (wrapperResult.Value is { Editable: true } metsWrapper)
+            {
+                if (metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.Metadata) == null)
+                    await CreateFolderInMets(FolderNames.Metadata, FolderNames.Metadata, createdDeposit);
 
-            if (metadataFolder == null)
-                await CreateFolderInMets(FolderNames.Metadata, FolderNames.Metadata, createdDeposit);
-
-            var adHocFolder = wrapperResult.Value?.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc);
-
-            if (adHocFolder == null)
-                await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
+                if (metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc) == null)
+                    await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
+            }
 
             if (!request.Export)
             {
