@@ -170,16 +170,6 @@ public class CreateDepositBase(
                 createdDeposit.ArchivalGroupExists = true;
             }
 
-            if (!request.Export)
-            {
-                // refresh the file system
-                // The async export will do this at the end of its run, if we exported.
-                // But here we didn't, so just do a quick update (it won't take long)
-                await workspaceManagerFactory.CreateAsync(createdDeposit, true);
-            }
-
-            if (!request.Export) return Result.Ok(createdDeposit);
-
             var wrapperResult = await metsParser.GetMetsFileWrapper(createdDeposit.Files!);
 
             var metadataFolder = wrapperResult.Value?.PhysicalStructure!.FindDirectory(FolderNames.Metadata);
@@ -192,6 +182,13 @@ public class CreateDepositBase(
             if (adHocFolder == null)
                 await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
 
+            if (!request.Export)
+            {
+                // refresh the file system
+                // The async export will do this at the end of its run, if we exported.
+                // But here we didn't, so just do a quick update (it won't take long)
+                await workspaceManagerFactory.CreateAsync(createdDeposit, true);
+            }
 
             return Result.Ok(createdDeposit);
         }
