@@ -1,0 +1,195 @@
+using System.Net;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using DigitalPreservation.Core.Auth;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace Storage.API.Tests.Integration;
+
+/// <summary>
+/// Characterises the API authorization stack used by Storage.API and Preservation.API, to settle
+/// whether the <c>X-Client-Identity</c> header is an authentication bypass.
+///
+/// It reproduces the global filter registration from <c>Storage.API/Program.cs</c> (identical block
+/// in <c>Preservation.API/Program.cs</c>):
+/// <code>
+///     config.Filters.Add(new AuthorizeFilter());      // == [Authorize]: requires an authenticated caller
+///     config.Filters.Add(new AuthFilterIdentifier()); // attribution: reads X-Client-Identity AFTER auth
+/// </code>
+///
+/// The real API hosts can't exercise this directly because <c>appsettings.Testing.json</c> sets
+/// <c>FeatureFlags:DisableAuth=true</c>, which skips registering these filters entirely. So we stand
+/// up a minimal pipeline with the exact same two filters plus a stub authentication handler standing
+/// in for the Entra JWT bearer handler.
+///
+/// Conclusion (see tests): <c>new AuthorizeFilter()</c> is NOT a no-op — its parameterless ctor passes
+/// a default <c>AuthorizeAttribute</c>, so it enforces authentication. <c>X-Client-Identity</c> is only
+/// honoured once a caller is already authenticated, and then only as the display label the call is
+/// attributed to. So it is not an auth bypass; the residual issue is that an already-authenticated
+/// machine caller controls its own attribution label (see the last test).
+/// </summary>
+[Trait("Category", "Integration")]
+public class ApiAuthorizationStackTests
+{
+    private const string SecurePath = "/secure";
+
+    private static TestServer BuildServer()
+    {
+        var builder = new WebHostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddAuthentication("Test")
+                    .AddScheme<AuthenticationSchemeOptions, StubAuthHandler>("Test", _ => { });
+                services.AddAuthorization();
+                services
+                    .AddControllers(config =>
+                    {
+                        // Exactly as registered in Storage.API / Preservation.API Program.cs.
+                        config.Filters.Add(new AuthorizeFilter());
+                        config.Filters.Add(new AuthFilterIdentifier());
+                    })
+                    .AddApplicationPart(typeof(ApiAuthorizationStackTests).Assembly);
+            })
+            .Configure(app =>
+            {
+                app.UseRouting();
+                app.UseAuthentication();
+                app.UseAuthorization();
+                app.UseEndpoints(endpoints => endpoints.MapControllers());
+            });
+
+        return new TestServer(builder);
+    }
+
+    [Fact]
+    public async Task Request_WithNoCredentials_IsRejected()
+    {
+        // Authentication is enforced: the parameterless AuthorizeFilter == [Authorize].
+        using var server = BuildServer();
+        var client = server.CreateClient();
+
+        var response = await client.GetAsync(SecurePath);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Request_WithOnlyClientIdentityHeaderAndNoToken_IsRejected()
+    {
+        // The key result: X-Client-Identity is NOT an authentication bypass. Without a validated
+        // token the AuthorizeFilter rejects the request before AuthFilterIdentifier's machine branch
+        // can attribute it.
+        using var server = BuildServer();
+        var client = server.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
+        request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "totally-not-the-real-iiif-builder");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Request_WithAuthenticatedUser_IsAuthorized()
+    {
+        // Normal human path: an authenticated principal that carries a display name passes via the
+        // "valid user" branch of AuthFilterIdentifier.
+        using var server = BuildServer();
+        var client = server.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
+        request.Headers.Add(StubAuthHandler.AuthenticateUserHeader, "true");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Request_FromAuthenticatedMachine_IsAttributedToTheClientIdentityHeader()
+    {
+        // The residual (lower-severity) concern: a client-credentials token authenticates but carries
+        // no display name, so AuthFilterIdentifier falls back to the X-Client-Identity header for the
+        // identity the call is attributed to (logs, METS authorship). That label is self-asserted, so
+        // one authenticated machine caller can attribute its calls to a different one. It is NOT a
+        // privilege escalation — the caller had to present a valid token first.
+        using var server = BuildServer();
+        var client = server.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
+        request.Headers.Add(StubAuthHandler.AuthenticateMachineHeader, "true");
+        request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "some-other-service");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var attributedIdentity = await response.Content.ReadAsStringAsync();
+        attributedIdentity.Should().Be("some-other-service");
+    }
+}
+
+/// <summary>
+/// Stand-in for the Entra JWT bearer handler. Authenticates only when one of its trigger headers is
+/// present; otherwise <see cref="AuthenticateResult.NoResult"/>, exactly as JwtBearer behaves when no
+/// (or an invalid) token is supplied.
+/// </summary>
+public class StubAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+{
+    /// <summary>Authenticate as a human user that carries a display name.</summary>
+    public const string AuthenticateUserHeader = "Test-Authenticate-User";
+
+    /// <summary>Authenticate as a client-credentials machine caller with NO display name.</summary>
+    public const string AuthenticateMachineHeader = "Test-Authenticate-Machine";
+
+    public StubAuthHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : base(options, logger, encoder)
+    {
+    }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        if (Request.Headers.ContainsKey(AuthenticateUserHeader))
+        {
+            // preferred_username is what Microsoft.Identity.Web's GetDisplayName() reads first.
+            return Authenticated(new Claim("preferred_username", "real-user@leeds.ac.uk"));
+        }
+
+        if (Request.Headers.ContainsKey(AuthenticateMachineHeader))
+        {
+            // A client-credentials token: valid, but no display-name claim.
+            return Authenticated(new Claim("azp", "11111111-1111-1111-1111-111111111111"));
+        }
+
+        return Task.FromResult(AuthenticateResult.NoResult());
+    }
+
+    private Task<AuthenticateResult> Authenticated(params Claim[] claims)
+    {
+        var ticket = new AuthenticationTicket(
+            new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")),
+            "Test");
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
+
+[ApiController]
+[Route("secure")]
+public class SecureTestController : ControllerBase
+{
+    // Returns the identity the request was attributed to. For a machine caller this is the "Name"
+    // claim that AuthFilterIdentifier synthesises straight from the X-Client-Identity header.
+    [HttpGet]
+    public IActionResult Get() => Ok(User.FindFirst("Name")?.Value ?? "authenticated-user");
+}
