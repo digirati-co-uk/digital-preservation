@@ -383,14 +383,37 @@ public class CreateDepositBase(
         if (storageMap is null)
             return true;
 
-        var metsOriginFile = storageMap.Files.Values.FirstOrDefault(f => MetsUtils.IsMetsFile(f.FullPath));
-        if (metsOriginFile is null)
+        // Keys in storageMap.Files are logical paths within the AG (e.g. "mets.xml")
+        var metsFileKey = storageMap.Files.Keys.FirstOrDefault(k => MetsUtils.IsMetsFile(k));
+        if (metsFileKey is null)
             return true;
 
-        var metsS3Uri = new Uri($"s3://{storageMap.Root}/{storageMap.ObjectPath}/{metsOriginFile.FullPath}");
-        logger.LogInformation("Checking existing AG METS editability at {metsUri}", metsS3Uri);
+        // Fetch METS via the Storage API (which has access to the Fedora bucket) rather than
+        // accessing OCFL S3 directly (the Preservation API's S3 client cannot read that bucket).
+        var metsPath = archivalGroup!.AbsolutePath + "/" + metsFileKey;
+        logger.LogInformation("Checking existing AG METS editability via Storage API at {metsPath}", metsPath);
 
-        var metsWrapperResult = await metsParser.GetMetsFileWrapper(metsS3Uri);
+        var streamResult = await storageApiClient.GetBinaryStream(metsPath);
+        if (streamResult is not { Success: true, Value: not null })
+        {
+            logger.LogWarning("Unable to retrieve existing AG METS to check editability, defaulting to creating metadata folders");
+            return true;
+        }
+
+        System.Xml.Linq.XDocument xDoc;
+        try
+        {
+            xDoc = await System.Xml.Linq.XDocument.LoadAsync(
+                streamResult.Value, System.Xml.Linq.LoadOptions.None, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Unable to parse existing AG METS to check editability, defaulting to creating metadata folders");
+            return true;
+        }
+
+        var metsUri = new Uri(archivalGroup, metsFileKey);
+        var metsWrapperResult = metsParser.GetMetsFileWrapperFromXDocument(metsUri, xDoc);
         if (metsWrapperResult is not { Success: true, Value: not null })
         {
             logger.LogWarning("Unable to determine existing AG METS editability, defaulting to creating metadata folders");
