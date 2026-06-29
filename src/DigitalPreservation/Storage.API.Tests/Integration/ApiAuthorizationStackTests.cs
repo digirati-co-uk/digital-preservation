@@ -41,7 +41,7 @@ public class ApiAuthorizationStackTests
 {
     private const string SecurePath = "/secure";
 
-    private static TestServer BuildServer()
+    private static TestServer BuildServer(IClientDirectory? clients = null)
     {
         var builder = new WebHostBuilder()
             .ConfigureServices(services =>
@@ -49,6 +49,12 @@ public class ApiAuthorizationStackTests
                 services.AddAuthentication("Test")
                     .AddScheme<AuthenticationSchemeOptions, StubAuthHandler>("Test", _ => { });
                 services.AddAuthorization();
+                if (clients != null)
+                {
+                    // RFC-0001 Phase 0: when a KnownClients allow-list is registered, AuthFilterIdentifier
+                    // resolves the signed azp ahead of the X-Client-Identity header.
+                    services.AddSingleton(clients);
+                }
                 services
                     .AddControllers(config =>
                     {
@@ -134,6 +140,31 @@ public class ApiAuthorizationStackTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var attributedIdentity = await response.Content.ReadAsStringAsync();
         attributedIdentity.Should().Be("some-other-service");
+    }
+
+    [Fact]
+    public async Task Request_FromKnownMachine_IsAttributedToTheSignedTokenIdentity_NotTheHeader()
+    {
+        // RFC-0001 Phase 0: once the caller's azp is in the KnownClients allow-list, the signed token
+        // identity wins over the self-asserted X-Client-Identity header. Here the token carries
+        // azp = 1111... (see StubAuthHandler) and the request spoofs a different header; attribution
+        // must be the configured name, proving the header is no longer the discriminator.
+        var clients = new ClientDirectory(new Dictionary<string, ClientProfile>
+        {
+            ["11111111-1111-1111-1111-111111111111"] = new() { Name = "iiif-builder" }
+        });
+        using var server = BuildServer(clients);
+        var client = server.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
+        request.Headers.Add(StubAuthHandler.AuthenticateMachineHeader, "true");
+        request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "some-other-service");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var attributedIdentity = await response.Content.ReadAsStringAsync();
+        attributedIdentity.Should().Be("iiif-builder");
     }
 }
 

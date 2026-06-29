@@ -77,7 +77,7 @@ Following the audience: **every caller requests a token for `api://a616cf42` (th
 Worse, iiif-builder and the Playwright tests authenticate *as* `a616cf42` — i.e. they present the UI's client ID (and the UI's client secret). They are, to Entra, the UI.
 
 > [!WARNING]
-> The "Assignment required = Yes" setting first found on `Library-Preservation-API-Dev` (`84c62880`) is a **red herring**: no caller ever requests `84c62880` as a resource, so its assignment gate never fires. The gate that actually matters sits on `a616cf42`.
+> The "Assignment required = Yes" setting on `Library-Preservation-API-Dev` (`84c62880`, confirmed already set) is a **red herring *in the current state*** only: no caller requests `84c62880` as a resource today, so its assignment gate never fires, and the gate that actually matters sits on `a616cf42`. This is what made the live setup confusing — it *looks* like `84c62880`'s gate should block machine callers, but they never reach it. **Post-migration this flips:** once callers request `api://84c62880…` (Phase 2), that same already-on gate becomes the real per-caller enforcement — which is convenient (Phase 4 needn't enable it) but imposes a strict ordering: a caller must be **assigned `Preservation.Call` before** it is repointed, or Entra rejects it with `AADSTS501051`.
 
 ### 3.1 The access boundary is real — but it lives on the UI registration
 
@@ -101,6 +101,7 @@ The consequence corrects an earlier worry. Because `a616cf42` has **Assignment r
 4. **No least privilege.** A read-only consumer (iiif-builder) holds exactly the same rights as a read-write producer (Goobi). There is no way to scope a caller down.
 5. **No audience separation.** UI vs API, and Preservation API vs Storage API, all validate the same audience — a token minted for one is valid for all.
 6. **The "who can call me" list is real but collapsed.** Access *is* gated (see §3.1: `a616cf42` enforces assignment), but it admits exactly one shared machine identity. The list is meaningful as a yes/no boundary and useless as a per-caller one — every machine caller is the same entry.
+7. **The APIs are themselves shared-registration callers.** Preservation API and Pipeline API mint their *own* app-only token for downstream service-to-service calls (e.g. Preservation→Storage when there is no inbound user token to relay) via the `TokenProvider` config + `AccessTokenProvider`. That section is populated with the **UI registration's** `client_id`/secret (`a616cf42…`), and the grant requests `api://{client_id}` — so the platform's own internal calls are *also* the shared identity, and they self-assert `X-Client-Identity: "api-call"`. `TokenProvider` is therefore an in-scope caller to migrate (Phase 2), not just the external clients.
 
 > [!IMPORTANT]
 > Consequence #1 directly **blocks the Goobi use case (§1.1)**: while every machine caller shares the `a616cf42` identity, there is no reliable key on which to route Goobi's deposits to a Goobi-only bucket. Reliable per-caller identity is a **prerequisite** for that feature, not merely good hygiene.
@@ -198,6 +199,14 @@ Today's boundary (§3.1) already relies on **Assignment required = Yes** — but
 
 This is what turns the "who can call me" portal page (G4) into a real, enforced list.
 
+#### 5.3.1 Authorization is per-API and can be per-endpoint
+
+Storage API and Preservation API share the same *authentication* mechanism, but that does not force them to share the same *authorization* check. Each API decides which roles it requires, and an individual endpoint can require more than the API's baseline. The `roles` claim is carried in the token regardless, so this granularity is available even before any audience split.
+
+The motivating example is Storage's **`GET /content/{*path}`** (`ContentController`) — it streams raw preserved binary bytes straight out of Fedora/S3. A *typical* Preservation API caller has no business pulling raw content directly from the storage layer (Storage is meant to be the gateway, reached *through* Preservation — see §7 "Defence in depth"). So `/content` is a good candidate to gate behind a dedicated role (e.g. `Storage.Content.Read`) that the everyday Preservation caller simply does not hold, even though it holds `Preservation.Call`. Other Storage operations could likewise carry their own roles, independent of what Preservation requires.
+
+This is cleanest once **Storage has its own audience and its own app roles** (§8 Q1): roles are defined on the resource registration they protect, so Storage-specific roles naturally live on a Storage registration. Until then the same effect is achievable by defining the extra roles on the shared registration and having Storage check for them specifically — but the audience split is the tidier end state.
+
 ## 6. Migration plan (incremental, dual-audience)
 
 The key enabler for a non-breaking migration is that the API can be configured to accept **both** audiences during transition.
@@ -220,7 +229,8 @@ The key enabler for a non-breaking migration is that the API can be configured t
   ```
 
   Replace the old `"Audience": "api://a616cf42…"` line entirely — set `Audiences` only, rather than keeping both keys. (`MicrosoftIdentityOptions` exposes both `Audience` and `Audiences`; populating just the plural form keeps the config unambiguous.) In Phase 4 this collapses back to a single-entry `Audiences` array (or back to `Audience`) once `api://a616cf42…` is removed.
-- Ship the new `GetCallerIdentity` + `IClientDirectory` allow-list in **dual mode**: prefer the resolved `azp`, fall back to `X-Client-Identity` for callers not yet migrated. Log whenever the fallback is used.
+- Ship the new `IClientDirectory` allow-list in **dual mode**: prefer the resolved `azp`, fall back to `X-Client-Identity` for callers not yet migrated. Log whenever the fallback is used.
+  - **As implemented**, this dual-mode resolution lives in `AuthFilterIdentifier` — the existing post-auth chokepoint that already synthesises the machine caller's `Name` claim — rather than in `GetCallerIdentity`. It resolves `azp`/`appid` against `IClientDirectory` and injects the resolved name as that same `Name` claim, falling back to the header otherwise. This keeps `GetCallerIdentity`'s signature (and its ~15 call sites) untouched; the §5.2 form remains the eventual target. With `KnownClients` empty, no `azp` resolves, so behaviour is identical to today bar the fallback log line.
 
 **Phase 1 — Create per-caller registrations.**
 - Create a registration per caller, each with its own credential, assigned `Preservation.Call` on the API (admin consent). Add each app ID to `KnownClients`.
@@ -228,6 +238,7 @@ The key enabler for a non-breaking migration is that the API can be configured t
 
 **Phase 2 — Repoint callers one at a time.**
 - For each machine caller, switch its config to its own `client_id` + credential and scope `api://84c62880…/.default`. Because the API accepts both audiences, callers move independently with no coordinated cutover. Watch the logs: the `X-Client-Identity` fallback warning should stop firing for each caller as it migrates.
+- **Ordering is strict, because `84c62880` already has `Assignment required = Yes`** (see §3 warning): each caller must already hold its `Preservation.Call` assignment (Phase 1) *before* it is repointed here, or Entra rejects the token request with `AADSTS501051`. There is no grace window — assign, *then* repoint.
 
 **Phase 3 — Repoint the UI.**
 - Change the UI's downstream `ScopeUri` to `api://84c62880…/.default`. The UI continues to sign users in with `a616cf42`; only the API-call audience changes.
@@ -246,7 +257,7 @@ The key enabler for a non-breaking migration is that the API can be configured t
   ```
 
   With a single entry you may instead revert to the singular `"Audience": "api://84c62880…"`; either form is equivalent once the transitional audience is gone.
-- Set **Assignment required = Yes** on `84c62880` and enforce the `Preservation.Call` role in code.
+- **Assignment required = Yes** on `84c62880` is **already set** (see §3 warning), so the only remaining tightening is to enforce the `Preservation.Call` role in code. (Verify the setting is still on rather than re-enabling it.)
 - Switch `GetCallerIdentity` out of dual mode: unknown `azp` ⇒ rejected; `X-Client-Identity` no longer consulted for identity.
 - Remove or down-grade `X-Client-Identity` to a purely cosmetic, ignored-on-mismatch hint.
 
@@ -261,14 +272,45 @@ Each phase is independently reversible until Phase 4.
 
 ## 8. Open questions / follow-ups
 
-1. **Storage.API audience.** Should Storage get its own audience and an on-behalf-of exchange from Preservation, rather than the current verbatim token relay? (Out of scope here; tracked separately.)
+1. **Storage.API audience.** Should Storage get its own audience and an on-behalf-of exchange from Preservation, rather than the current verbatim token relay? (Out of scope here; tracked separately.) Note a current constraint: `AccessTokenProvider.GetBearerToken` only ever requests a token whose audience equals its *own* configured `client_id` (`scope=api://{client_id}/.default`, `resource=api://{client_id}`) — it cannot target a different downstream resource. Preservation→Storage works today only because both validate the same shared audience. Giving Storage a distinct audience therefore requires more than config: `TokenProvider`/`AccessTokenProvider` must be able to request a *different* resource than the caller's own registration (or an OBO/token-exchange step must be introduced).
 2. **Service *user* accounts on the API enterprise app.**
    - The **Playwright browser-login service account** is **resolved and out of scope**: it is a pseudo-human login the Playwright suite uses to drive a browser through a real UI sign-in for end-to-end tests. It rides the normal human/delegated path and needs no change. Note that Playwright therefore has *two distinct identities* — this browser user, and the app-only `API_CLIENT_ID` it uses for direct API calls. Only the latter (currently borrowing `a616cf42`) is in migration scope.
    - The **iiif-builder service account** is **still open**: the iiif-builder service itself is a daemon and should be purely app-only (client credentials), so a *user* account for it is unexpected. The leading hypothesis is that Leeds have built a **UI over iiif-builder** (source not currently available to us) that signs users in and calls the Preservation API on their behalf, with this account as its (test/service) login. That would explain a user-context path. What it does **not** yet explain is why that UI appears only as a user and not as its own client app registration — though that may simply be another instance of the registration-collapse described in §3 (if the iiif-builder UI also reuses `a616cf42`, it has no distinct app identity to surface). **Action:** confirm with Leeds whether such a UI exists, which registration it uses, and whether the account is live or a leftover — then fold it into the migration or retire it.
-3. **Read vs write roles** — is the split worth the extra app roles now, or is a single `Preservation.Call` sufficient for v1?
+3. **Role granularity — read/write, and per-API/per-endpoint (see §5.3.1).** Is a single `Preservation.Call` sufficient for v1, or do we split read vs write, and define Storage-specific roles (e.g. `Storage.Content.Read` gating `GET /content`) that an everyday Preservation caller does not hold? This interacts with Q1: Storage-specific roles are cleanest once Storage has its own audience.
 4. **Graph-based name resolution** vs the static `KnownClients` map — static is recommended for v1 (cheap, doubles as allow-list); revisit if caller churn becomes high.
 5. **Bucket: routing vs isolation (Goobi, §1.1).** Is the Goobi bucket purely *routing* ("Goobi's deposits go here" — config in the `KnownClients` profile), or also *isolation* ("**only** Goobi may write there" — an enforced authz rule)? Likely both. And does the `azp → bucket` policy live in Preservation API config, or is it better expressed as a per-caller app role?
 6. **Per-caller behaviour generally.** Bucket choice is the first identity-driven behaviour; others may follow (default rights statement, METS template, quota). Decide whether such policy belongs in the `KnownClients` profile or a separate policy store — and whether any of it warrants a change to the deposit-create API surface.
+
+## 9. Testing the migrated identity
+
+Phase 0's `ApiAuthorizationStackTests` already characterise resolution at the filter level with a stubbed token (a signed `azp` → friendly name wins over the `X-Client-Identity` header). As later phases land, add end-to-end coverage that the *verified* identity drives real behaviour:
+
+1. **Goobi bucket routing — the driving use case (§1.1).** With a caller presenting Goobi's identity (resolved `azp` → the `goobi` profile carrying `depositBucket`), create a deposit and assert the deposit's `.files` S3 URIs point at the **Goobi bucket**, not `AwsStorage:DefaultWorkingBucket`. This proves verified-identity → data-isolation end to end. It lands with the bucket-routing consumer (deferred — §8 Q5), not Phase 0.
+2. **Default caller — e.g. the Playwright API identity.** A caller *without* a `depositBucket` in its profile creates a deposit and lands in the default bucket — proving Goobi's routing is specific to Goobi and the default path is unaffected. The app-only identity the Playwright suite uses for direct API calls (distinct from its browser-login user — §8 Q2) is the natural concrete subject once it has its own registration.
+
+**Test seam.** Real-Entra tokens are awkward in CI, so prefer driving these through the test host with a stubbed `azp` claim (as `ApiAuthorizationStackTests` does) for deterministic CI coverage, plus an optional `Category=Manual` smoke test using genuine client-credentials tokens against dev.
+
+### 9.1 The caller-identity endpoint (implemented)
+
+`GET /whoami` is implemented on **both** APIs (`WhoAmIController` in each; resolution logic in
+`DigitalPreservation.Core/Auth/CallerResolver.cs`). It returns only the calling identity as the API
+resolved it:
+
+```jsonc
+{
+  "name": "goobi",                    // friendly name (or display name for a human)
+  "source": "token",                  // user | token | header-fallback | unknown
+  "appId": "2222…",                   // signed azp/appid, when present
+  "depositBucket": "leeds-goobi-deposits" // profile bucket, else the API's default working bucket
+}
+```
+
+It exists to:
+
+- give the tests above a **direct assertion target** for resolution, independent of any side effect such as bucket choice — and cover callers (like the Playwright API user) that have no distinctive side effect;
+- serve as a **migration diagnostic**: during Phase 2 a caller confirms its `source` flips from `header-fallback` to `token` the moment it is repointed, mirroring the fallback warning log.
+
+Keep it minimal and self-only: it sits behind the standard `AuthorizeFilter` and returns only the *caller's own* identity — never the `KnownClients` map or other callers. It **does** report the caller's resolved **deposit bucket** ("this is where deposits would be made for you"), since callers are expected to interact with that bucket directly; the bucket falls back to `AwsStorage:DefaultWorkingBucket` when the caller's profile carries none.
 
 ## Appendix A — App-only token claims we rely on
 
@@ -285,5 +327,6 @@ Each phase is independently reversible until Phase 4.
 - `DigitalPreservation.Core/Auth/ClaimsPrincipalX.cs` — `GetCallerIdentity` (rewrite per §5.2).
 - `DigitalPreservation.Core/Auth/AuthFilterIdentifier.cs` — stop synthesising identity from `X-Client-Identity`; enforce role.
 - `Preservation.API/Program.cs`, `Storage.API/Program.cs` — `AzureAd` audience config; role enforcement filter.
-- `DigitalPreservation.Core/Web/Headers/PropagateCorrelationIdHandler.cs` — token relay to Storage (unchanged, but in scope for the §8.1 follow-up).
+- `DigitalPreservation.Core/Web/Headers/PropagateCorrelationIdHandler.cs` — relays the inbound user token downstream, and when there is none falls back to `AccessTokenProvider` for an app-only token, hard-coding `X-Client-Identity: "api-call"` (remove in Phase 4).
+- `DigitalPreservation.Core/Web/Headers/AccessTokenProvider.cs` + the `TokenProvider` config section (`Preservation.API`, `Pipeline.API`) — the APIs' own machine credentials/identity for service-to-service calls (see §3.2 #7). Repoint to a per-service registration + `api://84c62880…` in Phase 2; the own-resource-only limitation is the §8.1 constraint.
 - `Storage.API.Tests/Integration/ApiAuthorizationStackTests.cs` — existing characterisation of the authorization stack; extend with role-enforcement cases.
