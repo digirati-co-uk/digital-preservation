@@ -233,7 +233,19 @@ The key enabler for a non-breaking migration is that the API can be configured t
 - Change the UI's downstream `ScopeUri` to `api://84c62880…/.default`. The UI continues to sign users in with `a616cf42`; only the API-call audience changes.
 
 **Phase 4 — Tighten.**
-- Remove `api://a616cf42…` from the API's `ValidAudiences`.
+- Remove `api://a616cf42…` from the API's accepted audiences, leaving only the API's own App ID URI:
+
+  ```jsonc
+  "AzureAd": {
+    "Instance": "https://login.microsoftonline.com/",
+    "TenantId": "bdeaeda8…",
+    "ClientId": "84c62880…",
+    "Audiences": [ "api://84c62880…" ],
+    "ClientSecret": "…"
+  }
+  ```
+
+  With a single entry you may instead revert to the singular `"Audience": "api://84c62880…"`; either form is equivalent once the transitional audience is gone.
 - Set **Assignment required = Yes** on `84c62880` and enforce the `Preservation.Call` role in code.
 - Switch `GetCallerIdentity` out of dual mode: unknown `azp` ⇒ rejected; `X-Client-Identity` no longer consulted for identity.
 - Remove or down-grade `X-Client-Identity` to a purely cosmetic, ignored-on-mismatch hint.
