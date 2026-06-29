@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
+using DigitalPreservation.XmlGen.Mets;
 using LeedsDlipServices.Identity;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
@@ -82,8 +83,12 @@ public class CreateDepositBase(
             var mintedId = identityService.MintIdentity(nameof(Deposit));
             var callerIdentity = request.Principal.GetCallerIdentity();
             logger.LogInformation("Identity service gave us deposit Id: " + mintedId);
+
+            var createMetadataFolders = await ShouldCreateMetadataFolders(
+                archivalGroupExists, storageMapForExport, request.Deposit.ArchivalGroup, request.Deposit.VersionExported);
+
             var filesLocation = await storage.GetWorkingFilesLocation(
-                mintedId, request.Deposit.Template, callerIdentity);
+                mintedId, request.Deposit.Template, callerIdentity, createMetadataFolders);
             if (filesLocation.Failure)
             {
                 logger.LogError("Unable to create GetWorkingFilesLocation for deposit " + mintedId + "; " + filesLocation.CodeAndMessage());
@@ -195,6 +200,14 @@ public class CreateDepositBase(
 
                 if (!metadataAdhocFolderExists)
                     await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
+            }
+            else
+            {
+                var metsWrapperResult = wrapperResult?.Value;
+                var metadataFolderExists = metsWrapperResult.PhysicalStructure!.FindDirectory(FolderNames.Metadata) != null;
+
+                //TODO: check if metadata and/or ad-hoc folder was created - check s3
+                //TODO: DELETE ad-hoc or metadata/ad-hoc folders if they exist and METS is not editable? But we don't know if it's a third-party METS or not, so we can't know if it should be deleted. For now, just leave them alone. 
             }
 
 
@@ -349,6 +362,43 @@ public class CreateDepositBase(
         logger.LogInformation("Ensure METS concludes no METS file should be created.");
 
         return Result.Ok();
+    }
+
+    private async Task<bool> ShouldCreateMetadataFolders(
+        bool? archivalGroupExists, StorageMap? storageMapForExport, Uri? archivalGroup, string? version)
+    {
+        if (archivalGroupExists is not true)
+            return true;
+
+        var storageMap = storageMapForExport;
+        if (storageMap is null && archivalGroup is not null)
+        {
+            var smResult = await storageApiClient.GetStorageMap(archivalGroup.GetPathUnderRoot()!, version);
+            if (smResult is { Success: true, Value: not null })
+                storageMap = smResult.Value;
+        }
+
+        if (storageMap is null)
+            return true;
+
+        var metsOriginFile = storageMap.Files.Values.FirstOrDefault(f => MetsUtils.IsMetsFile(f.FullPath));
+        if (metsOriginFile is null)
+            return true;
+
+        var metsS3Uri = new Uri($"s3://{storageMap.Root}/{storageMap.ObjectPath}/{metsOriginFile.FullPath}");
+        logger.LogInformation("Checking existing AG METS editability at {metsUri}", metsS3Uri);
+
+        var metsWrapperResult = await metsParser.GetMetsFileWrapper(metsS3Uri);
+        if (metsWrapperResult is not { Success: true, Value: not null })
+        {
+            logger.LogWarning("Unable to determine existing AG METS editability, defaulting to creating metadata folders");
+            return true;
+        }
+
+        var editable = metsWrapperResult.Value.Editable;
+        logger.LogInformation("Existing AG METS editable: {editable}, metadata folders will{notStr} be created",
+            editable, editable ? "" : " not");
+        return editable;
     }
 
     private async Task CreateFolderInMets(string pathName, string folderName, Deposit deposit)
