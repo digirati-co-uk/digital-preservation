@@ -87,6 +87,8 @@ public class CreateDepositBase(
             var createMetadataFolders = await ShouldCreateMetadataFolders(
                 archivalGroupExists, storageMapForExport, request.Deposit.ArchivalGroup, request.Deposit.VersionExported);
 
+            logger.LogInformation("create metadata folders boolean: {createMetadataFolders}", createMetadataFolders);
+
             var filesLocation = await storage.GetWorkingFilesLocation(
                 mintedId, request.Deposit.Template, callerIdentity, createMetadataFolders);
             if (filesLocation.Failure)
