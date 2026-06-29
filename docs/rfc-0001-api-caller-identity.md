@@ -204,7 +204,22 @@ The key enabler for a non-breaking migration is that the API can be configured t
 
 **Phase 0 — Prepare the API (no caller impact).**
 - Add the Application ID URI and the `Preservation.Call` app role to `84c62880`.
-- Configure the API to accept **both** audiences: `ValidAudiences = [ api://a616cf42…, api://84c62880… ]`.
+- Configure the API to accept **both** audiences. With `Microsoft.Identity.Web` 3.8.3 (our current version), this is just a config change — swap the singular `Audience` for the plural `Audiences` array in each API's `appsettings`; the binder maps it onto `TokenValidationParameters.ValidAudiences`, so no custom `JwtBearerOptions` post-configuration is needed:
+
+  ```jsonc
+  "AzureAd": {
+    "Instance": "https://login.microsoftonline.com/",
+    "TenantId": "bdeaeda8…",
+    "ClientId": "84c62880…",
+    "Audiences": [
+      "api://a616cf42…",   // current audience (the UI registration) — accepted during transition
+      "api://84c62880…"    // the API's own App ID URI — the target audience
+    ],
+    "ClientSecret": "…"
+  }
+  ```
+
+  Replace the old `"Audience": "api://a616cf42…"` line entirely — set `Audiences` only, rather than keeping both keys. (`MicrosoftIdentityOptions` exposes both `Audience` and `Audiences`; populating just the plural form keeps the config unambiguous.) In Phase 4 this collapses back to a single-entry `Audiences` array (or back to `Audience`) once `api://a616cf42…` is removed.
 - Ship the new `GetCallerIdentity` + `IClientDirectory` allow-list in **dual mode**: prefer the resolved `azp`, fall back to `X-Client-Identity` for callers not yet migrated. Log whenever the fallback is used.
 
 **Phase 1 — Create per-caller registrations.**
