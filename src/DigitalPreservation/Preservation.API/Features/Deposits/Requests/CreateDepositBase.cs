@@ -447,7 +447,7 @@ public class CreateDepositBase(
 
         var dirForMets = deposit.Template == TemplateType.BagIt ? dir.ToRootLayout() : dir;
 
-        await metsManager.HandleCreateFolder(deposit.Files!, dirForMets, deposit.MetsETag!);
+        return await metsManager.HandleCreateFolder(deposit.Files!, dirForMets, deposit.MetsETag!);
     }
 
 }
