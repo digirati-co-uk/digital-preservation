@@ -179,6 +179,9 @@ public class CreateDepositBase(
 
             var wrapperResult = await metsParser.GetMetsFileWrapper(createdDeposit.Files!);
 
+            logger.LogInformation("wrapper result {wrapperResult}", wrapperResult);
+            logger.LogInformation("wrapper result value {wrapperResult}", wrapperResult.Value);
+
             var editable = wrapperResult?.Value?.Editable;
             var agent = wrapperResult?.Value?.Agent;
             logger.LogInformation("METS is editable: {editable}", editable);
