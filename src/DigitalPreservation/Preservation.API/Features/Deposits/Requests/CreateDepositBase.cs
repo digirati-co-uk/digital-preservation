@@ -181,7 +181,7 @@ public class CreateDepositBase(
 
             logger.LogInformation("Created Deposit files {depositFiles} which is a URI", createdDeposit.Files!);
             
-            logger.LogInformation("wrapper result {wrapperResult}", wrapperResult);
+            logger.LogInformation("wrapper result {wrapperResultSuccess}", wrapperResult.Success);
             logger.LogInformation("wrapper result value {wrapperResult}", wrapperResult.Value);
 
             var editable = wrapperResult?.Value?.Editable;

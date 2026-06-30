@@ -146,6 +146,7 @@ public class MetsParser(
             }
             mets.Editable = mets.Agent == Constants.MetsCreatorAgent;
         }
+        logger.LogInformation("Mets {mets}", mets);
         return Result.OkNotNull(mets);
     }
 
