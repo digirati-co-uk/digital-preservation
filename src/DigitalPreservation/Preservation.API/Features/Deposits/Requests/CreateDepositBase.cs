@@ -209,6 +209,7 @@ public class CreateDepositBase(
                     var result = await CreateFolderInMets(FolderNames.Metadata, FolderNames.Metadata, createdDeposit);
 
                     logger.LogInformation("Creating Metadata folder in mets result success: {resultSuccess}", result.Success);
+                    logger.LogInformation("Creating Metadata folder in mets result message: {resultSuccess}", result.CodeAndMessage());
                 }
 
                 var metadataAdhocFolderExists = metsWrapper?.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc) != null;
@@ -221,6 +222,7 @@ public class CreateDepositBase(
                     var result = await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
 
                     logger.LogInformation("Creating Metadata ad-hoc folder in mets result success: {resultSuccess}", result.Success);
+                    logger.LogInformation("Creating Metadata ad-hoc folder in mets result message: {resultSuccess}", result.CodeAndMessage());
                 }
             }
 
