@@ -189,37 +189,36 @@ public class CreateDepositBase(
             logger.LogInformation("METS is editable: {editable}", editable);
             logger.LogInformation("METS agent name: {agentName}", agent);
 
+            
             // Only ensure the metadata/ad-hoc folders when there is a METS file we created and can edit.
             // For template=None or third-party METS there is nothing to write to, and HandleCreateFolder
             // would fail internally (GetFullMets returns NotFound / BadRequest).
-            if (wrapperResult.Value is { Editable: true } metsWrapper)
+            if ((editable.HasValue && editable.Value) || createMetadataFolders)
             {
+                var metsWrapper = wrapperResult?.Value;
+
                 logger.LogInformation("Create folders");
 
-                var metadataFolderExists = metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.Metadata) != null;
+                var metadataFolderExists = metsWrapper?.PhysicalStructure!.FindDirectory(FolderNames.Metadata) != null;
 
                 logger.LogInformation("Metadata folder exists: {metadataFolderExists}", metadataFolderExists);
 
                 if (!metadataFolderExists)
+                {
+                    logger.LogInformation("Creating Metadata folder in mets");
                     await CreateFolderInMets(FolderNames.Metadata, FolderNames.Metadata, createdDeposit);
+                }
 
-                var metadataAdhocFolderExists = metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc) != null;
+                var metadataAdhocFolderExists = metsWrapper?.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc) != null;
 
                 logger.LogInformation("Metadata adhoc folder exists: {metadataAdHocFolderExists}", metadataAdhocFolderExists);
 
                 if (!metadataAdhocFolderExists)
+                {
+                    logger.LogInformation("Creating Metadata ad-hoc folder in mets");
                     await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
+                }
             }
-            else
-            {
-                var metsWrapperResult = wrapperResult?.Value;
-                var metadataFolderExists = metsWrapperResult.PhysicalStructure!.FindDirectory(FolderNames.Metadata) != null;
-
-                //TODO: check if metadata and/or ad-hoc folder was created - check s3
-                //TODO: DELETE ad-hoc or metadata/ad-hoc folders if they exist and METS is not editable? But we don't know if it's a third-party METS or not, so we can't know if it should be deleted. For now, just leave them alone. 
-            }
-
-
 
             if (!request.Export)
             {
