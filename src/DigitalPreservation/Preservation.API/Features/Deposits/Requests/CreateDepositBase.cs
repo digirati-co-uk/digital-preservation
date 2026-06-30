@@ -179,6 +179,8 @@ public class CreateDepositBase(
 
             var wrapperResult = await metsParser.GetMetsFileWrapper(createdDeposit.Files!);
 
+            logger.LogInformation("Created Deposit files {depositFiles} which is a URI", createdDeposit.Files!);
+            
             logger.LogInformation("wrapper result {wrapperResult}", wrapperResult);
             logger.LogInformation("wrapper result value {wrapperResult}", wrapperResult.Value);
 
