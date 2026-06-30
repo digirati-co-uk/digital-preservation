@@ -193,13 +193,11 @@ public class CreateDepositBase(
             // Only ensure the metadata/ad-hoc folders when there is a METS file we created and can edit.
             // For template=None or third-party METS there is nothing to write to, and HandleCreateFolder
             // would fail internally (GetFullMets returns NotFound / BadRequest).
-            if ((editable.HasValue && editable.Value) || createMetadataFolders)
+            if (wrapperResult.Value is { Editable: true } metsWrapper)
             {
-                var metsWrapper = wrapperResult?.Value;
-
                 logger.LogInformation("Create folders");
 
-                var metadataFolderExists = metsWrapper?.PhysicalStructure!.FindDirectory(FolderNames.Metadata) != null;
+                var metadataFolderExists = metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.Metadata) != null;
 
                 logger.LogInformation("Metadata folder exists: {metadataFolderExists}", metadataFolderExists);
 
@@ -212,7 +210,7 @@ public class CreateDepositBase(
                     logger.LogInformation("Creating Metadata folder in mets result message: {resultSuccess}", result.CodeAndMessage());
                 }
 
-                var metadataAdhocFolderExists = metsWrapper?.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc) != null;
+                var metadataAdhocFolderExists = metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc) != null;
 
                 logger.LogInformation("Metadata adhoc folder exists: {metadataAdHocFolderExists}", metadataAdhocFolderExists);
 
@@ -448,6 +446,8 @@ public class CreateDepositBase(
         };
 
         var dirForMets = deposit.Template == TemplateType.BagIt ? dir.ToRootLayout() : dir;
+
+        logger.LogInformation("Directory for METS {deposit.MetsETag!}", deposit.MetsETag!);
 
         return await metsManager.HandleCreateFolder(deposit.Files!, dirForMets, deposit.MetsETag!);
     }
