@@ -189,12 +189,12 @@ public class CreateDepositBase(
             logger.LogInformation("METS is editable: {editable}", editable);
             logger.LogInformation("METS agent name: {agentName}", agent);
 
-            
             // Only ensure the metadata/ad-hoc folders when there is a METS file we created and can edit.
             // For template=None or third-party METS there is nothing to write to, and HandleCreateFolder
             // would fail internally (GetFullMets returns NotFound / BadRequest).
-            if (wrapperResult.Value is { Editable: true } metsWrapper)
+            if (wrapperResult.Value.Editable || createMetadataFolders) //if (wrapperResult.Value is { Editable: true } metsWrapper)
             {
+                var metsWrapper = wrapperResult.Value;
                 logger.LogInformation("Create folders");
 
                 var metadataFolderExists = metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.Metadata) != null;
