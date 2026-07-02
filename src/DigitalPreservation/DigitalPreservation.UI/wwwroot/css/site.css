@@ -230,10 +230,13 @@ tr.where-both td {
     min-width: 100%;
 }
 
-.deposit-row a.mods-launcher {
+.deposit-row .mods-launcher {
     padding: 0;
     border: 0;
+}
 
+.form-control, .form-select {
+    border-color: #767676;
 }
 
 @keyframes dirty-pulse {
@@ -243,6 +246,12 @@ tr.where-both td {
 
 .dirty-pulse {
     animation: dirty-pulse 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dirty-pulse {
+        animation: none;
+    }
 }
 
 /* Inline access/rights/record metadata icons */
@@ -256,7 +265,8 @@ tr.where-both td {
     transition: opacity 0.15s ease;
 }
 
-.deposit-row:hover .dep-meta-inherited {
+.deposit-row:hover .dep-meta-inherited,
+.deposit-row:focus-within .dep-meta-inherited {
     opacity: 1;
     color: #333;
 }

@@ -29,7 +29,7 @@ public class DlipNavLink : TagHelper
         output.Attributes.SetAttribute("href", Href); 
         
         output.Content.SetHtmlContent($"""
-                                          <svg class="bi"><use xlink:href="#{icon}"/></svg>
+                                          <svg class="bi" aria-hidden="true"><use xlink:href="#{icon}"/></svg>
                                           {Label}
                                       """);
     }

@@ -280,7 +280,7 @@
                                     <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
                                     <label for="agPathUnderRoot">Archival Group</label>
                                 </div>
-                                <button class="btn btn-outline-secondary" type="button" id="btnAgPathHelp" data-bs-toggle="modal" data-bs-target="#archivalGroupPathModal">
+                                <button class="btn btn-outline-secondary" type="button" id="btnAgPathHelp" data-bs-toggle="modal" data-bs-target="#archivalGroupPathModal" aria-label="Help with archival group path">
                                     <svg class="bi"><use xlink:href="#question-circle"/></svg>
                                 </button>
                             </div>
@@ -305,27 +305,23 @@
                 @if (hasLogical)
                 {
                     <div class="nav nav-tabs mb-2" id="structMapTabs" role="tablist">
-                        <div class="nav-item">
-                            <button class="nav-link active" id="physicalTab-tab" data-bs-toggle="tab" data-bs-target="#physicalTab" type="button" role="tab">
-                                <svg class="bi"><use xlink:href="#hdd"/></svg><span class="ms-1">Physical</span>
-                            </button>
-                        </div>
+                        <button class="nav-link active" id="physicalTab-tab" data-bs-toggle="tab" data-bs-target="#physicalTab" type="button" role="tab" aria-controls="physicalTab" aria-selected="true">
+                            <svg class="bi" aria-hidden="true"><use xlink:href="#hdd"/></svg><span class="ms-1">Physical</span>
+                        </button>
                         @foreach (var lsm in Model.LogicalStructMaps)
                         {
-                            <div class="nav-item">
-                                <button class="nav-link" id="logicalTab_@(lsm.Id)-tab" data-bs-toggle="tab" data-bs-target="#logicalTab_@lsm.Id" type="button" role="tab">
-                                    <svg class="bi"><use xlink:href="#diagram-3"/></svg><span class="ms-1">@(lsm.Name ?? lsm.Id)</span>
-                                </button>
-                            </div>
+                            <button class="nav-link" id="logicalTab_@(lsm.Id)-tab" data-bs-toggle="tab" data-bs-target="#logicalTab_@lsm.Id" type="button" role="tab" aria-controls="logicalTab_@lsm.Id" aria-selected="false">
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#diagram-3"/></svg><span class="ms-1">@(lsm.Name ?? lsm.Id)</span>
+                            </button>
                         }
                     </div>
                     <div class="tab-content">
-                        <div class="tab-pane fade show active" id="physicalTab" role="tabpanel">
+                        <div class="tab-pane fade show active" id="physicalTab" role="tabpanel" aria-labelledby="physicalTab-tab">
                             @await Html.PartialAsync("_DepositPhysicalFiles", Model)
                         </div>
                         @foreach (var id in Model.LogicalStructMaps.Select(lsm => lsm.Id))
                         {
-                            <div class="tab-pane fade" id="logicalTab_@id" role="tabpanel">
+                            <div class="tab-pane fade" id="logicalTab_@id" role="tabpanel" aria-labelledby="logicalTab_@(id)-tab">
                                 <div id="logicalEditor_@id" data-structmap-id="@id"></div>
                                 <div class="mt-2">
                                     <form method="post" asp-page-handler="SaveLogicalStructMap">
@@ -499,7 +495,7 @@
             @* START OF SIDE INFO PANEL *@
             
             <div class="collapse show col-2" id="sidebarInfoPanel">
-                <dl arial-label="deposit-history">
+                <dl aria-label="Deposit history">
                     <dt>Status</dt>
                     <dd aria-label="status" class="@(Model.Deposit.Status == DepositStates.Error ? "text-danger" : "")">@Model.Deposit.Status</dd>
                     <dt>Created</dt>

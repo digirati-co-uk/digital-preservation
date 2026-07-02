@@ -94,16 +94,27 @@ function fpAnnotation(fp) {
     if (fp.beginTime != null || fp.endTime != null) {
         const begin = fp.beginTime != null ? formatTime(fp.beginTime) : '?';
         const end   = fp.endTime   != null ? formatTime(fp.endTime)   : '?';
-        parts.push(`⏱ ${begin} – ${end}`);
+        parts.push({ prefix: '⏱', label: 'Time', text: `${begin} – ${end}` });
     }
     if (fp.region != null) {
         const r = fp.region;
-        parts.push(`▭ ${r.x1},${r.y1} – ${r.x2},${r.y2}`);
+        parts.push({ prefix: '▭', label: 'Region', text: `${r.x1},${r.y1} – ${r.x2},${r.y2}` });
     }
     if (!parts.length) return null;
     const small = document.createElement('small');
     small.className = 'text-muted ms-3';
-    small.textContent = parts.join('   ');
+    parts.forEach(({ prefix, label, text }, i) => {
+        if (i > 0) small.appendChild(document.createTextNode('   '));
+        const icon = document.createElement('span');
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = prefix;
+        const srLabel = document.createElement('span');
+        srLabel.className = 'visually-hidden';
+        srLabel.textContent = `${label}: `;
+        small.appendChild(icon);
+        small.appendChild(srLabel);
+        small.appendChild(document.createTextNode(text));
+    });
     return small;
 }
 
@@ -121,7 +132,9 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
         () => moveRange(structmapId, range.id, 1));
     if (isRoot) {
         rangeUpBtn.style.visibility = 'hidden';
+        rangeUpBtn.disabled = true;
         rangeDownBtn.style.visibility = 'hidden';
+        rangeDownBtn.disabled = true;
     }
     actionsDiv.appendChild(rangeUpBtn);
     actionsDiv.appendChild(rangeDownBtn);
@@ -143,7 +156,7 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
 
     const nameTd = document.createElement('td');
     nameTd.style.paddingLeft = `${1.3 * depth}rem`;
-    nameTd.innerHTML = `<svg class="bi"><use xlink:href="#folder"/></svg> `;
+    nameTd.innerHTML = `<svg class="bi" aria-hidden="true"><use xlink:href="#folder"/></svg> `;
     const typeBadge = document.createElement('span');
     typeBadge.classList.add('badge', 'bg-secondary', 'me-1');
     typeBadge.textContent = range.type || '(no type)';
@@ -262,13 +275,13 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
 }
 
 function makeActionLink(icon, title, onClick, linkClass = 'link-primary') {
-    const a = document.createElement('a');
-    a.classList.add(linkClass);
-    a.setAttribute('role', 'button');
-    a.setAttribute('title', title);
-    a.innerHTML = `<svg class="bi"><use xlink:href="#${icon}"/></svg>`;
-    a.addEventListener('click', e => { e.preventDefault(); onClick(); });
-    return a;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn btn-sm btn-link p-0 ${linkClass}`;
+    btn.setAttribute('aria-label', title);
+    btn.innerHTML = `<svg class="bi" aria-hidden="true"><use xlink:href="#${icon}"/></svg>`;
+    btn.addEventListener('click', onClick);
+    return btn;
 }
 
 function buildMetadataSummaryText(range) {
