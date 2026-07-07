@@ -277,3 +277,9 @@ tr.where-both td {
 .table-info a {
     color: #055160;
 }
+
+/* Same issue for the "subtle" breadcrumb pill: default link blue fails 4.5:1 on
+   bg-primary-subtle. Use Bootstrap's primary-emphasis token designed for that background. */
+.breadcrumb-item a.bg-primary-subtle {
+    color: #052c65;
+}
