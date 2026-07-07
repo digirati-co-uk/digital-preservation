@@ -209,7 +209,7 @@ td.dep-actions, th.dep-actions {
 }
 
 tr.where-mets td {
-    color: var(--bs-tertiary-color);    
+    color: #495057;
 }
 tr.where-deposit td {
     color: var(bs-body-color);
