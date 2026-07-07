@@ -346,13 +346,13 @@
                                 <td aria-label="td-icon"><a href="@path">@container.StringIcon</a></td>
                             }
                             <td aria-label="td-path"><a href="@path">@container.Id?.GetSlug()?.UnEscapeFromUri()</a></td>
-                            <td aria-label="td-title"><a href="@path">@container.Name</a></td>
+                            <td aria-label="td-title">@LinkX.LinkOrPlain(container.Name, path)</td>
                             <td aria-label="td-last-modified"><a href="@path">@container.LastModified.GetDateDisplay()</a></td>
-                            <td aria-label="td-last-modified-by"><a href="@path">@container.LastModifiedBy?.GetSlug()?.UnEscapeFromUri()</a></td>
+                            <td aria-label="td-last-modified-by">@LinkX.LinkOrPlain(container.LastModifiedBy?.GetSlug()?.UnEscapeFromUri(), path)</td>
                             @if (Model.CachedArchivalGroup == null)
                             {
                                 <td aria-label="td-created"><a href="@path">@container.Created.GetDateDisplay()</a></td>
-                                <td aria-label="td-created-by"><a href="@path">@container.CreatedBy?.GetSlug()?.UnEscapeFromUri()</a></td>
+                                <td aria-label="td-created-by">@LinkX.LinkOrPlain(container.CreatedBy?.GetSlug()?.UnEscapeFromUri(), path)</td>
                                 <td aria-label="td-deposits">
                                     @if (container.Type == nameof(ArchivalGroup))
                                     {
@@ -395,13 +395,13 @@
                         <tr aria-label="row-@(counter++)">
                             <td aria-label="td-icon"><a href="@path">@binary.StringIcon</a></td>
                             <td aria-label="td-path"><a href="@path">@path.GetSlug()</a></td>
-                            <td aria-label="td-title"><a href="@path">@binary.Name</a></td>
+                            <td aria-label="td-title">@LinkX.LinkOrPlain(binary.Name, path)</td>
                             <td aria-label="td-last-modified"><a href="@path">@binary.LastModified.GetDateDisplay()</a></td>
-                            <td aria-label="td-last-modified-by"><a href="@path">@binary.LastModifiedBy?.GetSlug()?.UnEscapeFromUri()</a></td>
+                            <td aria-label="td-last-modified-by">@LinkX.LinkOrPlain(binary.LastModifiedBy?.GetSlug()?.UnEscapeFromUri(), path)</td>
                             @if (Model.CachedArchivalGroup == null)
                             {
                                 <td aria-label="td-created"><a href="@path">@binary.Created.GetDateDisplay()</a></td>
-                                <td aria-label="td-created-by"><a href="@path">@binary.CreatedBy?.GetSlug()?.UnEscapeFromUri()</a></td>
+                                <td aria-label="td-created-by">@LinkX.LinkOrPlain(binary.CreatedBy?.GetSlug()?.UnEscapeFromUri(), path)</td>
                                 <td aria-label="td-deposits"></td>
                             }
                             else
