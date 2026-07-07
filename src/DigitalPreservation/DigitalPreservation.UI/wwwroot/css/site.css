@@ -271,3 +271,9 @@ tr.where-both td {
     opacity: 1;
     color: #333;
 }
+
+/* Default link blue fails 4.5:1 on the tinted table-info background; use Bootstrap's own
+   info-emphasis token which is designed for text on top of table-info/alert-info */
+.table-info a {
+    color: #055160;
+}

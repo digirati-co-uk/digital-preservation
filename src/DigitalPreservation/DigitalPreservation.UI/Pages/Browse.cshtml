@@ -32,11 +32,20 @@
                 <a class="btn btn-sm btn-outline-primary me-2" href="/ocfl/@Model.ArchivalGroupPath">
                     📦 Versions
                 </a>
-                <a class="btn btn-sm btn-outline-primary me-2 @(Model.HasPredictableIIIFPath ? "" : " disabled")"
-                   target="_blank" 
-                   href="https://theseusviewer.org/?iiif-content=@Model.GetIIIFManifest()">
-                    <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
-                </a>
+                @if (Model.HasPredictableIIIFPath)
+                {
+                    <a class="btn btn-sm btn-outline-primary me-2"
+                       target="_blank"
+                       href="https://theseusviewer.org/?iiif-content=@Model.GetIIIFManifest()">
+                        <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
+                    </a>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled>
+                        <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
+                    </button>
+                }
             }
             
             <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newDepositModal">
