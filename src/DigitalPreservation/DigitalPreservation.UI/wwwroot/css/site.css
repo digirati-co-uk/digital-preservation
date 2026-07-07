@@ -131,10 +131,11 @@
 .sidebar .nav-link {
     font-size: .875rem;
     font-weight: 500;
+    color: #0a58ca;
 }
 
 .sidebar .nav-link.active {
-    color: #2470dc;
+    color: #052c65;
 }
 
 .sidebar-heading {
