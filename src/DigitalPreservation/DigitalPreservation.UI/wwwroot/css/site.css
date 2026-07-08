@@ -158,7 +158,13 @@
 }
 
 table.plain-link-table a {
+    color: #0a58ca;
     text-decoration: none;
+}
+
+table.plain-link-table a:hover,
+table.plain-link-table a:focus-visible {
+    text-decoration: underline;
 }
 
 #depositFileExplorer {
@@ -236,8 +242,27 @@ tr.where-both td {
     border: 0;
 }
 
+/* Light fill, no full border - just a bottom line. #767676 gives ~4.5:1 against the page
+   background, comfortably above the 3:1 WCAG 1.4.11 non-text contrast minimum for a UI
+   component boundary; the fill itself doesn't need to carry any contrast burden since the
+   border is what marks the field's edge. */
 .form-control, .form-select {
-    border-color: #767676;
+    background-color: #f8f9fa;
+    border: none;
+    border-radius: 0;
+    border-bottom: 1px solid #767676;
+}
+
+/* #navbarSearch sits inside the header, which has data-bs-theme="dark" - so its text was
+   inheriting Bootstrap's dark-mode near-white body color, which is unreadable against the
+   light .form-control fill above. Pin it to the same dark text/placeholder used elsewhere. */
+#navbarSearch input {
+    color: #212529;
+}
+
+#navbarSearch input::placeholder {
+    color: #495057;
+    opacity: 1;
 }
 
 @keyframes dirty-pulse {
@@ -282,4 +307,22 @@ tr.where-both td {
    bg-primary-subtle. Use Bootstrap's primary-emphasis token designed for that background. */
 .breadcrumb-item a.bg-primary-subtle {
     color: #052c65;
+}
+
+/* Deposit files table: file/folder name links (.mods-launcher) should look and behave the
+   same as the plain <a> links in the same table (e.g. mets.xml) rather than the default
+   Bootstrap .btn-link treatment (bigger font-size, always-underlined, ~4.5:1 link blue).
+   - font-size/color match table.plain-link-table a below
+   - underline dropped at rest but restored on hover/focus so "clickable" isn't conveyed by
+     color alone (WCAG 1.4.1); Bootstrap's own focus ring on .btn-link is a second,
+     non-color focus indicator independent of this */
+.mods-launcher {
+    font-size: inherit;
+    color: #0a58ca;
+    text-decoration: none;
+}
+
+.mods-launcher:hover,
+.mods-launcher:focus-visible {
+    text-decoration: underline;
 }
