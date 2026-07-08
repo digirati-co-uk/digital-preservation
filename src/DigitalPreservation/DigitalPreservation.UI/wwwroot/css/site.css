@@ -265,6 +265,16 @@ tr.where-both td {
     opacity: 1;
 }
 
+/* Bootstrap's own .form-control:focus rule resets background-color to var(--bs-body-bg),
+   which under this header's data-bs-theme="dark" is near-black - same dark-theme leak as
+   above, just on the :focus state instead of the base state. Pin it here too so focusing
+   the input doesn't flip it to dark text on a near-black background. */
+#navbarSearch input:focus {
+    background-color: #f8f9fa;
+    color: #212529;
+    border-bottom-color: #767676;
+}
+
 @keyframes dirty-pulse {
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.3; }
