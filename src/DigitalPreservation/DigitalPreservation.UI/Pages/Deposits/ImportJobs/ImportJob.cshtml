@@ -13,7 +13,7 @@ ViewData["section"] = "deposits";
     <h1 class="h2">@ViewData["Title"]</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <button type="button" class="btn btn-sm btn-outline-primary me-2">
-            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Something</span>
+            <svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg><span class="ms-2">Something</span>
         </button>
     </div>
 </div>
@@ -52,7 +52,7 @@ ViewData["section"] = "deposits";
                             <ul>
                                 @foreach (var res in Model.ItemsWithInvalidSlugs)
                                 {
-                                    <li>@res.StringIcon @res.Id.GetPathUnderRoot(true)</li>
+                                    <li><span aria-hidden="true">@res.StringIcon</span> @res.Id.GetPathUnderRoot(true)</li>
                                 }
                             </ul>
                             <p>Valid characters are <code>a-z A-Z 0-9 ._-%()</code> (not upper case) </p>
@@ -66,7 +66,7 @@ ViewData["section"] = "deposits";
                             <ul>
                                 @foreach (var res in Model.AddedBinariesWithInvalidContentTypes)
                                 {
-                                    <li>@res.StringIcon @res.Id.GetPathUnderRoot(true)</li>
+                                    <li><span aria-hidden="true">@res.StringIcon</span> @res.Id.GetPathUnderRoot(true)</li>
                                 }
                             </ul>
                         </div>
@@ -83,7 +83,7 @@ ViewData["section"] = "deposits";
                         <form class="single-submit" method="post" asp-page-handler="ExecuteDiffDirect">
                             <div class="mb-3">
                                 <button type="submit" class="btn btn-sm btn-primary me-2" id="runImport">
-                                    <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>
+                                    <svg class="bi" aria-hidden="true"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>
                                 </button>
                             </div>
                         </form>
@@ -100,7 +100,7 @@ ViewData["section"] = "deposits";
                         </div>
                         <div class="mb-3">
                             <button type="submit" asp-page-handler="ExecuteModifiedDiff" class="btn btn-sm btn-primary me-2" disabled>
-                                <svg class="bi"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run modified import</span>
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run modified import</span>
                             </button>
                         </div>
                     </form>
@@ -119,10 +119,10 @@ ViewData["section"] = "deposits";
                     @switch (jobResult.Status)
                     {
                         case ImportJobStates.Waiting:
-                            <dd class="col-sm-9 text-bg-warning" aria-label="status"><svg class="bi"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
+                            <dd class="col-sm-9 text-bg-warning" aria-label="status"><svg class="bi" aria-hidden="true"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
                             break;
                         case ImportJobStates.Running:
-                            <dd class="col-sm-9 text-bg-primary" aria-label="status"><svg class="bi"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
+                            <dd class="col-sm-9 text-bg-primary" aria-label="status"><svg class="bi" aria-hidden="true"><use xlink:href="#hourglass"/></svg> @jobResult.Status</dd>
                             break;
                         case ImportJobStates.Completed:
                             <dd class="col-sm-9" aria-label="status">@jobResult.Status</dd>
@@ -177,7 +177,7 @@ ViewData["section"] = "deposits";
                         <ul class="list-unstyled">
                             @foreach (var container in jobResult.ContainersAdded)
                             {
-                                <li>📁 <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                                <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
                             }
                         </ul>
                     </dd>
@@ -186,7 +186,7 @@ ViewData["section"] = "deposits";
                         <ul class="list-unstyled">
                             @foreach (var binary in jobResult.BinariesAdded)
                             {
-                                <li>🗎 <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
                             }
                         </ul>
                     </dd>
@@ -195,7 +195,7 @@ ViewData["section"] = "deposits";
                         <ul>
                             @foreach (var binary in jobResult.BinariesPatched)
                             {
-                                <li>🗎 <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
+                                <li><span aria-hidden="true">🗎</span> <a href="/browse/@binary.Id.GetPathUnderRoot()">@binary.Id.GetPathUnderRoot()</a></li>
                             }
                         </ul>
                     </dd>
@@ -204,7 +204,7 @@ ViewData["section"] = "deposits";
                         <ul>
                             @foreach (var container in jobResult.ContainersDeleted)
                             {
-                                <li><svg class="bi"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()</li>
+                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#folder"/></svg> @container.Id.GetPathUnderRoot()</li>
                             }
                         </ul>
                     </dd>
@@ -213,7 +213,7 @@ ViewData["section"] = "deposits";
                         <ul>
                             @foreach (var binary in jobResult.BinariesDeleted)
                             {
-                                <li><svg class="bi"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()</li>
+                                <li><svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg> @binary.Id.GetPathUnderRoot()</li>
                             }
                         </ul>
                     </dd>
@@ -222,7 +222,7 @@ ViewData["section"] = "deposits";
                         <ul>
                             @foreach (var container in jobResult.ContainersRenamed)
                             {
-                            <li>📁 <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
+                            <li><span aria-hidden="true">📁</span> <a href="/browse/@container.Id.GetPathUnderRoot()">@container.Id.GetPathUnderRoot()</a></li>
                             }
                         </ul>
                     </dd>

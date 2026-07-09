@@ -252,7 +252,7 @@ function renderRangeRows(range, structmapId, tbody, depth, isRoot) {
 
         const fileNameTd = document.createElement('td');
         fileNameTd.style.paddingLeft = `${1.3 * (depth + 1)}rem`;
-        fileNameTd.innerHTML = `<svg class="bi"><use xlink:href="#file-earmark"/></svg> `;
+        fileNameTd.innerHTML = `<svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark"/></svg> `;
         fileNameTd.appendChild(document.createTextNode(fp.localPath));
         const annotation = fpAnnotation(fp);
         if (annotation) fileNameTd.appendChild(annotation);
@@ -342,6 +342,14 @@ function markDirty(structmapId) {
         dot.textContent = '●';
         dot.style.color = 'var(--bs-warning)';
         tab.prepend(dot);
+
+        // Announce the transition to a dirty state once per change to unsaved (not on every
+        // subsequent edit) so screen reader users are told the Save button is now enabled.
+        const statusRegion = document.getElementById('logicalStructMapStatus');
+        if (statusRegion) {
+            const tabName = tab.querySelector('span')?.textContent?.trim() || 'logical structure';
+            statusRegion.textContent = `Unsaved changes in ${tabName}. Save button enabled.`;
+        }
     }
     const saveBtn = document.getElementById(`logicalStructMapJson_${structmapId}`)
         ?.closest('form')?.querySelector('button[type="submit"]');
@@ -631,7 +639,7 @@ function createFilePickerModal() {
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="addFilesToRangeModalTitle">
-                        <svg class="bi"><use xlink:href="#file-earmark-plus"/></svg>
+                        <svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-plus"/></svg>
                         <span class="ms-2">Add files to range</span>
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

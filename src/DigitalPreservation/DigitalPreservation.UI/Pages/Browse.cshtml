@@ -18,19 +18,19 @@
             @if (Model.Resource.PartOf == null && Model.Resource is not ArchivalGroup)
             {
                 <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#newContainerModal">
-                    📁 New Folder
+                    <span aria-hidden="true">📁</span> New Folder
                 </button>
             }
             @if (Model.Resource.PartOf != null)
             {
                 <a class="btn btn-sm btn-primary me-2" href="/browse/@Model.Resource.PartOf.GetPathUnderRoot()">
-                    📦 Go to Archival Group
+                    <span aria-hidden="true">📦</span> Go to Archival Group
                 </a>
             }
             @if (Model.Resource is ArchivalGroup)
             {
                 <a class="btn btn-sm btn-outline-primary me-2" href="/ocfl/@Model.ArchivalGroupPath">
-                    📦 Versions
+                    <span aria-hidden="true">📦</span> Versions
                 </a>
                 @if (Model.HasPredictableIIIFPath)
                 {
@@ -286,7 +286,7 @@
             <table class="table table-striped table-sm plain-link-table" aria-label="table-resources">
                 <thead>
                 <tr>
-                    <th scope="col"> </th>
+                    <th scope="col" aria-label="Type"> </th>
                     <th scope="col">Path</th>
                     <th scope="col">Title</th>
                     <th scope="col">Last Modified</th>
@@ -322,14 +322,14 @@
                     {
                         string path = ghostArchivalGroup.Id!.PathAndQuery;
                         <tr aria-label="row-@(counter++)">
-                            <td aria-label="td-icon"><a href="@path"><svg class="bi"><use xlink:href="#box-seam"/></svg></a></td>
+                            <td aria-label="td-icon"><a href="@path" aria-label="@(ghostArchivalGroup.ArchivalGroupName ?? "(no name yet)")"><svg class="bi" aria-hidden="true"><use xlink:href="#box-seam"/></svg></a></td>
                             <td aria-label="td-path"><a href="@path">@ghostArchivalGroup.ArchivalGroup?.GetSlug()</a></td>
                             <td aria-label="td-title"><a href="@path">@(ghostArchivalGroup.ArchivalGroupName ?? "(no name yet)")</a></td>
                             <td aria-label="td-last-modified">--</td>
                             <td aria-label="td-last-modified-by">--</td>
                             <td aria-label="td-created">--</td>
                             <td aria-label="td-created-by">--</td>
-                            <td aria-label="td-deposits"><a href="@path"><svg class="bi"><use xlink:href="#box-seam"/></svg></a></td>
+                            <td aria-label="td-deposits"><a href="@path" aria-label="View deposit for @(ghostArchivalGroup.ArchivalGroupName ?? "(no name yet)")"><svg class="bi" aria-hidden="true"><use xlink:href="#box-seam"/></svg></a></td>
                         </tr>
                     }
                     foreach (var container in modelContainer.Containers)
@@ -337,13 +337,16 @@
                         var containerPathUnderRoot = container.Id.GetPathUnderRoot(true);
                         string path = "/browse/" + containerPathUnderRoot;
                         <tr aria-label="row-@(counter++)">
+                            @{
+                                var containerDisplayName = container.Name ?? container.Id?.GetSlug()?.UnEscapeFromUri();
+                            }
                             @if (container.Type == nameof(ArchivalGroup))
                             {
-                                <td aria-label="td-icon"><a href="@path">@ArchivalGroup.Icon</a></td>
+                                <td aria-label="td-icon"><a href="@path" aria-label="@containerDisplayName">@ArchivalGroup.Icon</a></td>
                             }
                             else
                             {
-                                <td aria-label="td-icon"><a href="@path">@container.StringIcon</a></td>
+                                <td aria-label="td-icon"><a href="@path" aria-label="@containerDisplayName">@container.StringIcon</a></td>
                             }
                             <td aria-label="td-path"><a href="@path">@container.Id?.GetSlug()?.UnEscapeFromUri()</a></td>
                             <td aria-label="td-title">@LinkX.LinkOrPlain(container.Name, path)</td>
@@ -358,7 +361,7 @@
                                     {
                                         if (depositsForExistingArchivalGroups.TryGetValue(containerPathUnderRoot!, out var deposit))
                                         {
-                                            <a href="@deposit.Id!.PathAndQuery"><svg class="bi"><use xlink:href="#box-seam"/></svg></a>
+                                            <a href="@deposit.Id!.PathAndQuery" aria-label="View deposit for @containerDisplayName"><svg class="bi" aria-hidden="true"><use xlink:href="#box-seam"/></svg></a>
                                         }
                                     }
                                 </td>
@@ -378,7 +381,17 @@
                                             {
                                                 if (i > 0) { <br/> }
                                                 var item = items[i];
-                                                <small class="@(item.Inherited ? "text-secondary" : "")">@item.Label: <em><strong>@item.Text</strong></em></small>
+                                                <small class="@(item.Inherited ? "text-secondary" : "")">
+                                                    @item.Label:
+                                                    @if (item.Inherited)
+                                                    {
+                                                        <em><strong>@item.Text</strong></em><span class="visually-hidden"> (inherited)</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <em><strong>@item.Text</strong></em><span class="visually-hidden"> (set here)</span>
+                                                    }
+                                                </small>
                                             }
                                         }
                                     }
@@ -392,8 +405,9 @@
                     @foreach (var binary in modelContainer.Binaries)
                     {
                         string path = "/browse/" + binary.Id.GetPathUnderRoot(true);
+                        var binaryDisplayName = binary.Name ?? path.GetSlug();
                         <tr aria-label="row-@(counter++)">
-                            <td aria-label="td-icon"><a href="@path">@binary.StringIcon</a></td>
+                            <td aria-label="td-icon"><a href="@path" aria-label="@binaryDisplayName">@binary.StringIcon</a></td>
                             <td aria-label="td-path"><a href="@path">@path.GetSlug()</a></td>
                             <td aria-label="td-title">@LinkX.LinkOrPlain(binary.Name, path)</td>
                             <td aria-label="td-last-modified"><a href="@path">@binary.LastModified.GetDateDisplay()</a></td>
@@ -422,7 +436,17 @@
                                             {
                                                 if (i > 0) { <br/> }
                                                 var item = items[i];
-                                                <small class="@(item.Inherited ? "text-secondary" : "")">@item.Label: <em><strong>@item.Text</strong></em></small>
+                                                <small class="@(item.Inherited ? "text-secondary" : "")">
+                                                    @item.Label:
+                                                    @if (item.Inherited)
+                                                    {
+                                                        <em><strong>@item.Text</strong></em><span class="visually-hidden"> (inherited)</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <em><strong>@item.Text</strong></em><span class="visually-hidden"> (set here)</span>
+                                                    }
+                                                </small>
                                             }
                                         }
                                     </td>
@@ -500,7 +524,7 @@
         <div class="modal-content">
             <form class="single-submit" method="post">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="newContainerModalLabel"> 📁 New Folder</h1>
+                    <h1 class="modal-title fs-5" id="newContainerModalLabel"><span aria-hidden="true">📁</span> New Folder</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -511,13 +535,14 @@
                     </div>
                     <div class="mb-3">
                         <label for="containerSlug" class="form-label">Folder path name</label>
-                        <input type="text" class="form-control" id="containerSlug" name="containerSlug" aria-describedby="containerSlugHelp">
+                        <input type="text" class="form-control" id="containerSlug" name="containerSlug" aria-describedby="containerSlugHelp containerSlugError">
                         <div id="containerSlugHelp" class="form-text">The path of the folder as appears in URLs - no special characters</div>
+                        <div id="containerSlugError" class="text-danger small mt-1" role="alert"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">📁 Create New Folder</button>
+                    <button type="submit" class="btn btn-primary"><span aria-hidden="true">📁</span> Create New Folder</button>
                 </div>
             </form>
         </div>
@@ -572,10 +597,11 @@
                         </div>
                         <div class="mb-3">
                             <label for="archivalGroupSlug" class="form-label">Path of Archival Group (optional)</label>
-                            <input type="text" class="form-control" id="archivalGroupSlug" name="NewDepositModel.ArchivalGroupSlug" aria-describedby="archivalGroupSlugHelp">
+                            <input type="text" class="form-control" id="archivalGroupSlug" name="NewDepositModel.ArchivalGroupSlug" aria-describedby="archivalGroupSlugHelp archivalGroupSlugError">
                             <code>@(Model.PathUnderRoot)/<span id="slugDisplay">...</span></code><br/>
                             <div id="archivalGroupSlugHelp" class="form-text">The deposit will <em>eventually</em> create an Archival Group with this path.<br/>
                                 This may be set or changed later.<br/></div>
+                            <div id="archivalGroupSlugError" class="text-danger small mt-1" role="alert"></div>
                         </div>
                         <div class="mb-3 form-check">
                             <input type="hidden" name="NewDepositModel.UseObjectTemplate" value="true" /> <!-- default to this when submitted from UI, but allow bagit to override it -->
@@ -618,22 +644,27 @@
         depositSlugTouched: false
     };
     
+    const depositSlugError = document.getElementById('archivalGroupSlugError');
+    const containerSlugError = document.getElementById('containerSlugError');
+
     document.getElementById("newContainerModal").addEventListener("show.bs.modal", () => {
         containerTitleInput.value = "";
         containerSlugInput.value = "";
+        containerSlugError.textContent = "";
     });
     document.getElementById("newDepositModal").addEventListener("show.bs.modal", () => {
         depositNameInput.value = "";
         depositSlugInput.value = "";
         submissionTextInput.value = "";
         depositSlugDisplay.innerHTML = "";
+        depositSlugError.textContent = "";
     });
-    
+
     addNameInputListener(depositNameInput, depositSlugInput, 'depositSlugTouched', depositSlugDisplay);
-    addSlugInputListener(depositSlugInput, 'depositSlugTouched', depositSlugDisplay);
+    addSlugInputListener(depositSlugInput, 'depositSlugTouched', depositSlugDisplay, depositSlugError);
 
     addNameInputListener(containerTitleInput, containerSlugInput, 'containerSlugTouched');
-    addSlugInputListener(containerSlugInput, 'containerSlugTouched');
+    addSlugInputListener(containerSlugInput, 'containerSlugTouched', null, containerSlugError);
     
     function addNameInputListener(nameInput, slugInput, touchedKey, slugDisplay)
     {
@@ -656,28 +687,36 @@
         });
     }
     
-    function addSlugInputListener(slugInput, touchedKey, slugDisplay){
+    function addSlugInputListener(slugInput, touchedKey, slugDisplay, errorElement){
         slugInput.addEventListener('beforeinput', (event) => {
             touchStatus[touchedKey] = true; // no longer update this from the name box
-            console.log(event.data);
             // Here - is event.data a char, or a paste (string)?
             if (event.data){
-                if (("" + event.data).length === 1){         
-                    // a char was typed (or pasted)      
+                if (("" + event.data).length === 1){
+                    // a char was typed (or pasted)
                     if (!permittedSlugChars.includes(event.data)){
                         event.preventDefault();
+                        if (errorElement){
+                            errorElement.textContent = "\"" + event.data + "\" is not a permitted character. Permitted characters are: " + permittedSlugString;
+                        }
+                        return;
                     }
                 }
                 if (event.data.length > 1){
                     // a string was pasted
                     for (const c of event.data) {
                         if (!permittedSlugChars.includes(c)){
-                            alert("The path element " + event.data + " contains an invalid character:\n\n" + c + "\n\nPermitted characters are:\n\n" + permittedSlugString);
+                            if (errorElement){
+                                errorElement.textContent = "The pasted text contains an invalid character: \"" + c + "\". Permitted characters are: " + permittedSlugString;
+                            }
                             event.preventDefault();
                             return;
                         }
                     }
                 }
+            }
+            if (errorElement){
+                errorElement.textContent = "";
             }
         });
         if (slugDisplay){

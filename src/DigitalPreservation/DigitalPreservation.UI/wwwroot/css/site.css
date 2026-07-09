@@ -1,5 +1,15 @@
 ﻿/* Original Razor Template CSS */
 
+/* Bootstrap's default focus ring (--bs-focus-ring-color: rgba(13, 110, 253, .25)) is an
+   alpha-blended blue that computes to only ~1.4:1 contrast against a white background -
+   well under the 3:1 minimum for non-text UI indicators (WCAG 1.4.11). Overriding it with a
+   solid (non-transparent) colour applies site-wide, to every Bootstrap component that uses
+   the focus-ring variable (buttons, links, .form-control, .form-check-input, etc.), and
+   reuses the same accessible blue already used elsewhere (e.g. sidebar links) for consistency. */
+:root {
+    --bs-focus-ring-color: #0a58ca;
+}
+
 /*html {*/
 /*  font-size: 14px;*/
 /*}*/
@@ -251,6 +261,15 @@ tr.where-both td {
     border: none;
     border-radius: 0;
     border-bottom: 1px solid #767676;
+}
+
+/* Bootstrap's default .form-check-input (checkboxes/radios) border is rgba(0,0,0,.25),
+   which blended over white computes to only ~1.84:1 - below the 3:1 WCAG 1.4.11 minimum.
+   .form-control's border-color override above doesn't apply here since .form-check-input
+   isn't part of that selector. Reuses the same #767676 (~4.5:1 on white) already used for
+   text-input/select borders, for a consistent boundary colour across all form controls. */
+.form-check-input {
+    border-color: #767676;
 }
 
 /* #navbarSearch sits inside the header, which has data-bs-theme="dark" - so its text was
