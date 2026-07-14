@@ -94,6 +94,30 @@ function selectOptionByValue(selectEl, value){
     if (option) option.selected = true;
 }
 
+function wireRecordInfoDeleteButton(index) {
+    const deleteBtn = document.getElementById(`recordInfoDelete_${index}`);
+    if (!deleteBtn) return;
+    deleteBtn.addEventListener("click", (event) => {
+        const riDiv = event.target.closest("div");
+        const container = document.getElementById("recordInfoDynamicForm");
+        const allRows = Array.from(container.getElementsByClassName("record-info-container"));
+        const rowIndex = allRows.indexOf(riDiv);
+        riDiv.remove();
+        // Move focus somewhere sensible rather than letting it fall to <body>: the delete
+        // button of the row that's now in this row's place, or the previous row's if this
+        // was the last one, or the "Add another" button if no rows remain.
+        const remainingRows = Array.from(container.getElementsByClassName("record-info-container"));
+        let focusTarget = null;
+        if (remainingRows.length > 0) {
+            const targetRow = remainingRows[Math.min(rowIndex, remainingRows.length - 1)];
+            focusTarget = targetRow.querySelector('button[id^="recordInfoDelete_"]');
+        } else {
+            focusTarget = document.getElementById("recordInfoAddAnother");
+        }
+        if (focusTarget) focusTarget.focus();
+    });
+}
+
 function applyRecordInfo(recordInfoCompact){
     const recordInfoDynamicForm = document.getElementById("recordInfoDynamicForm");
     const nonEditableRecordInfo = document.getElementById("nonEditableRecordInfo");
@@ -105,10 +129,7 @@ function applyRecordInfo(recordInfoCompact){
                 const recordIdentifier = recordIdentifiers[i];
                 const riEl = createRecordIdentifierElement(i, recordIdentifier);
                 recordInfoDynamicForm.appendChild(riEl);
-                document.getElementById(`recordInfoDelete_${i}`).addEventListener("click", (event) => {
-                    const riDiv = event.target.closest("div");
-                    riDiv.remove();
-                });
+                wireRecordInfoDeleteButton(i);
             }
         }
     } else if (nonEditableRecordInfo){
@@ -298,10 +319,10 @@ if(recordInfoAddAnother) {
             }
             const riEl = createRecordIdentifierElement(highestIndex + 1, {"source": null, "value": ""});
             document.getElementById("recordInfoDynamicForm").appendChild(riEl);
-            document.getElementById(`recordInfoDelete_${highestIndex + 1}`).addEventListener("click", (event) => {
-                const riDiv = event.target.closest("div");
-                riDiv.remove();
-            });
+            wireRecordInfoDeleteButton(highestIndex + 1);
+            // Move focus into the newly created row rather than leaving it on the
+            // "Add another" button, so keyboard/screen reader users land where they need to type.
+            document.getElementById(`recordInfoSourceSelect_${highestIndex + 1}`)?.focus();
         });
     }
 }

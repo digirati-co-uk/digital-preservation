@@ -68,31 +68,32 @@
 
    
      <div class="container my-5 container-search">
+        <h1 class="visually-hidden">Search</h1>
         <ul class="nav nav-tabs" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link @fedActive" id="fedora-tab-btn" data-bs-toggle="tab" data-bs-target="#fedora-tab"
-                        type="button" role="tab" aria-controls="fedora-tab-btn"
+                        type="button" role="tab" aria-controls="fedora-tab"
                         aria-selected="@fedHasRecs">
-                    Fedora <sub aria-label="fedora-tab-count">@(hideIdentCount? fedCount : "")</sub>
+                    Fedora <sub>@(hideIdentCount? fedCount : "")</sub>
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link @depActive" id="deposit-tab-btn" data-bs-toggle="tab" data-bs-target="#deposit-tab"
-                        type="button" role="tab" aria-controls="deposit-tab-btn" aria-selected="@depHasRecs">
-                    Deposit <sub aria-label="deposit-tab-count">@(hideIdentCount? desCount : "")</sub>
+                        type="button" role="tab" aria-controls="deposit-tab" aria-selected="@depHasRecs">
+                    Deposit <sub>@(hideIdentCount? desCount : "")</sub>
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link @identActive" id="contact-tab-btn" data-bs-toggle="tab" data-bs-target="#identifier-tab"
-                        type="button" role="tab" aria-controls="identifier-tab-btn" aria-selected="@identHasRec">
-                    Identifier <sub aria-label="identifier-tab-count">@(hideIdentCount? identCount : "")</sub>
+                        type="button" role="tab" aria-controls="identifier-tab" aria-selected="@identHasRec">
+                    Identifier <sub>@(hideIdentCount? identCount : "")</sub>
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link @faqActive" id="faq-tab-btn" data-bs-toggle="tab" data-bs-target="#faq-tab"
                         aria-selected="@faqHasRec"
-                        type="button" role="tab" aria-controls="faq-tab-btn">
-                    FAQ 
+                        type="button" role="tab" aria-controls="faq-tab">
+                    FAQ
                 </button>
             </li>
         </ul>
@@ -100,7 +101,7 @@
 
         @*************  Fedora Search Results  *************@
         <div class="tab-content mt-3" id="myTabContent">
-            <div class="tab-pane @fedoraTabShow" id="fedora-tab" role="tabpanel" aria-labelledby="fedora-tab">
+            <div class="tab-pane @fedoraTabShow" id="fedora-tab" role="tabpanel" aria-labelledby="fedora-tab-btn">
                 <h3>Fedora</h3>
 
                 <div id="search_results">
@@ -128,8 +129,8 @@
 
                                     <tr>
                                         <td aria-label="td-fedora-link">
-                                            <a href="@fullPath" target="_blank">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
+                                            <a href="@fullPath" target="_blank" aria-label="View in Fedora (opens in new tab)">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16" aria-hidden="true">
                                                     <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5"/>
                                                     <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z"/>
                                                 </svg>
@@ -168,7 +169,7 @@
             
 
             @*************  Deposit Search Results  *************@
-            <div class="tab-pane @depositTabShow " id="deposit-tab" role="tabpanel" aria-labelledby="deposit-tab">
+            <div class="tab-pane @depositTabShow " id="deposit-tab" role="tabpanel" aria-labelledby="deposit-tab-btn">
                
                 <h3>Deposits</h3>
 
@@ -199,8 +200,8 @@
 
                                     <tr>
                                         <td aria-label="td-deposits-link">
-                                            <a href="@localPath" target="_blank">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
+                                            <a href="@localPath" target="_blank" aria-label="View deposit (opens in new tab)">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16" aria-hidden="true">
                                                     <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5"/>
                                                     <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0z"/>
                                                 </svg>
@@ -242,7 +243,7 @@
             </div>
             
             @*************  identifier Search Results *************@
-            <div class="tab-pane @identTabShow" id="identifier-tab" role="tabpanel" aria-labelledby="identifier-tab">
+            <div class="tab-pane @identTabShow" id="identifier-tab" role="tabpanel" aria-labelledby="contact-tab-btn">
 
                 <h2 class="mb-3">Identifier</h2>
                 @if (results.Identifier is not null)
@@ -319,7 +320,7 @@
             </div>
             
             @*************  FAQ Search Results *************@
-            <div class="tab-pane @faqTabShow" id="faq-tab" role="tabpanel" aria-labelledby="faq-tab">
+            <div class="tab-pane @faqTabShow" id="faq-tab" role="tabpanel" aria-labelledby="faq-tab-btn">
                 <h3>Frequently Asked Questions on search</h3>
                 
                 <h4>General</h4>

@@ -21,13 +21,13 @@
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2 text-truncate" title="@ViewData["Title"]"><svg class="bi mb-1" style="width:1.5rem;height: 1.5rem;"><use xlink:href="#box-seam"/></svg> @ViewData["Title"]</h1>
+    <h1 class="h2 text-truncate" title="@ViewData["Title"]"><svg class="bi mb-1" style="width:1.5rem;height: 1.5rem;" aria-hidden="true"><use xlink:href="#box-seam"/></svg> @ViewData["Title"]</h1>
 
     <div class="btn-toolbar mb-2 mb-md-0">
         @if (Model.Deposit is not null)
         {
             <button @(Model.CanBeWorkedOn() ? "" : " disabled=disabled") type="submit" form="collapseAgDetails" class="btn btn-sm btn-outline-primary me-2">
-                <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
+                <svg class="bi" aria-hidden="true"><use xlink:href="#floppy"/></svg><span class="ms-2">Update properties</span>
             </button>
             <form class="single-submit" method="post">
 
@@ -41,7 +41,7 @@
                         {
                             <li>
                                 <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ReleaseLock">
-                                    <svg class="bi"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
+                                    <svg class="bi" aria-hidden="true"><use xlink:href="#unlock"/></svg><span class="ms-2">Release lock</span>
                                 </button>
                             </li>
                         }
@@ -49,7 +49,7 @@
                         {
                             <li>
                                 <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="Lock">
-                                    <svg class="bi"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
+                                    <svg class="bi" aria-hidden="true"><use xlink:href="#lock"/></svg><span class="ms-2">Lock deposit</span>
                                 </button>
                             </li>
                         }
@@ -62,7 +62,7 @@
                             {
                                 <li>
                                     <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="DeactivateDeposit">
-                                        <svg class="bi"><use xlink:href="#door-closed"/></svg><span class="ms-2">Deactivate Deposit</span>
+                                        <svg class="bi" aria-hidden="true"><use xlink:href="#door-closed"/></svg><span class="ms-2">Deactivate Deposit</span>
                                     </button>
                                 </li>
                             }
@@ -70,7 +70,7 @@
                             {
                                 <li>
                                     <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ActivateDeposit">
-                                        <svg class="bi"><use xlink:href="#door-open"/></svg><span class="ms-2">Activate Deposit</span>
+                                        <svg class="bi" aria-hidden="true"><use xlink:href="#door-open"/></svg><span class="ms-2">Activate Deposit</span>
                                     </button>
                                 </li>
                             }
@@ -81,37 +81,37 @@
                         {
                             <li>
                                 <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="RunPipeline">
-                                    <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
+                                    <svg class="bi" aria-hidden="true"><use xlink:href="#gear"/></svg><span class="ms-2">Run pipeline</span>
                                 </button>
                             </li>
                             <li>
                                 <button disabled="@(!jobRunningOrArchived || Model.Deposit?.Archived != null)" class="dropdown-item @(!jobRunningOrArchived || Model.Deposit?.Archived != null ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ForceCompletePipelineRun">
-                                    <svg class="bi"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
+                                    <svg class="bi" aria-hidden="true"><use xlink:href="#gear"/></svg><span class="ms-2">Stop pipeline run</span>
                                 </button>
                             </li>
                         }
 
                         <li>
                             <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="ValidateStorage">
-                                <svg class="bi"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#database-check"/></svg><span class="ms-2">Validate storage</span>
                             </button>
                         </li>
                         <li>
                             <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="RebuildDepositFileSystem" id="rebuildMets">
-                                <svg class="bi"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#arrow-clockwise"/></svg><span class="ms-2">Refresh storage</span>
                             </button>
                         </li>
                         <li>
                             <button class="dropdown-item text-primary" type="button" id="toggleRhs"
                                     data-bs-toggle="collapse" data-bs-target="#sidebarInfoPanel" aria-expanded="true" aria-controls="sidebarInfoPanel">
-                                <svg class="bi"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#arrow-bar-right"/></svg><span class="ms-2">Toggle side panel</span>
                             </button>
                         </li>
                         @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <li>
                                 <button class="dropdown-item text-primary" type="submit" asp-page-handler="CreateLogicalStructMap">
-                                    <svg class="bi"><use xlink:href="#diagram-3"/></svg>
+                                    <svg class="bi" aria-hidden="true"><use xlink:href="#diagram-3"/></svg>
                                     <span class="ms-2">Create logical structure</span>
                                 </button>
                             </li>
@@ -119,29 +119,29 @@
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <button @(jobRunningOrArchived ? " disabled=disabled" : "") class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="button" id="selectNonMets">
-                                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#check-square"/></svg><span class="ms-2">Select all non-METS</span>
                             </button>
                         </li>
                         <li>
                             <button @(jobRunningOrArchived ? " disabled=disabled" : "") class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="button" id="addSelectionToMets" data-bs-toggle="modal" data-bs-target="#addSelectionToMetsModal">
-                                <svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add selected to METS</span>
                             </button>
                         </li>
                         <li>
                             <button @(jobRunningOrArchived ? " disabled=disabled" : "") class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-danger")" type="button" id="deleteSelection" data-bs-toggle="modal" data-bs-target="#deleteSelectionModal">
-                                <svg class="bi"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#check-square"/></svg><span class="ms-2">Delete selected...</span>
                             </button>
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <a class="dropdown-item text-primary" role="button" target="_blank" href="@Model.GetDepositLocation()">
-                                <svg class="bi"><use xlink:href="#cloud"/></svg><span class="ms-2">Open Deposit location</span>
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#cloud"/></svg><span class="ms-2">Open Deposit location</span>
                             </a>
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <button @(jobRunningOrArchived ? " disabled=disabled" : "") class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-danger")" type="button" data-bs-toggle="modal" data-bs-target="#deleteDepositModal">
-                                <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span>
                             </button>
                         </li>
                     </ul>
@@ -273,15 +273,17 @@
                         {
                             @if (Model.ArchivalGroupTestWarning.HasText())
                             {
-                                <div><small class="text-danger">@Model.ArchivalGroupTestWarning</small></div>
+                                <div><small class="text-danger" id="agPathUnderRootWarning" role="alert">@Model.ArchivalGroupTestWarning</small></div>
                             }
                             <div class="input-group mb-3">
                                 <div class="form-floating">
-                                    <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)">
+                                    <input type="text" class="form-control" id="agPathUnderRoot" name="agPathUnderRoot" value="@Model.Deposit.ArchivalGroup.GetPathUnderRoot()" placeholder="(URI not set)"
+                                           aria-invalid="@(Model.ArchivalGroupTestWarning.HasText() ? "true" : "false")"
+                                           aria-describedby="@(Model.ArchivalGroupTestWarning.HasText() ? "agPathUnderRootWarning" : null)">
                                     <label for="agPathUnderRoot">Archival Group</label>
                                 </div>
-                                <button class="btn btn-outline-secondary" type="button" id="btnAgPathHelp" data-bs-toggle="modal" data-bs-target="#archivalGroupPathModal">
-                                    <svg class="bi"><use xlink:href="#question-circle"/></svg>
+                                <button class="btn btn-outline-secondary" type="button" id="btnAgPathHelp" data-bs-toggle="modal" data-bs-target="#archivalGroupPathModal" aria-label="Help with archival group path">
+                                    <svg class="bi" aria-hidden="true"><use xlink:href="#question-circle"/></svg>
                                 </button>
                             </div>
                         }
@@ -305,38 +307,35 @@
                 @if (hasLogical)
                 {
                     <div class="nav nav-tabs mb-2" id="structMapTabs" role="tablist">
-                        <div class="nav-item">
-                            <button class="nav-link active" id="physicalTab-tab" data-bs-toggle="tab" data-bs-target="#physicalTab" type="button" role="tab">
-                                <svg class="bi"><use xlink:href="#hdd"/></svg><span class="ms-1">Physical</span>
-                            </button>
-                        </div>
+                        <button class="nav-link active" id="physicalTab-tab" data-bs-toggle="tab" data-bs-target="#physicalTab" type="button" role="tab" aria-controls="physicalTab" aria-selected="true">
+                            <svg class="bi" aria-hidden="true"><use xlink:href="#hdd"/></svg><span class="ms-1">Physical</span>
+                        </button>
                         @foreach (var lsm in Model.LogicalStructMaps)
                         {
-                            <div class="nav-item">
-                                <button class="nav-link" id="logicalTab_@(lsm.Id)-tab" data-bs-toggle="tab" data-bs-target="#logicalTab_@lsm.Id" type="button" role="tab">
-                                    <svg class="bi"><use xlink:href="#diagram-3"/></svg><span class="ms-1">@(lsm.Name ?? lsm.Id)</span>
-                                </button>
-                            </div>
+                            <button class="nav-link" id="logicalTab_@(lsm.Id)-tab" data-bs-toggle="tab" data-bs-target="#logicalTab_@lsm.Id" type="button" role="tab" aria-controls="logicalTab_@lsm.Id" aria-selected="false">
+                                <svg class="bi" aria-hidden="true"><use xlink:href="#diagram-3"/></svg><span class="ms-1">@(lsm.Name ?? lsm.Id)</span>
+                            </button>
                         }
                     </div>
+                    <div id="logicalStructMapStatus" class="visually-hidden" role="status" aria-live="polite"></div>
                     <div class="tab-content">
-                        <div class="tab-pane fade show active" id="physicalTab" role="tabpanel">
+                        <div class="tab-pane fade show active" id="physicalTab" role="tabpanel" aria-labelledby="physicalTab-tab">
                             @await Html.PartialAsync("_DepositPhysicalFiles", Model)
                         </div>
                         @foreach (var id in Model.LogicalStructMaps.Select(lsm => lsm.Id))
                         {
-                            <div class="tab-pane fade" id="logicalTab_@id" role="tabpanel">
+                            <div class="tab-pane fade" id="logicalTab_@id" role="tabpanel" aria-labelledby="logicalTab_@(id)-tab">
                                 <div id="logicalEditor_@id" data-structmap-id="@id"></div>
                                 <div class="mt-2">
                                     <form method="post" asp-page-handler="SaveLogicalStructMap">
                                         <input type="hidden" name="structMapId" value="@id">
                                         <input type="hidden" name="logicalStructMapJson" id="logicalStructMapJson_@id">
                                         <button type="submit" class="btn btn-sm btn-primary" disabled>
-                                            <svg class="bi"><use xlink:href="#floppy"/></svg><span class="ms-2">Save</span>
+                                            <svg class="bi" aria-hidden="true"><use xlink:href="#floppy"/></svg><span class="ms-2">Save</span>
                                         </button>
                                         <button type="button" class="btn btn-sm btn-danger ms-2"
                                                 data-bs-toggle="modal" data-bs-target="#deleteLogicalModal_@id">
-                                            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
+                                            <svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
                                         </button>
                                     </form>
                                 </div>
@@ -383,11 +382,11 @@
                                 : "")
                             onclick="location.href='/deposits/@Model.Id/importjobs/diff'">
 
-                            <svg class="bi"><use xlink:href="#file-arrow-up" /></svg><span class="ms-2">Create diff import job</span>
+                            <svg class="bi" aria-hidden="true"><use xlink:href="#file-arrow-up" /></svg><span class="ms-2">Create diff import job</span>
                         </button>
 
                         <a class="btn btn-sm btn-primary me-2 disabled" role="button" aria-disabled="true">
-                            <svg class="bi"><use xlink:href="#file-diff"/></svg><span class="ms-2">Create custom import job</span>
+                            <svg class="bi" aria-hidden="true"><use xlink:href="#file-diff"/></svg><span class="ms-2">Create custom import job</span>
                         </a>
                     }
                 </div>
@@ -499,7 +498,7 @@
             @* START OF SIDE INFO PANEL *@
             
             <div class="collapse show col-2" id="sidebarInfoPanel">
-                <dl arial-label="deposit-history">
+                <dl aria-label="Deposit history">
                     <dt>Status</dt>
                     <dd aria-label="status" class="@(Model.Deposit.Status == DepositStates.Error ? "text-danger" : "")">@Model.Deposit.Status</dd>
                     <dt>Created</dt>
@@ -549,7 +548,7 @@
 
             <form class="single-submit" method="post" enctype="multipart/form-data" asp-page-handler="UploadFile">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="uploadFileModalLabel"><svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></h1>
+                    <h1 class="modal-title fs-5" id="uploadFileModalLabel"><svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -581,7 +580,7 @@
                         File is larger than 2 GB — upload may be slow or unreliable on poor connections.
                     </div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></button>
+                    <button type="submit" class="btn btn-primary"><svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></button>
                 </div>
             </form>
             
@@ -598,7 +597,7 @@
             
             <form class="single-submit" method="post" asp-page-handler="CreateFolder">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="newFolderModalLabel"><svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New Folder</span></h1>
+                    <h1 class="modal-title fs-5" id="newFolderModalLabel"><svg class="bi" aria-hidden="true"><use xlink:href="#folder-plus"/></svg><span class="ms-2">New Folder</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -612,7 +611,7 @@
                     <input type="hidden" id="newFolderContext" name="newFolderContext">
                     <input type="hidden" id="newFolderContextIsFile" name="contextIsFile">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#folder-plus"/></svg><span class="ms-2">Create new folder</span></button>
+                    <button type="submit" class="btn btn-primary"><svg class="bi" aria-hidden="true"><use xlink:href="#folder-plus"/></svg><span class="ms-2">Create new folder</span></button>
                 </div>
             </form>
 
@@ -629,7 +628,7 @@
 
             <form class="single-submit" method="post" asp-page-handler="DeleteItems">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="deleteSelectionModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete selected items</span></h1>
+                    <h1 class="modal-title fs-5" id="deleteSelectionModalLabel"><svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg><span class="ms-2">Delete selected items</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -654,7 +653,7 @@
                 <div class="modal-footer">
                     <input type="hidden" id="deleteSelectionObject" name="deleteSelectionObject">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary" id="deleteButton" disabled="disabled"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span></button>
+                    <button type="submit" class="btn btn-primary" id="deleteButton" disabled="disabled"><svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span></button>
                 </div>
             </form>
 
@@ -672,7 +671,7 @@
 
             <form class="single-submit" method="post" asp-page-handler="AddItemsToMets">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="addSelectionToMetsModalLabel"><svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add to METS file</span></h1>
+                    <h1 class="modal-title fs-5" id="addSelectionToMetsModalLabel"><svg class="bi" aria-hidden="true"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add to METS file</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -683,7 +682,7 @@
                 <div class="modal-footer">
                     <input type="hidden" id="addToMetsObject" name="addToMetsObject">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary" id="addToMetsButton" disabled="disabled"><svg class="bi"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add to METS</span></button>
+                    <button type="submit" class="btn btn-primary" id="addToMetsButton" disabled="disabled"><svg class="bi" aria-hidden="true"><use xlink:href="#bookmark-plus"/></svg><span class="ms-2">Add to METS</span></button>
                 </div>
             </form>
 
@@ -698,7 +697,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h1 class="modal-title fs-5" id="archivalGroupPathModalLabel"><svg class="bi"><use xlink:href="#question-circle"/></svg><span class="ms-2">Archival Group Path</span></h1>
+                <h1 class="modal-title fs-5" id="archivalGroupPathModalLabel"><svg class="bi" aria-hidden="true"><use xlink:href="#question-circle"/></svg><span class="ms-2">Archival Group Path</span></h1>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -740,7 +739,7 @@
 
             <form class="single-submit" method="post" asp-page-handler="DeleteDeposit">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="deleteDepositModalLabel"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span></h1>
+                    <h1 class="modal-title fs-5" id="deleteDepositModalLabel"><svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -757,7 +756,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-danger" id="deleteDepositButton" disabled="disabled"><svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span></button>
+                    <button type="submit" class="btn btn-danger" id="deleteDepositButton" disabled="disabled"><svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg><span class="ms-2">Delete Deposit</span></button>
                 </div>
             </form>
 
@@ -773,7 +772,7 @@
         <div class="modal-content">
             <form class="single-submit" method="post" asp-page-handler="SetRightsAndAccess">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="modsModalLabel"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Metadata</span></h1>
+                    <h1 class="modal-title fs-5" id="modsModalLabel"><svg class="bi" aria-hidden="true"><use xlink:href="#info-square"/></svg><span class="ms-2">Metadata</span></h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -826,7 +825,7 @@
                         <label id="recordInfoLabel" for="recordInfoDynamicForm" class="form-label">Record Identifiers</label>
                         @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
-                            <div id="recordInfoDynamicForm"></div>
+                            <div id="recordInfoDynamicForm" aria-live="polite"></div>
                             <button id="recordInfoAddAnother" class="btn btn-outline-primary" type="button">Add another</button>
                         }
                         else
@@ -838,7 +837,7 @@
                     </div>
                     <div class="mb-3" id="fileLinksSection" style="display:none">
                         <div class="form-label">File Links</div>
-                        <div id="fileLinksList"></div>
+                        <div id="fileLinksList" aria-live="polite"></div>
                         @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <div class="input-group mt-2" id="fileLinkAddRow">
@@ -860,7 +859,7 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                     {
-                        <button type="submit" class="btn btn-primary"><svg class="bi"><use xlink:href="#info-square"/></svg><span class="ms-2">Save</span></button>
+                        <button type="submit" class="btn btn-primary"><svg class="bi" aria-hidden="true"><use xlink:href="#info-square"/></svg><span class="ms-2">Save</span></button>
                     }
                 </div>
             </form>
@@ -879,7 +878,7 @@
                 <form class="single-submit" method="post" asp-page-handler="DeleteLogicalStructMap">
                     <div class="modal-header">
                         <h1 class="modal-title fs-5" id="deleteLogicalModalLabel_@lsm.Id">
-                            <svg class="bi"><use xlink:href="#trash"/></svg>
+                            <svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg>
                             <span class="ms-2">Delete logical structure</span>
                         </h1>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -892,7 +891,7 @@
                         <input type="hidden" name="structMapId" value="@lsm.Id">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-danger">
-                            <svg class="bi"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
+                            <svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg><span class="ms-2">Delete</span>
                         </button>
                     </div>
                 </form>

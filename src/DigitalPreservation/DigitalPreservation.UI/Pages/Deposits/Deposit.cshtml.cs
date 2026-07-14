@@ -158,7 +158,7 @@ public class DepositModel(
                 var testArchivalGroupResult = await mediator.Send(new TestArchivalGroupPath(Deposit.ArchivalGroup.GetPathUnderRoot()!));
                 if (testArchivalGroupResult.Failure)
                 {
-                    ArchivalGroupTestWarning = testArchivalGroupResult.ErrorMessage;
+                    ArchivalGroupTestWarning = $"{testArchivalGroupResult.ErrorMessage} Please check the path and enter a different, valid location under the repository root.";
                 }
             }
 

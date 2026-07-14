@@ -44,16 +44,16 @@ File is in both
         <td class="dep-actions">
             @if (Model is { Editable: true, Active: true, LockedByOtherUser: false } && !isMetadata)
             {
-                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#newFolderModal" aria-label="new folder">
-                    <svg class="bi"><use xlink:href="#folder-plus"/></svg>
-                </a>
-                <a class="link-primary" role="button" data-bs-toggle="modal" data-bs-target="#uploadFileModal" aria-label="upload file">
-                    <svg class="bi"><use xlink:href="#file-earmark-arrow-up"/></svg>
-                </a>
+                <button type="button" class="btn btn-sm btn-link link-primary p-0 border-0" data-bs-toggle="modal" data-bs-target="#newFolderModal" aria-label="New folder">
+                    <svg class="bi" aria-hidden="true"><use xlink:href="#folder-plus"/></svg>
+                </button>
+                <button type="button" class="btn btn-sm btn-link link-primary p-0 border-0" data-bs-toggle="modal" data-bs-target="#uploadFileModal" aria-label="Upload file">
+                    <svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-arrow-up"/></svg>
+                </button>
             }
         </td>
         <td style="padding-left: @(1.3 * depth)rem">
-            <svg class="bi"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg>
+            <svg class="bi" aria-hidden="true"><use xlink:href="#folder@(where == "deposit" ? "-plus" : "")"/></svg>
             @if (combinedDirectory.LocalPath == "objects" || combinedDirectory.LocalPath.StartsWith("objects/"))
             {
                 @await Html.PartialAsync("_AccessAndRights", ((CombinedBase)combinedDirectory, displayName))
@@ -66,7 +66,7 @@ File is in both
                     var metaTotals = combinedDirectory.GetSizeTotals();
                     <button type="button" class="btn btn-link btn-sm p-0 ms-1 me-1 border-0 align-baseline"
                             data-metadata-toggle aria-expanded="false" aria-label="Toggle metadata folder">
-                        <svg class="bi"><use xlink:href="#chevron-right"/></svg>
+                        <svg class="bi" aria-hidden="true"><use xlink:href="#chevron-right"/></svg>
                     </button>
                     <small class="text-body-secondary">@metaTotals.TotalFileCount files in @metaTotals.TotalDirectoryCount folders</small>
                 }
@@ -108,7 +108,7 @@ File is in both
                 @if (mismatches)
                 {
                     <label title="@file.MisMatches.First()" class="form-check-label text-danger" for="@("is-" + Model.RowCounter.Count++)">
-                        <strong>@file.Whereabouts <svg class="bi"><use xlink:href="#exclamation-triangle"/></svg></strong>
+                        <strong>@file.Whereabouts <svg class="bi" aria-hidden="true"><use xlink:href="#exclamation-triangle"/></svg></strong>
                     </label>
                 }
                 else
@@ -120,7 +120,7 @@ File is in both
         <td class="dep-actions">
         </td>
         <td style="padding-left: @(1.3 * (depth + 1))rem">
-            <svg class="bi"><use xlink:href="#file-earmark@(where != "both" ? "-plus" : "")"/></svg>
+            <svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark@(where != "both" ? "-plus" : "")"/></svg>
             <span aria-label="name" title="@file.LocalPath">
                 @if (file.LocalPath.HasText() && file.LocalPath == Model.MetsPath)
                 {
@@ -177,7 +177,7 @@ File is in both
             <td aria-label="td-tool-output">
                 <a target="_blank" href="@(Context.Request.Path)/tool-output?path=@Uri.EscapeDataString(file.LocalPath!)"
                    title="View tool output" aria-label="View tool output" class="text-decoration-none">
-                    <svg class="bi"><use xlink:href="#file-earmark-text"/></svg>
+                    <svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-text"/></svg>
                 </a>
             </td>
         }
