@@ -300,7 +300,9 @@ tr.where-both td {
 }
 
 .dirty-pulse {
-    animation: dirty-pulse 1.5s ease-in-out infinite;
+    /* 3 iterations at 1.5s = 4.5s, under the WCAG 2.2.2 5-second threshold for
+       animations that don't need a user-facing pause/stop/hide control. */
+    animation: dirty-pulse 1.5s ease-in-out 3;
 }
 
 @media (prefers-reduced-motion: reduce) {
