@@ -32,4 +32,10 @@ if [ ! -S /var/run/clamav/clamd.sock ]; then
     echo "entrypoint: clamd socket never appeared after 120s - starting the app anyway, clamscan-shim.sh will fall back to a local scan" >&2
 fi
 
-exec setpriv --reuid="$APP_UID" --regid="$APP_UID" --init-groups dotnet Pipeline.API.dll "$@"
+# setpriv changes the process's UID/GID but does NOT reset HOME the way su does - without this,
+# the dotnet process (and everything it spawns, including Brunnhilde/Siegfried/sf) would inherit
+# HOME=/root from this root shell despite running as a non-root UID, causing sf to look for its
+# signature file under /root instead of this user's actual home and fail with "Siegfried is not
+# installed or available on PATH".
+APP_HOME=$(getent passwd "$APP_UID" | cut -d: -f6)
+exec env HOME="$APP_HOME" setpriv --reuid="$APP_UID" --regid="$APP_UID" --init-groups dotnet Pipeline.API.dll "$@"
