@@ -8,6 +8,7 @@ public class PipelineToolOptions
     public string? ObjectsFolder { get; set; }
     public string? ProcessFolder { get; set; }
     public string? ExifToolLocation { get; set; }
+    public string? PathToClamScan { get; set; }
     public int? ReleaseLockAttemptTime { get; set; }
     public string? PipelineMetadataFolders { get; set; }
     public string? ProcessFolderBagit { get; set; }
