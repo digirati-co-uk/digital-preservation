@@ -702,6 +702,22 @@ public class ProcessPipelineJobHandler(
 
             logger.LogInformation($"context {context}");
 
+            // Acquire the WorkspaceManager ONCE with a full refresh here, rather than having each
+            // folder/file operation below re-acquire and refresh its own (each refresh re-lists the
+            // ENTIRE deposit from S3 - expensive for a large deposit, and pointless when creating a
+            // handful of small metadata folders/files). CreateFolder/UploadFileToDeposit both
+            // incrementally update the cached deposit file-system snapshot after each write
+            // (storage.AddToDepositFileSystem), so reusing this one manager with cheap
+            // (non-refreshing) reads for every subsequent operation stays correct.
+            var workspaceManagerResult = await GetWorkspaceManager(request, true);
+            if (workspaceManagerResult.Failure || workspaceManagerResult.Value == null)
+            {
+                await TryReleaseLock(request, deposit, cancellationToken);
+                logger.LogError("Could not acquire WorkspaceManager in UploadFilesToMetadataRecursively() for job {JobIdentifier} deposit {DepositId}: {error}", request.JobIdentifier, request.DepositId, workspaceManagerResult.CodeAndMessage());
+                return (createSubFolderResult: [], uploadFileResult: [], false, false);
+            }
+            var workspaceManager = workspaceManagerResult.Value;
+
             //create Brunnhilde folder first
             var createSubFolderResult = new List<Result<CreateFolderResult>?>();
 
@@ -718,7 +734,7 @@ public class ProcessPipelineJobHandler(
                     return (createSubFolderResult: [], uploadFileResult: [], forceCompleteDirectoryUpload, cleanupProcessDirectoryUpload);
                 }
 
-                createSubFolderResult.Add(await CreateMetadataSubFolderOnS3(request, dirPath));
+                createSubFolderResult.Add(await CreateMetadataSubFolderOnS3(workspaceManager, request, dirPath));
             }
 
             var uploadFileResult = new List<Result<SingleFileUploadResult>?>();
@@ -738,7 +754,7 @@ public class ProcessPipelineJobHandler(
                     return (createSubFolderResult: [], uploadFileResult: [], forceCompleteFileUpload, cleanupProcessFileUpload);
                 }
 
-                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFilesAndDirectories, deposit, cancellationToken);
+                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(workspaceManager, request, filePath, sourcePathForFilesAndDirectories, deposit, cancellationToken);
                 if (uploadFileToS3Result != null && (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess || !uploadFileToS3Result.Success))
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
@@ -776,12 +792,8 @@ public class ProcessPipelineJobHandler(
         return (createSubFolderResult: [], uploadFileResult: [], false, false);
     }
 
-    private async Task<Result<CreateFolderResult>?> CreateMetadataSubFolderOnS3(ExecutePipelineJob request, string dirPath)
+    private async Task<Result<CreateFolderResult>?> CreateMetadataSubFolderOnS3(WorkspaceManager workspaceManager, ExecutePipelineJob request, string dirPath)
     {
-        // This is a content-changing operation
-        var workspaceResult = await GetWorkspaceManager(request, true);
-        var workspaceManager = workspaceResult.Value!;
-
         var context = new StringBuilder();
         var metadataContext = "metadata";
         context.Append(metadataContext);
@@ -792,8 +804,11 @@ public class ProcessPipelineJobHandler(
 
         logger.LogInformation("BrunnhildeFolderName {BrunnhildeFolderName}", BrunnhildeFolderName);
         logger.LogInformation("di.Name {di.Name} context {context}", di.Name, context);
+        // refreshDirectory: false - the caller already acquired a freshly-refreshed workspaceManager,
+        // and CreateFolder's own S3 write incrementally updates the cached deposit file-system
+        // snapshot afterward, so there's no need to re-list the entire deposit from S3 again here.
         var result = await workspaceManager.CreateFolder(
-            di.Name, context.ToString(), false, request.GetUserName(), true);
+            di.Name, context.ToString(), false, request.GetUserName(), false);
 
         if (!result.Success)
         {
@@ -805,7 +820,7 @@ public class ProcessPipelineJobHandler(
         return result;
     }
 
-    private async Task<(Result<SingleFileUploadResult>?, bool, bool)> UploadFileToDepositOnS3(ExecutePipelineJob request, string filePath,
+    private async Task<(Result<SingleFileUploadResult>?, bool, bool)> UploadFileToDepositOnS3(WorkspaceManager workspaceManager, ExecutePipelineJob request, string filePath,
         string? sourcePath, Deposit deposit, CancellationToken cancellationToken, bool bagitFile = false)
     {
         var context = new StringBuilder();
@@ -855,7 +870,7 @@ public class ProcessPipelineJobHandler(
             return (null, false, false);
 
         var stream = GetFileStream(filePath);
-        var result = await UploadFileToBucketDeposit(request, stream, filePath, contextPath, checksum, bagitFile);
+        var result = await UploadFileToBucketDeposit(workspaceManager, request, stream, filePath, contextPath, checksum, bagitFile);
 
 
         if (!result.Success)
@@ -874,9 +889,8 @@ public class ProcessPipelineJobHandler(
     }
 
     private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(
-        ExecutePipelineJob request, Stream stream, string filePath, string? contextPath, string checksum, bool bagitFile = false)
+        WorkspaceManager workspaceManager, ExecutePipelineJob request, Stream stream, string filePath, string? contextPath, string checksum, bool bagitFile = false)
     {
-        // This is potentially expensive as it needs a NEW WorkspaceManager each time
         // TODO: We need a batch operation on WorkspaceManager to upload a set of small files.
 
         var fi = new FileInfo(filePath);
@@ -888,9 +902,7 @@ public class ProcessPipelineJobHandler(
                 return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError,
                     "Could not find file content type");
 
-            var workspaceManagerResult = await GetWorkspaceManager(request, true);
-
-            var result = await workspaceManagerResult.Value!.UploadSingleSmallFile(
+            var result = await workspaceManager.UploadSingleSmallFile(
                 stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, request.GetUserName(), true, bagitFile); //bagit file
 
             return result;
@@ -1455,6 +1467,18 @@ public class ProcessPipelineJobHandler(
                 return (uploadFileResult: [], forceCompleteBeforeUpload, cleanupProcessBeforeUpload);
             }
 
+            // Acquire the WorkspaceManager ONCE with a full refresh here, rather than having each
+            // file upload below re-acquire and refresh its own (see UploadFilesToMetadataRecursively
+            // for the same reasoning).
+            var workspaceManagerResult = await GetWorkspaceManager(request, true);
+            if (workspaceManagerResult.Failure || workspaceManagerResult.Value == null)
+            {
+                await TryReleaseLock(request, deposit, cancellationToken);
+                logger.LogError("Could not acquire WorkspaceManager in UploadBagitFilesToRoot() for job {JobIdentifier} deposit {DepositId}: {error}", request.JobIdentifier, request.DepositId, workspaceManagerResult.CodeAndMessage());
+                return (uploadFileResult: [], false, false);
+            }
+            var workspaceManager = workspaceManagerResult.Value;
+
             var uploadFileResult = new List<Result<SingleFileUploadResult>?>();
 
             foreach (var filePath in Directory.GetFiles($"{processFolderBagitDeposit}", "*.*", SearchOption.TopDirectoryOnly))
@@ -1472,7 +1496,7 @@ public class ProcessPipelineJobHandler(
                     return (uploadFileResult: [], forceCompleteFileUpload, cleanupProcessFileUpload);
                 }
 
-                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, processFolderBagitDeposit, deposit, cancellationToken, true);
+                var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(workspaceManager, request, filePath, processFolderBagitDeposit, deposit, cancellationToken, true);
                 if (uploadFileToS3Result != null && (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess || !uploadFileToS3Result.Success))
                 {
                     await TryReleaseLock(request, deposit, cancellationToken);
