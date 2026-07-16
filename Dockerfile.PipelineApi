@@ -27,7 +27,15 @@ RUN apt-get update -y
 RUN apt-get install golang -y
 RUN go install github.com/richardlehane/siegfried/cmd/sf@v1.11.2
 RUN cp /root/go/bin/sf /bin
+
+# Siegfried resolves its signature file relative to the invoking user's home directory (no shared
+# location, no config to override this from Brunnhilde's own "sf -update"/"sf -version" calls) -
+# the app runs as the non-root $APP_UID at runtime, so downloading signatures as root here would
+# leave them undiscoverable at runtime (Brunnhilde's own pre-flight "sf -version" check would then
+# fail and report "Siegfried is not installed or available on PATH").
+USER $APP_UID
 RUN sf -update
+USER root
 #brunnhilde
 RUN apt-get install python3-full python3-pip -y
 RUN rm /usr/lib/python3.11/EXTERNALLY-MANAGED
