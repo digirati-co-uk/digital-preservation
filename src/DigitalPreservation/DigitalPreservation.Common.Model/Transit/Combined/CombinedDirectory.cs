@@ -325,7 +325,38 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
     {
         return new CombinedDirectory(DirectoryInDeposit, DirectoryInMets, relativePath);
     }
-    
+
+    // Depth-first walk (smaller subtrees first, for the same reason as Flatten/CloneForFlatten - so a handful
+    // of huge folders don't dominate every page) returning a clone containing only files [skip, skip+take) from
+    // that walk, still nested under their real folder structure. Used to paginate the Deposit page's file table
+    // for deposits with thousands of files, so every file stays reachable - and selectable/editable - via some
+    // page, rather than being dropped from the UI entirely the way a simple render cap would.
+    public CombinedDirectory Page(int skip, int take, ref int filesSeen, ref int filesTaken)
+    {
+        var clone = CloneForFlatten();
+        foreach (var file in Files)
+        {
+            if (filesTaken >= take) break;
+            if (filesSeen >= skip)
+            {
+                clone.Files.Add(file);
+                filesTaken++;
+            }
+            filesSeen++;
+        }
+        foreach (var directory in Directories.OrderBy(d => d.CountFiles()))
+        {
+            if (filesTaken >= take) break;
+            clone.Directories.Add(directory.Page(skip, take, ref filesSeen, ref filesTaken));
+        }
+        return clone;
+    }
+
+    private int CountFiles()
+    {
+        return Files.Count + Directories.Sum(d => d.CountFiles());
+    }
+
     public Result<Container> ToContainer(Uri repositoryUri, Uri origin, string? metsXmlPath, List<Uri>? uris = null)
     {
         uris?.Add(repositoryUri);

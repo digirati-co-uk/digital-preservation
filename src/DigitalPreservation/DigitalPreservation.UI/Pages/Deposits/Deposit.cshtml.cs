@@ -8,6 +8,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
+using DigitalPreservation.UI.ViewComponents;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
@@ -33,6 +34,18 @@ public class DepositModel(
     public required WorkspaceManager WorkspaceManager { get; set; }
     
     public CombinedDirectory? RootCombinedDirectory { get; set; }
+
+    // A deposit with thousands of files (e.g. a bulk/pipeline-tested deposit) can OOM the app and take tens of
+    // seconds to render if the full recursive file table is built for every request - see LPII-135.
+    // DisplayCombinedDirectory holds only the current page's worth of files, nested under their real folders,
+    // for the on-page table; RootCombinedDirectory itself stays complete so mismatch/virus detection and the
+    // summary totals below still cover every file, and every file remains reachable/selectable via some page
+    // rather than being dropped from the UI the way a hard render cap would.
+    public const int DepositFilePageSize = 500;
+    public CombinedDirectory? DisplayCombinedDirectory { get; set; }
+    public int TotalDepositFileCount { get; set; }
+    public PagerValues? FilePagerValues { get; set; }
+
     public Deposit? Deposit { get; set; }
     public string? ArchivalGroupTestWarning { get; set; }
     
@@ -82,6 +95,14 @@ public class DepositModel(
                 if (combinedResult is { Success: true, Value: not null })
                 {
                     RootCombinedDirectory = combinedResult.Value;
+
+                    TotalDepositFileCount = RootCombinedDirectory.Flatten().Item2.Count;
+                    FilePagerValues = new PagerValues(Request.QueryString, TotalDepositFileCount, DepositFilePageSize);
+                    var skip = Math.Max(0, (FilePagerValues.Index - 1) * DepositFilePageSize);
+                    var filesSeen = 0;
+                    var filesTaken = 0;
+                    DisplayCombinedDirectory = RootCombinedDirectory.Page(skip, DepositFilePageSize, ref filesSeen, ref filesTaken);
+
                     if (WorkspaceManager.Editable)
                     {
                         var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();

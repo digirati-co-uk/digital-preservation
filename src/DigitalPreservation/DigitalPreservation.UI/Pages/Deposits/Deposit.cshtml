@@ -359,6 +359,10 @@
                 {                
                     if (Model.RootCombinedDirectory != null)
                     {
+                        @if (Model.FilePagerValues != null)
+                        {
+                            @await Component.InvokeAsync("Pager", new { values = Model.FilePagerValues })
+                        }
                         <div class="table-responsive small">
                             <table class="table table-hover table-striped table-sm plain-link-table deposit-table" aria-label="table-deposit-files">
                                 <thead>
@@ -384,9 +388,9 @@
                                     </tr>
                                 }
                                 @{
-                                    var wrapper = new CombinedDirectoryRecursionWrapper(Model.RootCombinedDirectory,
+                                    var wrapper = new CombinedDirectoryRecursionWrapper(Model.DisplayCombinedDirectory!,
                                         Model.WorkspaceManager.MetsPath!, Model.WorkspaceManager.Editable,
-                                        Model.Deposit.Active, IsLockedByOtherUser(), 
+                                        Model.Deposit.Active, IsLockedByOtherUser(),
                                         Model.WorkspaceManager.RootAccessRestrictions,
                                         Model.WorkspaceManager.RootRightsStatement,
                                         new Counter());
@@ -395,6 +399,10 @@
                                 </tbody>
                             </table>
                         </div>
+                        @if (Model.FilePagerValues != null)
+                        {
+                            @await Component.InvokeAsync("Pager", new { values = Model.FilePagerValues })
+                        }
                         <p><small>
                             @{
                                 var totals = Model.RootCombinedDirectory.GetSizeTotals();
@@ -487,6 +495,9 @@
                 </div>
                     
                 @{
+                    // Same OOM risk as the file table above, for a deposit with a long import job history -
+                    // capped for display only; the total count and "no jobs" message still reflect everything.
+                    const int maxJobResultsToDisplay = 50;
                     var importJobResults = await Model.GetImportJobResults();
                     if (importJobResults.Count == 0)
                     {
@@ -494,6 +505,12 @@
                     }
                     else
                     {
+                        if (importJobResults.Count > maxJobResultsToDisplay)
+                        {
+                            <div class="alert alert-warning" role="alert">
+                                Showing the most recent @maxJobResultsToDisplay of @importJobResults.Count import jobs.
+                            </div>
+                        }
                         <div class="table-responsive small">
                             <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-import-jobs">
                                 <thead>
@@ -508,7 +525,7 @@
                                 </tr>
                                 </thead>
                                 <tbody>
-                                @foreach (var result in importJobResults)
+                                @foreach (var result in importJobResults.TakeLast(maxJobResultsToDisplay))
                                 {
                                     <tr>
                                         <td><a href="@($"/deposits/{Model.Id}/importjobs/{result.Id!.GetSlug()}")">@result.Status</a></td>
@@ -542,12 +559,23 @@
                 <h3>Pipeline Jobs</h3>
 
                 @{
+                    // Same OOM risk as the file table above, for a deposit with a long pipeline job history -
+                    // capped for display only. Both API endpoints already return jobs oldest-first, so TakeLast
+                    // keeps that same order (the e2e suite's "current job" locator relies on the most recent
+                    // job being the table's last row).
+                    const int maxPipelineJobResultsToDisplay = 50;
                     if (Model.PipelineJobResults is { Count: 0 })
                     {
                         <p>There are no submitted pipeline jobs for this Deposit.</p>
                     }
                     else
                     {
+                        if (Model.PipelineJobResults.Count > maxPipelineJobResultsToDisplay)
+                        {
+                            <div class="alert alert-warning" role="alert">
+                                Showing the most recent @maxPipelineJobResultsToDisplay of @Model.PipelineJobResults.Count pipeline jobs.
+                            </div>
+                        }
                         <div class="table-responsive small">
                             <table class="table table-hover table-striped table-sm plain-link-table" aria-label="table-deposit-pipeline-jobs">
                                 <thead>
@@ -562,7 +590,7 @@
                                 </thead>
                                 <tbody>
                                 @{
-                                    foreach (var result in Model.PipelineJobResults)
+                                    foreach (var result in Model.PipelineJobResults.TakeLast(maxPipelineJobResultsToDisplay))
                                     {
                                         <tr>
                                             <td aria-label="td-job-id">@result.JobId</td>
