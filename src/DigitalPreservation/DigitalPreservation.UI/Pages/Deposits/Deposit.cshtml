@@ -405,7 +405,7 @@
                         }
                         <p><small>
                             @{
-                                var totals = Model.RootCombinedDirectory.GetSizeTotals();
+                                var totals = Model.RootCombinedDirectory.GetSizeTotals(includeMessages: Request.Query["showCalculation"] == "true");
                             }
                             @totals.TotalFileCount <text> files in </text> @totals.TotalDirectoryCount <text> directories.</text><br/>
                             @StringUtils.FormatFileSize(totals.TotalSizeInDeposit, withSpace: true, fallbackIfNull: " - ") <text> in Deposit, </text>

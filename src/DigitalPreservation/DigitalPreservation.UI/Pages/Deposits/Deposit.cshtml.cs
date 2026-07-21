@@ -14,6 +14,7 @@ using DigitalPreservation.Workspace;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
 using System.Text.Json;
@@ -22,12 +23,13 @@ using DigitalPreservation.Common.Model.Transit.Combined;
 namespace DigitalPreservation.UI.Pages.Deposits;
 
 public class DepositModel(
-    IMediator mediator, 
+    IMediator mediator,
     IOptions<PreservationOptions> options,
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
     IOptions<PipelineOptions> pipelineOptions,
     IConfiguration configuration,
+    IMemoryCache memoryCache,
     ILogger<DepositModel> logger) : PageModel
 {
     public required string Id { get; set; }
@@ -105,16 +107,35 @@ public class DepositModel(
 
                     if (WorkspaceManager.Editable)
                     {
-                        var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
-                        TempData.Remove("MisMatchCount");
-
-                        if (mismatches.Count != 0)
+                        // GetMisMatches/GetFilesWithVirus walk every file in the deposit and, for mismatches,
+                        // do real EXIF tag-diffing per file - expensive for a deposit with thousands of files,
+                        // and it was getting recomputed from scratch on every single page load (see LPII-135).
+                        // There's no reliable "this deposit's files changed" signal to invalidate on precisely -
+                        // uploads/pipeline runs/storage refreshes don't touch Deposit.LastModified, and virus
+                        // metadata is read from the deposit's own files (CombinedFile.GetVirusMetadata prefers
+                        // FileInDeposit), not METS, so even MetsETag wouldn't catch a fresh pipeline run's output
+                        // before it's explicitly added to METS. Kept deliberately short (well under how long any
+                        // real mutation - upload, pipeline run, storage refresh - actually takes) so it absorbs
+                        // bursts of near-simultaneous requests without masking a real change from the very next
+                        // page load after one occurs.
+                        var cacheKey = $"DepositMisMatchesAndViruses-{id}";
+                        if (!memoryCache.TryGetValue(cacheKey, out (List<string> Mismatches, List<(List<CombinedFile.FileMisMatch>, string)> DetailedMismatches, List<string> FilesWithVirus) cached))
                         {
-                            TempData["MisMatchCount"] = mismatches.Count;
+                            var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
+                            var filesWithVirus = RootCombinedDirectory.GetFilesWithVirus();
+                            cached = (mismatches, detailedMismatches, filesWithVirus);
+                            memoryCache.Set(cacheKey, cached, TimeSpan.FromSeconds(5));
                         }
 
-                        FileMisMatches = detailedMismatches;
-                        FilesWithViruses = RootCombinedDirectory.GetFilesWithVirus();
+                        TempData.Remove("MisMatchCount");
+
+                        if (cached.Mismatches.Count != 0)
+                        {
+                            TempData["MisMatchCount"] = cached.Mismatches.Count;
+                        }
+
+                        FileMisMatches = cached.DetailedMismatches;
+                        FilesWithViruses = cached.FilesWithVirus;
                     }
                 }
             }

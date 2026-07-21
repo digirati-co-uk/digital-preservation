@@ -442,14 +442,17 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         return Result.OkNotNull(container);
     }
 
-    public FileSizeTotals GetSizeTotals()
+    // includeMessages is off by default: building one interpolated string per file is wasted work on every
+    // normal page load, since Messages is only ever shown behind the debug ?showCalculation=true query param -
+    // for a deposit with thousands of files that waste adds up. Pass true only when the caller will display them.
+    public FileSizeTotals GetSizeTotals(bool includeMessages = false)
     {
         var totals = new FileSizeTotals();
-        AddBinariesToTotals(this, totals, false);
+        AddBinariesToTotals(this, totals, includeMessages, false);
         return totals;
     }
 
-    private void AddBinariesToTotals(CombinedDirectory combinedDirectory, FileSizeTotals totals, bool includeDirInCount = true)
+    private void AddBinariesToTotals(CombinedDirectory combinedDirectory, FileSizeTotals totals, bool includeMessages, bool includeDirInCount = true)
     {
         if (includeDirInCount)
         {
@@ -457,7 +460,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         }
         else
         {
-            if (combinedDirectory.LocalPath.HasText())
+            if (includeMessages && combinedDirectory.LocalPath.HasText())
             {
                 // ignore for root
                 totals.Messages.Add($"Skipping {combinedDirectory.LocalPath} in total directory count");
@@ -467,7 +470,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         {
             if (combinedFile.LocalPath!.StartsWith("__"))
             {
-                totals.Messages.Add($"Skipping {combinedFile.LocalPath}");
+                if (includeMessages) totals.Messages.Add($"Skipping {combinedFile.LocalPath}");
                 continue; // We need IStorage.DepositFileSystem but we'd have to reference Storage.Repository.Common
             }
             totals.TotalFileCount++;
@@ -486,11 +489,11 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
                 {
                     totals.TotalSize += depositSize;
                     addedToTotal = true;
-                    totals.Messages.Add($"{combinedFile.LocalPath} has {depositSize} bytes in Deposit");
+                    if (includeMessages) totals.Messages.Add($"{combinedFile.LocalPath} has {depositSize} bytes in Deposit");
                 }
                 else
                 {
-                    totals.Messages.Add($"Could not find size from FileInDeposit for {combinedFile.LocalPath}");
+                    if (includeMessages) totals.Messages.Add($"Could not find size from FileInDeposit for {combinedFile.LocalPath}");
                 }
             }
 
@@ -505,11 +508,11 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
 
                 if (metsSize <= 0)
                 {
-                    totals.Messages.Add($"Could not find size from FileInMets for {combinedFile.LocalPath}");
+                    if (includeMessages) totals.Messages.Add($"Could not find size from FileInMets for {combinedFile.LocalPath}");
                 }
                 else
                 {
-                    totals.Messages.Add($"{combinedFile.LocalPath} has {metsSize} bytes in METS");
+                    if (includeMessages) totals.Messages.Add($"{combinedFile.LocalPath} has {metsSize} bytes in METS");
                 }
             }
 
@@ -521,7 +524,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         
         foreach (var childDirectory in combinedDirectory.Directories)
         {
-            AddBinariesToTotals(childDirectory, totals);
+            AddBinariesToTotals(childDirectory, totals, includeMessages);
         }
     }
 
