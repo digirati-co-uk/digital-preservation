@@ -27,15 +27,45 @@ RUN apt-get update -y
 RUN apt-get install golang -y
 RUN go install github.com/richardlehane/siegfried/cmd/sf@v1.11.2
 RUN cp /root/go/bin/sf /bin
+
+# Siegfried resolves its signature file relative to the invoking user's home directory (no shared
+# location, no config to override this from Brunnhilde's own "sf -update"/"sf -version" calls) -
+# the app runs as the non-root $APP_UID at runtime, so downloading signatures as root here would
+# leave them undiscoverable at runtime (Brunnhilde's own pre-flight "sf -version" check would then
+# fail and report "Siegfried is not installed or available on PATH").
+USER $APP_UID
 RUN sf -update
-#brunnhilde    
+USER root
+#brunnhilde
 RUN apt-get install python3-full python3-pip -y
 RUN rm /usr/lib/python3.11/EXTERNALLY-MANAGED
 RUN pip3 install --upgrade brunnhilde
 RUN brunnhilde.py -V
 #clam av
-RUN apt-get install clamav clamav-freshclam -y 
+RUN apt-get install clamav clamav-freshclam clamav-daemon util-linux -y
 RUN freshclam
+
+# Debian's clamav-daemon/clamav-freshclam ship an "Example" line in both config files that blocks
+# either from starting until it's removed.
+RUN sed -i '/^Example/d' /etc/clamav/clamd.conf /etc/clamav/freshclam.conf
+
+# Point clamd at the socket path clamscan-shim.sh expects, and make it connectable by the app's
+# non-root user (setpriv-dropped in pipeline-api-entrypoint.sh) - this socket never leaves the
+# container's own namespace, so a permissive local socket mode is an acceptable tradeoff here.
+# Debian's package already ships a working LocalSocket/LocalSocketMode pair near the top of the
+# file - clamd honors the FIRST occurrence of a directive, so these must replace it in place
+# rather than append a second, conflicting pair that gets silently ignored.
+RUN sed -i 's#^LocalSocket .*#LocalSocket /var/run/clamav/clamd.sock#' /etc/clamav/clamd.conf
+RUN sed -i 's#^LocalSocketMode .*#LocalSocketMode 666#' /etc/clamav/clamd.conf
+
+# Brunnhilde always invokes the literal "clamscan" binary with no way to configure it - shadow the
+# real clamscan with a shim that instead talks to clamd running as a second process in this same
+# container (started by pipeline-api-entrypoint.sh), avoiding the signature-database reload cost
+# clamscan otherwise pays on every single invocation. Falls back to a local scan if clamd isn't
+# up yet/crashed.
+RUN mv /usr/bin/clamscan /usr/bin/clamscan.real
+COPY clamscan-shim.sh /usr/bin/clamscan
+RUN chmod +x /usr/bin/clamscan
 # Exif Tool for metadata extraction
 RUN apt-get install -y exiftool
 
@@ -58,5 +88,9 @@ LABEL org.opencontainers.image.description="UoL DLIP Pipeline API"
 
 WORKDIR /app
 COPY --from=publish /app/publish .
-USER $APP_UID
-ENTRYPOINT ["dotnet", "Pipeline.API.dll"]
+
+# Stays root at container start (not $APP_UID) because the entrypoint needs root to launch clamd -
+# it drops to $APP_UID itself via setpriv before exec'ing the actual .NET process.
+COPY pipeline-api-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
