@@ -488,7 +488,11 @@ function createEditRangeModal() {
     document.getElementById('editRangeConfirmBtn').addEventListener('click', () => {
         const name = document.getElementById('editRangeName').value.trim();
         const type = document.getElementById('editRangeType').value;
-        bootstrap.Modal.getInstance(document.getElementById('editRangeModal')).hide();
+        // Use getOrCreateInstance rather than getInstance - if Bootstrap doesn't already have a
+        // live Modal instance attached to this element (e.g. after a bfcache-restored navigation
+        // skips a fresh DOMContentLoaded), getInstance returns null and calling .hide() on it
+        // throws inside this handler, silently leaving the modal open with no visible error.
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('editRangeModal')).hide();
         if (editRangeCallback) editRangeCallback({ name, type });
         editRangeCallback = null;
     });
