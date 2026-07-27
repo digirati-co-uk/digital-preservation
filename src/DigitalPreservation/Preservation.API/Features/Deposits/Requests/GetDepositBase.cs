@@ -1,6 +1,8 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Microsoft.EntityFrameworkCore;
 using Preservation.API.Data;
@@ -14,7 +16,8 @@ public class GetDepositBase(
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator,
-    WorkspaceManagerFactory workspaceManagerFactory)
+    WorkspaceManagerFactory workspaceManagerFactory,
+    IMetsParser metsParser)
 {
     public async Task<Result<Deposit?>> GetDeposit(string depositId, CancellationToken cancellationToken)
     {
@@ -64,7 +67,8 @@ public class GetDepositBase(
 
                 if (wasExportingAndNowFinished)
                 {
-                    await workspaceManagerFactory.CreateAsync(deposit, refresh: true);
+                    var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit, refresh: true);
+                    await EnsureMetadataFoldersAfterExport(depositId, deposit, workspaceManager);
                 }
                 return Result.Ok(deposit);
             }
@@ -74,6 +78,59 @@ public class GetDepositBase(
         {
             logger.LogError(e, e.Message);
             return Result.Fail<Deposit?>(ErrorCodes.UnknownError, $"Deposit {depositId} error: {e.Message}");
+        }
+    }
+
+    // LPII-133: a deposit created against an existing Archival Group with Export=true gets its METS
+    // asynchronously, via the export - CreateDepositBase's own "add metadata/ad-hoc folders to METS" step
+    // runs before that export completes, so it can't act on a METS that isn't there yet, and
+    // CreateDepositBase deliberately no longer scaffolds those folders in S3 for this case either (see the
+    // comment there - doing so unconditionally is what caused the folders to end up in S3 but never in
+    // METS, the original bug). This reconciles them once the export has actually finished and the deposit's
+    // real METS - and its true Editable/Agent status - is known. Only applies where that METS is ours to
+    // edit; for a third-party METS there's nothing to reconcile, matching CreateDepositBase's own check.
+    private async Task EnsureMetadataFoldersAfterExport(string depositId, Deposit deposit, WorkspaceManager workspaceManager)
+    {
+        var wrapperResult = await metsParser.GetMetsFileWrapper(deposit.Files!);
+        if (wrapperResult is not { Success: true, Value.Editable: true, Value.PhysicalStructure: not null })
+        {
+            return;
+        }
+
+        var physicalStructure = wrapperResult.Value!.PhysicalStructure!;
+        var needsMetadata = physicalStructure.FindDirectory(FolderNames.Metadata) is null;
+        var needsAdHoc = physicalStructure.FindDirectory(FolderNames.MetadataAdHoc) is null;
+        if (!needsMetadata && !needsAdHoc)
+        {
+            return;
+        }
+
+        // Use the ETag from the METS we just fetched, not whatever the deposit entity happened to carry -
+        // CreateFolder writes the S3 folder marker, the deposit file-system cache, and the METS entry
+        // together (unlike calling HandleCreateFolder alone, which is METS-only and would reintroduce the
+        // same kind of S3/METS mismatch this method exists to fix), and the METS write is ETag-guarded.
+        deposit.MetsETag = wrapperResult.Value.ETag;
+
+        if (needsMetadata)
+        {
+            var result = await workspaceManager.CreateFolder(FolderNames.Metadata, null, false, null, refreshDirectory: true);
+            if (result.Failure)
+            {
+                logger.LogWarning(
+                    "Unable to reconcile missing metadata folder for deposit {DepositId} after export: {Message}",
+                    depositId, result.CodeAndMessage());
+            }
+        }
+
+        if (needsAdHoc)
+        {
+            var result = await workspaceManager.CreateFolder(FolderNames.AdHoc, FolderNames.Metadata, false, null, refreshDirectory: true);
+            if (result.Failure)
+            {
+                logger.LogWarning(
+                    "Unable to reconcile missing metadata/ad-hoc folder for deposit {DepositId} after export: {Message}",
+                    depositId, result.CodeAndMessage());
+            }
         }
     }
 }

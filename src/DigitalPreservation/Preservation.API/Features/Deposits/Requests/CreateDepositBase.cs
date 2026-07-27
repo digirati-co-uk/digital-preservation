@@ -7,7 +7,6 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
-using DigitalPreservation.XmlGen.Mets;
 using LeedsDlipServices.Identity;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
@@ -84,10 +83,14 @@ public class CreateDepositBase(
             var callerIdentity = request.Principal.GetCallerIdentity();
             logger.LogInformation("Identity service gave us deposit Id: " + mintedId);
 
-            var createMetadataFolders = await ShouldCreateMetadataFolders(
-                archivalGroupExists, storageMapForExport, request.Deposit.ArchivalGroup, request.Deposit.VersionExported);
-
-            logger.LogInformation("create metadata folders boolean: {createMetadataFolders}", createMetadataFolders);
+            // For a deposit against an existing Archival Group, the AG's own (exported) content
+            // defines the deposit's content - including whether it has metadata/ad-hoc folders.
+            // Scaffolding them here unconditionally caused a bug (LPII-133): for an export, the AG's
+            // METS arrives asynchronously and isn't present yet, so the matching "add these folders to
+            // METS" step below silently skips (see the Editable check), leaving the folders present in
+            // S3 but absent from METS. GetDepositBase reconciles this once the export has finished and
+            // the real METS is available (see the wasExportingAndNowFinished branch there).
+            var createMetadataFolders = archivalGroupExists is not true;
 
             var filesLocation = await storage.GetWorkingFilesLocation(
                 mintedId, request.Deposit.Template, callerIdentity, createMetadataFolders);
@@ -179,49 +182,19 @@ public class CreateDepositBase(
 
             var wrapperResult = await metsParser.GetMetsFileWrapper(createdDeposit.Files!);
 
-            logger.LogInformation("Created Deposit files {depositFiles} which is a URI", createdDeposit.Files!);
-            
-            logger.LogInformation("wrapper result {wrapperResultSuccess}", wrapperResult.Success);
-            logger.LogInformation("wrapper result value {wrapperResult}", wrapperResult.Value);
-
-            var editable = wrapperResult?.Value?.Editable;
-            var agent = wrapperResult?.Value?.Agent;
-            logger.LogInformation("METS is editable: {editable}", editable);
-            logger.LogInformation("METS agent name: {agentName}", agent);
-
             // Only ensure the metadata/ad-hoc folders when there is a METS file we created and can edit.
             // For template=None or third-party METS there is nothing to write to, and HandleCreateFolder
-            // would fail internally (GetFullMets returns NotFound / BadRequest).
-            if (wrapperResult.Value.Editable || createMetadataFolders) //if (wrapperResult.Value is { Editable: true } metsWrapper)
+            // would fail internally (GetFullMets returns NotFound / BadRequest). For an export whose METS
+            // hasn't arrived yet, wrapperResult.Value will be non-editable (or absent) here regardless of
+            // createMetadataFolders - that's fine, since createMetadataFolders is now false for exports and
+            // GetDepositBase performs the equivalent reconciliation once the real METS has arrived.
+            if (wrapperResult.Value is { Editable: true } metsWrapper)
             {
-                var metsWrapper = wrapperResult.Value;
-                logger.LogInformation("Create folders");
+                if (metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.Metadata) == null)
+                    await CreateFolderInMets(FolderNames.Metadata, FolderNames.Metadata, createdDeposit);
 
-                var metadataFolderExists = metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.Metadata) != null;
-
-                logger.LogInformation("Metadata folder exists: {metadataFolderExists}", metadataFolderExists);
-
-                if (!metadataFolderExists)
-                {
-                    logger.LogInformation("Creating Metadata folder in mets");
-                    var result = await CreateFolderInMets(FolderNames.Metadata, FolderNames.Metadata, createdDeposit);
-
-                    logger.LogInformation("Creating Metadata folder in mets result success: {resultSuccess}", result.Success);
-                    logger.LogInformation("Creating Metadata folder in mets result message: {resultSuccess}", result.CodeAndMessage());
-                }
-
-                var metadataAdhocFolderExists = metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc) != null;
-
-                logger.LogInformation("Metadata adhoc folder exists: {metadataAdHocFolderExists}", metadataAdhocFolderExists);
-
-                if (!metadataAdhocFolderExists)
-                {
-                    logger.LogInformation("Creating Metadata ad-hoc folder in mets");
-                    var result = await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
-
-                    logger.LogInformation("Creating Metadata ad-hoc folder in mets result success: {resultSuccess}", result.Success);
-                    logger.LogInformation("Creating Metadata ad-hoc folder in mets result message: {resultSuccess}", result.CodeAndMessage());
-                }
+                if (metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc) == null)
+                    await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
             }
 
             if (!request.Export)
@@ -376,67 +349,7 @@ public class CreateDepositBase(
         return Result.Ok();
     }
 
-    private async Task<bool> ShouldCreateMetadataFolders(
-        bool? archivalGroupExists, StorageMap? storageMapForExport, Uri? archivalGroup, string? version)
-    {
-        if (archivalGroupExists is not true)
-            return true;
-
-        var storageMap = storageMapForExport;
-        if (storageMap is null && archivalGroup is not null)
-        {
-            var smResult = await storageApiClient.GetStorageMap(archivalGroup.GetPathUnderRoot()!, version);
-            if (smResult is { Success: true, Value: not null })
-                storageMap = smResult.Value;
-        }
-
-        if (storageMap is null)
-            return true;
-
-        // Keys in storageMap.Files are logical paths within the AG (e.g. "mets.xml")
-        var metsFileKey = storageMap.Files.Keys.FirstOrDefault(k => MetsUtils.IsMetsFile(k));
-        if (metsFileKey is null)
-            return true;
-
-        // Fetch METS via the Storage API (which has access to the Fedora bucket) rather than
-        // accessing OCFL S3 directly (the Preservation API's S3 client cannot read that bucket).
-        var metsPath = archivalGroup!.AbsolutePath + "/" + metsFileKey;
-        logger.LogInformation("Checking existing AG METS editability via Storage API at {metsPath}", metsPath);
-
-        var streamResult = await storageApiClient.GetBinaryStream(metsPath);
-        if (streamResult is not { Success: true, Value: not null })
-        {
-            logger.LogWarning("Unable to retrieve existing AG METS to check editability, defaulting to creating metadata folders");
-            return true;
-        }
-
-        System.Xml.Linq.XDocument xDoc;
-        try
-        {
-            xDoc = await System.Xml.Linq.XDocument.LoadAsync(
-                streamResult.Value, System.Xml.Linq.LoadOptions.None, CancellationToken.None);
-        }
-        catch (Exception e)
-        {
-            logger.LogWarning(e, "Unable to parse existing AG METS to check editability, defaulting to creating metadata folders");
-            return true;
-        }
-
-        var metsUri = new Uri(archivalGroup, metsFileKey);
-        var metsWrapperResult = metsParser.GetMetsFileWrapperFromXDocument(metsUri, xDoc);
-        if (metsWrapperResult is not { Success: true, Value: not null })
-        {
-            logger.LogWarning("Unable to determine existing AG METS editability, defaulting to creating metadata folders");
-            return true;
-        }
-
-        var editable = metsWrapperResult.Value.Editable;
-        logger.LogInformation("Existing AG METS editable: {editable}, metadata folders will{notStr} be created",
-            editable, editable ? "" : " not");
-        return editable;
-    }
-
-    private async Task<Result> CreateFolderInMets(string pathName, string folderName, Deposit deposit)
+    private async Task CreateFolderInMets(string pathName, string folderName, Deposit deposit)
     {
         var dir = new WorkingDirectory
         {
@@ -447,9 +360,7 @@ public class CreateDepositBase(
 
         var dirForMets = deposit.Template == TemplateType.BagIt ? dir.ToRootLayout() : dir;
 
-        logger.LogInformation("Directory for METS {deposit.MetsETag!}", deposit.MetsETag!);
-
-        return await metsManager.HandleCreateFolder(deposit.Files!, dirForMets, deposit.MetsETag!);
+        await metsManager.HandleCreateFolder(deposit.Files!, dirForMets, deposit.MetsETag!);
     }
 
 }

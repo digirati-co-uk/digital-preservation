@@ -113,7 +113,7 @@ public class MetsParser(
             }
             catch (Exception e)
             {
-                logger.LogError(e, $"Unable to Load Mets File (file URI: {file.AbsoluteUri}) at location {metsLocation} due to error {e.Message}");
+                logger.LogError(e, "Unable to Load Mets File (file URI: {FileUri}) at location {MetsLocation}", file.AbsoluteUri, metsLocation);
                 return Result.FailNotNull<MetsFileWrapper>(ErrorCodes.UnknownError, e.Message);
             }
         }
@@ -146,7 +146,6 @@ public class MetsParser(
             }
             mets.Editable = mets.Agent == Constants.MetsCreatorAgent;
         }
-        logger.LogInformation("Mets {mets}", mets);
         return Result.OkNotNull(mets);
     }
 

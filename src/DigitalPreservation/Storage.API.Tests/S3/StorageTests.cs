@@ -143,6 +143,77 @@ public class StorageTests
 
 
     [Fact]
+    public void GetWorkingFilesLocation_SkipsMetadataFolders_WhenCreateMetadataFoldersFalse()
+    {
+        // LPII-133: for a deposit against an existing Archival Group, CreateDepositBase passes
+        // createMetadataFolders=false so the metadata/ad-hoc folders aren't scaffolded in S3 ahead of
+        // the (possibly historic/third-party) METS that arrives later via export.
+        var expectedPath = @"C:\temp\working";
+        A.CallTo(() => options.Value).Returns(new AwsStorageOptions
+        {
+            DefaultWorkingBucket = expectedPath
+        });
+
+        A.CallTo(() => s3Client.GetObjectAsync(
+                A<GetObjectRequest>.Ignored, CancellationToken.None))
+            .Throws(new AmazonS3Exception("Not found")
+            {
+                ErrorCode = "NotFound",
+                StatusCode = HttpStatusCode.NotFound
+            });
+
+        var putRequests = new List<PutObjectRequest>();
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Invokes((PutObjectRequest req, CancellationToken _) => putRequests.Add(req))
+            .Returns(Task.FromResult(new PutObjectResponse
+            {
+                HttpStatusCode = HttpStatusCode.Created,
+            }));
+
+        var idPart = "testId";
+        var resultTask = storage.GetWorkingFilesLocation(idPart, TemplateType.RootLevel, null, createMetadataFolders: false);
+        var result = resultTask.GetAwaiter().GetResult();
+
+        result.Success.Should().BeTrue();
+        putRequests.Should().NotContain(r => r.Key.Contains("metadata"));
+        putRequests.Should().Contain(r => r.Key.EndsWith("objects/"));
+    }
+
+    [Fact]
+    public void GetWorkingFilesLocation_CreatesMetadataFolders_WhenCreateMetadataFoldersTrue()
+    {
+        var expectedPath = @"C:\temp\working";
+        A.CallTo(() => options.Value).Returns(new AwsStorageOptions
+        {
+            DefaultWorkingBucket = expectedPath
+        });
+
+        A.CallTo(() => s3Client.GetObjectAsync(
+                A<GetObjectRequest>.Ignored, CancellationToken.None))
+            .Throws(new AmazonS3Exception("Not found")
+            {
+                ErrorCode = "NotFound",
+                StatusCode = HttpStatusCode.NotFound
+            });
+
+        var putRequests = new List<PutObjectRequest>();
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Invokes((PutObjectRequest req, CancellationToken _) => putRequests.Add(req))
+            .Returns(Task.FromResult(new PutObjectResponse
+            {
+                HttpStatusCode = HttpStatusCode.Created,
+            }));
+
+        var idPart = "testId";
+        var resultTask = storage.GetWorkingFilesLocation(idPart, TemplateType.RootLevel, null, createMetadataFolders: true);
+        var result = resultTask.GetAwaiter().GetResult();
+
+        result.Success.Should().BeTrue();
+        putRequests.Should().Contain(r => r.Key.EndsWith("metadata/"));
+        putRequests.Should().Contain(r => r.Key.EndsWith("metadata/ad-hoc/"));
+    }
+
+    [Fact]
     public async Task GetListing()
     {
         A.CallTo(() => s3Client.ListObjectsV2Async(
