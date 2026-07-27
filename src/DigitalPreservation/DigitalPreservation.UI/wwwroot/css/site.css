@@ -224,6 +224,20 @@ td.dep-actions, th.dep-actions {
     white-space: nowrap;
 }
 
+/* Icon-only action buttons (New folder / Upload file) were rendering at 16x21px
+   with no gap between them, failing the WCAG 2.5.8 24x24 target-size minimum. */
+td.dep-actions .btn {
+    min-width: 24px;
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+td.dep-actions .btn + .btn {
+    margin-left: 0.25rem;
+}
+
 tr.where-mets td {
     color: #495057;
 }
