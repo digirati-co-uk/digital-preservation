@@ -111,6 +111,11 @@ public class GetDepositBase(
         // same kind of S3/METS mismatch this method exists to fix), and the METS write is ETag-guarded.
         deposit.MetsETag = wrapperResult.Value.ETag;
 
+        // callerIdentity: null is intentional on both calls below - this reconciliation is a system action
+        // triggered by an Exporting -> New status transition, not a user-initiated edit, so it should
+        // proceed regardless of who (if anyone) currently holds the deposit's edit lock. CreateFolder's
+        // lock check (GetOtherLockOwner) only blocks when callerIdentity is non-empty, so passing null
+        // deliberately bypasses it.
         if (needsMetadata)
         {
             var result = await workspaceManager.CreateFolder(FolderNames.Metadata, null, false, null, refreshDirectory: true);
@@ -119,6 +124,20 @@ public class GetDepositBase(
                 logger.LogWarning(
                     "Unable to reconcile missing metadata folder for deposit {DepositId} after export: {Message}",
                     depositId, result.CodeAndMessage());
+            }
+        }
+
+        if (needsMetadata && needsAdHoc)
+        {
+            // The metadata write above changed the METS file's own S3 ETag - CreateFolder is ETag-guarded
+            // (it passes deposit.MetsETag through to GetFullMets as eTagToMatch), so reusing the ETag
+            // fetched before that write would make this second call fail its precondition check. Re-fetch
+            // just the ETag (parse: false - we already know Editable and which folders are missing, no
+            // need to re-parse the whole METS) before the ad-hoc write.
+            var refreshedWrapperResult = await metsParser.GetMetsFileWrapper(deposit.Files!, parse: false);
+            if (refreshedWrapperResult is { Success: true, Value: not null })
+            {
+                deposit.MetsETag = refreshedWrapperResult.Value.ETag;
             }
         }
 
