@@ -9,6 +9,7 @@ let addFilesTargetStructmapId = null;
 let addFilesTargetRangeId = null;
 
 let editRangeCallback = null;
+let editRangeModalShown = false;
 
 // Used when modsModal is opened for a logical range
 let modsTargetStructmapId = null;
@@ -488,18 +489,34 @@ function createEditRangeModal() {
     document.getElementById('editRangeConfirmBtn').addEventListener('click', () => {
         const name = document.getElementById('editRangeName').value.trim();
         const type = document.getElementById('editRangeType').value;
+        const modalEl = document.getElementById('editRangeModal');
         // Use getOrCreateInstance rather than getInstance - if Bootstrap doesn't already have a
-        // live Modal instance attached to this element (e.g. after a bfcache-restored navigation
-        // skips a fresh DOMContentLoaded), getInstance returns null and calling .hide() on it
-        // throws inside this handler, silently leaving the modal open with no visible error.
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('editRangeModal')).hide();
+        // live Modal instance attached to this element, getInstance returns null and calling
+        // .hide() on it throws, silently leaving the modal open with no visible error.
+        const instance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        // Bootstrap's Modal.hide() is a documented no-op while the modal is still mid-way through
+        // its own show transition (it checks an internal _isTransitioning flag and just returns).
+        // The ~300ms fade-in from .show() can still be running when Save is clicked - a real user
+        // clicking fast, or Playwright filling the form and clicking, can both beat it - so hide()
+        // silently does nothing and the modal never closes. Deferring to shown.bs.modal guarantees
+        // the transition has genuinely finished before we ask Bootstrap to hide it.
+        if (editRangeModalShown) {
+            instance.hide();
+        } else {
+            modalEl.addEventListener('shown.bs.modal', () => instance.hide(), { once: true });
+        }
         if (editRangeCallback) editRangeCallback({ name, type });
         editRangeCallback = null;
+    });
+
+    document.getElementById('editRangeModal').addEventListener('shown.bs.modal', () => {
+        editRangeModalShown = true;
     });
 
     // Clear callback if modal is dismissed without saving
     document.getElementById('editRangeModal').addEventListener('hidden.bs.modal', () => {
         editRangeCallback = null;
+        editRangeModalShown = false;
     });
 }
 
