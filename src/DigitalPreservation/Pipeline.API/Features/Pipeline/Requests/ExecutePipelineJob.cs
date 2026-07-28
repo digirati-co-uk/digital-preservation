@@ -706,7 +706,8 @@ public class ProcessPipelineJobHandler(
             var createSubFolderResult = new List<Result<CreateFolderResult>?>();
 
             //Now Create all the directories
-            foreach (var dirPath in Directory.GetDirectories(sourcePathForFilesAndDirectories, "*", SearchOption.AllDirectories))
+            foreach (var dirPath in Directory.GetDirectories(sourcePathForFilesAndDirectories, "*", SearchOption.AllDirectories)
+                         .OrderBy(p => p, StringComparer.Ordinal))
             {
                 logger.LogInformation("dir path {dirPath}", dirPath);
                 var (forceCompleteDirectoryUpload, cleanupProcessDirectoryUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
@@ -723,7 +724,8 @@ public class ProcessPipelineJobHandler(
 
             var uploadFileResult = new List<Result<SingleFileUploadResult>?>();
 
-            foreach (var filePath in Directory.GetFiles(sourcePathForFilesAndDirectories, "*.*", SearchOption.AllDirectories))
+            foreach (var filePath in Directory.GetFiles(sourcePathForFilesAndDirectories, "*.*", SearchOption.AllDirectories)
+                         .OrderBy(p => p, StringComparer.Ordinal))
             {
                 logger.LogInformation("Upload file path {filePath}", filePath);
                 if (filesToIgnore.Any(filePath.Contains))
@@ -928,7 +930,8 @@ public class ProcessPipelineJobHandler(
         if (workspaceManager.IsBagItLayout)
             depositPath += "/data";
 
-        foreach (var filePath in Directory.GetFiles(objectPath, "*.*", SearchOption.AllDirectories))
+        foreach (var filePath in Directory.GetFiles(objectPath, "*.*", SearchOption.AllDirectories)
+                     .OrderBy(p => p, StringComparer.Ordinal))
         {
             var relativePath = Path.GetRelativePath(
                 depositPath,
