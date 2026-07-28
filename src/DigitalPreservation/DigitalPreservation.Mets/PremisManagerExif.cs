@@ -1,4 +1,4 @@
-using DigitalPreservation.Common.Model.Transit;
+﻿using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.XmlGen.Premis.V3;
 using System.Globalization;
@@ -12,12 +12,12 @@ namespace DigitalPreservation.Mets;
 
 public class PremisManagerExif
 {
-    public ExifMetadata? Read(PremisComplexType premis)
+    public static ExifMetadata? Read(PremisComplexType premis)
     {
         throw new NotImplementedException();
     }
 
-    public ExifMetadata Read(File file)
+    public static ExifMetadata Read(File file)
     {
         throw new NotImplementedException();
     }
@@ -49,7 +49,7 @@ public class PremisManagerExif
 
         if (exifMetadata is null) return;
 
-        // Only clear the exif XML extension blob — significant properties may have been set
+        // Only clear the exif XML extension blob â€” significant properties may have been set
         // by other sources (e.g. PatchExtent) and are merged via PatchSignificantProperty.
         foreach (var ext in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
             objectCharacteristics.ObjectCharacteristicsExtension.Remove(ext);
@@ -122,7 +122,7 @@ public class PremisManagerExif
     // Merges extent values into premis:significantProperties, checking for conflicts with any
     // properties already present (from Exif or any other source). Throws MetadataException if
     // a property has already been written with a different value.
-    public void PatchExtent(PremisComplexType premis, ExtentMetadata extentMetadata)
+    public static void PatchExtent(PremisComplexType premis, ExtentMetadata extentMetadata)
     {
         if (premis.Object.FirstOrDefault(po => po is File) is not File file)
         {
@@ -175,7 +175,7 @@ public class PremisManagerExif
         significantProperties.SignificantPropertiesValue.Add(metadataValue);
     }
 
-    public string Serialise(PremisComplexType premis)
+    public static string Serialise(PremisComplexType premis)
     {
         var serializer = new XmlSerializer(typeof(PremisComplexType));
         var sw = new StringWriter();
@@ -183,7 +183,7 @@ public class PremisManagerExif
         return sw.ToString();
     }
 
-    public XmlElement? GetXmlElement(PremisComplexType premis, bool fileElement)
+    public static XmlElement? GetXmlElement(PremisComplexType premis, bool fileElement)
     {
         var serializer = new XmlSerializer(typeof(PremisComplexType));
         var doc = new XmlDocument();

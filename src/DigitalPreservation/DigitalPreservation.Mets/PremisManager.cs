@@ -239,7 +239,7 @@ public class PremisManager
         return pronomFormat;
     }
 
-    public string Serialise(PremisComplexType premis)
+    public static string Serialise(PremisComplexType premis)
     {
         var serializer = new XmlSerializer(typeof(PremisComplexType));
         var sw = new StringWriter();
@@ -247,7 +247,7 @@ public class PremisManager
         return sw.ToString();
     }
 
-    public XmlElement? GetXmlElement(PremisComplexType premis, bool fileElement)
+    public static XmlElement? GetXmlElement(PremisComplexType premis, bool fileElement)
     {
         var serializer = new XmlSerializer(typeof(PremisComplexType));
         var doc = new XmlDocument();

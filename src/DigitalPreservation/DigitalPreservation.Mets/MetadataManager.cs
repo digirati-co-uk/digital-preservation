@@ -1,4 +1,4 @@
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -139,9 +139,9 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
         var patchExtent = workingFile.GetExtentMetadata();
         if (patchExtent is not null)
-            premisManagerExif.PatchExtent(premisType, patchExtent);
+            PremisManagerExif.PatchExtent(premisType, patchExtent);
 
-        var premisXml = premisManager.GetXmlElement(premisType, true);
+        var premisXml = PremisManager.GetXmlElement(premisType, true);
 
         SetAmdSec(ctx, premisXml, newUpload);
 
@@ -171,7 +171,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         }
 
         if (virusEventComplexType is null) return;
-        ctx.VirusXml = premisEventManagerVirus.GetXmlElement(virusEventComplexType);
+        ctx.VirusXml = PremisEventManagerVirus.GetXmlElement(virusEventComplexType);
 
         if (ctx.AmdSec == null) return;
 
@@ -214,7 +214,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     public AmdSecType GetAmdSecType(FileFormatMetadata premisFile, string admId, string techId, string? digiprovId = null, VirusScanMetadata? virusScanMetadata = null)
     {
         var premis = premisManager.Create(premisFile);
-        var xElement = premisManager.GetXmlElement(premis, true);
+        var xElement = PremisManager.GetXmlElement(premis, true);
 
         var amdSec = new AmdSecType
         {
@@ -236,7 +236,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         if (virusScanMetadata == null) return amdSec;
 
         var digiProvMd = premisEventManagerVirus.Create(virusScanMetadata);
-        var xVirusElement = premisEventManagerVirus.GetXmlElement(digiProvMd);
+        var xVirusElement = PremisEventManagerVirus.GetXmlElement(digiProvMd);
 
         amdSec.DigiprovMd.Add(new MdSecType
         {

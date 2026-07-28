@@ -110,7 +110,7 @@ public class PremisEventManagerVirus
         }
     }
 
-    public string Serialise(EventComplexType eventComplexType)
+    public static string Serialise(EventComplexType eventComplexType)
     {
         var serializer = new XmlSerializer(typeof(EventComplexType));
         var sw = new StringWriter();
@@ -118,7 +118,7 @@ public class PremisEventManagerVirus
         return sw.ToString();
     }
 
-    public XmlElement? GetXmlElement(EventComplexType eventComplexType)
+    public static XmlElement? GetXmlElement(EventComplexType eventComplexType)
     {
         var serializer = new XmlSerializer(typeof(EventComplexType));
         var doc = new XmlDocument();

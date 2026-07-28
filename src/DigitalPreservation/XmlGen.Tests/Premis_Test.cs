@@ -96,7 +96,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         var premisManager = new PremisManager();
         var testData = GetTestPremisData();
         var premis = premisManager.Create(testData);
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         s.Should().Contain("http://www.loc.gov/premis/v3");
@@ -123,7 +123,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         var premisManager = new PremisManager();
         var testData = GetTestPremisData();
         var premis = premisManager.Create(testData);
-        var xmlElement = premisManager.GetXmlElement(premis, false);
+        var xmlElement = PremisManager.GetXmlElement(premis, false);
 
         testOutputHelper.WriteLine(xmlElement?.ToString());
 
@@ -148,7 +148,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         };
         premisManager.Patch(premis, update);
 
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         var read = premisManager.Read(premis);
@@ -172,7 +172,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         };
         premisManager.Patch(premis, update);
 
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         var read = premisManager.Read(premis);
@@ -196,7 +196,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         };
         premisManager.Patch(premis, update);
 
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         var read = premisManager.Read(premis);
@@ -211,7 +211,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
     {
         var premisManager = new PremisManager();
         var premis = premisManager.Create(new FileFormatMetadata{Source = "Tests"});
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         s.Should().Contain("http://www.loc.gov/premis/v3");
@@ -233,7 +233,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
             Source = "Tests",
             Digest = "123456"
         });
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         var read = premisManager.Read(premis);
@@ -255,7 +255,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
             Digest = "123456",
             Size = 654321
         });
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         var read = premisManager.Read(premis);
@@ -277,7 +277,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         var premis = premisManager.Create(start);
         start.OriginalName = "bob";
         premisManager.Patch(premis, start);
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         var read = premisManager.Read(premis);
@@ -302,7 +302,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         premisManager.Patch(premis, start);
         start.PronomKey = "fmt/bob";
         premisManager.Patch(premis, start);
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         // Asserting on the serialised XML here: the PRONOM key was patched without a
@@ -331,7 +331,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         premisManager.Patch(premis, premisMetadata);
         premisMetadata.FormatName = "Some file format";
         premisManager.Patch(premis, premisMetadata);
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
 
         var read = premisManager.Read(premis);

@@ -22,7 +22,7 @@ public class ExifTests()
         var testDataExif = GetTestExifData();
         premisExifManager.Patch(premis, testDataExif);
 
-        var xmlElement = premisExifManager.GetXmlElement(premis, false);
+        var xmlElement = PremisManagerExif.GetXmlElement(premis, false);
 
         var exifMetadataNodeList = xmlElement?.SelectNodes("//*[name()='ExifMetadata']");
 
@@ -141,7 +141,7 @@ public class ExifTests()
         });
 
         // PatchExtent sets properties first from an explicit source
-        premisExifManager.PatchExtent(premis, new ExtentMetadata
+        PremisManagerExif.PatchExtent(premis, new ExtentMetadata
         {
             Source = "ExtentMetadata",
             PixelWidth = 853,
@@ -201,7 +201,7 @@ public class ExifTests()
         });
 
         // PatchExtent with values that agree with exif — should merge cleanly
-        premisExifManager.PatchExtent(premis, new ExtentMetadata
+        PremisManagerExif.PatchExtent(premis, new ExtentMetadata
         {
             Source = "ExtentMetadata",
             PixelWidth = 853,
@@ -234,7 +234,7 @@ public class ExifTests()
         });
 
         // PatchExtent claims a different width to what exif reports
-        premisExifManager.PatchExtent(premis, new ExtentMetadata
+        PremisManagerExif.PatchExtent(premis, new ExtentMetadata
         {
             Source = "ExtentMetadata",
             PixelWidth = 800,

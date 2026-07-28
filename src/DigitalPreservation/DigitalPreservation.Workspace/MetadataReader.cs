@@ -486,7 +486,7 @@ public class MetadataReader : IMetadataReader
         }
     }
 
-    private async Task<string> GetVirusDefinitionFromBrunnhilde(Stream stream)
+    private static async Task<string> GetVirusDefinitionFromBrunnhilde(Stream stream)
     {
         var result = await GetClamScanOutput(stream);
         var knownViruses = string.Empty;

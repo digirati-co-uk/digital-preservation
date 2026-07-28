@@ -14,10 +14,10 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
         var premisManager = new PremisManager();
         var premisEventManager = new PremisEventManagerVirus();
         var premis = premisManager.Create(testPremisData);
-        var s = premisManager.Serialise(premis);
+        var s = PremisManager.Serialise(premis);
 
         var premisEvent = premisEventManager.Create(testVirusMetadata);
-        var s1 = premisEventManager.Serialise(premisEvent);
+        var s1 = PremisEventManagerVirus.Serialise(premisEvent);
 
         testOutputHelper.WriteLine(s);
         testOutputHelper.WriteLine(s1);
@@ -49,15 +49,15 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
         var premis = premisManager.Create(testPremisData);
         var premisEvent = premisEventManager.Create(testVirusMetadata);
 
-        var xmlElement = premisManager.GetXmlElement(premis, false);
-        var xmlElementMetadata = premisEventManager.GetXmlElement(premisEvent);
+        var xmlElement = PremisManager.GetXmlElement(premis, false);
+        var xmlElementMetadata = PremisEventManagerVirus.GetXmlElement(premisEvent);
 
         testOutputHelper.WriteLine(xmlElement?.ToString());
         testOutputHelper.WriteLine(xmlElementMetadata?.ToString());
 
-        var serialisedPremis = premisManager.Serialise(premis);
+        var serialisedPremis = PremisManager.Serialise(premis);
         serialisedPremis.Should().Contain(testPremisData.Digest!);
-        var serialisedEvent = premisEventManager.Serialise(premisEvent);
+        var serialisedEvent = PremisEventManagerVirus.Serialise(premisEvent);
         serialisedEvent.Should().Contain("virus check");
 
         xmlElement.Should().NotBeNull();
