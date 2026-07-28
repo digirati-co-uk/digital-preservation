@@ -434,10 +434,10 @@ public class PreservationApiClient(
         return await ProxyStringFromPreservationApi(cancellationToken, relPath);
     }    
     
-    public async Task<Result<string>> GetIIIF(string depositId, CancellationToken none)
+    public async Task<Result<string>> GetIIIF(string depositId, CancellationToken cancellationToken)
     {
         var relPath = $"/deposits/{depositId}/iiif";
-        return await ProxyStringFromPreservationApi(none, relPath);
+        return await ProxyStringFromPreservationApi(cancellationToken, relPath);
     }
 
     private async Task<Result<string>> ProxyStringFromPreservationApi(CancellationToken cancellationToken, string relPath)
