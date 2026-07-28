@@ -39,7 +39,7 @@ public class GetDepositAsIIIFManifestHandler(
         {
             return Result.FailNotNull<Manifest>(getDepositResult.ErrorCode!, getDepositResult.ErrorMessage);
         }
-        var wrapperResult = await metsParser.GetMetsFileWrapper(getDepositResult.Value!.Files!);
+        var wrapperResult = await MetsParser.GetMetsFileWrapper(getDepositResult.Value!.Files!);
         if (!wrapperResult.Success)
         {
             return Result.FailNotNull<Manifest>(wrapperResult.ErrorCode!, wrapperResult.ErrorMessage);

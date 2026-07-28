@@ -41,6 +41,11 @@ class Program
         var nqManifest = $"https://dlcs.dlip.digirati.io/iiif-resource/2/manifest/{space}";
         var json = await httpClient.GetStringAsync(nqManifest);
         var manifest = json.FromJson<Manifest>();
+        if (manifest == null)
+        {
+            Console.WriteLine($"Could not deserialise manifest from {nqManifest}");
+            return;
+        }
         manifest.Label = new LanguageMap("en", title);
         manifest.Id = null;
         int index = 1;

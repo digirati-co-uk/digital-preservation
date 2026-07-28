@@ -151,7 +151,7 @@ public class DepositsController(
         using (var reader = new System.IO.StreamReader(Request.Body))
             rawJson = await reader.ReadToEndAsync();
 
-        Manifest manifest;
+        Manifest? manifest;
         try
         {
             manifest = IIIFSerialiserX.FromJson<Manifest>(rawJson);
@@ -160,6 +160,12 @@ public class DepositsController(
         {
             logger.LogWarning(ex, "Could not deserialise POSTed IIIF manifest for deposit {id}", id);
             return BadRequest(new ProblemDetails { Title = "Invalid IIIF Manifest", Detail = ex.Message });
+        }
+
+        if (manifest is null)
+        {
+            logger.LogWarning("POSTed IIIF manifest for deposit {id} deserialised to null", id);
+            return BadRequest(new ProblemDetails { Title = "Invalid IIIF Manifest", Detail = "The request body did not contain a manifest." });
         }
 
         var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";

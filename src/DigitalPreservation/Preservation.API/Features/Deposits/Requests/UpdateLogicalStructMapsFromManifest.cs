@@ -42,7 +42,7 @@ public class UpdateLogicalStructMapsFromManifestHandler(
             return Result.Fail(depositResult.ErrorCode!, depositResult.ErrorMessage);
 
         var deposit = depositResult.Value!;
-        var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit);
+        var workspaceManager = await WorkspaceManagerFactory.CreateAsync(deposit);
 
         var canvasIdToLocalPath = ManifestParser.BuildCanvasIdToLocalPath(request.Manifest, request.IiifBaseUrl);
 
