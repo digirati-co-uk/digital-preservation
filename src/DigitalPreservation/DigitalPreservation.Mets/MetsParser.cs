@@ -134,7 +134,7 @@ public class MetsParser(
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Unable to Load Mets File");
+                logger.LogError(e, "Unable to Load Mets File (file URI: {FileUri}) at location {MetsLocation}", file.AbsoluteUri, metsLocation);
                 return Result.FailNotNull<MetsFileWrapper>(ErrorCodes.UnknownError, e.Message);
             }
         }

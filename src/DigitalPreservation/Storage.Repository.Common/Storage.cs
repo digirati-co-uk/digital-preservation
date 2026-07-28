@@ -21,7 +21,7 @@ public class Storage(
 {
     private readonly AwsStorageOptions options = options.Value;
 
-    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, TemplateType templateType, string? callerIdentity = null)
+    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, TemplateType templateType, string? callerIdentity = null, bool createMetadataFolders = true)
     {
         // This will be able to yield different locations in different buckets for different callers
         // e.g., Goobi
@@ -43,14 +43,22 @@ public class Storage(
             {
                 case TemplateType.RootLevel:
                     await PutDirectory(FolderNames.Objects, key, root);
-                    await PutDirectory(FolderNames.Metadata, key, root);
+                    if (createMetadataFolders)
+                    {
+                        var metadataDirRoot = await PutDirectory(FolderNames.Metadata, key, root);
+                        await PutDirectory(FolderNames.AdHoc, key + metadataDirRoot.Name + "/", metadataDirRoot);
+                    }
                     break;
                 case TemplateType.BagIt:
                 {
                     var dataDir = await PutDirectory(FolderNames.BagItData, key, root);
                     var dataKey = $"{key}{FolderNames.BagItData}/";
                     await PutDirectory(FolderNames.Objects, dataKey, dataDir);
-                    await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
+                    if (createMetadataFolders)
+                    {
+                        var metadataDir = await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
+                        await PutDirectory(FolderNames.AdHoc, dataKey + metadataDir.Name + "/", metadataDir);
+                    }
                     break;
                 }
             }

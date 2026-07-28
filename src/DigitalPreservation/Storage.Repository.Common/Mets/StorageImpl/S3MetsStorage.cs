@@ -64,10 +64,10 @@ public class S3MetsStorage(
         DigitalPreservation.XmlGen.Mets.Mets? mets = null;
         string? returnedETag;
         var fileLocResult = await metsParser.GetRootAndFile(metsLocation);
-        var (_, file) = fileLocResult.Value;
+        var (root, file) = fileLocResult.Value;
         if (file is null)
         {
-            return Result.FailNotNull<FullMets>(ErrorCodes.NotFound, "No METS file in " + metsLocation);
+            return Result.FailNotNull<FullMets>(ErrorCodes.NotFound, "No METS file in " + metsLocation + " root location: " + root);
         }
 
         var s3Uri = new AmazonS3Uri(file);

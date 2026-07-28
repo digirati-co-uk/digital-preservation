@@ -36,7 +36,6 @@ public class ProcessPipelineJobHandler(
 {
     private const string BrunnhildeFolderName = "brunnhilde";
     private readonly string[] filesToIgnore = ["tree.txt"];
-    private StreamReader? streamReader;
 
     private int processId;
     private readonly System.Timers.Timer processTimer = new(10000);
@@ -189,7 +188,6 @@ public class ProcessPipelineJobHandler(
         }
         finally
         {
-            streamReader?.Dispose();
             CleanupProcessFolder(request.DepositId);
             if (workspace.IsBagItLayout)
             {
@@ -282,6 +280,17 @@ public class ProcessPipelineJobHandler(
             return await ForceCompleteReturn(cleanupProcessJob, request, workspaceManager.Deposit, cancellationToken);
         }
 
+        // Computed early - this only depends on IsBagItLayout (known before Brunnhilde runs), not on
+        // anything Brunnhilde produces. Doing this now (rather than after Brunnhilde completes) lets us
+        // kick off Exif in parallel with Brunnhilde/ClamAV instead of waiting for it to finish first.
+        var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
+            ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
+            : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
+
+        logger.LogInformation("metadataPathForProcessFilesAndDirectories {metadataPathForProcessFilesAndDirectories}",
+            metadataPathForProcessFilesAndDirectories);
+        logger.LogInformation("depositName {depositId}", request.DepositId);
+
         using var process = new Process();
         process.StartInfo.FileName = pipelineToolOptions.Value.PathToPython;
         process.StartInfo.Arguments = $"  {pipelineToolOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
@@ -291,66 +300,63 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation("Brunnhilde process about to be started {date}", DateTime.Now);
         var started = process.Start();
 
-        if (started)
+        // Stream stdout line-by-line instead of buffering the whole thing into one string via
+        // ReadToEndAsync: for a large run (thousands of files) Brunnhilde/Siegfried/ClamAV can produce
+        // many MB of output, and we only ever needed to know whether one marker line was present.
+        var brunnhildeExecutionSuccess = false;
+        process.OutputDataReceived += (_, e) =>
         {
-            logger.LogInformation("Brunnhilde process started {date}", DateTime.Now);
-            processId = process.Id;
-        }
+            if (e.Data == null) return;
+            if (e.Data.Contains("Brunnhilde characterization complete."))
+            {
+                brunnhildeExecutionSuccess = true;
+            }
+            logger.LogDebug("Brunnhilde output: {Line}", e.Data);
+        };
 
-        streamReader = process.StandardOutput;
-
-        processTimer.Elapsed += (_, _) => CheckIfProcessRunning(request, workspaceManager.Deposit, cancellationTokenMonitor);
-
-        processTimer.AutoReset = true;
-        processTimer.Enabled = true;
-        
-        if (streamReader == null)
+        if (!started)
         {
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
-            logger.LogError("Steam reader is null Issue executing Brunnhilde process: process?.StandardOutput is null");
+            logger.LogError("Issue executing Brunnhilde process: process did not start");
 
             logger.LogError("Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}",
                 request.JobIdentifier, request.DepositId);
 
             await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
 
-            var (forceCompleteStreamReader, cleanupProcessJobStreamReader) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
-            if (forceCompleteStreamReader)
+            var (forceCompleteProcessStart, cleanupProcessJobProcessStart) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
+            if (forceCompleteProcessStart)
             {
-                return await ForceCompleteReturn(cleanupProcessJobStreamReader, request, workspaceManager.Deposit, cancellationToken);
+                return await ForceCompleteReturn(cleanupProcessJobProcessStart, request, workspaceManager.Deposit, cancellationToken);
             }
 
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
-                Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} has issue with Brunnhilde output stream reader being null" }]
+                Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} could not start the Brunnhilde process" }]
             };
         }
 
-        logger.LogInformation("_streamReader {streamReader}", streamReader);
+        logger.LogInformation("Brunnhilde process started {date}", DateTime.Now);
+        processId = process.Id;
+        process.BeginOutputReadLine();
 
-        var result = await streamReader.ReadToEndAsync(cancellationTokenBrunnhilde);
+        processTimer.Elapsed += (_, _) => CheckIfProcessRunning(request, workspaceManager.Deposit, cancellationTokenMonitor);
+        processTimer.AutoReset = true;
+        processTimer.Enabled = true;
+
+        // Exif only reads objectPath and writes to its own "exif" subfolder (a sibling of the
+        // "brunnhilde" output folder) - it doesn't touch or depend on anything Brunnhilde produces, so
+        // run it concurrently instead of waiting for Brunnhilde/ClamAV to finish first. Its runtime then
+        // hides almost entirely behind the much longer Brunnhilde/ClamAV run.
+        var exifTask = RunExif(metadataPathForProcessFilesAndDirectories, objectPath);
+
+        logger.LogInformation("Ran exif and now at Brunnhilde process wait for async");
+        await process.WaitForExitAsync(cancellationTokenBrunnhilde);
         processId = 0;
         await tokensCatalog[monitorForceCompleteId].CancelAsync();
 
-        streamReader = null;
-        var brunnhildeExecutionSuccess = result.Contains("Brunnhilde characterization complete.");
         logger.LogInformation("Brunnhilde result success: {brunnhildeExecutionSuccess}", brunnhildeExecutionSuccess);
-
-        // Now our workspaceManager is out of date, because METS has been modified.
-        // So we can't use it again for further *content modifications*.
-        // But we can use it for other properties, e.g. workspaceManager.IsBagItLayout won't have changed.
-
-        var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
-            ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
-            : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
-
-        logger.LogInformation("metadataPathForProcessFiles after brunnhilde process {metadataPathForProcessFiles}",
-            metadataPathForProcessFilesAndDirectories);
-        logger.LogInformation(
-            "metadataPathForProcessDirectories after brunnhilde process {metadataPathForProcessDirectories}",
-            metadataPathForProcessFilesAndDirectories);
-        logger.LogInformation("depositName after brunnhilde process {depositId}", request.DepositId);
 
         if (brunnhildeExecutionSuccess)
         {
@@ -387,6 +393,9 @@ public class ProcessPipelineJobHandler(
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
             if (forceCompleteOnSuccess)
             {
+                // Exif was started concurrently alongside Brunnhilde and may still be running - join it
+                // before returning so it can't still be writing when the process folder is cleaned up.
+                await exifTask;
                 return await ForceCompleteReturn(cleanupProcessJobOnSuccess, request, workspaceManager.Deposit, cancellationToken);
             }
 
@@ -402,6 +411,7 @@ public class ProcessPipelineJobHandler(
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
             if (forceCompleteAfterDelete)
             {
+                await exifTask;
                 return await ForceCompleteReturn(cleanupProcessJobAfterDelete, request, workspaceManager.Deposit, cancellationToken);
             }
 
@@ -412,7 +422,10 @@ public class ProcessPipelineJobHandler(
             Directory.CreateDirectory($"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition");
             await File.WriteAllTextAsync(virusDefinitionPath, virusDefinition, CancellationToken.None);
 
-            await RunExif(metadataPathForProcessFilesAndDirectories, objectPath);
+            // Join the Exif task kicked off alongside Brunnhilde earlier - its output needs to be on
+            // disk before we upload the metadata folder below, but it has likely already finished
+            // since it typically runs faster than Brunnhilde/ClamAV.
+            await exifTask;
 
             var (createFolderResultList, uploadFilesResultList, forceCompleteUpload, forceCompleteUploadCleanupProcess) = await UploadFilesToMetadataRecursively(
                 request, metadataPathForProcessFilesAndDirectories, depositPath,
@@ -537,6 +550,11 @@ public class ProcessPipelineJobHandler(
             };
 
         }
+
+        // Brunnhilde failed, but Exif was started concurrently alongside it and may still be running -
+        // join it here (rather than leaving it orphaned) so it can't still be writing to the process
+        // folder when Handle()'s finally block deletes it.
+        await exifTask;
 
         var (forceCompleteOnFailure, cleanupProcessJobOnFailure) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
         // At this point we have not modified the METS file, the ETag for this workspace is still valid
@@ -998,12 +1016,9 @@ public class ProcessPipelineJobHandler(
                     {
                         process.Kill(true);
 
-                        if (streamReader != null)
-                        {
-                            logger.LogInformation("Process killed for job id {jobId}", request.JobIdentifier);
-                            processTimer.Stop();
-                            processTimer.Enabled = false;
-                        }
+                        logger.LogInformation("Process killed for job id {jobId}", request.JobIdentifier);
+                        processTimer.Stop();
+                        processTimer.Enabled = false;
 
                         await tokensCatalog[monitorForceCompleteId].CancelAsync();
                     }
@@ -1065,12 +1080,16 @@ public class ProcessPipelineJobHandler(
     {
         try
         {
+            var clamScanPath = pipelineToolOptions.Value.PathToClamScan.HasText()
+                ? pipelineToolOptions.Value.PathToClamScan
+                : "clamscan";
+
             var process = new Process()
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "clamscan",
-                    Arguments = "clamscan --version",
+                    FileName = clamScanPath,
+                    Arguments = "--version",
                     RedirectStandardOutput = true,
                     UseShellExecute = false,
                     CreateNoWindow = true

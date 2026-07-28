@@ -80,7 +80,15 @@ public class CreateFolderHandler(
             var dirForMets = request.IsBagItLayout ? dir.ToRootLayout() : dir;
             if (newRootResult.Success)
             {
-                await metsManager.HandleCreateFolder(request.RootUri, dirForMets, request.MetsETag);
+                // Previously this result was discarded and the method always returned Ok(dir) here,
+                // regardless of whether the METS write actually succeeded - e.g. an ETag mismatch
+                // (PreconditionFailed) would silently leave the S3 folder marker created but the METS
+                // entry missing, with the caller told the call succeeded. See LPII-133.
+                var metsResult = await metsManager.HandleCreateFolder(request.RootUri, dirForMets, request.MetsETag);
+                if (metsResult.Failure)
+                {
+                    return Result.Generify<WorkingDirectory?>(metsResult);
+                }
                 return Result.Ok(dir);
             }
             return Result.Generify<WorkingDirectory?>(newRootResult);
