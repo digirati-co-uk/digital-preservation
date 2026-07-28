@@ -9,7 +9,7 @@ using MediatR;
 
 namespace DigitalPreservation.UI.Features.Preservation;
 
-public class DepositJobResultFetcher()
+public static class DepositJobResultFetcher
 {
     // This gets the preservation API's view, which is not necessarily up to date.
     // TODO: The preservation API should listen for result completion and update these behind the scenes

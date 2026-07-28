@@ -134,7 +134,7 @@ public class ParseWomenOfWestminster
         // No explicit access or rights, just recordinfo above
         logsm.Ranges[0].AccessRestrictions.Should().BeNull();
         logsm.Ranges[0].RightsStatement.Should().BeNull();
-        // TODO: Does a logical range inherit from the physical structMap?
+        // Does a logical range inherit from the physical structMap?
         // ONLY if there is something declared on the physical structmap root (DMD_PHYS_ROOT), which is not the case here
         logsm.Ranges[0].EffectiveAccessRestrictions.Should().HaveCount(0);
         logsm.Ranges[0].EffectiveRightsStatement.Should().BeNull();

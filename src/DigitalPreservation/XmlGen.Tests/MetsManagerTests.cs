@@ -52,8 +52,6 @@ public class MetsManagerTests
         
         result.Value.PhysicalStructure.Files.Should().HaveCount(1);
         result.Value.PhysicalStructure.Files.Should().Contain(wd => wd.Name == "empty-mets.xml");
-        
-        // TODO: Validate result.Value.XDocument
     }
     
     [Fact]
@@ -105,8 +103,6 @@ public class MetsManagerTests
         fileBB1.Name.Should().Be("MINUTES LAQM 22 April 2020.pdf");
         fileBB1.LocalPath.Should().Be("objects/folder-b/folder-bb/minutes-laqm-22-april-2020.pdf");
         fileBB1.Digest.Should().Be("310fa7a479e0d0f79caf21e6a2c607e81bb0ccd5c2829bff7b816a49925419e7");
-
-        // TODO: Validate result.Value.XDocument
     }
 
 
@@ -141,8 +137,6 @@ public class MetsManagerTests
         updatedWrapper.PhysicalStructure!.Directories[1].Directories.Should().HaveCount(1);
         updatedWrapper.PhysicalStructure.Directories[1].Directories[0].Name.Should().Be("Child Directory");
         updatedWrapper.PhysicalStructure.Directories[1].Directories[0].LocalPath.Should().Be("objects/child-dir");
-        
-        // TODO: Validate result.Value.XDocument
     }
     
     [Fact]
@@ -203,9 +197,6 @@ public class MetsManagerTests
         fileBB1.Name.Should().Be("MINUTES LAQM 22 April 2020.pdf");
         fileBB1.LocalPath.Should().Be("objects/folder-b/folder-bb/minutes-laqm-22-april-2020.pdf");
         fileBB1.Digest.Should().Be("310fa7a479e0d0f79caf21e6a2c607e81bb0ccd5c2829bff7b816a49925419e7");
-        
-        
-        // TODO: Validate result.Value.XDocument
         
         // Now let's make some further folder changes
         var dir2 = new WorkingDirectory
@@ -298,8 +289,6 @@ public class MetsManagerTests
         objectsDir.Files[0].Size.Should().Be(9999);
         objectsDir.Files[0].ContentType.Should().Be("text/plain");
         objectsDir.Files[0].Digest.Should().Be("801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105");
-        
-        // TODO: Validate result.Value.XDocument
     }
     
     [Fact]
@@ -363,8 +352,6 @@ public class MetsManagerTests
         folderBB.Files[1].LocalPath.Should().Be("objects/folder-b/folder-bb/readme.txt");
         folderBB.Files[1].ContentType.Should().Be("text/plain");
         folderBB.Files[1].Digest.Should().Be("801d4a031510adb61ae11412c1554fbaa769a6b4428225ad87a489f92889f105");
-
-        // TODO: Validate result.Value.XDocument
     }
     
     
@@ -393,9 +380,6 @@ public class MetsManagerTests
         objectsDir.Directories.Should().HaveCount(1);
         objectsDir.Files.Should().HaveCount(1); // ONE LESS FILE
         objectsDir.Files[0].LocalPath.Should().Be("objects/minutes-laqm-8-sept-2020.pdf");
-        
-        // TODO: Validate result.Value.XDocument
-        // Need to verify that fileSec and ADMSec have been updated
     }
     
     [Fact]
@@ -442,11 +426,6 @@ public class MetsManagerTests
         objectsDir = updatedWrapper2.PhysicalStructure!.Directories.Single(d => d.Name == FolderNames.Objects);
         objectsDir.Directories.Should().HaveCount(1);
         objectsDir.Directories[0].Directories.Should().HaveCount(0);
-        
-        
-
-        // TODO: Validate result.Value.XDocument
-        // Need to verify that fileSec and ADMSec have been updated
     }
 
     [Fact]

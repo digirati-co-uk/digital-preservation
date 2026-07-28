@@ -60,7 +60,7 @@ public class ImportJob : Resource
     /// </summary>
     [JsonPropertyName("sourceVersion")]
     [JsonPropertyOrder(540)]
-    public ObjectVersion? SourceVersion { get; set; }  // TODO - name of this thing
+    public ObjectVersion? SourceVersion { get; set; }
 
     /// <summary>
     /// A list of Container objects to be created within the Archival Group. The id property gives the URI of the

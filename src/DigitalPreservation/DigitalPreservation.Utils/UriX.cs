@@ -41,7 +41,6 @@ public static class UriX
         return newUri;
     }
     
-    // TODO: URI
     /// <summary>
     /// </summary>
     /// <param name="uri"></param>
