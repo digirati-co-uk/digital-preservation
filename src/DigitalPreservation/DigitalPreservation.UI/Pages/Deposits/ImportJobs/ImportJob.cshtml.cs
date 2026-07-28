@@ -37,7 +37,6 @@ public class ImportJobModel(IMediator mediator) : PageModel
         else if (importJobId == "custom")
         {
             ViewData["Title"] = "To be implemented" ;
-            // TODO: generate the page UI to submit a custom job
             TempData["Error"] = "Custom import Job UI not implemented yet";
         }
         else

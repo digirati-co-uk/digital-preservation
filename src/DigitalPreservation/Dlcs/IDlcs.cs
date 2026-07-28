@@ -16,7 +16,6 @@ public interface IDlcs
     Task<HydraImageCollection> GetFirstPageOfImages(ImageQuery query, int defaultSpace);
 
     // GetImages(string nextUri, DlcsCallContext dlcsCallContext) 
-    // TODO - this should be a Uri
     Task<HydraImageCollection> GetPageOfImages(Uri nextUri);
 
     Task<IEnumerable<Image>> GetImagesFromQuery(ImageQuery query);
