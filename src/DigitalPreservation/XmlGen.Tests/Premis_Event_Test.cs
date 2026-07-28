@@ -55,6 +55,11 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
         testOutputHelper.WriteLine(xmlElement?.ToString());
         testOutputHelper.WriteLine(xmlElementMetadata?.ToString());
 
+        var serialisedPremis = premisManager.Serialise(premis);
+        serialisedPremis.Should().Contain(testPremisData.Digest!);
+        var serialisedEvent = premisEventManager.Serialise(premisEvent);
+        serialisedEvent.Should().Contain("virus check");
+
         xmlElement.Should().NotBeNull();
         xmlElement!.NamespaceURI.Should().Be("http://www.loc.gov/premis/v3");
         xmlElement.OuterXml.Should().Contain(testPremisData.Digest!);

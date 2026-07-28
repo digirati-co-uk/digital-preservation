@@ -270,6 +270,9 @@ internal class FedoraClient(
         var info = await GetResourceType(pathUnderFedoraRoot, transaction);
         if (info is { Success: true, Value: nameof(ArchivalGroup) })
         {
+            // NB the archival group is populated OUTSIDE the caller's open transaction -
+            // GetPopulatedArchivalGroup has never taken one, so reads here see committed
+            // state only. This predates the removal of the unused transaction parameter.
             var ag = await GetPopulatedArchivalGroup(pathUnderFedoraRoot);
             return ag;
         }

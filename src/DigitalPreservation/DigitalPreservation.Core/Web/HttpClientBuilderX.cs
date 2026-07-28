@@ -9,8 +9,12 @@ public static class HttpClientBuilderX
     // See https://github.com/dotnet/runtime/issues/24917
     // https://repost.aws/articles/ARjhCdFMoTTwmxenTc4B7elg/how-to-avoid-network-timeout-issues-when-invoking-long-running-lambda-functions-from-net6-applications-on-linux-platforms
     
+    // A previous variant configured keep-alive via socket options on the SocketsHttpHandler
+    // (ConfigureSocketTcpKeepAliveDoesntWorkOnLinux, settings 120/60/60) - that approach does
+    // not take effect on Linux (see the runtime issues above), which is why this one uses
+    // SocketsHttpHandler.KeepAlivePing* instead. Don't reintroduce the socket-option variant.
     public static IHttpClientBuilder ConfigureTcpKeepAlive(
-        this IHttpClientBuilder builder, 
+        this IHttpClientBuilder builder,
         bool enabled,
         TimeSpan keepAliveTime, TimeSpan keepAliveInterval,
         int retryCount = 10)

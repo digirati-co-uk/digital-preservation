@@ -1,1 +1,0 @@
-﻿// This file previously held a commented-out, manual-only OCFL test; removed as commented-out code.

@@ -23,10 +23,12 @@ public class FedoraTransactionMonitor(
             await fedoraClient.CommitTransaction(tx, token);
             tx.CommitReturned = true;
         }
-        catch (OperationCanceledException oce)
+        catch (OperationCanceledException)
         {
+            // Expected control flow: this is the deliberate cancel-the-HTTP-request path,
+            // so don't attach the exception - a stack trace here is noise, not signal.
             tx.Cancelled = true;
-            logger.LogWarning(oce, "(TX) fedoraClient.CommitTransaction for {Transaction} was cancelled (HTTP Request was cancelled)", tx.Location.GetSlug());
+            logger.LogWarning("(TX) fedoraClient.CommitTransaction for {Transaction} was cancelled (HTTP Request was cancelled)", tx.Location.GetSlug());
         }
         // throw any other exception
     }
