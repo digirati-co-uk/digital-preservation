@@ -137,6 +137,10 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         if (patchPremisExif is not null)
             premisManagerExif.Patch(premisType, patchPremisExif);
 
+        var patchExtent = workingFile.GetExtentMetadata();
+        if (patchExtent is not null)
+            premisManagerExif.PatchExtent(premisType, patchExtent);
+
         var premisXml = premisManager.GetXmlElement(premisType, true);
 
         SetAmdSec(ctx, premisXml, newUpload);

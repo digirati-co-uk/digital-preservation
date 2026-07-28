@@ -9,6 +9,7 @@ using LeedsDlipServices;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
@@ -37,6 +38,7 @@ try
 
     // Don't impose any limit for file uploads
     builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = long.MaxValue);
+    builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = long.MaxValue);
 
     IEnumerable<string>? initialScopes = new List<string>();
     builder.Configuration.GetSection("DownstreamApi:Scopes").Bind(initialScopes);

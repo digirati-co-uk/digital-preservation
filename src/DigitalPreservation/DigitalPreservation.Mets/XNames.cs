@@ -11,6 +11,7 @@ public static class XNames
     public static readonly XName MetsStructLink = mets + "structLink";
     public static readonly XName MetsSmLink = mets + "smLink";
     public static readonly XName MetsFileSec = mets + "fileSec";
+    public static readonly XName MetsFileGrp = mets + "fileGrp";
     public static readonly XName MetsFile = mets + "file";
     public static readonly XName MetsMptr = mets + "mptr";
     public static readonly XName MetsAmdSec = mets + "amdSec";
@@ -18,6 +19,7 @@ public static class XNames
     public static readonly XName MetsMdWrap = mets + "mdWrap";
     public static readonly XName MetsXmlData = mets + "xmlData";
     public static readonly XName MetsFptr = mets + "fptr";
+    public static readonly XName MetsArea = mets + "area";
     public static readonly XName MetsFLocat = mets + "FLocat";
     public static readonly XName MetsTechMD = mets + "techMD";
     public static readonly XName MetsRightsMD = mets + "rightsMD";

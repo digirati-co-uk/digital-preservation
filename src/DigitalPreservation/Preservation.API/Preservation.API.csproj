@@ -12,6 +12,7 @@
       <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.7.400.185" />
       <PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.400.21" />
       <PackageReference Include="EFCore.NamingConventions" Version="8.0.3" />
+      <PackageReference Include="iiif-net" Version="0.4.1" />
       <PackageReference Include="LinqKit.Core" Version="1.2.5" />
       <PackageReference Include="MediatR" Version="12.4.1" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8">
@@ -28,6 +29,7 @@
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
       <PackageReference Include="Serilog.AspNetCore" Version="8.0.2" />
       <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.1.1" />
+      <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
       <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.4" />
     </ItemGroup>
 

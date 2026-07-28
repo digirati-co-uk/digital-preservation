@@ -1,0 +1,522 @@
+<mets:mets xmlns:mods="http://www.loc.gov/mods/v3" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:mets="http://www.loc.gov/METS/">
+  <mets:metsHdr CREATEDATE="2026-03-18T14:56:23.2777074+00:00">
+    <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+      <mets:name>University of Leeds Digital Library Infrastructure Project</mets:name>
+    </mets:agent>
+  </mets:metsHdr>
+  <mets:dmdSec ID="DMD_PHYS_ROOT">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:titleInfo>
+            <mods:title>simple images</mods:title>
+          </mods:titleInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:amdSec ID="ADM_objects">
+    <mets:techMD ID="TECH_objects">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>objects</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata">
+    <mets:techMD ID="TECH_metadata">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>metadata</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/agropoli.png">
+    <mets:techMD ID="TECH_objects/agropoli.png">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>2242</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>972</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>a24af3ae70be46ae08b8edf4ad9776d0a1cdda75715d5aa646b2822342a710dc</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>2666342</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Portable Network Graphics</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/12</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <ExifToolVersionNumber>12.57</ExifToolVersionNumber>
+                  <FileName>agropoli.png</FileName>
+                  <Directory>/usr/deposit/deposits/y84m7gsm8fub/objects</Directory>
+                  <FileSize>2.7 MB</FileSize>
+                  <FileModificationDateTime>2026:03:18 14:56:39+00:00</FileModificationDateTime>
+                  <FileAccessDateTime>2026:03:18 14:56:39+00:00</FileAccessDateTime>
+                  <FileInodeChangeDateTime>2026:03:18 14:56:39+00:00</FileInodeChangeDateTime>
+                  <FilePermissions>-rw-r--r--</FilePermissions>
+                  <FileType>PNG</FileType>
+                  <FileTypeExtension>png</FileTypeExtension>
+                  <MIMEType>image/png</MIMEType>
+                  <ImageWidth>2242</ImageWidth>
+                  <ImageHeight>972</ImageHeight>
+                  <BitDepth>8</BitDepth>
+                  <ColorType>RGB with Alpha</ColorType>
+                  <Compression>Deflate/Inflate</Compression>
+                  <Filter>Adaptive</Filter>
+                  <Interlace>Noninterlaced</Interlace>
+                  <SRGBRendering>Perceptual</SRGBRendering>
+                  <Gamma>2.2</Gamma>
+                  <PixelsPerUnitX>5669</PixelsPerUnitX>
+                  <PixelsPerUnitY>5669</PixelsPerUnitY>
+                  <PixelUnits>meters</PixelUnits>
+                  <ImageSize>2242x972</ImageSize>
+                  <Megapixels>2.2</Megapixels>
+                  <RawOutput>ExifTool Version Number         : 12.57\nFile Name                       : agropoli.png\nDirectory                       : /usr/deposit/deposits/y84m7gsm8fub/objects\nFile Size                       : 2.7 MB\nFile Modification Date/Time     : 2026:03:18 14:56:39+00:00\nFile Access Date/Time           : 2026:03:18 14:56:39+00:00\nFile Inode Change Date/Time     : 2026:03:18 14:56:39+00:00\nFile Permissions                : -rw-r--r--\nFile Type                       : PNG\nFile Type Extension             : png\nMIME Type                       : image/png\nImage Width                     : 2242\nImage Height                    : 972\nBit Depth                       : 8\nColor Type                      : RGB with Alpha\nCompression                     : Deflate/Inflate\nFilter                          : Adaptive\nInterlace                       : Noninterlaced\nSRGB Rendering                  : Perceptual\nGamma                           : 2.2\nPixels Per Unit X               : 5669\nPixels Per Unit Y               : 5669\nPixel Units                     : meters\nImage Size                      : 2242x972\nMegapixels                      : 2.2\n</RawOutput>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/agropoli.png</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/agropoli.png">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>Wednesday, 18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026
+</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail>
+                <premis:eventOutcomeDetailNote />
+              </premis:eventOutcomeDetail>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_objects/all-fours.png">
+    <mets:techMD ID="TECH_objects/all-fours.png">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>1480</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:significantProperties>
+              <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+              <premis:significantPropertiesValue>1229</premis:significantPropertiesValue>
+            </premis:significantProperties>
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>d9d7c7ee61562c34c2ae50afe42dab54a2125ffeffffd2bd3d15722e2904880d</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>935888</premis:size>
+              <premis:format>
+                <premis:formatDesignation>
+                  <premis:formatName xsi:type="premis:formatName">Portable Network Graphics</premis:formatName>
+                </premis:formatDesignation>
+                <premis:formatRegistry>
+                  <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                  <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/12</premis:formatRegistryKey>
+                </premis:formatRegistry>
+              </premis:format>
+              <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                <ExifMetadata>
+                  <ExifToolVersionNumber>12.57</ExifToolVersionNumber>
+                  <FileName>all-fours.png</FileName>
+                  <Directory>/usr/deposit/deposits/y84m7gsm8fub/objects</Directory>
+                  <FileSize>936 kB</FileSize>
+                  <FileModificationDateTime>2026:03:18 14:56:47+00:00</FileModificationDateTime>
+                  <FileAccessDateTime>2026:03:18 14:56:47+00:00</FileAccessDateTime>
+                  <FileInodeChangeDateTime>2026:03:18 14:56:47+00:00</FileInodeChangeDateTime>
+                  <FilePermissions>-rw-r--r--</FilePermissions>
+                  <FileType>PNG</FileType>
+                  <FileTypeExtension>png</FileTypeExtension>
+                  <MIMEType>image/png</MIMEType>
+                  <ImageWidth>1480</ImageWidth>
+                  <ImageHeight>1229</ImageHeight>
+                  <BitDepth>8</BitDepth>
+                  <ColorType>RGB with Alpha</ColorType>
+                  <Compression>Deflate/Inflate</Compression>
+                  <Filter>Adaptive</Filter>
+                  <Interlace>Noninterlaced</Interlace>
+                  <SRGBRendering>Perceptual</SRGBRendering>
+                  <Gamma>2.2</Gamma>
+                  <PixelsPerUnitX>3779</PixelsPerUnitX>
+                  <PixelsPerUnitY>3779</PixelsPerUnitY>
+                  <PixelUnits>meters</PixelUnits>
+                  <ImageSize>1480x1229</ImageSize>
+                  <Megapixels>1.8</Megapixels>
+                  <RawOutput>ExifTool Version Number         : 12.57\nFile Name                       : all-fours.png\nDirectory                       : /usr/deposit/deposits/y84m7gsm8fub/objects\nFile Size                       : 936 kB\nFile Modification Date/Time     : 2026:03:18 14:56:47+00:00\nFile Access Date/Time           : 2026:03:18 14:56:47+00:00\nFile Inode Change Date/Time     : 2026:03:18 14:56:47+00:00\nFile Permissions                : -rw-r--r--\nFile Type                       : PNG\nFile Type Extension             : png\nMIME Type                       : image/png\nImage Width                     : 1480\nImage Height                    : 1229\nBit Depth                       : 8\nColor Type                      : RGB with Alpha\nCompression                     : Deflate/Inflate\nFilter                          : Adaptive\nInterlace                       : Noninterlaced\nSRGB Rendering                  : Perceptual\nGamma                           : 2.2\nPixels Per Unit X               : 3779\nPixels Per Unit Y               : 3779\nPixel Units                     : meters\nImage Size                      : 1480x1229\nMegapixels                      : 1.8\n</RawOutput>
+                </ExifMetadata>
+              </premis:objectCharacteristicsExtension>
+            </premis:objectCharacteristics>
+            <premis:originalName>objects/all-fours.png</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+    <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/all-fours.png">
+      <mets:mdWrap MDTYPE="PREMIS:EVENT">
+        <mets:xmlData>
+          <premis:event xmlns:version="3.0">
+            <premis:eventType>virus check</premis:eventType>
+            <premis:eventDateTime>Wednesday, 18 March 2026</premis:eventDateTime>
+            <premis:eventDetailInformation>
+              <premis:eventDetail>ClamAV 1.4.3/27944/Wed Mar 18 06:24:13 2026
+</premis:eventDetail>
+            </premis:eventDetailInformation>
+            <premis:eventOutcomeInformation>
+              <premis:eventOutcome>Pass</premis:eventOutcome>
+              <premis:eventOutcomeDetail>
+                <premis:eventOutcomeDetailNote />
+              </premis:eventOutcomeDetail>
+            </premis:eventOutcomeInformation>
+          </premis:event>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde">
+    <mets:techMD ID="TECH_metadata/brunnhilde">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>metadata/brunnhilde</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/virus-definition">
+    <mets:techMD ID="TECH_metadata/virus-definition">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>metadata/virus-definition</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/exif">
+    <mets:techMD ID="TECH_metadata/exif">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>metadata/exif</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports">
+    <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>metadata/brunnhilde/csv_reports</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde/logs">
+    <mets:techMD ID="TECH_metadata/brunnhilde/logs">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics />
+            <premis:originalName>metadata/brunnhilde/logs</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde/report.html">
+    <mets:techMD ID="TECH_metadata/brunnhilde/report.html">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>ff3abadcd20add05f93aa0f48089b63f980214c5287646091a47ec9ae6f3165c</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>5173</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>metadata/brunnhilde/report.html</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde/siegfried.csv">
+    <mets:techMD ID="TECH_metadata/brunnhilde/siegfried.csv">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>8edc34ee0baa08919d36d4950e351d928d16a0353d7487d0e7624e003e3b0d06</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>695</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>metadata/brunnhilde/siegfried.csv</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/virus-definition/virus-definition.txt">
+    <mets:techMD ID="TECH_metadata/virus-definition/virus-definition.txt">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>1359d656dd95416e64aafd2ff134752047684795c11116115c08c922262038bc</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>44</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>metadata/virus-definition/virus-definition.txt</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/exif/exif_output.txt">
+    <mets:techMD ID="TECH_metadata/exif/exif_output.txt">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>f3a076c3837865bd3e505870dd7ade84ee9a45a3bb5c98a2d50307a1177142eb</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>2455</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>metadata/exif/exif_output.txt</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports/formats.csv">
+    <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports/formats.csv">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>326be069e5f293ce47e6fa6dd67b580d797469918176a69ddc37cb8329d261c6</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>53</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>metadata/brunnhilde/csv_reports/formats.csv</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports/formatversions.csv">
+    <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports/formatversions.csv">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>0fe37e8c0366f05deb4fbdf0534e4098de8fe1ff3afba6bb9c403f88e298a3a1</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>65</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>metadata/brunnhilde/csv_reports/formatversions.csv</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports/mimetypes.csv">
+    <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports/mimetypes.csv">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>af794c93751763a864da523f64eec02d7a70a2d03f9656a5eef04e5bcf991f91</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>30</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>metadata/brunnhilde/csv_reports/mimetypes.csv</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports/years.csv">
+    <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports/years.csv">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>0a875caca30cea3eddb58a3c2e0fb094295ea8f85dfc14208d1fa5552ddc46ec</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>34</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>metadata/brunnhilde/csv_reports/years.csv</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:amdSec ID="ADM_metadata/brunnhilde/logs/viruscheck-log.txt">
+    <mets:techMD ID="TECH_metadata/brunnhilde/logs/viruscheck-log.txt">
+      <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+        <mets:xmlData>
+          <premis:object xsi:type="premis:file">
+            <premis:objectCharacteristics>
+              <premis:fixity>
+                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>408d5020c80ae647d87de73bca4d7ae4f478ec697f022f3d72b8f42dc166833b</premis:messageDigest>
+              </premis:fixity>
+              <premis:size>329</premis:size>
+            </premis:objectCharacteristics>
+            <premis:originalName>metadata/brunnhilde/logs/viruscheck-log.txt</premis:originalName>
+          </premis:object>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:techMD>
+  </mets:amdSec>
+  <mets:fileSec>
+    <mets:fileGrp USE="OBJECTS">
+      <mets:file ID="FILE_objects/agropoli.png" MIMETYPE="image/png" ADMID="ADM_objects/agropoli.png">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/agropoli.png" />
+      </mets:file>
+      <mets:file ID="FILE_objects/all-fours.png" MIMETYPE="image/png" ADMID="ADM_objects/all-fours.png">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/all-fours.png" />
+      </mets:file>
+      <mets:file ID="FILE_metadata/brunnhilde/report.html" MIMETYPE="text/html" ADMID="ADM_metadata/brunnhilde/report.html">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/report.html" />
+      </mets:file>
+      <mets:file ID="FILE_metadata/brunnhilde/siegfried.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/siegfried.csv">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/siegfried.csv" />
+      </mets:file>
+      <mets:file ID="FILE_metadata/virus-definition/virus-definition.txt" MIMETYPE="text/plain" ADMID="ADM_metadata/virus-definition/virus-definition.txt">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/virus-definition/virus-definition.txt" />
+      </mets:file>
+      <mets:file ID="FILE_metadata/exif/exif_output.txt" MIMETYPE="text/plain" ADMID="ADM_metadata/exif/exif_output.txt">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/exif/exif_output.txt" />
+      </mets:file>
+      <mets:file ID="FILE_metadata/brunnhilde/csv_reports/formats.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/csv_reports/formats.csv">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/csv_reports/formats.csv" />
+      </mets:file>
+      <mets:file ID="FILE_metadata/brunnhilde/csv_reports/formatversions.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/csv_reports/formatversions.csv">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/csv_reports/formatversions.csv" />
+      </mets:file>
+      <mets:file ID="FILE_metadata/brunnhilde/csv_reports/mimetypes.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/csv_reports/mimetypes.csv">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/csv_reports/mimetypes.csv" />
+      </mets:file>
+      <mets:file ID="FILE_metadata/brunnhilde/csv_reports/years.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/csv_reports/years.csv">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/csv_reports/years.csv" />
+      </mets:file>
+      <mets:file ID="FILE_metadata/brunnhilde/logs/viruscheck-log.txt" MIMETYPE="text/plain" ADMID="ADM_metadata/brunnhilde/logs/viruscheck-log.txt">
+        <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/logs/viruscheck-log.txt" />
+      </mets:file>
+    </mets:fileGrp>
+  </mets:fileSec>
+  <mets:structMap TYPE="PHYSICAL">
+    <mets:div ID="PHYS_ROOT" LABEL="__ROOT" DMDID="DMD_PHYS_ROOT" TYPE="Directory">
+      <mets:div ID="PHYS_metadata" LABEL="metadata" DMDID="DMD_metadata" ADMID="ADM_metadata" TYPE="Directory">
+        <mets:div ID="PHYS_metadata/brunnhilde" LABEL="brunnhilde" ADMID="ADM_metadata/brunnhilde" TYPE="Directory">
+          <mets:div ID="PHYS_metadata/brunnhilde/csv_reports" LABEL="csv_reports" ADMID="ADM_metadata/brunnhilde/csv_reports" TYPE="Directory">
+            <mets:div ID="PHYS_metadata/brunnhilde/csv_reports/formats.csv" LABEL="formats.csv" TYPE="Item">
+              <mets:fptr FILEID="FILE_metadata/brunnhilde/csv_reports/formats.csv" />
+            </mets:div>
+            <mets:div ID="PHYS_metadata/brunnhilde/csv_reports/formatversions.csv" LABEL="formatVersions.csv" TYPE="Item">
+              <mets:fptr FILEID="FILE_metadata/brunnhilde/csv_reports/formatversions.csv" />
+            </mets:div>
+            <mets:div ID="PHYS_metadata/brunnhilde/csv_reports/mimetypes.csv" LABEL="mimetypes.csv" TYPE="Item">
+              <mets:fptr FILEID="FILE_metadata/brunnhilde/csv_reports/mimetypes.csv" />
+            </mets:div>
+            <mets:div ID="PHYS_metadata/brunnhilde/csv_reports/years.csv" LABEL="years.csv" TYPE="Item">
+              <mets:fptr FILEID="FILE_metadata/brunnhilde/csv_reports/years.csv" />
+            </mets:div>
+          </mets:div>
+          <mets:div ID="PHYS_metadata/brunnhilde/logs" LABEL="logs" ADMID="ADM_metadata/brunnhilde/logs" TYPE="Directory">
+            <mets:div ID="PHYS_metadata/brunnhilde/logs/viruscheck-log.txt" LABEL="viruscheck-log.txt" TYPE="Item">
+              <mets:fptr FILEID="FILE_metadata/brunnhilde/logs/viruscheck-log.txt" />
+            </mets:div>
+          </mets:div>
+          <mets:div ID="PHYS_metadata/brunnhilde/report.html" LABEL="report.html" TYPE="Item">
+            <mets:fptr FILEID="FILE_metadata/brunnhilde/report.html" />
+          </mets:div>
+          <mets:div ID="PHYS_metadata/brunnhilde/siegfried.csv" LABEL="siegfried.csv" TYPE="Item">
+            <mets:fptr FILEID="FILE_metadata/brunnhilde/siegfried.csv" />
+          </mets:div>
+        </mets:div>
+        <mets:div ID="PHYS_metadata/exif" LABEL="exif" ADMID="ADM_metadata/exif" TYPE="Directory">
+          <mets:div ID="PHYS_metadata/exif/exif_output.txt" LABEL="exif_output.txt" TYPE="Item">
+            <mets:fptr FILEID="FILE_metadata/exif/exif_output.txt" />
+          </mets:div>
+        </mets:div>
+        <mets:div ID="PHYS_metadata/virus-definition" LABEL="virus-definition" ADMID="ADM_metadata/virus-definition" TYPE="Directory">
+          <mets:div ID="PHYS_metadata/virus-definition/virus-definition.txt" LABEL="virus-definition.txt" TYPE="Item">
+            <mets:fptr FILEID="FILE_metadata/virus-definition/virus-definition.txt" />
+          </mets:div>
+        </mets:div>
+      </mets:div>
+      <mets:div ID="PHYS_objects" LABEL="objects" DMDID="DMD_objects" ADMID="ADM_objects" TYPE="Directory">
+        <mets:div ID="PHYS_objects/agropoli.png" LABEL="agropoli.png" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/agropoli.png" />
+        </mets:div>
+        <mets:div ID="PHYS_objects/all-fours.png" LABEL="all fours.png" TYPE="Item">
+          <mets:fptr FILEID="FILE_objects/all-fours.png" />
+        </mets:div>
+      </mets:div>
+    </mets:div>
+  </mets:structMap>
+</mets:mets>

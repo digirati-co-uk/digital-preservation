@@ -12,7 +12,7 @@ namespace Preservation.API.Features.Storage;
 [ApiController]
 [ApiExplorerSettings(IgnoreApi = true)]
 [Route("[controller]")]
-public class StorageController(IMediator mediator) : Controller
+public class StorageController(IMediator mediator) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> StorageCheck()

@@ -7,7 +7,7 @@ namespace Storage.API.Features.S3Storage;
 
 [ApiController]
 [Route("[controller]")]
-public class StorageCheckController(IMediator mediator) : Controller
+public class StorageCheckController(IMediator mediator) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> S3Check()

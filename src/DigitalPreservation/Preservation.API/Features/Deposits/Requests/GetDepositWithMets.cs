@@ -29,7 +29,7 @@ public class GetDepositWithMetsHandler(
         var getDepositResult = await GetDeposit(request.Id, cancellationToken);
         if (getDepositResult.Success)
         { 
-            var wrapperResult = await metsParser.GetMetsFileWrapper(getDepositResult.Value!.Files!, request.Parse);
+            var wrapperResult = await MetsParser.GetMetsFileWrapper(getDepositResult.Value!.Files!, request.Parse);
             if (wrapperResult.Success)
             {
                 var deposit = getDepositResult.Value!;

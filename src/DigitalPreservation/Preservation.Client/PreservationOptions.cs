@@ -14,4 +14,6 @@ public class PreservationOptions
     public double TimeoutMinutes { get; set; } = 1440;
     
     public string? ManifestHost { get; set; }
+
+    public string[] RecordInfoSources { get; set; } = [];
 }

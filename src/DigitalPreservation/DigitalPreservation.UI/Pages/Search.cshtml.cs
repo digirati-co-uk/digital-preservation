@@ -110,7 +110,7 @@ public class SearchModel(IMediator mediator) : PageModel
         }
         catch (Exception e)
         {
-            ModelState.AddModelError(nameof(text), e.Message);
+            ModelState.AddModelError(nameof(text), $"{e.Message} Please try your search again, or use a shorter or different search term.");
         }
     }
 
@@ -119,20 +119,20 @@ public class SearchModel(IMediator mediator) : PageModel
     {
         if(text.Length > 500)
         {
-            ModelState.AddModelError(nameof(text), "Search text too long, 500 max.");
+            ModelState.AddModelError(nameof(text), "Search text is too long (500 characters maximum). Please shorten your search text and try again.");
         }
 
         if (page < 0)
         {
-            ModelState.AddModelError(nameof(page), "Page number must be positive.");
+            ModelState.AddModelError(nameof(page), "Page number must be 1 or greater. Please enter a valid page number.");
         }
         if (otherPage < 0)
         {
-            ModelState.AddModelError(nameof(otherPage), "OtherPage number must be positive.");
+            ModelState.AddModelError(nameof(otherPage), "Page number must be 1 or greater. Please enter a valid page number.");
         }
         if (pageSize is <= 1 or > 500)
         {
-            ModelState.AddModelError(nameof(pageSize), "Page size must be between 1 and 500.");
+            ModelState.AddModelError(nameof(pageSize), "Page size must be a number between 1 and 500. Please enter a value in that range.");
         }
 
         return Task.CompletedTask;

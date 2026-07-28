@@ -80,6 +80,17 @@ public class MetsWrapperTests
 
         phys.Directories[0].Files[3].LocalPath.Should().Be("objects/372705s_004.jpg");
         phys.Directories[0].Files[3].Name.Should().Be("372705s_004.jpg");
+
+        // EPrints has no TYPE="LOGICAL" structmap, so there are no logical structures
+        result.Value.LogicalStructures.Should().BeEmpty();
+
+        // EPrints MODS uses mets:recordIdentifier (not mods:recordIdentifier), so RecordInfo
+        // is not parsed — all files have no effective access, rights, record info, or links
+        phys.Directories[0].Files.Should().OnlyContain(f =>
+            f.EffectiveAccessRestrictions.Count == 0 &&
+            f.EffectiveRightsStatement == null &&
+            f.EffectiveRecordInfo == null &&
+            f.Links.Count == 0);
     }
 
     [Fact]
@@ -129,6 +140,17 @@ public class MetsWrapperTests
         edgware!.Name.Should().Be("Edgware Community Hospital"); // with spaces
         edgware.Directories.Should().HaveCount(0);
         edgware.Files.Should().HaveCount(11);
+
+        // Archivematica has no logical structmap
+        result.Value.LogicalStructures.Should().BeEmpty();
+
+        // Archivematica PREMIS rightsStatements are administrative, not MODS access conditions —
+        // they must not surface as effective access/rights on files; no file links either
+        var allFiles = result.Value.Files.Where(f => f.LocalPath != result.Value.Self!.LocalPath);
+        allFiles.Should().OnlyContain(f =>
+            f.EffectiveAccessRestrictions.Count == 0 &&
+            f.EffectiveRightsStatement == null &&
+            f.Links.Count == 0);
     }
     
     [Fact]

@@ -1,5 +1,15 @@
 ﻿/* Original Razor Template CSS */
 
+/* Bootstrap's default focus ring (--bs-focus-ring-color: rgba(13, 110, 253, .25)) is an
+   alpha-blended blue that computes to only ~1.4:1 contrast against a white background -
+   well under the 3:1 minimum for non-text UI indicators (WCAG 1.4.11). Overriding it with a
+   solid (non-transparent) colour applies site-wide, to every Bootstrap component that uses
+   the focus-ring variable (buttons, links, .form-control, .form-check-input, etc.), and
+   reuses the same accessible blue already used elsewhere (e.g. sidebar links) for consistency. */
+:root {
+    --bs-focus-ring-color: #0a58ca;
+}
+
 /*html {*/
 /*  font-size: 14px;*/
 /*}*/
@@ -131,10 +141,11 @@
 .sidebar .nav-link {
     font-size: .875rem;
     font-weight: 500;
+    color: #0a58ca;
 }
 
 .sidebar .nav-link.active {
-    color: #2470dc;
+    color: #052c65;
 }
 
 .sidebar-heading {
@@ -157,7 +168,13 @@
 }
 
 table.plain-link-table a {
+    color: #0a58ca;
     text-decoration: none;
+}
+
+table.plain-link-table a:hover,
+table.plain-link-table a:focus-visible {
+    text-decoration: underline;
 }
 
 #depositFileExplorer {
@@ -207,8 +224,22 @@ td.dep-actions, th.dep-actions {
     white-space: nowrap;
 }
 
+/* Icon-only action buttons (New folder / Upload file) were rendering at 16x21px
+   with no gap between them, failing the WCAG 2.5.8 24x24 target-size minimum. */
+td.dep-actions .btn {
+    min-width: 24px;
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+td.dep-actions .btn + .btn {
+    margin-left: 0.25rem;
+}
+
 tr.where-mets td {
-    color: var(--bs-tertiary-color);    
+    color: #495057;
 }
 tr.where-deposit td {
     color: var(bs-body-color);
@@ -228,4 +259,115 @@ tr.where-both td {
 .container-search {
     margin: 5px 5px 5px 5px;
     min-width: 100%;
+}
+
+.deposit-row .mods-launcher {
+    padding: 0;
+    border: 0;
+}
+
+/* Light fill, no full border - just a bottom line. #767676 gives ~4.5:1 against the page
+   background, comfortably above the 3:1 WCAG 1.4.11 non-text contrast minimum for a UI
+   component boundary; the fill itself doesn't need to carry any contrast burden since the
+   border is what marks the field's edge. */
+.form-control, .form-select {
+    background-color: #f8f9fa;
+    border: none;
+    border-radius: 0;
+    border-bottom: 1px solid #767676;
+}
+
+/* Bootstrap's default .form-check-input (checkboxes/radios) border is rgba(0,0,0,.25),
+   which blended over white computes to only ~1.84:1 - below the 3:1 WCAG 1.4.11 minimum.
+   .form-control's border-color override above doesn't apply here since .form-check-input
+   isn't part of that selector. Reuses the same #767676 (~4.5:1 on white) already used for
+   text-input/select borders, for a consistent boundary colour across all form controls. */
+.form-check-input {
+    border-color: #767676;
+}
+
+/* #navbarSearch sits inside the header, which has data-bs-theme="dark" - so its text was
+   inheriting Bootstrap's dark-mode near-white body color, which is unreadable against the
+   light .form-control fill above. Pin it to the same dark text/placeholder used elsewhere. */
+#navbarSearch input {
+    color: #212529;
+}
+
+#navbarSearch input::placeholder {
+    color: #495057;
+    opacity: 1;
+}
+
+/* Bootstrap's own .form-control:focus rule resets background-color to var(--bs-body-bg),
+   which under this header's data-bs-theme="dark" is near-black - same dark-theme leak as
+   above, just on the :focus state instead of the base state. Pin it here too so focusing
+   the input doesn't flip it to dark text on a near-black background. */
+#navbarSearch input:focus {
+    background-color: #f8f9fa;
+    color: #212529;
+    border-bottom-color: #767676;
+}
+
+@keyframes dirty-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+}
+
+.dirty-pulse {
+    /* 3 iterations at 1.5s = 4.5s, under the WCAG 2.2.2 5-second threshold for
+       animations that don't need a user-facing pause/stop/hide control. */
+    animation: dirty-pulse 1.5s ease-in-out 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dirty-pulse {
+        animation: none;
+    }
+}
+
+/* Inline access/rights/record metadata icons */
+.dep-meta-item .bi {
+    width: 0.8rem;
+    height: 0.8rem;
+}
+
+.dep-meta-inherited {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.deposit-row:hover .dep-meta-inherited,
+.deposit-row:focus-within .dep-meta-inherited {
+    opacity: 1;
+    color: #333;
+}
+
+/* Default link blue fails 4.5:1 on the tinted table-info background; use Bootstrap's own
+   info-emphasis token which is designed for text on top of table-info/alert-info */
+.table-info a {
+    color: #055160;
+}
+
+/* Same issue for the "subtle" breadcrumb pill: default link blue fails 4.5:1 on
+   bg-primary-subtle. Use Bootstrap's primary-emphasis token designed for that background. */
+.breadcrumb-item a.bg-primary-subtle {
+    color: #052c65;
+}
+
+/* Deposit files table: file/folder name links (.mods-launcher) should look and behave the
+   same as the plain <a> links in the same table (e.g. mets.xml) rather than the default
+   Bootstrap .btn-link treatment (bigger font-size, always-underlined, ~4.5:1 link blue).
+   - font-size/color match table.plain-link-table a below
+   - underline dropped at rest but restored on hover/focus so "clickable" isn't conveyed by
+     color alone (WCAG 1.4.1); Bootstrap's own focus ring on .btn-link is a second,
+     non-color focus indicator independent of this */
+.mods-launcher {
+    font-size: inherit;
+    color: #0a58ca;
+    text-decoration: none;
+}
+
+.mods-launcher:hover,
+.mods-launcher:focus-visible {
+    text-decoration: underline;
 }

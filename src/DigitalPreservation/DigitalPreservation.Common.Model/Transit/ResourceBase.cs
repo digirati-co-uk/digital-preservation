@@ -21,7 +21,7 @@ public abstract class ResourceBase
 
     [JsonPropertyName("accessRestrictions")]
     [JsonPropertyOrder(5)]
-    public List<string> AccessRestrictions { get; set; } = [];
+    public List<string>? AccessRestrictions { get; set; }
 
     [JsonPropertyName("effectiveAccessRestrictions")]
     [JsonPropertyOrder(6)]
@@ -33,5 +33,25 @@ public abstract class ResourceBase
 
     [JsonPropertyName("effectiveRightsStatement")]
     [JsonPropertyOrder(11)]
+
     public Uri? EffectiveRightsStatement { get; set; }
+
+    /// <summary>
+    /// True when the resource has an explicit (but empty/non-URI) rights statement in METS —
+    /// i.e. a <c>use and reproduction</c> element is present but asserts no rights URI. This is
+    /// distinct from having no rights element at all: a suppressed resource deliberately STOPS
+    /// inheriting rights from its ancestors and has a null <see cref="EffectiveRightsStatement"/>,
+    /// whereas a resource with no element inherits its parent's effective rights.
+    /// </summary>
+    [JsonPropertyName("rightsStatementSuppressed")]
+    [JsonPropertyOrder(12)]
+    public bool RightsStatementSuppressed { get; set; }
+
+    [JsonPropertyName("recordInfo")]
+    [JsonPropertyOrder(15)]
+    public RecordInfo? RecordInfo { get; set; }
+
+    [JsonPropertyName("effectiveRecordInfo")]
+    [JsonPropertyOrder(16)]
+    public RecordInfo? EffectiveRecordInfo { get; set; }
 }

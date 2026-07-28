@@ -5,30 +5,18 @@ using static DigitalPreservation.Common.Model.Transit.Combined.CombinedFile;
 namespace DigitalPreservation.Common.Model.Transit.Combined;
 
 public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDirectory? directoryInMets, string? relativePath = null)
+    : CombinedBase<WorkingDirectory>(relativePath)
 {
-    public string? LocalPath
+    public override string? LocalPath
     {
         get
         {
-            if (relativePath == null)
-            {
-                return DirectoryInDeposit?.LocalPath ?? DirectoryInMets?.LocalPath;
-            }
-            if (DirectoryInDeposit == null)
-            {
-                return DirectoryInMets?.LocalPath;
-            }
-
-            if (DirectoryInDeposit.LocalPath == relativePath)
+            // A directory at exactly relativePath is the root; its relative path is ""
+            if (RelativePath != null && InDeposit?.LocalPath == RelativePath)
             {
                 return "";
             }
-            if (DirectoryInDeposit.LocalPath.StartsWith($"{relativePath}/"))
-            {
-                return DirectoryInDeposit.LocalPath.RemoveStart($"{relativePath}/");
-            }
-            // We're in the root of a BagIt - which should not actually contain any other folders, but...
-            return "../" +  DirectoryInDeposit.LocalPath;
+            return base.LocalPath;
         }
     }
 
@@ -36,6 +24,9 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
 
     public WorkingDirectory? DirectoryInDeposit { get; private set; } = directoryInDeposit;
     public WorkingDirectory? DirectoryInMets { get; private set; } = directoryInMets;
+
+    protected override WorkingDirectory? InDeposit => DirectoryInDeposit;
+    protected override WorkingDirectory? InMets => DirectoryInMets;
 
     public List<CombinedFile> Files { get; set; } = [];
     public List<CombinedDirectory> Directories { get; set; } = [];
@@ -60,34 +51,6 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         return DirectoryInDeposit.Name!.Equals(DirectoryInMets.Name!);
     }
 
-    public Whereabouts Whereabouts
-    {
-        get
-        {
-            if (DirectoryInDeposit is not null && DirectoryInMets is not null)
-            {
-                return Whereabouts.Both;
-            }
-
-            if (DirectoryInDeposit is not null)
-            {
-                if (relativePath.HasText() && !DirectoryInDeposit.LocalPath.StartsWith(relativePath))
-                {
-                    return Whereabouts.Extra;
-                }
-                return Whereabouts.Deposit;
-            }
-
-            if (DirectoryInMets is not null)
-            {
-                return Whereabouts.Mets;
-            }
-
-            return Whereabouts.Neither;
-        }
-    }
-    
-    
     public CombinedDirectory? FindDirectory(string? path)
     {
         return FindDirectoryInternal(path, (directory, part) => directory.LocalPath!.GetSlug() == part);
@@ -323,7 +286,7 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
 
     private CombinedDirectory CloneForFlatten()
     {
-        return new CombinedDirectory(DirectoryInDeposit, DirectoryInMets, relativePath);
+        return new CombinedDirectory(DirectoryInDeposit, DirectoryInMets, RelativePath);
     }
     
     public Result<Container> ToContainer(Uri repositoryUri, Uri origin, string? metsXmlPath, List<Uri>? uris = null)
@@ -549,6 +512,8 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
             combinedDirectory.AddVirusFileNotices(filesWithVirus);
         }
     }
+
+
 }
 
 public class FileSizeTotals

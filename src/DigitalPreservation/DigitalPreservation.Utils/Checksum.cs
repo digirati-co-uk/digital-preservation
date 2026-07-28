@@ -32,14 +32,17 @@ public class Checksum
     public static string? Sha256FromFile(FileInfo fileInfo)
     {
         using SHA256 sha256 = SHA256.Create();
-        using FileStream fileStream = fileInfo.Open(FileMode.Open);
+        // Read-only and shared: the parameterless Open(FileMode.Open) defaults to
+        // FileAccess.ReadWrite + FileShare.None, which fails on read-only files and
+        // throws if anything else has the file open (e.g. concurrent parses of the same METS).
+        using FileStream fileStream = fileInfo.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
         return HashFromStream(fileStream, sha256);
     }
 
     public static string? Sha512FromFile(FileInfo fileInfo)
     {
         using SHA512 sha512 = SHA512.Create();
-        using FileStream fileStream = fileInfo.Open(FileMode.Open);
+        using FileStream fileStream = fileInfo.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
         return HashFromStream(fileStream, sha512);
     }
 

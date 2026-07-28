@@ -7,7 +7,7 @@ namespace Storage.API.Features.Activity;
 
 [Route("[controller]")]
 [ApiController]
-public class ActivityController(ILogger<ActivityController> logger, IMediator mediator) : Controller
+public class ActivityController(ILogger<ActivityController> logger, IMediator mediator) : ControllerBase
 {
     [HttpGet("importjobs/collection", Name = "GetImportJobsCollection")]
     public async Task<IActionResult> GetImportJobsCollection()

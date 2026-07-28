@@ -161,3 +161,14 @@ public static class UriX
         return compare == 0;
     }
 }
+
+/// <summary>
+/// Compares Uris by their AbsoluteUri string so that fragment-only differences are respected.
+/// .NET's default Uri.GetHashCode() ignores fragments, causing collisions when fragments are the only difference.
+/// </summary>
+public sealed class UriAbsoluteStringComparer : IEqualityComparer<Uri>
+{
+    public bool Equals(Uri? x, Uri? y) =>
+        string.Equals(x?.AbsoluteUri, y?.AbsoluteUri, StringComparison.Ordinal);
+    public int GetHashCode(Uri obj) => StringComparer.Ordinal.GetHashCode(obj.AbsoluteUri);
+}

@@ -19,6 +19,9 @@ public class GetDepositBase(
     WorkspaceManagerFactory workspaceManagerFactory,
     IMetsParser metsParser)
 {
+    protected IMetsParser MetsParser { get; } = metsParser;
+    protected WorkspaceManagerFactory WorkspaceManagerFactory { get; } = workspaceManagerFactory;
+
     public async Task<Result<Deposit?>> GetDeposit(string depositId, CancellationToken cancellationToken)
     {
         try
@@ -67,7 +70,7 @@ public class GetDepositBase(
 
                 if (wasExportingAndNowFinished)
                 {
-                    var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit, refresh: true);
+                    var workspaceManager = await WorkspaceManagerFactory.CreateAsync(deposit, refresh: true);
                     await EnsureMetadataFoldersAfterExport(depositId, deposit, workspaceManager);
                 }
                 return Result.Ok(deposit);
@@ -91,7 +94,7 @@ public class GetDepositBase(
     // edit; for a third-party METS there's nothing to reconcile, matching CreateDepositBase's own check.
     private async Task EnsureMetadataFoldersAfterExport(string depositId, Deposit deposit, WorkspaceManager workspaceManager)
     {
-        var wrapperResult = await metsParser.GetMetsFileWrapper(deposit.Files!);
+        var wrapperResult = await MetsParser.GetMetsFileWrapper(deposit.Files!);
         if (wrapperResult is not { Success: true, Value.Editable: true, Value.PhysicalStructure: not null })
         {
             return;
@@ -134,7 +137,7 @@ public class GetDepositBase(
             // fetched before that write would make this second call fail its precondition check. Re-fetch
             // just the ETag (parse: false - we already know Editable and which folders are missing, no
             // need to re-parse the whole METS) before the ad-hoc write.
-            var refreshedWrapperResult = await metsParser.GetMetsFileWrapper(deposit.Files!, parse: false);
+            var refreshedWrapperResult = await MetsParser.GetMetsFileWrapper(deposit.Files!, parse: false);
             if (refreshedWrapperResult is { Success: true, Value: not null })
             {
                 deposit.MetsETag = refreshedWrapperResult.Value.ETag;

@@ -12,7 +12,7 @@ namespace Storage.API.Features.Binaries;
 [Route("[controller]/{*path}")]
 public class ContentController(
     IMediator mediator,
-    IStorage storage) : Controller
+    IStorage storage) : ControllerBase
 {
     [HttpGet(Name = "GetBinary")]
     [ProducesResponseType(200)]

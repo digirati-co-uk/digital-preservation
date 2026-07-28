@@ -7,7 +7,7 @@ namespace Storage.API.Features.Ocfl;
 
 [Route("ocfl")]
 [ApiController]
-public class OcflController(IMediator mediator) : Controller
+public class OcflController(IMediator mediator) : ControllerBase
 {
 
     [HttpGet("storagemap/{*path}", Name = "GetStorageMap")]

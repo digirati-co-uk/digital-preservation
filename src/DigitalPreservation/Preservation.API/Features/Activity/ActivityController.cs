@@ -8,7 +8,7 @@ namespace Preservation.API.Features.Activity;
 
 [Route("[controller]")]
 [ApiController]
-public class ActivityController(IMediator mediator) : Controller
+public class ActivityController(IMediator mediator) : ControllerBase
 {
     [HttpGet("archivalgroups/collection", Name = "GetArchivalGroupsCollection")]
     [ProducesResponseType<OrderedCollection>(200, "application/json")]

@@ -68,15 +68,6 @@ public class Deposit : Resource
     public TemplateType Template { get; set; } = TemplateType.None;
     
     
-    // [JsonPropertyOrder(501)]
-    // [JsonPropertyName("useObjectTemplate")]
-    // [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    // [Obsolete("Use TemplateType instead")]
-    // public bool? UseObjectTemplate {
-    //     get => Template == TemplateType.RootLevel;
-    //     set => Template = value is true ? TemplateType.RootLevel : TemplateType.None;
-    // }
-    
     /// <summary>
     /// At the time the deposit is requested
     /// As the METS is part of the deposit, some clients may update this without requesting the deposit again.
@@ -118,6 +109,21 @@ public class Deposit : Resource
             }
         }
         return null;
+    }
+
+    public string? GetDisplayTitle()
+    {
+        if (ArchivalGroupName.HasText())
+        {
+            return ArchivalGroupName;
+        }
+
+        if (ArchivalGroup != null)
+        {
+            return ArchivalGroup.GetPathUnderRoot()!;
+        }
+
+        return Id?.GetSlug();
     }
 
 }

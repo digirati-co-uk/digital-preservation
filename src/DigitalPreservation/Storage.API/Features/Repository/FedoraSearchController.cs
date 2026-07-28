@@ -10,7 +10,7 @@ namespace Storage.API.Features.Repository;
 
 [Route(  "FedoraSearch/")]
 [ApiController]
-public class FedoraSearchController(IMediator mediator) : Controller
+public class FedoraSearchController(IMediator mediator) : ControllerBase
 {
     
 

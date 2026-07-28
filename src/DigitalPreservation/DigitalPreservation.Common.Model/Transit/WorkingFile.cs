@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 
@@ -29,6 +30,10 @@ public class WorkingFile : WorkingBase
     [JsonPropertyOrder(16)]
     public long? Size { get; set; }
 
+    [JsonPropertyName("links")]
+    [JsonPropertyOrder(50)]
+    public List<FileLink> Links { get; set; } = [];
+    
     public WorkingFile ToRootLayout()
     {
         if (!LocalPath.StartsWith($"{FolderNames.BagItData}/"))
@@ -183,6 +188,28 @@ public class WorkingFile : WorkingBase
     public ExifMetadata? GetExifMetadata()
     {
         return Metadata.OfType<ExifMetadata>().SingleOrDefault();
+    }
+
+    public ExtentMetadata? GetExtentMetadata()
+    {
+        var items = Metadata.OfType<ExtentMetadata>().ToList();
+        if (items.Count == 0) return null;
+
+        var durations = items.Where(e => e.Duration.HasValue).Select(e => e.Duration!.Value).Distinct().ToList();
+        var widths    = items.Where(e => e.PixelWidth.HasValue).Select(e => e.PixelWidth!.Value).Distinct().ToList();
+        var heights   = items.Where(e => e.PixelHeight.HasValue).Select(e => e.PixelHeight!.Value).Distinct().ToList();
+
+        if (durations.Count > 1) throw new MetadataException($"Duration values for {LocalPath} are not all the same");
+        if (widths.Count > 1)    throw new MetadataException($"PixelWidth values for {LocalPath} are not all the same");
+        if (heights.Count > 1)   throw new MetadataException($"PixelHeight values for {LocalPath} are not all the same");
+
+        return new ExtentMetadata
+        {
+            Source      = string.Join(',', items.Select(e => e.Source).Where(s => s != null).Distinct()),
+            Duration    = durations.Count > 0 ? durations[0] : null,
+            PixelWidth  = widths.Count > 0    ? widths[0]    : null,
+            PixelHeight = heights.Count > 0   ? heights[0]   : null,
+        };
     }
 
 }

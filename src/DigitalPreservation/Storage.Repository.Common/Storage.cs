@@ -1,4 +1,6 @@
-﻿using Amazon.S3;
+﻿using System.Net;
+using System.Text.Json;
+using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
@@ -9,8 +11,6 @@ using DigitalPreservation.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Storage.Repository.Common.S3;
-using System.Net;
-using System.Text.Json;
 
 namespace Storage.Repository.Common;
 
@@ -595,4 +595,29 @@ public class Storage(
         }
     }
 
+    public async Task<Result<RangedStreamResult?>> GetRangedStream(Uri binaryOrigin, long from, long? to)
+    {
+        var s3Uri = new AmazonS3Uri(binaryOrigin);
+        var s3Req = new GetObjectRequest
+        {
+            BucketName = s3Uri.Bucket,
+            Key = s3Uri.GetKeyFromLocalPath(binaryOrigin),
+            ByteRange = to.HasValue
+                ? new ByteRange(from, to.Value)
+                : new ByteRange($"bytes={from}-")
+        };
+        try
+        {
+            var s3Resp = await s3Client.GetObjectAsync(s3Req);
+            if (s3Resp.HttpStatusCode == HttpStatusCode.PartialContent || s3Resp.HttpStatusCode == HttpStatusCode.OK)
+            {
+                return Result.Ok(new RangedStreamResult(s3Resp.ResponseStream, s3Resp.ContentLength));
+            }
+            return Result.Fail<RangedStreamResult>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get ranged stream for " + binaryOrigin);
+        }
+        catch (AmazonS3Exception e)
+        {
+            return Result.Fail<RangedStreamResult>(ErrorCodes.GetErrorCode((int)e.StatusCode), "Could not get ranged stream for " + binaryOrigin);
+        }
+    }
 }
