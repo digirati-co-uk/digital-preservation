@@ -80,7 +80,7 @@ public class PremisManagerExif
             parentElement?.AppendChild(element);
     }
 
-    private void SetSignificantPropertiesFromTags(File file, List<ExifTag> tags)
+    private static void SetSignificantPropertiesFromTags(File file, List<ExifTag> tags)
     {
         // ImageSize is ExifTool's composite tag representing the final video frame dimensions.
         // It appears once and takes precedence over the per-track ImageWidth/ImageHeight tags,
@@ -145,7 +145,7 @@ public class PremisManagerExif
 
     // Adds a significantProperty if not already present; if already present from any source,
     // verifies the value matches and throws if not.
-    private void PatchSignificantProperty(File file, string propertyName, string value)
+    private static void PatchSignificantProperty(File file, string propertyName, string value)
     {
         var existing = file.SignificantProperties
             .FirstOrDefault(sp => sp.SignificantPropertiesType?.Value == propertyName);
@@ -217,7 +217,7 @@ public class PremisManagerExif
         return null;
     }
 
-    private XmlSerializerNamespaces GetXmlSerializerNameSpaces()
+    private static XmlSerializerNamespaces GetXmlSerializerNameSpaces()
     {
         var namespaces = new XmlSerializerNamespaces();
         namespaces.Add("premis", "http://www.loc.gov/premis/v3");

@@ -30,12 +30,12 @@ public class ManifestBuilder
         var linkTargets = new Dictionary<string, List<WorkingFile>>();
         foreach (var file in wrapper.Files)
         {
-            foreach (var fileLink in file.Links)
+            foreach (var to in file.Links.Select(fileLink => fileLink.To))
             {
-                if (!linkTargets.TryGetValue(fileLink.To, out var from))
+                if (!linkTargets.TryGetValue(to, out var from))
                 {
                     from = [];
-                    linkTargets[fileLink.To] = from;
+                    linkTargets[to] = from;
                 }
                 from.Add(file);
             }
@@ -232,7 +232,7 @@ public class ManifestBuilder
         manifest.EnsurePresentation3Context();
     }
 
-    private string GetDcType(string? targetContentType)
+    private static string GetDcType(string? targetContentType)
     {
         if (targetContentType.IsNullOrWhiteSpace())
         {

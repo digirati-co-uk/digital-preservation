@@ -18,12 +18,12 @@ public static class ManifestParser
     {
         var canvasBaseUrl = $"{iiifBaseUrl}canvases/";
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var item in manifest.Items ?? [])
+        foreach (var id in (manifest.Items ?? []).Select(item => item.Id))
         {
-            if (item.Id?.StartsWith(canvasBaseUrl) == true)
+            if (id?.StartsWith(canvasBaseUrl) == true)
             {
-                var localPath = item.Id[canvasBaseUrl.Length..].UnEscapePathElements();
-                result[item.Id] = localPath;
+                var localPath = id[canvasBaseUrl.Length..].UnEscapePathElements();
+                result[id] = localPath;
             }
         }
         return result;

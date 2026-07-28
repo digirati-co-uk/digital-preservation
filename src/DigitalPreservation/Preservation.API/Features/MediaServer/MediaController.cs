@@ -127,13 +127,9 @@ public class MediaController(
     private static bool ValidateLocalPath(string localPath)
     {
         if (string.IsNullOrEmpty(localPath)) return false;
-        foreach (var segment in localPath.Split('/'))
-        {
-            if (string.IsNullOrEmpty(segment) || segment == ".." || segment == "."
-                || segment.Contains('\\') || segment.Contains('\0'))
-                return false;
-        }
-        return true;
+        return !localPath.Split('/').Any(segment =>
+            string.IsNullOrEmpty(segment) || segment == ".." || segment == "."
+            || segment.Contains('\\') || segment.Contains('\0'));
     }
 
     private static string FileETag(string localPath, long? size) =>
@@ -182,7 +178,7 @@ public class MediaController(
             return new NotFoundResult();
         if (item.Size.HasValue)
             httpContext.Response.ContentLength = item.Size.Value;
-        return new FileStreamResult(fullStreamResult.Value.Item1!, contentType);
+        return new FileStreamResult(fullStreamResult.Value.Item1, contentType);
     }
 
     private static IActionResult ServePlaceholder(string localPath)
@@ -203,7 +199,7 @@ public class MediaController(
         var w = parts[0].Length > 0 && int.TryParse(parts[0], out var pw) ? pw : 0;
         var h = parts.Length > 1 && parts[1].Length > 0 && int.TryParse(parts[1], out var ph) ? ph : 0;
 
-        using var image = await Image.LoadAsync(streamResult.Value.Item1!);
+        using var image = await Image.LoadAsync(streamResult.Value.Item1);
         image.Mutate(x => x.Resize(new ResizeOptions
         {
             Size = new SixLabors.ImageSharp.Size(w, h),

@@ -27,7 +27,7 @@ public class UpdateLogicalStructMapsFromManifest(
 
 public class UpdateLogicalStructMapsFromManifestHandler(
     IMetsParser metsParser,
-    ILogger<GetDepositHandler> logger,
+    ILogger<UpdateLogicalStructMapsFromManifestHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator,

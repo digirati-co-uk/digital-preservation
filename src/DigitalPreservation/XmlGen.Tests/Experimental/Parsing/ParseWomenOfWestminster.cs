@@ -35,7 +35,7 @@ public class ParseWomenOfWestminster
         result.Value.Should().NotBeNull();
         result.Value!.Self.Should().NotBeNull();
         result.Value.Self!.Digest.Should().NotBeEmpty();
-        var phys = result.Value!.PhysicalStructure;
+        var phys = result.Value.PhysicalStructure;
         phys!.Files.Should().Contain(f => f.Name == "wow.mets.xml");
         
         
@@ -205,10 +205,10 @@ public class ParseWomenOfWestminster
         // inherited from div in logical structMap
         ruddAudio.EffectiveRecordInfo.Should().NotBeNull();
         ruddAudio.EffectiveRecordInfo!.RecordIdentifiers.Should().HaveCount(2);
-        ruddAudio.EffectiveRecordInfo!.RecordIdentifiers[0].Source.Should().Be("identity-service");
-        ruddAudio.EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("mg56cva7");
-        ruddAudio.EffectiveRecordInfo!.RecordIdentifiers[1].Source.Should().Be("EMu");
-        ruddAudio.EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("MS 2249/1");
+        ruddAudio.EffectiveRecordInfo.RecordIdentifiers[0].Source.Should().Be("identity-service");
+        ruddAudio.EffectiveRecordInfo.RecordIdentifiers[0].Value.Should().Be("mg56cva7");
+        ruddAudio.EffectiveRecordInfo.RecordIdentifiers[1].Source.Should().Be("EMu");
+        ruddAudio.EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("MS 2249/1");
         // inherited from physical structMap objects/ div
         ruddAudio.EffectiveAccessRestrictions.Should().HaveCount(1);
         ruddAudio.EffectiveAccessRestrictions[0].Should().Be("Level1");
@@ -218,10 +218,10 @@ public class ParseWomenOfWestminster
         // inherited from div in logical structMap
         ruddTranscript.EffectiveRecordInfo.Should().NotBeNull();
         ruddTranscript.EffectiveRecordInfo!.RecordIdentifiers.Should().HaveCount(2);
-        ruddTranscript.EffectiveRecordInfo!.RecordIdentifiers[0].Source.Should().Be("identity-service");
-        ruddTranscript.EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("mg56cva7");
-        ruddTranscript.EffectiveRecordInfo!.RecordIdentifiers[1].Source.Should().Be("EMu");
-        ruddTranscript.EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("MS 2249/1");
+        ruddTranscript.EffectiveRecordInfo.RecordIdentifiers[0].Source.Should().Be("identity-service");
+        ruddTranscript.EffectiveRecordInfo.RecordIdentifiers[0].Value.Should().Be("mg56cva7");
+        ruddTranscript.EffectiveRecordInfo.RecordIdentifiers[1].Source.Should().Be("EMu");
+        ruddTranscript.EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("MS 2249/1");
         // inherited from physical structMap objects/ div
         ruddTranscript.EffectiveAccessRestrictions.Should().HaveCount(1);
         ruddTranscript.EffectiveAccessRestrictions[0].Should().Be("Level1");
@@ -230,10 +230,10 @@ public class ParseWomenOfWestminster
         // inherited from div in logical structMap
         eagleRedactedAudio.EffectiveRecordInfo.Should().NotBeNull();
         eagleRedactedAudio.EffectiveRecordInfo!.RecordIdentifiers.Should().HaveCount(2);
-        eagleRedactedAudio.EffectiveRecordInfo!.RecordIdentifiers[0].Source.Should().Be("identity-service");
-        eagleRedactedAudio.EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("hh43pd32");
-        eagleRedactedAudio.EffectiveRecordInfo!.RecordIdentifiers[1].Source.Should().Be("EMu");
-        eagleRedactedAudio.EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("MS 2249/2");
+        eagleRedactedAudio.EffectiveRecordInfo.RecordIdentifiers[0].Source.Should().Be("identity-service");
+        eagleRedactedAudio.EffectiveRecordInfo.RecordIdentifiers[0].Value.Should().Be("hh43pd32");
+        eagleRedactedAudio.EffectiveRecordInfo.RecordIdentifiers[1].Source.Should().Be("EMu");
+        eagleRedactedAudio.EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("MS 2249/2");
         // inherited from physical structMap objects/ div
         eagleRedactedAudio.EffectiveAccessRestrictions.Should().HaveCount(1);
         eagleRedactedAudio.EffectiveAccessRestrictions[0].Should().Be("Level1");
@@ -243,10 +243,10 @@ public class ParseWomenOfWestminster
         // inherited from div in logical structMap
         eagleTranscript.EffectiveRecordInfo.Should().NotBeNull();
         eagleTranscript.EffectiveRecordInfo!.RecordIdentifiers.Should().HaveCount(2);
-        eagleTranscript.EffectiveRecordInfo!.RecordIdentifiers[0].Source.Should().Be("identity-service");
-        eagleTranscript.EffectiveRecordInfo!.RecordIdentifiers[0].Value.Should().Be("hh43pd32");
-        eagleTranscript.EffectiveRecordInfo!.RecordIdentifiers[1].Source.Should().Be("EMu");
-        eagleTranscript.EffectiveRecordInfo!.RecordIdentifiers[1].Value.Should().Be("MS 2249/2");
+        eagleTranscript.EffectiveRecordInfo.RecordIdentifiers[0].Source.Should().Be("identity-service");
+        eagleTranscript.EffectiveRecordInfo.RecordIdentifiers[0].Value.Should().Be("hh43pd32");
+        eagleTranscript.EffectiveRecordInfo.RecordIdentifiers[1].Source.Should().Be("EMu");
+        eagleTranscript.EffectiveRecordInfo.RecordIdentifiers[1].Value.Should().Be("MS 2249/2");
         // inherited from physical structMap objects/ div
         eagleTranscript.EffectiveAccessRestrictions.Should().HaveCount(1);
         eagleTranscript.EffectiveAccessRestrictions[0].Should().Be("Level1");
@@ -268,7 +268,7 @@ public class ParseWomenOfWestminster
         // divIds, other props we might be interested in
         // This needs more work to be consistent.
         eagleAudio.MetsExtensions!.DivId.Should().Be("PHYS_objects/angela-eagle.m4a");
-        eagleAudio.MetsExtensions!.AdmId.Should().Be("ADM_objects/angela-eagle.m4a");
+        eagleAudio.MetsExtensions.AdmId.Should().Be("ADM_objects/angela-eagle.m4a");
 
         // locate files by ID and localpath
         // This is the ID of the file's mets:div in the physical structMap. Do we want to be able to get by mets:file ID property? 

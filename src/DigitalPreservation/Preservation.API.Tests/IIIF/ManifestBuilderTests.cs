@@ -77,7 +77,7 @@ public class ManifestBuilderTests
         var manifest = BuildDeposit(Wrapper(MakeFile("objects/img.tif", "image/tiff", 2000, 3000)));
         var canvas = SingleCanvas(manifest);
         canvas.Thumbnail.Should().NotBeNullOrEmpty();
-        canvas.Thumbnail!.First().Id.Should().StartWith($"{MediaUrl}imagesvc/objects/img.tif/full/");
+        canvas.Thumbnail![0].Id.Should().StartWith($"{MediaUrl}imagesvc/objects/img.tif/full/");
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public class ManifestBuilderTests
         canvas.Annotations.Should().HaveCount(1);
         var anno = (GeneralAnnotation)canvas.Annotations!.Single().Items!.Single();
         anno.Motivation.Should().Be("supplementing");
-        anno.Body!.First().Id.Should().Be($"{MediaUrl}file/objects/t.txt");
+        anno.Body![0].Id.Should().Be($"{MediaUrl}file/objects/t.txt");
     }
 
     // ─── deposit IIIF: IDs and encoding ──────────────────────────────────────────
@@ -380,6 +380,6 @@ public class ManifestBuilderTests
         var manifest = BuildWithOriginUris(Wrapper(main, adjunct), f => origins[f.LocalPath]);
 
         var anno = (GeneralAnnotation)SingleCanvas(manifest).Annotations!.Single().Items!.Single();
-        anno.Body!.First().Id.Should().Be("https://host/t.txt");
+        anno.Body![0].Id.Should().Be("https://host/t.txt");
     }
 }

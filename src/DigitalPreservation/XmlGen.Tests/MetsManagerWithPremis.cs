@@ -756,7 +756,7 @@ public class MetsManagerWithPremis
         // Initially empty
         var wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         wrapper.PhysicalStructure!.AccessRestrictions.Should().BeNull();
-        wrapper.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects").AccessRestrictions.Should().BeNull();
+        wrapper.PhysicalStructure.Directories.Single(d => d.LocalPath == "objects").AccessRestrictions.Should().BeNull();
 
         // Set two restrictions on objects and write
         metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["Restricted", "Leeds only"]);
@@ -764,7 +764,7 @@ public class MetsManagerWithPremis
 
         wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         wrapper.PhysicalStructure!.AccessRestrictions.Should().BeNull();
-        var objectsAccessRestrictions = wrapper.PhysicalStructure!.Directories
+        var objectsAccessRestrictions = wrapper.PhysicalStructure.Directories
             .Single(d => d.LocalPath == "objects").AccessRestrictions;
         objectsAccessRestrictions.Should().HaveCount(2);
         objectsAccessRestrictions.Should().Contain("Restricted");
@@ -776,7 +776,7 @@ public class MetsManagerWithPremis
         
         wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         wrapper.PhysicalStructure!.AccessRestrictions.Should().BeNull();
-        objectsAccessRestrictions = wrapper.PhysicalStructure!.Directories
+        objectsAccessRestrictions = wrapper.PhysicalStructure.Directories
             .Single(d => d.LocalPath == "objects").AccessRestrictions;
         objectsAccessRestrictions.Should().ContainSingle().Which.Should().Be("Open access");
 
@@ -785,7 +785,7 @@ public class MetsManagerWithPremis
         await metsManager.WriteMets(fullMets);
         wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         wrapper.PhysicalStructure!.AccessRestrictions.Should().BeNull();
-        objectsAccessRestrictions = wrapper.PhysicalStructure!.Directories
+        objectsAccessRestrictions = wrapper.PhysicalStructure.Directories
             .Single(d => d.LocalPath == "objects").AccessRestrictions;
         objectsAccessRestrictions.Should().BeNull();
     }
@@ -799,7 +799,7 @@ public class MetsManagerWithPremis
         // Initially null
         var wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         wrapper.PhysicalStructure!.RightsStatement.Should().BeNull();
-        wrapper.PhysicalStructure!.Directories.Single(d => d.LocalPath == "objects").RightsStatement.Should().BeNull();
+        wrapper.PhysicalStructure.Directories.Single(d => d.LocalPath == "objects").RightsStatement.Should().BeNull();
     
         // Set a rights URI and write
         var ccBy = new Uri("https://creativecommons.org/licenses/by/4.0/");
@@ -808,7 +808,7 @@ public class MetsManagerWithPremis
         
         wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         wrapper.PhysicalStructure!.RightsStatement.Should().BeNull();
-        var rightsStatement = wrapper.PhysicalStructure!.Directories
+        var rightsStatement = wrapper.PhysicalStructure.Directories
             .Single(d => d.LocalPath == "objects").RightsStatement;
         rightsStatement.Should().Be(ccBy);
     
@@ -819,7 +819,7 @@ public class MetsManagerWithPremis
         
         wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         wrapper.PhysicalStructure!.RightsStatement.Should().BeNull();
-        rightsStatement = wrapper.PhysicalStructure!.Directories
+        rightsStatement = wrapper.PhysicalStructure.Directories
             .Single(d => d.LocalPath == "objects").RightsStatement;
         rightsStatement.Should().Be(inC);
         
@@ -829,7 +829,7 @@ public class MetsManagerWithPremis
     
         wrapper = (await parser.GetMetsFileWrapper(metsUri)).Value!;
         wrapper.PhysicalStructure!.RightsStatement.Should().BeNull();
-        rightsStatement = wrapper.PhysicalStructure!.Directories
+        rightsStatement = wrapper.PhysicalStructure.Directories
             .Single(d => d.LocalPath == "objects").RightsStatement;
         rightsStatement.Should().BeNull();
     }

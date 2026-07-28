@@ -130,23 +130,20 @@ public class WorkingFile : WorkingBase
         // them here, we must check them elsewhere.
 
         // (for now - we may have other sources later)
-        if (pronomKeys.Count > 0)
+        if (pronomKeys.Count > 0 && pronomKeys.All(x => x == pronomKeys[0]))
         {
-            if (pronomKeys.All(x => x == pronomKeys.First()))
+            return new FileFormatMetadata
             {
-                return new FileFormatMetadata
-                {
-                    Digest = digests.First(), // check the digests metadata for mismatch
-                    PronomKey = pronomKeys.First(),
-                    ContentType = contentTypes.FirstOrDefault(),
-                    Size = size.First(),
-                    FormatName = formatNames.First(),
-                    OriginalName = originalNames.FirstOrDefault(),
-                    StorageLocation = storageLocations.FirstOrDefault(),
-                    Source = string.Join(',', fileFormatMetadata.Select(m => m.Source)),
-                    Timestamp = fileFormatMetadata.Select(m => m.Timestamp).Max()
-                };
-            }
+                Digest = digests[0], // check the digests metadata for mismatch
+                PronomKey = pronomKeys[0],
+                ContentType = contentTypes.FirstOrDefault(),
+                Size = size[0],
+                FormatName = formatNames[0],
+                OriginalName = originalNames.FirstOrDefault(),
+                StorageLocation = storageLocations.FirstOrDefault(),
+                Source = string.Join(',', fileFormatMetadata.Select(m => m.Source)),
+                Timestamp = fileFormatMetadata.Select(m => m.Timestamp).Max()
+            };
         }
 
         // There is only one, or none
@@ -166,11 +163,11 @@ public class WorkingFile : WorkingBase
         {
             return null;
         }
-        if (digests.All(x => x == digests.First()))
+        if (digests.All(x => x == digests[0]))
         {
             return new DigestMetadata
             {
-                Digest = digests.First(),
+                Digest = digests[0],
                 Source = string.Join(',', digestMetadata.Select(m => m.Source)),
                 Timestamp = digestMetadata.Select(m => m.Timestamp).Max()
             };

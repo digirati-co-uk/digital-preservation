@@ -55,11 +55,6 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
     {
         return FindDirectoryInternal(path, (directory, part) => directory.LocalPath!.GetSlug() == part);
     }
-    
-    // public CombinedDirectory? FindDirectoryByUriSafeSlugs(string? path)
-    // {
-    //     return FindDirectoryInternal(path, (directory, part) => directory.LocalPath!.GetUriSafeSlug() == part);
-    // }
 
     private CombinedDirectory? FindDirectoryInternal(string? path, Func<CombinedDirectory, string, bool> predicate)
     {
@@ -100,14 +95,6 @@ public class CombinedDirectory(WorkingDirectory? directoryInDeposit, WorkingDire
         var slug = path.GetSlug();
         return parent?.Files.SingleOrDefault(f => f.LocalPath!.GetSlug() == slug);
     }
-    
-    
-    // public CombinedFile? FindFileByUriSafeSlugs(string path)
-    // {
-    //     var parent = FindDirectoryByUriSafeSlugs(path.GetParent());
-    //     var slug = path.GetUriSafeSlug();
-    //     return parent?.Files.SingleOrDefault(f => f.LocalPath!.GetUriSafeSlug() == slug);
-    // }
 
     public bool RemoveFileFromDeposit(string path, string depositPath, bool trueIfNotFound)
     {

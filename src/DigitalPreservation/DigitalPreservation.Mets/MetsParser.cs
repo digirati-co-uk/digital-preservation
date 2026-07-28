@@ -460,7 +460,7 @@ public class MetsParser(
                             }
                             catch (Exception e)
                             {
-                                logger.LogError(e, "Unable to parse storage location {storageUri}", storageUri);
+                                logger.LogError(e, "Unable to parse storage location {StorageUri}", storageUri);
                             }
                         }
 
@@ -1233,7 +1233,7 @@ public class MetsParser(
             file.EffectiveRightsStatement = null;
 
         // RecordInfo: own → exactly-one whole-file logical range (effective) → smLink-associated range → physical parent
-        // Logical inheritance only applies when the range actually has a (non-null) effective RecordInfo;
+        // Logical inheritance only applies when the range actually has a non-null effective RecordInfo -
         // a null from the logical range must not override a real RecordInfo asserted by a physical ancestor.
         if (file.RecordInfo != null)
         {

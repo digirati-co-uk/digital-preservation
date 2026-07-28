@@ -279,7 +279,7 @@ public class RoundTripWomenOfWestminster
         var logsm = wrapper.LogicalStructures[0];
         logsm.Type.Should().Be("Collection");
         logsm.Name.Should().Be("Women of Westminster");
-        // Name is the value set in LogicalRange.Name, written as both LABEL and MODS title;
+        // Name is the value set in LogicalRange.Name, written as both LABEL and MODS title -
         // the parser prefers MODS title, so this is "Women of Westminster" (not a sample-file title)
         logsm.Files.Should().HaveCount(0);
         logsm.Ranges.Should().HaveCount(2);

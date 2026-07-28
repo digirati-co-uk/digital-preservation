@@ -20,7 +20,7 @@ public class ExportController(
         [FromBody] ExportResource export, 
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Queuing export for {path}", export.ArchivalGroup.GetPathUnderRoot());
+        logger.LogInformation("Queuing export for {Path}", export.ArchivalGroup.GetPathUnderRoot());
         var queueExportResult = await mediator.Send(new QueueExport(export), cancellationToken);
         logger.LogInformation("Returned from QueueExport");
         var createdLocation = queueExportResult.Success ? queueExportResult.Value!.Id : null;

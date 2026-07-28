@@ -35,7 +35,7 @@ public class ParseLiddle
         result.Value.Should().NotBeNull();
         result.Value!.Self.Should().NotBeNull();
         result.Value.Self!.Digest.Should().NotBeEmpty();
-        var phys = result.Value!.PhysicalStructure;
+        var phys = result.Value.PhysicalStructure;
         phys!.Files.Should().Contain(f => f.Name == "liddle.mets.xml");
 
         result.Value.Name.Should().Be("Liddle Tapes 1 and 2");
@@ -167,7 +167,7 @@ public class ParseLiddle
 
         // MetsExtensions IDs
         tape1side1.MetsExtensions!.DivId.Should().Be("PHYS_objects/tape1side1.wav");
-        tape1side1.MetsExtensions!.AdmId.Should().Be("ADM_objects/tape1side1.wav");
+        tape1side1.MetsExtensions.AdmId.Should().Be("ADM_objects/tape1side1.wav");
 
         // Logical structMap: 1 structMap, root is a Collection with 4 child Item ranges
         result.Value.LogicalStructures.Should().HaveCount(1);

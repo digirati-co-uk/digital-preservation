@@ -183,7 +183,7 @@ public class Storage(
         return allObjects.Select(s3Object => s3Object.GetS3Uri()).ToList();
     }
 
-    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(Uri location, WorkingDirectory directoryToAdd, CancellationToken cancellationToken = default)
+    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(Uri location, WorkingDirectory directoryToAdd, CancellationToken cancellationToken)
     {
         try
         {
@@ -206,7 +206,7 @@ public class Storage(
         }
     }
 
-    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(Uri location, WorkingFile fileToAdd, CancellationToken cancellationToken = default)
+    public async Task<Result<WorkingDirectory>> AddToDepositFileSystem(Uri location, WorkingFile fileToAdd, CancellationToken cancellationToken)
     {
         try
         {
@@ -243,7 +243,7 @@ public class Storage(
         return saveResult;
     }
 
-    public async Task<Result> DeleteFromDepositFileSystem(Uri location, string path, bool errorIfNotFound, CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteFromDepositFileSystem(Uri location, string path, bool errorIfNotFound, CancellationToken cancellationToken)
     {
         var wdResult = await ReadDepositFileSystem(location, cancellationToken);
         if (wdResult.Success)
@@ -305,13 +305,11 @@ public class Storage(
             var failResult = ResultHelpers.FailFromAwsStatusCode<WorkingDirectory>(
                 resp.HttpStatusCode, "Could not read METS location", gor.GetS3Uri());
             return failResult;
-            //return Result.Generify<WorkingDirectory?>(failResult);
         }
         catch (AmazonS3Exception s3E)
         {
             var exResult = ResultHelpers.FailFromS3Exception<WorkingDirectory>(s3E, "Could not read METS location", gor.GetS3Uri());
             return exResult;
-            //return Result.Generify<WorkingDirectory?>(exResult);
         }
         catch (Exception e)
         {
@@ -322,10 +320,10 @@ public class Storage(
     public async Task<Result<WorkingDirectory?>> GenerateDepositFileSystem(
         Uri location, 
         bool writeToStorage, 
-        Action<WorkingBase>? decorator, 
-        CancellationToken cancellationToken = default)
+        Action<WorkingBase>? decorator,
+        CancellationToken cancellationToken)
     {
-        logger.LogInformation("Generating deposit file system in " + location);
+        logger.LogInformation("Generating deposit file system in {Location}", location);
         try
         {
             var s3Location = new AmazonS3Uri(location);
@@ -382,12 +380,9 @@ public class Storage(
                     // need to get these from METS-like
                     wf.ContentType = metadataResponse.Headers.ContentType;
                     wf.Digest = AwsChecksum.FromBase64ToHex(metadataResponse.ChecksumSHA256);
-                    if (metadata != null)
+                    if (metadata != null && metadata.Keys.Contains(S3Helpers.OriginalNameMetadataResponseKey))
                     {
-                        if (metadata.Keys.Contains(S3Helpers.OriginalNameMetadataResponseKey))
-                        {
-                            wf.Name = WebUtility.UrlDecode(metadata[S3Helpers.OriginalNameMetadataResponseKey]);
-                        }
+                        wf.Name = WebUtility.UrlDecode(metadata[S3Helpers.OriginalNameMetadataResponseKey]);
                     }
 
                     decorator?.Invoke(wf);
@@ -443,7 +438,7 @@ public class Storage(
         }
     }
 
-    private int WorkingBaseComparer(WorkingBase x, WorkingBase y)
+    private static int WorkingBaseComparer(WorkingBase x, WorkingBase y)
     {
         return string.Compare(x.LocalPath, y.LocalPath, StringComparison.InvariantCulture);
     }
@@ -473,11 +468,11 @@ public class Storage(
                     var pResp = await s3Client.PutObjectAsync(pReq);
                     if (pResp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
                     {
-                        logger.LogDebug("S3 check can write to S3 bucket");
+                        logger.LogDebug(s3E, "S3 health check object absent on GET; created it, so S3 check can write to S3 bucket");
                         result.Success = true;
                         return result;
                     }
-                    logger.LogWarning("S3 check returned status {status} on PUT", pResp.HttpStatusCode);
+                    logger.LogWarning("S3 check returned status {Status} on PUT", pResp.HttpStatusCode);
                     result.Error = $"S3 check returned status ${pResp.HttpStatusCode} on PUT";
                     return result;
                 }
@@ -503,13 +498,13 @@ public class Storage(
 
     public async Task<Result<BulkDeleteResult>> EmptyStorageLocation(Uri storageLocation, CancellationToken cancellationToken)
     {
-        logger.LogInformation("About to delete contents of {storageLocation}", storageLocation);
+        logger.LogInformation("About to delete contents of {StorageLocation}", storageLocation);
         // TODO: MUST Validate bucket and key of root here -
         //  only a permitted bucket, and only a deposits/ path.
         var s3Uri = new AmazonS3Uri(storageLocation);
         var allObjects = await ListAllS3Objects(s3Uri, cancellationToken);
 
-        logger.LogInformation("{locationCount} objects in location {storageLocation}", allObjects.Count, storageLocation);
+        logger.LogInformation("{LocationCount} objects in location {StorageLocation}", allObjects.Count, storageLocation);
         int count = 0;
         int deleted = 0;
         while (count < allObjects.Count)
@@ -525,15 +520,15 @@ public class Storage(
             {
                 dor.AddKey(s3Obj.Key);
             }
-            logger.LogInformation("Deleting batch of {batchCount} from {storageLocation}", batch.Count, storageLocation);
+            logger.LogInformation("Deleting batch of {BatchCount} from {StorageLocation}", batch.Count, storageLocation);
             var response = await s3Client.DeleteObjectsAsync(dor, cancellationToken);
-            logger.LogInformation("AWS reports {deleteCount} objects deleted from {storageLocation}", response.DeletedObjects.Count, storageLocation);
+            logger.LogInformation("AWS reports {DeleteCount} objects deleted from {StorageLocation}", response.DeletedObjects.Count, storageLocation);
             deleted += response.DeletedObjects.Count;
         }
-        logger.LogInformation("Deletion summary for location {storageLocation}", storageLocation);
-        logger.LogInformation("Objects to delete: {locationCount}", allObjects.Count);
-        logger.LogInformation("Objects processed: {count}", count);
-        logger.LogInformation("Objects deleted: {deleted}", deleted);
+        logger.LogInformation("Deletion summary for location {StorageLocation}", storageLocation);
+        logger.LogInformation("Objects to delete: {LocationCount}", allObjects.Count);
+        logger.LogInformation("Objects processed: {Count}", count);
+        logger.LogInformation("Objects deleted: {Deleted}", deleted);
         var bulkDelete = new BulkDeleteResult
         {
             Location = storageLocation,
@@ -557,8 +552,6 @@ public class Storage(
 
         // This would be an efficient way of doing this - but with this naive implementation
         // we're going to read the object twice
-        // var s3Stream = await s3Client!.GetObjectStreamAsync(s3Uri.Bucket, s3Uri.Key, null);
-        // expected = Checksum.Sha256FromStream(s3Stream);
         // could get a byte array here and then pass it along eventually to MakeBinaryPutOrPost
         // for now just read it twice.
         // Later we'll get the sha256 checksum from metadata

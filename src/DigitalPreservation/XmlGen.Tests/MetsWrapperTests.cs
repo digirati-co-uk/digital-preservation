@@ -67,7 +67,7 @@ public class MetsWrapperTests
         result.Value.Should().NotBeNull();
         result.Value!.Self.Should().NotBeNull();
         result.Value.Self!.Digest.Should().NotBeEmpty();
-        var phys = result.Value!.PhysicalStructure;
+        var phys = result.Value.PhysicalStructure;
         phys!.Files.Should().Contain(f => f.Name == "EPrints.10315.METS.xml");
 
         result.Value.Name.Should().Be("[Example title]");
@@ -105,7 +105,7 @@ public class MetsWrapperTests
         result.Value.Should().NotBeNull();
         result.Value!.Self.Should().NotBeNull();
         result.Value.Self!.Digest.Should().NotBeEmpty();
-        var phys = result.Value!.PhysicalStructure;
+        var phys = result.Value.PhysicalStructure;
         phys!.Files.Should().Contain(f => f.Name == "archivematica-wc-METS.299eb16f-1e62-4bf6-b259-c82146153711.xml");
 
         result.Value.Name.Should().BeNull(); // No name in Archivematica METS
@@ -146,7 +146,7 @@ public class MetsWrapperTests
 
         // Archivematica PREMIS rightsStatements are administrative, not MODS access conditions —
         // they must not surface as effective access/rights on files; no file links either
-        var allFiles = result.Value.Files.Where(f => f.LocalPath != result.Value.Self!.LocalPath);
+        var allFiles = result.Value.Files.Where(f => f.LocalPath != result.Value.Self.LocalPath);
         allFiles.Should().OnlyContain(f =>
             f.EffectiveAccessRestrictions.Count == 0 &&
             f.EffectiveRightsStatement == null &&

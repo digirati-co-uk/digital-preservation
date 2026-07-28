@@ -360,7 +360,7 @@ public class WorkspaceManager(
     }
     
     
-    private WorkingDirectory? RemoveRootMetadata(WorkingDirectory wd)
+    private static WorkingDirectory? RemoveRootMetadata(WorkingDirectory wd)
     {
         wd.Modified = DateTime.MinValue;
         // Also do not compare the object directory
@@ -403,49 +403,43 @@ public class WorkspaceManager(
         var (allCombinedDirectories, allCombinedFiles) = depositCombinedDirectory.Flatten();
         var agFiles = existingArchivalGroup?.StorageMap?.Files;
         var unescapedPathAgFiles = agFiles?.ToDictionary(kvp => kvp.Key.UnEscapePathElementsNoHashes(), kvp => kvp.Value);
-        foreach (var combinedFile in allCombinedFiles)
+        foreach (var localPath in allCombinedFiles.Where(cf => cf.FileInMets is not null).Select(cf => cf.LocalPath))
         {
-            if (combinedFile.FileInMets is not null)
+            // It's in the incoming METS...
+            // Inventory Paths seem only to have %20 encoding?
+            if (unescapedPathAgFiles != null && unescapedPathAgFiles.ContainsKey(localPath!))
             {
-                // It's in the incoming METS...
-                // Inventory Paths seem only to have %20 encoding?
-                if (unescapedPathAgFiles != null && unescapedPathAgFiles.ContainsKey(combinedFile.LocalPath!))
-                {
-                    // ...and also in the ArchivalGroup
-                    continue;
-                }
-
-                if (importJob.BinariesToAdd.Exists(b => b.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + combinedFile.LocalPath!.EscapePathElementsNoHashes()))
-                {
-                    // It's being added in this operation
-                    continue;
-                }
-                
-                return Result.Fail(ErrorCodes.Conflict, 
-                    "File " + combinedFile.LocalPath + " is in deposit METS but not in existing Archival Group or Deposit.");
+                // ...and also in the ArchivalGroup
+                continue;
             }
+
+            if (importJob.BinariesToAdd.Exists(b => b.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + localPath!.EscapePathElementsNoHashes()))
+            {
+                // It's being added in this operation
+                continue;
+            }
+
+            return Result.Fail(ErrorCodes.Conflict,
+                "File " + localPath + " is in deposit METS but not in existing Archival Group or Deposit.");
         }
-        
-        foreach (var combinedDirectory in allCombinedDirectories)
-        {
-            if (combinedDirectory.DirectoryInMets is not null)
-            {
-                // It's in the incoming METS...
-                if (allExistingContainers.Exists(c => c.Id!.LocalPath == agLocalPathWithSlash + combinedDirectory.LocalPath))
-                {
-                    // ...and also in the ArchivalGroup
-                    continue;
-                }
 
-                if (importJob.ContainersToAdd.Exists(c => c.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + combinedDirectory.LocalPath!.EscapePathElementsNoHashes()))
-                {
-                    // It's being added in this operation
-                    continue;
-                }
-                
-                return Result.Fail(ErrorCodes.Conflict, 
-                    "Folder " + combinedDirectory.LocalPath + " is in deposit METS but not in existing Archival Group or Deposit.");
+        foreach (var localPath in allCombinedDirectories.Where(cd => cd.DirectoryInMets is not null).Select(cd => cd.LocalPath))
+        {
+            // It's in the incoming METS...
+            if (allExistingContainers.Exists(c => c.Id!.LocalPath == agLocalPathWithSlash + localPath))
+            {
+                // ...and also in the ArchivalGroup
+                continue;
             }
+
+            if (importJob.ContainersToAdd.Exists(c => c.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + localPath!.EscapePathElementsNoHashes()))
+            {
+                // It's being added in this operation
+                continue;
+            }
+
+            return Result.Fail(ErrorCodes.Conflict,
+                "Folder " + localPath + " is in deposit METS but not in existing Archival Group or Deposit.");
         }
         
         return Result.Ok();

@@ -25,9 +25,6 @@ public class MetsFileWrapper
 
     public WorkingDirectory? PhysicalStructure { get; set; }
 
-    // A list of all the directories mentioned, with their names
-    // public List<WorkingDirectory> ContainersX { get; set; } = [];
-
     // A list of all the files mentioned, with their names and hashes (digests)
     public List<WorkingFile> Files { get; set; } = [];
     public XDocument? XDocument { get; set; }

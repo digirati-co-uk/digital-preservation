@@ -59,7 +59,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     DepositFileFormatMetadata.FormatName, MetsFileFormatMetadata.FormatName));
             }
 
-            if (DepositFileFormatMetadata!.PronomKey != MetsFileFormatMetadata!.PronomKey)
+            if (DepositFileFormatMetadata.PronomKey != MetsFileFormatMetadata.PronomKey)
             {
                 misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "PronomKey",
                     DepositFileFormatMetadata.PronomKey, MetsFileFormatMetadata.PronomKey));
@@ -74,7 +74,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     depositContentTypes, FileInMets.ContentType));
             }
 
-            if (DepositFileFormatMetadata!.Digest != MetsFileFormatMetadata!.Digest)
+            if (DepositFileFormatMetadata.Digest != MetsFileFormatMetadata.Digest)
             {
                 misMatches.Add(new FileMisMatch(nameof(FileFormatMetadata), "Digest", DepositFileFormatMetadata.Digest,
                     MetsFileFormatMetadata.Digest));
@@ -414,7 +414,6 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
 
         return distinctDigests.Where(digest => digest.HasText())
             .Distinct()
-            .Select(digest => digest!)
             .ToList();
     }
 

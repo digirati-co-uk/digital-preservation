@@ -15,7 +15,7 @@ public class SearchModel(IMediator mediator) : PageModel
     private const int DefaultPageSize = 20;
 
     [BindProperty(SupportsGet=true)]
-    public SearchCollection? SearchModelData { get; set; } // = new SearchCollection();
+    public SearchCollection? SearchModelData { get; set; }
 
 
     [BindProperty(SupportsGet=true)]
