@@ -468,7 +468,7 @@ public class Storage(
                     var pResp = await s3Client.PutObjectAsync(pReq);
                     if (pResp.HttpStatusCode is HttpStatusCode.Created or HttpStatusCode.OK)
                     {
-                        logger.LogDebug(s3E, "S3 check can write to S3 bucket");
+                        logger.LogDebug(s3E, "S3 health check object absent on GET; created it, so S3 check can write to S3 bucket");
                         result.Success = true;
                         return result;
                     }
