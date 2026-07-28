@@ -172,10 +172,28 @@ public class GetDiffImportJobHandler(
         foreach (var container in sourceContainers)
         {
             var relativeLocalPath = container.Id!.LocalPath.RemoveStart(agLocalPathWithSlash)!.UnEscapePathElementsNoHashes();
-            var metsDirectory = combined.FindDirectory(relativeLocalPath)?.DirectoryInMets; 
-            
+            var combinedDirectory = combined.FindDirectory(relativeLocalPath);
+            var metsDirectory = combinedDirectory?.DirectoryInMets;
+
             if (metsDirectory is null)
             {
+                // LPII-133: a folder can legitimately exist on the deposit's filesystem side with no
+                // corresponding METS entry - e.g. a metadata/ad-hoc scaffold folder on a deposit cloned
+                // from an Archival Group whose own preserved METS predates that folder, or is third-party
+                // and not ours to edit (CreateDepositBase/GetDepositBase deliberately do not force such
+                // folders into a METS we can't/shouldn't write to). If the folder - and everything beneath
+                // it - is empty, there's no preservable payload being silently dropped by leaving it
+                // unlisted in METS, so skip it rather than failing the whole diff. A folder that does
+                // contain real content but is genuinely missing from METS is still a real problem and
+                // continues to fail below - this only relaxes the check for the no-payload case.
+                if (combinedDirectory is null || !HasAnyDescendantFile(combinedDirectory))
+                {
+                    logger.LogInformation(
+                        "Folder {relativeLocalPath} has no corresponding METS entry but is empty; skipping rather than failing the diff",
+                        relativeLocalPath);
+                    continue;
+                }
+
                 var message = $"Could not find folder {relativeLocalPath} in METS file.";
                 logger.LogWarning(message);
                 return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
@@ -248,7 +266,12 @@ public class GetDiffImportJobHandler(
         logger.LogInformation("Diff Import Job created: " + importJob.LogSummary());
         return Result.OkNotNull(importJob);
     }
-    
+
+    private static bool HasAnyDescendantFile(CombinedDirectory directory)
+    {
+        return directory.Files.Count > 0 || directory.Directories.Any(HasAnyDescendantFile);
+    }
+
     
     private void PopulateDiffTasks(
         CombinedDirectory combined,

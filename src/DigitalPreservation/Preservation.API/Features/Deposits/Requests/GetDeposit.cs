@@ -20,8 +20,8 @@ public class GetDepositHandler(
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator,
-    WorkspaceManagerFactory workspaceManagerFactory) : 
-        GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory), 
+    WorkspaceManagerFactory workspaceManagerFactory) :
+        GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory, metsParser),
         IRequestHandler<GetDeposit, Result<Deposit?>>
 {
     public async Task<Result<Deposit?>> Handle(GetDeposit request, CancellationToken cancellationToken)
