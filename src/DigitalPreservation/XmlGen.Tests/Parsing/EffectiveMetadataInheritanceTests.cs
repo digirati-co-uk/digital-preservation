@@ -1223,7 +1223,7 @@ public class EffectiveMetadataInheritanceTests : MetsParserTestBase
     {
         // From WoW and Liddle: logical ranges have no explicit access, and DMD_PHYS_ROOT has
         // only a title (no access conditions). Therefore EffectiveAccessRestrictions = [].
-        // Note: the objects/ access restriction ("Level1") does NOT propagate to logical ranges;
+        // Note: the objects/ access restriction ("Level1") does NOT propagate to logical ranges -
         // only DMD_PHYS_ROOT can supply access/rights to logical ranges.
         var xml = """
             <mets:mets xmlns:mets="http://www.loc.gov/METS/"

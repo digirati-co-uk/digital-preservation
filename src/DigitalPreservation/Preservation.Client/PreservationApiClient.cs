@@ -26,7 +26,7 @@ public class PreservationApiClient(
     private readonly HttpClient preservationHttpClient = httpClient;
 
 
-    public async Task<Result<SearchCollection?>> Search(string text, int? page, int? pageSize, SearchType type, int otherPage, CancellationToken cancellationToken = default)
+    public async Task<Result<SearchCollection?>> Search(string text, int? page = 0, int? pageSize = 50, SearchType type = SearchType.All, int otherPage = 0, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -197,7 +197,7 @@ public class PreservationApiClient(
         TemplateType templateType,
         bool export,
         string? exportVersion,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         Uri postTarget;
         var deposit = new Deposit
@@ -268,7 +268,7 @@ public class PreservationApiClient(
         catch (Exception e)
         {
             var errorCode = ErrorCodes.GetErrorCode(responseStatusCode);
-            logger.LogError(e, "status code was {status}, error was {message}", responseStatusCode, e.Message);
+            logger.LogError(e, "status code was {Status}, error was {Message}", responseStatusCode, e.Message);
             return Result.FailNotNull<DepositQueryPage>(errorCode, e.Message);
         }
     }
@@ -391,7 +391,7 @@ public class PreservationApiClient(
                 var deposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
                 if (deposit is not null)
                 {
-                    logger.LogInformation("In preservation API client for deposit {deposit} Lock date: {lockDate}, Locked by: {lockedBy} ", deposit.Id, deposit?.LockDate, deposit?.LockedBy);
+                    logger.LogInformation("In preservation API client for deposit {Deposit} Lock date: {LockDate}, Locked by: {LockedBy} ", deposit.Id, deposit?.LockDate, deposit?.LockedBy);
                     return Result.Ok(deposit);
                 }
                 return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);
@@ -434,10 +434,10 @@ public class PreservationApiClient(
         return await ProxyStringFromPreservationApi(cancellationToken, relPath);
     }    
     
-    public async Task<Result<string>> GetIIIF(string depositId, CancellationToken cancellationToken)
+    public async Task<Result<string>> GetIIIF(string depositId, CancellationToken none)
     {
         var relPath = $"/deposits/{depositId}/iiif";
-        return await ProxyStringFromPreservationApi(cancellationToken, relPath);
+        return await ProxyStringFromPreservationApi(none, relPath);
     }
 
     private async Task<Result<string>> ProxyStringFromPreservationApi(CancellationToken cancellationToken, string relPath)
@@ -580,11 +580,11 @@ public class PreservationApiClient(
         }
     }
 
-    public async Task<Result<ProcessPipelineResult>> GetPipelineJobResult(string depositId, string pipelineJobId, CancellationToken cancellationToken)
+    public async Task<Result<ProcessPipelineResult>> GetPipelineJobResult(string depositId, string pipelineJobResultId, CancellationToken cancellationToken)
     {
         try
         {
-            var uri = new Uri($"/deposits/{depositId}/pipelinerunjobs/{pipelineJobId}", UriKind.Relative);
+            var uri = new Uri($"/deposits/{depositId}/pipelinerunjobs/{pipelineJobResultId}", UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             var response = await preservationHttpClient.SendAsync(req, cancellationToken);
             if (response.IsSuccessStatusCode)

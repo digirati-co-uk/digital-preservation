@@ -21,7 +21,7 @@ public class ExportMetsOnlyController(
         [FromBody] ExportResource export,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Synchronously exporting METS export for {path}", export.ArchivalGroup.GetPathUnderRoot());
+        logger.LogInformation("Synchronously exporting METS export for {Path}", export.ArchivalGroup.GetPathUnderRoot());
         var metsExportResult = await mediator.Send(new ExecuteExport(null, export, true), cancellationToken);
         return this.StatusResponseFromResult(metsExportResult);
     }

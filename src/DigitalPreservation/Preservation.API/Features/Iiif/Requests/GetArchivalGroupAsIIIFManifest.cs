@@ -82,12 +82,12 @@ public class GetArchivalGroupAsIIIFManifestHandler(
         var agUriPrefix = archivalGroup.Id!.ToString().TrimEnd('/') + "/";
         var (_, allBinaries) = archivalGroup.Flatten();
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var binary in allBinaries)
+        foreach (var id in allBinaries.Select(binary => binary.Id))
         {
-            if (binary.Id is null) continue;
-            var relative = binary.Id.ToString().RemoveStart(agUriPrefix);
+            if (id is null) continue;
+            var relative = id.ToString().RemoveStart(agUriPrefix);
             if (relative is null) continue;
-            result[Uri.UnescapeDataString(relative)] = binary.Id.ToString();
+            result[Uri.UnescapeDataString(relative)] = id.ToString();
         }
         return result;
     }

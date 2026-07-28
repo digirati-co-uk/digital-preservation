@@ -141,7 +141,7 @@ public class DepositModel(
             AccessConditions = conditionsResult.Value!;
         var rangeTypesResult = await preservationApiClient.GetRangeTypes(HttpContext.RequestAborted);
         if (rangeTypesResult.Success && rangeTypesResult.Value!.Count > 0)
-            RangeTypes = rangeTypesResult.Value!;
+            RangeTypes = rangeTypesResult.Value;
     }
 
     private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
@@ -194,7 +194,7 @@ public class DepositModel(
             return false;
         }
 
-        logger.LogInformation("In Bind deposit for deposit {deposit} Lock date: {lockDate}, Locked by: {lockedBy} ", Deposit?.Id, Deposit?.LockDate, Deposit?.LockedBy);
+        logger.LogInformation("In Bind deposit for deposit {Deposit} Lock date: {LockDate}, Locked by: {LockedBy} ", Deposit?.Id, Deposit?.LockDate, Deposit?.LockedBy);
         return true;
     }
     
@@ -269,7 +269,7 @@ public class DepositModel(
                 TempData[TempDataError] = "Could not read deposit file system.";
                 return Redirect($"/deposits/{id}");
             }
-            var contentRoot = combinedResult.Value!;
+            var contentRoot = combinedResult.Value;
             var wbsToAdd = minimalItems
                 .Select(m => m.ResolveFromContentRoot(contentRoot))
                 .OfType<WorkingBase>()
@@ -515,24 +515,21 @@ public class DepositModel(
         [FromForm] string? agName,
         [FromForm] string? submissionText)
     {
-        if (agPathUnderRoot.HasText())
+        if (agPathUnderRoot.HasText() && agPathUnderRoot.StartsWith("http"))
         {
-            if (agPathUnderRoot.StartsWith("http"))
+            var pathUrl = new Uri(agPathUnderRoot);
+            agPathUnderRoot = pathUrl.AbsolutePath.ToLowerInvariant();
+            if (agPathUnderRoot.StartsWith("/browse/"))
             {
-                var pathUrl = new Uri(agPathUnderRoot);
-                agPathUnderRoot = pathUrl.AbsolutePath.ToLowerInvariant();
-                if (agPathUnderRoot.StartsWith("/browse/"))
-                {
-                    agPathUnderRoot = agPathUnderRoot.Substring("/browse/".Length);
-                }
-                if (agPathUnderRoot.StartsWith("/repository/"))
-                {
-                    agPathUnderRoot = agPathUnderRoot.Substring("/repository/".Length);
-                }
-                if (agPathUnderRoot.StartsWith("/"))
-                {
-                    agPathUnderRoot = agPathUnderRoot.Substring(1);
-                }
+                agPathUnderRoot = agPathUnderRoot.Substring("/browse/".Length);
+            }
+            if (agPathUnderRoot.StartsWith("/repository/"))
+            {
+                agPathUnderRoot = agPathUnderRoot.Substring("/repository/".Length);
+            }
+            if (agPathUnderRoot.StartsWith("/"))
+            {
+                agPathUnderRoot = agPathUnderRoot.Substring(1);
             }
         }
         var getDepositResult = await mediator.Send(new GetDeposit(id));
@@ -637,18 +634,15 @@ public class DepositModel(
 
     public string GetDepositLocation()
     {
-        if (Deposit != null)
+        if (Deposit != null && Deposit.Files?.Scheme == "s3")
         {
-            if (Deposit.Files?.Scheme == "s3")
-            {
-                const string template =
-                    "https://eu-west-1.console.aws.amazon.com/s3/buckets/{bucket}?region=eu-west-1&bucketType=general&prefix={prefix}&showversions=false";
-                var s3Uri = new AmazonS3Uri(Deposit.Files);
-                string href = template
-                    .Replace("{bucket}", s3Uri.Bucket)
-                    .Replace("{prefix}", s3Uri.Key.TrimEnd('/') + "/");
-                return href;
-            }
+            const string template =
+                "https://eu-west-1.console.aws.amazon.com/s3/buckets/{bucket}?region=eu-west-1&bucketType=general&prefix={prefix}&showversions=false";
+            var s3Uri = new AmazonS3Uri(Deposit.Files);
+            string href = template
+                .Replace("{bucket}", s3Uri.Bucket)
+                .Replace("{prefix}", s3Uri.Key.TrimEnd('/') + "/");
+            return href;
         }
 
         return "#";

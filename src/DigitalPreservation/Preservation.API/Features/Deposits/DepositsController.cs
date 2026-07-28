@@ -49,7 +49,7 @@ public class DepositsController(
     public async Task<IActionResult> GetDeposit([FromRoute] string id)
     {
         var result = await mediator.Send(new GetDeposit(id));
-        logger.LogInformation("In Preservation API for deposit {deposit} Lock date: {lockDate}, Locked by: {lockedBy} ", result.Value ?.Id, result.Value?.LockDate, result.Value?.LockedBy);
+        logger.LogInformation("In Preservation API for deposit {Deposit} Lock date: {LockDate}, Locked by: {LockedBy} ", result.Value ?.Id, result.Value?.LockDate, result.Value?.LockedBy);
         return this.StatusResponseFromResult(result);
     }
     
@@ -70,7 +70,7 @@ public class DepositsController(
             })
         {
             Response.Headers.ETag = wrapper.Value.MetsFileWrapper.ETag;
-            return Content(wrapper.Value.MetsFileWrapper.XDocument!.ToString(), "application/xml");
+            return Content(wrapper.Value.MetsFileWrapper.XDocument.ToString(), "application/xml");
         }
         return this.StatusResponseFromResult(wrapper);
     }
@@ -158,13 +158,13 @@ public class DepositsController(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Could not deserialise POSTed IIIF manifest for deposit {id}", id);
+            logger.LogWarning(ex, "Could not deserialise POSTed IIIF manifest for deposit {Id}", id);
             return BadRequest(new ProblemDetails { Title = "Invalid IIIF Manifest", Detail = ex.Message });
         }
 
         if (manifest is null)
         {
-            logger.LogWarning("POSTed IIIF manifest for deposit {id} deserialised to null", id);
+            logger.LogWarning("POSTed IIIF manifest for deposit {Id} deserialised to null", id);
             return BadRequest(new ProblemDetails { Title = "Invalid IIIF Manifest", Detail = "The request body did not contain a manifest." });
         }
 
@@ -205,7 +205,7 @@ public class DepositsController(
             var eTag = Request.Headers.IfMatch.FirstOrDefault();
             if (!eTag.HasText() || eTag != deposit.MetsETag)
             {
-                logger.LogWarning("Supplied eTag {eTag} does not match deposit eTag {depositETag}", eTag, deposit.MetsETag);
+                logger.LogWarning("Supplied eTag {ETag} does not match deposit eTag {DepositETag}", eTag, deposit.MetsETag);
                 var pd = new ProblemDetails
                 {
                     Title = "Conflict: ETag does not match deposit METS",

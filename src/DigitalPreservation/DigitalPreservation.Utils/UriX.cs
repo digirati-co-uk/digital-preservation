@@ -66,15 +66,6 @@ public static class UriX
         }
         
         // We need to allow a trailing slash, but not a leading one
-        // if (escapedSlug[^1] == '/')
-        // {
-        //     escapedSlug = escapedSlug[..^1];
-        // }
-        // if (escapedSlug == string.Empty)
-        // {
-        //     throw new Exception("Cannot append empty slug");
-        // }
-
         if (escapedSlug[..^1].Contains('/'))
         {
             // We want to do this to force callers to escape parts, because we DO NOT want to escape '/'
@@ -87,9 +78,6 @@ public static class UriX
             uri = new Uri(s + "/");
         }
         return new Uri(uri, escapedSlug);
-
-        //var newUriString = uri.GetStringTemporaryForTesting().TrimEnd('/') + '/' + slug.TrimStart('/');
-        //return new Uri(newUriString);
     }
     
     public static string EscapeForUri(this string s)
@@ -145,12 +133,6 @@ public static class UriX
     {
         return s.Replace("%23", HashReplacement);
     }
-    
-    //
-    // public static string RestoreHashesInAlreadyEscapedString(this string s)
-    // {
-    //     return s.Replace(HashReplacement, "#");
-    // }
 
     public static bool UnescapedEquals(this Uri? u1, Uri? u2)
     {

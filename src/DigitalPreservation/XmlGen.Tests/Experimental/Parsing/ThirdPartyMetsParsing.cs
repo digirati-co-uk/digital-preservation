@@ -94,7 +94,7 @@ public class ThirdPartyMetsParsing
         // LOG_0000 (Archive, "Requires registration") claims all 266 pages.
         // 57 child ranges (LOG_0001–LOG_0046, LOG_0048–LOG_0058) each have "Restricted files"
         //   and claim 93 pages total between them.
-        // LOG_0047 has no DMDID (no own access condition) and claims PHYS_0220 and PHYS_0221;
+        // LOG_0047 has no DMDID (no own access condition) and claims PHYS_0220 and PHYS_0221 -
         //   it inherits "Requires registration" from LOG_0000.
         // Deepest-only: 93 pages go to "Restricted files" children, 2 go to LOG_0047, 171 stay in LOG_0000.
         // Net file access counts: 173 "Requires registration", 93 "Restricted files".
@@ -184,7 +184,7 @@ public class ThirdPartyMetsParsing
         result.Value.Should().NotBeNull();
         result.Value!.Self.Should().NotBeNull();
         result.Value.Self!.Digest.Should().NotBeEmpty();
-        var phys = result.Value!.PhysicalStructure;
+        var phys = result.Value.PhysicalStructure;
         phys!.Files.Should().Contain(f => f.Name == "goobi-wc-b29356350.xml");
         
         result.Value.Name.Should().Be("[Report 1960] /");

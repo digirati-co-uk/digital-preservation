@@ -96,8 +96,8 @@ public class BrowseModel(
             }
         }
         
-        var name = Resource!.Name ?? Resource!.Id!.GetSlug()?.UnEscapeFromUriNoHashes();
-        switch (Resource!.Type)
+        var name = Resource.Name ?? Resource.Id!.GetSlug()?.UnEscapeFromUriNoHashes();
+        switch (Resource.Type)
         {
             case nameof(ArchivalGroup):
                 
@@ -235,11 +235,11 @@ public class BrowseModel(
         while (testPath.HasText() && testPath != "/" && testPath.Contains('/'))
         {
             var cacheKey = CacheKey(testPath);
-            logger.LogInformation("Seeing if there is an Archival Group in the cache for {cacheKey}", cacheKey);
+            logger.LogInformation("Seeing if there is an Archival Group in the cache for {CacheKey}", cacheKey);
             CachedArchivalGroup = memoryCache.TryGetValue(cacheKey, out ArchivalGroup? archivalGroup) ? archivalGroup : null;
             if (CachedArchivalGroup != null)
             {
-                logger.LogInformation("Archival Group was found for {cacheKey}", cacheKey);
+                logger.LogInformation("Archival Group was found for {CacheKey}", cacheKey);
                 break;
             }
             testPath = testPath.GetParent();
@@ -262,13 +262,13 @@ public class BrowseModel(
                 if (preservedResource == null)
                 {
                     // This is going to cause a problem in the rest of the flow
-                    logger.LogWarning("No resource returned for {resourcePath}", resourcePath);
+                    logger.LogWarning("No resource returned for {ResourcePath}", resourcePath);
                     return null;
                 }
                 if (preservedResource is ArchivalGroup group)
                 {
                     // If it is an archival group, hang on to it.
-                    logger.LogInformation("{resourcePath} is an Archival Group", resourcePath);
+                    logger.LogInformation("{ResourcePath} is an Archival Group", resourcePath);
                     archivalGroupToBeCached = group;
                 }
                 else if (preservedResource.PartOf != null)
@@ -278,12 +278,12 @@ public class BrowseModel(
                     archivalGroupToBeCached = result.Value as ArchivalGroup;
                     if (archivalGroupToBeCached != null)
                     {
-                        logger.LogInformation("ArchivalGroup {archivalGroup} recovered from .PartOf for {resourcePath}",
+                        logger.LogInformation("ArchivalGroup {ArchivalGroup} recovered from .PartOf for {ResourcePath}",
                             archivalGroupToBeCached.Id!.AbsolutePath, resourcePath);
                     }
                     else
                     {
-                        logger.LogInformation("No archival group found on path {resourcePath}", resourcePath);
+                        logger.LogInformation("No archival group found on path {ResourcePath}", resourcePath);
                     }
                 }
 
@@ -306,25 +306,25 @@ public class BrowseModel(
 
         if (CachedArchivalGroup.Id!.AbsolutePath.RemoveStart("/") == resourcePath.RemoveStart("/"))
         {
-            logger.LogInformation("{resourcePath} is the archival group itself, returning", resourcePath);
+            logger.LogInformation("{ResourcePath} is the archival group itself, returning", resourcePath);
             return CachedArchivalGroup;
         }
         
         // /repository/folder/folder/ag/folder/folder/file
         var localPath = resourcePath
             .RemoveStart("/")
-            .RemoveStart(CachedArchivalGroup.Id!.AbsolutePath.RemoveStart("/")!)
+            .RemoveStart(CachedArchivalGroup.Id.AbsolutePath.RemoveStart("/")!)
             .RemoveStart("/");
         var resourceInAg = CachedArchivalGroup.FindResource(localPath);
         if (resourceInAg is not null)
         {
-            logger.LogInformation("Found resource of type {type} for {localPath} within ArchivalGroup {archivalGroup}",
-                resourceInAg.Type, localPath, CachedArchivalGroup.Id!.AbsolutePath);
+            logger.LogInformation("Found resource of type {Type} for {LocalPath} within ArchivalGroup {ArchivalGroup}",
+                resourceInAg.Type, localPath, CachedArchivalGroup.Id.AbsolutePath);
         }
         else
         {
-            logger.LogInformation("No resource found at path {localPath} within Archival Group {archivalGroup}",
-                localPath, CachedArchivalGroup.Id!.AbsolutePath);
+            logger.LogInformation("No resource found at path {LocalPath} within Archival Group {ArchivalGroup}",
+                localPath, CachedArchivalGroup.Id.AbsolutePath);
         }
         return resourceInAg;
 
@@ -374,7 +374,7 @@ public class BrowseModel(
         return Redirect(Request.Path);
     }
 
-    private Result ValidateNewContainerSlug(string? path, string slug, string? containerTitle)
+    private static Result ValidateNewContainerSlug(string? path, string slug, string? containerTitle)
     {
         if (PreservedResource.ValidSlug(slug, out var reason))
         {

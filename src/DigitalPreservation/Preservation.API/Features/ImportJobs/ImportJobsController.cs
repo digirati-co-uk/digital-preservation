@@ -39,11 +39,11 @@ public class ImportJobsController(
         if (result is { Success: true, Value: not null })
         {
             result.Value.OriginalId = GetDiffUri(depositId);
-            logger.LogInformation($"Controller returning import job: {result.Value.LogSummary()}");
+            logger.LogInformation("Controller returning import job: {ImportJobSummary}", result.Value.LogSummary());
         }
         else
         {
-            logger.LogError("Failed to get diff import job: " + result.CodeAndMessage());
+            logger.LogError("Failed to get diff import job: {ErrorDetail}", result.CodeAndMessage());
         }
         return this.StatusResponseFromResult(result);
     }
@@ -77,11 +77,11 @@ public class ImportJobsController(
     public async Task<IActionResult> ExecuteImportJob([FromRoute] string depositId, [FromBody] ImportJob importJob,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Import Jobs Controller: Executing Import Job " + importJob.LogSummary());
+        logger.LogInformation("Import Jobs Controller: Executing Import Job {ImportJobSummary}", importJob.LogSummary());
         var depositResult = await mediator.Send(new GetDeposit(depositId), cancellationToken);
         if (depositResult.Failure)
         {
-            logger.LogError("Unable to fetch deposit " + depositId);
+            logger.LogError("Unable to fetch deposit {DepositId}", depositId);
             return this.StatusResponseFromResult(depositResult);
         }
 
@@ -95,12 +95,12 @@ public class ImportJobsController(
             var diffImportJobResult = await mediator.Send(new GetDiffImportJob(deposit, User), cancellationToken);
             if (diffImportJobResult is { Success: true, Value: not null })
             {
-                importJob = diffImportJobResult.Value!;
+                importJob = diffImportJobResult.Value;
                 importJob.OriginalId = GetDiffUri(depositId);
             }
             else
             {
-                logger.LogError("Unable to fetch diff import job for deposit " + diffImportJobResult.CodeAndMessage());
+                logger.LogError("Unable to fetch diff import job for deposit {ErrorDetail}", diffImportJobResult.CodeAndMessage());
                 return this.StatusResponseFromResult(diffImportJobResult);
             }
         }
@@ -121,15 +121,14 @@ public class ImportJobsController(
             return this.StatusResponseFromResult(checkDeposit);
         }
 
-        foreach (var binary in importJob.BinariesToAdd.Union(importJob.BinariesToPatch))
+        var invalidBinary = importJob.BinariesToAdd.Union(importJob.BinariesToPatch)
+            .FirstOrDefault(binary => !deposit.Files!.IsBaseOf(binary.Origin!));
+        if (invalidBinary != null)
         {
-            if (!deposit.Files!.IsBaseOf(binary.Origin!))
-            {
-                var message = $"Binary origin {binary.Origin} is not a child of deposit file location {deposit.Files}.";
-                logger.LogWarning(message);
-                checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
-                return this.StatusResponseFromResult(checkDeposit);
-            }
+            var message = $"Binary origin {invalidBinary.Origin} is not a child of deposit file location {deposit.Files}.";
+            logger.LogWarning(message);
+            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
+            return this.StatusResponseFromResult(checkDeposit);
         }
 
         var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob, User), cancellationToken);
@@ -168,51 +167,49 @@ public class ImportJobsController(
     
     private async Task<Result?> ValidateDeposit(Deposit existingDeposit, int maxCompleted)
     {
-        logger.LogInformation("Validating deposit " + existingDeposit.Id + " with maxCompleted " + maxCompleted);
+        logger.LogInformation("Validating deposit {DepositId} with maxCompleted {MaxCompleted}", existingDeposit.Id, maxCompleted);
         if (existingDeposit.Status == DepositStates.Exporting)
         {
-            logger.LogWarning("Invalid: Deposit is being exported - " + existingDeposit.Id);
+            logger.LogWarning("Invalid: Deposit is being exported - {DepositId}", existingDeposit.Id);
             return Result.Fail(ErrorCodes.BadRequest, "Deposit is being exported");
         }
         if (existingDeposit.ArchivalGroup == null)
         {
-            logger.LogWarning("Invalid: Deposit has no Archival Group - " + existingDeposit.Id);
+            logger.LogWarning("Invalid: Deposit has no Archival Group - {DepositId}", existingDeposit.Id);
             return Result.Fail(ErrorCodes.BadRequest, "Deposit requires Archival Group");
         }
 
         var existingImportJobResultsResult = await mediator.Send(new GetImportJobResultsForDeposit(existingDeposit.Id!.GetSlug()!));
         if (existingImportJobResultsResult.Failure || existingImportJobResultsResult.Value == null)
         {
-            logger.LogError("Cannot check for existing import job results - " + existingDeposit.Id + " - " + existingImportJobResultsResult.CodeAndMessage());
+            logger.LogError("Cannot check for existing import job results - {DepositId} - {ErrorDetail}", existingDeposit.Id, existingImportJobResultsResult.CodeAndMessage());
             return Result.Fail(ErrorCodes.UnknownError, "Could not look for existing import jobs");
         }
         var notErrors = existingImportJobResultsResult.Value.Count(ijr => ijr.Status != ImportJobStates.CompletedWithErrors);
         if (notErrors > maxCompleted)
         {
-            logger.LogWarning("Invalid: there are " + notErrors + " existing non-error import jobs for " + existingDeposit.Id);
+            logger.LogWarning("Invalid: there are {NotErrors} existing non-error import jobs for {DepositId}", notErrors, existingDeposit.Id);
             return Result.Fail(ErrorCodes.Conflict, "There are existing import jobs for this deposit");
         }
-        logger.LogInformation("Deposit " + existingDeposit.Id + " is considered valid");
+        logger.LogInformation("Deposit {DepositId} is considered valid", existingDeposit.Id);
         return null;
     }
     
-    private bool IsPostedDiffReference(ImportJob importJob, PathString path)
+    private static bool IsPostedDiffReference(ImportJob importJob, PathString path)
     {
         // This is when the API caller posts a reference to the diff import job rather than an _actual_ job
         // means we have to build the diff now.
-        if(importJob.Id!.ToString().EndsWith(path + "/diff"))
+        // We may want to be more flexible that this, e.g., allowing the DigitalObject to be set as part of the immediate diff execution
+        if(importJob.Id!.ToString().EndsWith(path + "/diff")
+           && importJob.ContainersToAdd.Count == 0
+           && importJob.ContainersToDelete.Count == 0
+           && importJob.BinariesToAdd.Count == 0
+           && importJob.BinariesToDelete.Count == 0
+           && importJob.BinariesToPatch.Count == 0
+           && importJob.ContainersToRename.Count == 0
+           && importJob.BinariesToRename.Count == 0)
         {
-            // We may want to be more flexible that this, e.g., allowing the DigitalObject to be set as part of the immediate diff execution
-            if(   importJob.ContainersToAdd.Count == 0
-               && importJob.ContainersToDelete.Count == 0
-               && importJob.BinariesToAdd.Count == 0
-               && importJob.BinariesToDelete.Count == 0
-               && importJob.BinariesToPatch.Count == 0
-               && importJob.ContainersToRename.Count == 0
-               && importJob.BinariesToRename.Count == 0)
-            {
-                return true;
-            }
+            return true;
         }
         return false;
     }

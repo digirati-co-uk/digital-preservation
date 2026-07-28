@@ -12,7 +12,7 @@ using Storage.Client;
 namespace Preservation.API.Features.Deposits.Requests;
 
 public class GetDepositBase(
-    ILogger<GetDepositHandler> logger,
+    ILogger<GetDepositBase> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator,
@@ -100,7 +100,7 @@ public class GetDepositBase(
             return;
         }
 
-        var physicalStructure = wrapperResult.Value!.PhysicalStructure!;
+        var physicalStructure = wrapperResult.Value.PhysicalStructure;
         var needsMetadata = physicalStructure.FindDirectory(FolderNames.Metadata) is null;
         var needsAdHoc = physicalStructure.FindDirectory(FolderNames.MetadataAdHoc) is null;
         if (!needsMetadata && !needsAdHoc)

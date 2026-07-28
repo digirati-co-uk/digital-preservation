@@ -34,8 +34,7 @@ public class ModsTests
     public void Build_Premis_Get_XmlElement()
     {
         var mods = ModsManager.CreateRootMods("This is the name of the object");
-        var xmlElement = ModsManager.GetXmlElement(mods);
-        // testOutputHelper.WriteLine(xmlElement?.OuterXml);
+        ModsManager.GetXmlElement(mods);
     }
     
     [Fact]

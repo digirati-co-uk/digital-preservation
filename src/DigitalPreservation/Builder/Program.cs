@@ -6,7 +6,7 @@ using IIIF.Serialisation;
 
 namespace Builder;
 
-class Program
+static class Program
 {
     static async Task Main(string[] args)
     {

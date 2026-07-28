@@ -3,7 +3,7 @@ using System.Text;
 
 namespace DigitalPreservation.Utils;
 
-public class Checksum
+public static class Checksum
 {
     public static string? HashFromStream(Stream openedStream, HashAlgorithm hashAlgorithm)
     {

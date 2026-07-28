@@ -46,7 +46,7 @@ public class ImportController(
     [Produces("application/json")]
     public async Task<IActionResult> ExecuteImportJob([FromBody] ImportJob importJob, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Executing import job {path}", importJob.ArchivalGroup);
+        logger.LogInformation("Executing import job {Path}", importJob.ArchivalGroup);
         var queueImportJobResult = await mediator.Send(new QueueImportJob(importJob), cancellationToken);
         logger.LogInformation("Returned from QueueImportJob");
         return this.StatusResponseFromResult(queueImportJobResult, 201, queueImportJobResult.Value?.Id);

@@ -32,7 +32,7 @@ public static class FileLinkRoles
 
     public static string? ToIiifProvides(Uri? uri)
     {
-        return uri == null ? null : ProvidesKeywordFromUri!.GetValueOrDefault(uri, null);
+        return uri == null ? null : ProvidesKeywordFromUri.GetValueOrDefault(uri, null);
     }
     
     static FileLinkRoles()

@@ -24,7 +24,7 @@ public class GetDepositAsIIIFManifest(string id, string tokenBaseUrl, string pla
 
 public class GetDepositAsIIIFManifestHandler(
     IMetsParser metsParser,
-    ILogger<GetDepositHandler> logger,
+    ILogger<GetDepositAsIIIFManifestHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator,
@@ -44,7 +44,7 @@ public class GetDepositAsIIIFManifestHandler(
         {
             return Result.FailNotNull<Manifest>(wrapperResult.ErrorCode!, wrapperResult.ErrorMessage);
         }
-        var deposit = getDepositResult.Value!;
+        var deposit = getDepositResult.Value;
         var wrapper = wrapperResult.Value!;
         var manifest = MakeDepositManifest(deposit, wrapper, request.TokenBaseUrl);
         manifestBuilder.MakeCanvasesAndRanges(manifest, wrapper, request.PlainBaseUrl, request.MediaServerBaseUrl);
@@ -83,7 +83,7 @@ public class GetDepositAsIIIFManifestHandler(
 
 
 
-    private string? GetDateDisplay(DateTime? dt)
+    private static string? GetDateDisplay(DateTime? dt)
     {
         return !dt.HasValue ? " - " : dt?.ToLocalTime().ToString("s").Replace("T", " ");
     }

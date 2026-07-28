@@ -100,7 +100,7 @@ public class MetsManagerDeepStructureTests
         new()
         {
             LocalPath = localPath,
-            Name = localPath.Split('/').Last(),
+            Name = localPath.Split('/')[^1],
             ContentType = "application/pdf",
             Digest = PdfDigest,
             Size = 102400,
@@ -111,7 +111,7 @@ public class MetsManagerDeepStructureTests
         new()
         {
             LocalPath = localPath,
-            Name = localPath.Split('/').Last(),
+            Name = localPath.Split('/')[^1],
             ContentType = "image/tiff",
             Digest = TifDigest,
             Size = 4096000,

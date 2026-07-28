@@ -16,7 +16,7 @@ public class GetDepositWithMets(string id, bool parse = true) : IRequest<Result<
 
 public class GetDepositWithMetsHandler(
     IMetsParser metsParser,
-    ILogger<GetDepositHandler> logger,
+    ILogger<GetDepositWithMetsHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator,
@@ -32,11 +32,11 @@ public class GetDepositWithMetsHandler(
             var wrapperResult = await MetsParser.GetMetsFileWrapper(getDepositResult.Value!.Files!, request.Parse);
             if (wrapperResult.Success)
             {
-                var deposit = getDepositResult.Value!;
+                var deposit = getDepositResult.Value;
                 deposit.MetsETag = wrapperResult.Value?.ETag;
                 return Result.OkNotNull(new DepositWithMets
                 {
-                    Deposit = getDepositResult.Value!,
+                    Deposit = getDepositResult.Value,
                     MetsFileWrapper = wrapperResult.Value!
                 });
             }

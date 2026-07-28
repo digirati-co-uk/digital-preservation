@@ -222,7 +222,7 @@ try
     app.MapGet("/test", (IConfiguration configuration) => $"Config value 'TestVal': {configuration["TestVal"]} ");
     app.MapControllers();
     app.UseHealthChecks("/health");
-    app.Run();
+    await app.RunAsync();
 }
 catch (HostAbortedException)
 {
@@ -236,8 +236,11 @@ catch (Exception ex)
 finally
 {
     Log.Information("Shut down complete");
-    Log.CloseAndFlush();
+    await Log.CloseAndFlushAsync();
 }
 
 // required for WebApplicationFactory
-public partial class Program { }
+public partial class Program
+{
+    protected Program() { }
+}

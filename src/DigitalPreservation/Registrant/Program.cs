@@ -9,7 +9,7 @@ using Storage.Client;
 
 namespace Registrant;
 
-class Program
+static class Program
 {
     static async Task Main(string[] args)
     {
@@ -44,7 +44,6 @@ class Program
             dlcsOptions,
             GetHttpClient(dlcsOptions.Value.ApiEntryPoint!, dlcsUser, dlcsPassword));
 
-        //var validatedSpace = requestedSpace;
         var validatedSpace = await EnsureSpace(dlcs, requestedSpace);
         if (validatedSpace <= 0)
         {
@@ -86,7 +85,7 @@ class Program
         }
 
         var hydraCollection = new HydraImageCollection { Members = imagesToRegister.ToArray() };
-        var batch = await dlcs.RegisterImages(hydraCollection);
+        await dlcs.RegisterImages(hydraCollection);
 
         Console.WriteLine("Hydra images registered");
     }

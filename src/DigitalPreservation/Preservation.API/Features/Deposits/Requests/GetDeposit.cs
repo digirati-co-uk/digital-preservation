@@ -33,7 +33,7 @@ public class GetDepositHandler(
             var wrapperResult = await MetsParser.GetMetsFileWrapper(getDepositResult.Value!.Files!, false);
             if (wrapperResult.Success)
             {
-                var deposit = getDepositResult.Value!;
+                var deposit = getDepositResult.Value;
                 deposit.MetsETag = wrapperResult.Value?.ETag;
                 return Result.Ok(deposit);
             }
