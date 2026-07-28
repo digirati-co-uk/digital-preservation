@@ -30,7 +30,7 @@ public class GetDepositAsIIIFManifestHandler(
     ResourceMutator resourceMutator,
     WorkspaceManagerFactory workspaceManagerFactory,
     ManifestBuilder manifestBuilder) : 
-    GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory), IRequestHandler<GetDepositAsIIIFManifest, Result<Manifest>>
+    GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory, metsParser), IRequestHandler<GetDepositAsIIIFManifest, Result<Manifest>>
 {
     public async Task<Result<Manifest>> Handle(GetDepositAsIIIFManifest request, CancellationToken cancellationToken)
     {

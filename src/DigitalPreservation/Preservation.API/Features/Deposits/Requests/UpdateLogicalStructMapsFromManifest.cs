@@ -1,5 +1,6 @@
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Workspace;
 using IIIF.Presentation.V3;
@@ -25,12 +26,13 @@ public class UpdateLogicalStructMapsFromManifest(
 }
 
 public class UpdateLogicalStructMapsFromManifestHandler(
+    IMetsParser metsParser,
     ILogger<GetDepositHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
     ResourceMutator resourceMutator,
     WorkspaceManagerFactory workspaceManagerFactory)
-    : GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory),
+    : GetDepositBase(logger, dbContext, storageApiClient, resourceMutator, workspaceManagerFactory, metsParser),
       IRequestHandler<UpdateLogicalStructMapsFromManifest, Result>
 {
     public async Task<Result> Handle(UpdateLogicalStructMapsFromManifest request, CancellationToken cancellationToken)
