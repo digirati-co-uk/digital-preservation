@@ -97,6 +97,6 @@ public class SearchRequestHandler(
             Total = count
         };
 
-        return Task.FromResult(result)!;
+        return Task.FromResult(result);
     }
 }

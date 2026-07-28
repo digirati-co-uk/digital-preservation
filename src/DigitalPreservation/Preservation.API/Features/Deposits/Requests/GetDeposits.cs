@@ -127,7 +127,7 @@ public class GetDepositsHandler(
                 if (q.ShowAll is true)
                 {
                     // We need at least one predicate so...
-                    predicate = predicate.And(x => x.Active == true || x.Active == false);
+                    predicate = predicate.And(x => x.Active || !x.Active);
                 }
                 else
                 {
@@ -137,7 +137,7 @@ public class GetDepositsHandler(
                     }
                     else
                     {
-                        predicate = predicate.And(x => x.Active == true);
+                        predicate = predicate.And(x => x.Active);
                     }
 
                 }

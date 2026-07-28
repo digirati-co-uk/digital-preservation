@@ -39,12 +39,12 @@ public class CreateDepositBase(
         }
         try
         {
-            logger.LogInformation("Preservation API Create Deposit called: " + request.Deposit.LogSummary());
+            logger.LogInformation("Preservation API Create Deposit called: {DepositSummary}", request.Deposit.LogSummary());
             var (archivalGroupExists, validateAgResult) = await ArchivalGroupRequestValidator
                 .ValidateArchivalGroup(dbContext, storageApiClient, request.Deposit);
             if (validateAgResult.Failure)
             {
-                logger.LogWarning("Validation failed for Deposit provided to CreateDepositHandler, " + validateAgResult.CodeAndMessage());
+                logger.LogWarning("Validation failed for Deposit provided to CreateDepositHandler, {CodeAndMessage}", validateAgResult.CodeAndMessage());
                 return validateAgResult;
             }
             
@@ -62,7 +62,7 @@ public class CreateDepositBase(
                 var agPath = request.Deposit.ArchivalGroup!.GetPathUnderRoot()!;
                 var agVersion = request.Deposit.VersionExported;
                 logger.LogInformation("CreateDeposit request asked for Export, " +
-                                      "fetching storage map for Archival Group {agUrl}", 
+                                      "fetching storage map for Archival Group {AgUrl}",
                                         request.Deposit.ArchivalGroup!.AbsolutePath);
                 var storageMapResult = await storageApiClient.GetStorageMap(agPath, agVersion);
                 if (storageMapResult.Failure || storageMapResult.Value is null)
@@ -76,12 +76,12 @@ public class CreateDepositBase(
                 {
                     nameOfArchivalGroupAtVersion = nameResult.Value;
                 }
-                logger.LogInformation("Storage map for Archival Group retrieved: " + storageMapForExport.Version);
+                logger.LogInformation("Storage map for Archival Group retrieved: {Version}", storageMapForExport.Version);
             }
             
             var mintedId = identityService.MintIdentity(nameof(Deposit));
             var callerIdentity = request.Principal.GetCallerIdentity();
-            logger.LogInformation("Identity service gave us deposit Id: " + mintedId);
+            logger.LogInformation("Identity service gave us deposit Id: {MintedId}", mintedId);
 
             // For a deposit against an existing Archival Group, the AG's own (exported) content
             // defines the deposit's content - including whether it has metadata/ad-hoc folders.
@@ -96,7 +96,7 @@ public class CreateDepositBase(
                 mintedId, request.Deposit.Template, callerIdentity, createMetadataFolders);
             if (filesLocation.Failure)
             {
-                logger.LogError("Unable to create GetWorkingFilesLocation for deposit " + mintedId + "; " + filesLocation.CodeAndMessage());
+                logger.LogError("Unable to create GetWorkingFilesLocation for deposit {MintedId}; {CodeAndMessage}", mintedId, filesLocation.CodeAndMessage());
                 return Result.Fail<Deposit?>(filesLocation.ErrorCode!, filesLocation.ErrorMessage);
             }
 
@@ -104,7 +104,7 @@ public class CreateDepositBase(
             if (request.Export)
             {
                 logger.LogInformation("CreateDeposit request asked for Export, " +
-                                      "calling storage::ExportArchivalGroup to export {agUri}, version: {version}",
+                                      "calling storage::ExportArchivalGroup to export {AgUri}, version: {Version}",
                     request.Deposit.ArchivalGroup, storageMapForExport!.Version.OcflVersion!);
                 var exportResultResult = await storageApiClient.ExportArchivalGroup(
                     resourceMutator.MutatePreservationApiUri(request.Deposit.ArchivalGroup!)!, // maybe should ask for the AG and use its URL
@@ -113,11 +113,11 @@ public class CreateDepositBase(
                     cancellationToken);
                 if (exportResultResult.Failure || exportResultResult.Value is null)
                 {
-                    logger.LogError("Failed to export " +  request.Deposit.ArchivalGroup! + ", " + exportResultResult.CodeAndMessage());
+                    logger.LogError("Failed to export {ArchivalGroup}, {CodeAndMessage}", request.Deposit.ArchivalGroup!, exportResultResult.CodeAndMessage());
                     return Result.Fail<Deposit?>(exportResultResult.ErrorCode!, exportResultResult.ErrorMessage);
                 }
                 exportResultUri = exportResultResult.Value.Id;
-                logger.LogInformation("Obtained exportResultUri: " + exportResultUri!);
+                logger.LogInformation("Obtained exportResultUri: {ExportResultUri}", exportResultUri!);
             }
 
             var agNameFromDeposit = request.Deposit.ArchivalGroupName ?? nameOfArchivalGroupAtVersion;
@@ -130,15 +130,14 @@ public class CreateDepositBase(
                 storageMapForExport,
                 request.Deposit.VersionExported,
                 agNameFromDeposit,
-                request.Deposit,
                 cancellationToken);
 
             if (metsResult.Failure)
             {
-                logger.LogError("Unable to ensure METS file in deposit: " + metsResult.CodeAndMessage());
+                logger.LogError("Unable to ensure METS file in deposit: {CodeAndMessage}", metsResult.CodeAndMessage());
                 return Result.Fail<Deposit?>(metsResult.ErrorCode!, metsResult.ErrorMessage);
             }
-            logger.LogInformation("Result from EnsureMets is success " + metsResult.Success);
+            logger.LogInformation("Result from EnsureMets is success {Success}", metsResult.Success);
 
             var metadataReader = await MetadataReader.Create(storage, filesLocation.Value!);
             await storage.GenerateDepositFileSystem(filesLocation.Value!, true, metadataReader.Decorate, cancellationToken);
@@ -193,7 +192,7 @@ public class CreateDepositBase(
                 if (metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.Metadata) == null)
                     await CreateFolderInMets(FolderNames.Metadata, FolderNames.Metadata, createdDeposit);
 
-                if (metsWrapper.PhysicalStructure!.FindDirectory(FolderNames.MetadataAdHoc) == null)
+                if (metsWrapper.PhysicalStructure.FindDirectory(FolderNames.MetadataAdHoc) == null)
                     await CreateFolderInMets(FolderNames.MetadataAdHoc, FolderNames.AdHoc, createdDeposit);
             }
 
@@ -223,7 +222,6 @@ public class CreateDepositBase(
         StorageMap? storageMapForExport,
         string? ocflVersion,
         string? agNameFromDeposit,
-        Deposit deposit,
         CancellationToken cancellationToken = default)
     {
         // We need to ensure that there is a METS file in the deposit.
@@ -233,13 +231,13 @@ public class CreateDepositBase(
         // However _the export will still be queued (or maybe just started)_ at this point.
         // But we can assume that if exportedArchivalGroup contains a METS, then it will be exported.
 
-        logger.LogInformation("Ensuring a METS file in " + filesLocation + "; template=" + templateType);
+        logger.LogInformation("Ensuring a METS file in {FilesLocation}; template={TemplateType}", filesLocation, templateType);
         if (!archivalGroupExists && templateType != TemplateType.None)
         {
             // the simplest case - but still only for templated Deposits
             // e.g., Goobi will supply a METS as its next step
             logger.LogInformation(
-                "Archival Group does not yet exist, and template={templateType}, so create a standard METS file",
+                "Archival Group does not yet exist, and template={TemplateType}, so create a standard METS file",
                 templateType);
             // Standard or BagIt layout?
             var metsLocation = FolderNames.GetFilesLocation(filesLocation, templateType == TemplateType.BagIt);
@@ -249,29 +247,29 @@ public class CreateDepositBase(
                 return Result.Ok();
             }
 
-            logger.LogError("Unable to create standard METS: " + result.CodeAndMessage());
+            logger.LogError("Unable to create standard METS: {CodeAndMessage}", result.CodeAndMessage());
             return Result.Fail(result.ErrorCode!, result.ErrorMessage);
         }
 
         if (archivalGroupExists)
         {
-            logger.LogInformation("Archival Group " + archivalGroupUri + " exists.");
+            logger.LogInformation("Archival Group {ArchivalGroupUri} exists.", archivalGroupUri);
             StorageMap? storageMap;
             // list its root at the correct version
             if (storageMapForExport is null)
             {
-                logger.LogInformation("Not already retrieved, so fetch archival group " + archivalGroupUri +
-                                      ", version " + ocflVersion);
+                logger.LogInformation("Not already retrieved, so fetch archival group {ArchivalGroupUri}, version {OcflVersion}",
+                    archivalGroupUri, ocflVersion);
                 var storageMapResult =
                     await storageApiClient.GetStorageMap(archivalGroupUri!.GetPathUnderRoot()!, ocflVersion);
                 if (storageMapResult is { Success: true, Value: not null })
                 {
-                    logger.LogInformation("Storage Map retrieved: " + storageMapResult.Value.Version.OcflVersion);
+                    logger.LogInformation("Storage Map retrieved: {OcflVersion}", storageMapResult.Value.Version.OcflVersion);
                     storageMap = storageMapResult.Value;
                 }
                 else
                 {
-                    logger.LogError("Unable to fetch Storage Map: " + storageMapResult.CodeAndMessage());
+                    logger.LogError("Unable to fetch Storage Map: {CodeAndMessage}", storageMapResult.CodeAndMessage());
                     return Result.Fail(
                         storageMapResult.ErrorCode ?? ErrorCodes.UnknownError,
                         storageMapResult.ErrorMessage ??
@@ -289,13 +287,13 @@ public class CreateDepositBase(
             var metsFile = storageMap.Files.Values.FirstOrDefault(f => MetsUtils.IsMetsFile(f.FullPath))?.FullPath;
             if (metsFile is null)
             {
-                logger.LogWarning("No METS file found in Archival Group " + archivalGroupUri + ", version " +
-                                  ocflVersion);
+                logger.LogWarning("No METS file found in Archival Group {ArchivalGroupUri}, version {OcflVersion}",
+                    archivalGroupUri, ocflVersion);
             }
 
             if (metsFile is null && templateType != TemplateType.None)
             {
-                logger.LogWarning("Creating Standard METS file in AG " + archivalGroupUri + ", version " + ocflVersion);
+                logger.LogWarning("Creating Standard METS file in AG {ArchivalGroupUri}, version {OcflVersion}", archivalGroupUri, ocflVersion);
                 // existing AG has no METS (even if it's exporting), but we can make one safely because it's one of our own
                 // FOR NOW THIS THE EXPORT IS ALWAYS ROOT LEVEL, MATCHING THE AG
                 // We will only do this (add a METS file where none existed) if you are exporting the HEAD
@@ -317,7 +315,7 @@ public class CreateDepositBase(
                         return Result.Ok();
                     }
 
-                    logger.LogError("Unable to create Standard METS file, " + result.CodeAndMessage());
+                    logger.LogError("Unable to create Standard METS file, {CodeAndMessage}", result.CodeAndMessage());
                     return Result.Fail(result.ErrorCode!, result.ErrorMessage);
                 }
 
@@ -338,7 +336,7 @@ public class CreateDepositBase(
                     return Result.Ok();
                 }
 
-                logger.LogError("Unable to copy METS file to deposit: " + exportMetsResult.CodeAndMessage());
+                logger.LogError("Unable to copy METS file to deposit: {CodeAndMessage}", exportMetsResult.CodeAndMessage());
                 return Result.Fail(exportMetsResult.ErrorCode!, exportMetsResult.ErrorMessage);
             }
         }

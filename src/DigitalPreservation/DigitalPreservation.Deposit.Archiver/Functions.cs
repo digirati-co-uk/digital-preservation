@@ -354,7 +354,7 @@ public class Functions
         var metadataPath = $"{FolderNames.Metadata}";
         var objectsPath = $"{FolderNames.Objects}";
 
-        foreach (var file in files.Where(f => f.LocalPath!.StartsWith(metadataPath) || f.LocalPath!.StartsWith(objectsPath)))
+        foreach (var file in files.Where(f => f.LocalPath!.StartsWith(metadataPath) || f.LocalPath.StartsWith(objectsPath)))
         {
             deleteSelection.Items.Add(new MinimalItem
             {

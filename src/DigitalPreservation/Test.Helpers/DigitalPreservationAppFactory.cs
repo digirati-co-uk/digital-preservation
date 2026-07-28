@@ -54,11 +54,6 @@ public class DigitalPreservationAppFactory<TStartup> : WebApplicationFactory<TSt
                 {
                     configureTestServices(services);
                 }
-                
-                // if (localStack != null)
-                // {
-                //     ConfigureAWSServices(services);
-                // }
             })
             .UseEnvironment("Testing")
             .UseDefaultServiceProvider((_, options) =>

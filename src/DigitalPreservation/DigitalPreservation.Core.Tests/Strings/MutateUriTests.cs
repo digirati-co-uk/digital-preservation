@@ -21,7 +21,6 @@ public class MutateUriTests
             newUri = builder.Uri;
         }
         newUri.ToString().Should().Be(    "https://storage.com/aa/bb/cc");
-        // newUri. OriginalString.Should().Be("https://storage.com:443/aa/bb/cc");
     }
     
 }

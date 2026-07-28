@@ -10,7 +10,6 @@ namespace Storage.API.Fedora;
 public class FedoraDB
 {
     private readonly string? connectionString;
-    private ILogger<FedoraDB> logger;
     private readonly Converters? converters;
 
     private int basicContainer;
@@ -31,7 +30,6 @@ public class FedoraDB
         ILogger<FedoraDB> logger)
     {
         this.connectionString = connectionString;
-        this.logger = logger;
         if (connectionString.IsNullOrWhiteSpace())
         {
             logger.LogInformation("Fedora connection string is empty, marking DB not available.");

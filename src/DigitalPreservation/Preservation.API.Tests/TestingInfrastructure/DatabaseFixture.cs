@@ -27,17 +27,9 @@ public class DatabaseFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         // Start DB + apply migrations
-        try
-        {
-            await postgresContainer.StartAsync();
-            SetPropertiesFromContainer();
-            await DbContext.Database.MigrateAsync();
-        }
-        catch (Exception ex)
-        {
-            var m = ex.Message;
-            throw;
-        }
+        await postgresContainer.StartAsync();
+        SetPropertiesFromContainer();
+        await DbContext.Database.MigrateAsync();
     }
 
     public Task DisposeAsync() => postgresContainer.StopAsync();

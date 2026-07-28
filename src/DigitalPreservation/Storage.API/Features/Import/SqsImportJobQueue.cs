@@ -32,7 +32,7 @@ public class SqsImportJobQueue(
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Could not resolve queue name {queueName}", queueName);
+                logger.LogError(e, "Could not resolve queue name {QueueName}", queueName);
             }
         }
     }
@@ -65,7 +65,7 @@ public class SqsImportJobQueue(
                 foreach (var message in response.Messages!)
                 {
                     if (cancellationToken.IsCancellationRequested) return string.Empty;
-                    logger.LogDebug("Received SQS message {messageBody}", message.Body);
+                    logger.LogDebug("Received SQS message {MessageBody}", message.Body);
 
                     jobIdentifier = GetJobId(message);
                     if (jobIdentifier.HasText())

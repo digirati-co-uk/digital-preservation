@@ -25,13 +25,10 @@ public static class ArchivalGroupRequestValidator
         {
             return (false, Result.Fail<Deposit?>(ErrorCodes.BadRequest, $"Archive path '{archivalGroupPathUnderRoot}' contains invalid characters. {validPathResult.ErrorMessage}"));
         }
-        if (checkExistence)
+        if (checkExistence && dbContext.Deposits.Any(d => d.Active && d.ArchivalGroupPathUnderRoot == archivalGroupPathUnderRoot && d.MintedId != mintedId))
         {
-            if (dbContext.Deposits.Any(d => d.Active && d.ArchivalGroupPathUnderRoot == archivalGroupPathUnderRoot && d.MintedId != mintedId))
-            {
-                return (null, Result.Fail<Deposit?>(ErrorCodes.Conflict,
-                    "An Active Deposit already exists for this archivalGroup (" + archivalGroupPathUnderRoot + ")"));
-            }
+            return (null, Result.Fail<Deposit?>(ErrorCodes.Conflict,
+                "An Active Deposit already exists for this archivalGroup (" + archivalGroupPathUnderRoot + ")"));
         }
         var agTypeResult = await storageApiClient.GetResourceType(deposit.ArchivalGroup.AbsolutePath);
         if (agTypeResult.Success)

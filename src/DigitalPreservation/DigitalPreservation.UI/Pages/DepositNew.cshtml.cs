@@ -142,7 +142,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                 return false;
             }
 
-            var deposits = depositsForArchivalGroupResult.Value!.Deposits;
+            var deposits = depositsForArchivalGroupResult.Value.Deposits;
             if (deposits is { Count: > 0 })
             {
                 var activeDeposit = deposits.FirstOrDefault(d => d.Active); // should be SingleOrDefault

@@ -5,7 +5,7 @@ using DigitalPreservation.Common.Model.Results;
 
 namespace Storage.Repository.Common.S3;
 
-public class ResultHelpers
+public static class ResultHelpers
 {
     public static Result<T?> FailFromS3Exception<T>(AmazonS3Exception s3E, string message, Uri s3Uri)
     {

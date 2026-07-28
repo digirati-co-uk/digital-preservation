@@ -113,12 +113,6 @@ public class ResourceMutator(
             return new Uri(builder.Uri.ToString()); // ensures that OriginalString is preserved
         }
         return uri;
-        // var uriS = uri.GetStringTemporaryForTesting();
-        // if (uriS.StartsWith(storageHost))
-        // {
-        //     return new Uri(preservationHost + uriS.RemoveStart(storageHost));
-        // }
-
     }
     
     
@@ -139,13 +133,6 @@ public class ResourceMutator(
             return new Uri(builder.Uri.ToString()); // ensures that OriginalString is preserved
         }
         return uri;
-        // var uriS = uri.GetStringTemporaryForTesting();
-        // if (uriS.StartsWith(preservationHost))
-        // {
-        //     return new Uri(storageHost + uriS.RemoveStart(preservationHost));
-        // }
-        //
-        // return uri;
     }
 
     public Uri? GetAgentUri(string? agentName)

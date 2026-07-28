@@ -42,7 +42,7 @@ public class ProcessPipelineJobHandler(
 
     private Guid brunnhildeProcessId = Guid.Parse("6BFB4FE2-E17E-423C-A889-426A0ADF4DF1");
     private Guid monitorForceCompleteId = Guid.Parse("97BD55BA-B039-460F-BDC9-34DAD57920C5");
-    private Dictionary<Guid, CancellationTokenSource> tokensCatalog = new();
+    private readonly Dictionary<Guid, CancellationTokenSource> tokensCatalog = new();
     /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
     /// (e.g., GetCombinedDirectory(true))
@@ -116,16 +116,16 @@ public class ProcessPipelineJobHandler(
 
         if (updateResult is { Success: true, Value: not null } && errors.IsNullOrWhiteSpace())
         {
-            logger.LogInformation("Job {jobIdentifier} status updated: {status}", jobId, status);
+            logger.LogInformation("Job {JobIdentifier} status updated: {Status}", jobId, status);
         }
         else if (updateResult is { Success: true } && errors.HasText())
         {
-            logger.LogError("Updated pipeline job {jobIdentifier} to status: {status}, recording errors {errors}",
+            logger.LogError("Updated pipeline job {JobIdentifier} to status: {Status}, recording errors {Errors}",
                 jobId, status, errors);
         }
         else
         {
-            logger.LogError("Failed to update job {jobIdentifier} status: {status}; {error}, was trying to log errors: {errors}",
+            logger.LogError("Failed to update job {JobIdentifier} status: {Status}; {Error}, was trying to log errors: {Errors}",
                 jobId, status, updateResult.CodeAndMessage(), errors);
         }
         return updateResult;
@@ -161,7 +161,7 @@ public class ProcessPipelineJobHandler(
             if (!result.CleanupProcessJob)
                 await UpdateJobStatus(request, result.Status, result.Errors, cancellationToken);
 
-            logger.LogInformation("Execute Brunnhilde result test {status} {errors} ", result.Status, result.Errors);
+            logger.LogInformation("Execute Brunnhilde result test {Status} {Errors} ", result.Status, result.Errors);
             return result.Status == PipelineJobStates.Completed
                 ? Result.Ok()
                 : Result.FailNotNull<Result>(ErrorCodes.UnknownError,
@@ -170,7 +170,7 @@ public class ProcessPipelineJobHandler(
         catch (Exception ex)
         {
             logger.LogError(ex,
-                "Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}",
+                "Caught error in PipelineJob handler for job id {JobIdentifier} and deposit {DepositId}",
                 request.JobIdentifier, request.DepositId);
 
             await TryReleaseLock(request, workspace.Deposit, cancellationToken);
@@ -179,7 +179,7 @@ public class ProcessPipelineJobHandler(
                 request, PipelineJobStates.CompletedWithErrors, ex.Message, cancellationToken);
 
             if (pipelineJobsResult.Value?.Errors is { Length: 0 })
-                logger.LogInformation("Job {jobIdentifier} Running status CompletedWithErrors logged",
+                logger.LogInformation("Job {JobIdentifier} Running status CompletedWithErrors logged",
                     request.JobIdentifier);
 
             return Result.FailNotNull<Result>(ErrorCodes.UnknownError,
@@ -205,7 +205,7 @@ public class ProcessPipelineJobHandler(
 
         var dir = new DirectoryInfo(metadataPathForProcessDelete);
 
-        logger.LogInformation("In clean up brunnhilde process deposit folder exists {dirExists}", dir.Exists);
+        logger.LogInformation("In clean up brunnhilde process deposit folder exists {DirExists}", dir.Exists);
 
         if(dir.Exists)
             Directory.Delete(metadataPathForProcessDelete, true);
@@ -219,7 +219,7 @@ public class ProcessPipelineJobHandler(
 
         var dir = new DirectoryInfo(metadataPathForBagitProcessDelete);
 
-        logger.LogInformation("In clean up bagit process deposit folder exists {dirExists}", dir.Exists);
+        logger.LogInformation("In clean up bagit process deposit folder exists {DirExists}", dir.Exists);
 
         if (dir.Exists)
             Directory.Delete(metadataPathForBagitProcessDelete, true);
@@ -242,7 +242,7 @@ public class ProcessPipelineJobHandler(
 
         if (!Directory.Exists(mountPath))
         {
-            logger.LogError("S3 mount path could not be found at {mountPath}", mountPath);
+            logger.LogError("S3 mount path could not be found at {MountPath}", mountPath);
             await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
             return new ProcessPipelineResult
             {
@@ -255,7 +255,7 @@ public class ProcessPipelineJobHandler(
         if (!Directory.Exists(objectPath))
         {
             var errorMessage = $"Could not find object folder for deposit {request.DepositId}";
-            logger.LogError("Deposit {depositId} folder and contents could not be found at {objectPath}",
+            logger.LogError("Deposit {DepositId} folder and contents could not be found at {ObjectPath}",
                 request.DepositId, objectPath);
             var releaseLockResult1 = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
             if (releaseLockResult1.Failure)
@@ -269,9 +269,9 @@ public class ProcessPipelineJobHandler(
             };
         }
 
-        logger.LogInformation("Metadata folder value: {metadataPath}", metadataPath);
-        logger.LogInformation("Metadata process folder value: {metadataProcessPath}", metadataProcessPath);
-        logger.LogInformation("Object folder path value: {objectPath}", objectPath);
+        logger.LogInformation("Metadata folder value: {MetadataPath}", metadataPath);
+        logger.LogInformation("Metadata process folder value: {MetadataProcessPath}", metadataProcessPath);
+        logger.LogInformation("Object folder path value: {ObjectPath}", objectPath);
 
         var (forceComplete, cleanupProcessJob) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
 
@@ -287,9 +287,9 @@ public class ProcessPipelineJobHandler(
             ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
             : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
 
-        logger.LogInformation("metadataPathForProcessFilesAndDirectories {metadataPathForProcessFilesAndDirectories}",
+        logger.LogInformation("metadataPathForProcessFilesAndDirectories {MetadataPathForProcessFilesAndDirectories}",
             metadataPathForProcessFilesAndDirectories);
-        logger.LogInformation("depositName {depositId}", request.DepositId);
+        logger.LogInformation("depositName {DepositId}", request.DepositId);
 
         using var process = new Process();
         process.StartInfo.FileName = pipelineToolOptions.Value.PathToPython;
@@ -297,7 +297,7 @@ public class ProcessPipelineJobHandler(
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.RedirectStandardOutput = true;
 
-        logger.LogInformation("Brunnhilde process about to be started {date}", DateTime.Now);
+        logger.LogInformation("Brunnhilde process about to be started {Date}", DateTime.Now);
         var started = process.Start();
 
         // Stream stdout line-by-line instead of buffering the whole thing into one string via
@@ -319,7 +319,7 @@ public class ProcessPipelineJobHandler(
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
             logger.LogError("Issue executing Brunnhilde process: process did not start");
 
-            logger.LogError("Caught error in PipelineJob handler for job id {jobIdentifier} and deposit {depositId}",
+            logger.LogError("Caught error in PipelineJob handler for job id {JobIdentifier} and deposit {DepositId}",
                 request.JobIdentifier, request.DepositId);
 
             await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
@@ -337,7 +337,7 @@ public class ProcessPipelineJobHandler(
             };
         }
 
-        logger.LogInformation("Brunnhilde process started {date}", DateTime.Now);
+        logger.LogInformation("Brunnhilde process started {Date}", DateTime.Now);
         processId = process.Id;
         process.BeginOutputReadLine();
 
@@ -356,7 +356,7 @@ public class ProcessPipelineJobHandler(
         processId = 0;
         await tokensCatalog[monitorForceCompleteId].CancelAsync();
 
-        logger.LogInformation("Brunnhilde result success: {brunnhildeExecutionSuccess}", brunnhildeExecutionSuccess);
+        logger.LogInformation("Brunnhilde result success: {BrunnhildeExecutionSuccess}", brunnhildeExecutionSuccess);
 
         if (brunnhildeExecutionSuccess)
         {
@@ -456,13 +456,13 @@ public class ProcessPipelineJobHandler(
 
             foreach (var folderResult in createFolderResultList)
             {
-                logger.LogInformation("{context} upload Success: {success}", folderResult?.Value?.Context,
+                logger.LogInformation("{Context} upload Success: {Success}", folderResult?.Value?.Context,
                     folderResult?.Success);
             }
 
             foreach (var uploadFileResult in uploadFilesResultList)
             {
-                logger.LogInformation("{context} upload Success: {success}", uploadFileResult?.Value?.Context,
+                logger.LogInformation("{Context} upload Success: {Success}", uploadFileResult?.Value?.Context,
                     uploadFileResult?.Success);
             }
 
@@ -495,7 +495,7 @@ public class ProcessPipelineJobHandler(
 
                 foreach (var uploadFileResult in uploadBagitFilesResultList)
                 {
-                    logger.LogInformation("{context} upload Success: {success}", uploadFileResult?.Value?.Context, uploadFileResult?.Success);
+                    logger.LogInformation("{Context} upload Success: {Success}", uploadFileResult?.Value?.Context, uploadFileResult?.Success);
                 }
             }
 
@@ -516,7 +516,7 @@ public class ProcessPipelineJobHandler(
             var metsResult = await AddObjectsToMets(request, depositPath);
 
             if (metsResult.Failure)
-                logger.LogInformation("Issue adding objects to METS in pipeline run: {error}", metsResult.ErrorMessage);
+                logger.LogInformation("Issue adding objects to METS in pipeline run: {Error}", metsResult.ErrorMessage);
 
             var start = DateTime.Now;
 
@@ -527,23 +527,23 @@ public class ProcessPipelineJobHandler(
 
                 if (releaseLockResult.Success)
                 {
-                    logger.LogInformation($"Successfully released the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}");
+                    logger.LogInformation("Successfully released the lock for job {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, workspaceManager.Deposit.Id);
                     
                     var response = await preservationApiClient.GetDeposit(request.DepositId, cancellationToken);
                     if (response is { Success: true })
                     {
                         var deposit = response.Value;
-                        logger.LogInformation("In Pipeline Job Lock date: {lockDate}, Locked by: {lockedBy} ", deposit?.LockDate, deposit?.LockedBy);
+                        logger.LogInformation("In Pipeline Job Lock date: {LockDate}, Locked by: {LockedBy} ", deposit?.LockDate, deposit?.LockedBy);
                     }
                     break;
                 }
 
                 if (!exit) continue;
-                logger.LogError($"Failure to release the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
+                logger.LogError("Failure to release the lock for job {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, workspaceManager.Deposit.Id);
                 break;
             }
 
-            logger.LogInformation($"Returning a completed status for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
+            logger.LogInformation("Returning a completed status for job {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, workspaceManager.Deposit.Id);
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.Completed
@@ -700,7 +700,7 @@ public class ProcessPipelineJobHandler(
             var context = new StringBuilder();
             context.Append("metadata");
 
-            logger.LogInformation($"context {context}");
+            logger.LogInformation("context {Context}", context);
 
             //create Brunnhilde folder first
             var createSubFolderResult = new List<Result<CreateFolderResult>?>();
@@ -709,7 +709,7 @@ public class ProcessPipelineJobHandler(
             foreach (var dirPath in Directory.GetDirectories(sourcePathForFilesAndDirectories, "*", SearchOption.AllDirectories)
                          .OrderBy(p => p, StringComparer.Ordinal))
             {
-                logger.LogInformation("dir path {dirPath}", dirPath);
+                logger.LogInformation("dir path {DirPath}", dirPath);
                 var (forceCompleteDirectoryUpload, cleanupProcessDirectoryUpload) = await CheckIfForceComplete(request, deposit, cancellationToken);
                 // At this point we have not modified the METS file, the ETag for this workspace is still valid
                 if (forceCompleteDirectoryUpload || cleanupProcessDirectoryUpload)
@@ -727,7 +727,7 @@ public class ProcessPipelineJobHandler(
             foreach (var filePath in Directory.GetFiles(sourcePathForFilesAndDirectories, "*.*", SearchOption.AllDirectories)
                          .OrderBy(p => p, StringComparer.Ordinal))
             {
-                logger.LogInformation("Upload file path {filePath}", filePath);
+                logger.LogInformation("Upload file path {FilePath}", filePath);
                 if (filesToIgnore.Any(filePath.Contains))
                     continue;
 
@@ -754,12 +754,13 @@ public class ProcessPipelineJobHandler(
             foreach (var subFolder in createSubFolderResult)
             {
                 logger.LogInformation(
-                    $"subFolder.ErrorMessage {subFolder?.ErrorMessage} , subFolder?.Value?.Context {subFolder?.Value?.Context} subFolder?.Value?.Created {subFolder?.Value?.Created}");
+                    "subFolder.ErrorMessage {ErrorMessage} , subFolder?.Value?.Context {Context} subFolder?.Value?.Created {Created}",
+                    subFolder?.ErrorMessage, subFolder?.Value?.Context, subFolder?.Value?.Created);
             }
 
             foreach (var uploadFile in uploadFileResult)
             {
-                logger.LogInformation(" uploadFile.Value.Context {context}", uploadFile?.Value?.Context);
+                logger.LogInformation(" uploadFile.Value.Context {Context}", uploadFile?.Value?.Context);
             }
 
             if (createSubFolderResult.Any() && uploadFileResult.Any())
@@ -771,7 +772,7 @@ public class ProcessPipelineJobHandler(
         catch (Exception ex)
         {
             await TryReleaseLock(request, deposit, cancellationToken);
-            logger.LogError(ex, " Caught error in copy files recursively from {sourcePathForFilesAndDirectories} to {depositPath}", sourcePathForFilesAndDirectories, depositPath);
+            logger.LogError(ex, " Caught error in copy files recursively from {SourcePathForFilesAndDirectories} to {DepositPath}", sourcePathForFilesAndDirectories, depositPath);
             return (createSubFolderResult: [], uploadFileResult: [], false, false);
         }
 
@@ -793,15 +794,15 @@ public class ProcessPipelineJobHandler(
             context.Append($"/{BrunnhildeFolderName}");
 
         logger.LogInformation("BrunnhildeFolderName {BrunnhildeFolderName}", BrunnhildeFolderName);
-        logger.LogInformation("di.Name {di.Name} context {context}", di.Name, context);
+        logger.LogInformation("di.Name {DirectoryName} context {Context}", di.Name, context);
         var result = await workspaceManager.CreateFolder(
             di.Name, context.ToString(), false, request.GetUserName(), true);
 
         if (!result.Success)
         {
-            logger.LogError("Error code for dir path {dirPath}: {errorCode}", dirPath, result.ErrorCode);
-            logger.LogError("Error message for dir path {dirPath}: {errorMessage}", dirPath, result.ErrorMessage);
-            logger.LogError("Error failure for dir path {dirPath}: {failure}", dirPath, result.Failure);
+            logger.LogError("Error code for dir path {DirPath}: {ErrorCode}", dirPath, result.ErrorCode);
+            logger.LogError("Error message for dir path {DirPath}: {ErrorMessage}", dirPath, result.ErrorMessage);
+            logger.LogError("Error failure for dir path {DirPath}: {Failure}", dirPath, result.Failure);
         }
 
         return result;
@@ -862,13 +863,13 @@ public class ProcessPipelineJobHandler(
 
         if (!result.Success)
         {
-            logger.LogError("Error code for file path {filePath}: {errorCode}", filePath, result.ErrorCode);
-            logger.LogError("Error message for file path {filePath}: {errorMessage}", filePath, result.ErrorMessage);
-            logger.LogError("Error failure for file path {filePath}: {failure}", filePath, result.Failure);
+            logger.LogError("Error code for file path {FilePath}: {ErrorCode}", filePath, result.ErrorCode);
+            logger.LogError("Error message for file path {FilePath}: {ErrorMessage}", filePath, result.ErrorMessage);
+            logger.LogError("Error failure for file path {FilePath}: {Failure}", filePath, result.Failure);
         }
         else
         {
-            logger.LogInformation("uploaded file {uploaded} with context {context}", result.Value?.Uploaded, result.Value?.Context);
+            logger.LogInformation("uploaded file {Uploaded} with context {Context}", result.Value?.Uploaded, result.Value?.Context);
         }
 
         await stream.DisposeAsync();
@@ -988,10 +989,10 @@ public class ProcessPipelineJobHandler(
     {
         var releaseLockResult =
             await preservationApiClient.ReleaseDepositLock(deposit, cancellationToken);
-        logger.LogInformation($"releaseLockResult: {releaseLockResult.Success}");
+        logger.LogInformation("releaseLockResult: {Success}", releaseLockResult.Success);
         if (releaseLockResult is { Failure: true })
         {
-            logger.LogError($"Could not release lock for Job {request.JobIdentifier}");
+            logger.LogError("Could not release lock for Job {JobIdentifier}", request.JobIdentifier);
         }
 
         return releaseLockResult;
@@ -1007,7 +1008,7 @@ public class ProcessPipelineJobHandler(
             var (forceComplete, _) = await CheckIfForceComplete(request, deposit, cancellationToken);
             if (forceComplete)
             {
-                logger.LogInformation("This job {jobId} was force completed and thus attempting kill the Brunnhilde process", request.JobIdentifier);
+                logger.LogInformation("This job {JobId} was force completed and thus attempting kill the Brunnhilde process", request.JobIdentifier);
 
                 var process = Process.GetProcessById(processId);
 
@@ -1019,7 +1020,7 @@ public class ProcessPipelineJobHandler(
                     {
                         process.Kill(true);
 
-                        logger.LogInformation("Process killed for job id {jobId}", request.JobIdentifier);
+                        logger.LogInformation("Process killed for job id {JobId}", request.JobIdentifier);
                         processTimer.Stop();
                         processTimer.Enabled = false;
 
@@ -1031,15 +1032,15 @@ public class ProcessPipelineJobHandler(
                 processTimer.Enabled = false;
             }
         }
-        catch (ArgumentException)
+        catch (ArgumentException e)
         {
-            logger.LogError("Process is not running for job {jobId} and process id {processId}", request.JobIdentifier, processId);
+            logger.LogError(e, "Process is not running for job {JobId} and process id {ProcessId}", request.JobIdentifier, processId);
             processTimer.Stop();
             processTimer.Enabled = false;
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Attempted to kill process for job {jobId}", request.JobIdentifier);
+            logger.LogError(e, "Attempted to kill process for job {JobId}", request.JobIdentifier);
             processTimer.Stop();
             processTimer.Enabled = false;
         }
@@ -1115,7 +1116,7 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation("About to run exif");
         var exifToolLocation = pipelineToolOptions.Value.ExifToolLocation;
         var separator = pipelineToolOptions.Value.DirectorySeparator;
-        logger.LogInformation("Exif tool location {location}", exifToolLocation);
+        logger.LogInformation("Exif tool location {Location}", exifToolLocation);
 
         try
         {
@@ -1148,7 +1149,7 @@ public class ProcessPipelineJobHandler(
         }
         catch(Exception e)
         {
-            logger.LogError("Issue running exif tool for objects in the object path {ObjectPath} error {Exception}", objectPath, e.Message);
+            logger.LogError(e, "Issue running exif tool for objects in the object path {ObjectPath} error {Exception}", objectPath, e.Message);
         }
     }
 
@@ -1165,10 +1166,10 @@ public class ProcessPipelineJobHandler(
             var processFolderBagitDeposit =
                 $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{depositId}";
 
-            logger.LogInformation("metadataPathForProcessFilesAndDirectories {metadataPathForProcessFilesAndDirectories}", metadataPathForProcessFilesAndDirectories);
-            logger.LogInformation("depositPath {depositPath}", depositPath);
-            logger.LogInformation("processFolderBagitDeposit {processFolderBagitDeposit}", processFolderBagitDeposit);
-            logger.LogInformation("separator {separator}", separator);
+            logger.LogInformation("metadataPathForProcessFilesAndDirectories {MetadataPathForProcessFilesAndDirectories}", metadataPathForProcessFilesAndDirectories);
+            logger.LogInformation("depositPath {DepositPath}", depositPath);
+            logger.LogInformation("processFolderBagitDeposit {ProcessFolderBagitDeposit}", processFolderBagitDeposit);
+            logger.LogInformation("separator {Separator}", separator);
 
             PrepareBagitWorkspace(
                 metadataPathForProcessFilesAndDirectories,
@@ -1221,9 +1222,9 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation("in RunBagItProcess");
         try
         {
-            logger.LogInformation("pipelineToolOptions.Value.BagitProcessFilename: {bagitProcessFilename}", pipelineToolOptions.Value.BagitProcessFilename);
-            logger.LogInformation("pipelineToolOptions.Value.BagitScript: {bagitScript}", pipelineToolOptions.Value.BagitScript);
-            logger.LogInformation("processFolderBagitDeposit {depositInProcessFolder}", processFolderBagitDeposit);
+            logger.LogInformation("pipelineToolOptions.Value.BagitProcessFilename: {BagitProcessFilename}", pipelineToolOptions.Value.BagitProcessFilename);
+            logger.LogInformation("pipelineToolOptions.Value.BagitScript: {BagitScript}", pipelineToolOptions.Value.BagitScript);
+            logger.LogInformation("processFolderBagitDeposit {DepositInProcessFolder}", processFolderBagitDeposit);
 
             using var processBagit = new Process
             {
@@ -1242,7 +1243,7 @@ public class ProcessPipelineJobHandler(
             processBagit.Start();
             await processBagit.WaitForExitAsync(cancellationToken);
 
-            logger.LogInformation("RunBagItProcess exit code {exitCode}", processBagit.ExitCode);
+            logger.LogInformation("RunBagItProcess exit code {ExitCode}", processBagit.ExitCode);
             return processBagit.ExitCode == 0;
         }
         catch (Exception e)
@@ -1398,8 +1399,8 @@ public class ProcessPipelineJobHandler(
             var dir = new DirectoryInfo(sourceDir);
 
             var dirExists = dir.Exists;
-            logger.LogInformation("Directory exists {dirExists}", dirExists);
-            logger.LogInformation("line 1324 sourceDir {sourceDir}", sourceDir);
+            logger.LogInformation("Directory exists {DirExists}", dirExists);
+            logger.LogInformation("line 1324 sourceDir {SourceDir}", sourceDir);
 
             // Check if the source directory exists
             if (!dir.Exists)
@@ -1415,21 +1416,21 @@ public class ProcessPipelineJobHandler(
             // Get the files in the source directory and copy to the destination directory
             foreach (var file in dir.GetFiles())
             {
-                logger.LogInformation("source file {sourceFile}", file);
+                logger.LogInformation("source file {SourceFile}", file);
                 var targetFilePath = Path.Combine(destinationDir, file.Name);
-                logger.LogInformation("target file {targetFile}", targetFilePath);
+                logger.LogInformation("target file {TargetFile}", targetFilePath);
                 var fileCopied = file.CopyTo(targetFilePath);
-                logger.LogInformation("file copied {fileCopied}", fileCopied.Name);
+                logger.LogInformation("file copied {FileCopied}", fileCopied.Name);
             }
 
             // If recursive and copying subdirectories, recursively call this method
             if (!recursive) return;
             foreach (var subDir in dirs)
             {
-                logger.LogInformation("destinationDir: {destinationDir}", destinationDir);
-                logger.LogInformation("subDir.Name: {subDirName}", subDir.Name);
+                logger.LogInformation("destinationDir: {DestinationDir}", destinationDir);
+                logger.LogInformation("subDir.Name: {SubDirName}", subDir.Name);
                 var newDestinationDir = Path.Combine(destinationDir, subDir.Name);
-                logger.LogInformation("newDestinationDir: {newDestinationDir}", newDestinationDir);
+                logger.LogInformation("newDestinationDir: {NewDestinationDir}", newDestinationDir);
 
                 CopyDirectory(subDir.FullName, newDestinationDir, true);
             }
@@ -1462,7 +1463,7 @@ public class ProcessPipelineJobHandler(
 
             foreach (var filePath in Directory.GetFiles($"{processFolderBagitDeposit}", "*.*", SearchOption.TopDirectoryOnly))
             {
-                logger.LogInformation("Upload file path {filePath}", filePath);
+                logger.LogInformation("Upload file path {FilePath}", filePath);
                 if (filesToIgnore.Any(filePath.Contains))
                     continue;
 
@@ -1488,7 +1489,7 @@ public class ProcessPipelineJobHandler(
 
             foreach (var uploadFile in uploadFileResult)
             {
-                logger.LogInformation(" uploadFile.Value.Context {context}", uploadFile?.Value?.Context);
+                logger.LogInformation(" uploadFile.Value.Context {Context}", uploadFile?.Value?.Context);
             }
 
             if (uploadFileResult.Count > 0)

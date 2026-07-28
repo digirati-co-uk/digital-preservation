@@ -144,7 +144,7 @@ public class DeleteItemsHandler(
                         // Root file = no directory separator
                         var isRootFile = !fileToDelete.LocalPath!.Contains('/');
                         var deletableFiles = FolderNames.BagitFiles.Concat(["archived.txt"]).ToList();
-                        var isDeletableFile = deletableFiles.Contains(fileToDelete.LocalPath!);
+                        var isDeletableFile = deletableFiles.Contains(fileToDelete.LocalPath);
 
                         if (isRootFile && !isDeletableFile)
                         {

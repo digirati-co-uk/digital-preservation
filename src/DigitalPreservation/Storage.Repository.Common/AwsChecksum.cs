@@ -3,7 +3,7 @@ using Amazon.S3.Model;
 
 namespace Storage.Repository.Common;
 
-public class AwsChecksum
+public static class AwsChecksum
 {
     /// <summary>
     /// Read the SHA256 Checksum from the S3 Object's metadata

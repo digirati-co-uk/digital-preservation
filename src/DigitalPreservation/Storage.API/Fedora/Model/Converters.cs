@@ -7,11 +7,9 @@ namespace Storage.API.Fedora.Model;
 public class Converters
 {
     private readonly FedoraOptions fedoraOptions;
-    private readonly ConverterOptions converterOptions;
-    
+
     private readonly string fedoraRoot;
     private readonly Uri fedoraRootUri;
-    private readonly string fedoraRootWithoutSlash;
     private readonly Uri fedoraRootUriWithoutSlash;
     private readonly string repositoryRoot;
     private readonly string contentRoot;
@@ -33,11 +31,9 @@ public class Converters
     public Converters(IOptions<FedoraOptions> fedoraOptions, IOptions<ConverterOptions> converterOptions)
     {
         this.fedoraOptions = fedoraOptions.Value;
-        this.converterOptions = converterOptions.Value;
         fedoraRootUri = fedoraOptions.Value.Root;
         fedoraRootUriWithoutSlash = new Uri(fedoraOptions.Value.Root.ToString().TrimEnd('/'));
         fedoraRoot = fedoraOptions.Value.Root.ToString();
-        fedoraRootWithoutSlash = fedoraRoot.TrimEnd('/');
         
         // The root URI for repository paths
         repositoryRoot = $"{converterOptions.Value.StorageRoot}repository/";

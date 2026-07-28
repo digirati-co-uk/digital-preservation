@@ -26,25 +26,25 @@ public class GetImportJobResultHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(GetImportJobResult request, CancellationToken cancellationToken)
     {
-        logger.LogInformation("GetImportJobResult " + request.ImportJobId);
+        logger.LogInformation("GetImportJobResult {ImportJobId}", request.ImportJobId);
         // get the preservation one out of the DB by id
         var entity = dbContext.ImportJobs.SingleOrDefault(j => j.Id == request.ImportJobId && j.Deposit == request.DepositId);
         if (entity == null)
         {
-            logger.LogWarning("No import job found in DB for " + request.ImportJobId);
+            logger.LogWarning("No import job found in DB for {ImportJobId}", request.ImportJobId);
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No import job found");
         }
         
-        logger.LogDebug("Import Job EB status: " + entity.Status);
+        logger.LogDebug("Import Job EB status: {Status}", entity.Status);
 
         if (ImportJobStates.IsComplete(entity.Status))
         {
             if (entity.LatestPreservationApiResultJson.HasText())
             {
-                var jobResult = JsonSerializer.Deserialize<ImportJobResult>(entity.LatestPreservationApiResultJson!);
+                var jobResult = JsonSerializer.Deserialize<ImportJobResult>(entity.LatestPreservationApiResultJson);
                 if (jobResult != null)
                 {
-                    logger.LogDebug("returning DB stored LatestPreservationApiResultJson: " + jobResult.LogSummary());
+                    logger.LogDebug("returning DB stored LatestPreservationApiResultJson: {JobResultSummary}", jobResult.LogSummary());
                     return Result.OkNotNull(jobResult);
                 }
             }
@@ -52,7 +52,7 @@ public class GetImportJobResultHandler(
             // Is this ever a valid place or is it an error?
             // We could construct an ImportJobResult from entity
             // TODO: Fail for now 
-            logger.LogWarning("Job " + request.ImportJobId + "Complete but no LatestPreservationApiResultJson");
+            logger.LogWarning("Job {ImportJobId}Complete but no LatestPreservationApiResultJson", request.ImportJobId);
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Job Complete but no LatestPreservationApiResultJson");
         }
         
@@ -62,15 +62,15 @@ public class GetImportJobResultHandler(
         if (importJobResultResult.Success)
         {
             var storageApiImportJobResult = importJobResultResult.Value!;
-            logger.LogDebug("Received import job result from storage API " + storageApiImportJobResult.LogSummary());
+            logger.LogDebug("Received import job result from storage API {ImportJobResultSummary}", storageApiImportJobResult.LogSummary());
             var preservationApiImportJobResult = Duplicate(storageApiImportJobResult);
             resourceMutator.MutateStorageImportJobResult(preservationApiImportJobResult, entity.Deposit, entity.Id);
-            logger.LogDebug("Mutated to Preservation API " + preservationApiImportJobResult.LogSummary());
+            logger.LogDebug("Mutated to Preservation API {ImportJobResultSummary}", preservationApiImportJobResult.LogSummary());
             
             logger.LogInformation("Updating DB record for job result in Preservation API");
             // update the entity
             bool wasComplete = ImportJobStates.IsComplete(entity.Status);
-            logger.LogDebug("storageApiImportJobResult.Status=" + storageApiImportJobResult.Status);
+            logger.LogDebug("storageApiImportJobResult.Status={Status}", storageApiImportJobResult.Status);
             entity.Status = storageApiImportJobResult.Status;
             bool isComplete = ImportJobStates.IsComplete(entity.Status);
             
@@ -88,7 +88,7 @@ public class GetImportJobResultHandler(
             var originalImportJob = JsonSerializer.Deserialize<ImportJob>(entity.ImportJobJson);
             if (originalImportJob != null)
             {
-                logger.LogDebug("IJR-06: originalImportJob.OriginalId=" + originalImportJob.OriginalId);
+                logger.LogDebug("IJR-06: originalImportJob.OriginalId={OriginalId}", originalImportJob.OriginalId);
                 preservationApiImportJobResult.OriginalImportJob = originalImportJob.OriginalId;
             }
             entity.LatestPreservationApiResultJson = JsonSerializer.Serialize(preservationApiImportJobResult);
@@ -116,7 +116,7 @@ public class GetImportJobResultHandler(
                 }
                 else
                 {
-                    logger.LogDebug("No deposit {} in DB.", request.DepositId);
+                    logger.LogDebug("No deposit {DepositId} in DB.", request.DepositId);
                 }
             }
             
@@ -126,7 +126,7 @@ public class GetImportJobResultHandler(
             return Result.OkNotNull(preservationApiImportJobResult);
         }
 
-        logger.LogDebug("IJR-03: " + importJobResultResult.CodeAndMessage());
+        logger.LogDebug("IJR-03: {CodeAndMessage}", importJobResultResult.CodeAndMessage());
 
         return importJobResultResult;
     }

@@ -31,7 +31,7 @@ public class IdentityService(
         try
         {
             var uri = new Uri($"{ApiPrefix}ids?q={q}&s={schema}", UriKind.Relative);
-            logger.LogInformation("Calling identity Service for {uri}", uri);
+            logger.LogInformation("Calling identity Service for {Uri}", uri);
             var response = await httpClient.GetAsync(uri, cancellationToken);
             if (response.IsSuccessStatusCode)
             {

@@ -5,7 +5,7 @@ using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.CommonApiClient;
 
-public class QueryBuilder
+public static class QueryBuilder
 {
     public static string MakeQueryString(DepositQuery? query)
     {

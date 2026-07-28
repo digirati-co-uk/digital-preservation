@@ -31,7 +31,7 @@ public class PatchDepositHandler(
             return Result.FailNotNull<Deposit>(ErrorCodes.BadRequest, "No Deposit provided");
         }
         var callerIdentity = request.Principal.GetCallerIdentity();
-        logger.LogInformation("Patching deposit {id} for user {user}", request.Deposit.Id, callerIdentity);
+        logger.LogInformation("Patching deposit {Id} for user {User}", request.Deposit.Id, callerIdentity);
         try
         {
             bool? archivalGroupExists = null;
@@ -53,7 +53,7 @@ public class PatchDepositHandler(
             var entityReturn = await GetAndValidateDeposit(mintedId, callerIdentity, cancellationToken);
             if (entityReturn.Result != null && entityReturn.Result.Failure)
             {
-                return entityReturn.Result!;
+                return entityReturn.Result;
             }
 
             var entity = entityReturn.Value!;
@@ -120,7 +120,7 @@ public class PatchDepositHandler(
                     "Deposit is being exported"));
         }
 
-        logger.LogInformation("Deposit.LockedBy is {lockedBy}", entity.LockedBy);
+        logger.LogInformation("Deposit.LockedBy is {LockedBy}", entity.LockedBy);
 
         if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
         {

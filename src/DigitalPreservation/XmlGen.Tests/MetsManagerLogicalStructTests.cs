@@ -59,16 +59,6 @@ public class MetsManagerLogicalStructTests
     // Helpers
     // -----------------------------------------------------------------------
 
-    private async Task<(Uri metsUri, FullMets fullMets)> CreateMetsWithFile(string outputFile, string filePath, string fileName)
-    {
-        var metsUri = new Uri(new FileInfo(outputFile).FullName);
-        var createResult = await metsManager.CreateStandardMets(metsUri, "Test METS");
-        var fullMets = (await metsManager.GetFullMets(metsUri, createResult.Value!.ETag!)).Value!;
-        metsManager.AddToMets(fullMets, SimpleFile(filePath, fileName));
-        await metsManager.WriteMets(fullMets);
-        return (metsUri, fullMets);
-    }
-
     private static WorkingFile SimpleFile(string localPath, string name) =>
         new()
         {

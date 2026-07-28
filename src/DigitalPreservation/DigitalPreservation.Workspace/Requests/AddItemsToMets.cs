@@ -106,19 +106,16 @@ public class AddItemsToMetsHandler(IMetsManager metsManager) : IRequestHandler<A
             .OrderBy(item => item.LocalPath.Count(c => c == '/'))
             .ToList();
 
-        foreach (var item in shallowestFirst)
+        foreach (var item in shallowestFirst.Where(item => item.LocalPath.Contains('/')))
         {
-            if (item.LocalPath.Contains('/'))
+            var parent = item.LocalPath.GetParent();
+            while (parent.HasText() && !rootRelativeItems.Exists(i => i.LocalPath == parent))
             {
-                var parent = item.LocalPath.GetParent();
-                while (parent.HasText() && !rootRelativeItems.Exists(i => i.LocalPath == parent))
+                rootRelativeItems.Add(new WorkingDirectory
                 {
-                    rootRelativeItems.Add(new WorkingDirectory
-                    {
-                        LocalPath = parent
-                    });
-                    parent = parent.GetParent();
-                }
+                    LocalPath = parent
+                });
+                parent = parent.GetParent();
             }
         }
         

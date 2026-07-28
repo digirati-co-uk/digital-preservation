@@ -6,7 +6,7 @@ using Storage.API.Fedora.Model;
 namespace Storage.API.Features.Import.Requests;
 
 public class FedoraTransactionMonitor(
-    ILogger<ExecuteImportJobHandler> logger,
+    ILogger logger,
     IFedoraClient fedoraClient,
     Transaction tx,
     Stopwatch stopwatch)
@@ -23,10 +23,10 @@ public class FedoraTransactionMonitor(
             await fedoraClient.CommitTransaction(tx, token);
             tx.CommitReturned = true;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
             tx.Cancelled = true;
-            logger.LogWarning("(TX) fedoraClient.CommitTransaction for {transaction} was cancelled (HTTP Request was cancelled)", tx.Location.GetSlug());
+            logger.LogWarning(oce, "(TX) fedoraClient.CommitTransaction for {Transaction} was cancelled (HTTP Request was cancelled)", tx.Location.GetSlug());
         }
         // throw any other exception
     }
@@ -40,16 +40,16 @@ public class FedoraTransactionMonitor(
 
         var transactionId = tx.Location.GetSlug();
         
-        logger.LogInformation("(TX) (M) Monitoring transaction {transactionId}", transactionId);
+        logger.LogInformation("(TX) (M) Monitoring transaction {TransactionId}", transactionId);
         if (tx.CommitReturned)
         {
-            logger.LogInformation("(TX) (M) Transaction {transactionId} request has already returned, will not maintain it.", transactionId);
+            logger.LogInformation("(TX) (M) Transaction {TransactionId} request has already returned, will not maintain it.", transactionId);
             return;
         }
-        
+
         if (tx.CommitStarted)
         {
-            logger.LogInformation("(TX) (M) Transaction {transactionId} is currently being committed", transactionId);
+            logger.LogInformation("(TX) (M) Transaction {TransactionId} is currently being committed", transactionId);
             bool cancel = tx.CancelRequested;
             // While Fedora is in its emit events stage, this WILL NOT RETURN until Fedora has finished
             // So we get a massive pileup of these calls because the timer is still ticking every minute,
@@ -59,18 +59,18 @@ public class FedoraTransactionMonitor(
             // Try it again without the following line, instead just fedoraClient.KeepTransactionAlive(tx) - does that return immediately?
             var currentStatus = await fedoraClient.GetTransactionHttpStatus(tx);
             var currentStatusCode = (int)currentStatus;
-            logger.LogInformation("(TX) (M) Transaction {transactionId} has HTTP Status {statusCode}.", transactionId, currentStatusCode);
+            logger.LogInformation("(TX) (M) Transaction {TransactionId} has HTTP Status {StatusCode}.", transactionId, currentStatusCode);
             if (currentStatusCode < 200 || currentStatusCode > 299)
             {
                 // don't even try to PUT a keep-alive
-                logger.LogInformation("(TX) (M) Transaction {transactionId} has non-2xx status ({statusCode}), will cancel the commit if not already requested to cancel.", 
+                logger.LogInformation("(TX) (M) Transaction {TransactionId} has non-2xx status ({StatusCode}), will cancel the commit if not already requested to cancel.",
                     transactionId, currentStatusCode);
                 cancel = true;
             }
 
             if (!cancel)
             {
-                logger.LogInformation("(TX) (M) Keeping commit of transaction {transactionId} alive after {elapsedMilliseconds} ms", 
+                logger.LogInformation("(TX) (M) Keeping commit of transaction {TransactionId} alive after {ElapsedMilliseconds} ms",
                     transactionId, stopwatch.ElapsedMilliseconds);
                 try
                 {
@@ -78,18 +78,18 @@ public class FedoraTransactionMonitor(
                     currentStatusCode = (int)tx.StatusCode;
                     if (currentStatusCode < 200 || currentStatusCode > 299)
                     {
-                        logger.LogWarning("(TX) (M) KeepTransactionAlive for transaction {transactionId} returned {statusCode}, will cancel the commit.",
+                        logger.LogWarning("(TX) (M) KeepTransactionAlive for transaction {TransactionId} returned {StatusCode}, will cancel the commit.",
                             transactionId, currentStatusCode);
                         cancel = true;
                     }
                     else
                     {
-                        logger.LogInformation("(TX) (M) After keep-alive, transaction {transactionId} has status {statusCode}", transactionId, currentStatusCode);
+                        logger.LogInformation("(TX) (M) After keep-alive, transaction {TransactionId} has status {StatusCode}", transactionId, currentStatusCode);
                     }
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "(TX) (M) Keeping transaction {transactionId} alive failed: {statusCode}, will cancel the commit.", transactionId, (int)tx.StatusCode);
+                    logger.LogError(ex, "(TX) (M) Keeping transaction {TransactionId} alive failed: {StatusCode}, will cancel the commit.", transactionId, (int)tx.StatusCode);
                     cancel = true;
                 }
             }
@@ -98,11 +98,11 @@ public class FedoraTransactionMonitor(
             {
                 if (tx.CancelRequested)
                 {
-                    logger.LogWarning("(TX) (M) Cancel already requested for transaction {transactionId}, will continue", transactionId);
+                    logger.LogWarning("(TX) (M) Cancel already requested for transaction {TransactionId}, will continue", transactionId);
                 }
                 else
                 {
-                    logger.LogWarning("(TX) (M) Cancelling transaction {transactionId}", transactionId);
+                    logger.LogWarning("(TX) (M) Cancelling transaction {TransactionId}", transactionId);
                     tx.CancelRequested = true;
                     await cancellationTokenSource.CancelAsync();
                 }
@@ -110,7 +110,7 @@ public class FedoraTransactionMonitor(
         }
         else
         {
-            logger.LogInformation("(TX) (M) (commit not started) Keeping transaction {transactionId} alive after {elapsedMilliseconds} ms", 
+            logger.LogInformation("(TX) (M) (commit not started) Keeping transaction {TransactionId} alive after {ElapsedMilliseconds} ms",
                 transactionId, stopwatch.ElapsedMilliseconds);
             await fedoraClient.KeepTransactionAlive(tx);
         }

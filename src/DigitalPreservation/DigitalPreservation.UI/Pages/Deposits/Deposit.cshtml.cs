@@ -135,7 +135,7 @@ public class DepositModel(
         [FromQuery] bool readFromStorage = false,
         [FromQuery] bool writeToStorage = false)
     {
-        await BindDeposit(id, readFromStorage, writeToStorage);
+        await BindDeposit(id);
         var conditionsResult = await preservationApiClient.GetAccessConditions(HttpContext.RequestAborted);
         if (conditionsResult.Success)
             AccessConditions = conditionsResult.Value!;
@@ -144,7 +144,7 @@ public class DepositModel(
             RangeTypes = rangeTypesResult.Value;
     }
 
-    private async Task<bool> BindDeposit(string id, bool readFromStorage = false, bool writeToStorage = false)
+    private async Task<bool> BindDeposit(string id)
     {
         Id = id;
         var getDepositResult = await mediator.Send(new GetDeposit(id));
@@ -527,7 +527,7 @@ public class DepositModel(
             {
                 agPathUnderRoot = agPathUnderRoot.Substring("/repository/".Length);
             }
-            if (agPathUnderRoot.StartsWith("/"))
+            if (agPathUnderRoot.StartsWith('/'))
             {
                 agPathUnderRoot = agPathUnderRoot.Substring(1);
             }

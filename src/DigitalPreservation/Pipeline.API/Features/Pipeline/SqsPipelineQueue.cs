@@ -27,7 +27,7 @@ public class SqsPipelineQueue(
     {
         topicArn = options.Value.PipelineJobTopicArn;
 
-        logger.LogInformation("Message queued for deposit {deposit} and job id {jobId}", depositName, jobIdentifier);
+        logger.LogInformation("Message queued for deposit {Deposit} and job id {JobId}", depositName, jobIdentifier);
         var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { JobIdentifier = jobIdentifier, DepositName = depositName, RunUser = runUser});
         var request = new PublishRequest(topicArn, pipelineJobMessage);
         var response = await snsClient.PublishAsync(request, cancellationToken);
@@ -44,7 +44,7 @@ public class SqsPipelineQueue(
         {
             var queue = options.Value.PipelineJobQueue;
 
-            logger.LogInformation($"About to check queue {queue} for messages");
+            logger.LogInformation("About to check queue {Queue} for messages", queue);
             var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queue, cancellationToken);
             var queueUrlValue = queueUrlResponse.QueueUrl;
 
@@ -58,7 +58,7 @@ public class SqsPipelineQueue(
             foreach (var message in response.Messages!)
             {
                 if (cancellationToken.IsCancellationRequested) return messageModel;
-                logger.LogDebug("Received SQS message {messageBody}", message.Body);
+                logger.LogDebug("Received SQS message {MessageBody}", message.Body);
 
                 messageModel = await GetMessageModel(message, queue);
                 if (messageModel != null && !messageModel.DepositName.HasText())
@@ -72,7 +72,7 @@ public class SqsPipelineQueue(
         }
         catch (Exception e)
         {
-            logger.LogError(e, $"Error in DequeueRequest {e.Message}");
+            logger.LogError(e, "Error in DequeueRequest {Message}", e.Message);
         }
 
         return messageModel;
@@ -88,7 +88,7 @@ public class SqsPipelineQueue(
                 logger.LogTrace("Handling message {Message} from {Queue}", message.MessageId, queue);
             }
 
-            var queueMessage = QueueMessage.FromSqsMessage(message, queue!);
+            var queueMessage = QueueMessage.FromSqsMessage(message, queue);
             var pipelineJobMessage = queueMessage.GetMessageContents<PipelineJobMessage>();
             if (pipelineJobMessage != null)
             {

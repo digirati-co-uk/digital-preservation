@@ -38,11 +38,6 @@ public class MetsSerialising
         ns.Add("premis", "http://www.loc.gov/premis/v3");
         ns.Add("xlink", "http://www.w3.org/1999/xlink");
         ns.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
-        // var writer = new StringWriter();
-        // serializer.Serialize(writer, mets);
-        // writer.Close();
-        //
-        // writer.ToString().Should().NotBeNullOrWhiteSpace();
 
         string? xml1 = null;
         string? xml2 = null;
@@ -58,13 +53,9 @@ public class MetsSerialising
         serializer.Serialize(writer1, mets, ns);
         writer1.Close();
         xml1 = sb.ToString();
-        
-        //using var stream = new MemoryStream ();
-        // var writer = new XmlTextWriter(stream, Encoding.UTF8);
-        // serializer.Serialize(writer, mets);
-        // xml = Encoding.UTF8.GetString(stream.ToArray());
+
         // assert
-        
+
         using (var ms = new MemoryStream())
         using (var writer2 = new XmlTextWriter(ms, new UTF8Encoding(false)))
         {

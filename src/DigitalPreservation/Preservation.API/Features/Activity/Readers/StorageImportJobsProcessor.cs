@@ -26,13 +26,13 @@ public class StorageImportJobsProcessor(
             logger.LogWarning("Unable to obtain latest event date from ArchivalGroupEvents");
             return Result.Fail(ErrorCodes.UnknownError, "Unable to obtain latest event date from ArchivalGroupEvents");
         }
-        logger.LogInformation("Latest recorded ArchivalGroupEvent was at {eventDate}", latestEvent.EventDate);
+        logger.LogInformation("Latest recorded ArchivalGroupEvent was at {EventDate}", latestEvent.EventDate);
         var activitiesResult = await storageApiClient.GetImportJobActivities(latestEvent.EventDate, cancellationToken);
         if (activitiesResult is not { Success: true, Value: not null })
         {
             return Result.Fail(activitiesResult.ErrorCode!, activitiesResult.ErrorMessage);
         }
-        logger.LogInformation("{count} activities returned from GetImportJobActivities", activitiesResult.Value.Count);
+        logger.LogInformation("{Count} activities returned from GetImportJobActivities", activitiesResult.Value.Count);
         foreach (var activity in activitiesResult.Value)
         {
             // These should be oldest-first
@@ -42,7 +42,7 @@ public class StorageImportJobsProcessor(
             var jobEntity = dbContext.GetImportJobFromStorageImportJobResult(activity.Object.Id);
             if (jobEntity == null)
             {
-                logger.LogError("No import job found in DB for {importJobResult}", activity.Object.Id);
+                logger.LogError("No import job found in DB for {ImportJobResult}", activity.Object.Id);
                 continue;
             }
             // This will also update our local record
@@ -50,7 +50,7 @@ public class StorageImportJobsProcessor(
                 new GetImportJobResult(jobEntity.Deposit, jobEntity.Id), cancellationToken);
             if (fullJobResult is not { Success: true, Value: not null })
             {
-                logger.LogError("Unable to get full import job result for {deposit}, {id}", jobEntity.Deposit, jobEntity.Id);
+                logger.LogError("Unable to get full import job result for {Deposit}, {Id}", jobEntity.Deposit, jobEntity.Id);
                 if (fullJobResult.ErrorCode == ErrorCodes.NotFound)
                 {
                     logger.LogWarning("Import Job not found - can't process, but will continue");
@@ -63,7 +63,7 @@ public class StorageImportJobsProcessor(
             var fullJob = fullJobResult.Value;
             if (fullJob.DateFinished is null)
             {
-                logger.LogError("Job for {deposit}, {id} does not have a DateFinished", jobEntity.Deposit, jobEntity.Id);
+                logger.LogError("Job for {Deposit}, {Id} does not have a DateFinished", jobEntity.Deposit, jobEntity.Id);
                 continue;
             }
             // TODO: Deletions

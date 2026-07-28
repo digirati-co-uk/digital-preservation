@@ -1,6 +1,6 @@
 ﻿namespace DigitalPreservation.Common.Model;
 
-public class Agent
+public static class Agent
 {
     public const string BasePathElement = "agents";
 }

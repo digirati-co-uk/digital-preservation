@@ -10,7 +10,7 @@ namespace XmlGen.Tests;
 
 public class MetsWrapperTests
 {
-    private ILogger<MetsParser> logger;
+    private readonly ILogger<MetsParser> logger;
     
     public MetsWrapperTests()
     {

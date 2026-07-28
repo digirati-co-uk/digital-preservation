@@ -13,7 +13,7 @@ public class GetImportJobsOrderedCollectionPage(int page) : IRequest<Result<Orde
 }
 
 public class GetImportJobsOrderedCollectionPageHandler(
-    ILogger<GetImportJobsOrderedCollectionHandler> logger,
+    ILogger<GetImportJobsOrderedCollectionPageHandler> logger,
     IImportJobResultStore importJobResultStore,
     Converters converters) : IRequestHandler<GetImportJobsOrderedCollectionPage, Result<OrderedCollectionPage>>
 {

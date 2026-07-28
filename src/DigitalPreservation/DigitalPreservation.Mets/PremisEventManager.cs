@@ -130,7 +130,7 @@ public class PremisEventManagerVirus
         return doc.DocumentElement;
     }
 
-    private XmlSerializerNamespaces GetXmlSerializerNameSpaces()
+    private static XmlSerializerNamespaces GetXmlSerializerNameSpaces()
     {
         var namespaces = new XmlSerializerNamespaces();
         namespaces.Add("premis", "http://www.loc.gov/premis/v3");

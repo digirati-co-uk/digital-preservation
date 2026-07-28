@@ -21,6 +21,12 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
 
         testOutputHelper.WriteLine(s);
         testOutputHelper.WriteLine(s1);
+
+        s.Should().Contain(testPremisData.Digest!);
+        s.Should().Contain("fmt/999");
+        s1.Should().Contain("virus check");
+        s1.Should().Contain("Fail");
+        s1.Should().Contain("EICAR found");
     }
 
     [Fact]
@@ -41,16 +47,21 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
         var testPremisData = GetTestPremisData();
         var testVirusMetadata = GetTestVirusMetadataData();
         var premis = premisManager.Create(testPremisData);
-        var s = premisManager.Serialise(premis);
-
         var premisEvent = premisEventManager.Create(testVirusMetadata);
-        var s1 = premisEventManager.Serialise(premisEvent);
 
         var xmlElement = premisManager.GetXmlElement(premis, false);
         var xmlElementMetadata = premisEventManager.GetXmlElement(premisEvent);
 
         testOutputHelper.WriteLine(xmlElement?.ToString());
         testOutputHelper.WriteLine(xmlElementMetadata?.ToString());
+
+        xmlElement.Should().NotBeNull();
+        xmlElement!.NamespaceURI.Should().Be("http://www.loc.gov/premis/v3");
+        xmlElement.OuterXml.Should().Contain(testPremisData.Digest!);
+        xmlElementMetadata.Should().NotBeNull();
+        xmlElementMetadata!.OuterXml.Should().Contain("virus check");
+        xmlElementMetadata.OuterXml.Should().Contain("EICAR found");
+        xmlElementMetadata.OuterXml.Should().Contain("Fail");
     }
 
     private static VirusScanMetadata GetTestVirusMetadataData()

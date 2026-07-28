@@ -48,7 +48,7 @@ public class MetadataReader : IMetadataReader
         if (bagitSha256ManifestResult is { Success: true, Value.ResponseStream: not null })
         {
             isBagItLayout = true;
-            await ReadBagItSha256(bagitSha256ManifestResult.Value.ResponseStream!);
+            await ReadBagItSha256(bagitSha256ManifestResult.Value.ResponseStream);
             bagitTimestamp = bagitSha256ManifestResult.Value.LastModified;
             // Look for other bagit manifests? (non sha-256)
         }
@@ -77,12 +77,12 @@ public class MetadataReader : IMetadataReader
             brunnhildeSiegfriedOutput = await ParseSiegfriedOutput(brunnhildeRoot.AppendEscapedSlug("siegfried.csv"));
             if (brunnhildeAVResult is { Success: true, Value.ResponseStream: not null })
             {
-                infectedFiles = await ReadInfectedFilePaths(brunnhildeAVResult.Value.ResponseStream!);
+                infectedFiles = await ReadInfectedFilePaths(brunnhildeAVResult.Value.ResponseStream);
             }
             var brunnhildeHtmlResult = await storage.GetStream(brunnhildeRoot.AppendEscapedSlug("report.html"));
             if (brunnhildeHtmlResult is { Success: true, Value.ResponseStream: not null })
             {
-                var brunnhildeHtml = await GetTextFromStream(brunnhildeHtmlResult.Value.ResponseStream!);
+                var brunnhildeHtml = await GetTextFromStream(brunnhildeHtmlResult.Value.ResponseStream);
                 GetMetadataList("metadata/brunnhilde/report.html").Add(
                     new ToolOutput
                     {
@@ -149,7 +149,7 @@ public class MetadataReader : IMetadataReader
             var virusDefinitionResult = await storage.GetStream(virusDefinitionRoot);
             if (virusDefinitionResult is { Success: true, Value.ResponseStream: not null })
             {
-                virusDefinition = await GetTextFromStream(virusDefinitionResult.Value.ResponseStream!);
+                virusDefinition = await GetTextFromStream(virusDefinitionResult.Value.ResponseStream);
             }
         }
 
@@ -159,7 +159,7 @@ public class MetadataReader : IMetadataReader
 
             if (brunnhildeVirusLogResult is { Success: true, Value.ResponseStream: not null })
             {
-                virusDefinition = await GetVirusDefinitionFromBrunnhilde(brunnhildeVirusLogResult.Value.ResponseStream!);
+                virusDefinition = await GetVirusDefinitionFromBrunnhilde(brunnhildeVirusLogResult.Value.ResponseStream);
             }
         }
 
@@ -232,18 +232,18 @@ public class MetadataReader : IMetadataReader
             });
         }
 
-        foreach (var file in objectsFiles)
+        foreach (var filename in objectsFiles.Select(file => file.Filename))
         {
             var alreadyVirusScanMetadata = false;
             if (infectedLocalPaths.Count > 0)
             {
-                alreadyVirusScanMetadata = infectedLocalPaths.Any(s => file.Filename != null && file.Filename.Contains(s));
+                alreadyVirusScanMetadata = infectedLocalPaths.Any(s => filename != null && filename.Contains(s));
             }
 
             if (alreadyVirusScanMetadata)
                 continue;
 
-            var localPath = file.Filename.RemoveStart(siegfriedFilesCommonParent).RemoveStart("/"); // check this!
+            var localPath = filename.RemoveStart(siegfriedFilesCommonParent).RemoveStart("/"); // check this!
 
             var metadataList = GetMetadataList(localPath!);
             metadataList.Add(new VirusScanMetadata
@@ -351,7 +351,7 @@ public class MetadataReader : IMetadataReader
         return model;
     }
 
-    private async Task<ClamScanResult> GetClamScanOutput(Stream stream)
+    private static async Task<ClamScanResult> GetClamScanOutput(Stream stream)
     {
         var txt = await GetTextFromStream(stream);
         var result = ConvertClamResultStringToJson(txt);
@@ -388,7 +388,7 @@ public class MetadataReader : IMetadataReader
         {
             return null;
         }
-        var txt = await GetTextFromStream(streamResult.Value.ResponseStream!);
+        var txt = await GetTextFromStream(streamResult.Value.ResponseStream);
 
         // first assume that the extension corresponds to the data - it might not!
         // (if siegfried used without format and > output.xxx being consistent)

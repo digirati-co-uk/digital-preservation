@@ -56,26 +56,4 @@ public static class HttpClientBuilderX
         }
     }
 
-    private static async ValueTask<Stream> ConfigureSocketTcpKeepAliveDoesntWorkOnLinux(
-        SocketsHttpConnectionContext context,
-        CancellationToken token)
-    {
-        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
-        try
-        {
-            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, 120);
-            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 60);   // was 10
-            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, 60); // was 10
-            await socket.ConnectAsync(context.DnsEndPoint, token).ConfigureAwait(false);
-
-            return new NetworkStream(socket, ownsSocket: true);
-        }
-        catch
-        {
-            socket.Dispose();
-            throw;
-        }
-    }
-    
 }

@@ -30,17 +30,17 @@ public class GetDiffImportJobHandler(
 {
     public async Task<Result<ImportJob>> Handle(GetDiffImportJob request, CancellationToken cancellationToken)
     {
-        logger.LogInformation("GetDiffImportJob handler called for deposit " + request.Deposit.LogSummary());
+        logger.LogInformation("GetDiffImportJob handler called for deposit {DepositSummary}", request.Deposit.LogSummary());
         if (request.Deposit.ArchivalGroup == null)
         {
-            logger.LogWarning("Deposit " + request.Deposit.Id + "doesn't have Archival Group specified.");
+            logger.LogWarning("Deposit {DepositId}doesn't have Archival Group specified.", request.Deposit.Id);
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest,
                 "Deposit doesn't have Archival Group specified.");
         }
 
         if (request.Deposit.Files == null)
         {
-            logger.LogWarning("Deposit " + request.Deposit.Id + "doesn't have Deposit location (Files).");
+            logger.LogWarning("Deposit {DepositId}doesn't have Deposit location (Files).", request.Deposit.Id);
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, "No Deposit location provided.");
         }
 
@@ -64,14 +64,14 @@ public class GetDiffImportJobHandler(
                 var testPathResult = await storageApi.TestArchivalGroupPath(agPathUnderRoot);
                 if (testPathResult.Failure)
                 {
-                    logger.LogWarning("Test path returned " + testPathResult.CodeAndMessage());
+                    logger.LogWarning("Test path returned {CodeAndMessage}", testPathResult.CodeAndMessage());
                     return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, testPathResult.CodeAndMessage());
                 }
-                logger.LogInformation("Archival group path " + agPathUnderRoot + " would be OK to create at.");
+                logger.LogInformation("Archival group path {AgPathUnderRoot} would be OK to create at.", agPathUnderRoot);
             }
             else
             {
-                logger.LogWarning("Archival group invalid for other reasons: " + archivalGroupResult.CodeAndMessage());
+                logger.LogWarning("Archival group invalid for other reasons: {CodeAndMessage}", archivalGroupResult.CodeAndMessage());
                 // should this return here?
                 return Result.FailNotNull<ImportJob>(archivalGroupResult.ErrorCode!, archivalGroupResult.ErrorMessage);
             }
@@ -85,17 +85,17 @@ public class GetDiffImportJobHandler(
         }
         var combined = combinedResult.Value;
         // We might update this from the METS file later
-        var agName = request.Deposit.ArchivalGroupName ?? existingArchivalGroup?.Name ?? combined!.DirectoryInDeposit!.Name;
+        var agName = request.Deposit.ArchivalGroupName ?? existingArchivalGroup?.Name ?? combined.DirectoryInDeposit!.Name;
         if (agName.IsNullOrWhiteSpace() || agName == WorkingDirectory.DefaultRootName)
         {
             // We don't mind no name, but we don't want it to be the default name.
             agName = null;
         }
-        logger.LogInformation("(get import source) concluded AG name is " + agName);
+        logger.LogInformation("(get import source) concluded AG name is {AgName}", agName);
 
         var origin = FolderNames.GetFilesLocation(request.Deposit.Files, workspace.IsBagItLayout);
         var allEncounteredProcessedUris = new List<Uri>();
-        var importContainerResult = combined!.ToContainer(request.Deposit.ArchivalGroup, origin, workspace.MetsPath, allEncounteredProcessedUris);
+        var importContainerResult = combined.ToContainer(request.Deposit.ArchivalGroup, origin, workspace.MetsPath, allEncounteredProcessedUris);
         if (importContainerResult.Failure || importContainerResult.Value is null)
         {
             return Result.FailNotNull<ImportJob>(importContainerResult.ErrorCode ?? ErrorCodes.BadRequest, importContainerResult.ErrorMessage);
@@ -112,9 +112,9 @@ public class GetDiffImportJobHandler(
 
         var notForImport = $"{agPathUnderRoot}/{IStorage.DepositFileSystem}";
         var removed = sourceBinaries.RemoveAll(b => b.Id.GetPathUnderRoot(true) == notForImport);
-        logger.LogInformation("Removed {removed} file matching {notForImport}", removed, notForImport);
+        logger.LogInformation("Removed {Removed} file matching {NotForImport}", removed, notForImport);
  
-        var agLocalPathWithSlash = request.Deposit.ArchivalGroup!.LocalPath;
+        var agLocalPathWithSlash = request.Deposit.ArchivalGroup.LocalPath;
         if (!agLocalPathWithSlash.EndsWith('/'))
         {
             agLocalPathWithSlash += "/";
@@ -163,7 +163,7 @@ public class GetDiffImportJobHandler(
             .ToList();
         if (missingTheirChecksum.Count > 0)
         {
-            var first = missingTheirChecksum.First().Id!.GetSlug()?.UnEscapeFromUriNoHashes();
+            var first = missingTheirChecksum[0].Id!.GetSlug()?.UnEscapeFromUriNoHashes();
             var message = $"{missingTheirChecksum.Count} file(s) do not have a checksum, including {first}";
             logger.LogWarning(message);
             return Result.FailNotNull<ImportJob>(ErrorCodes.Unprocessable, message);
@@ -189,7 +189,7 @@ public class GetDiffImportJobHandler(
                 if (combinedDirectory is null || !HasAnyDescendantFile(combinedDirectory))
                 {
                     logger.LogInformation(
-                        "Folder {relativeLocalPath} has no corresponding METS entry but is empty; skipping rather than failing the diff",
+                        "Folder {RelativeLocalPath} has no corresponding METS entry but is empty; skipping rather than failing the diff",
                         relativeLocalPath);
                     continue;
                 }
@@ -204,13 +204,10 @@ public class GetDiffImportJobHandler(
             }
         }
 
-        if (agName == null)
+        if (agName == null && workspace.MetsName.HasText())
         {
             // No overriding name is being provided
-            if (workspace.MetsName.HasText())
-            {
-                agName = workspace.MetsName;
-            }
+            agName = workspace.MetsName;
         }
 
         var callerIdentity = request.Principal.GetCallerIdentity();
@@ -246,12 +243,12 @@ public class GetDiffImportJobHandler(
         var binariesToCheck = new List<Binary>();
         binariesToCheck.AddRange(importJob.BinariesToAdd);
         binariesToCheck.AddRange(importJob.BinariesToPatch);
-        foreach (var binary in binariesToCheck)
+        foreach (var binaryId in binariesToCheck.Select(binary => binary.Id))
         {
-            var fileInDeposit = combinedFilesByBinaryId[binary.Id!].FileInDeposit;
+            var fileInDeposit = combinedFilesByBinaryId[binaryId!].FileInDeposit;
             if (fileInDeposit == null)
             {
-                var message = $"Binary {binary.Id!.LocalPath} has no file in the Deposit.";
+                var message = $"Binary {binaryId!.LocalPath} has no file in the Deposit.";
                 logger.LogWarning(message);
                 return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, message);
             }
@@ -263,7 +260,7 @@ public class GetDiffImportJobHandler(
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, validateMetsResult.ErrorMessage);
         }
 
-        logger.LogInformation("Diff Import Job created: " + importJob.LogSummary());
+        logger.LogInformation("Diff Import Job created: {ImportJobSummary}", importJob.LogSummary());
         return Result.OkNotNull(importJob);
     }
 
@@ -297,7 +294,7 @@ public class GetDiffImportJobHandler(
             var sourceFile = combined.FindFile(path);
             if (sourceFile is null)
             {
-                logger.LogWarning("Binary {path} is in Archival Group but not in deposit files or METS", path);
+                logger.LogWarning("Binary {Path} is in Archival Group but not in deposit files or METS", path);
                 importJob.BinariesToDelete.Add(binary);
             }
         }

@@ -39,15 +39,15 @@ public class PipelineController(
             pipelineJob.RunUser ?? "PipelineApi"), cancellationToken);
 
         if(pipelineJobsResult?.Value?.Errors is { Length: 0 })
-            logger.LogInformation($"Job {jobIdentifier} status Waiting logged");
+            logger.LogInformation("Job {JobIdentifier} status Waiting logged", jobIdentifier);
 
         pipelineJob.JobIdentifier = jobIdentifier;
 
         logger.LogInformation(
-            $"ExecutePipelineJob:Executing pipeline process for job id {jobIdentifier} and deposit {pipelineJob.DepositName}");
+            "ExecutePipelineJob:Executing pipeline process for job id {JobIdentifier} and deposit {DepositName}", jobIdentifier, pipelineJob.DepositName);
         var pipelineProcessJobResult = await mediator.Send(new ProcessPipelineJob(pipelineJob), cancellationToken);
         logger.LogInformation(
-            $"Returned from ProcessPipelineJob for job id {jobIdentifier} and deposit {pipelineJob.DepositName}");
+            "Returned from ProcessPipelineJob for job id {JobIdentifier} and deposit {DepositName}", jobIdentifier, pipelineJob.DepositName);
         return this.StatusResponseFromResult(pipelineProcessJobResult, 204);
     }
 
@@ -57,7 +57,7 @@ public class PipelineController(
     public async Task<DirectoryModel> CheckDepositFolderAndContents([FromQuery] DepositFilesModel depositFilesModel,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation($"Checking deposit folder {depositFilesModel.DepositId} and contents exist.");
+        logger.LogInformation("Checking deposit folder {DepositId} and contents exist.", depositFilesModel.DepositId);
 
         var model = new DirectoryModel();
 
@@ -126,7 +126,7 @@ public class PipelineController(
         return Bash(GetDiskSpace(), targetDirectory);
     }
 
-    private string GetDiskSpace()
+    private static string GetDiskSpace()
     {
         return string.Join(" ", "df");
     }

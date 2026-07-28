@@ -133,7 +133,7 @@ public class GetDistinctDigestsTests
 
         var result = depositFile.GetDigestMetadata();
         result!.Timestamp.Should().Be(PipelineTimestamp, "Max() across all IDigestMetadata entries returns the pipeline timestamp");
-        result!.Timestamp.Should().NotBe(BagItTimestamp);
+        result.Timestamp.Should().NotBe(BagItTimestamp);
     }
 
     // Documents that GetDigestMetadata throws when BagIt and Siegfried disagree —

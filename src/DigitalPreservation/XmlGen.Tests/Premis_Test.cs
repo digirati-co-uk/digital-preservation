@@ -98,6 +98,13 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         var premis = premisManager.Create(testData);
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
+
+        s.Should().Contain("http://www.loc.gov/premis/v3");
+        s.Should().Contain(testData.Digest!);
+        s.Should().Contain("fmt/999");
+        s.Should().Contain("9999999");
+        s.Should().Contain("files/a-file-path");
+        s.Should().Contain("Tagged Image File Format Test");
     }
     
     [Fact]
@@ -117,8 +124,14 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         var testData = GetTestPremisData();
         var premis = premisManager.Create(testData);
         var xmlElement = premisManager.GetXmlElement(premis, false);
-        
+
         testOutputHelper.WriteLine(xmlElement?.ToString());
+
+        xmlElement.Should().NotBeNull();
+        xmlElement!.NamespaceURI.Should().Be("http://www.loc.gov/premis/v3");
+        xmlElement.OuterXml.Should().Contain(testData.Digest!);
+        xmlElement.OuterXml.Should().Contain("fmt/999");
+        xmlElement.OuterXml.Should().Contain("files/a-file-path");
     }
 
 
@@ -134,11 +147,18 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
             Size = 1111111
         };
         premisManager.Patch(premis, update);
-        
+
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
+
+        var read = premisManager.Read(premis);
+        read!.Size.Should().Be(1111111);
+        read.Digest.Should().Be(testData.Digest);
+        read.PronomKey.Should().Be("fmt/999");
+        read.FormatName.Should().Be("Tagged Image File Format Test");
+        read.OriginalName.Should().Be("files/a-file-path");
     }
-    
+
     [Fact]
     public void Edit_Premis_PronomKey_Only()
     {
@@ -151,11 +171,17 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
             PronomKey = "fmt/333"
         };
         premisManager.Patch(premis, update);
-        
+
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
+
+        var read = premisManager.Read(premis);
+        read!.PronomKey.Should().Be("fmt/333");
+        read.FormatName.Should().Be("Tagged Image File Format Test", "patching the PRONOM key alone must not alter the format name");
+        read.Digest.Should().Be(testData.Digest);
+        read.Size.Should().Be(9999999);
     }
-    
+
     [Fact]
     public void Edit_Premis_PronomKey_And_Format_Name()
     {
@@ -169,11 +195,17 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
             PronomKey = "fmt/333"
         };
         premisManager.Patch(premis, update);
-        
+
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
+
+        var read = premisManager.Read(premis);
+        read!.PronomKey.Should().Be("fmt/333");
+        read.FormatName.Should().Be("Some other bitmap");
+        read.Digest.Should().Be(testData.Digest);
+        read.Size.Should().Be(9999999);
     }
-    
+
     [Fact]
     public void Simplest_Premis()
     {
@@ -181,6 +213,14 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         var premis = premisManager.Create(new FileFormatMetadata{Source = "Tests"});
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
+
+        s.Should().Contain("http://www.loc.gov/premis/v3");
+        var read = premisManager.Read(premis);
+        read.Should().NotBeNull();
+        read!.Digest.Should().BeNull();
+        read.Size.Should().BeNull();
+        read.PronomKey.Should().BeNull();
+        read.OriginalName.Should().BeNull();
     }
     
     
@@ -195,6 +235,13 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         });
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
+
+        var read = premisManager.Read(premis);
+        read!.Digest.Should().Be("123456");
+        read.Size.Should().BeNull();
+        read.PronomKey.Should().BeNull();
+        s.Should().Contain("123456");
+        s.Should().Contain("SHA256");
     }
     
         
@@ -210,7 +257,12 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         });
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
-    }        
+
+        var read = premisManager.Read(premis);
+        read!.Digest.Should().Be("123456");
+        read.Size.Should().Be(654321);
+        read.PronomKey.Should().BeNull();
+    }
     
     [Fact]
     public void Premis_Digest_and_Size_then_Edit_Name()
@@ -227,6 +279,11 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         premisManager.Patch(premis, start);
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
+
+        var read = premisManager.Read(premis);
+        read!.Digest.Should().Be("123456");
+        read.Size.Should().Be(654321);
+        read.OriginalName.Should().Be("bob");
     }
     
         
@@ -247,6 +304,14 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         premisManager.Patch(premis, start);
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
+
+        // Asserting on the serialised XML here: the PRONOM key was patched without a
+        // format name, so the format element has a registry key but no designation.
+        s.Should().Contain("123456");
+        s.Should().Contain("654321");
+        s.Should().Contain("bob");
+        s.Should().Contain("fmt/bob");
+        s.Should().Contain("PRONOM");
     }
     
     [Fact]
@@ -268,6 +333,13 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         premisManager.Patch(premis, premisMetadata);
         var s = premisManager.Serialise(premis);
         testOutputHelper.WriteLine(s);
+
+        var read = premisManager.Read(premis);
+        read!.Digest.Should().Be("123456");
+        read.Size.Should().Be(654321);
+        read.OriginalName.Should().Be("bob");
+        read.PronomKey.Should().Be("fmt/bob");
+        read.FormatName.Should().Be("Some file format");
     }
     
     

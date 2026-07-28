@@ -205,20 +205,6 @@ public class PremisManager
         }
     }
 
-    private void AddSignificantProperty(File file, string propertyName, string metadataValue)
-    {
-        var significantProperties = new SignificantPropertiesComplexType();
-        file.SignificantProperties.Add(significantProperties);
-
-        //TODO: add value to significant properties
-        significantProperties.SignificantPropertiesType = new StringPlusAuthority
-        {
-            Value = propertyName
-        };
-
-        significantProperties.SignificantPropertiesValue.Add(metadataValue);
-    }
-
     private ContentLocationComplexType EnsureContentLocation(File file)
     {
         var thisStorage = file.Storage.FirstOrDefault(
@@ -239,7 +225,7 @@ public class PremisManager
         return contentLocation;
     }
 
-    private FormatComplexType EnsurePronomFormat(ObjectCharacteristicsComplexType objectCharacteristics)
+    private static FormatComplexType EnsurePronomFormat(ObjectCharacteristicsComplexType objectCharacteristics)
     {
         var pronomFormat = objectCharacteristics.Format.FirstOrDefault(
             f => f.FormatRegistry.FirstOrDefault(
@@ -276,7 +262,7 @@ public class PremisManager
         return doc.DocumentElement;
     }
 
-    private XmlSerializerNamespaces GetXmlSerializerNameSpaces()
+    private static XmlSerializerNamespaces GetXmlSerializerNameSpaces()
     {
         var namespaces = new XmlSerializerNamespaces();
         namespaces.Add("premis", "http://www.loc.gov/premis/v3");

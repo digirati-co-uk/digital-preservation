@@ -64,13 +64,4 @@ public class ImportJob
     public string? NewVersion { get; set; }
     
     public string? Errors { get; set; }
-    // public string? ContainersAdded { get; set; }
-    // public string? BinariesAdded { get; set; }
-    // public string? ContainersDeleted { get; set; }
-    // public string? BinariesDeleted { get; set; }
-    // public string? BinariesPatched { get; set; }
-    //
-    //
-    // public string? ContainersRenamed { get; set; }
-    // public string? BinariesRenamed { get; set; }
 }

@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using Dlcs.Hydra;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,17 +8,14 @@ namespace Dlcs.SimpleDlcs;
 
 public class Dlcs : IDlcs
 {
-    private readonly ILogger<Dlcs> logger;
     private readonly HttpClient httpClient;
     private readonly DlcsOptions options;
 
 
     public Dlcs(
-        ILogger<Dlcs> logger,
         IOptions<DlcsOptions> options,
         HttpClient httpClient)
     {
-        this.logger = logger;
         this.httpClient = httpClient;
         this.options = options.Value;
     }

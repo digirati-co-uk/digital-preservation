@@ -183,9 +183,8 @@ public class MetsManagerPathTests
         // Verifies that the update path through MetadataManager.GetMetadataXml (line 195)
         // correctly locates the AmdSec for a file whose path contains a space.
         //
-        // On update (newUpload=false), MetadataManager does:
-        //   ctx.FileAdmId = string.Join(' ', ctx.File.Admid);
-        // to reconstruct "ADM_objects/my file.pdf" from ["ADM_objects/my", "file.pdf"],
+        // On update (newUpload=false), MetadataManager sets ctx.FileAdmId by space-joining
+        // ctx.File.Admid to reconstruct "ADM_objects/my file.pdf" from ["ADM_objects/my", "file.pdf"],
         // then finds the AmdSec by that ID. If the join were wrong the update would throw.
 
         var (metsUri, eTag) = await CreateEmptyMets("path-space-overwrite.xml");

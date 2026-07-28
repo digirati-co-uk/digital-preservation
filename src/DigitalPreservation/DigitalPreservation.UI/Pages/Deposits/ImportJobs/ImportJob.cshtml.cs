@@ -29,7 +29,7 @@ public class ImportJobModel(IMediator mediator) : PageModel
                 ItemsWithInvalidSlugs = itemsWithInvalidSlugs;
                 ItemsWithInvalidSlugsMessage = invalidSlugMessage;
                 AddedBinariesWithInvalidContentTypes = ImportJob.AddedBinariesWithInvalidContentTypes();
-                ViewData["Title"] = $"Diff from {depositId} to {ImportJob!.ArchivalGroupName ?? ImportJob.ArchivalGroup.GetPathUnderRoot()}";
+                ViewData["Title"] = $"Diff from {depositId} to {ImportJob.ArchivalGroupName ?? ImportJob.ArchivalGroup.GetPathUnderRoot()}";
                 return;
             }
             TempData["Error"] = result.CodeAndMessage() + (invalidSlugMessage != null ? $" ({invalidSlugMessage})" : "");

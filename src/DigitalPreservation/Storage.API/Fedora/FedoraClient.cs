@@ -44,7 +44,7 @@ internal class FedoraClient(
         
         if (typeRes.Value == nameof(ArchivalGroup))
         {
-            var agResult = await GetPopulatedArchivalGroup(pathUnderFedoraRoot!, transaction);
+            var agResult = await GetPopulatedArchivalGroup(pathUnderFedoraRoot!);
             if (agResult.Success)
             {
                 return Result.Ok(agResult.Value as PreservedResource);
@@ -86,7 +86,7 @@ internal class FedoraClient(
     }
 
     public async Task<Result<PreservedResource?>> GetResourceLightweight(
-        string? pathUnderFedoraRoot, string? version = null, Transaction? transaction = null)
+        string? pathUnderFedoraRoot, string? version, Transaction? transaction = null)
     {
         var typeRes = await GetResourceType(pathUnderFedoraRoot, transaction);
         switch (typeRes.Value)
@@ -137,7 +137,7 @@ internal class FedoraClient(
         return Result.Fail<PreservedResource>(ErrorCodes.UnknownError, "Could not find resource.");
     }
 
-    private async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(string pathUnderFedoraRoot, Transaction? transaction = null)
+    private async Task<Result<ArchivalGroup?>> GetPopulatedArchivalGroup(string pathUnderFedoraRoot)
     {
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
         return await GetPopulatedArchivalGroup(uri);
@@ -151,7 +151,7 @@ internal class FedoraClient(
             return Result.Fail<ArchivalGroup?>(ErrorCodes.UnknownError,$"No versions found for {uri}");
         }
         var storageMap = await GetCacheableStorageMap(uri, null, true);
-        logger.LogInformation("Obtained StorageMap; Root: {root}, ObjectPath: {objectPath}", storageMap.Root, storageMap.ObjectPath);
+        logger.LogInformation("Obtained StorageMap; Root: {Root}, ObjectPath: {ObjectPath}", storageMap.Root, storageMap.ObjectPath);
         MergeVersions(versions, storageMap.AllVersions);
 
         if(await GetPopulatedContainer(uri, true, true, false) is not ArchivalGroup archivalGroup)
@@ -246,7 +246,7 @@ internal class FedoraClient(
     }
 
 
-    private async Task<Result<ObjectVersion>> GetArchivalGroupVersion(Uri uri, Transaction? transaction)
+    private async Task<Result<ObjectVersion>> GetArchivalGroupVersion(Uri uri)
     {
         var sm = await GetCacheableStorageMap(uri, version: null, refresh: true);
         return Result.OkNotNull(sm.HeadVersion);
@@ -261,7 +261,7 @@ internal class FedoraClient(
     public async Task<Result<ObjectVersion>> GetArchivalGroupVersion(string? pathUnderFedoraRoot, Transaction? transaction = null)
     {
         var uri = converters.GetFedoraUri(pathUnderFedoraRoot);
-        return await GetArchivalGroupVersion(uri, transaction);
+        return await GetArchivalGroupVersion(uri);
     }
 
 
@@ -270,7 +270,7 @@ internal class FedoraClient(
         var info = await GetResourceType(pathUnderFedoraRoot, transaction);
         if (info is { Success: true, Value: nameof(ArchivalGroup) })
         {
-            var ag = await GetPopulatedArchivalGroup(pathUnderFedoraRoot, transaction);
+            var ag = await GetPopulatedArchivalGroup(pathUnderFedoraRoot);
             return ag;
         }
         if (info.ErrorCode == ErrorCodes.NotFound)
@@ -524,7 +524,7 @@ internal class FedoraClient(
 
     public async Task<Result<Binary?>> PutBinary(Binary binary, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default)
     {      
-        logger.LogInformation("PutBinary {id}", binary.Id);
+        logger.LogInformation("PutBinary {Id}", binary.Id);
         // TODO: Can we PUT the resource and set its dc:title in the same PUT request?
         // At the moment we have to make a separate update to the metadata endpoint.
         // verify that parent is a container first?
@@ -533,7 +533,7 @@ internal class FedoraClient(
         {
             return Result.Fail<Binary>(ErrorCodes.BadRequest, "No checksum obtainable for binary " + binary.Id);
         }
-        logger.LogInformation("Binary {path} has checksum {checksum}", binary.Id!.AbsolutePath, binary.Digest);
+        logger.LogInformation("Binary {Path} has checksum {Checksum}", binary.Id!.AbsolutePath, binary.Digest);
         HttpRequestMessage? req;
         HttpResponseMessage? response;
         try
@@ -580,7 +580,7 @@ internal class FedoraClient(
 
         if (!response.IsSuccessStatusCode)
         {
-            logger.LogError("Response from Fedora was {status}", response.StatusCode);
+            logger.LogError("Response from Fedora was {Status}", response.StatusCode);
             var message = await response.Content.ReadAsStringAsync(cancellationToken);
             var code = ErrorCodes.GetErrorCode((int?)response.StatusCode);
             return Result.Fail<Binary>(code, $"PUT {binary.GetSlug()} failed; response from Fedora was {response.StatusCode}: {message}");
@@ -641,7 +641,7 @@ internal class FedoraClient(
 
     private async Task<HttpRequestMessage?> MakeBinaryPut(Binary binary, Transaction transaction)
     {
-        logger.LogInformation("Constructing a Binary PUT for {path}", binary.Id!.AbsolutePath);
+        logger.LogInformation("Constructing a Binary PUT for {Path}", binary.Id!.AbsolutePath);
         var fedoraLocation = converters.GetFedoraUri(binary.Id.GetPathUnderRoot());
         var req = MakeHttpRequestMessage(fedoraLocation, HttpMethod.Put)
             .InTransaction(transaction)
@@ -654,15 +654,15 @@ internal class FedoraClient(
         Stream putStream;
         try
         {
-            logger.LogInformation("Getting stream from storage content at origin {origin}", binary.Origin);
+            logger.LogInformation("Getting stream from storage content at origin {Origin}", binary.Origin);
             var streamResult = await storage.GetStream(binary.Origin!);
             if (streamResult is { Success: true, Value.ResponseStream: not null })
             {
-                putStream = streamResult.Value.ResponseStream!;
+                putStream = streamResult.Value.ResponseStream;
             }
             else
             {
-                logger.LogError("Unable to read origin as stream: " + streamResult.CodeAndMessage());
+                logger.LogError("Unable to read origin as stream: {CodeAndMessage}", streamResult.CodeAndMessage());
                 return null;
             }
         }
@@ -682,9 +682,7 @@ internal class FedoraClient(
             logger.LogError(e, "Unable to construct StreamContent");
             return null;
         }
-       
-        // Still set the content disposition to give the file within Fedora an ebucore:filename triple:
-        //req.Content.WithContentDisposition(binary.Name);
+
         return req;
     }
 
@@ -895,7 +893,7 @@ internal class FedoraClient(
         // Get the "contains" property which may be a single value or an array
         var idsFromContainmentPredicate = GetIdsFromContainsProperty(containerAndContained[0]);
         idsFromContainmentPredicate.Sort();
-        logger.LogDebug("idsFromContainmentPredicate has {childCount} child items.", idsFromContainmentPredicate.Count);
+        logger.LogDebug("idsFromContainmentPredicate has {ChildCount} child items.", idsFromContainmentPredicate.Count);
         foreach (var id in idsFromContainmentPredicate)
         {
             var resource = dict[id];
@@ -923,7 +921,7 @@ internal class FedoraClient(
         return topContainer;
     }
 
-    private BinaryMetadataResponse? GetFedoraBinaryMetadataResponse(JsonElement jsonElement)
+    private static BinaryMetadataResponse? GetFedoraBinaryMetadataResponse(JsonElement jsonElement)
     {
         var titles = GetMultipleDcTitles(jsonElement);
         var binaryMetadata = jsonElement.Deserialize<BinaryMetadataResponse>();
@@ -981,13 +979,13 @@ internal class FedoraClient(
         return requestMessage;
     }   
     
-    private HttpRequestMessage MakeHttpRequestMessage(string path, HttpMethod method)
+    private static HttpRequestMessage MakeHttpRequestMessage(string path, HttpMethod method)
     {
         var uri = new Uri(path, UriKind.Relative);
         return MakeHttpRequestMessage(uri, method);
     }
     
-    private List<string> GetIdsFromContainsProperty(JsonElement element)
+    private static List<string> GetIdsFromContainsProperty(JsonElement element)
     {
         List<string> childIds = [];
         if (element.TryGetProperty("contains", out JsonElement contains))
@@ -1080,13 +1078,13 @@ internal class FedoraClient(
                     // which is valid if upper case, but the OCFL has a lower case hash always.
                     // So they are equivalent as SHA256 hashes but not as strings/keys.
                     // We could allow this and just do the same as above, but for now I will throw:
-                    logger.LogError("Binary has a non-lowercase (but valid) SHA256 hash for {file}: {hash}", 
+                    logger.LogError("Binary has a non-lowercase (but valid) SHA256 hash for {File}: {Hash}",
                         storageMapFilePathFromLoweredHash, storageMapKey);
                     throw new NotSupportedException(
                         $"Binary has a non-lowercase (but valid) SHA256 hash for {storageMapFilePathFromLoweredHash}: {storageMapKey}");
                 }
 
-                logger.LogError("StorageMap has no entry for hash: {hash}, expected for binary {binaryId}", 
+                logger.LogError("StorageMap has no entry for hash: {Hash}, expected for binary {BinaryId}",
                     storageMapKey, binary.Id);
                 throw new NotSupportedException(
                     $"StorageMap has no entry for hash: {storageMapKey}, expected for binary {binary.Id}");
@@ -1112,13 +1110,13 @@ internal class FedoraClient(
         // Is that a bug?
         // We're not going to learn anything more than we would by parsing the memento path elements - which is TERRIBLY non-REST-y
         return versionIds
-            .Select(id => id.Split('/').Last())
+            .Select(id => id.Split('/')[^1])
             .Select(p => new ObjectVersion { MementoTimestamp = p, MementoDateTime = p.DateTimeFromMementoTimestamp() })
             .OrderBy(ov => ov.MementoTimestamp)
             .ToArray();
     }
     
-    private void MergeVersions(ObjectVersion[] fedoraVersions, ObjectVersion[] ocflVersions)
+    private static void MergeVersions(ObjectVersion[] fedoraVersions, ObjectVersion[] ocflVersions)
     {
         if(fedoraVersions.Length != ocflVersions.Length)
         {
@@ -1177,7 +1175,7 @@ internal class FedoraClient(
         }
     }
 
-    public async Task CommitTransaction(Transaction tx, CancellationToken cancellationToken = default)
+    public async Task CommitTransaction(Transaction tx, CancellationToken cancellationToken)
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Put);
         var response = await httpClient.SendAsync(req, cancellationToken);
@@ -1196,7 +1194,7 @@ internal class FedoraClient(
         string text, 
         int? page, 
         int? pageSize,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
 
         var result = new SearchCollectiveFedora()

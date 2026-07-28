@@ -29,14 +29,14 @@ public class ProcessPipelineHandler(
                 return Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not publish pipeline job as request for job id {jobId} and deposit {deposit}");
             }
 
-            logger.LogInformation($"About to queue pipeline request for job id {jobId} and deposit {deposit}");
+            logger.LogInformation("About to queue pipeline request for job id {JobId} and deposit {Deposit}", jobId, deposit);
             await pipelineQueue.QueueRequest(jobId, deposit, runUser, cancellationToken);
 
             return Result.Ok();
         }
         catch (Exception e)
         {
-            logger.LogError(e, $"Could not process pipeline request for job id {jobId} and deposit {deposit}");
+            logger.LogError(e, "Could not process pipeline request for job id {JobId} and deposit {Deposit}", jobId, deposit);
             return Result.FailNotNull<Result>(ErrorCodes.UnknownError, $"Could not publish pipeline job for job id {jobId} and deposit {deposit}: " + e.Message);
         }
 

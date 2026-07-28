@@ -80,7 +80,7 @@ public class PagerTwoViewComponent : ViewComponent
                         AddLinkToModel(model, path, linkPage, values);
                     }
 
-                    if (model.Links.Last().Page < pages - values.Ends)
+                    if (model.Links[^1].Page < pages - values.Ends)
                     {
                         model.Links.Add(new Link {Page = null});
                     }

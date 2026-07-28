@@ -1,5 +1,5 @@
 ﻿namespace DigitalPreservation.Common.Model.PipelineApi;
-public class PipelineJobStates
+public static class PipelineJobStates
 {
     public const string Waiting = "waiting";
     public const string Running = "processing";
