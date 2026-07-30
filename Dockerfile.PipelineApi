@@ -60,6 +60,21 @@ RUN sed -i '/^Example/d' /etc/clamav/clamd.conf /etc/clamav/freshclam.conf
 RUN sed -i 's#^LocalSocket .*#LocalSocket /var/run/clamav/clamd.sock#' /etc/clamav/clamd.conf
 RUN sed -i 's#^LocalSocketMode .*#LocalSocketMode 666#' /etc/clamav/clamd.conf
 
+# Debian's packaged default (MaxConnectionQueueLength 15) is far below upstream ClamAV's own
+# default of 200, and gets overwhelmed by bursts of concurrent pipeline jobs each opening two
+# connections to clamd (Brunnhilde's own scan, plus the separate per-object-file scan during METS
+# building) in quick succession, causing "Could not connect to clamd ... Connection refused".
+# The directive may or may not already exist commented out depending on the packaged version, and
+# (as above) clamd only honors the first occurrence, so match either form and replace in place.
+RUN sed -i 's/^#\?MaxConnectionQueueLength.*/MaxConnectionQueueLength 200/' /etc/clamav/clamd.conf
+
+# Raising the queue alone isn't sufficient under real concurrent bursts - verified locally by firing
+# 30 simultaneous "clamscan --multiscan" calls through this same shim/clamd setup: with Debian's
+# packaged default (MaxThreads 12), roughly half failed with "Not enough threads for multiscan.
+# Increase MaxThreads. ERROR" (a distinct failure from the connection-refused one above, surfaced
+# only once the queue fix let more connections through to actually reach clamd's thread pool).
+RUN sed -i 's/^#\?MaxThreads.*/MaxThreads 50/' /etc/clamav/clamd.conf
+
 # Brunnhilde always invokes the literal "clamscan" binary with no way to configure it - shadow the
 # real clamscan with a shim that instead talks to clamd running as a second process in this same
 # container (started by pipeline-api-entrypoint.sh), avoiding the signature-database reload cost
