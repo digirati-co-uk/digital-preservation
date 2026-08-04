@@ -43,6 +43,15 @@ RUN apt-get install python3-full python3-pip -y
 RUN rm /usr/lib/python3.11/EXTERNALLY-MANAGED
 RUN pip3 install --upgrade brunnhilde
 RUN brunnhilde.py -V
+
+# No locale is configured in this image, so Python's default text encoding for stdout/stderr and
+# for any open() call without an explicit encoding falls back to a restrictive non-UTF-8 codec.
+# A deposit file with a non-ASCII character in its name or embedded metadata (e.g. "o" with a
+# macron) then crashes/hangs Brunnhilde mid-run with "'charmap' codec can't encode character ..."
+# - and since Pipeline.API processes SQS jobs one at a time, a hang here wedges every subsequent
+# job at "waiting" indefinitely. PYTHONUTF8=1 forces UTF-8 everywhere for every Python process in
+# this image (Brunnhilde and bagit.py both), not just the narrower PYTHONIOENCODING stdout fix.
+ENV PYTHONUTF8=1
 #clam av
 RUN apt-get install clamav clamav-freshclam clamav-daemon util-linux -y
 RUN freshclam
