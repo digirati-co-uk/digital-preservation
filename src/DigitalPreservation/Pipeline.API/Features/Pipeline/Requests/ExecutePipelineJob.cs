@@ -415,7 +415,7 @@ public class ProcessPipelineJobHandler(
                 return await ForceCompleteReturn(cleanupProcessJobAfterDelete, request, workspaceManager.Deposit, cancellationToken);
             }
 
-            var virusDefinition = GetVirusDefinition();
+            var virusDefinition = await GetVirusDefinition();
             //add virus definition file to metadata folder
             var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition{pipelineToolOptions.Value.DirectorySeparator}virus-definition.txt";
 
@@ -1079,7 +1079,7 @@ public class ProcessPipelineJobHandler(
         };
     }
 
-    private string GetVirusDefinition()
+    private async Task<string> GetVirusDefinition()
     {
         try
         {
@@ -1099,8 +1099,14 @@ public class ProcessPipelineJobHandler(
                 }
             };
             process.Start();
-            string result = process.StandardOutput.ReadToEnd();
-            process.WaitForExit();
+            // clamd can be mid-scan and holding every MaxThreads worker when this "--version" call
+            // comes in (it queues behind the scan on the same clamd thread pool via clamscan-shim.sh),
+            // so this can block for as long as a large deposit's scan takes. A synchronous
+            // ReadToEnd()/WaitForExit() here would tie up a real .NET thread-pool thread for that
+            // whole time, which starves the process (including unrelated HttpClient calls and the
+            // ASP.NET Core health check) - see LPII-135.
+            string result = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
             return result;
         }
         catch
