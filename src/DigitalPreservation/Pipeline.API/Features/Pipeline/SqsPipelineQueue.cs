@@ -45,7 +45,17 @@ public class SqsPipelineQueue(
             var queue = options.Value.PipelineJobQueue;
 
             logger.LogInformation($"About to check queue {queue} for messages");
-            var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queue, cancellationToken);
+
+            // WaitTimeSeconds below is an SQS-side long-poll duration, not a client-side timeout - if
+            // the underlying connection to SQS goes dead without erroring, these calls can hang
+            // indefinitely with no exception, silently wedging this single-threaded consumer loop
+            // forever (seen in practice - see LPII-135). Bound the whole dequeue attempt so a hang
+            // degrades to a retried failure on the next loop iteration instead of a permanent stall.
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            var linkedToken = linkedCts.Token;
+
+            var queueUrlResponse = await sqsClient.GetQueueUrlAsync(queue, linkedToken);
             var queueUrlValue = queueUrlResponse.QueueUrl;
 
             var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
@@ -53,7 +63,7 @@ public class SqsPipelineQueue(
                 QueueUrl = queueUrlValue,
                 WaitTimeSeconds = 10,
                 MaxNumberOfMessages = 1
-            }, cancellationToken);
+            }, linkedToken);
 
             foreach (var message in response.Messages!)
             {
@@ -64,7 +74,7 @@ public class SqsPipelineQueue(
                 if (messageModel != null && !messageModel.DepositName.HasText())
                     return messageModel;
 
-                await DeleteMessage(message, queueUrlValue, cancellationToken);
+                await DeleteMessage(message, queueUrlValue, linkedToken);
                 return messageModel;
 
             }
