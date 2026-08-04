@@ -531,7 +531,12 @@ public class MetadataReader : IMetadataReader
 
             foreach (var str in exifResultList)
             {
-                if (str.Contains("========") || str.Contains("directories scanned"))
+                // ExifTool always emits the file-boundary marker as the first characters of the
+                // line ("======== <path>") - matching with StartsWith (rather than Contains)
+                // avoids treating an embedded metadata value that merely contains "========"
+                // (e.g. inside a raw ICC profile dump) as a spurious new-file boundary, which
+                // would otherwise split or merge real files' fields into the wrong file's block.
+                if (str.StartsWith("========") || str.Contains("directories scanned"))
                 {
                     if (i > 0)
                     {
@@ -561,7 +566,12 @@ public class MetadataReader : IMetadataReader
                     sbRawOutput.Append(str);
                     sbRawOutput.Append("\\n");
 
+                    // Not every line is a "Field : Value" pair - stray warnings or crashed-tool
+                    // text can end up mixed into the combined stdout for the whole batch. Skip
+                    // anything without a colon rather than throwing: one malformed line used to
+                    // abort parsing for every file in the deposit via the catch-all below.
                     var metadataPair = str.Split(":", 2);
+                    if (metadataPair.Length < 2) continue;
 
                     var rgx = new Regex("[^a-zA-Z0-9]");
                     var key = rgx.Replace(metadataPair[0].Trim(), "");
