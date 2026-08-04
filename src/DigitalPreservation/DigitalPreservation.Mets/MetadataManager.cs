@@ -7,11 +7,18 @@ using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.XmlGen.Premis.V3;
 using System.Xml;
 using DigitalPreservation.XmlGen.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DigitalPreservation.Mets;
 
-public class MetadataManager(PremisManager premisManager, PremisManagerExif premisManagerExif, PremisEventManagerVirus premisEventManagerVirus)
+public class MetadataManager(
+    PremisManager premisManager,
+    PremisManagerExif premisManagerExif,
+    PremisEventManagerVirus premisEventManagerVirus,
+    ILogger<MetadataManager>? logger = null)
 {
+    private readonly ILogger<MetadataManager> logger = logger ?? NullLogger<MetadataManager>.Instance;
     private sealed class ProcessingContext
     {
         public required string FileAdmId { get; set; }
@@ -134,10 +141,23 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
             premisType = premisManager.Create(premisFile);
         }
 
+        // TEMPORARY diagnostic logging for LPII-135 significantProperties/ImageWidth mismatch
+        // investigation - remove once root cause is confirmed.
+        var diagExifWidth = patchPremisExif?.Tags?.FirstOrDefault(t =>
+            string.Equals(t.TagName, "ImageWidth", StringComparison.OrdinalIgnoreCase))?.TagValue;
+        logger.LogInformation(
+            "ImageWidth diagnostic: operationPath={OperationPath} workingFileLocalPath={WorkingFileLocalPath} hadExistingPremis={HadExistingPremis} exifSource={ExifSource} exifImageWidth={ExifImageWidth}",
+            operationPath, workingFile.LocalPath, ctx.PremisIncExifXml is not null, patchPremisExif?.Source, diagExifWidth);
+
         if (patchPremisExif is not null)
             premisManagerExif.Patch(premisType, patchPremisExif);
 
         var patchExtent = workingFile.GetExtentMetadata();
+
+        logger.LogInformation(
+            "ImageWidth diagnostic: operationPath={OperationPath} extentSource={ExtentSource} extentPixelWidth={ExtentPixelWidth}",
+            operationPath, patchExtent?.Source, patchExtent?.PixelWidth);
+
         if (patchExtent is not null)
             premisManagerExif.PatchExtent(premisType, patchExtent);
 
