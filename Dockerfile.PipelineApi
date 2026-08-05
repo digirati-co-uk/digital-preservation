@@ -15,6 +15,16 @@ RUN dotnet publish "Pipeline.API.csproj" -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 
+# This container has no hard memory limit set in its ECS task definition (only a 1536 MiB soft
+# memory_reservation) - deliberately, so two tasks (old + new) can overlap on this single-instance
+# EC2 cluster during a rolling deployment without exceeding the host's ~3839 MiB. Without a cgroup
+# hard limit for .NET's container detection to size against, the default GC heuristics treat
+# memory as effectively unlimited and hold onto committed memory as a high-water mark rather than
+# returning it to the OS between pipeline jobs - measured climbing past 2.4GB and staying there
+# across separate job runs on the same host (LPII-135). GCConserveMemory trades some GC throughput
+# for actively releasing memory back to the OS on collection instead, independent of any hard limit.
+ENV DOTNET_GCConserveMemory=9
+
 #run as root user
 RUN mkdir /usr/process-brunnhilde
 RUN chmod 777 /usr/process-brunnhilde
