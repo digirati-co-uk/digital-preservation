@@ -194,6 +194,16 @@ public class ProcessPipelineJobHandler(
                 CleanupBagitProcessFolder(request.DepositId);
             }
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
+
+            // processTimer.AutoReset is true, so cancelling the monitor token above is not enough to
+            // stop it - CheckIfProcessRunning never inspects that token, and on the normal success path
+            // it also short-circuits on processId == 0 before ever reaching a Stop() call. Left running,
+            // the timer's Elapsed closure keeps this whole handler instance (and everything it
+            // references) alive indefinitely and keeps firing CheckIfForceComplete's HTTP call every 10s
+            // forever - one leaked timer per completed job. Stop it here unconditionally so every exit
+            // path from this handler actually releases it.
+            processTimer.Stop();
+            processTimer.Enabled = false;
         }
     }
 
@@ -1094,7 +1104,7 @@ public class ProcessPipelineJobHandler(
                 ? pipelineToolOptions.Value.PathToClamScan
                 : "clamscan";
 
-            var process = new Process()
+            using var process = new Process()
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -1132,7 +1142,7 @@ public class ProcessPipelineJobHandler(
 
         try
         {
-            var process = new Process()
+            using var process = new Process()
             {
                 StartInfo = new ProcessStartInfo
                 {
