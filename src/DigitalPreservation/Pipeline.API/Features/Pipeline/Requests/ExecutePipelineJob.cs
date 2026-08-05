@@ -291,9 +291,16 @@ public class ProcessPipelineJobHandler(
             metadataPathForProcessFilesAndDirectories);
         logger.LogInformation("depositName {depositId}", request.DepositId);
 
+        // BagIt deposits get a SHA256 for every object file independently from bagit.py
+        // (BagitScript includes --sha256), so asking Siegfried to also hash every byte of every
+        // file via --hash is pure duplicated I/O with no gain in digest coverage - it only costs
+        // Brunnhilde's own duplicate-file report. For non-BagIt (RootLevel) deposits, Siegfried's
+        // hash is the only digest source recorded, so it can't be dropped there.
+        var hashArg = workspaceManager.IsBagItLayout ? string.Empty : "--hash sha256 ";
+
         using var process = new Process();
         process.StartInfo.FileName = pipelineToolOptions.Value.PathToPython;
-        process.StartInfo.Arguments = $"  {pipelineToolOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
+        process.StartInfo.Arguments = $"  {pipelineToolOptions.Value.PathToBrunnhilde} {hashArg}{objectPath} {metadataProcessPath}  --overwrite ";
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.RedirectStandardOutput = true;
 
@@ -1139,17 +1146,32 @@ public class ProcessPipelineJobHandler(
 
             logger.LogInformation("object path for exif command {ObjectPath}", objectPath);
             logger.LogInformation("About to start exif process.");
-            process.Start();
-            var result = await process.StandardOutput.ReadToEndAsync();
 
-            logger.LogInformation("Exif output result {Result}", result);
             var exifPath = $"{processPath}{separator}exif";
-
             logger.LogInformation("Exif output path {OutputPath}", exifPath);
             logger.LogInformation("Exif process path {ProcessPath}", processPath);
-
             Directory.CreateDirectory(exifPath);
-            await File.WriteAllTextAsync($"{exifPath}{separator}exif_output.txt", result, CancellationToken.None);
+
+            process.Start();
+
+            // Stream ExifTool's stdout straight to disk instead of buffering the whole combined
+            // output (tens of MB for a large deposit with thousands of files) into one in-memory
+            // string. The old ReadToEndAsync + logging-the-whole-string + WriteAllTextAsync pattern
+            // held multiple full copies of this text in memory at once and contributed to an OOM
+            // kill (exitCode 137) while processing a real deposit - see LPII-135. CopyToAsync on the
+            // raw BaseStream also avoids the ~2x memory cost of decoding to a .NET (UTF-16) string
+            // first, and the CloudWatch per-event size limit that the old single giant log line risked.
+            var outputFilePath = $"{exifPath}{separator}exif_output.txt";
+            await using (var fileStream = new FileStream(
+                             outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
+                             bufferSize: 81920, useAsync: true))
+            {
+                await process.StandardOutput.BaseStream.CopyToAsync(fileStream);
+            }
+
+            var outputLength = new FileInfo(outputFilePath).Length;
+            logger.LogInformation("Exif output written to {OutputPath} ({Length} bytes)", outputFilePath, outputLength);
+
             await process.WaitForExitAsync();
         }
         catch(Exception e)
