@@ -23,7 +23,21 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 # returning it to the OS between pipeline jobs - measured climbing past 2.4GB and staying there
 # across separate job runs on the same host (LPII-135). GCConserveMemory trades some GC throughput
 # for actively releasing memory back to the OS on collection instead, independent of any hard limit.
-ENV DOTNET_GCConserveMemory=9
+#
+# GCConserveMemory=9 (max) was tried first and made things worse in a different way: under real
+# memory pressure while processing a large deposit, it caused a full blocking GC pause long enough
+# to freeze the whole process - including the /health endpoint - for over two minutes, which is what
+# actually tripped the ALB's Target.Timeout and got the task replaced, not a slow creep to failure.
+# 5 is a lighter touch - still biases the GC toward returning memory instead of growing the heap,
+# without pushing as hard for the most aggressive (and slowest/most blocking) compaction behaviour.
+#
+# Server GC (the container default) also uses one heap per logical CPU and is tuned for throughput
+# via longer, less frequent collections - the wrong trade-off for a container that only gets 1 vCPU
+# worth of allocation (cpu=1024 of the host's 2048 units) and has to keep answering health checks
+# throughout. Workstation GC's background/concurrent collection favours shorter, more frequent
+# pauses instead, which suits a single-core-ish container much better.
+ENV DOTNET_GCConserveMemory=5
+ENV DOTNET_gcServer=0
 
 #run as root user
 RUN mkdir /usr/process-brunnhilde
