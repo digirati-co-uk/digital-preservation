@@ -536,16 +536,17 @@ public class ProcessPipelineJobHandler(
                 logger.LogInformation("Issue adding objects to METS in pipeline run: {error}", metsResult.ErrorMessage);
 
             var start = DateTime.Now;
+            var lockReleased = false;
 
             while (true)
             {
                 var releaseLockResult = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-                var exit = (DateTime.Now - start).Seconds > pipelineToolOptions.Value.ReleaseLockAttemptTime;
 
                 if (releaseLockResult.Success)
                 {
+                    lockReleased = true;
                     logger.LogInformation($"Successfully released the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}");
-                    
+
                     var response = await preservationApiClient.GetDeposit(request.DepositId, cancellationToken);
                     if (response is { Success: true })
                     {
@@ -555,9 +556,33 @@ public class ProcessPipelineJobHandler(
                     break;
                 }
 
-                if (!exit) continue;
+                // .Seconds is the seconds *component* of the elapsed TimeSpan (0-59), not the total
+                // elapsed seconds - comparing that against ReleaseLockAttemptTime looked like a
+                // timeout check but would under-count (and never trip) once elapsed time passed a
+                // minute boundary. TotalSeconds is the actual elapsed duration.
+                if ((DateTime.Now - start).TotalSeconds <= pipelineToolOptions.Value.ReleaseLockAttemptTime)
+                {
+                    // A tight retry loop with no delay just hammers Preservation API's lock endpoint
+                    // as fast as the network round-trip allows, which doesn't give a transient DB
+                    // blip on that end any time to clear.
+                    await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
+                    continue;
+                }
+
                 logger.LogError($"Failure to release the lock for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
                 break;
+            }
+
+            if (!lockReleased)
+            {
+                // Previously this always returned Completed even when every release attempt failed,
+                // silently leaving the deposit locked with nothing in the job's own status to show it -
+                // the deposit would stay locked indefinitely with no indication anything was wrong.
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} completed but could not release the deposit lock" }]
+                };
             }
 
             logger.LogInformation($"Returning a completed status for job {request.JobIdentifier} for deposit {workspaceManager.Deposit.Id}.");
