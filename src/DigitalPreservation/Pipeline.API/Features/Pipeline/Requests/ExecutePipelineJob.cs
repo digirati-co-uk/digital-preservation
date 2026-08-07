@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
+using System.Runtime;
 using System.Text;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
@@ -204,6 +205,22 @@ public class ProcessPipelineJobHandler(
             // path from this handler actually releases it.
             processTimer.Stop();
             processTimer.Enabled = false;
+
+            // This handler processes one job at a time with a clear idle boundary after each one
+            // (SqsPipelineQueue just polls every 10s until the next job), unlike a normal request-
+            // handling API where forcing collections mid-stream would be harmful. That idle period
+            // turns out not to reliably trigger cleanup on its own - GC isn't time-based, it's
+            // allocation-pressure-based, and routine SQS polling/health checks generate far too
+            // little garbage to cross the threshold for a full collection. So the large object graphs
+            // built while processing this job (the deposit's CombinedDirectory tree, rebuilt many
+            // times over per LPII-135, plus Brunnhilde/exif output buffers) can sit uncollected
+            // indefinitely, and MemoryUtilized just reflects whatever's currently committed rather
+            // than what's actually still live. Force a full, compacting pass now instead of waiting
+            // for enough allocation pressure from a future job to trigger one naturally.
+            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
     }
 
