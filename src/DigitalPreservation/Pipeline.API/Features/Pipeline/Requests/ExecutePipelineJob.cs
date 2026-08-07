@@ -218,9 +218,9 @@ public class ProcessPipelineJobHandler(
             // for enough allocation pressure from a future job to trigger one naturally.
             // (GCCollectionMode.Aggressive already forces a blocking, compacting collection of the
             // LOH, so no separate GCSettings.LargeObjectHeapCompactionMode is needed here.)
-            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true); // NOSONAR: S1215 - deliberate one-off collection at a known job-boundary idle point, not a routine call; see comment above
             GC.WaitForPendingFinalizers();
-            GC.Collect();
+            GC.Collect(); // NOSONAR: S1215 - second pass to collect finalizable objects freed above; same justification as the call two lines up
         }
     }
 
