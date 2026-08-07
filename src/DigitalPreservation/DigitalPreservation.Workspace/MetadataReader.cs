@@ -536,7 +536,7 @@ public class MetadataReader : IMetadataReader
                 // avoids treating an embedded metadata value that merely contains "========"
                 // (e.g. inside a raw ICC profile dump) as a spurious new-file boundary, which
                 // would otherwise split or merge real files' fields into the wrong file's block.
-                if (str.StartsWith("========") || str.Contains("directories scanned"))
+                if (str.StartsWith("========", StringComparison.Ordinal) || str.Contains("directories scanned"))
                 {
                     if (i > 0)
                     {

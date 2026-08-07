@@ -74,7 +74,10 @@ public class SqsPipelineQueue(
                 if (messageModel != null && !messageModel.DepositName.HasText())
                     return messageModel;
 
-                await DeleteMessage(message, queueUrlValue, linkedToken);
+                // Deliberately not scoped to the 30s dequeue-attempt timeout above: cancelling this
+                // mid-flight would leave the message undeleted, so it reappears after the visibility
+                // timeout and the job runs a second time even though it already returned successfully.
+                await DeleteMessage(message, queueUrlValue, cancellationToken);
                 return messageModel;
 
             }

@@ -12,7 +12,6 @@ using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
-using System.Runtime;
 using System.Text;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
@@ -217,7 +216,8 @@ public class ProcessPipelineJobHandler(
             // indefinitely, and MemoryUtilized just reflects whatever's currently committed rather
             // than what's actually still live. Force a full, compacting pass now instead of waiting
             // for enough allocation pressure from a future job to trigger one naturally.
-            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+            // (GCCollectionMode.Aggressive already forces a blocking, compacting collection of the
+            // LOH, so no separate GCSettings.LargeObjectHeapCompactionMode is needed here.)
             GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
             GC.Collect();
@@ -318,16 +318,9 @@ public class ProcessPipelineJobHandler(
             metadataPathForProcessFilesAndDirectories);
         logger.LogInformation("depositName {depositId}", request.DepositId);
 
-        // BagIt deposits get a SHA256 for every object file independently from bagit.py
-        // (BagitScript includes --sha256), so asking Siegfried to also hash every byte of every
-        // file via --hash is pure duplicated I/O with no gain in digest coverage - it only costs
-        // Brunnhilde's own duplicate-file report. For non-BagIt (RootLevel) deposits, Siegfried's
-        // hash is the only digest source recorded, so it can't be dropped there.
-        var hashArg = workspaceManager.IsBagItLayout ? string.Empty : "--hash sha256 ";
-
         using var process = new Process();
         process.StartInfo.FileName = pipelineToolOptions.Value.PathToPython;
-        process.StartInfo.Arguments = $"  {pipelineToolOptions.Value.PathToBrunnhilde} {hashArg}{objectPath} {metadataProcessPath}  --overwrite ";
+        process.StartInfo.Arguments = $"  {pipelineToolOptions.Value.PathToBrunnhilde} --hash sha256 {objectPath} {metadataProcessPath}  --overwrite ";
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.RedirectStandardOutput = true;
 
