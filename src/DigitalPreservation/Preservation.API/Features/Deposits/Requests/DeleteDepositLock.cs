@@ -30,7 +30,17 @@ public class DeleteDepositLockHandler(
         // unlocking an already unlocked deposit is a no-op
         entity.LockedBy = null;
         entity.LockDate = null;
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Issue saving the released lock for deposit {id}", request.Id);
+            return Result.Fail(ErrorCodes.UnknownError, e.Message);
+        }
+
         return Result.Ok();
     }
 }

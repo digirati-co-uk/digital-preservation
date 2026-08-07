@@ -53,20 +53,18 @@ public static class ServiceCollectionX
         serviceCollection.Configure<PreservationOptions>(configuration.GetSection(PreservationOptions.Preservation));
         serviceCollection
             .AddTransient<TimingHandler>()
-            //.AddTransient<AuthTokenInjector>()
+            .AddTransient<MachineAuthTokenInjector>()
             .AddHttpClient<IPreservationApiClient, PreservationApiClient>((provider, client) =>
             {
-                var tokenProvider = provider.GetRequiredService<IAccessTokenProvider>();
-                var token = tokenProvider.GetAccessToken().Result;
                 var preservationOptions = provider.GetRequiredService<IOptions<PreservationOptions>>().Value;
                 client.BaseAddress = !string.IsNullOrEmpty(clientBaseAddress) ? new Uri(clientBaseAddress) : preservationOptions.Root.ThrowIfNull(nameof(preservationOptions.Root));
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 client.DefaultRequestHeaders.Add("X-Client-Identity", componentName);
                 client.Timeout = TimeSpan.FromMinutes(preservationOptions.TimeoutMinutes);
             })
             .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(60), 60)
-            .AddHttpMessageHandler<TimingHandler>();
+            .AddHttpMessageHandler<TimingHandler>()
+            .AddHttpMessageHandler<MachineAuthTokenInjector>();
 
         return serviceCollection;
     }

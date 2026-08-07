@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Premis.V3;
 using System.Globalization;
 using System.Text.RegularExpressions;
@@ -32,7 +33,7 @@ public class PremisManagerExif
         return premis;
     }
 
-    public void Patch(PremisComplexType premis, ExifMetadata? exifMetadata)
+    public void Patch(PremisComplexType premis, ExifMetadata? exifMetadata, string? fileIdentifier = null)
     {
         if (premis.Object.FirstOrDefault(po => po is File) is not File file)
         {
@@ -69,7 +70,7 @@ public class PremisManagerExif
         objectCharacteristics.ObjectCharacteristicsExtension.Add(parentExtension);
 
         if (exifMetadata.Tags is not null)
-            SetSignificantPropertiesFromTags(file, exifMetadata.Tags);
+            SetSignificantPropertiesFromTags(file, exifMetadata.Tags, fileIdentifier);
     }
 
     private static void ProcessExifMetadataItem(XmlDocument document, XmlElement? parentElement, ExifTag? tag)
@@ -80,7 +81,7 @@ public class PremisManagerExif
             parentElement?.AppendChild(element);
     }
 
-    private static void SetSignificantPropertiesFromTags(File file, List<ExifTag> tags)
+    private static void SetSignificantPropertiesFromTags(File file, List<ExifTag> tags, string? fileIdentifier = null)
     {
         // ImageSize is ExifTool's composite tag representing the final video frame dimensions.
         // It appears once and takes precedence over the per-track ImageWidth/ImageHeight tags,
@@ -92,8 +93,8 @@ public class PremisManagerExif
             var parts = sizeVal.Split('x');
             if (parts.Length == 2)
             {
-                PatchSignificantProperty(file, "ImageWidth", parts[0]);
-                PatchSignificantProperty(file, "ImageHeight", parts[1]);
+                PatchSignificantProperty(file, "ImageWidth", parts[0], fileIdentifier);
+                PatchSignificantProperty(file, "ImageHeight", parts[1], fileIdentifier);
             }
         }
         else
@@ -102,15 +103,15 @@ public class PremisManagerExif
             // once. Fall back to the first ImageWidth/ImageHeight if those aren't present.
             var w = FirstTag(tags, "sourceimagewidth")?.TagValue ?? FirstTag(tags, "imagewidth")?.TagValue;
             var h = FirstTag(tags, "sourceimageheight")?.TagValue ?? FirstTag(tags, "imageheight")?.TagValue;
-            if (w is not null) PatchSignificantProperty(file, "ImageWidth", w);
-            if (h is not null) PatchSignificantProperty(file, "ImageHeight", h);
+            if (w is not null) PatchSignificantProperty(file, "ImageWidth", w, fileIdentifier);
+            if (h is not null) PatchSignificantProperty(file, "ImageHeight", h, fileIdentifier);
         }
 
         if (FirstTag(tags, "duration")?.TagValue is { } duration)
-            PatchSignificantProperty(file, "Duration", duration);
+            PatchSignificantProperty(file, "Duration", duration, fileIdentifier);
 
         if (FirstTag(tags, "avgbitrate")?.TagValue is { } bitrate)
-            PatchSignificantProperty(file, "Bitrate", bitrate);
+            PatchSignificantProperty(file, "Bitrate", bitrate, fileIdentifier);
     }
 
     private static ExifTag? FirstTag(List<ExifTag> tags, string normalizedName) =>
@@ -122,7 +123,7 @@ public class PremisManagerExif
     // Merges extent values into premis:significantProperties, checking for conflicts with any
     // properties already present (from Exif or any other source). Throws MetadataException if
     // a property has already been written with a different value.
-    public static void PatchExtent(PremisComplexType premis, ExtentMetadata extentMetadata)
+    public static void PatchExtent(PremisComplexType premis, ExtentMetadata extentMetadata, string? fileIdentifier = null)
     {
         if (premis.Object.FirstOrDefault(po => po is File) is not File file)
         {
@@ -132,20 +133,22 @@ public class PremisManagerExif
 
         if (extentMetadata.Duration.HasValue)
             PatchSignificantProperty(file, "Duration",
-                extentMetadata.Duration.Value.ToString("G", CultureInfo.InvariantCulture));
+                extentMetadata.Duration.Value.ToString("G", CultureInfo.InvariantCulture), fileIdentifier);
 
         if (extentMetadata.PixelWidth.HasValue)
             PatchSignificantProperty(file, "ImageWidth",
-                extentMetadata.PixelWidth.Value.ToString(CultureInfo.InvariantCulture));
+                extentMetadata.PixelWidth.Value.ToString(CultureInfo.InvariantCulture), fileIdentifier);
 
         if (extentMetadata.PixelHeight.HasValue)
             PatchSignificantProperty(file, "ImageHeight",
-                extentMetadata.PixelHeight.Value.ToString(CultureInfo.InvariantCulture));
+                extentMetadata.PixelHeight.Value.ToString(CultureInfo.InvariantCulture), fileIdentifier);
     }
 
     // Adds a significantProperty if not already present; if already present from any source,
-    // verifies the value matches and throws if not.
-    private static void PatchSignificantProperty(File file, string propertyName, string value)
+    // verifies the value matches and throws if not. fileIdentifier is included in the exception
+    // message purely for diagnosability - without it, tracking down which file in a large deposit
+    // triggered a conflict requires adding temporary logging and reading a full stack trace (see LPII-135).
+    private static void PatchSignificantProperty(File file, string propertyName, string value, string? fileIdentifier = null)
     {
         var existing = file.SignificantProperties
             .FirstOrDefault(sp => sp.SignificantPropertiesType?.Value == propertyName);
@@ -154,8 +157,11 @@ public class PremisManagerExif
         {
             var existingValue = existing.SignificantPropertiesValue.FirstOrDefault();
             if (existingValue != value)
+            {
+                var fileContext = fileIdentifier.HasText() ? $" for file '{fileIdentifier}'" : string.Empty;
                 throw new MetadataException(
-                    $"Conflicting values for significantProperties/{propertyName}: '{existingValue}' vs '{value}'");
+                    $"Conflicting values for significantProperties/{propertyName}{fileContext}: '{existingValue}' vs '{value}'");
+            }
             return;
         }
 

@@ -313,7 +313,28 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         s.Should().Contain("fmt/bob");
         s.Should().Contain("PRONOM");
     }
-    
+
+    [Fact]
+    public void Premis_Read_After_PronomKey_Only_Patch()
+    {
+        var start = new FileFormatMetadata
+        {
+            Source = "Tests",
+            Digest = "123456",
+            Size = 654321
+        };
+        var premisManager = new PremisManager();
+        var premis = premisManager.Create(start);
+        start.PronomKey = "fmt/bob";
+        premisManager.Patch(premis, start);
+
+        var read = premisManager.Read(premis);
+        read!.Digest.Should().Be("123456");
+        read.Size.Should().Be(654321);
+        read.PronomKey.Should().Be("fmt/bob");
+        read.FormatName.Should().BeNull("a PRONOM-key-only format has no FormatDesignation to read a name from");
+    }
+
     [Fact]
     public void Premis_Build_up_all()
     {

@@ -39,7 +39,8 @@ public class PremisManager
 
         if (pronomFormat != null)
         {
-            premisFile.FormatName = pronomFormat.FormatDesignation.FormatName.Value;
+            // A format patched with a PRONOM key only has a registry but no designation
+            premisFile.FormatName = pronomFormat.FormatDesignation?.FormatName?.Value;
         }
         var registry = pronomFormat?.FormatRegistry.FirstOrDefault(fr => fr.FormatRegistryName.Value == Pronom);
         if (registry != null)

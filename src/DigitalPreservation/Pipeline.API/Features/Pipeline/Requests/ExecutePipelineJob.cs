@@ -194,6 +194,33 @@ public class ProcessPipelineJobHandler(
                 CleanupBagitProcessFolder(request.DepositId);
             }
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
+
+            // processTimer.AutoReset is true, so cancelling the monitor token above is not enough to
+            // stop it - CheckIfProcessRunning never inspects that token, and on the normal success path
+            // it also short-circuits on processId == 0 before ever reaching a Stop() call. Left running,
+            // the timer's Elapsed closure keeps this whole handler instance (and everything it
+            // references) alive indefinitely and keeps firing CheckIfForceComplete's HTTP call every 10s
+            // forever - one leaked timer per completed job. Stop it here unconditionally so every exit
+            // path from this handler actually releases it.
+            processTimer.Stop();
+            processTimer.Enabled = false;
+
+            // This handler processes one job at a time with a clear idle boundary after each one
+            // (SqsPipelineQueue just polls every 10s until the next job), unlike a normal request-
+            // handling API where forcing collections mid-stream would be harmful. That idle period
+            // turns out not to reliably trigger cleanup on its own - GC isn't time-based, it's
+            // allocation-pressure-based, and routine SQS polling/health checks generate far too
+            // little garbage to cross the threshold for a full collection. So the large object graphs
+            // built while processing this job (the deposit's CombinedDirectory tree, rebuilt many
+            // times over per LPII-135, plus Brunnhilde/exif output buffers) can sit uncollected
+            // indefinitely, and MemoryUtilized just reflects whatever's currently committed rather
+            // than what's actually still live. Force a full, compacting pass now instead of waiting
+            // for enough allocation pressure from a future job to trigger one naturally.
+            // (GCCollectionMode.Aggressive already forces a blocking, compacting collection of the
+            // LOH, so no separate GCSettings.LargeObjectHeapCompactionMode is needed here.)
+            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true); // NOSONAR: S1215 - deliberate one-off collection at a known job-boundary idle point, not a routine call; see comment above
+            GC.WaitForPendingFinalizers();
+            GC.Collect(); // NOSONAR: S1215 - second pass to collect finalizable objects freed above; same justification as the call two lines up
         }
     }
 
@@ -415,7 +442,7 @@ public class ProcessPipelineJobHandler(
                 return await ForceCompleteReturn(cleanupProcessJobAfterDelete, request, workspaceManager.Deposit, cancellationToken);
             }
 
-            var virusDefinition = GetVirusDefinition();
+            var virusDefinition = await GetVirusDefinition();
             //add virus definition file to metadata folder
             var virusDefinitionPath = $"{metadataPathForProcessFilesAndDirectories}{pipelineToolOptions.Value.DirectorySeparator}virus-definition{pipelineToolOptions.Value.DirectorySeparator}virus-definition.txt";
 
@@ -519,16 +546,17 @@ public class ProcessPipelineJobHandler(
                 logger.LogInformation("Issue adding objects to METS in pipeline run: {Error}", metsResult.ErrorMessage);
 
             var start = DateTime.Now;
+            var lockReleased = false;
 
             while (true)
             {
                 var releaseLockResult = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-                var exit = (DateTime.Now - start).Seconds > pipelineToolOptions.Value.ReleaseLockAttemptTime;
 
                 if (releaseLockResult.Success)
                 {
+                    lockReleased = true;
                     logger.LogInformation("Successfully released the lock for job {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, workspaceManager.Deposit.Id);
-                    
+
                     var response = await preservationApiClient.GetDeposit(request.DepositId, cancellationToken);
                     if (response is { Success: true })
                     {
@@ -538,9 +566,33 @@ public class ProcessPipelineJobHandler(
                     break;
                 }
 
-                if (!exit) continue;
+                // .Seconds is the seconds *component* of the elapsed TimeSpan (0-59), not the total
+                // elapsed seconds - comparing that against ReleaseLockAttemptTime looked like a
+                // timeout check but would under-count (and never trip) once elapsed time passed a
+                // minute boundary. TotalSeconds is the actual elapsed duration.
+                if ((DateTime.Now - start).TotalSeconds <= pipelineToolOptions.Value.ReleaseLockAttemptTime)
+                {
+                    // A tight retry loop with no delay just hammers Preservation API's lock endpoint
+                    // as fast as the network round-trip allows, which doesn't give a transient DB
+                    // blip on that end any time to clear.
+                    await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
+                    continue;
+                }
+
                 logger.LogError("Failure to release the lock for job {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, workspaceManager.Deposit.Id);
                 break;
+            }
+
+            if (!lockReleased)
+            {
+                // Previously this always returned Completed even when every release attempt failed,
+                // silently leaving the deposit locked with nothing in the job's own status to show it -
+                // the deposit would stay locked indefinitely with no indication anything was wrong.
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} completed but could not release the deposit lock" }]
+                };
             }
 
             logger.LogInformation("Returning a completed status for job {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, workspaceManager.Deposit.Id);
@@ -683,7 +735,7 @@ public class ProcessPipelineJobHandler(
         List<Result<SingleFileUploadResult>?> uploadFileResult, bool forceComplete, bool cleanupProcess)> UploadFilesToMetadataRecursively(
             ExecutePipelineJob request,
             string sourcePathForFilesAndDirectories, string depositPath,
-            Deposit deposit, CancellationToken cancellationToken) //string sourcePathForFiles, 
+            Deposit deposit, CancellationToken cancellationToken) //string sourcePathForFiles,
     {
         try
         {
@@ -781,8 +833,15 @@ public class ProcessPipelineJobHandler(
 
     private async Task<Result<CreateFolderResult>?> CreateMetadataSubFolderOnS3(ExecutePipelineJob request, string dirPath)
     {
-        // This is a content-changing operation
-        var workspaceResult = await GetWorkspaceManager(request, true);
+        // refresh: false - a fresh Deposit/METS ETag is still fetched every call (necessary, since
+        // each successful CreateFolder writes to METS and changes its ETag - the next call needs the
+        // new one or its own write fails an optimistic-concurrency precondition check), but this skips
+        // the expensive full S3 file-system walk. CreateFolder (via Storage.AddToDepositFileSystem)
+        // incrementally keeps the deposit's cached file-system snapshot accurate as each item is
+        // created, so GetDeposit + a cheap cached-JSON read is sufficient here - a full walk of the
+        // whole deposit on every single folder/file call was costing ~40s each on a large deposit,
+        // repeated 20+ times for one job's metadata upload alone (LPII-135).
+        var workspaceResult = await GetWorkspaceManager(request, false);
         var workspaceManager = workspaceResult.Value!;
 
         var context = new StringBuilder();
@@ -796,7 +855,7 @@ public class ProcessPipelineJobHandler(
         logger.LogInformation("BrunnhildeFolderName {BrunnhildeFolderName}", BrunnhildeFolderName);
         logger.LogInformation("di.Name {DirectoryName} context {Context}", di.Name, context);
         var result = await workspaceManager.CreateFolder(
-            di.Name, context.ToString(), false, request.GetUserName(), true);
+            di.Name, context.ToString(), false, request.GetUserName(), false);
 
         if (!result.Success)
         {
@@ -879,9 +938,10 @@ public class ProcessPipelineJobHandler(
     private async Task<Result<SingleFileUploadResult>> UploadFileToBucketDeposit(
         ExecutePipelineJob request, Stream stream, string filePath, string? contextPath, string checksum, bool bagitFile = false)
     {
-        // This is potentially expensive as it needs a NEW WorkspaceManager each time
-        // TODO: We need a batch operation on WorkspaceManager to upload a set of small files.
-
+        // refresh: false - see the comment on CreateMetadataSubFolderOnS3's equivalent call: this
+        // still fetches a fresh Deposit/METS ETag (required, since each successful upload writes to
+        // METS and changes its ETag) via a cheap GetDeposit + cached-JSON read, without repeating the
+        // expensive full S3 file-system walk on every single file upload (LPII-135).
         var fi = new FileInfo(filePath);
         try
         {
@@ -891,7 +951,7 @@ public class ProcessPipelineJobHandler(
                 return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.UnknownError,
                     "Could not find file content type");
 
-            var workspaceManagerResult = await GetWorkspaceManager(request, true);
+            var workspaceManagerResult = await GetWorkspaceManager(request, false);
 
             var result = await workspaceManagerResult.Value!.UploadSingleSmallFile(
                 stream, stream.Length, fi.Name, checksum, fi.Name, contentType, contextPath, request.GetUserName(), true, bagitFile); //bagit file
@@ -923,7 +983,11 @@ public class ProcessPipelineJobHandler(
     /// <param name="depositPath"></param>
     private async Task<Result<ItemsAffected>> AddObjectsToMets(ExecutePipelineJob request, string depositPath)
     {
-        var workspaceManagerResult = await GetWorkspaceManager(request, true);
+        // refresh: false here too - a fresh Deposit/METS ETag is needed (the folder/file creation
+        // above has since changed it), but the file-system tree itself gets rebuilt unconditionally
+        // just below via RefreshCombinedDirectory() regardless, so there's no point paying for two
+        // full S3 walks back to back.
+        var workspaceManagerResult = await GetWorkspaceManager(request, false);
         var workspaceManager = workspaceManagerResult.Value!;
         var (_, _, objectPath, _) = GetFilePaths(workspaceManager);
         var minimalItems = new List<MinimalItem>();
@@ -1080,7 +1144,7 @@ public class ProcessPipelineJobHandler(
         };
     }
 
-    private string GetVirusDefinition()
+    private async Task<string> GetVirusDefinition()
     {
         try
         {
@@ -1088,7 +1152,7 @@ public class ProcessPipelineJobHandler(
                 ? pipelineToolOptions.Value.PathToClamScan
                 : "clamscan";
 
-            var process = new Process()
+            using var process = new Process()
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -1100,8 +1164,14 @@ public class ProcessPipelineJobHandler(
                 }
             };
             process.Start();
-            string result = process.StandardOutput.ReadToEnd();
-            process.WaitForExit();
+            // clamd can be mid-scan and holding every MaxThreads worker when this "--version" call
+            // comes in (it queues behind the scan on the same clamd thread pool via clamscan-shim.sh),
+            // so this can block for as long as a large deposit's scan takes. A synchronous
+            // ReadToEnd()/WaitForExit() here would tie up a real .NET thread-pool thread for that
+            // whole time, which starves the process (including unrelated HttpClient calls and the
+            // ASP.NET Core health check) - see LPII-135.
+            string result = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
             return result;
         }
         catch
@@ -1120,7 +1190,7 @@ public class ProcessPipelineJobHandler(
 
         try
         {
-            var process = new Process()
+            using var process = new Process()
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -1134,17 +1204,32 @@ public class ProcessPipelineJobHandler(
 
             logger.LogInformation("object path for exif command {ObjectPath}", objectPath);
             logger.LogInformation("About to start exif process.");
-            process.Start();
-            var result = await process.StandardOutput.ReadToEndAsync();
 
-            logger.LogInformation("Exif output result {Result}", result);
             var exifPath = $"{processPath}{separator}exif";
-
             logger.LogInformation("Exif output path {OutputPath}", exifPath);
             logger.LogInformation("Exif process path {ProcessPath}", processPath);
-
             Directory.CreateDirectory(exifPath);
-            await File.WriteAllTextAsync($"{exifPath}{separator}exif_output.txt", result, CancellationToken.None);
+
+            process.Start();
+
+            // Stream ExifTool's stdout straight to disk instead of buffering the whole combined
+            // output (tens of MB for a large deposit with thousands of files) into one in-memory
+            // string. The old ReadToEndAsync + logging-the-whole-string + WriteAllTextAsync pattern
+            // held multiple full copies of this text in memory at once and contributed to an OOM
+            // kill (exitCode 137) while processing a real deposit - see LPII-135. CopyToAsync on the
+            // raw BaseStream also avoids the ~2x memory cost of decoding to a .NET (UTF-16) string
+            // first, and the CloudWatch per-event size limit that the old single giant log line risked.
+            var outputFilePath = $"{exifPath}{separator}exif_output.txt";
+            await using (var fileStream = new FileStream(
+                             outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
+                             bufferSize: 81920, useAsync: true))
+            {
+                await process.StandardOutput.BaseStream.CopyToAsync(fileStream);
+            }
+
+            var outputLength = new FileInfo(outputFilePath).Length;
+            logger.LogInformation("Exif output written to {OutputPath} ({Length} bytes)", outputFilePath, outputLength);
+
             await process.WaitForExitAsync();
         }
         catch(Exception e)
