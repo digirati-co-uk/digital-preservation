@@ -33,14 +33,14 @@ public class GetDiffImportJobHandler(
         logger.LogInformation("GetDiffImportJob handler called for deposit {DepositSummary}", request.Deposit.LogSummary());
         if (request.Deposit.ArchivalGroup == null)
         {
-            logger.LogWarning("Deposit {DepositId}doesn't have Archival Group specified.", request.Deposit.Id);
+            logger.LogWarning("Deposit {DepositId} doesn't have Archival Group specified.", request.Deposit.Id);
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest,
                 "Deposit doesn't have Archival Group specified.");
         }
 
         if (request.Deposit.Files == null)
         {
-            logger.LogWarning("Deposit {DepositId}doesn't have Deposit location (Files).", request.Deposit.Id);
+            logger.LogWarning("Deposit {DepositId} doesn't have Deposit location (Files).", request.Deposit.Id);
             return Result.FailNotNull<ImportJob>(ErrorCodes.BadRequest, "No Deposit location provided.");
         }
 

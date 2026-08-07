@@ -52,7 +52,7 @@ public class GetImportJobResultHandler(
             // Is this ever a valid place or is it an error?
             // We could construct an ImportJobResult from entity
             // TODO: Fail for now 
-            logger.LogWarning("Job {ImportJobId}Complete but no LatestPreservationApiResultJson", request.ImportJobId);
+            logger.LogWarning("Job {ImportJobId} Complete but no LatestPreservationApiResultJson", request.ImportJobId);
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Job Complete but no LatestPreservationApiResultJson");
         }
         

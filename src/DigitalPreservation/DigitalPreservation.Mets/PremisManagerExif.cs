@@ -49,7 +49,7 @@ public class PremisManagerExif
 
         if (exifMetadata is null) return;
 
-        // Only clear the exif XML extension blob â€” significant properties may have been set
+        // Only clear the exif XML extension blob — significant properties may have been set
         // by other sources (e.g. PatchExtent) and are merged via PatchSignificantProperty.
         foreach (var ext in objectCharacteristics.ObjectCharacteristicsExtension.ToList())
             objectCharacteristics.ObjectCharacteristicsExtension.Remove(ext);
