@@ -12,12 +12,46 @@ chown clamav:clamav /var/run/clamav /var/log/clamav
 # snapshot that goes stale after the image is built/deployed - pull the latest before clamd starts.
 freshclam || echo "entrypoint: initial freshclam run failed, continuing with the signatures baked into the image"
 
-# Long-running daemon for the lifetime of the container.
-su -s /bin/sh clamav -c "clamd" &
+# Long-running daemon for the lifetime of the container. clamd has no built-in restart-on-crash
+# behaviour, and if it dies (e.g. killed under host memory pressure - see LPII-135) clamscan-shim.sh
+# doesn't fail the scan, it just logs "Could not connect to clamd ... Connection refused" and reports
+# "Infected files: 0" - a false clean result, not an actual scan. Since this entrypoint script exec's
+# into dotnet as its last step, there's no shell left to notice or restart a background `&` job, so
+# supervise it in its own loop (backgrounded before the exec) instead of a bare fire-and-forget start.
+supervise_clamd() {
+    while true; do
+        # --foreground: Debian's packaged clamd defaults to daemonizing (double-fork, parent exits
+        # once it has spawned a detached background child) unless told otherwise, which this loop
+        # would mistake for a crash - "restarting" every cycle while the previous, still-running
+        # detached clamd keeps the socket bound, causing every retry to immediately fail with
+        # "Socket file ... is in use by another process". Foreground keeps it attached so the loop
+        # can track its real exit instead of colliding with itself.
+        #
+        # `|| true`: this script runs under `set -e`, and a bare failing command here (rather than
+        # one in an if/while-condition or already part of a `||`) would kill this loop on clamd's
+        # first crash instead of restarting it.
+        su -s /bin/sh clamav -c "clamd --foreground" || true
+        echo "entrypoint: clamd exited - restarting in 2s" >&2
+        sleep 2
+    done
+}
+supervise_clamd &
 
 # Keep signatures current for the life of the container (freshclam's own Checks setting in
-# freshclam.conf controls how often it re-polls).
-su -s /bin/sh clamav -c "freshclam -d" &
+# freshclam.conf controls how often it re-polls). Supervised for the same reason as clamd above.
+supervise_freshclam() {
+    while true; do
+        # -d/--daemon self-daemonizes (double-fork: the parent exits immediately once it has spawned
+        # a detached background child), which this loop would otherwise mistake for a crash on every
+        # single cycle - restarting every ~2s forever and piling up orphaned freshclam daemons that
+        # never get cleaned up (and end up contending with clamd for its own socket/lock). -F/
+        # --foreground keeps freshclam attached to this process so the loop can track its real exit.
+        su -s /bin/sh clamav -c "freshclam -d -F" || true
+        echo "entrypoint: freshclam exited - restarting in 2s" >&2
+        sleep 2
+    done
+}
+supervise_freshclam &
 
 echo "entrypoint: waiting for clamd socket..."
 for i in $(seq 1 120); do

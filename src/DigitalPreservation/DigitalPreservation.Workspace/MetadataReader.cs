@@ -531,47 +531,20 @@ public class MetadataReader : IMetadataReader
 
             foreach (var str in exifResultList)
             {
-                if (str.Contains("========") || str.Contains("directories scanned"))
+                if (!IsFileBoundaryLine(str))
                 {
-                    if (i > 0)
-                    {
-                        exifModel.ExifMetadata = new List<ExifTag>(exifMetadataForFile);
-                        exifModel.ExifMetadata.Add(new ExifTag
-                        {
-                            TagName = "RawOutput",
-                            TagValue = sbRawOutput.ToString()
-                        });
-
-                        exifMetadataForFile.Clear();
-                        sbRawOutput.Clear();
-                        result.Add(exifModel);
-
-                        if (str.Contains("directories scanned"))
-                            break;
-
-                    }
-
-                    var fileName = str.Replace("========", string.Empty).Trim();
-                    exifModel = new ExifModel { Filepath = fileName };
-
-                    i++;
+                    AppendExifFieldLine(str, sbRawOutput, exifMetadataForFile);
+                    continue;
                 }
-                else
+
+                if (i > 0)
                 {
-                    sbRawOutput.Append(str);
-                    sbRawOutput.Append("\\n");
-
-                    var metadataPair = str.Split(":", 2);
-
-                    var rgx = new Regex("[^a-zA-Z0-9]");
-                    var key = rgx.Replace(metadataPair[0].Trim(), "");
-
-                    exifMetadataForFile.Add(new ExifTag
-                    {
-                        TagName = key,
-                        TagValue = metadataPair[1].Trim()
-                    });
+                    FinalizeCurrentFile(exifModel, exifMetadataForFile, sbRawOutput, result);
+                    if (str.Contains("directories scanned")) break;
                 }
+
+                exifModel = new ExifModel { Filepath = str.Replace("========", string.Empty).Trim() };
+                i++;
             }
 
             return result;
@@ -580,7 +553,49 @@ public class MetadataReader : IMetadataReader
         {
             return [];
         }
+    }
 
+    // ExifTool always emits the file-boundary marker as the first characters of the
+    // line ("======== <path>") - matching with StartsWith (rather than Contains)
+    // avoids treating an embedded metadata value that merely contains "========"
+    // (e.g. inside a raw ICC profile dump) as a spurious new-file boundary, which
+    // would otherwise split or merge real files' fields into the wrong file's block.
+    private static bool IsFileBoundaryLine(string str) =>
+        str.StartsWith("========", StringComparison.Ordinal) || str.Contains("directories scanned");
+
+    private static void FinalizeCurrentFile(ExifModel exifModel, List<ExifTag> exifMetadataForFile,
+        StringBuilder sbRawOutput, List<ExifModel> result)
+    {
+        exifModel.ExifMetadata = new List<ExifTag>(exifMetadataForFile)
+        {
+            new() { TagName = "RawOutput", TagValue = sbRawOutput.ToString() }
+        };
+
+        exifMetadataForFile.Clear();
+        sbRawOutput.Clear();
+        result.Add(exifModel);
+    }
+
+    private static void AppendExifFieldLine(string str, StringBuilder sbRawOutput, List<ExifTag> exifMetadataForFile)
+    {
+        sbRawOutput.Append(str);
+        sbRawOutput.Append("\\n");
+
+        // Not every line is a "Field : Value" pair - stray warnings or crashed-tool
+        // text can end up mixed into the combined stdout for the whole batch. Skip
+        // anything without a colon rather than throwing: one malformed line used to
+        // abort parsing for every file in the deposit via the catch-all below.
+        var metadataPair = str.Split(":", 2);
+        if (metadataPair.Length < 2) return;
+
+        var rgx = new Regex("[^a-zA-Z0-9]");
+        var key = rgx.Replace(metadataPair[0].Trim(), "");
+
+        exifMetadataForFile.Add(new ExifTag
+        {
+            TagName = key,
+            TagValue = metadataPair[1].Trim()
+        });
     }
 
     public static void SetMetadataHtml(List<Metadata>? metadataList, ExifModel? exifMetadata, DateTime timestamp)

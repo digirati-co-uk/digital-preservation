@@ -135,11 +135,11 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         }
 
         if (patchPremisExif is not null)
-            premisManagerExif.Patch(premisType, patchPremisExif);
+            premisManagerExif.Patch(premisType, patchPremisExif, operationPath);
 
         var patchExtent = workingFile.GetExtentMetadata();
         if (patchExtent is not null)
-            premisManagerExif.PatchExtent(premisType, patchExtent);
+            premisManagerExif.PatchExtent(premisType, patchExtent, operationPath);
 
         var premisXml = premisManager.GetXmlElement(premisType, true);
 
