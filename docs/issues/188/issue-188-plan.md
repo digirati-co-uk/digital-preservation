@@ -1,32 +1,46 @@
-# Issue #188 — METS XML ID Fix: Sequenced Implementation Plan
+# Issue #188 — METS XML ID Fix: Sequenced Implementation Plan (v2)
 
-> Produced by Claude Opus 4.7, based on analyses in `issue-188-analysis.md` and `issue-188-opus-review.md`.
+> v2, 2026-08-10. Revised against `chore/sonar-cleanup-main` after full re-verification of every
+> code claim — see `issue-188-reassessment.md` for what changed and why the approach stands.
+> v1 (Claude Opus 4.7, based on `issue-188-analysis.md` and `issue-188-opus-review.md`) is in
+> git history. All file paths and line numbers below refer to `chore/sonar-cleanup-main`.
 
 ## Goal
 
-Make every METS `xs:ID` attribute schema-valid (NCName-conformant) without breaking navigation,
-round-trip parsing, or backward compatibility with already-deposited METS files. The fix is
-sequenced into three steps with explicit branch dependencies, deploy coordination, and acceptance
-criteria.
+Make every METS `xs:ID` attribute the platform mints schema-valid (NCName-conformant) without
+breaking navigation, round-trip parsing, or backward compatibility with already-deposited METS
+files. **Backward compatibility is a hard constraint: every METS file we have already created —
+raw `/`-and-space IDs included — must remain fully readable and editable forever (or until a
+deliberate Step 3 migration).**
 
-## Top-level sequencing
+The fix is sequenced into two mandatory steps plus one deferred step:
 
-1. **Step 1 PR — `feat/188-physical-divs-cache`**: introduce `PhysicalDivsByPath` on `FullMets`,
-   populated by the parser and maintained by every mutation. Decouples navigation from ID format.
-   Pure refactor: zero behavioural change in the produced XML, zero test assertion changes.
-2. **Step 2 PR — `feat/188-encoded-mets-ids`** (branched off Step 1, NOT off main): switch all ID
-   minting to `XmlConvert.EncodeLocalName`. Test assertions for path-containing IDs change. Deploy
-   `Pipeline.API` and `Preservation.API` atomically.
-3. **Step 3 (optional, post-Step 2)**: bulk legacy migration. Recommendation: **defer, with a
-   documented decision**.
+1. **Step 1 PR — `feat/188-physical-divs-cache`**: introduce a path→div cache on `FullMets`,
+   populated at load and maintained by every mutation. Decouples navigation from ID format.
+   Pure refactor: zero change in produced XML, zero test assertion changes.
+2. **Step 2 PR — `feat/188-encoded-mets-ids`** (branched off Step 1, NOT off the mainline):
+   switch all ID minting to `XmlConvert.EncodeLocalName`. Test assertions for path-containing
+   IDs change. All deployables embedding the METS code ship as one release.
+3. **Step 3 (deferred, decision documented)**: bulk legacy migration.
 
-The two PRs MUST be merged in order. Step 2 cannot ship before Step 1 is in production because
-`LocateMetsDivByLocalPath` would silently miss the encoded IDs of any in-flight new content
-otherwise. Both must ship before any bulk migration.
+Step 2 cannot ship before Step 1 is in production: without the cache, `LocateMetsDivByLocalPath`
+would silently fail to find encoded-ID divs.
 
-A side change is also covered:
-- `VirusProvEventPrefix` substring lookup fragility — fix in Step 1 PR (small, one-line, latent
-  bug exposed by encoded IDs).
+Side changes carried in Step 1 (latent bugs that become real under encoded IDs):
+- ClamAV digiprov substring lookup → exact match (`MetsParser.cs:499–512`).
+
+Side change carried in Step 2 (new surface found in re-verification):
+- NCName validation of client-supplied logical structMap div IDs (`MetsManager.SetStructMap`).
+
+**Base branch**: code changes start from `chore/sonar-cleanup-main` (expected to merge to `main`
+shortly; it contains the Mets project extraction, ad-hoc metadata, logical structMap editing and
+PR #209). Rebase onto `main` once that merge happens.
+
+**Strategic context** (see reassessment doc): Leeds wants third-party METS to become editable,
+with editability decided by *conformance to our profile* rather than only the `mets:agent` name.
+The Step 1 cache builder — navigation by `premis:originalName` (directories) and
+`FLocat/@xlink:href` (files) — is the core of that future conformance check. Build it as a
+diagnosable pass (report *why* population failed), not a silent one.
 
 ---
 
@@ -37,59 +51,57 @@ A side change is also covered:
 Introduce a per-`FullMets` path cache:
 
 ```csharp
+// FullMets.cs — currently has only Mets, Uri, ETag
 public Dictionary<string, DivType> PhysicalDivsByPath { get; } = new();
 ```
 
 Keys are the same `localPath` strings the rest of the system already uses (deposit-relative,
-BagIt `data/` already stripped — see 1.6). Values are the typed XmlGen `DivType` instances inside
-the physical structMap. Lookups are O(1); partial-depth resolution is preserved naturally (a
-missing key returns null, the walk breaks — same shape as the current code).
+BagIt `data/` already stripped — see 1.6). Values are the typed XmlGen `DivType` instances in
+the physical structMap. Lookups are O(1); partial-depth resolution is preserved (missing key →
+break, same shape as today). The PHYS_ROOT div is NOT in the cache — it is always the starting
+point of navigation, never a target.
 
-The PHYS_ROOT div is intentionally NOT in the cache. It is always the implicit starting point of
-`LocateMetsDivByLocalPath`, never a target.
+The in-code comment at `MetsManager.cs:379–380` ("we can use the premis:originalName for the
+directory") already points at exactly this design.
 
 ### 1.2 Files to change
 
 | File | Change |
 |---|---|
-| `DigitalPreservation.Mets/FullMets.cs` | Add `PhysicalDivsByPath` (Dictionary<string, DivType>, default `new()`) |
-| `DigitalPreservation.Mets/MetsParser.cs` | New helper `BuildPhysicalDivsByPath(...)` populated during the typed-model load path |
-| `DigitalPreservation.Mets/StorageImpl/FileSystemMetsStorage.cs` | After deserialization, call the populator and assign `fullMets.PhysicalDivsByPath` |
-| `DigitalPreservation.Mets/MetsManager.cs` | (1) Rewrite `LocateMetsDivByLocalPath`. (2) `AddNewFile`/`AddNewDirectory` add to cache. (3) `DeleteDiv` removes from cache. (4) `GetEmptyMets` bootstraps the two well-known entries. |
-| `Storage.Repository.Common/Mets/MetsFromArchivalGroup.cs` | After building the structMap, call the same `PopulateCache` helper. |
+| `DigitalPreservation.Mets/FullMets.cs` | Add `PhysicalDivsByPath` |
+| `DigitalPreservation.Mets/MetsCache.cs` *(new)* | `PopulateFrom(Mets mets, Dictionary<string, DivType> cache)` — single shared populator, plus a diagnosable variant that reports unresolvable/duplicate paths (seed of the future conformance checker) |
+| `DigitalPreservation.Mets/StorageImpl/FileSystemMetsStorage.cs` | Populate after deserialization (`FullMets` construction at lines 70–75) |
+| `Storage.Repository.Common/Mets/StorageImpl/S3MetsStorage.cs` | Same, at lines 117–122 — **the production read path; omitted from plan v1** |
+| `DigitalPreservation.Mets/MetsManager.cs` | (1) Rewrite `LocateMetsDivByLocalPath` (363–393). (2) `AddNewFile`/`AddNewDirectory` add to cache. (3) `DeleteDiv` removes from cache. (4) `GetEmptyMets` bootstraps **three** well-known entries: `objects`, `metadata`, `metadata/ad-hoc` (the ad-hoc div is new since plan v1). |
+| `Storage.Repository.Common/Mets/MetsFromArchivalGroup.cs` | Populate/maintain the cache when building METS from an Archival Group (`AddResourceToMets`, `AddBinariesToMets`) |
+| `DigitalPreservation.Mets/MetsParser.cs` | ClamAV digiprov lookup fix only (1.8) — the parser's XDocument path never produces a `FullMets` and does NOT populate the cache (correction to plan v1 §1.4) |
 
-### 1.3 Population (parser side, typed model)
+### 1.3 Population (typed model, not XDocument)
 
-Single recursive descent over the in-memory typed `Mets` object — NOT XDocument. XDocument is a
-snapshot at load time; any adds made during an editing session are in the XmlGen model but not yet
-reflected in XDocument. Navigation during `EditMets` must use the typed model.
-
-Note: the XmlGen typed model exposes the PREMIS payload inside `AmdSecType.TechMd[0].MdWrap.XmlData`
-only as `XmlElement[] Any` (raw XML). `premis:originalName` must therefore be extracted via a
-small XPath/descendant query on the `XmlElement` — not a fully typed property chain. This is why
-the path-cache approach is preferred over inline premis:originalName traversal at navigation time.
+Single recursive descent over the in-memory typed `Mets` object. The XmlGen model exposes the
+PREMIS payload only as `XmlElement[]` inside `MdSecTypeMdWrapXmlData.Any` (there is no fully
+typed PREMIS read path on the METS graph — `PremisManager` serialises typed PREMIS *to*
+`XmlElement` on write), so `premis:originalName` extraction is a small descendant query on that
+`XmlElement`:
 
 ```csharp
-void Walk(DivType div, FullMets full)
+void Walk(DivType div, Mets mets, Dictionary<string, DivType> cache)
 {
     foreach (var child in div.Div)
     {
         string? key = null;
 
-        if (child.Type == Constants.DirectoryType)
+        if (child.Type == Constants.DirectoryType && child.Admid.Count > 0)
         {
-            // follow Admid → AmdSec → premis:originalName
-            if (child.Admid.Count > 0)
-            {
-                var amdSec = full.Mets.AmdSec.FirstOrDefault(a => a.Id == child.Admid[0]);
-                key = ExtractPremisOriginalName(amdSec);   // XmlElement descendant query
-            }
+            // directory: Admid → AmdSec → techMD → mdWrap → xmlData/Any → premis:originalName
+            var amdSec = mets.AmdSec.FirstOrDefault(a => a.Id == child.Admid[0]);
+            key = ExtractPremisOriginalName(amdSec);   // XmlElement descendant query
         }
         else if (child.Type == Constants.ItemType && child.Fptr.Count > 0)
         {
-            // files: FLocat.Href on the matching FILE in the OBJECTS fileGrp
+            // file: fptr → FILE in the OBJECTS fileGrp → FLocat href
             var fileId = child.Fptr[0].Fileid;
-            var grp = full.Mets.FileSec?.FileGrp.FirstOrDefault(g => g.Use == "OBJECTS");
+            var grp = mets.FileSec?.FileGrp.FirstOrDefault(g => g.Use == "OBJECTS");
             var file = grp?.File.FirstOrDefault(f => f.Id == fileId);
             key = file?.FLocat.FirstOrDefault()?.Href;
         }
@@ -97,29 +109,31 @@ void Walk(DivType div, FullMets full)
         if (key != null)
         {
             key = NormalisePathKey(key);   // see 1.6
-            full.PhysicalDivsByPath[key] = child;
+            cache[key] = child;            // duplicate key → diagnosable failure, see below
         }
 
-        Walk(child, full);
+        Walk(child, mets, cache);
     }
 }
 ```
+
+Duplicate keys (two divs resolving to the same path) and Directory divs with unresolvable
+originalName are conformance failures — collect them rather than throwing blindly, so the same
+pass can later answer "is this METS editable?".
 
 ### 1.4 Where the cache is built / refreshed
 
 | Entry point | Action |
 |---|---|
-| `IMetsStorage.GetFullMets` | After XmlSerializer deserialization, build the cache. This is the single non-mutation read path that turns a stored METS into a `FullMets`. |
-| `MetsManager.GetEmptyMets` (called from `CreateStandardMets`) | Bootstrap with the two well-known entries (`"objects"` → child div, `"metadata"` → child div). |
-| `MetsFromArchivalGroup.CreateStandardMets` | Same bootstrap then `PopulateCache(fullMets)` once after `AddResourceToMets` returns. |
-
-A `MetsCache.PopulateFrom(Mets mets, Dictionary<string, DivType> cache)` static helper keeps the
-populator in one place. `IMetsParser` does NOT need a new public method — populating happens at
-the storage boundary.
+| `S3MetsStorage.GetFullMets` / `FileSystemMetsStorage.GetFullMets` | Build after XmlSerializer deserialization — the only two read paths producing a `FullMets` |
+| `MetsManager.GetEmptyMets` | Bootstrap three entries: `objects`, `metadata`, `metadata/ad-hoc` |
+| `MetsFromArchivalGroup.CreateStandardMets` | Bootstrap then inline maintenance in `AddResourceToMets`/`AddBinariesToMets`; debug-build assertion that a final `PopulateFrom` matches |
 
 ### 1.5 `LocateMetsDivByLocalPath` rewrite
 
-Replace the current body (MetsManager.cs lines 346–376) with:
+Replace the body of `MetsManager.cs:363–393`, preserving the
+`(contextDiv, parent, foundDepth, totalDepth)` contract that `EditMets` (caller at line 103)
+branches on:
 
 ```csharp
 private static (DivType contextDiv, DivType? parent, int foundDepth, int totalDepth)
@@ -139,8 +153,8 @@ private static (DivType contextDiv, DivType? parent, int foundDepth, int totalDe
         if (!fullMets.PhysicalDivsByPath.TryGetValue(testPath, out var childDiv))
             break;
 
-        // Guard against cache drift from a malformed source that re-uses the same
-        // premis:originalName in two unrelated subtrees.
+        // Guard against a malformed source that re-uses the same premis:originalName
+        // in two unrelated subtrees: only accept a direct child of the current div.
         if (!div.Div.Contains(childDiv))
             break;
 
@@ -153,85 +167,84 @@ private static (DivType contextDiv, DivType? parent, int foundDepth, int totalDe
 }
 ```
 
-The direct-child guard defends against the edge case flagged in the Opus review: if two divs ever
-share the same `premis:originalName`, the old `SingleOrDefault` would throw; the new code returns
-null safely (foundDepth < totalDepth → "not all parts of the path have been added" error, same
-message as today).
+Other callers: `SetRecordInfoByPath:469`, `SetRightsStatementByPath:490`,
+`SuppressRightsInheritanceByPath:506`, `SetAccessRestrictionsByPath:541`.
+
+Error-semantics note (from the Opus review, still valid): the old `SingleOrDefault` threw on
+duplicate IDs; the cache returns the recorded div or nothing. The direct-child guard restores
+safe behaviour ("not all parts of the path have been added" error, same as today).
 
 ### 1.6 Path normalisation before comparison
 
-`premis:originalName` may come from legacy sources. Before inserting into or looking up from the
-cache:
+`premis:originalName` may come from legacy or third-party sources. Before inserting into or
+looking up from the cache:
 
-- Strip a leading `data/` prefix (`FolderNames.RemovePathPrefix` already exists, FolderNames.cs:21)
-- Strip a leading `./`
-- Trim a trailing `/`
-- Reject empty strings (treat as no-op)
+- Strip a leading `data/` prefix (`FolderNames.RemovePathPrefix` already exists)
+- Strip a leading `./`; trim a trailing `/`
+- Reject empty strings (no-op)
 
-`MetsManager` already calls `FolderNames.RemovePathPrefix` on the incoming `localPath` (line 101),
-so cache lookups and writes go through the same normalisation. The populator must do the same on
-the value extracted from `premis:originalName` BEFORE inserting into the dictionary.
+`MetsManager` already normalises the incoming `localPath` the same way, so writes and lookups
+converge. The populator applies identical normalisation to extracted `originalName` values.
+(Archivematica-style `%transferDirectory%objects/…` values do NOT need handling here — those
+files are not editable and never reach `MetsManager`; the conformance checker will simply report
+them as non-conforming.)
 
 ### 1.7 Cache maintenance on mutations
 
 | Mutation | Cache update |
 |---|---|
-| `AddNewFile` (line 157) | After `parentDiv.Div.Add(childItemDiv)`: `fullMets.PhysicalDivsByPath[localPath] = childItemDiv;` |
-| `AddNewDirectory` (line 180) | After `parentDiv.Div.Add(childDirectoryDiv)`: `fullMets.PhysicalDivsByPath[localPath] = childDirectoryDiv;` |
-| `DeleteDiv` (line 296) | Before `parent!.Div.Remove(div)`: `fullMets.PhysicalDivsByPath.Remove(operationPath!);` |
-| `UpdateExistingFile`, `UpdateExistingDirectory` | No-op — div identity does not change |
-| `MetsFromArchivalGroup.AddResourceToMets` | Inline maintenance preferred; plus a debug-build assertion that a final `PopulateCache` matches |
+| `AddNewFile` (~line 157) | After adding the item div: `cache[localPath] = childItemDiv` |
+| `AddNewDirectory` (~line 180) | After adding the directory div: `cache[localPath] = childDirectoryDiv` |
+| `DeleteDiv` (313–353) | Before removing: `cache.Remove(operationPath)` |
+| `UpdateExistingFile` / `UpdateExistingDirectory` | No-op — div identity unchanged |
+| Logical structMap operations (`SetStructMap`, `RemoveStructMap`, `SetStructMapOrder`, `LinkFile`/`UnLinkFile`/`SetFileLinks`) | No-op — never touch the physical structMap (verified) |
+| `MetsFromArchivalGroup.AddResourceToMets` / `AddBinariesToMets` | Inline maintenance + debug assertion |
 
-Add a `[Conditional("DEBUG")]` assert at the entry to `LocateMetsDivByLocalPath` that the cache
-equals a re-build. This catches any mutation path that forgets to update the cache.
+Audit note: there is no rename mutation in `MetsManager` (renames surface as label edits or
+delete+add; ImportJob renames are a Storage-side concept) — re-verify this during
+implementation; any future rename operation must update the cache.
 
-### 1.8 VirusProvEventPrefix substring lookup (fix in Step 1 PR)
+Add a `[Conditional("DEBUG")]` assertion at entry to `LocateMetsDivByLocalPath` that the cache
+equals a fresh rebuild — catches any mutation path that forgets maintenance.
 
-`MetsParser.cs` (around line 506):
+### 1.8 ClamAV digiprov lookup: substring → exact match
+
+`MetsParser.cs:499–512` currently falls back to a case-insensitive **containment** search:
 
 ```csharp
-// current — fragile substring match
 var matchingKey = lookupMaps.DigiprovMdMap.Keys
     .FirstOrDefault(k => k.ToLower().Contains(lowerKey));
-
-// fix — exact match
-var matchingKey = lookupMaps.DigiprovMdMap.Keys
-    .FirstOrDefault(k => string.Equals(k, clamavKey, StringComparison.OrdinalIgnoreCase));
 ```
 
-After Step 2, encoded paths can be substrings of each other (`ADM_a` is a substring of
-`ADM_a_x002F_b`), making this a real cross-talk risk. Fix in Step 1 so it ships before Step 2.
+After Step 2, one encoded admId can be a prefix of another (`ADM_a` ⊂ `ADM_a_x002F_b`), making
+cross-talk real. Fix now: exact case-insensitive equality
+(`string.Equals(k, clamavKey, StringComparison.OrdinalIgnoreCase)`), plus a regression test with
+one digiprov key a substring of another. The related containment check at
+`MetadataManager.cs:201` (`x.Id.Contains(Constants.VirusProvEventPrefix)`) matches on the
+*prefix*, not the admId, and is safe — but verify while in there.
 
-Add a regression test constructing a digiprovMd map where one key is a substring of another,
-asserting the lookup picks the exact entry.
+Docs impact: `02c-METS-Parsing.md` says digiprov IDs are "matched case-insensitively, by
+containment" — update to exact match when this ships.
 
 ### 1.9 Step 1 acceptance criteria
 
-- All existing unit tests pass with zero assertion changes (Step 1 produces byte-identical METS
-  output to today)
-- New unit tests cover:
-  - Cache populated correctly from a parser load (file div, directory div, nested directory)
-  - Cache survives `AddNewFile`, `AddNewDirectory`, `DeleteDiv` (round-trip: parse → cache equals
-    freshly built cache)
-  - Path normalisation: a fixture METS with `premis:originalName="data/objects/foo"` resolves
-    correctly under the deposit path `objects/foo`
-  - Defensive lookup: a fixture with two divs sharing the same `premis:originalName` returns the
-    direct child of the current div, not a sibling
-- New regression test for `VirusProvEventPrefix` exact-match lookup
-- No change in produced XML for any existing fixture
-- Code review checklist: every mutation method updates the cache; every existing mutation has been
-  audited
+- All existing tests pass with zero assertion changes; METS output byte-identical for all
+  fixtures (`XmlGen.Tests/Samples/*.xml` round-trips included)
+- New tests: cache population from typed load (file, directory, nested, ad-hoc div); cache
+  maintained through `AddNewFile`/`AddNewDirectory`/`DeleteDiv` (mutate → cache equals fresh
+  rebuild); path normalisation (`data/` prefix fixture); duplicate-originalName fixture resolves
+  via the direct-child guard; population diagnostics reported for unresolvable directories
+- ClamAV exact-match regression test
+- Code-review checklist: every mutation audited for cache maintenance
 
-### 1.10 Step 1 risks
+### 1.10 Step 1 risks (unchanged from v1)
 
-- **Dead-code window**: between Step 1 deploy and Step 2 deploy, the new lookup produces results
-  identical to the old `Id == "PHYS_" + path` walk (all existing IDs are still path-based). The
-  cache invariants must be exhaustively unit-tested because production traffic does not exercise
-  the encoded-ID path until Step 2.
-- **Cache drift**: if any future code path mutates `Mets.StructMap` / `Mets.FileSec` /
-  `Mets.AmdSec` outside `MetsManager` and `MetsFromArchivalGroup`, the cache will go stale.
-  Mitigation: keep `MetsCache.PopulateFrom` public, document its use, and add the debug-build
-  assertion described in 1.7.
+- **Dead-code window**: until Step 2 ships, cache navigation produces results identical to the
+  old ID walk — no production traffic exercises the encoded path. Exhaustive unit tests are the
+  only guard.
+- **Cache drift**: any future code mutating `StructMap`/`FileSec`/`AmdSec` outside
+  `MetsManager`/`MetsFromArchivalGroup` goes stale. Mitigations: keep `MetsCache.PopulateFrom`
+  public and documented; debug assertion.
 
 ---
 
@@ -239,300 +252,242 @@ asserting the lookup picks the exact entry.
 
 ### 2.1 Approach
 
-A single `ToMetsId` extension method wraps `XmlConvert.EncodeLocalName`. Every ID-minting site
-uses it. The encoding handles spaces, `/`, ampersands, and any other NCName-invalid character.
-The round-trip inverse is `XmlConvert.DecodeName` — no current consumer needs it, but it is
-documented in the same class.
+A single extension method wraps `XmlConvert.EncodeLocalName`; every minting site uses it.
+Handles the full NCName-invalid set (space, `/`, `&`, `<`, `>`, quotes, `,`, `;`, brackets,
+`#?*!@$%^+=~`, leading digits); Unicode letters pass through; bijective
+(`XmlConvert.DecodeName` inverse; literal `_x` self-escaped as `_x005F_x`). No current consumer
+decodes IDs — the inverse exists for completeness and is documented.
 
 ```csharp
-// new file: src/DigitalPreservation/DigitalPreservation.Utils/MetsIdEncoding.cs
-namespace DigitalPreservation.Utils;
-
+// new: src/DigitalPreservation/DigitalPreservation.Utils/MetsIdEncoding.cs
 public static class MetsIdEncoding
 {
-    /// <summary>
-    /// Encodes a local path into a string safe for use inside an xs:ID / NCName attribute.
-    /// Handles '/', spaces, ampersands, leading digits, and all other NCName-invalid characters.
-    /// Bijective with <see cref="DecodeMetsId"/>. Does NOT add a prefix — callers concatenate
-    /// Constants.PhysIdPrefix etc. as today.
-    /// </summary>
+    /// Encodes a local path for use inside an xs:ID / NCName attribute.
+    /// Does NOT add a prefix — callers concatenate Constants.PhysIdPrefix etc.
     public static string ToMetsId(this string localPath)
         => System.Xml.XmlConvert.EncodeLocalName(localPath);
 
-    /// <summary>Round-trip inverse of <see cref="ToMetsId"/>.</summary>
+    /// Round-trip inverse of ToMetsId.
     public static string DecodeMetsId(this string id)
         => System.Xml.XmlConvert.DecodeName(id);
 }
 ```
 
-### 2.2 Every ID-minting site that must change
+`PHYS_objects/my file.pdf` becomes `PHYS_objects_x002F_my_x0020_file.pdf`.
 
-| File | Lines | Change |
+When minting into a document that may contain foreign IDs (future third-party editing), add an
+existence check against the ID maps before insertion — deterministic path encoding makes
+collisions with third-party schemes (Goobi `PHYS_0001`, Archivematica `file-<uuid>`) practically
+impossible, but the check is cheap.
+
+### 2.2 Every ID-minting site (re-verified inventory)
+
+| File | Lines | Site |
 |---|---|---|
-| `MetsManager.cs` | 159–160 (`AddNewFile`) | `physId = Constants.PhysIdPrefix + localPath.ToMetsId();` `fileId = Constants.FileIdPrefix + localPath.ToMetsId();` |
-| `MetsManager.cs` | 182–184 (`AddNewDirectory`) | `physId/admId/techId = <prefix> + localPath.ToMetsId();` |
-| `MetsManager.cs` | 261–270 (`GetEmptyMets`, metadata/objects bootstrap) | `Dmdid` and `Admid` use `.ToMetsId()`. Note: `"objects"` and `"metadata"` are already valid NCNames so this is a no-op for these specific values — use `.ToMetsId()` anyway for consistency. |
-| `MetsManager.cs` | 282, 287 (`AmdSec` for objects/metadata) | Same — encode `FolderNames.Objects` / `FolderNames.Metadata`. |
-| `MetsManager.cs` | 601 (`BuildFptr`) | `fileId = Constants.FileIdPrefix + fp.LocalPath.ToMetsId();` |
-| `MetsManager.cs` | 676–677, 686–687, 701 (`LinkFile`, `UnLinkFile`, `SetFileLinks`) | All `Constants.FileIdPrefix + path` constructions use `.ToMetsId()`. |
-| `MetadataManager.cs` | 28–30 (`ProcessAllFileMetadata`) | `fileId/admId/techId = <prefix> + operationPath.ToMetsId();` |
-| `ModsManager.cs` | 161–169 (`GetModsForDiv`) | **Refactor** — see 2.3 below. |
-| `MetsFromArchivalGroup.cs` | 62–68, 97–104 | All four prefix concatenations use `.ToMetsId()`. |
-| `Constants.cs` | 17–18 | `ObjectsDivId` and `MetadataDivId` already valid NCNames — no functional change. Add a comment that any new path-derived constant MUST use `.ToMetsId()`. If `MetadataAdHocDivId` exists by the time Step 2 lands, encode it. |
+| `MetsManager.cs` | 160–161 | `AddNewFile`: `PhysIdPrefix`/`FileIdPrefix` + localPath |
+| `MetsManager.cs` | 183–185 | `AddNewDirectory`: `PhysIdPrefix`/`AdmIdPrefix`/`TechIdPrefix` + localPath |
+| `MetsManager.cs` | 252–304 | `GetEmptyMets`: `PHYS_ROOT` literal (252, already valid); `MetadataDivId` (259); `DMD_`/`ADM_` + `FolderNames.Metadata` (262–263); **`MetadataAdHocDivId` (268) and `ADM_`/`DMD_` + `FolderNames.MetadataAdHoc` (271–272) — contain `/` today**; objects ids (278–282); three AmdSec/TechMd id pairs (294, 299, 304) incl. `ADM_metadata/ad-hoc` |
+| `MetsManager.cs` | 618 | `BuildFptr`: `FileIdPrefix + fp.LocalPath` (logical structMap fptrs reference physical FILE_ ids) |
+| `MetsManager.cs` | 709–710, 719–720, 734 | `LinkFile`/`UnLinkFile`/`SetFileLinks`: `FileIdPrefix + path` into `smLink` from/to |
+| `MetadataManager.cs` | 28–30 | `ProcessAllFileMetadata`: `FILE_`/`ADM_`/`TECH_` + operationPath |
+| `MetadataManager.cs` | 267 | `AddVirusXml`: `VirusProvEventPrefix + ctx.FileAdmId` — **derived ID, new in v2**; valid automatically once admId is encoded, but include in audit with its readers (MetsParser 499–512, MetadataManager 201) |
+| `ModsManager.cs` | 156–173 | `GetModsForDiv` DMD derivation — refactor, see 2.3 |
+| `Storage.Repository.Common/Mets/MetsFromArchivalGroup.cs` | 62–63, 68; 97–99, 104 | `AddResourceToMets` / `AddBinariesToMets`: all four prefixes + localPath — different project, ships in the same PR |
+| `DigitalPreservation.Mets/Constants.cs` | 17–19 | `ObjectsDivId`, `MetadataDivId` already valid. **`MetadataAdHocDivId` (19) = `"PHYS_metadata/ad-hoc"` — invalid NCName constant, becomes `PhysIdPrefix + "metadata/ad-hoc".ToMetsId()`** (as a static readonly or the literal encoded form with a comment). `FolderNames.MetadataAdHoc` stays a raw path — honour its `// TODO: #188 do not use this as an ID component` |
 
-### 2.3 ModsManager refactor — eliminate the PHYS/DMD coupling
+Confirmed non-sites (state in PR description): no ID construction in Pipeline.API,
+Preservation.API, Storage.API/Importer, Workspace, Deposit.Archiver, Registrant, Builder, or
+the UI other than `LOG_<epoch-ms>` generation (`Deposit.cshtml.cs:764`,
+`logical-structmap.js:369`) which is already NCName-safe. `PremisManager` mints no METS IDs.
+The `startsWith('LOG_')` discriminator at `logical-structmap.js:556` is unaffected (logical IDs
+keep their form).
 
-**Current (fragile — derives DMD ID by stripping PHYS_ from `div.Id`):**
+### 2.3 ModsManager refactor — eliminate the PHYS→DMD string coupling
+
+Current (`ModsManager.cs:156–173`): derives `DMD_` by `div.Id.RemoveStart("PHYS_")` for
+physical divs, `DmdIdPrefix + div.Id` for others (line 168 — logical divs). Replace with
+explicit derivation from `localPath`:
+
 ```csharp
-div.Dmdid.Add(Constants.DmdIdPrefix + div.Id.RemoveStart(Constants.PhysIdPrefix));
-```
-
-**Replace with (derive from `localPath` directly):**
-```csharp
-// Physical structMap divs pass localPath — mint DMD_ from the same encoded localPath used
-// for PHYS_, decoupling DMD from the textual form of div.Id.
-// Logical structMap divs pass localPath=null and use div.Id (LOG_… already a valid NCName).
 public static ModsDefinition? GetModsForDiv(
     Mets mets, DivType div, bool createDmd = false, string? localPath = null)
 {
     if (div.Dmdid.Count == 0 && createDmd)
     {
-        var encoded = localPath != null ? localPath.ToMetsId() : div.Id;
-        div.Dmdid.Add(Constants.DmdIdPrefix + encoded);
+        // physical divs: mint from the same encoded localPath used for PHYS_;
+        // logical divs (localPath == null): div.Id is a client-supplied NCName (validated
+        // at SetStructMap boundary) — DMD_ + div.Id as today
+        var idPart = localPath != null ? localPath.ToMetsId() : div.Id;
+        div.Dmdid.Add(Constants.DmdIdPrefix + idPart);
     }
-    ...
+    var normalised = string.Join(' ', div.Dmdid);   // keep: legacy IDREFS workaround, see 2.6
+    return GetModsForDmdId(mets, normalised, createDmd);
 }
 ```
 
-Thread `localPath` through from call sites. Audit:
+Thread `localPath` through callers (all MetsManager.cs): `SetRecordInfoForDiv:481`,
+`SuppressRightsInheritanceForDiv:518`, `SetRightsStatementForDiv:527`,
+`SetAccessRestrictionsForDiv:553` (each reachable from `…ByPath` — has path — and `…ByDivId` —
+localPath null, div.Id already valid), and `BuildLogicalDiv:594` (localPath null).
+Read path (`createDmd:false`) unchanged: resolves via existing `div.Dmdid` values, so legacy
+raw-`/` DMD ids keep working.
 
-- `PopulateDmdFromResource` in MetsManager is called from `AddNewFile`, `AddNewDirectory`,
-  `UpdateExistingFile`, `UpdateExistingDirectory`, `EditMets` — all have the path. Add a
-  `localPath` parameter and thread it through.
-- `SetRecordInfoForDiv`, `SetRightsStatementForDiv`, `SetAccessRestrictionsForDiv`,
-  `SuppressRightsInheritanceForDiv` — reached from both `…ByPath` (has path) and `…ByDivId`
-  (operates on logical divs, `localPath` stays null, `div.Id` is a valid LOG_… NCName).
-- `BuildLogicalDiv` — `localPath` stays null; `div.Id` used directly (already valid NCName).
+### 2.4 NCName validation for client-supplied logical structMap IDs *(new in v2)*
 
-For backwards compatibility: the read path (when `createDmd:false`) resolves via `div.Dmdid`
-exactly as today — no change. Legacy METS with raw-`/` DMD IDs continue to be readable.
+`SetStructMap` → `BuildLogicalDiv` (`MetsManager.cs:585`) uses `range.Id` verbatim as the div
+ID, and `ModsManager:168` mints `DMD_ + range.Id`. Nothing validates these — a client can inject
+schema-invalid IDs today. Add at the `SetStructMap` boundary (and any other entry accepting
+caller-supplied div IDs): `XmlConvert.VerifyNCName(range.Id)` → `BadRequest` on failure.
+**Reject, don't encode** — the client owns these IDs and round-trips them; silently changing
+them would break the client's references. UI-generated `LOG_<epoch-ms>` IDs already pass.
+Legacy tolerance: validation applies to *setting* structMaps, not to reading existing files.
 
-### 2.4 Tests — what changes, what stays, what is frozen, what is added
+### 2.5 Tests — what changes, what is frozen, what is added
 
-#### Assertions that change (path-containing IDs)
+Do NOT inline literal encoded strings in assertions — compute via `.ToMetsId()` (or a
+`MetsId(prefix, path)` helper in Test.Helpers) so an encoding change breaks tests explicitly.
 
-Do NOT inline literal encoded strings in assertions — always compute via `.ToMetsId()` so the test
-breaks if the encoding ever changes.
+#### Assertion sites that change (re-verified, all in `XmlGen.Tests` unless noted)
 
-| File | Lines | Old form | New form |
-|---|---|---|---|
-| `MetsManagerPathTests.cs` | 158, 159, 167, 171, 175, 177, 256–259, 287–292, 314–325, 380–383 | `"FILE_objects/my file.pdf"` | `$"FILE_{"objects/my file.pdf".ToMetsId()}"` |
-| `MetsManagerSyncTests.cs` | 220–237, 287–294, 366–371, 408–410 | `"PHYS_objects/doc.tif"` | Via `MetsId(localPath, prefix)` test helper |
-| `MetsManagerLogicalStructTests.cs` | 157, 257, 308 | `"FILE_objects/page.tif"` etc. | Encoded form |
-| `MetsManagerDeepStructureTests.cs` | 551–572 | `$"PHYS_{localPath}"`, `$"ADM_{localPath}"` | `$"PHYS_{localPath.ToMetsId()}"` etc. |
-| `PhysicalStructureTests.cs` | 18–42, 105–106 | Raw XML fixture strings | Update fixture strings to encoded form |
-| PR #182 ad-hoc div tests | TBD | `"PHYS_metadata/ad-hoc"` | Encoded |
+| File | Lines (current) |
+|---|---|
+| `MetsManagerPathTests.cs` | 158–177, 257–258, 290–291, 315–324, 380–382 (+ stale doc comments 22, 147, 183 referencing "MetadataManager line 195" — now 198) |
+| `MetsManagerSyncTests.cs` | 142–149, 220–240, 287–294, 366–371, 408–410 |
+| `MetsManagerLogicalStructTests.cs` | 148, 186–198, 248, 299, 398–404, 462, 688–690, 775–776, 801–802, 834 |
+| `MetsManagerDeepStructureTests.cs` | 551–552, 570–572 (helpers build `$"PHYS_{localPath}"` etc. → add `.ToMetsId()`) |
+| `MetsManagerPathFixtureTests.cs` | **new file since v1, 661 lines** — hard-coded raw-ID assertions at 470–490, 656–658; explicitly documents current invalid-NCName behaviour (lines 224, 312); contains the `Manual` fixture generator (79–169). Splits into: legacy-fixture tests (frozen inputs, unchanged assertions) + new-format tests (encoded assertions) |
+| `MetsManagerTests.cs` | 601, 613–614, 627, 653, 684, 694–696, 702, 707, 715, 728–729 (ad-hoc div IDs) |
+| `MetsManagerMetadataTests.cs` | 148, 185–189, 230–235, 268–269, 285–286, 304–310, 344–345, 386–391 |
+| `MetsManagerWithPremis.cs` | 133, 138, 198, 267, 322, 372, 442, 492, 572, 702 |
+| `Parsing/PhysicalStructureTests.cs` | inline XML fixtures + assertions at 120–125 (`MetsExtensions.DivId`/`.AdmId`) |
+| `Parsing/FileMetadataTests.cs` | 26–27, 46, 55, 94, 110, 125 |
+| `Test.Helpers/TestData/TestStructure.cs` | 190–191, 204–205 (JSON `divId`/`admId` expectations) |
 
 #### Assertions that do NOT change
 
-- `…ByDivId` calls passing no-`/` IDs (`"PHYS_objects"`, `"PHYS_metadata"`, `"LOG_…"`)
-- `files.Single(f => f.LocalPath == "objects/foo")` — `LocalPath` is FLocat HREF, always raw path
-- All logical structMap ID assertions (`LOG_…`)
-- UI/API round-trip tests that treat div IDs as opaque strings
+- `…ByDivId` calls with slash-free IDs (`PHYS_objects`, `PHYS_metadata`, `LOG_…`)
+- `LocalPath` assertions (FLocat href stays a raw path — paths are NOT encoded, only IDs)
+- Logical structMap ID assertions (`LOG_…`)
+- UI/API round-trip tests treating div IDs as opaque
 
-#### Fixtures that must be FROZEN (not regenerated)
+#### Fixtures FROZEN (correction: they live in `Samples/`, not `Outputs/`)
 
-The existing fixtures exercising spaces and special characters in paths are the only test coverage
-for legacy raw-ID METS. After Step 2, regenerating them from the same code would produce encoded
-IDs and erase this coverage.
+`XmlGen.Tests/Samples/path-fixture-spaces.xml` and `path-fixture-special.xml` are the
+legacy-raw-ID regression corpus; `liddle.mets.xml`, `wow.mets.xml`, `mets-sample-001.xml`,
+`response-book.mets.xml`, `simple-image.mets.xml` also contain raw path IDs and stay as-is
+(`Outputs/` is generated and git-ignored — plan v1 was wrong about this).
 
-Action:
-- Move `Outputs/path-*.xml` fixtures to a new folder `XmlGen.Tests/LegacyFixtures/` and commit
-  them as static XML.
-- Add `MetsManagerLegacyFixtureTests`: load each frozen fixture, parse it, navigate to a div by
-  path, mutate via `MetsManager`, write, re-parse. Assert the round-trip works.
-- Add a `README.md` inside `LegacyFixtures/` and a comment in the old generator method:
-  **"Regenerating these fixtures is forbidden. They are the regression corpus for legacy raw-ID
-  METS files. Remove only after a confirmed bulk migration (Step 3)."**
+Actions:
+- Mark the path fixtures as frozen: README note in `Samples/` + comment on the `Manual`
+  generator in `MetsManagerPathFixtureTests.cs:79` — **"regeneration forbidden; legacy
+  regression corpus; remove only after a Step 3 migration"**. Repoint or duplicate the generator
+  so new-format fixtures are additional files, never overwrites.
+- `MetsManagerLegacyFixtureTests`: load each frozen fixture → parse → navigate by path (cache!)
+  → mutate via `MetsManager` → write → re-parse. Assert round-trip and that pre-existing raw IDs
+  are untouched by the edit.
 
-#### New tests to add
+#### New tests
 
-**Schema validation merge gate** — `MetsSchemaValidationTests`:
+- **Schema-validation merge gate** — `MetsSchemaValidationTests`: validate produced METS against
+  the METS XSD (`XmlSchemaSet`). Nothing in the suite catches invalid IDs today (XmlSerializer
+  doesn't enforce `xs:ID`); this test would have caught #188 at birth. Fixtures: baseline,
+  spaces, `&`/unicode/leading-digit names, 3+-deep nesting, ad-hoc div.
+- **Bijection test**: `path == path.ToMetsId().DecodeMetsId()` for the representative
+  character set.
+- **Mixed-format integration test**: legacy raw-ID fixture + fresh encoded additions in one
+  METS; `…ByPath` and `…ByDivId` navigation and ClamAV digiprov resolution all work.
+- **NCName rejection test**: `SetStructMap` with an invalid range ID → BadRequest.
 
-A test class that validates produced METS XML against the METS XSD using `XmlSchemaSet`. This is
-the merge gate for Step 2. Fixtures must include:
-- Single file in `objects/` (baseline)
-- Spaces in directory and filename
-- Ampersand, Unicode, leading-digit filename (verify the encoder handles these)
-- Deep nesting (3+ levels)
-- Fixtures from `PhysicalStructureTests` re-validated
+### 2.6 Legacy-compatibility artefacts — keep, and comment as kept
 
-**Bijection test**:
-```csharp
-Assert.Equal(localPath, localPath.ToMetsId().DecodeMetsId());
-```
-for: space, slash, ampersand, `(`, `)`, leading digit, Unicode letter, `#`, `?`.
+The `string.Join(' ', …)` IDREFS workaround (spaces in legacy IDs make the XML processor split
+one ID into several tokens) exists in **five places** — all stay, each gaining a comment
+"required for legacy raw-ID METS; remove only after Step 3 migration":
 
-**Mixed-format integration test**: a fixture containing BOTH legacy raw-`/` IDs (the frozen ones)
-AND a freshly added encoded ID. Assert both `…ByPath` and `…ByDivId` navigation work correctly on
-the same METS.
+- `MetadataManager.cs:198` (the TODO comment at 195–197 is this issue — update it to reference
+  the fix)
+- `ModsManager.cs:171` and `:178`
+- `MetsManager.cs:330, 336, 345` (DeleteDiv's conditional `Count > 1 ? Join : [0]` forms)
 
-### 2.5 Deployment constraint — atomic Pipeline + Preservation release
+`MetsExtensions.DivId`/`.AdmId` (populated `MetsParser.cs:350–354`, `599–603`) surface raw METS
+IDs into the transit model, API responses and UI. Verified opaque today; document the
+opaque-string contract in the type's xmldoc so no consumer ever substring-matches them.
 
-`Pipeline.API` calls into `MetadataManager.ProcessAllFileMetadata` to write characterisation
-metadata back into METS. `Preservation.API` calls into `MetsManager` for structural changes. If
-they deploy at different times during Step 2 rollout, one service mints raw IDs and the other
-mints encoded IDs — a single deposit edited in that window gets a maximally mixed METS.
+### 2.7 Deployment constraint — one release for every embedder *(expanded in v2)*
 
-**Requirement**: Step 2 must be deployable as a single release tagging both `Pipeline.API` and
-`Preservation.API` container images. Document this in the PR description as a release-engineering
-precondition.
+`DigitalPreservation.Mets` and `Storage.Repository.Common` are compiled into
+**Preservation.API, Pipeline.API, DigitalPreservation.UI, Storage.API, Storage.API.Importer and
+DigitalPreservation.Deposit.Archiver**. A mixed-version window means one service minting raw IDs
+while another mints encoded IDs into the same METS. Step 2 ships as a single release tagging all
+of them; document as a release-engineering precondition in the PR.
 
-### 2.6 Other concerns — resolved
+### 2.8 Step 2 acceptance criteria
 
-| Concern | Resolution |
-|---|---|
-| `MetadataManager` ADMID-join workaround (join on space for IDREFS-split legacy IDs) | **Keep**. After Step 2 it is a no-op for new METS. For legacy METS with spaces in IDs it is still required. Add comment: "Required for backwards compatibility with legacy raw-ID METS. Do not remove until bulk migration (Step 3) eliminates all such files." |
-| Storage.Repository.Common diff logic | Verified: no consumer of BinariesToAdd/BinariesToPatch reads METS IDs; everything keys on LocalPath. State in PR description. |
-| iiif-builder (Python) | Already opaque — reads IDs as dict keys, never parses paths from them. State in PR description. |
-| MetsExtensions DivId / AdmId surfaced to clients | Document as an opaque-string contract in the type's xmldoc. Enforce going forward. |
-| Mixed-format universe post-deploy | Accepted. Legacy METS are readable; new METS are schema-valid; mixed METS (edited legacy) are readable but still not fully schema-valid. This is the known cost of not doing Step 3. |
-
-### 2.7 Step 2 acceptance criteria
-
-- Every ID-minting call site listed in 2.2 uses `.ToMetsId()`
-- No assertion computes an encoded ID by inlining a literal — all use `.ToMetsId()` so future
-  encoding changes break tests explicitly
-- Schema validation test (`MetsSchemaValidationTests`) passes for all current and new fixtures
-- Frozen legacy fixtures in `LegacyFixtures/` pass `MetsManagerLegacyFixtureTests`
-- Mixed-format integration test passes
-- ModsManager DMD derivation refactored to use `localPath` directly
-- `Pipeline.API` and `Preservation.API` tagged on the same release
-- A grep across `Pipeline.API`, `Preservation.API`, `Storage.Repository.Common`,
-  `DigitalPreservation.Workspace`, `DigitalPreservation.UI` for raw `PHYS_`, `FILE_`, `ADM_`,
-  `TECH_`, `DMD_` concatenations shows no unencoded path construction (expected grep hits in
-  tests are listed and justified)
-- PR description documents: kept-for-legacy ADMID-join workaround, frozen-fixture rule, atomic
-  deploy requirement, schema-validation merge gate
+- Every site in 2.2 uses `.ToMetsId()`; grep for prefix + raw-path concatenation across all
+  projects comes back clean (justified test hits listed)
+- Schema-validation merge gate green for all current and new fixtures
+- Frozen `Samples/` fixtures untouched; `MetsManagerLegacyFixtureTests` green
+- Mixed-format integration test green
+- ModsManager derives DMD from `localPath`; NCName validation live on `SetStructMap`
+- All embedders tagged on one release
+- PR documents: five kept IDREFS workarounds, frozen-fixture rule, atomic deploy, merge gate,
+  opaque-ID contract on `MetsExtensions`
 
 ---
 
-## Step 3 — Legacy migration decision
+## Step 3 — Legacy migration: defer (decision unchanged)
 
-### 3.1 Options
+Options and reasoning unchanged from v1 (see git history for the long form):
 
-**A. Defer (recommended)**. Accept that any METS file edited post-Step-2 will be in mixed-format
-until every element has been re-minted by the new code. Schema validation of the historical corpus
-remains impossible; legacy fixtures remain a permanent regression-test asset.
+- **Defer (recommended)**: mixed-format universe is a schema-validation liability, not a runtime
+  one; Steps 1+2 stop new invalid IDs, which is what #188 demands; bulk migration is
+  high-blast-radius (new OCFL version per AG, Activity Stream storm, full IIIF rebuild) and
+  should be motivated by a concrete audit/policy need.
+- Reserved branch: `feat/188-bulk-legacy-migration`. Requirements if executed: idempotent,
+  dry-run mode, opt-in admin endpoint, OCFL commit message tagged `xml-id-migration:#188`,
+  scheduled in a quiet period with iiif-builder capacity planned.
+- On execution: unfreeze fixtures, remove the five IDREFS workarounds and ModsManager legacy
+  read tolerance.
 
-**B. One-shot bulk migration**. For each Archival Group: read the METS, rewrite all IDs through
-`XmlConvert.EncodeLocalName`, write a new OCFL version. After bulk migration, the entire corpus
-is schema-valid.
+One addition in v2: a future **conformance checker** (see reassessment doc) would make Step 3
+measurable — "N of M Archival Groups conform" is a better trigger for the migration decision
+than aesthetics.
 
-### 3.2 OCFL impact (applies either way, for edited AGs)
+---
 
-Editing any AG post-Step-2 produces a new OCFL version whose METS diff is dominated by ID renames,
-not the meaningful edit. This artefact is permanent in OCFL history. Activity Stream fires;
-iiif-builder rebuilds all touched IIIF manifests. Accepted as a known cost.
+## Documentation deliverables (docs repo, `mets-profiles` branch — living documents)
 
-For option B additionally: every AG gets a new OCFL version in a short window. Activity Stream
-and IIIF rebuild amplify by the total number of Archival Groups. Schedule during a quiet period;
-capacity-plan iiif-builder.
+Ship with Step 2 (drafted during Step 1):
 
-### 3.3 Recommendation: defer (option A)
-
-Reasons:
-- The mixed-format universe is not a runtime correctness problem — only a schema-validation one.
-  Our tooling (`MetsParser`, iiif-builder) works fine with both forms.
-- Steps 1 + 2 stop NEW invalid IDs from being minted, which is what Issue #188 demands.
-- A bulk migration is a high-blast-radius operation that should be motivated by a concrete need
-  (audit, schema-validity policy) rather than aesthetic completeness.
-- The legacy corpus is finite and shrinks naturally as deposits are edited over time.
-
-**Plan but do not execute Step 3.** Reserved branch name: `feat/188-bulk-legacy-migration`.
-Acceptance criteria for when it IS executed:
-- Idempotent, dry-run mode
-- Opt-in admin endpoint (not run on deploy)
-- OCFL commit message tagged: `xml-id-migration:#188`
-- Re-evaluate when an audit or schema-validity policy forces the issue
-
-When/if option B executes:
-- Unfreeze the legacy fixtures in `LegacyFixtures/`
-- Remove the `MetadataManager` ADMID-join workaround
-- Remove the legacy-tolerance read paths in `ModsManager.GetModsForDiv`
+- **`02b-METS-Written-by-the-Platform.md`**: rewrite the "ID conventions" section — prefix +
+  `EncodeLocalName(path)` normative; legacy raw form documented as read/edit-compatible
+  historical form with the release boundary stated; replace the current #188 NOTE; re-render
+  example IDs (ad-hoc div, any path with `/` or space); revise "navigable by path" — navigation
+  is by `premis:originalName`/`FLocat` (the cache), path-derived IDs remain a deterministic
+  convenience.
+- **`02c-METS-Parsing.md`**: digiprov match wording (containment → exact, ships with Step 1);
+  add the normative parser principle "IDs are opaque; paths come from originalName/FLocat".
+- These two documents are the seed of the **editable-METS conformance spec** (third-party
+  editing, Leeds requirement). Out of scope for Steps 1–2, but Step 1's diagnosable cache
+  builder is designed to grow into its .NET implementation; a Schematron rule file (usable from
+  both .NET and Python) is the recommended vehicle for the XML-level rules when that work
+  starts.
 
 ---
 
 ## Branch and PR ordering
 
 ```
-main
+chore/sonar-cleanup-main            (→ main, expected soon)
  └── feat/188-physical-divs-cache       (Step 1)
-      ├── PR #1 → merge to main
+      ├── PR #1 → mainline
       └── feat/188-encoded-mets-ids     (Step 2, branched from Step 1)
-           └── PR #2 → merge to main (after PR #1 merged)
+           └── PR #2 → mainline (after PR #1)
 
 (reserved, not opened)
-main (post PR #2)
  └── feat/188-bulk-legacy-migration     (Step 3)
 ```
 
-PR #2 must NOT be opened off `main` directly — it depends on `PhysicalDivsByPath` to navigate
-encoded IDs, which only exists after PR #1. If PR #1 is unmerged but PR #2 needs CI, target PR #2
-at the Step 1 branch and rebase after PR #1 merges.
-
-Step 2 must NOT deploy until Step 1 has been in production long enough to be confident in the
-cache invariants. Practical guideline: at least one full deposit/edit cycle in production after
-Step 1 before tagging the Step 2 release.
-
----
-
-## Acceptance summary
-
-**Step 1 done when:**
-- Cache populated correctly from parser load; cache maintained by all mutations
-- All existing tests pass with no assertion changes
-- New cache-coverage and normalisation tests pass
-- VirusProvEventPrefix exact-match test passes
-- METS file output byte-identical to current main for representative fixtures
-- Deployed; one full deposit/edit cycle in production without regression
-
-**Step 2 done when:**
-- Every ID-minting call site uses `.ToMetsId()`
-- Schema validation merge-gate test passes for all fixtures
-- Legacy fixtures frozen in `LegacyFixtures/` and validated by `MetsManagerLegacyFixtureTests`
-- Mixed-format integration test passes
-- ModsManager DMD derivation refactored to use `localPath` directly
-- Pipeline.API and Preservation.API tagged on the same release
-- PR description documents all legacy-compat decisions
-
-**Step 3 done when (if executed):**
-- Idempotent, dry-run-able admin operation exists
-- New OCFL version per AG with tagged commit message
-- Legacy fixtures, ADMID-join workaround, and ModsManager legacy read path removed
-- Full corpus passes the schema validation test
-
----
-
-## Critical files for implementation
-
-**Must change in Step 1:**
-- `src/DigitalPreservation/DigitalPreservation.Mets/FullMets.cs`
-- `src/DigitalPreservation/DigitalPreservation.Mets/MetsManager.cs`
-- `src/DigitalPreservation/DigitalPreservation.Mets/MetsParser.cs`
-- `src/DigitalPreservation/DigitalPreservation.Mets/StorageImpl/FileSystemMetsStorage.cs`
-- `src/DigitalPreservation/Storage.Repository.Common/Mets/MetsFromArchivalGroup.cs`
-
-**Must change in Step 2:**
-- All Step 1 files (ID minting lines)
-- `src/DigitalPreservation/DigitalPreservation.Mets/MetadataManager.cs`
-- `src/DigitalPreservation/DigitalPreservation.Mets/ModsManager.cs`
-- `src/DigitalPreservation/DigitalPreservation.Mets/Constants.cs`
-- `src/DigitalPreservation/DigitalPreservation.Utils/MetsIdEncoding.cs` *(new)*
-- All test files listed in 2.4
-
-**Read-only (no code changes, verify in PR description):**
-- `src/DigitalPreservation/DigitalPreservation.Mets/MetsParser.cs` (opaque ID lookup — confirmed)
-- `src/iiif-builder/app/mets_parser/mets_parser.py` (opaque — confirmed)
-- `src/DigitalPreservation/DigitalPreservation.UI/wwwroot/js/logical-structmap.js` (opaque round-trip — confirmed)
-- `src/DigitalPreservation/DigitalPreservation.Workspace/` (keys on LocalPath, not METS IDs — confirm by grep)
+Plan documents live on `issue/118-invalid-xml-ids`. PR #2 is never opened against the mainline
+until PR #1 has merged; Step 2 does not *deploy* until Step 1 has survived at least one full
+deposit/edit cycle in production.
