@@ -37,7 +37,7 @@ public class DeleteDepositLockHandler(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Issue saving the released lock for deposit {id}", request.Id);
+            logger.LogError(e, "Issue saving the released lock for deposit {Id}", request.Id);
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
         }
 
