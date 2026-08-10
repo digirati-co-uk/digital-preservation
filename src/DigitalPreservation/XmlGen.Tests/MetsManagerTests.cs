@@ -404,7 +404,7 @@ public class MetsManagerTests
 
         // Can't do that! need to delete its contents first
         var fileToDelete = "objects/folder-b/folder-bb/minutes-laqm-22-april-2020.pdf";
-        var deleteFileResult = await metsManager.HandleDeleteObject(agMetsUri, fileToDelete, result.Value!.ETag!);
+        var deleteFileResult = await metsManager.HandleDeleteObject(agMetsUri, fileToDelete, result.Value.ETag!);
         deleteFileResult.Success.Should().BeTrue();
         
         var parseResult = await parser.GetMetsFileWrapper(agMetsUri);

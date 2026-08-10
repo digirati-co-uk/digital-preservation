@@ -24,7 +24,7 @@ public class IndexModel(IMediator mediator) : PageModel
     {
         // first, tidy the query string
         var qs = Request.QueryString.ToString();
-        if (qs.EndsWith("=") || qs.Contains("=&"))
+        if (qs.EndsWith('=') || qs.Contains("=&"))
         {
             var mutated = MutateQuery(
                 Request.Query["orderBy"].ToString(),

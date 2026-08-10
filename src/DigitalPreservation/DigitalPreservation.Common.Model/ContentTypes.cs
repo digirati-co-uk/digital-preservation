@@ -81,13 +81,10 @@ public static class ContentTypes
             }
         }
 
-        if (applicationCount == 2)
+        // Do we just keep adding new scenarios here?
+        if (applicationCount == 2 && distinctTypes.Contains("application/rtf") && distinctTypes.Contains("application/msword"))
         {
-            // Do we just keep adding new scenarios here?
-            if (distinctTypes.Contains("application/rtf") && distinctTypes.Contains("application/msword"))
-            {
-                return "application/rtf";
-            }
+            return "application/rtf";
         }
 
         return null;

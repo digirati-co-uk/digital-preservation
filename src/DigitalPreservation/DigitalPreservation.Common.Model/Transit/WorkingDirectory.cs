@@ -19,22 +19,14 @@ public class WorkingDirectory : WorkingBase
     [JsonPropertyOrder(6)]
     public List<WorkingDirectory> Directories { get; set; } = [];
 
-    public WorkingFile? FindFile(string path) // , bool useStorageLocation = false
+    public WorkingFile? FindFile(string path)
     {
         var parent = FindDirectory(path.GetParent());
         var slug = path.GetSlug();
-        // if (useStorageLocation)
-        // {
-        //     var file = parent?.Files.SingleOrDefault(f => f.GetStorageMetadata()?.StorageLocation?.GetSlug() == slug);
-        //     if (file != null)
-        //     {
-        //         return file;
-        //     }
-        // }
         return parent?.Files.SingleOrDefault(f => f.LocalPath.GetSlug() == slug);
     }
-    
-    public WorkingDirectory? FindDirectory(string? path, bool create = false) // , bool useStorageLocation = false
+
+    public WorkingDirectory? FindDirectory(string? path, bool create = false)
     {
         if (path.IsNullOrWhiteSpace() || path == "/")
         {
@@ -45,15 +37,7 @@ public class WorkingDirectory : WorkingBase
         for (var index = 0; index < parts.Length; index++)
         {
             var part = parts[index];
-            WorkingDirectory? potentialDirectory;
-            // if (useStorageLocation)
-            // {
-            //     potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetStorageMetadata()?.StorageLocation?.GetSlug() == part);
-            // }
-            // else
-            // {
-                potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetSlug() == part);
-            //}
+            var potentialDirectory = directory.Directories.SingleOrDefault(d => d.GetSlug() == part);
             if (create)
             {
                 if (potentialDirectory == null)

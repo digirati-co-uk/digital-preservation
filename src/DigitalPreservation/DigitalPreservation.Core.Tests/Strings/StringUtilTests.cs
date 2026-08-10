@@ -46,6 +46,15 @@ public class StringUtilTests
     }
 
     [Fact]
+    public void Can_Join_Strings_To_Path_Skips_Null_And_Whitespace_Elements()
+    {
+        // Act
+        var path = StringUtils.BuildPath(false, "aa", null, "", "  ", "bb");
+        // Assert
+        path.Should().Be("aa/bb");
+    }
+
+    [Fact]
     public void GetCommonPrefix_returns_common_prefix()
     {
         string[] strings =

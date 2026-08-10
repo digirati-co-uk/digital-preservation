@@ -92,7 +92,7 @@ public class MetsParser(
         }
         else
         {
-            if (metsLocation.AbsoluteUri.EndsWith("/"))
+            if (metsLocation.AbsoluteUri.EndsWith('/'))
             {
                 root = metsLocation;
             }

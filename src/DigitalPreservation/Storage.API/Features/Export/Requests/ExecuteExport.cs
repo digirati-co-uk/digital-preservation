@@ -30,7 +30,7 @@ public class ExecuteExportHandler(
     {
         var export = request.Export;
         
-        logger.LogInformation("Exporting Archival Group {archivalGroup}", export.ArchivalGroup);
+        logger.LogInformation("Exporting Archival Group {ArchivalGroup}", export.ArchivalGroup);
         var destination = new AmazonS3Uri(export.Destination);
         var destinationBucket = destination.Bucket;
         var destinationKey = destination.Key;
@@ -43,13 +43,10 @@ public class ExecuteExportHandler(
         try
         {
             var storageMap = await storageMapper.GetStorageMap(export.ArchivalGroup, export.SourceVersion);
-            if (export.SourceVersion.HasText())
+            if (export.SourceVersion.HasText() && storageMap.Version.OcflVersion != export.SourceVersion)
             {
-                if (storageMap.Version.OcflVersion != export.SourceVersion)
-                {
-                    return Result.FailNotNull<ExportResource>(ErrorCodes.Conflict, 
-                        $"Storage map version {storageMap.Version.OcflVersion} does not match requested version {export.SourceVersion}.");
-                }
+                return Result.FailNotNull<ExportResource>(ErrorCodes.Conflict,
+                    $"Storage map version {storageMap.Version.OcflVersion} does not match requested version {export.SourceVersion}.");
             }
 
             export.SourceVersion = storageMap.Version.OcflVersion;

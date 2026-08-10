@@ -26,14 +26,14 @@ public class S3MetsStorageTests
 
     }
 
-    public string GetMetsSample()
+    private static string GetMetsSample()
     {
         var metsFile = "Samples/mets-sample-001.xml";
         var metsXml = File.ReadAllText(metsFile);
         return metsXml;
     }
 
-    public string GetBadMetsSample()
+    private static string GetBadMetsSample()
     {
         var goobiMetsFile = "Samples/goobi-wc-b29356350.xml";
         var metsXml = File.ReadAllText(goobiMetsFile);

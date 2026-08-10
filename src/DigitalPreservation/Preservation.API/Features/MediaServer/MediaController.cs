@@ -107,7 +107,13 @@ public class MediaController(
                 var testRealLocalPath = string.Join('/', elements[..^4]);
                 var testMediaItem = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + testRealLocalPath);
                 if (testMediaItem != null)
-                    return Redirect(Request.GetDisplayUrl() + "/info.json");
+                {
+                    // Relative redirect: avoids echoing the client-supplied Host header
+                    // and any query string back into the Location header (Sonar S5146).
+                    var infoJsonUrl = Request.PathBase.Add(Request.Path).Add("/info.json").Value!;
+                    if (Url.IsLocalUrl(infoJsonUrl))
+                        return Redirect(infoJsonUrl);
+                }
             }
 
             return NotFound();

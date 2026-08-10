@@ -37,7 +37,6 @@ public class QueueExportHandler(
         // TODO: Validate Export Request
         // request.Export.ArchivalGroup is a real ArchivalGroup
         // request.Export.Destination is an accessible location
-        //    - var destination = new AmazonS3Uri(export.Destination);
         // Any access control concerns, and whitelisting of S3 locations/buckets that can be exported to
         
         var identifier = identityMinter.MintIdentity(nameof(ExportResource));
@@ -45,7 +44,7 @@ public class QueueExportHandler(
         var createResult = await exportResultStore.CreateExportResult(identifier, request.Export, cancellationToken);
         if (createResult.Success)
         {
-            logger.LogInformation($"About to queue export request {identifier}");
+            logger.LogInformation("About to queue export request {Identifier}", identifier);
             await exportQueue.QueueRequest(identifier, cancellationToken);
             // now retrieve again
             var storedExportResult = await exportResultStore.GetExportResult(identifier, cancellationToken);

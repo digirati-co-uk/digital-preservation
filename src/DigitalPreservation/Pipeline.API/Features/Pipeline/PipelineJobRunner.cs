@@ -15,28 +15,28 @@ public class PipelineJobRunner(
 
         if (string.IsNullOrEmpty(jobId))
         {
-            logger.LogError($"Job id is null execute pipeline job for the deposit {depositId} and job id {jobId}");
+            logger.LogError("Job id is null execute pipeline job for the deposit {DepositId} and job id {JobId}", depositId, jobId);
             return;
         }
 
         try
         {
-            logger.LogInformation($"Sending execute pipeline job for the deposit {depositId} and job id {jobId}");
+            logger.LogInformation("Sending execute pipeline job for the deposit {DepositId} and job id {JobId}", depositId, jobId);
 
             var executeResult = await mediator.Send(new ExecutePipelineJob(jobId, depositId, runUser), cancellationToken);
 
             if (executeResult.Success)
             {
-                logger.LogInformation($"Successfully sent execute pipeline job for the deposit {depositId} and job id {jobId} ");
+                logger.LogInformation("Successfully sent execute pipeline job for the deposit {DepositId} and job id {JobId} ", depositId, jobId);
                 return;
 
             }
 
-            logger.LogError($"Could not successfully send execute pipeline job for the deposit {depositId} and job id {jobId} because of {executeResult.ErrorMessage}");
+            logger.LogError("Could not successfully send execute pipeline job for the deposit {DepositId} and job id {JobId} because of {ErrorMessage}", depositId, jobId, executeResult.ErrorMessage);
         }
         catch (Exception e)
         {
-            logger.LogError(e, $"Error execute pipeline job for the deposit {depositId} and job id {jobId}");
+            logger.LogError(e, "Error execute pipeline job for the deposit {DepositId} and job id {JobId}", depositId, jobId);
         }
     }
 }

@@ -27,12 +27,10 @@ public static class ResponseX
     {
         // "Link", $"<{RepositoryTypes.ArchivalGroup}>;rel=\"type\""
         // This could be nicer
-        if (response.Headers.TryGetValues("Link", out IEnumerable<string>? values))
+        if (response.Headers.TryGetValues("Link", out IEnumerable<string>? values) &&
+            values.Any(v => v.Contains(typeId) && v.EndsWith("rel=\"type\"")))
         {
-            if (values.Any(v => v.Contains(typeId) && v.EndsWith("rel=\"type\"")))
-            {
-                return true;
-            }
+            return true;
         }
         return false;
     }

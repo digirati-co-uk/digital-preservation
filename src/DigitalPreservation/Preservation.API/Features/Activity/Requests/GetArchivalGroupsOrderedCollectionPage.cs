@@ -94,7 +94,7 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
             [
                 new ActivityObject
                 {
-                    Id = entity.ImportJobResult!,
+                    Id = entity.ImportJobResult,
                     Type = nameof(ImportJobResult)
                 }
             ];

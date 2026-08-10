@@ -26,15 +26,12 @@ public class LockDepositHandler(
         {
             return Result.Fail(ErrorCodes.NotFound, "No deposit for ID " + request.Id);
         }
-        if (entity.LockedBy != null)
+        if (entity.LockedBy != null && !request.Force)
         {
-            if (!request.Force)
-            {
-                return Result.Fail(ErrorCodes.Conflict, "Deposit is locked by " + entity.LockedBy);
-            }
+            return Result.Fail(ErrorCodes.Conflict, "Deposit is locked by " + entity.LockedBy);
         }
         var callerIdentity = request.User.GetCallerIdentity();
-        logger.LogInformation("Locking deposit {id} for user {user}", request.Id, callerIdentity);
+        logger.LogInformation("Locking deposit {Id} for user {User}", request.Id, callerIdentity);
         entity.LockedBy = callerIdentity;
         entity.LockDate = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);

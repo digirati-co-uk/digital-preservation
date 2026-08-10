@@ -79,13 +79,10 @@ public static class StringUtils
     public static string BuildPath(bool startWithSeparator, params string?[] elements)
     {
         var parts = new List<string>();
-        foreach (var element in elements)
+        foreach (var element in elements.Where(e => e.HasText()))
         {
-            if (element.HasText())
-            {
-                var subParts = element.Split("/", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                parts.AddRange(subParts);
-            }
+            var subParts = element!.Split("/", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            parts.AddRange(subParts);
         }
         var path = string.Join("/", parts);
         if(startWithSeparator) path = "/" + path;

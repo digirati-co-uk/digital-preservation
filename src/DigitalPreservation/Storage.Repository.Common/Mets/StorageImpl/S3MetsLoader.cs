@@ -69,7 +69,7 @@ public class S3MetsLoader(IAmazonS3 s3Client) : IMetsLoader
         var fileS3Uri = new AmazonS3Uri(file);
         try
         {
-            var resp = await s3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
+            await s3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
             {
                 BucketName = fileS3Uri.Bucket,
                 Key = fileS3Uri.Key

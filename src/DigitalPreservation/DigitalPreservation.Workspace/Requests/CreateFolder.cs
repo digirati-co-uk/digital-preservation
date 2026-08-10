@@ -45,7 +45,7 @@ public class CreateFolderHandler(
         var s3Uri = new AmazonS3Uri(request.RootUri);
         var localPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent;
         var fullKey = StringUtils.BuildPath(false, s3Uri.Key, localPath, request.NewFolderSlug);
-        if (!fullKey.EndsWith("/"))
+        if (!fullKey.EndsWith('/'))
         {
             fullKey += "/";
         }

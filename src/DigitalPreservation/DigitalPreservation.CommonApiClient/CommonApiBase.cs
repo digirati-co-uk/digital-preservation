@@ -26,13 +26,13 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
 
     public async Task<Result<ArchivalGroup?>> GetArchivalGroup(string path)
     {
-        logger.LogInformation("Getting ArchivalGroup " + path);
+        logger.LogInformation("Getting ArchivalGroup {Path}", path);
         var result = await GetResourceInternal(path);
         if (result.Success)
         {
             return Result.Ok<ArchivalGroup?>(result.Value as ArchivalGroup);
         }
-        logger.LogWarning("Failed to get ArchivalGroup " + path + ": " + result.CodeAndMessage());
+        logger.LogWarning("Failed to get ArchivalGroup {Path}: {CodeAndMessage}", path, result.CodeAndMessage());
         return Result.Cast<PreservedResource?, ArchivalGroup?>(result);
     }
 
@@ -104,15 +104,12 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             var uri = new Uri(path, UriKind.Relative);
             var req = new HttpRequestMessage(HttpMethod.Head, uri);
             var response = await httpClient.SendAsync(req);
-            if (response.IsSuccessStatusCode)
+            if (response.IsSuccessStatusCode && response.Headers.TryGetValues(HttpHeaders.XPreservationResourceType, out var values))
             {
-                if (response.Headers.TryGetValues(HttpHeaders.XPreservationResourceType, out var values))
+                var resourceType = values.FirstOrDefault();
+                if (resourceType != null)
                 {
-                    var resourceType = values.FirstOrDefault();
-                    if (resourceType != null)
-                    {
-                        return Result.Ok(resourceType);
-                    }
+                    return Result.Ok(resourceType);
                 }
             }
 
@@ -229,7 +226,7 @@ public abstract class CommonApiBase(HttpClient httpClient, ILogger logger)
             var storageMap = await response.Content.ReadFromJsonAsync<StorageMap>();
             if(storageMap != null)
             {
-                logger.LogInformation("Received storageMap for ArchivalGroup {archivalGroupPathUnderRoot}, version {version}",
+                logger.LogInformation("Received storageMap for ArchivalGroup {ArchivalGroupPathUnderRoot}, version {Version}",
                     archivalGroupPathUnderRoot, version);
                 return Result.OkNotNull(storageMap);
             }

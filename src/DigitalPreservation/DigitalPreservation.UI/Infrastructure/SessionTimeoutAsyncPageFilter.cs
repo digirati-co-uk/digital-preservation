@@ -35,8 +35,6 @@ public class SessionTimeoutAsyncPageFilter : IAsyncPageFilter
         if (lastActivity != null && lastActivity.GetValueOrDefault().AddHours(_timeoutInHours) < DateTime.UtcNow)
         {
             await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            // not needed for now will log user out of AZURE AD
-            //await context.HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
         }
 
         AddUpdateCache(name);

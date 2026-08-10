@@ -1,25 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Preservation.API.Data;
-using Preservation.API.Tests.TestingInfrastructure;
+﻿using Preservation.API.Tests.TestingInfrastructure;
 
 namespace Preservation.API.Tests.Integration;
 
+/// <summary>
+/// Placeholder membership of the database collection; real integration coverage
+/// that exercises the <see cref="DatabaseFixture"/> lives in the Features tests.
+/// </summary>
 [Trait("Category", "Integration")]
 [Collection(DatabaseCollection.CollectionName)]
-public class DatabaseTest
-{
-    private readonly PreservationContext dbContext;
-
-    public DatabaseTest(DatabaseFixture dbFixture)
-    {
-        dbContext = dbFixture.DbContext;
-    }
-
-    //[Fact]
-    //public async Task ConfirmSetup()
-    //{
-    //    // NOTE - this is a fairly pointless test, only here to confirm plumbing in test
-    //    var pending = await dbContext.Database.GetPendingMigrationsAsync();
-    //    pending.Should().BeNullOrEmpty();
-    //}
-}
+public class DatabaseTest;

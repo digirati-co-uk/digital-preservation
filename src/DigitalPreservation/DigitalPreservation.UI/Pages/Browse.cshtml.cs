@@ -55,7 +55,7 @@ public class BrowseModel(
         {
             Resource.PartOf = CachedArchivalGroup.Id;
             version = CachedArchivalGroup.Version!.OcflVersion!;
-            await TrySetWorkingFileAndDirectoryFromMets(pathUnderRoot, version);
+            await TrySetWorkingFileAndDirectoryFromMets(version);
         }
         if(ShouldRedirectToMetsView(pathUnderRoot, view))
         {
@@ -155,7 +155,7 @@ public class BrowseModel(
                MetsUtils.IsMetsFile(pathUnderRoot!.GetSlug());
     }
 
-    private async Task TrySetWorkingFileAndDirectoryFromMets(string? pathUnderRoot, string version)
+    private async Task TrySetWorkingFileAndDirectoryFromMets(string version)
     {
         var agResourcePath = CachedArchivalGroup!.Id!.AbsolutePath;
         
@@ -355,7 +355,7 @@ public class BrowseModel(
         }
         
         var slug = containerSlug.ToLowerInvariant();
-        var slugValidResult = ValidateNewContainerSlug(pathUnderRoot, slug, containerTitle);
+        var slugValidResult = ValidateNewContainerSlug(slug);
         if (slugValidResult.Success)
         {
             var result = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle));
@@ -374,7 +374,7 @@ public class BrowseModel(
         return Redirect(Request.Path);
     }
 
-    private static Result ValidateNewContainerSlug(string? path, string slug, string? containerTitle)
+    private static Result ValidateNewContainerSlug(string slug)
     {
         if (PreservedResource.ValidSlug(slug, out var reason))
         {

@@ -91,7 +91,7 @@ public class SearchModel(IMediator mediator) : PageModel
                 return;
             }
 
-            await Validation(text, page, type, pageSize, otherPage);
+            await Validation(text, page, pageSize, otherPage);
 
             if (!ModelState.IsValid)
             {
@@ -115,7 +115,7 @@ public class SearchModel(IMediator mediator) : PageModel
     }
 
 
-    private Task Validation(string text, int page, SearchType type , int pageSize, int otherPage)
+    private Task Validation(string text, int page, int pageSize, int otherPage)
     {
         if(text.Length > 500)
         {

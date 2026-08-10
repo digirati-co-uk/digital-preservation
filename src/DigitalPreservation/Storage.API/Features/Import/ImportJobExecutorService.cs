@@ -7,18 +7,18 @@ public class ImportJobExecutorService(
     IImportJobQueue importJobQueue,
     ILogger<ImportJobExecutorService> logger) : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation($"Starting {nameof(ImportJobExecutorService)}");
 
-        while (!cancellationToken.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested)
         {
-            var transaction = await importJobQueue.DequeueRequest(cancellationToken);
+            var transaction = await importJobQueue.DequeueRequest(stoppingToken);
             if (transaction.HasText())
             {
                 using var scope = serviceScopeFactory.CreateScope();
                 var processor = scope.ServiceProvider.GetRequiredService<ImportJobRunner>();
-                await processor.Execute(transaction, cancellationToken);
+                await processor.Execute(transaction, stoppingToken);
             }
         }
     }

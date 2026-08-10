@@ -2,7 +2,7 @@
 
 namespace DigitalPreservation.Common.Model.Identity;
 
-public class Identifiable
+public static class Identifiable
 {
     private static readonly char[] Numbers = "23456789".ToCharArray();                   // not 1, 0
     private static readonly char[] Letters = "abcdefghjkmnpqrstuvwxyz".ToCharArray();    // not i, l, o

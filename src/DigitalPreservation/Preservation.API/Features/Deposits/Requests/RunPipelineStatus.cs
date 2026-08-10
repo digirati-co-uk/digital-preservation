@@ -58,7 +58,7 @@ public class RunPipelineStatusHandler(
 
         try
         {
-            logger.LogInformation("Saving Pipeline Job entity " + entity.Id + " to DB for deposit " + deposit.MintedId);
+            logger.LogInformation("Saving Pipeline Job entity {EntityId} to DB for deposit {MintedId}", entity.Id, deposit.MintedId);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (Exception e)
@@ -68,7 +68,7 @@ public class RunPipelineStatusHandler(
         }
 
         var callerIdentity = request.User.GetCallerIdentity();
-        logger.LogInformation("Pipeline job " + entity.Id + " was updated by " + callerIdentity);
+        logger.LogInformation("Pipeline job {EntityId} was updated by {CallerIdentity}", entity.Id, callerIdentity);
         return Result.Ok();
     }
 }

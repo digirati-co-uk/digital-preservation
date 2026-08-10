@@ -21,7 +21,7 @@ public class CreateDepositFromIdentifier(SchemaAndValue schemaAndValue, ClaimsPr
 }
 
 public class CreateDepositFromIdentifierHandler(
-    ILogger<CreateDepositBase> logger,
+    ILogger<CreateDepositFromIdentifierHandler> logger,
     PreservationContext dbContext,
     ResourceMutator resourceMutator,
     IIdentityService identityService,

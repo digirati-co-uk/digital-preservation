@@ -79,19 +79,6 @@ public static class RequestX
 
         // TODO: Can we now do this in one go and not require the subsequent PATCH? (See AsInsertTypePatch below)
         // But we want to assign an additional type that will be returned in contained resources
-        //var stringContent = requestMessage.Content;
-        //var turtle = MediaTypeHeaderValue.Parse("text/turtle");
-        //var sparql = "  <> rdf:type <http://purl.org/dc/dcmitype/Collection> ;";
-        //if (stringContent == null)
-        //{
-        //    stringContent = new StringContent(sparql, turtle);
-        //}
-        //else
-        //{
-        //    string oldContent = await stringContent.ReadAsStringAsync();
-        //    stringContent = new StringContent($"{oldContent}\n{sparql}", turtle);
-        //}
-        //requestMessage.Content = stringContent;
 
         return requestMessage;
     }
@@ -175,7 +162,7 @@ public static class RequestX
     {
         if (!string.IsNullOrWhiteSpace(contentDisposition))
         {
-            var encoded = Uri.EscapeDataString(contentDisposition); // WebUtility.UrlEncode(contentDisposition);
+            var encoded = Uri.EscapeDataString(contentDisposition);
             httpContent.Headers.Add("Content-Disposition", $"attachment; filename=\"{encoded}\""); 
         }
         return httpContent;

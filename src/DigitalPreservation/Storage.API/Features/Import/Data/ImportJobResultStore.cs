@@ -82,7 +82,7 @@ public class ImportJobResultStore(
         try
         {
             var jobIds = await dbContext.ImportJobs
-                .Where(ij => ij.ArchivalGroup == archivalGroup && ij.Active == true)
+                .Where(ij => ij.ArchivalGroup == archivalGroup && ij.Active)
                 .Select(ij => ij.Id)
                 .ToListAsync(cancellationToken);
             return Result.OkNotNull(jobIds);
@@ -94,7 +94,7 @@ public class ImportJobResultStore(
         }
     }
     
-    public async Task<Result> SaveImportJob(string jobIdentifier, ImportJob importJob, CancellationToken cancellationToken = default)
+    public async Task<Result> SaveImportJob(string jobIdentifier, ImportJob importJob, CancellationToken cancellationToken)
     {
         if (importJob.ArchivalGroup == null)
         {
@@ -127,7 +127,7 @@ public class ImportJobResultStore(
         ImportJobResult importJobResult, 
         bool active, 
         bool ended,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         try
         {

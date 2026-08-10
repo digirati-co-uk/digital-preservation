@@ -15,7 +15,7 @@ public class DeleteDepositLock(string id, ClaimsPrincipal user) : IRequest<Resul
 }
 
 public class DeleteDepositLockHandler(
-    ILogger<LockDepositHandler> logger,
+    ILogger<DeleteDepositLockHandler> logger,
     PreservationContext dbContext) : IRequestHandler<DeleteDepositLock, Result>
 {
     public async Task<Result> Handle(DeleteDepositLock request, CancellationToken cancellationToken)
@@ -26,7 +26,7 @@ public class DeleteDepositLockHandler(
             return Result.Fail(ErrorCodes.NotFound, "No deposit for ID " + request.Id);
         }
         var callerIdentity = request.User.GetCallerIdentity();
-        logger.LogInformation("Removing lock on deposit {id} for user {user}", request.Id, callerIdentity);
+        logger.LogInformation("Removing lock on deposit {Id} for user {User}", request.Id, callerIdentity);
         // unlocking an already unlocked deposit is a no-op
         entity.LockedBy = null;
         entity.LockDate = null;
@@ -37,7 +37,7 @@ public class DeleteDepositLockHandler(
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Issue saving the released lock for deposit {id}", request.Id);
+            logger.LogError(e, "Issue saving the released lock for deposit {Id}", request.Id);
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
         }
 

@@ -79,14 +79,14 @@ public class StorageApiClient(
 
     public async Task<Result<ArchivalGroup?>> TestArchivalGroupPath(string archivalGroupPathUnderRoot)
     {
-        logger.LogInformation("Testing archivalGroupPathUnderRoot: " + archivalGroupPathUnderRoot);
+        logger.LogInformation("Testing archivalGroupPathUnderRoot: {ArchivalGroupPathUnderRoot}", archivalGroupPathUnderRoot);
         var reqPath = $"import/test-path/{archivalGroupPathUnderRoot}";
         return await TestArchivalGroupPathInternal(reqPath);
     }
     
     public async Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri)
     {        
-        logger.LogInformation("StorageAPIClient, GetImportJobResult : " + storageApiImportJobResultUri);
+        logger.LogInformation("StorageAPIClient, GetImportJobResult : {StorageApiImportJobResultUri}", storageApiImportJobResultUri);
         try
         {
             var req = new HttpRequestMessage(HttpMethod.Get, storageApiImportJobResultUri);
@@ -111,7 +111,7 @@ public class StorageApiClient(
  
     public async Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob? requestImportJob, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Storage API Client Executing import job: " + requestImportJob.LogSummary());
+        logger.LogInformation("Storage API Client Executing import job: {ImportJobSummary}", requestImportJob.LogSummary());
         if (requestImportJob == null)
         {
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, "Unable to parse storage import job from request body.");
@@ -143,7 +143,7 @@ public class StorageApiClient(
         var resourceResult = await GetLightweightResource(archivalGroupPathUnderRoot, version);
         if (resourceResult is { Success: true, Value: ArchivalGroup })
         {
-            logger.LogInformation("Received resource to read name of ArchivalGroup {archivalGroupPathUnderRoot}, version {version}",
+            logger.LogInformation("Received resource to read name of ArchivalGroup {ArchivalGroupPathUnderRoot}, version {Version}",
                 archivalGroupPathUnderRoot, version);
             return Result.Ok(resourceResult.Value.Name);
         }
@@ -179,7 +179,7 @@ public class StorageApiClient(
         string? versionToExport,
         CancellationToken cancellationToken = default)
     {        
-        logger.LogInformation("Storage API Client Executing export, archivalGroup: " + archivalGroup);
+        logger.LogInformation("Storage API Client Executing export, archivalGroup: {ArchivalGroup}", archivalGroup);
         var export = new Export
         {
             ArchivalGroup = archivalGroup,
@@ -194,7 +194,7 @@ public class StorageApiClient(
                 var exportResult = await response.Content.ReadFromJsonAsync<Export>(cancellationToken: cancellationToken);
                 if(exportResult != null)
                 {
-                    logger.LogInformation("Received exportResult with exportResult.ArchivalGroup: " + exportResult.ArchivalGroup);
+                    logger.LogInformation("Received exportResult with exportResult.ArchivalGroup: {ArchivalGroup}", exportResult.ArchivalGroup);
                     return Result.OkNotNull(exportResult);
                 }
                 return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");

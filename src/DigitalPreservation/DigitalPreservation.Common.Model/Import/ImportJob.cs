@@ -152,7 +152,7 @@ public class ImportJob : Resource
         return (itemsWithInvalidSlugs, msg);
     }
 
-    private void AppendInvalidSlugMessage(IEnumerable<PreservedResource> itemsToTest, List<PreservedResource> itemsWithInvalidSlugs, List<string> invalidSlugMessages)
+    private static void AppendInvalidSlugMessage(IEnumerable<PreservedResource> itemsToTest, List<PreservedResource> itemsWithInvalidSlugs, List<string> invalidSlugMessages)
     {
         foreach (var item in itemsToTest)
         {
@@ -169,8 +169,6 @@ public class ImportJob : Resource
         var binaries = new List<Binary>();
         binaries.AddRange(BinariesToAdd.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
         binaries.AddRange(BinariesToPatch.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
-        // may be not required here
-        // binaries.AddRange(BinariesToRename.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
         return binaries;
     }
 }

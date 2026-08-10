@@ -40,7 +40,7 @@ public class ActivateDepositHandler : IRequestHandler<ActivateDeposit, Result>
         }
         
         var callerIdentity = request.User.GetCallerIdentity();
-        _logger.LogInformation("Setting active state of deposit {id} to {active} for user {user}", request.Id, request.Active, callerIdentity);
+        _logger.LogInformation("Setting active state of deposit {Id} to {Active} for user {User}", request.Id, request.Active, callerIdentity);
         entity.Active = request.Active;
         await _dbContext.SaveChangesAsync(cancellationToken);
         return Result.Ok();

@@ -1,5 +1,4 @@
 ﻿using Amazon.Runtime;
-using Amazon.Runtime.SharedInterfaces;
 using Amazon.S3;
 using Amazon.S3.Model;
 using DigitalPreservation.Mets;
@@ -24,7 +23,7 @@ public class MetsLoaderTests
     }
 
 
-    public string GetMetsSample()
+    private static string GetMetsSample()
     {
         var metsFile = "Samples/mets-sample-001.xml";
         var metsXml = File.ReadAllText(metsFile);
@@ -123,7 +122,6 @@ public class MetsLoaderTests
             }));
 
 
-        var fakeS3 = A.Fake<ICoreAmazonS3>();
         var expectedStream = new MemoryStream(Encoding.UTF8.GetBytes(metsXml));
         A.CallTo(() => s3Client.GetObjectStreamAsync(
                 A<string>.Ignored,

@@ -38,12 +38,12 @@ public class GetResourceFromFedoraHandler(
         var possibleAgVersion = memoryCache.Get<string>(CacheKey(request.PathUnderFedoraRoot, null));
         if (possibleAgVersion.HasText())
         {
-            logger.LogInformation("There is a cached token for {pathUnderFedoraRoot}: {version}",
+            logger.LogInformation("There is a cached token for {PathUnderFedoraRoot}: {Version}",
                 request.PathUnderFedoraRoot, possibleAgVersion);
             var possibleAg = memoryCache.Get<ArchivalGroup>(CacheKey(request.PathUnderFedoraRoot, possibleAgVersion));
             if (possibleAg != null)
             {
-                logger.LogInformation("Retrieved cached Archival Group {pathUnderFedoraRoot} for cached version string {version}",
+                logger.LogInformation("Retrieved cached Archival Group {PathUnderFedoraRoot} for cached version string {Version}",
                     request.PathUnderFedoraRoot, possibleAgVersion);
                 // It is HIGHLY LIKELY that this is the current version. But we can't guarantee it.
                 // But we know it must be an archival group (we wouldn't have cached it otherwise).
@@ -52,14 +52,14 @@ public class GetResourceFromFedoraHandler(
                 if (versionResult is { Success: true, Value: not null } &&
                     versionResult.Value.OcflVersion == possibleAgVersion)
                 {
-                    logger.LogInformation("HEAD version of {pathUnderFedoraRoot} is {version}",
+                    logger.LogInformation("HEAD version of {PathUnderFedoraRoot} is {Version}",
                         request.PathUnderFedoraRoot, versionResult.Value.OcflVersion);
                     return Result.Ok<PreservedResource?>(possibleAg);
                 }
-                logger.LogWarning("Latest cached HEAD version value is {cachedVersion} but actual version is {actualVersion}",
+                logger.LogWarning("Latest cached HEAD version value is {CachedVersion} but actual version is {ActualVersion}",
                     possibleAgVersion, versionResult.Value?.OcflVersion);
             }
-            logger.LogWarning("No Archival Group in cache for cached version string {pathUnderFedoraRoot} at path {version}",
+            logger.LogWarning("No Archival Group in cache for cached version string {PathUnderFedoraRoot} at path {Version}",
                 request.PathUnderFedoraRoot, possibleAgVersion);
         }
         
@@ -76,20 +76,20 @@ public class GetResourceFromFedoraHandler(
                 var expiry = TimeSpan.FromHours(1);
                 var versionedCacheKey = CacheKey(request.PathUnderFedoraRoot, version);
                 // We can still cache this specific version, though, at its version key
-                logger.LogInformation("Setting versioned cache entry for {pathUnderFedoraRoot}, version {version}",
+                logger.LogInformation("Setting versioned cache entry for {PathUnderFedoraRoot}, version {Version}",
                     request.PathUnderFedoraRoot, version);
                 memoryCache.Set(versionedCacheKey, ag, expiry);
                 // But we only set the path-only cached token if we just retrieved the LATEST, HEAD version
                 if (ag.StorageMap?.HeadVersion.OcflVersion == version)
                 {
-                    logger.LogInformation("Version {version} is the HEAD for {pathUnderFedoraRoot}, so will cache the path-only token",
+                    logger.LogInformation("Version {Version} is the HEAD for {PathUnderFedoraRoot}, so will cache the path-only token",
                         version, request.PathUnderFedoraRoot);
                     var pathCacheKey = CacheKey(request.PathUnderFedoraRoot, null);
                     memoryCache.Set(pathCacheKey, version, expiry);
                 }
                 else
                 {
-                    logger.LogInformation("The HEAD version for {pathUnderFedoraRoot} is {headVersion}, so will NOT CACHE the path-only token",
+                    logger.LogInformation("The HEAD version for {PathUnderFedoraRoot} is {HeadVersion}, so will NOT CACHE the path-only token",
                         request.PathUnderFedoraRoot, ag.StorageMap?.HeadVersion.OcflVersion);
                 }
             }
@@ -104,7 +104,7 @@ public class GetResourceFromFedoraHandler(
         return result;
     }
 
-    private string CacheKey(string? path, string? version)
+    private static string CacheKey(string? path, string? version)
     {
         // This must avoid any possible (though very unlikely) collisions with other actual paths
         if (version != null)

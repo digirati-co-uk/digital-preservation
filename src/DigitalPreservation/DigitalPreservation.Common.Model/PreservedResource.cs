@@ -73,7 +73,7 @@ public abstract class PreservedResource : Resource
             return false;
         }
         var len = slug.Length;
-        var valid = len is >= 1 and <= 2000; // 254;
+        var valid = len is >= 1 and <= 2000;
         if (!valid)
         {
             reason = "Slug must be between 1 and 2000 characters";
@@ -100,11 +100,6 @@ public abstract class PreservedResource : Resource
             reason += " Spaces are not allowed.";
         }
         return valid;
-    }
-
-    private static bool ValidSlug(string? slug)
-    {
-        return ValidSlug(slug, out _);
     }
 
     private static bool ValidSlugChar(char slugChar)

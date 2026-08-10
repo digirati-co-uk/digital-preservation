@@ -36,10 +36,10 @@ public class ExecuteImportJobHandler(
         {
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "Deposit is locked by another user: " + callerIdentity);
         }
-        logger.LogInformation("ExecuteImportJobHandler handling import job " + request.ImportJob.LogSummary());
+        logger.LogInformation("ExecuteImportJobHandler handling import job {ImportJobSummary}", request.ImportJob.LogSummary());
         var now = DateTime.UtcNow;
         var mintedId = identityService.MintIdentity(nameof(ImportJob));
-        logger.LogInformation("Identity service gave us id for import job: " + mintedId);
+        logger.LogInformation("Identity service gave us id for import job: {MintedId}", mintedId);
         
         // Overwrite this, regardless of what the incoming request says
         request.ImportJob.LastModifiedBy = resourceMutator.GetAgentUri(callerIdentity);
@@ -55,11 +55,11 @@ public class ExecuteImportJobHandler(
         {
             logger.LogInformation("Storage API accepted import job");
             var storageImportJobResult = storageImportJobResultResult.Value;
-            logger.LogInformation("Storage API returned Import Job Result " + storageImportJobResult.LogSummary());
+            logger.LogInformation("Storage API returned Import Job Result {ImportJobResultSummary}", storageImportJobResult.LogSummary());
             var preservationImportJobResult = Duplicate(storageImportJobResult);
             resourceMutator.MutateStorageImportJobResult(preservationImportJobResult, request.ImportJob.Deposit!, mintedId);
             preservationImportJobResult.OriginalImportJob = request.ImportJob.OriginalId;
-            logger.LogInformation("Mutated into Preservation API Import Job Result " + preservationImportJobResult.LogSummary());
+            logger.LogInformation("Mutated into Preservation API Import Job Result {ImportJobResultSummary}", preservationImportJobResult.LogSummary());
             var entity = new ImportJobEntity
             {
                 StorageImportJobResultId = storageImportJobResult.Id!,
@@ -75,13 +75,13 @@ public class ExecuteImportJobHandler(
                 LatestPreservationApiResultJson = JsonSerializer.Serialize(preservationImportJobResult)
             };
             dbContext.ImportJobs.Add(entity);
-            logger.LogInformation("Saving Import Job entity " + entity.Id + " to DB");
+            logger.LogInformation("Saving Import Job entity {EntityId} to DB", entity.Id);
             await dbContext.SaveChangesAsync(cancellationToken);
             
             return Result.OkNotNull(preservationImportJobResult);
         }
 
-        logger.LogWarning("Import job did not execute: " + storageImportJobResultResult.CodeAndMessage());
+        logger.LogWarning("Import job did not execute: {CodeAndMessage}", storageImportJobResultResult.CodeAndMessage());
         return storageImportJobResultResult;
     }
 

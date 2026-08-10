@@ -21,7 +21,7 @@ public class CreateDeposit(Deposit deposit, bool export, ClaimsPrincipal princip
 }
 
 public class CreateDepositHandler(
-    ILogger<CreateDepositBase> logger,
+    ILogger<CreateDepositHandler> logger,
     PreservationContext dbContext,
     ResourceMutator resourceMutator,
     IIdentityService identityService,

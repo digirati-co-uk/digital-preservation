@@ -24,7 +24,7 @@ public class QueueImportJobHandler(
     {
         if (request.ImportJob.LastModifiedBy == null)
         {
-            logger.LogError("Import Job {} does not have a LastModifiedBy", request.ImportJob.Id?.GetSlug());
+            logger.LogError("Import Job {ImportJobId} does not have a LastModifiedBy", request.ImportJob.Id?.GetSlug());
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, 
                 $"Cannot queue an importJob that lacks a LastModifiedBy: {request.ImportJob.ArchivalGroup}");
         }
@@ -48,7 +48,7 @@ public class QueueImportJobHandler(
                 jobIdentifier, waitingResult, true, false, cancellationToken);
             if (saveResultResult.Success)
             {
-                logger.LogInformation($"About to queue import job request {jobIdentifier}");
+                logger.LogInformation("About to queue import job request {JobIdentifier}", jobIdentifier);
                 try
                 {
                     await importJobQueue.QueueRequest(jobIdentifier, cancellationToken);

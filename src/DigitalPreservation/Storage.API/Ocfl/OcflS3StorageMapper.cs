@@ -20,9 +20,9 @@ public class OcflS3StorageMapper(
 
     public async Task<StorageMap> GetStorageMap(Uri archivalGroupUri, string? version = null)
     {
-        logger.LogInformation("Getting storage map for " + archivalGroupUri + " version " + version);
+        logger.LogInformation("Getting storage map for {ArchivalGroupUri} version {Version}", archivalGroupUri, version);
         var agOrigin = GetArchivalGroupOrigin(archivalGroupUri);
-        logger.LogInformation("agOrigin={agOrigin}", agOrigin);
+        logger.LogInformation("agOrigin={AgOrigin}", agOrigin);
         Inventory? inventory = await GetInventory(agOrigin);
         var inventoryVersions = inventory!.Versions
             .Select(kvp => new ObjectVersion
@@ -118,7 +118,7 @@ public class OcflS3StorageMapper(
     
     private async Task<Inventory?> GetInventory(string? agOrigin)
     {
-        logger.LogInformation("About to fetch inventory from bucket {bucket} and key {key}", fedora.Bucket, $"{agOrigin}/inventory.json");
+        logger.LogInformation("About to fetch inventory from bucket {Bucket} and key {Key}", fedora.Bucket, $"{agOrigin}/inventory.json");
         var invReq = new GetObjectRequest { BucketName = fedora.Bucket, Key = $"{agOrigin}/inventory.json" };
         var invResp = await awsS3Client.GetObjectAsync(invReq);
         var inventory = JsonSerializer.Deserialize<Inventory>(invResp.ResponseStream);
@@ -127,9 +127,9 @@ public class OcflS3StorageMapper(
     
     public string? GetArchivalGroupOrigin(Uri archivalGroupUri)
     {
-        logger.LogInformation("GetArchivalGroupOrigin for " + archivalGroupUri);
+        logger.LogInformation("GetArchivalGroupOrigin for {ArchivalGroupUri}", archivalGroupUri);
         var idPart = converters.GetResourcePathPart(archivalGroupUri);
-        logger.LogInformation("converters.GetResourcePathPart(archivalGroupUri) => " + idPart);
+        logger.LogInformation("converters.GetResourcePathPart(archivalGroupUri) => {IdPart}", idPart);
         
         if (idPart == null)
         {
@@ -138,7 +138,7 @@ public class OcflS3StorageMapper(
         return RepositoryPath.RelativeToRoot(fedora.OcflS3Prefix, idPart);
     }
     
-    private bool IsFedoraMetadata(string filepath)
+    private static bool IsFedoraMetadata(string filepath)
     {
         if (
             filepath.StartsWith(".fcrepo/")       ||

@@ -206,20 +206,6 @@ public class PremisManager
         }
     }
 
-    private void AddSignificantProperty(File file, string propertyName, string metadataValue)
-    {
-        var significantProperties = new SignificantPropertiesComplexType();
-        file.SignificantProperties.Add(significantProperties);
-
-        //TODO: add value to significant properties
-        significantProperties.SignificantPropertiesType = new StringPlusAuthority
-        {
-            Value = propertyName
-        };
-
-        significantProperties.SignificantPropertiesValue.Add(metadataValue);
-    }
-
     private ContentLocationComplexType EnsureContentLocation(File file)
     {
         var thisStorage = file.Storage.FirstOrDefault(
@@ -240,7 +226,7 @@ public class PremisManager
         return contentLocation;
     }
 
-    private FormatComplexType EnsurePronomFormat(ObjectCharacteristicsComplexType objectCharacteristics)
+    private static FormatComplexType EnsurePronomFormat(ObjectCharacteristicsComplexType objectCharacteristics)
     {
         var pronomFormat = objectCharacteristics.Format.FirstOrDefault(
             f => f.FormatRegistry.FirstOrDefault(
@@ -254,7 +240,7 @@ public class PremisManager
         return pronomFormat;
     }
 
-    public string Serialise(PremisComplexType premis)
+    public static string Serialise(PremisComplexType premis)
     {
         var serializer = new XmlSerializer(typeof(PremisComplexType));
         var sw = new StringWriter();
@@ -262,7 +248,7 @@ public class PremisManager
         return sw.ToString();
     }
 
-    public XmlElement? GetXmlElement(PremisComplexType premis, bool fileElement)
+    public static XmlElement? GetXmlElement(PremisComplexType premis, bool fileElement)
     {
         var serializer = new XmlSerializer(typeof(PremisComplexType));
         var doc = new XmlDocument();
@@ -277,7 +263,7 @@ public class PremisManager
         return doc.DocumentElement;
     }
 
-    private XmlSerializerNamespaces GetXmlSerializerNameSpaces()
+    private static XmlSerializerNamespaces GetXmlSerializerNameSpaces()
     {
         var namespaces = new XmlSerializerNamespaces();
         namespaces.Add("premis", "http://www.loc.gov/premis/v3");

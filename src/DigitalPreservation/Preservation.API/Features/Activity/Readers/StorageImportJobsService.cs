@@ -4,7 +4,7 @@ public class StorageImportJobsService(
     IServiceScopeFactory serviceScopeFactory, 
     ILogger<StorageImportJobsService> logger) : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation($"Starting {nameof(StorageImportJobsService)}");
         
@@ -12,17 +12,17 @@ public class StorageImportJobsService(
         var delay = 0;
         try
         {
-            while (await timer.WaitForNextTickAsync(cancellationToken))
+            while (await timer.WaitForNextTickAsync(stoppingToken))
             {
                 if (delay > 0)
                 {
-                    logger.LogInformation("Skipping read of storage API, delay {delay} minutes", delay);
+                    logger.LogInformation("Skipping read of storage API, delay {Delay} minutes", delay);
                     delay--;
                     continue;
                 }
                 using var scope = serviceScopeFactory.CreateScope();
                 var processor = scope.ServiceProvider.GetRequiredService<StorageImportJobsProcessor>();
-                var result = await processor.ReadStream(cancellationToken);
+                var result = await processor.ReadStream(stoppingToken);
                 if (result.Success)
                 {
                     logger.LogInformation("Completed read of Storage API Import Jobs Activity Stream; waiting 1 minute...");
@@ -30,7 +30,7 @@ public class StorageImportJobsService(
                 }
                 else
                 {
-                    logger.LogError("FAILED read of Storage API Import Jobs Activity Stream, waiting 30 minutes: {message}", result.ErrorMessage);
+                    logger.LogError("FAILED read of Storage API Import Jobs Activity Stream, waiting 30 minutes: {Message}", result.ErrorMessage);
                     delay = 30;
                 }
             }

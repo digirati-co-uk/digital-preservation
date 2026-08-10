@@ -40,7 +40,6 @@ static class Program
             });
 
         var dlcs = new Dlcs.SimpleDlcs.Dlcs(
-            GetLogger<Dlcs.SimpleDlcs.Dlcs>(),
             dlcsOptions,
             GetHttpClient(dlcsOptions.Value.ApiEntryPoint!, dlcsUser, dlcsPassword));
 

@@ -20,20 +20,13 @@ public class SqsImportJobQueue(
     private string? queueName;
     private string? topicArn;
 
-    private async Task EnsureOptions()
+    private async Task EnsureOptions(CancellationToken cancellationToken)
     {
         if (queueUrl == null)
         {
             queueName = options.Value.ImportJobSqsQueueName;
-            try
-            {
-                var result = await sqsClient.GetQueueUrlAsync(queueName);
-                queueUrl = result.QueueUrl;
-            }
-            catch (Exception e)
-            {
-                logger.LogError(e, "Could not resolve queue name {queueName}", queueName);
-            }
+            var result = await sqsClient.GetQueueUrlAsync(queueName, cancellationToken);
+            queueUrl = result.QueueUrl;
         }
     }
     public async ValueTask QueueRequest(string jobIdentifier, CancellationToken cancellationToken)
@@ -49,35 +42,49 @@ public class SqsImportJobQueue(
 
     public async ValueTask<string> DequeueRequest(CancellationToken cancellationToken)
     {
-        await EnsureOptions();
         string jobIdentifier = string.Empty;
-        var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+        try
         {
-            QueueUrl = queueUrl,
-            WaitTimeSeconds = 10,
-            MaxNumberOfMessages = 1
-        }, cancellationToken);
-        var messageCount = response.Messages?.Count ?? 0;
-        if (messageCount > 0)
-        {
-            try
-            {
-                foreach (var message in response.Messages!)
-                {
-                    if (cancellationToken.IsCancellationRequested) return string.Empty;
-                    logger.LogDebug("Received SQS message {messageBody}", message.Body);
+            // WaitTimeSeconds below is an SQS-side long-poll duration, not a client-side timeout - if
+            // the underlying connection to SQS goes dead without erroring, these calls can hang
+            // indefinitely with no exception, silently wedging this single-threaded consumer loop
+            // forever (the failure class behind LPII-135, fixed the same way in SqsPipelineQueue).
+            // Bound the whole dequeue attempt so a hang degrades to a retried failure on the next
+            // loop iteration instead of a permanent stall.
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            var linkedToken = linkedCts.Token;
 
-                    jobIdentifier = GetJobId(message);
-                    if (jobIdentifier.HasText())
-                    {
-                        await DeleteMessage(message, cancellationToken);
-                    }
+            await EnsureOptions(linkedToken);
+
+            var response = await sqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+            {
+                QueueUrl = queueUrl,
+                WaitTimeSeconds = 10,
+                MaxNumberOfMessages = 1
+            }, linkedToken);
+
+            foreach (var message in response.Messages ?? [])
+            {
+                if (cancellationToken.IsCancellationRequested) return string.Empty;
+                logger.LogDebug("Received SQS message {MessageBody}", message.Body);
+
+                jobIdentifier = GetJobId(message);
+                if (jobIdentifier.HasText())
+                {
+                    // Deliberately not scoped to the 30s dequeue-attempt timeout above: cancelling a
+                    // delete mid-flight would leave the message undeleted, so it reappears after the
+                    // visibility timeout and the job runs a second time.
+                    await DeleteMessage(message, cancellationToken);
                 }
             }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error in listen loop for queue {Queue}", queueName);
-            }
+        }
+        catch (Exception ex)
+        {
+            // Also catches OperationCanceledException from the 30s bound; the consumer loop in
+            // ImportJobExecutorService has no catch of its own, so before this guard any receive
+            // error stopped the BackgroundService outright.
+            logger.LogError(ex, "Error in dequeue attempt for queue {Queue}", queueName);
         }
 
         return jobIdentifier;

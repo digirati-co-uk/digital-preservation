@@ -34,7 +34,13 @@ public class ModsTests
     public void Build_Premis_Get_XmlElement()
     {
         var mods = ModsManager.CreateRootMods("This is the name of the object");
-        ModsManager.GetXmlElement(mods);
+        var xmlElement = ModsManager.GetXmlElement(mods);
+
+        xmlElement.Should().NotBeNull();
+        xmlElement!.NamespaceURI.Should().Be("http://www.loc.gov/mods/v3");
+        xmlElement.OuterXml.Should().Contain("This is the name of the object");
+        mods.TitleInfo.Should().HaveCount(1);
+        mods.TitleInfo[0].Title[0].Value.Should().Be("This is the name of the object");
     }
     
     [Fact]
