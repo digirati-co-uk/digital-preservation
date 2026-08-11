@@ -90,6 +90,9 @@
       <None Update="Samples\goobi-mixed.xml">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+      <None Update="Samples\goobi-2026.xml">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
       <None Update="Samples\goobi-mixed-2.xml">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
