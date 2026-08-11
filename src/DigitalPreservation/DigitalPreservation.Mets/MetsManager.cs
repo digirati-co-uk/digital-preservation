@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Xml;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
@@ -174,6 +175,9 @@ public class MetsManager(
         if (metadataResult.Failure)
             return metadataResult;
 
+        // After ProcessAllFileMetadata, so the FILE/FLocat entry the cache mirrors exists
+        fullMets.PhysicalDivsByPath[localPath] = childItemDiv;
+
         SortChildDivs(parentDiv);
         return Result.Ok();
     }
@@ -201,6 +205,8 @@ public class MetsManager(
         };
         fullMets.Mets.AmdSec.Add(metadataManager.GetAmdSecType(premisFile, admId, techId));
         PopulateDmdFromResource(fullMets, workingDirectory, childDirectoryDiv);
+
+        fullMets.PhysicalDivsByPath[localPath] = childDirectoryDiv;
 
         SortChildDivs(parentDiv);
         return Result.Ok();
@@ -348,6 +354,7 @@ public class MetsManager(
         }
 
         parent!.Div.Remove(div);
+        fullMets.PhysicalDivsByPath.Remove(operationPath!);
 
         return Result.Ok();
     }
@@ -362,6 +369,9 @@ public class MetsManager(
 
     private static (DivType contextDiv, DivType? parent, int foundDepth, int totalDepth) LocateMetsDivByLocalPath(FullMets fullMets, string localPath)
     {
+        EnsureCache(fullMets);
+        AssertCacheConsistent(fullMets);
+
         var elements = localPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
         var div = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
@@ -376,10 +386,19 @@ public class MetsManager(
                 testPath += "/";
             }
             testPath += element;
-            // This is navigating using our ID convention for directories
-            // If we don't want to do this, we can use the premis:originalName for the directory
-            var childDiv = div.Div.SingleOrDefault(d => d.Id == $"{Constants.PhysIdPrefix}{testPath}");
-            if (childDiv is null)
+
+            // Navigate by path (premis:originalName / FLocat href, via the cache), not by
+            // reconstructing div IDs from the path - IDs are opaque (issue #188).
+            if (!fullMets.PhysicalDivsByPath.TryGetValue(testPath, out var childDiv))
+            {
+                break;
+            }
+
+            // Guard against a malformed source in which two unrelated divs resolve to the same
+            // path: only accept the cached div if it really is a child of the current div. The
+            // walk then breaks with foundDepth < totalDepth, producing the same "not all parts
+            // of the path have been added" error as a plain miss.
+            if (!div.Div.Contains(childDiv))
             {
                 break;
             }
@@ -390,6 +409,43 @@ public class MetsManager(
         }
 
         return (div, parent, counter, elements.Length);
+    }
+
+    /// <summary>
+    /// The cache is populated when a METS file is loaded from storage, but a FullMets can also
+    /// be constructed directly around an in-memory Mets; a non-empty physical structMap with an
+    /// empty cache means that population hasn't happened yet. (An empty cache is never valid
+    /// for a managed METS - the metadata/objects template directories are always present.)
+    /// </summary>
+    private static void EnsureCache(FullMets fullMets)
+    {
+        if (fullMets.PhysicalDivsByPath.Count == 0)
+        {
+            MetsCache.Populate(fullMets);
+        }
+    }
+
+    /// <summary>
+    /// Debug-build check that the maintained cache matches a fresh rebuild - catches any
+    /// mutation path that forgets to keep <see cref="FullMets.PhysicalDivsByPath"/> up to date.
+    /// </summary>
+    [Conditional("DEBUG")]
+    private static void AssertCacheConsistent(FullMets fullMets)
+    {
+        var rebuilt = new Dictionary<string, DivType>();
+        MetsCache.Build(fullMets.Mets, rebuilt);
+        var cache = fullMets.PhysicalDivsByPath;
+        var consistent = cache.Count == rebuilt.Count &&
+                         cache.All(kvp =>
+                             rebuilt.TryGetValue(kvp.Key, out var div) && ReferenceEquals(div, kvp.Value));
+        if (!consistent)
+        {
+            var maintained = string.Join(", ", cache.Keys.Order());
+            var expected = string.Join(", ", rebuilt.Keys.Order());
+            throw new InvalidOperationException(
+                $"PhysicalDivsByPath cache is stale. Maintained: [{maintained}]; rebuilt: [{expected}]. " +
+                "A mutation path is missing its cache update.");
+        }
     }
 
     private static DivType? LocateMetsDivByDivId(FullMets fullMets, string divId)
