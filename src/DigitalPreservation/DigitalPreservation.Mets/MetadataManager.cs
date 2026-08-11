@@ -33,7 +33,10 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
         if (!newUpload)
         {
-            ctx.AmdSec = fullMets.Mets.AmdSec.Single(a => a.Id == ctx.FileAdmId);
+            // GetMetadataXml resolves the file's amdSec from its ADMID tokens and sets
+            // ctx.AmdSec / ctx.FileAdmId from the resolved element - which handles legacy
+            // space-containing IDs, whose convention-derived form may not equal
+            // AdmIdPrefix + operationPath in a mixed-format METS.
             var resultGetMetadataXml = GetMetadataXml(ctx, fullMets, div, operationPath);
 
             if (resultGetMetadataXml.Failure)
@@ -192,11 +195,19 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
             return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
         }
 
-        // TODO: This is a quick fix to get round the problem of spaces in XML IDs.
-        // We need to not have any spaces in XML IDs, which means we need to escape them
-        // in a reversible way (replacing with _ won't do)
-        ctx.FileAdmId = string.Join(' ', ctx.File.Admid);
-        var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == ctx.FileAdmId);
+        // ADMID is IDREFS: legacy platform IDs containing spaces arrive split into several
+        // tokens, while a schema-valid METS may genuinely reference several amdSecs.
+        // IdRefs handles both; FileAdmId is then the RESOLVED amdSec's actual ID (identical
+        // to the rejoined tokens for legacy content), so IDs derived from it - the ClamAV
+        // digiprovMD ID - always embed a real amdSec ID.
+        var amdSec = IdRefs.ResolveSingle(ctx.File.Admid, id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id));
+        if (amdSec == null)
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"No amdSec found for ADMID '{IdRefs.Joined(ctx.File.Admid)}' of file {operationPath}");
+        }
+        ctx.FileAdmId = amdSec.Id;
+        ctx.AmdSec = amdSec;
         ctx.PremisIncExifXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault(); //TODO: this includes exif - separate this out
         ctx.VirusXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(Constants.VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault();
 

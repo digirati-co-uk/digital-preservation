@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Xml;
 using DigitalPreservation.Common.Model;
@@ -364,56 +363,48 @@ public class MetsManager(
             return Result.Fail(ErrorCodes.BadRequest, "Cannot delete a non-empty directory.");
         }
 
-        // Deletion is tolerant of dangling or absent references - a broken reference is
-        // exactly the kind of thing a delete may be cleaning up.
-        string? admId;
+        // Resolve everything BEFORE mutating anything, so a failed delete leaves the METS
+        // exactly as it was.
+        FileType? file = null;
+        MetsTypeFileSecFileGrp? fileGroup = null;
+        IReadOnlyList<string> admTokens;
         if (div is { Type: "Item" })
         {
-            var (file, fileGroup) = SetFileAndFileGroup(div, fullMets);
+            (file, fileGroup) = SetFileAndFileGroup(div, fullMets);
 
             if (MetsCache.NormalisePathKey(file.FLocat[0].Href) != operationPath)
             {
                 return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
             }
 
-            admId = JoinedIdOrNull(file.Admid);
-            fileGroup.File.Remove(file);
+            admTokens = file.Admid;
         }
         else
         {
-            admId = JoinedIdOrNull(div.Admid);
+            admTokens = div.Admid;
         }
 
-        RemoveById(fullMets.Mets.AmdSec, admId, a => a.Id);
-        RemoveById(fullMets.Mets.DmdSec, JoinedIdOrNull(div.Dmdid), d => d.Id);
+        // ADMID/DMDID are IDREFS token collections (see IdRefs). Deletion is tolerant of a
+        // section that doesn't resolve - a dangling reference is exactly the kind of breakage
+        // a delete may be cleaning up, and DMDID references dangle by design until metadata
+        // is first set (lazy dmdSec creation).
+        var amdSec = IdRefs.ResolveSingle(admTokens, id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id));
+        var dmdSec = IdRefs.ResolveSingle(div.Dmdid, id => fullMets.Mets.DmdSec.FirstOrDefault(d => d.Id == id));
+
+        fileGroup?.File.Remove(file!);
+        if (amdSec != null)
+        {
+            fullMets.Mets.AmdSec.Remove(amdSec);
+        }
+        if (dmdSec != null)
+        {
+            fullMets.Mets.DmdSec.Remove(dmdSec);
+        }
 
         parent!.Div.Remove(div);
         EvictFromPathCache(fullMets, div);
 
         return Result.Ok();
-    }
-
-    /// <summary>
-    /// Legacy IDs containing spaces arrive from the XmlSerializer split into IDREFS tokens;
-    /// rejoining reconstructs the single intended ID. Null when there is no reference at all.
-    /// </summary>
-    private static string? JoinedIdOrNull(Collection<string> tokens) =>
-        tokens.Count switch
-        {
-            0 => null,
-            1 => tokens[0],
-            _ => string.Join(" ", tokens)
-        };
-
-    private static void RemoveById<T>(ICollection<T> sections, string? id, Func<T, string?> idOf)
-        where T : class
-    {
-        if (id is null) return;
-        var match = sections.FirstOrDefault(s => idOf(s) == id);
-        if (match != null)
-        {
-            sections.Remove(match);
-        }
     }
 
     /// <summary>

@@ -122,7 +122,7 @@ public static class ModsManager
 
     public static ModsDefinition? GetModsForDmdId(DigitalPreservation.XmlGen.Mets.Mets mets, string dmdId, bool createDmd = false)
     {
-        var dmd = mets.DmdSec.SingleOrDefault(x => x.Id == dmdId);
+        var dmd = mets.DmdSec.FirstOrDefault(x => x.Id == dmdId);
         if (dmd == null && createDmd)
         {
             dmd = new MdSecType
@@ -168,14 +168,17 @@ public static class ModsManager
                 div.Dmdid.Add(Constants.DmdIdPrefix + div.Id);
             }
         }
-        var normalised = string.Join(' ', div.Dmdid);
-        return GetModsForDmdId(mets, normalised, createDmd);
+        // Resolve the DMDID tokens to the actual dmdSec where one exists; the id used for
+        // lazy creation is the joined legacy form only when no dmdSec resolves (see IdRefs).
+        var dmd = IdRefs.ResolveSingle(div.Dmdid, id => mets.DmdSec.FirstOrDefault(x => x.Id == id));
+        return GetModsForDmdId(mets, dmd?.Id ?? IdRefs.Joined(div.Dmdid), createDmd);
     }
 
     
     public static void SetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, ModsDefinition mods)
     {
-        var normalised = string.Join(' ', div.Dmdid);
+        var dmd = IdRefs.ResolveSingle(div.Dmdid, id => mets.DmdSec.FirstOrDefault(x => x.Id == id));
+        var normalised = dmd?.Id ?? IdRefs.Joined(div.Dmdid);
 
         // If clearing the last piece of metadata has left the MODS carrying nothing,
         // don't write an empty <mods/> shell wrapped in a redundant dmdSec — prune it.

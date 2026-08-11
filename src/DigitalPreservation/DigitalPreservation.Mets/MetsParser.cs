@@ -326,8 +326,10 @@ public class MetsParser(
                 var admId = div.Attribute("ADMID")?.Value;
                 if (admId.HasText())
                 {
-                    // Use pre-built dictionary for O(1) lookup instead of LINQ query
-                    if (lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
+                    // IDREFS-aware: whole value first (single or legacy space-containing ID),
+                    // then per-token (schema-valid multi-reference)
+                    var amd = IdRefs.ResolveSingle(admId, id => lookupMaps.AmdSecMap.GetValueOrDefault(id));
+                    if (amd != null)
                     {
                         var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
                         Uri? storageLocation = null;
@@ -419,13 +421,13 @@ public class MetsParser(
                 VirusScanMetadata? virusScanMetadata = null;
                 ExifMetadata? exifMetadata = null;
                 ExtentMetadata? extentMetadata = null;
+                XElement? techMd = null;
                 if (!haveUsedAdmIdAlready && admId != null)
                 {
-                    if (!lookupMaps.TechMdMap.TryGetValue(admId, out var techMd))
-                    {
-                        // Archivematica does it this way - fall back to amdSec map
-                        lookupMaps.AmdSecMap.TryGetValue(admId, out techMd);
-                    }
+                    // IDREFS-aware, preserving the techMD-then-amdSec fallback per candidate id
+                    // (Archivematica points ADMID at the amdSec rather than the techMD)
+                    techMd = IdRefs.ResolveSingle(admId, id =>
+                        lookupMaps.TechMdMap.GetValueOrDefault(id) ?? lookupMaps.AmdSecMap.GetValueOrDefault(id));
 
                     if (techMd == null)
                     {
@@ -496,9 +498,10 @@ public class MetsParser(
                     } // end else (techMd != null)
                 }
 
-                // Use pre-built dictionary for O(1) lookup instead of LINQ query
-                // The digiprovMD ID has the form "digiprovMD_ClamAV_{admId}"
-                var clamavKey = $"{Constants.VirusProvEventPrefix}{admId}";
+                // The digiprovMD ID has the form "digiprovMD_ClamAV_{admId}". Derive the key
+                // from the RESOLVED amdSec/techMD's actual ID where we have one - for a
+                // genuine multi-token ADMID the raw attribute value is not an ID at all.
+                var clamavKey = $"{Constants.VirusProvEventPrefix}{techMd?.Attribute("ID")?.Value ?? admId}";
                 if (!lookupMaps.DigiprovMdMap.TryGetValue(clamavKey, out var digiprovMd))
                 {
                     // Fall back to a case-insensitive but EXACT match. A substring match here
@@ -557,9 +560,12 @@ public class MetsParser(
                 }
                 
                 
-                if (admId != null && lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
+                var exifAmd = admId == null
+                    ? null
+                    : IdRefs.ResolveSingle(admId, id => lookupMaps.AmdSecMap.GetValueOrDefault(id));
+                if (exifAmd != null)
                 {
-                    var exifMetadataNode = amd.Descendants("ExifMetadata").SingleOrDefault();
+                    var exifMetadataNode = exifAmd.Descendants("ExifMetadata").SingleOrDefault();
                
                     if (exifMetadataNode != null)
                     {
@@ -711,7 +717,8 @@ public class MetsParser(
 
         var dmdId = div.Attribute("DMDID")?.Value;
         if (!dmdId.HasText()) return (null, null, null, false);
-        if (!lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd)) return (null, null, null, false);
+        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
+        if (dmd == null) return (null, null, null, false);
 
         foreach (var accessConditionEl in dmd.Descendants(XNames.ModsAccessCondition))
         {
@@ -1090,8 +1097,8 @@ public class MetsParser(
     {
         var dmdId = div.Attribute("DMDID")?.Value;
         if (!dmdId.HasText()) return null;
-        if (!lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd)) return null;
-        return dmd.Descendants(XNames.ModsTitle).FirstOrDefault()?.Value;
+        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
+        return dmd?.Descendants(XNames.ModsTitle).FirstOrDefault()?.Value;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
