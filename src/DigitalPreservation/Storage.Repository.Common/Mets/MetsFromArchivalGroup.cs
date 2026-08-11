@@ -35,9 +35,7 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
         // navigability check as MetsManager mutations: a structMap this class builds that
         // cannot be resolved by path is a bug, caught in debug builds and tests.
         var pathDiagnostics = MetsCache.Populate(fullMets);
-        System.Diagnostics.Debug.Assert(pathDiagnostics.Count == 0,
-            "MetsFromArchivalGroup produced a structMap that is not fully navigable by path: "
-            + string.Join("; ", pathDiagnostics));
+        AssertNavigable(pathDiagnostics);
 
         var writeResult = await metsManager.WriteMets(fullMets);
         if (writeResult.Success)
@@ -47,6 +45,22 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
         return Result.FailNotNull<MetsFileWrapper>(writeResult.ErrorCode!, writeResult.ErrorMessage);
     }
     
+    /// <summary>
+    /// Debug-build check (explicit throw rather than Debug.Assert, which can take down the
+    /// whole test process in .NET test hosts) that the structMap this class built is fully
+    /// navigable by path.
+    /// </summary>
+    [System.Diagnostics.Conditional("DEBUG")]
+    private static void AssertNavigable(List<string> pathDiagnostics)
+    {
+        if (pathDiagnostics.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "MetsFromArchivalGroup produced a structMap that is not fully navigable by path: "
+                + string.Join("; ", pathDiagnostics));
+        }
+    }
+
     /// <summary>
     /// This builds up the METS file from repository resources, not working files
     /// </summary>

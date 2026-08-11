@@ -541,12 +541,16 @@ public class MetsManager(
 
     private static DivType? LocateMetsDivByDivId(FullMets fullMets, string divId)
     {
-        // look in the physical structMap first, there should be only one
-        var physDiv = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
-        var foundInPhysical = FindDiv(physDiv, divId);
-        if (foundInPhysical != null)
+        // Look in the physical structMap first (should be only one; tolerate zero or many
+        // in a malformed METS - same policy as LocateMetsDivByLocalPath and MetsCache)
+        var physDiv = fullMets.Mets.StructMap.FirstOrDefault(sm => sm.Type == Constants.Physical)?.Div;
+        if (physDiv != null)
         {
-            return foundInPhysical;
+            var foundInPhysical = FindDiv(physDiv, divId);
+            if (foundInPhysical != null)
+            {
+                return foundInPhysical;
+            }
         }
 
         foreach (var smType in fullMets.Mets.StructMap.Where(sm => sm.Type != Constants.Physical))
