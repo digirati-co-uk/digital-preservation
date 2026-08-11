@@ -1,5 +1,11 @@
 # Issue #188 companion: safe IDREFS resolution (the `string.Join(' ', …)` problem)
 
+> **Status (2026-08-11):** IMPLEMENTED on `feat/188-idrefs-resolution` (stacked on PR #211;
+> its PR opens once #211 merges). One deviation from §"Sequencing and tests" below: DeleteDiv
+> is *tolerant* of unresolvable amdSec/dmdSec references rather than failing cleanly —
+> deletion is how broken content gets cleaned up, and this also fixes a latent crash on
+> by-design dangling DMDIDs (lazy dmdSec creation).
+
 > 2026-08-11. Companion to `issue-188-plan.md` (v2). Analysed against
 > `feat/188-physical-divs-cache` (PR #211), which this work should follow.
 

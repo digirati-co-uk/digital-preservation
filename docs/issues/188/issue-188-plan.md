@@ -1,5 +1,13 @@
 # Issue #188 — METS XML ID Fix: Sequenced Implementation Plan (v2)
 
+> **Status (2026-08-11):** Step 1 is IMPLEMENTED — PR #211 (`feat/188-physical-divs-cache`),
+> with two design deltas noted in commit messages: lazy cache population replaced the
+> GetEmptyMets bootstrap, and navigation gained a three-tier fallback (cache → per-child
+> metadata resolution → legacy ID convention). The IDREFS companion
+> (`issue-188-idrefs-plan.md`) is also implemented, on `feat/188-idrefs-resolution`, stacked
+> on #211. Step 2 is not started. `chore/sonar-cleanup-main` has since merged; "the mainline"
+> below now simply means `main`.
+
 > v2, 2026-08-10. Revised against `chore/sonar-cleanup-main` after full re-verification of every
 > code claim — see `issue-188-reassessment.md` for what changed and why the approach stands.
 > v1 (Claude Opus 4.7, based on `issue-188-analysis.md` and `issue-188-opus-review.md`) is in
