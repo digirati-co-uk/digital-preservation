@@ -391,23 +391,31 @@ public class MetsManager(
         }
 
         parent!.Div.Remove(div);
-
-        // Only evict the cache entry if it is actually THIS div's - when the deleted div was
-        // reached via a fallback tier (its own path metadata being broken), the key may map to
-        // a different div that legitimately owns the path.
-        if (fullMets.PhysicalDivsByPath.TryGetValue(operationPath!, out var cachedDiv) &&
-            ReferenceEquals(cachedDiv, div))
-        {
-            fullMets.PhysicalDivsByPath.Remove(operationPath!);
-            if (fullMets.PathDiagnostics.Count > 0)
-            {
-                // A malformed doc may contain another div that claimed the same path (see the
-                // duplicate-path diagnostics) - rebuild so the cache reflects post-delete reality.
-                MetsCache.Populate(fullMets);
-            }
-        }
+        EvictFromPathCache(fullMets, div, operationPath!);
 
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// Only evict the cache entry if it is actually the deleted div's - when the deleted div
+    /// was reached via a fallback tier (its own path metadata being broken), the key may map
+    /// to a different div that legitimately owns the path.
+    /// </summary>
+    private static void EvictFromPathCache(FullMets fullMets, DivType div, string operationPath)
+    {
+        if (!fullMets.PhysicalDivsByPath.TryGetValue(operationPath, out var cachedDiv) ||
+            !ReferenceEquals(cachedDiv, div))
+        {
+            return;
+        }
+
+        fullMets.PhysicalDivsByPath.Remove(operationPath);
+        if (fullMets.PathDiagnostics.Count > 0)
+        {
+            // A malformed doc may contain another div that claimed the same path (see the
+            // duplicate-path diagnostics) - rebuild so the cache reflects post-delete reality.
+            MetsCache.Populate(fullMets);
+        }
     }
 
     private static (FileType file, MetsTypeFileSecFileGrp fileGroup) SetFileAndFileGroup(DivType div, FullMets fullMets)
