@@ -23,12 +23,15 @@ public static class MetsCache
     /// list means the whole physical structMap is navigable by path. The diagnostics are also
     /// stored on <see cref="FullMets.PathDiagnostics"/> so later failures can explain themselves.
     /// </summary>
+    internal const string DuplicatePathFragment = "both resolve to path";
+
     public static List<string> Populate(FullMets fullMets)
     {
         fullMets.PhysicalDivsByPath.Clear();
         var diagnostics = Build(fullMets.Mets, fullMets.PhysicalDivsByPath);
         fullMets.PathDiagnostics.Clear();
         fullMets.PathDiagnostics.AddRange(diagnostics);
+        fullMets.HasDuplicatePaths = diagnostics.Any(d => d.Contains(DuplicatePathFragment));
         return diagnostics;
     }
 
@@ -79,7 +82,7 @@ public static class MetsCache
             if (key != null && !cache.TryAdd(key, child))
             {
                 diagnostics.Add(
-                    $"Divs '{cache[key].Id}' and '{child.Id}' both resolve to path '{key}'");
+                    $"Divs '{cache[key].Id}' and '{child.Id}' {DuplicatePathFragment} '{key}'");
             }
 
             Walk(child, mets, cache, diagnostics);

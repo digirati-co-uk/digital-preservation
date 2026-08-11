@@ -24,4 +24,11 @@ public class FullMets
     /// conformance check.
     /// </summary>
     public List<string> PathDiagnostics { get; } = new();
+
+    /// <summary>
+    /// True when the last <see cref="MetsCache.Populate"/> found two divs resolving to the
+    /// same path - the specific malformation that requires a cache rebuild after deleting a
+    /// path-owning div.
+    /// </summary>
+    public bool HasDuplicatePaths { get; internal set; }
 }

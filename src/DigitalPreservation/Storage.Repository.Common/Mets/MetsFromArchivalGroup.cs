@@ -73,16 +73,16 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
         var agLocalPath = archivalGroupUri.LocalPath;
         foreach (var childContainer in container.Containers)
         {
-            DivType? childDirectoryDiv = null;
-            if (container is ArchivalGroup && childContainer.GetSlug() == FolderNames.Objects)
-            {
-                // The objects div should already exist from our template
-                childDirectoryDiv = mets.StructMap[0].Div.Div.Single(d => d.Id == Constants.ObjectsDivId);
-            }
+            var localPath = childContainer.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
+
+            // The template already contains divs (and amdSecs) for objects/, metadata/ and
+            // metadata/ad-hoc/ - reuse any div the parent already has for this path rather
+            // than adding a duplicate div and duplicate-ID amdSec (which previously happened
+            // for any Archival Group with a preserved metadata/ folder).
+            var childDirectoryDiv = div.Div.FirstOrDefault(d => d.Id == $"{Constants.PhysIdPrefix}{localPath}");
 
             if (childDirectoryDiv == null)
             {
-                var localPath = childContainer.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
                 var admId = Constants.AdmIdPrefix + localPath;
                 var techId = Constants.TechIdPrefix + localPath;
                 childDirectoryDiv = new DivType

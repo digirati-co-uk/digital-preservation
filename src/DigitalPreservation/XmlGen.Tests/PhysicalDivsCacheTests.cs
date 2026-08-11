@@ -367,9 +367,10 @@ public class PhysicalDivsCacheTests
 
         var result = metsManager.SetAccessRestrictionsByPath(fullMets, "objects/missing/file.txt", ["Closed"]);
 
-        // The caller is TOLD nothing was written (not a silent no-op reporting success)...
+        // The caller is TOLD nothing was written (not a silent no-op reporting success),
+        // with the same error code EditMets uses for the same condition...
         result.Failure.Should().BeTrue();
-        result.ErrorCode.Should().Be(ErrorCodes.NotFound);
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
         // ...and no dmdSec was created for (and no accessCondition written to) any ancestor div
         fullMets.Mets.DmdSec.Count.Should().Be(dmdSecCountBefore);
     }
@@ -386,6 +387,137 @@ public class PhysicalDivsCacheTests
 
         addFile.Failure.Should().BeTrue();
         addFile.ErrorMessage.Should().Contain("no PHYSICAL structMap");
+    }
+
+    [Fact]
+    public async Task Two_Siblings_Resolving_The_Same_Path_Make_Edits_Of_That_Path_Fail()
+    {
+        var uri = OutputUri("cache-sibling-duplicate-path.xml");
+        var (_, mets) = await metsManager.GetStandardMets(uri, "Sibling Duplicate METS");
+
+        // Two SIBLING divs under objects/, both resolving the SAME path objects/twin (their
+        // ADMIDs point at one amdSec) - editing that path is ambiguous and must fail rather
+        // than guess either div (even though one of them carries the conventional ID).
+        var physRoot = mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        var admId = $"{Constants.AdmIdPrefix}objects/twin";
+        mets.AmdSec.Add(new AmdSecType
+        {
+            Id = admId,
+            TechMd =
+            {
+                mets.AmdSec.Single(a => a.Id == $"{Constants.AdmIdPrefix}{FolderNames.Objects}").TechMd[0]
+            }
+        });
+        GetPremisOriginalNameElement(mets, FolderNames.Objects).InnerText = "objects/twin";
+        objectsDiv.Admid.Clear(); // objects div loses its (now-repointed) metadata; it keeps its conventional ID
+        objectsDiv.Div.Add(new DivType { Id = "PHYS_objects/twin", Type = Constants.DirectoryType, Label = "twin a", Admid = { admId } });
+        objectsDiv.Div.Add(new DivType { Id = "PHYS_twin_b", Type = Constants.DirectoryType, Label = "twin b", Admid = { admId } });
+
+        var fullMets = new FullMets { Mets = mets, Uri = uri };
+        MetsCache.Populate(fullMets).Should().Contain(d => d.Contains("both resolve to path"));
+
+        var setResult = metsManager.SetAccessRestrictionsByPath(fullMets, "objects/twin", ["Closed"]);
+
+        setResult.Failure.Should().BeTrue();
+        setResult.ErrorMessage.Should().Contain("not all parts of the path");
+    }
+
+    [Fact]
+    public async Task Setting_Metadata_On_A_Div_Whose_DmdSec_Is_Not_Mods_Fails()
+    {
+        var fullMets = await CreateAndLoadStandardMets("cache-non-mods-dmd.xml");
+
+        // Give the objects div a dmdSec that cannot be materialised as MODS
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        fullMets.Mets.DmdSec.Add(new MdSecType
+        {
+            Id = objectsDiv.Dmdid[0],
+            MdWrap = new MdSecTypeMdWrap
+            {
+                Mdtype = MdSecTypeMdWrapMdtype.Other,
+                XmlData = new MdSecTypeMdWrapXmlData()
+            }
+        });
+
+        var setResult = metsManager.SetAccessRestrictionsByPath(fullMets, FolderNames.Objects, ["Closed"]);
+
+        // The write did not happen and the caller is told so
+        setResult.Failure.Should().BeTrue();
+        setResult.ErrorMessage.Should().Contain("could not be read or created as MODS");
+    }
+
+    [Fact]
+    public async Task Deleting_A_Directory_With_No_Admid_Fails_Cleanly_Or_Succeeds_But_Never_Throws()
+    {
+        var fullMets = await CreateAndLoadStandardMets("cache-delete-no-admid.xml");
+
+        // A directory div with NO ADMID at all (broken path metadata) - reachable only via
+        // the legacy-ID fallback tier; deletion must not throw on the empty Admid collection
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        objectsDiv.Div.Add(new DivType { Id = "PHYS_objects/ghost", Type = Constants.DirectoryType, Label = "ghost" });
+        MetsCache.Populate(fullMets);
+
+        var deleteResult = metsManager.DeleteFromMets(fullMets, "objects/ghost");
+
+        deleteResult.Success.Should().BeTrue(deleteResult.ErrorMessage ?? "");
+        objectsDiv.Div.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Deleting_A_Div_Cached_Under_A_Different_Path_Leaves_No_Dangling_Entry()
+    {
+        var fullMets = await CreateAndLoadStandardMets("cache-delete-mismatched-key.xml");
+
+        // A div whose conventional ID says objects/dir but whose metadata resolves a
+        // DIFFERENT path - the cache holds it under the metadata-resolved key
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        var addDir = metsManager.AddToMets(fullMets, SimpleDirectory("objects/other", "other"));
+        addDir.Success.Should().BeTrue();
+        var mismatched = fullMets.PhysicalDivsByPath["objects/other"];
+        mismatched.Id = "PHYS_objects/dir";
+        MetsCache.Populate(fullMets);
+
+        // Deleted via the legacy-ID tier under objects/dir; its cache entry lives at objects/other
+        var deleteResult = metsManager.DeleteFromMets(fullMets, "objects/dir");
+
+        deleteResult.Success.Should().BeTrue(deleteResult.ErrorMessage ?? "");
+        fullMets.PhysicalDivsByPath.Should().NotContainKey("objects/other");
+        objectsDiv.Div.Should().BeEmpty();
+
+        // And the next mutation on the same FullMets must not trip the consistency assertion
+        var addFile = metsManager.AddToMets(fullMets, SimpleFile("objects/after.pdf", "after.pdf"));
+        addFile.Success.Should().BeTrue(addFile.ErrorMessage ?? "");
+    }
+
+    [Fact]
+    public async Task Setting_Metadata_By_DivId_Tolerates_An_Empty_Logical_StructMap()
+    {
+        var fullMets = await CreateAndLoadStandardMets("cache-empty-logical-sm.xml");
+        fullMets.Mets.StructMap.Add(new StructMapType { Type = Constants.Logical });
+
+        var setResult = metsManager.SetAccessRestrictionsByDivId(fullMets, "LOG_does_not_exist", ["Closed"]);
+
+        setResult.Failure.Should().BeTrue();
+        setResult.ErrorCode.Should().Be(ErrorCodes.NotFound);
+    }
+
+    [Fact]
+    public async Task Divs_In_A_Second_Physical_StructMap_Are_Reachable_By_DivId()
+    {
+        var fullMets = await CreateAndLoadStandardMets("cache-second-physical-byid.xml");
+        fullMets.Mets.StructMap.Add(new StructMapType
+        {
+            Type = Constants.Physical,
+            Div = new DivType { Id = "PHYS_SECOND_ROOT", Label = "second", Type = Constants.DirectoryType }
+        });
+
+        var setResult = metsManager.SetAccessRestrictionsByDivId(fullMets, "PHYS_SECOND_ROOT", ["Closed"]);
+
+        setResult.Success.Should().BeTrue(setResult.ErrorMessage ?? "");
     }
 
     [Fact]
