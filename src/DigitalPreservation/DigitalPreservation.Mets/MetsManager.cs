@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Xml;
 using DigitalPreservation.Common.Model;
@@ -396,7 +397,7 @@ public class MetsManager(
     /// Legacy IDs containing spaces arrive from the XmlSerializer split into IDREFS tokens;
     /// rejoining reconstructs the single intended ID. Null when there is no reference at all.
     /// </summary>
-    private static string? JoinedIdOrNull(IList<string> tokens) =>
+    private static string? JoinedIdOrNull(Collection<string> tokens) =>
         tokens.Count switch
         {
             0 => null,
@@ -586,14 +587,15 @@ public class MetsManager(
         // Search PHYSICAL structMaps first (there should be one, but a malformed METS may
         // have zero or several - all are searched), then the rest. A structMap element with
         // no root div is skipped rather than dereferenced.
-        foreach (var structMap in fullMets.Mets.StructMap
-                     .OrderByDescending(sm => sm.Type == Constants.Physical))
+        foreach (var rootDiv in fullMets.Mets.StructMap
+                     .OrderByDescending(sm => sm.Type == Constants.Physical)
+                     .Select(structMap => structMap.Div))
         {
-            if (structMap.Div is null)
+            if (rootDiv is null)
             {
                 continue;
             }
-            var found = FindDiv(structMap.Div, divId);
+            var found = FindDiv(rootDiv, divId);
             if (found != null)
             {
                 return found;

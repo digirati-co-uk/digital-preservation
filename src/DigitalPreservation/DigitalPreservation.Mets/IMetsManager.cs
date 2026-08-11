@@ -32,9 +32,9 @@ public interface IMetsManager
     // SetAccessRestrictionsByDivId(mets, "PHYS_objects/child-folder", ["Closed"])  // equiv to first one
     // Each returns a failure when the write did NOT happen, and the caller must not report
     // success (silently writing to an ancestor div, or silently doing nothing, are both
-    // worse than failing). ByPath methods return BadRequest for an unresolvable path (same
-    // condition and code as EditMets); ByDivId methods return NotFound for an unknown divId;
-    // both return BadRequest when the div's descriptive metadata cannot be edited as MODS.
+    // worse than failing). ByPath methods return BadRequest for an unresolvable path (the
+    // same condition and code as EditMets). ByDivId methods return NotFound for an unknown
+    // divId. Both return BadRequest when the descriptive metadata cannot be edited as MODS.
     Result SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo);
     Result SetRecordInfoByDivId(FullMets mets, string divId, RecordInfo recordInfo);
     Result SetRightsStatementByPath(FullMets mets, string localPath, Uri? rightsStatement);
