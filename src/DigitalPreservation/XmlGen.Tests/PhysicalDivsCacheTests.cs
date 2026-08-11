@@ -1,3 +1,4 @@
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
@@ -359,15 +360,52 @@ public class PhysicalDivsCacheTests
     }
 
     [Fact]
-    public async Task Setting_Metadata_By_An_Unresolvable_Path_Does_Not_Write_To_An_Ancestor()
+    public async Task Setting_Metadata_By_An_Unresolvable_Path_Fails_And_Does_Not_Write_To_An_Ancestor()
     {
         var fullMets = await CreateAndLoadStandardMets("cache-setbypath-miss.xml");
         var dmdSecCountBefore = fullMets.Mets.DmdSec.Count;
 
-        metsManager.SetAccessRestrictionsByPath(fullMets, "objects/missing/file.txt", ["Closed"]);
+        var result = metsManager.SetAccessRestrictionsByPath(fullMets, "objects/missing/file.txt", ["Closed"]);
 
-        // No dmdSec was created for (and no accessCondition written to) any ancestor div
+        // The caller is TOLD nothing was written (not a silent no-op reporting success)...
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be(ErrorCodes.NotFound);
+        // ...and no dmdSec was created for (and no accessCondition written to) any ancestor div
         fullMets.Mets.DmdSec.Count.Should().Be(dmdSecCountBefore);
+    }
+
+    [Fact]
+    public async Task Editing_A_Mets_With_No_Physical_StructMap_Fails_Cleanly()
+    {
+        var uri = OutputUri("cache-no-physical.xml");
+        var (_, mets) = await metsManager.GetStandardMets(uri, "No Physical METS");
+        mets.StructMap.Clear();
+
+        var fullMets = new FullMets { Mets = mets, Uri = uri };
+        var addFile = metsManager.AddToMets(fullMets, SimpleFile("objects/f.txt", "f.txt"));
+
+        addFile.Failure.Should().BeTrue();
+        addFile.ErrorMessage.Should().Contain("no PHYSICAL structMap");
+    }
+
+    [Fact]
+    public async Task Two_Children_Sharing_A_Conventional_Id_Fail_Cleanly_Instead_Of_Guessing()
+    {
+        var uri = OutputUri("cache-duplicate-legacy-id.xml");
+        var (_, mets) = await metsManager.GetStandardMets(uri, "Duplicate Legacy Id METS");
+
+        // Two sibling divs, both with broken path metadata (no ADMID), sharing the same
+        // conventional PHYS_+path ID - corrupted METS. Guessing one would edit the wrong div.
+        var physRoot = mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        objectsDiv.Div.Add(new DivType { Id = "PHYS_objects/twin", Type = Constants.DirectoryType, Label = "twin one" });
+        objectsDiv.Div.Add(new DivType { Id = "PHYS_objects/twin", Type = Constants.DirectoryType, Label = "twin two" });
+
+        var fullMets = new FullMets { Mets = mets, Uri = uri };
+        var addFile = metsManager.AddToMets(fullMets, SimpleFile("objects/twin/f.txt", "f.txt"));
+
+        addFile.Failure.Should().BeTrue();
+        addFile.ErrorMessage.Should().Contain("not all parts of the path");
     }
 
     [Fact]

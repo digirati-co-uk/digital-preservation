@@ -42,12 +42,17 @@ public class SetModsInformationHandler(IMetsManager metsManager) : IRequestHandl
         if (metsResult is { Success: true, Value: not null })
         {
             var fullMets = metsResult.Value;
-            metsManager.SetAccessRestrictionsByPath(fullMets, request.LocalPath, request.AccessRestrictions);
-            if (request.SuppressRightsInheritance)
-                metsManager.SuppressRightsInheritanceByPath(fullMets, request.LocalPath);
-            else
-                metsManager.SetRightsStatementByPath(fullMets, request.LocalPath, request.RightsStatement);
-            metsManager.SetRecordInfoByPath(fullMets, request.LocalPath, request.RecordInfo);
+            var setResult = metsManager.SetAccessRestrictionsByPath(fullMets, request.LocalPath, request.AccessRestrictions);
+            if (setResult.Failure) return setResult;
+
+            setResult = request.SuppressRightsInheritance
+                ? metsManager.SuppressRightsInheritanceByPath(fullMets, request.LocalPath)
+                : metsManager.SetRightsStatementByPath(fullMets, request.LocalPath, request.RightsStatement);
+            if (setResult.Failure) return setResult;
+
+            setResult = metsManager.SetRecordInfoByPath(fullMets, request.LocalPath, request.RecordInfo);
+            if (setResult.Failure) return setResult;
+
             if (request.FileLinks != null)
                 metsManager.SetFileLinks(fullMets, request.LocalPath, request.FileLinks);
             var writeMetsResult = await metsManager.WriteMets(fullMets);

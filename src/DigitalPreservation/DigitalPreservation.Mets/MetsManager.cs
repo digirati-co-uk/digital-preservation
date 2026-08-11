@@ -105,6 +105,12 @@ public class MetsManager(
         var localPath = MetsCache.NormalisePathKey(workingBase?.LocalPath ?? deletePath) ?? string.Empty;
         var (contextDiv, parent, foundDepth, totalDepth) = LocateMetsDivByLocalPath(fullMets, localPath);
 
+        if (foundDepth < 0)
+        {
+            // No usable PHYSICAL structMap at all - nothing can be edited
+            return Result.Fail(ErrorCodes.BadRequest, DescribePathFailure(fullMets, localPath));
+        }
+
         if (foundDepth == totalDepth)
         {
             if (deletePath is not null)
@@ -129,12 +135,17 @@ public class MetsManager(
             return Result.Fail(ErrorCodes.BadRequest, "No working directory or working file supplied to add.");
         }
 
+        return Result.Fail(ErrorCodes.BadRequest, DescribePathFailure(fullMets, localPath));
+    }
+
+    private static string DescribePathFailure(FullMets fullMets, string localPath)
+    {
         var message = $"Could not edit METS because not all parts of the path '{localPath}' have been added to METS.";
         if (fullMets.PathDiagnostics.Count > 0)
         {
             message += " METS path diagnostics: " + string.Join("; ", fullMets.PathDiagnostics);
         }
-        return Result.Fail(ErrorCodes.BadRequest, message);
+        return message;
     }
 
     private Result UpdateExistingFile(DivType contextDiv, FullMets fullMets, WorkingFile workingFile, string localPath)
@@ -217,7 +228,6 @@ public class MetsManager(
             Id = physId,
             Admid = { admId }
         };
-        parentDiv.Div.Add(childDirectoryDiv);
 
         var premisFile = new FileFormatMetadata
         {
@@ -225,9 +235,14 @@ public class MetsManager(
             OriginalName = localPath,
             StorageLocation = null
         };
-        fullMets.Mets.AmdSec.Add(metadataManager.GetAmdSecType(premisFile, admId, techId));
+        var amdSec = metadataManager.GetAmdSecType(premisFile, admId, techId);
         PopulateDmdFromResource(fullMets, workingDirectory, childDirectoryDiv);
 
+        // Attach div, amdSec and cache entry together, after anything that could throw,
+        // so a failure cannot leave the tree and the cache out of step (same principle
+        // as AddNewFile).
+        parentDiv.Div.Add(childDirectoryDiv);
+        fullMets.Mets.AmdSec.Add(amdSec);
         fullMets.PhysicalDivsByPath[localPath] = childDirectoryDiv;
 
         SortChildDivs(parentDiv);
@@ -376,7 +391,21 @@ public class MetsManager(
         }
 
         parent!.Div.Remove(div);
-        fullMets.PhysicalDivsByPath.Remove(operationPath!);
+
+        // Only evict the cache entry if it is actually THIS div's - when the deleted div was
+        // reached via a fallback tier (its own path metadata being broken), the key may map to
+        // a different div that legitimately owns the path.
+        if (fullMets.PhysicalDivsByPath.TryGetValue(operationPath!, out var cachedDiv) &&
+            ReferenceEquals(cachedDiv, div))
+        {
+            fullMets.PhysicalDivsByPath.Remove(operationPath!);
+            if (fullMets.PathDiagnostics.Count > 0)
+            {
+                // A malformed doc may contain another div that claimed the same path (see the
+                // duplicate-path diagnostics) - rebuild so the cache reflects post-delete reality.
+                MetsCache.Populate(fullMets);
+            }
+        }
 
         return Result.Ok();
     }
@@ -397,7 +426,15 @@ public class MetsManager(
         localPath = MetsCache.NormalisePathKey(localPath) ?? string.Empty;
         var elements = localPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        var div = fullMets.Mets.StructMap.First(sm => sm.Type == Constants.Physical).Div!;
+        // A malformed METS may have no usable PHYSICAL structMap (MetsCache.Populate will have
+        // recorded a diagnostic); signal that with foundDepth -1 rather than throwing.
+        var physRoot = fullMets.Mets.StructMap.FirstOrDefault(sm => sm.Type == Constants.Physical)?.Div;
+        if (physRoot == null)
+        {
+            return (new DivType(), null, -1, elements.Length);
+        }
+
+        var div = physRoot;
         DivType? parent = null;
         var testPath = string.Empty;
         var counter = 0;
@@ -443,8 +480,26 @@ public class MetsManager(
     /// </summary>
     private static DivType? FindChildDivByPath(DivType parent, string testPath, DigitalPreservation.XmlGen.Mets.Mets mets)
     {
-        var byMetadata = parent.Div.FirstOrDefault(d => MetsCache.TryResolvePath(d, mets) == testPath);
-        return byMetadata ?? parent.Div.FirstOrDefault(d => d.Id == $"{Constants.PhysIdPrefix}{testPath}");
+        // In each tier the match must be UNIQUE among the parent's children - if two children
+        // claim the same path or the same conventional ID (corrupted METS), guessing one would
+        // silently edit the wrong div; returning null instead surfaces the standard
+        // incomplete-path error with the load-time diagnostics attached.
+        var byMetadata = UniqueOrNull(parent.Div.Where(d => MetsCache.TryResolvePath(d, mets) == testPath));
+        return byMetadata ?? UniqueOrNull(parent.Div.Where(d => d.Id == $"{Constants.PhysIdPrefix}{testPath}"));
+    }
+
+    private static DivType? UniqueOrNull(IEnumerable<DivType> divs)
+    {
+        DivType? found = null;
+        foreach (var div in divs)
+        {
+            if (found != null)
+            {
+                return null;
+            }
+            found = div;
+        }
+        return found;
     }
 
     /// <summary>
@@ -556,18 +611,23 @@ public class MetsManager(
         }
     }
 
-    public void SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo)
+    public Result SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo)
     {
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
         // A partial walk means div is an ANCESTOR of the requested path - never write to it
-        if (foundDepth != totalDepth) return;
+        if (foundDepth != totalDepth)
+            return Result.Fail(ErrorCodes.NotFound, DescribePathFailure(mets, localPath));
         SetRecordInfoForDiv(mets, div, recordInfo);
+        return Result.Ok();
     }
 
-    public void SetRecordInfoByDivId(FullMets mets, string divId, RecordInfo recordInfo)
+    public Result SetRecordInfoByDivId(FullMets mets, string divId, RecordInfo recordInfo)
     {
-        var div = LocateMetsDivByDivId(mets, divId)!;
+        var div = LocateMetsDivByDivId(mets, divId);
+        if (div is null)
+            return Result.Fail(ErrorCodes.NotFound, $"No div with ID '{divId}' in METS");
         SetRecordInfoForDiv(mets, div, recordInfo);
+        return Result.Ok();
     }
 
     private static void SetRecordInfoForDiv(FullMets mets, DivType div, RecordInfo recordInfo)
@@ -579,34 +639,44 @@ public class MetsManager(
         ModsManager.SetModsForDiv(mets.Mets, div, mods);
     }
 
-    public void SetRightsStatementByPath(FullMets mets, string localPath, Uri? rightsStatement)
+    public Result SetRightsStatementByPath(FullMets mets, string localPath, Uri? rightsStatement)
     {
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
-        if (foundDepth != totalDepth) return;
+        if (foundDepth != totalDepth)
+            return Result.Fail(ErrorCodes.NotFound, DescribePathFailure(mets, localPath));
         SetRightsStatementForDiv(mets, div, rightsStatement);
+        return Result.Ok();
     }
 
-    public void SetRightsStatementByDivId(FullMets mets, string divId, Uri? rightsStatement)
+    public Result SetRightsStatementByDivId(FullMets mets, string divId, Uri? rightsStatement)
     {
-        var div = LocateMetsDivByDivId(mets, divId)!;
+        var div = LocateMetsDivByDivId(mets, divId);
+        if (div is null)
+            return Result.Fail(ErrorCodes.NotFound, $"No div with ID '{divId}' in METS");
         SetRightsStatementForDiv(mets, div, rightsStatement);
+        return Result.Ok();
     }
 
     // Writes a UseAndReproduction element with a non-URI sentinel value so that the
     // parser sees an explicit rights decision and suppresses inheritance, without
     // asserting any particular rights URI. Distinct from SetRightsStatementByPath(null),
     // which removes the element and allows parent rights to flow through.
-    public void SuppressRightsInheritanceByPath(FullMets mets, string localPath)
+    public Result SuppressRightsInheritanceByPath(FullMets mets, string localPath)
     {
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
-        if (foundDepth != totalDepth) return;
+        if (foundDepth != totalDepth)
+            return Result.Fail(ErrorCodes.NotFound, DescribePathFailure(mets, localPath));
         SuppressRightsInheritanceForDiv(mets, div);
+        return Result.Ok();
     }
 
-    public void SuppressRightsInheritanceByDivId(FullMets mets, string divId)
+    public Result SuppressRightsInheritanceByDivId(FullMets mets, string divId)
     {
-        var div = LocateMetsDivByDivId(mets, divId)!;
+        var div = LocateMetsDivByDivId(mets, divId);
+        if (div is null)
+            return Result.Fail(ErrorCodes.NotFound, $"No div with ID '{divId}' in METS");
         SuppressRightsInheritanceForDiv(mets, div);
+        return Result.Ok();
     }
 
     private static void SuppressRightsInheritanceForDiv(FullMets mets, DivType div)
@@ -632,17 +702,22 @@ public class MetsManager(
     }
 
 
-    public void SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions)
+    public Result SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions)
     {
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
-        if (foundDepth != totalDepth) return;
+        if (foundDepth != totalDepth)
+            return Result.Fail(ErrorCodes.NotFound, DescribePathFailure(mets, localPath));
         SetAccessRestrictionsForDiv(mets, div, accessRestrictions);
+        return Result.Ok();
     }
 
-    public void SetAccessRestrictionsByDivId(FullMets mets, string divId, List<string> accessRestrictions)
+    public Result SetAccessRestrictionsByDivId(FullMets mets, string divId, List<string> accessRestrictions)
     {
-        var div = LocateMetsDivByDivId(mets, divId)!;
+        var div = LocateMetsDivByDivId(mets, divId);
+        if (div is null)
+            return Result.Fail(ErrorCodes.NotFound, $"No div with ID '{divId}' in METS");
         SetAccessRestrictionsForDiv(mets, div, accessRestrictions);
+        return Result.Ok();
     }
 
     private static void SetAccessRestrictionsForDiv(FullMets mets, DivType div, List<string> accessRestrictions)

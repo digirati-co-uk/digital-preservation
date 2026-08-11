@@ -26,10 +26,20 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, ArchivalGroup archivalGroup, string? agNameFromDeposit)
     {
         var (file, mets) = await metsManager.GetStandardMets(metsLocation, agNameFromDeposit);
-        
+
         AddResourceToMets(mets, archivalGroup.Id!, mets.StructMap[0].Div, archivalGroup);
-        
-        var writeResult = await metsManager.WriteMets(new FullMets{ Mets = mets, Uri = file });
+
+        var fullMets = new FullMets { Mets = mets, Uri = file };
+        // This FullMets is write-only (navigation happens on a fresh load, which populates the
+        // cache), but building the cache here puts this construction path under the same
+        // navigability check as MetsManager mutations: a structMap this class builds that
+        // cannot be resolved by path is a bug, caught in debug builds and tests.
+        var pathDiagnostics = MetsCache.Populate(fullMets);
+        System.Diagnostics.Debug.Assert(pathDiagnostics.Count == 0,
+            "MetsFromArchivalGroup produced a structMap that is not fully navigable by path: "
+            + string.Join("; ", pathDiagnostics));
+
+        var writeResult = await metsManager.WriteMets(fullMets);
         if (writeResult.Success)
         {
             return await metsParser.GetMetsFileWrapper(file);
