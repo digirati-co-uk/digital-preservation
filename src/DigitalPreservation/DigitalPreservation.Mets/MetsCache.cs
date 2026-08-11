@@ -11,20 +11,25 @@ namespace DigitalPreservation.Mets;
 /// for directories, the referenced FILE's FLocat href for files — never from the div's ID, so
 /// the mapping holds whatever form the IDs take (issue #188).
 /// A METS file whose physical structMap cannot be fully and unambiguously mapped is not fully
-/// navigable by path; the diagnostics returned by <see cref="Populate"/> say why. Those
-/// diagnostics are the seed of a future conformance check for whether a METS file is editable.
+/// navigable by path; the diagnostics returned by <see cref="Populate"/> (and kept on
+/// <see cref="FullMets.PathDiagnostics"/>) say why. Those diagnostics are the seed of a future
+/// conformance check for whether a METS file is editable.
 /// </summary>
 public static class MetsCache
 {
     /// <summary>
     /// Rebuild the path cache from the current state of the METS. Returns diagnostics for any
     /// div whose path could not be resolved, or that collided with another div's path; an empty
-    /// list means the whole physical structMap is navigable by path.
+    /// list means the whole physical structMap is navigable by path. The diagnostics are also
+    /// stored on <see cref="FullMets.PathDiagnostics"/> so later failures can explain themselves.
     /// </summary>
     public static List<string> Populate(FullMets fullMets)
     {
         fullMets.PhysicalDivsByPath.Clear();
-        return Build(fullMets.Mets, fullMets.PhysicalDivsByPath);
+        var diagnostics = Build(fullMets.Mets, fullMets.PhysicalDivsByPath);
+        fullMets.PathDiagnostics.Clear();
+        fullMets.PathDiagnostics.AddRange(diagnostics);
+        return diagnostics;
     }
 
     /// <summary>
@@ -36,11 +41,25 @@ public static class MetsCache
     {
         var diagnostics = new List<string>();
 
-        var physRoot = mets.StructMap
-            .SingleOrDefault(sm => sm.Type == Constants.Physical)?.Div;
-        if (physRoot == null)
+        // Tolerate malformed METS: never throw here, this runs on every load. Zero or many
+        // PHYSICAL structMaps are diagnostics, not exceptions; with many, the first is used
+        // (matching the parser's structMap selection order).
+        var physicalStructMaps = mets.StructMap.Where(sm => sm.Type == Constants.Physical).ToList();
+        if (physicalStructMaps.Count == 0)
         {
             diagnostics.Add("METS has no PHYSICAL structMap");
+            return diagnostics;
+        }
+        if (physicalStructMaps.Count > 1)
+        {
+            diagnostics.Add(
+                $"METS has {physicalStructMaps.Count} PHYSICAL structMaps; only the first is navigable");
+        }
+
+        var physRoot = physicalStructMaps[0].Div;
+        if (physRoot == null)
+        {
+            diagnostics.Add("PHYSICAL structMap has no root div");
             return diagnostics;
         }
 
@@ -67,16 +86,24 @@ public static class MetsCache
         }
     }
 
+    /// <summary>
+    /// Resolve a single div to its deposit-relative path from its own metadata, without
+    /// reporting diagnostics. Used by MetsManager's navigation fallback when the cache entry
+    /// for a path is missing or ambiguous.
+    /// </summary>
+    internal static string? TryResolvePath(DivType div, DigitalPreservation.XmlGen.Mets.Mets mets)
+        => ResolvePath(div, mets, null);
+
     private static string? ResolvePath(
         DivType child,
         DigitalPreservation.XmlGen.Mets.Mets mets,
-        List<string> diagnostics)
+        List<string>? diagnostics)
     {
         string? path = null;
         switch (child.Type)
         {
             case Constants.DirectoryType when child.Admid.Count == 0:
-                diagnostics.Add($"Directory div '{child.Id}' has no ADMID, so no path");
+                diagnostics?.Add($"Directory div '{child.Id}' has no ADMID, so no path");
                 break;
             case Constants.DirectoryType:
             {
@@ -87,13 +114,13 @@ public static class MetsCache
                 path = ExtractPremisOriginalName(amdSec);
                 if (path == null)
                 {
-                    diagnostics.Add(
+                    diagnostics?.Add(
                         $"Directory div '{child.Id}' has no premis:originalName via ADMID '{admId}'");
                 }
                 break;
             }
             case Constants.ItemType when child.Fptr.Count == 0:
-                diagnostics.Add($"Item div '{child.Id}' has no fptr, so no path");
+                diagnostics?.Add($"Item div '{child.Id}' has no fptr, so no path");
                 break;
             case Constants.ItemType:
             {
@@ -104,13 +131,13 @@ public static class MetsCache
                 path = file?.FLocat.FirstOrDefault()?.Href;
                 if (path == null)
                 {
-                    diagnostics.Add(
+                    diagnostics?.Add(
                         $"Item div '{child.Id}' has no FLocat href via FILEID '{fileId}'");
                 }
                 break;
             }
             default:
-                diagnostics.Add(
+                diagnostics?.Add(
                     $"Div '{child.Id}' has unrecognised TYPE '{child.Type}', so no path");
                 break;
         }
@@ -123,19 +150,24 @@ public static class MetsCache
         var normalised = NormalisePathKey(path);
         if (normalised == null)
         {
-            diagnostics.Add($"Div '{child.Id}' resolves to empty path '{path}'");
+            diagnostics?.Add($"Div '{child.Id}' resolves to empty path '{path}'");
         }
         return normalised;
     }
 
     /// <summary>
     /// Normalise a path extracted from METS metadata to the deposit-relative form used
-    /// everywhere else in the system (and by MetsManager's own localPath handling).
+    /// everywhere else in the system (and by MetsManager's own localPath handling). Only
+    /// structural variants are normalised (leading ./, BagIt data/ prefix, trailing /);
+    /// the characters of the path itself are never altered.
     /// </summary>
-    internal static string? NormalisePathKey(string path)
+    internal static string? NormalisePathKey(string? path)
     {
-        var normalised = FolderNames.RemovePathPrefix(path.Trim())!
-            .RemoveStart("./")!
+        if (path == null)
+        {
+            return null;
+        }
+        var normalised = FolderNames.RemovePathPrefix(path.RemoveStart("./"))!
             .TrimEnd('/');
         return normalised.HasText() ? normalised : null;
     }

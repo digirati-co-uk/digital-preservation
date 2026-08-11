@@ -187,7 +187,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
         SetFileAndFileGroup(ctx, div, fullMets);
 
-        if (ctx.File?.FLocat[0].Href != operationPath)
+        if (ctx.File == null || MetsCache.NormalisePathKey(ctx.File.FLocat[0].Href) != operationPath)
         {
             return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
         }

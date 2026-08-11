@@ -1,4 +1,5 @@
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
 using DigitalPreservation.XmlGen.Mets;
@@ -257,9 +258,9 @@ public class PhysicalDivsCacheTests
         var uri = OutputUri("cache-normalisation.xml");
         var (_, mets) = await metsManager.GetStandardMets(uri, "Normalisation METS");
 
-        GetPremisOriginalNameElement(mets, FolderNames.Objects).InnerText = $"data/{FolderNames.Objects}";
+        GetPremisOriginalNameElement(mets, FolderNames.Objects).InnerText = $"./data/{FolderNames.Objects}";
         GetPremisOriginalNameElement(mets, FolderNames.Metadata).InnerText = $"./{FolderNames.Metadata}";
-        GetPremisOriginalNameElement(mets, FolderNames.MetadataAdHoc).InnerText = $"{FolderNames.MetadataAdHoc}/";
+        GetPremisOriginalNameElement(mets, FolderNames.MetadataAdHoc).InnerText = $"data/{FolderNames.MetadataAdHoc}/";
 
         var fullMets = new FullMets { Mets = mets, Uri = uri };
         var diagnostics = MetsCache.Populate(fullMets);
@@ -274,13 +275,14 @@ public class PhysicalDivsCacheTests
     // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task Two_Divs_Resolving_To_The_Same_Path_Are_Reported_And_Navigation_Fails_Safely()
+    public async Task Two_Divs_Resolving_To_The_Same_Path_Are_Reported_And_The_Real_Div_Still_Wins()
     {
         var uri = OutputUri("cache-duplicate-path.xml");
         var (_, mets) = await metsManager.GetStandardMets(uri, "Duplicate Path METS");
 
         // An impostor div, nested under metadata/, whose ADMID points at the objects
-        // amdSec - so it resolves to the same path as the real objects div.
+        // amdSec - so it resolves to the same path as the real objects div (and, being
+        // walked first, wins the cache slot).
         var physRoot = mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
         var metadataDiv = physRoot.Div.Single(d => d.Label == FolderNames.Metadata);
         metadataDiv.Div.Add(new DivType
@@ -296,11 +298,116 @@ public class PhysicalDivsCacheTests
 
         diagnostics.Should().ContainSingle(d => d.Contains($"both resolve to path '{FolderNames.Objects}'"));
 
-        // Navigation into objects/ hits the ambiguity and fails with the standard
-        // incomplete-path error rather than editing the wrong subtree.
+        // Navigation must not be captured by the impostor: the fallback resolves the REAL
+        // objects div (a direct child of the current div) and the edit lands there.
         var addFile = metsManager.AddToMets(fullMets, SimpleFile("objects/f.txt", "f.txt"));
+        addFile.Success.Should().BeTrue(addFile.ErrorMessage ?? "");
+
+        var realObjectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        realObjectsDiv.Div.Should().ContainSingle(d => d.Label == "f.txt");
+        metadataDiv.Div.Single(d => d.Label == "impostor").Div.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_Second_Physical_StructMap_Is_A_Diagnostic_Not_An_Exception()
+    {
+        var uri = OutputUri("cache-two-physical.xml");
+        var (_, mets) = await metsManager.GetStandardMets(uri, "Two Physical METS");
+        mets.StructMap.Add(new StructMapType
+        {
+            Type = Constants.Physical,
+            Div = new DivType { Id = "PHYS_ROOT_2", Label = "second", Type = Constants.DirectoryType }
+        });
+
+        var fullMets = new FullMets { Mets = mets, Uri = uri };
+        var diagnostics = MetsCache.Populate(fullMets);
+
+        diagnostics.Should().ContainSingle(d => d.Contains("2 PHYSICAL structMaps"));
+
+        // The first structMap is still fully navigable
+        var addFile = metsManager.AddToMets(fullMets, SimpleFile("objects/first.pdf", "first.pdf"));
+        addFile.Success.Should().BeTrue(addFile.ErrorMessage ?? "");
+    }
+
+    [Fact]
+    public async Task Failed_File_Add_Leaves_Mets_And_Cache_Untouched_And_Retry_Succeeds()
+    {
+        var fullMets = await CreateAndLoadStandardMets("cache-failed-add.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        var dmdSecCountBefore = fullMets.Mets.DmdSec.Count;
+        var amdSecCountBefore = fullMets.Mets.AmdSec.Count;
+
+        // Conflicting digest metadata makes ProcessAllFileMetadata fail
+        var badFile = SimpleFile("objects/new.tif", "new.tif");
+        badFile.Metadata.Add(new DigestMetadata { Digest = "aaa", Source = "test-a" });
+        badFile.Metadata.Add(new DigestMetadata { Digest = "bbb", Source = "test-b" });
+
+        var failedAdd = metsManager.AddToMets(fullMets, badFile);
+
+        failedAdd.Failure.Should().BeTrue();
+        objectsDiv.Div.Should().BeEmpty("a failed add must not leave a half-added div behind");
+        fullMets.Mets.DmdSec.Count.Should().Be(dmdSecCountBefore);
+        fullMets.Mets.AmdSec.Count.Should().Be(amdSecCountBefore);
+        AssertCacheMatchesRebuild(fullMets);
+
+        // The retry with clean metadata succeeds and produces exactly one div
+        var retry = metsManager.AddToMets(fullMets, SimpleFile("objects/new.tif", "new.tif"));
+        retry.Success.Should().BeTrue(retry.ErrorMessage ?? "");
+        objectsDiv.Div.Should().ContainSingle(d => d.Label == "new.tif");
+        AssertCacheMatchesRebuild(fullMets);
+    }
+
+    [Fact]
+    public async Task Setting_Metadata_By_An_Unresolvable_Path_Does_Not_Write_To_An_Ancestor()
+    {
+        var fullMets = await CreateAndLoadStandardMets("cache-setbypath-miss.xml");
+        var dmdSecCountBefore = fullMets.Mets.DmdSec.Count;
+
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects/missing/file.txt", ["Closed"]);
+
+        // No dmdSec was created for (and no accessCondition written to) any ancestor div
+        fullMets.Mets.DmdSec.Count.Should().Be(dmdSecCountBefore);
+    }
+
+    [Fact]
+    public async Task File_With_Data_Prefixed_FLocat_Href_Is_Navigable_And_Deletable()
+    {
+        var fullMets = await CreateAndLoadStandardMets("cache-data-href.xml");
+        var addFile = metsManager.AddToMets(fullMets, SimpleFile("objects/x.pdf", "x.pdf"));
+        addFile.Success.Should().BeTrue(addFile.ErrorMessage ?? "");
+
+        // Simulate a legacy variant: the FLocat href carries the BagIt data/ prefix
+        var fileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+        fileGroup.File.Single().FLocat[0].Href = "data/objects/x.pdf";
+        MetsCache.Populate(fullMets);
+        fullMets.PhysicalDivsByPath.Should().ContainKey("objects/x.pdf");
+
+        var deleteFile = metsManager.DeleteFromMets(fullMets, "objects/x.pdf");
+
+        deleteFile.Success.Should().BeTrue(deleteFile.ErrorMessage ?? "");
+        AssertCacheMatchesRebuild(fullMets);
+    }
+
+    [Fact]
+    public async Task Navigation_Failure_Reports_Path_Diagnostics_In_The_Error()
+    {
+        var uri = OutputUri("cache-error-diagnostics.xml");
+        var (_, mets) = await metsManager.GetStandardMets(uri, "Error Diagnostics METS");
+
+        // Break the objects div beyond all fallbacks: no resolvable path metadata AND a
+        // non-convention ID, so navigation below it cannot succeed.
+        var physRoot = mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        objectsDiv.Id = "PHYS_broken";
+        objectsDiv.Admid.Clear();
+
+        var fullMets = new FullMets { Mets = mets, Uri = uri };
+        var addFile = metsManager.AddToMets(fullMets, SimpleFile("objects/f.txt", "f.txt"));
+
         addFile.Failure.Should().BeTrue();
-        addFile.ErrorMessage.Should().Contain("not all parts of the path");
+        addFile.ErrorMessage.Should().Contain("METS path diagnostics")
+            .And.Contain("PHYS_broken");
     }
 
     [Fact]

@@ -100,7 +100,9 @@ public class MetsManager(
 
     private Result EditMets(WorkingBase? workingBase, string? deletePath, FullMets fullMets)
     {
-        var localPath = FolderNames.RemovePathPrefix(workingBase?.LocalPath ?? deletePath)!;
+        // Normalise once so ID minting, FLocat writing and cache keys all use the same
+        // canonical deposit-relative form of the path.
+        var localPath = MetsCache.NormalisePathKey(workingBase?.LocalPath ?? deletePath) ?? string.Empty;
         var (contextDiv, parent, foundDepth, totalDepth) = LocateMetsDivByLocalPath(fullMets, localPath);
 
         if (foundDepth == totalDepth)
@@ -127,8 +129,12 @@ public class MetsManager(
             return Result.Fail(ErrorCodes.BadRequest, "No working directory or working file supplied to add.");
         }
 
-        return Result.Fail(ErrorCodes.BadRequest,
-            $"Could not edit METS because not all parts of the path '{localPath}' have been added to METS.");
+        var message = $"Could not edit METS because not all parts of the path '{localPath}' have been added to METS.";
+        if (fullMets.PathDiagnostics.Count > 0)
+        {
+            message += " METS path diagnostics: " + string.Join("; ", fullMets.PathDiagnostics);
+        }
+        return Result.Fail(ErrorCodes.BadRequest, message);
     }
 
     private Result UpdateExistingFile(DivType contextDiv, FullMets fullMets, WorkingFile workingFile, string localPath)
@@ -137,7 +143,7 @@ public class MetsManager(
             return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path does not end on a file");
 
         var (file, _) = SetFileAndFileGroup(contextDiv, fullMets);
-        if (file.FLocat[0].Href != localPath)
+        if (MetsCache.NormalisePathKey(file.FLocat[0].Href) != localPath)
             return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
 
         PopulateDmdFromResource(fullMets, workingFile, contextDiv);
@@ -161,6 +167,15 @@ public class MetsManager(
         var physId = Constants.PhysIdPrefix + localPath;
         var fileId = Constants.FileIdPrefix + localPath;
 
+        // Reaching an add for a path whose div already exists means that div could not be
+        // resolved by path OR by the legacy ID fallback - adding again would write duplicate
+        // ID attributes into the METS. Refuse rather than corrupt.
+        if (parentDiv.Div.Any(d => d.Id == physId))
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"METS already contains a div '{physId}' that could not be resolved to path '{localPath}'.");
+        }
+
         var childItemDiv = new DivType
         {
             Type = Constants.ItemType,
@@ -168,14 +183,15 @@ public class MetsManager(
             Id = physId,
             Fptr = { new DivTypeFptr { Fileid = fileId } }
         };
-        parentDiv.Div.Add(childItemDiv);
 
-        PopulateDmdFromResource(fullMets, workingFile, childItemDiv);
+        // Nothing is attached to the METS until the fallible metadata step has succeeded,
+        // so a failed add leaves the document (and the cache) exactly as it was.
         var metadataResult = metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, localPath, true);
         if (metadataResult.Failure)
             return metadataResult;
 
-        // After ProcessAllFileMetadata, so the FILE/FLocat entry the cache mirrors exists
+        PopulateDmdFromResource(fullMets, workingFile, childItemDiv);
+        parentDiv.Div.Add(childItemDiv);
         fullMets.PhysicalDivsByPath[localPath] = childItemDiv;
 
         SortChildDivs(parentDiv);
@@ -187,6 +203,12 @@ public class MetsManager(
         var physId = Constants.PhysIdPrefix + localPath;
         var admId = Constants.AdmIdPrefix + localPath;
         var techId = Constants.TechIdPrefix + localPath;
+
+        if (parentDiv.Div.Any(d => d.Id == physId))
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"METS already contains a div '{physId}' that could not be resolved to path '{localPath}'.");
+        }
 
         var childDirectoryDiv = new DivType
         {
@@ -328,7 +350,7 @@ public class MetsManager(
         {
             var (file, fileGroup) = SetFileAndFileGroup(div, fullMets);
 
-            if (file.FLocat[0].Href != operationPath)
+            if (MetsCache.NormalisePathKey(file.FLocat[0].Href) != operationPath)
             {
                 return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
             }
@@ -372,9 +394,10 @@ public class MetsManager(
         EnsureCache(fullMets);
         AssertCacheConsistent(fullMets);
 
+        localPath = MetsCache.NormalisePathKey(localPath) ?? string.Empty;
         var elements = localPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        var div = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var div = fullMets.Mets.StructMap.First(sm => sm.Type == Constants.Physical).Div!;
         DivType? parent = null;
         var testPath = string.Empty;
         var counter = 0;
@@ -388,17 +411,17 @@ public class MetsManager(
             testPath += element;
 
             // Navigate by path (premis:originalName / FLocat href, via the cache), not by
-            // reconstructing div IDs from the path - IDs are opaque (issue #188).
-            if (!fullMets.PhysicalDivsByPath.TryGetValue(testPath, out var childDiv))
+            // reconstructing div IDs from the path - IDs are opaque (issue #188). The cached
+            // div is only accepted if it really is a child of the current div; a malformed
+            // source can have two unrelated divs resolving to the same path, and the cache
+            // holds whichever was walked first.
+            if (!fullMets.PhysicalDivsByPath.TryGetValue(testPath, out var childDiv) ||
+                !div.Div.Contains(childDiv))
             {
-                break;
+                childDiv = FindChildDivByPath(div, testPath, fullMets.Mets);
             }
 
-            // Guard against a malformed source in which two unrelated divs resolve to the same
-            // path: only accept the cached div if it really is a child of the current div. The
-            // walk then breaks with foundDepth < totalDepth, producing the same "not all parts
-            // of the path have been added" error as a plain miss.
-            if (!div.Div.Contains(childDiv))
+            if (childDiv is null)
             {
                 break;
             }
@@ -409,6 +432,19 @@ public class MetsManager(
         }
 
         return (div, parent, counter, elements.Length);
+    }
+
+    /// <summary>
+    /// Fallback resolution among the current div's children when the cache has no usable entry
+    /// for a path: first by each child's own path metadata (correct even when an unrelated div
+    /// elsewhere claims the same path), then by the legacy ID convention, which keeps divs with
+    /// broken path metadata navigable exactly as they were before the cache existed. The legacy
+    /// tier can be removed after a bulk ID migration (issue #188 step 3).
+    /// </summary>
+    private static DivType? FindChildDivByPath(DivType parent, string testPath, DigitalPreservation.XmlGen.Mets.Mets mets)
+    {
+        var byMetadata = parent.Div.FirstOrDefault(d => MetsCache.TryResolvePath(d, mets) == testPath);
+        return byMetadata ?? parent.Div.FirstOrDefault(d => d.Id == $"{Constants.PhysIdPrefix}{testPath}");
     }
 
     /// <summary>
@@ -522,7 +558,9 @@ public class MetsManager(
 
     public void SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo)
     {
-        var (div, _, _, _) = LocateMetsDivByLocalPath(mets, localPath);
+        var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
+        // A partial walk means div is an ANCESTOR of the requested path - never write to it
+        if (foundDepth != totalDepth) return;
         SetRecordInfoForDiv(mets, div, recordInfo);
     }
 
@@ -543,7 +581,8 @@ public class MetsManager(
 
     public void SetRightsStatementByPath(FullMets mets, string localPath, Uri? rightsStatement)
     {
-        var (div, _, _, _) = LocateMetsDivByLocalPath(mets, localPath);
+        var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
+        if (foundDepth != totalDepth) return;
         SetRightsStatementForDiv(mets, div, rightsStatement);
     }
 
@@ -559,7 +598,8 @@ public class MetsManager(
     // which removes the element and allows parent rights to flow through.
     public void SuppressRightsInheritanceByPath(FullMets mets, string localPath)
     {
-        var (div, _, _, _) = LocateMetsDivByLocalPath(mets, localPath);
+        var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
+        if (foundDepth != totalDepth) return;
         SuppressRightsInheritanceForDiv(mets, div);
     }
 
@@ -594,7 +634,8 @@ public class MetsManager(
 
     public void SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions)
     {
-        var (div, _, _, _) = LocateMetsDivByLocalPath(mets, localPath);
+        var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
+        if (foundDepth != totalDepth) return;
         SetAccessRestrictionsForDiv(mets, div, accessRestrictions);
     }
 

@@ -16,4 +16,12 @@ public class FullMets
     /// mutation. The PHYS_ROOT div is not cached; it is the implicit root of every path.
     /// </summary>
     public Dictionary<string, DivType> PhysicalDivsByPath { get; } = new();
+
+    /// <summary>
+    /// Diagnostics from the last <see cref="MetsCache.Populate"/>: one entry per div whose path
+    /// could not be resolved or that collided with another div's path. Empty for a well-formed
+    /// managed METS. Used to explain navigation failures, and the seed of a future editability
+    /// conformance check.
+    /// </summary>
+    public List<string> PathDiagnostics { get; } = new();
 }
