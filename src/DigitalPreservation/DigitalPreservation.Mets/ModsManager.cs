@@ -122,7 +122,7 @@ public static class ModsManager
 
     public static ModsDefinition? GetModsForDmdId(DigitalPreservation.XmlGen.Mets.Mets mets, string dmdId, bool createDmd = false)
     {
-        var dmd = mets.DmdSec.SingleOrDefault(x => x.Id == dmdId);
+        var dmd = mets.DmdSec.FirstOrDefault(x => x.Id == dmdId);
         if (dmd == null && createDmd)
         {
             dmd = new MdSecType
@@ -153,6 +153,12 @@ public static class ModsManager
         return null;
     }
 
+    /// <summary>
+    /// The MODS for a div. When the div's DMDID is a genuine multi-token reference, the FIRST
+    /// dmdSec a token resolves is treated as the div's editable MODS record; the platform only
+    /// ever writes one descriptive record per div, so any further referenced dmdSecs are
+    /// third-party content that read/write operations deliberately leave untouched.
+    /// </summary>
     public static ModsDefinition? GetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, bool createDmd = false)
     {
         if (div.Dmdid.Count == 0 && createDmd)
@@ -168,19 +174,26 @@ public static class ModsManager
                 div.Dmdid.Add(Constants.DmdIdPrefix + div.Id);
             }
         }
-        var normalised = string.Join(' ', div.Dmdid);
-        return GetModsForDmdId(mets, normalised, createDmd);
+        // Resolve the DMDID tokens to the actual dmdSec where one exists; the id used for
+        // lazy creation is the joined legacy form only when no dmdSec resolves (see IdRefs).
+        var dmd = IdRefs.ResolveSingle(div.Dmdid, id => mets.DmdSec.FirstOrDefault(x => x.Id == id));
+        return GetModsForDmdId(mets, dmd?.Id ?? IdRefs.Joined(div.Dmdid), createDmd);
     }
 
     
+    /// <summary>
+    /// Write the div's MODS record - the same single dmdSec <see cref="GetModsForDiv"/>
+    /// resolves; other dmdSecs a genuine multi-token DMDID references are never mutated.
+    /// </summary>
     public static void SetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, ModsDefinition mods)
     {
-        var normalised = string.Join(' ', div.Dmdid);
+        var dmd = IdRefs.ResolveSingle(div.Dmdid, id => mets.DmdSec.FirstOrDefault(x => x.Id == id));
+        var normalised = dmd?.Id ?? IdRefs.Joined(div.Dmdid);
 
         // If clearing the last piece of metadata has left the MODS carrying nothing,
         // don't write an empty <mods/> shell wrapped in a redundant dmdSec — prune it.
         // Only do so when it is safe: the dmdSec must wrap MODS and nothing else.
-        if (mods.IsEmpty() && TryRemoveRedundantDmd(mets, div, normalised))
+        if (mods.IsEmpty() && TryRemoveRedundantDmd(mets, div, dmd))
         {
             return;
         }
@@ -189,16 +202,16 @@ public static class ModsManager
     }
 
     /// <summary>
-    /// Removes the dmdSec addressed by <paramref name="dmdId"/> together with the div's
-    /// (now dangling) DMDID reference, but ONLY when it is safe: the dmdSec must carry
-    /// nothing beyond the MODS we are clearing — no external mdRef, no admin links and
-    /// no other identifying attributes. Returns <c>true</c> if the dmdSec was removed
+    /// Removes the resolved dmdSec together with the div's DMDID reference to it, but ONLY
+    /// when it is safe: the dmdSec must carry nothing beyond the MODS we are clearing — no
+    /// external mdRef, no admin links and no other identifying attributes. Only the reference
+    /// to THIS dmdSec is dropped: a div with a genuine multi-token DMDID keeps its other
+    /// references (and their dmdSecs) intact. Returns <c>true</c> if the dmdSec was removed
     /// (or there was nothing to remove), <c>false</c> if it had to be kept because it
     /// still carries other information.
     /// </summary>
-    private static bool TryRemoveRedundantDmd(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, string dmdId)
+    private static bool TryRemoveRedundantDmd(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, MdSecType? dmd)
     {
-        var dmd = string.IsNullOrEmpty(dmdId) ? null : mets.DmdSec.FirstOrDefault(d => d.Id == dmdId);
         if (dmd != null)
         {
             if (!DmdSecWrapsOnlyMods(dmd))
@@ -206,11 +219,35 @@ public static class ModsManager
                 // The dmdSec carries information beyond the MODS we are clearing; leave it intact.
                 return false;
             }
-            mets.DmdSec.Remove(dmd);
-        }
 
-        // Drop the div's now-dangling DMDID reference (a no-op if it was never set).
-        div.Dmdid.Clear();
+            // Parity with the deletion sites' shared-section guard: a dmdSec that another
+            // div or file still references is genuinely shared, so clearing THIS div's MODS
+            // drops only this div's reference and leaves the section (and its other
+            // referrers) untouched.
+            if (!MetsManager.CollectSectionReferences(mets, [div], null).Contains(dmd.Id))
+            {
+                mets.DmdSec.Remove(dmd);
+            }
+            IdRefs.RemoveReference(div.Dmdid, dmd.Id);
+
+            // Sweep any sibling tokens that resolve nothing (the pre-existing Clear()
+            // behaviour, scoped): they are dangling, while a token still naming a real
+            // dmdSec keeps both its reference and its section.
+            for (var i = div.Dmdid.Count - 1; i >= 0; i--)
+            {
+                var token = div.Dmdid[i];
+                if (mets.DmdSec.All(d => d.Id != token))
+                {
+                    div.Dmdid.RemoveAt(i);
+                }
+            }
+        }
+        else
+        {
+            // Nothing resolved at all: every token dangles, so clearing them is cleanup
+            // (and a no-op if DMDID was never set).
+            div.Dmdid.Clear();
+        }
         return true;
     }
 

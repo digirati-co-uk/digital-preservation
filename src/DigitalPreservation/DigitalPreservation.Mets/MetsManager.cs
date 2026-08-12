@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Xml;
 using DigitalPreservation.Common.Model;
@@ -206,7 +205,7 @@ public class MetsManager(
         if (dmdResult.Failure) return dmdResult;
 
         parentDiv.Div.Add(childItemDiv);
-        fullMets.PhysicalDivsByPath[localPath] = childItemDiv;
+        CacheAddedDiv(fullMets, localPath, childItemDiv);
 
         SortChildDivs(parentDiv);
         return Result.Ok();
@@ -247,10 +246,30 @@ public class MetsManager(
         // as AddNewFile).
         parentDiv.Div.Add(childDirectoryDiv);
         fullMets.Mets.AmdSec.Add(amdSec);
-        fullMets.PhysicalDivsByPath[localPath] = childDirectoryDiv;
+        CacheAddedDiv(fullMets, localPath, childDirectoryDiv);
 
         SortChildDivs(parentDiv);
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// Record a newly attached div in the path cache. If a div ELSEWHERE in the tree had
+    /// already claimed this path (its metadata resolves a path that disagrees with its tree
+    /// position - only producible by edited or third-party METS, since navigation rejects
+    /// such an entry as this path's target), a plain overwrite would leave the cache silently
+    /// disagreeing with a rebuild while no diagnostic records the duplicate. Rebuild instead:
+    /// the duplicate lands on PathDiagnostics/HasDuplicatePaths, so every trust gate sees it
+    /// and navigation drops to strict per-child resolution for the contested paths.
+    /// </summary>
+    private static void CacheAddedDiv(FullMets fullMets, string localPath, DivType div)
+    {
+        if (fullMets.PhysicalDivsByPath.TryGetValue(localPath, out var existing)
+            && !ReferenceEquals(existing, div))
+        {
+            MetsCache.Populate(fullMets);
+            return;
+        }
+        fullMets.PhysicalDivsByPath[localPath] = div;
     }
 
     private static void SortChildDivs(DivType div)
@@ -364,28 +383,58 @@ public class MetsManager(
             return Result.Fail(ErrorCodes.BadRequest, "Cannot delete a non-empty directory.");
         }
 
-        // Deletion is tolerant of dangling or absent references - a broken reference is
-        // exactly the kind of thing a delete may be cleaning up.
-        string? admId;
+        // Resolve everything BEFORE mutating anything, so a failed delete leaves the METS
+        // exactly as it was.
+        FileType? file = null;
+        MetsTypeFileSecFileGrp? fileGroup = null;
+        IReadOnlyList<string> admTokens;
         if (div is { Type: "Item" })
         {
-            var (file, fileGroup) = SetFileAndFileGroup(div, fullMets);
+            (file, fileGroup) = SetFileAndFileGroup(div, fullMets);
 
             if (MetsCache.NormalisePathKey(file.FLocat[0].Href) != operationPath)
             {
                 return Result.Fail(ErrorCodes.BadRequest, "Delete path doesn't match METS flocat");
             }
 
-            admId = JoinedIdOrNull(file.Admid);
-            fileGroup.File.Remove(file);
+            admTokens = file.Admid;
         }
         else
         {
-            admId = JoinedIdOrNull(div.Admid);
+            admTokens = div.Admid;
         }
 
-        RemoveById(fullMets.Mets.AmdSec, admId, a => a.Id);
-        RemoveById(fullMets.Mets.DmdSec, JoinedIdOrNull(div.Dmdid), d => d.Id);
+        // ADMID/DMDID are IDREFS token collections (see IdRefs). Deletion is tolerant of a
+        // section that doesn't resolve - a dangling reference is exactly the kind of breakage
+        // a delete may be cleaning up, and DMDID references dangle by design until metadata
+        // is first set (lazy dmdSec creation). A genuine multi-token reference removes EVERY
+        // section it resolves - except one that another div or file still references (e.g. a
+        // rightsMD shared across files, common in Archivematica METS), which must survive.
+        var referencedElsewhere = CollectSectionReferences(fullMets.Mets, [div], file);
+        MdSecType? DmdLookup(string id) => fullMets.Mets.DmdSec.FirstOrDefault(d => d.Id == id);
+        var amdSecs = IdRefs.ResolveAll(admTokens, id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id))
+            .Where(a => !referencedElsewhere.Contains(a.Id))
+            .ToList();
+        // DMDID can sit on the div or (in third-party shapes) on the FILE element - resolve
+        // both, matching what CollectSectionReferences excludes from the survival index.
+        var dmdCandidates = IdRefs.ResolveAll(div.Dmdid, DmdLookup);
+        if (file is { Dmdid.Count: > 0 })
+        {
+            dmdCandidates = dmdCandidates.Concat(IdRefs.ResolveAll(file.Dmdid, DmdLookup)).Distinct().ToList();
+        }
+        var dmdSecs = dmdCandidates
+            .Where(d => !referencedElsewhere.Contains(d.Id))
+            .ToList();
+
+        fileGroup?.File.Remove(file!);
+        foreach (var amdSec in amdSecs)
+        {
+            fullMets.Mets.AmdSec.Remove(amdSec);
+        }
+        foreach (var dmdSec in dmdSecs)
+        {
+            fullMets.Mets.DmdSec.Remove(dmdSec);
+        }
 
         parent!.Div.Remove(div);
         EvictFromPathCache(fullMets, div);
@@ -394,25 +443,56 @@ public class MetsManager(
     }
 
     /// <summary>
-    /// Legacy IDs containing spaces arrive from the XmlSerializer split into IDREFS tokens;
-    /// rejoining reconstructs the single intended ID. Null when there is no reference at all.
+    /// Every section ID referenced by any div (in any structMap) or file other than the ones
+    /// being deleted: each individual token, and the joined form of multi-token collections
+    /// (a legacy space-containing ID). Built in ONE traversal so deletion can check each
+    /// candidate section in O(1) instead of re-walking the document per section. A section
+    /// whose ID is in this set is genuinely shared and must survive the deletion.
     /// </summary>
-    private static string? JoinedIdOrNull(Collection<string> tokens) =>
-        tokens.Count switch
-        {
-            0 => null,
-            1 => tokens[0],
-            _ => string.Join(" ", tokens)
-        };
-
-    private static void RemoveById<T>(ICollection<T> sections, string? id, Func<T, string?> idOf)
-        where T : class
+    internal static HashSet<string> CollectSectionReferences(
+        DigitalPreservation.XmlGen.Mets.Mets mets,
+        HashSet<DivType> excludedDivs,
+        FileType? excludedFile)
     {
-        if (id is null) return;
-        var match = sections.FirstOrDefault(s => idOf(s) == id);
-        if (match != null)
+        var referencedIds = new HashSet<string>();
+
+        var divs = mets.StructMap
+            .Where(sm => sm.Div != null)
+            .SelectMany(sm => SelfAndDescendants(sm.Div))
+            .Where(d => !excludedDivs.Contains(d));
+        foreach (var d in divs)
         {
-            sections.Remove(match);
+            AddReferences(d.Admid, referencedIds);
+            AddReferences(d.Dmdid, referencedIds);
+        }
+
+        var files = (mets.FileSec?.FileGrp ?? [])
+            .SelectMany(fg => fg.File)
+            .Where(f => !ReferenceEquals(f, excludedFile));
+        foreach (var f in files)
+        {
+            AddReferences(f.Admid, referencedIds);
+            AddReferences(f.Dmdid, referencedIds);
+        }
+
+        return referencedIds;
+    }
+
+    private static void AddReferences(System.Collections.ObjectModel.Collection<string> tokens, HashSet<string> referencedIds)
+    {
+        referencedIds.UnionWith(tokens);
+        if (tokens.Count > 1)
+        {
+            referencedIds.Add(IdRefs.Joined(tokens));
+        }
+    }
+
+    private static IEnumerable<DivType> SelfAndDescendants(DivType div)
+    {
+        yield return div;
+        foreach (var descendant in div.Div.SelectMany(SelfAndDescendants))
+        {
+            yield return descendant;
         }
     }
 
@@ -432,10 +512,14 @@ public class MetsManager(
             fullMets.PhysicalDivsByPath.Remove(key);
         }
 
-        if (keys.Count > 0 && fullMets.HasDuplicatePaths)
+        if (fullMets.PathDiagnostics.Count > 0)
         {
-            // In a duplicate-path document another div may have been claiming one of the
-            // evicted paths - rebuild so the cache reflects post-delete reality.
+            // In a flagged document this delete may have changed what the diagnostics
+            // describe: another div may have been claiming an evicted path, or the deleted
+            // div may BE the one a diagnostic recorded (deletion is how broken content gets
+            // cleaned up). Rebuild so both the cache and the diagnostics reflect post-delete
+            // reality instead of load-time state - a fully healed document regains the
+            // trusted-cache fast path.
             MetsCache.Populate(fullMets);
         }
     }
@@ -888,23 +972,32 @@ public class MetsManager(
         return new DivTypeFptr { Fileid = fileId };
     }
 
-    private static void RemoveLogicalStructMapDmdSecs(FullMets mets, DivType div)
+    private static void RemoveLogicalStructMapDmdSecs(FullMets mets, DivType root)
     {
-        foreach (var dmdId in div.Dmdid)
+        // DMDID is an IDREFS token collection (see IdRefs): resolve it properly so a legacy
+        // space-containing dmdSec ID (split into tokens by the XmlSerializer) is found and
+        // removed, not silently orphaned. A dmdSec still referenced from outside the structMap
+        // being removed (e.g. shared with a physical div) survives.
+        var structMapDivs = new HashSet<DivType>(SelfAndDescendants(root));
+        var referencedElsewhere = CollectSectionReferences(mets.Mets, structMapDivs, null);
+        foreach (var div in structMapDivs)
         {
-            var dmdSec = mets.Mets.DmdSec.FirstOrDefault(d => d.Id == dmdId);
-            if (dmdSec != null)
+            var dmdSecs = IdRefs
+                .ResolveAll(div.Dmdid, id => mets.Mets.DmdSec.FirstOrDefault(d => d.Id == id))
+                .Where(d => !referencedElsewhere.Contains(d.Id));
+            foreach (var dmdSec in dmdSecs)
                 mets.Mets.DmdSec.Remove(dmdSec);
         }
-        foreach (var child in div.Div)
-            RemoveLogicalStructMapDmdSecs(mets, child);
     }
 
     public void SetStructMapOrder(FullMets mets, string[] ids)
     {
-        var logicalMaps = mets.Mets.StructMap
-            .Where(sm => sm.Type == Constants.Logical)
-            .ToDictionary(sm => sm.Div.Id);
+        // Tolerate malformed logical structMaps rather than throwing: one with no root div
+        // (or no root ID) cannot be ordered, and only the first of two claiming the same ID
+        // is ordered - the same first-wins convention navigation uses.
+        var logicalMaps = new Dictionary<string, StructMapType>();
+        foreach (var sm in mets.Mets.StructMap.Where(sm => sm.Type == Constants.Logical && sm.Div?.Id != null))
+            logicalMaps.TryAdd(sm.Div.Id, sm);
 
         foreach (var map in logicalMaps.Values)
             mets.Mets.StructMap.Remove(map);

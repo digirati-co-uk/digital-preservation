@@ -326,8 +326,10 @@ public class MetsParser(
                 var admId = div.Attribute("ADMID")?.Value;
                 if (admId.HasText())
                 {
-                    // Use pre-built dictionary for O(1) lookup instead of LINQ query
-                    if (lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
+                    // IDREFS-aware: whole value first (single or legacy space-containing ID),
+                    // then per-token (schema-valid multi-reference)
+                    var amd = IdRefs.ResolveSingle(admId, id => lookupMaps.AmdSecMap.GetValueOrDefault(id));
+                    if (amd != null)
                     {
                         var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
                         Uri? storageLocation = null;
@@ -419,13 +421,13 @@ public class MetsParser(
                 VirusScanMetadata? virusScanMetadata = null;
                 ExifMetadata? exifMetadata = null;
                 ExtentMetadata? extentMetadata = null;
+                XElement? techMd = null;
                 if (!haveUsedAdmIdAlready && admId != null)
                 {
-                    if (!lookupMaps.TechMdMap.TryGetValue(admId, out var techMd))
-                    {
-                        // Archivematica does it this way - fall back to amdSec map
-                        lookupMaps.AmdSecMap.TryGetValue(admId, out techMd);
-                    }
+                    // IDREFS-aware, preserving the techMD-then-amdSec fallback per candidate id
+                    // (Archivematica points ADMID at the amdSec rather than the techMD)
+                    techMd = IdRefs.ResolveSingle(admId, id =>
+                        lookupMaps.TechMdMap.GetValueOrDefault(id) ?? lookupMaps.AmdSecMap.GetValueOrDefault(id));
 
                     if (techMd == null)
                     {
@@ -496,20 +498,31 @@ public class MetsParser(
                     } // end else (techMd != null)
                 }
 
-                // Use pre-built dictionary for O(1) lookup instead of LINQ query
-                // The digiprovMD ID has the form "digiprovMD_ClamAV_{admId}"
-                var clamavKey = $"{Constants.VirusProvEventPrefix}{admId}";
-                if (!lookupMaps.DigiprovMdMap.TryGetValue(clamavKey, out var digiprovMd))
+                // The virus-scan event is a digiprovMD in the same amdSec as the file's
+                // techMD, so read it structurally from the RESOLVED element (identified among
+                // its siblings by the platform's "digiprovMD_ClamAV_" ID prefix) rather than
+                // deriving its full ID by string convention - the derived key breaks for
+                // genuine multi-token ADMIDs and for IDs the platform didn't mint.
+                var amdScope = techMd?.Name == XNames.MetsAmdSec ? techMd : techMd?.Parent;
+                var digiprovMd = amdScope?.Elements(XNames.MetsDigiprovMD)
+                    .FirstOrDefault(d => (d.Attribute("ID")?.Value ?? "")
+                        .StartsWith(Constants.VirusProvEventPrefix, StringComparison.OrdinalIgnoreCase));
+                if (digiprovMd == null)
                 {
-                    // Fall back to a case-insensitive but EXACT match. A substring match here
+                    // Conventional-key fallback for documents where nothing resolved
+                    // structurally. Case-insensitive but EXACT match - a substring match here
                     // cross-talks between files whose IDs are prefixes of each other
                     // (e.g. "ADM_a" is contained in "ADM_a2"), returning one file's virus-scan
                     // event for a different file.
-                    var matchingKey = lookupMaps.DigiprovMdMap.Keys
-                        .FirstOrDefault(k => string.Equals(k, clamavKey, StringComparison.OrdinalIgnoreCase));
-                    if (matchingKey != null)
+                    var clamavKey = $"{Constants.VirusProvEventPrefix}{techMd?.Attribute("ID")?.Value ?? admId}";
+                    if (!lookupMaps.DigiprovMdMap.TryGetValue(clamavKey, out digiprovMd))
                     {
-                        digiprovMd = lookupMaps.DigiprovMdMap[matchingKey];
+                        var matchingKey = lookupMaps.DigiprovMdMap.Keys
+                            .FirstOrDefault(k => string.Equals(k, clamavKey, StringComparison.OrdinalIgnoreCase));
+                        if (matchingKey != null)
+                        {
+                            digiprovMd = lookupMaps.DigiprovMdMap[matchingKey];
+                        }
                     }
                 }
 
@@ -557,9 +570,12 @@ public class MetsParser(
                 }
                 
                 
-                if (admId != null && lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
+                var exifAmd = admId == null
+                    ? null
+                    : IdRefs.ResolveSingle(admId, id => lookupMaps.AmdSecMap.GetValueOrDefault(id));
+                if (exifAmd != null)
                 {
-                    var exifMetadataNode = amd.Descendants("ExifMetadata").SingleOrDefault();
+                    var exifMetadataNode = exifAmd.Descendants("ExifMetadata").SingleOrDefault();
                
                     if (exifMetadataNode != null)
                     {
@@ -711,7 +727,8 @@ public class MetsParser(
 
         var dmdId = div.Attribute("DMDID")?.Value;
         if (!dmdId.HasText()) return (null, null, null, false);
-        if (!lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd)) return (null, null, null, false);
+        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
+        if (dmd == null) return (null, null, null, false);
 
         foreach (var accessConditionEl in dmd.Descendants(XNames.ModsAccessCondition))
         {
@@ -1090,8 +1107,8 @@ public class MetsParser(
     {
         var dmdId = div.Attribute("DMDID")?.Value;
         if (!dmdId.HasText()) return null;
-        if (!lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd)) return null;
-        return dmd.Descendants(XNames.ModsTitle).FirstOrDefault()?.Value;
+        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
+        return dmd?.Descendants(XNames.ModsTitle).FirstOrDefault()?.Value;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

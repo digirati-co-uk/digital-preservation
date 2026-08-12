@@ -55,6 +55,50 @@ public class MetsManagerTests
     }
     
     [Fact]
+    public async Task Creating_Mets_From_An_AG_With_A_Preserved_Metadata_Folder_Reuses_The_Template_Divs()
+    {
+        var agFi = new FileInfo("Samples/archivalGroup.json");
+        var agMetsFi = new FileInfo("Outputs/archivalGroup-mets-with-metadata.xml");
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName))!;
+
+        // Give the AG a preserved metadata/ folder with content. The template METS already
+        // contains divs and amdSecs for metadata/ (and metadata/ad-hoc/), so building must
+        // REUSE them - a duplicate metadata div/amdSec was a real production AG-export bug.
+        var metadataContainer = new Container
+        {
+            Id = new Uri($"{archivalGroup.Id}/metadata"),
+            Name = FolderNames.Metadata
+        };
+        metadataContainer.Binaries.Add(new Binary
+        {
+            Id = new Uri($"{archivalGroup.Id}/metadata/report.txt"),
+            Name = "report.txt",
+            ContentType = "text/plain",
+            Digest = "eb634d64ce8e6be5195174ceaef9ac9e19c37119f3b31618630aa633ccdbf68f",
+            Size = 123
+        });
+        archivalGroup.Containers.Add(metadataContainer);
+
+        // In DEBUG builds CreateStandardMets also asserts full navigability, which a
+        // duplicate path would fail; the explicit assertions below hold in Release too.
+        var result = await metsFromArchivalGroup.CreateStandardMets(
+            new Uri(agMetsFi.FullName), archivalGroup, "ArchivalGroup Mets With Metadata");
+
+        result.Success.Should().BeTrue(result.ErrorMessage ?? "");
+        var xml = XDocument.Load(agMetsFi.FullName);
+        XNamespace mets = "http://www.loc.gov/METS/";
+        var amdSecIds = xml.Descendants(mets + "amdSec")
+            .Select(a => (string)a.Attribute("ID")!).ToList();
+        amdSecIds.Should().OnlyHaveUniqueItems();
+        var physical = xml.Descendants(mets + "structMap")
+            .Single(sm => (string?)sm.Attribute("TYPE") == "PHYSICAL");
+        physical.Descendants(mets + "div")
+            .Count(d => (string?)d.Attribute("ID") == Constants.MetadataDivId).Should().Be(1);
+        xml.Descendants(mets + "file")
+            .Count(f => (string?)f.Attribute("ID") == "FILE_metadata/report.txt").Should().Be(1);
+    }
+
+    [Fact]
     public async Task Can_Create_Mets_From_Archival_Group()
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");

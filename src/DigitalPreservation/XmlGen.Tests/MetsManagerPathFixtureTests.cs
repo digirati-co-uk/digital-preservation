@@ -32,9 +32,13 @@ namespace XmlGen.Tests;
 ///   Samples/path-fixture-spaces.xml  — paths with spaces (single and multiple)
 ///   Samples/path-fixture-special.xml — paths with ampersand and Unicode characters
 ///
-/// To regenerate the fixtures (e.g. after changing MetsManager's output format),
-/// run the Generate_Path_Special_Chars_Fixtures test (Category=Manual), then copy
-/// the outputs from bin/Debug/net8.0/Outputs/ to Samples/.
+/// FROZEN LEGACY CORPUS - do NOT regenerate these fixtures. They pin the pre-issue-#188
+/// ID format (raw paths, including spaces, inside ID attributes), which the platform must
+/// keep reading and editing until a step 3 bulk migration. Once step 2 changes ID minting,
+/// regenerating from current output would silently replace the legacy corpus with new-format
+/// files and erase exactly the coverage these tests (and the IdRefs tests that lean on them)
+/// exist to provide. The Generate_Path_Special_Chars_Fixtures test (Category=Manual) remains
+/// only as documentation of how the originals were produced.
 /// </summary>
 public class MetsManagerPathFixtureTests
 {

@@ -7,6 +7,24 @@
 > (`issue-188-idrefs-plan.md`) is also implemented, on `feat/188-idrefs-resolution`, stacked
 > on #211. Step 2 is not started. `chore/sonar-cleanup-main` has since merged; "the mainline"
 > below now simply means `main`.
+>
+> **Status addendum (2026-08-12, after PR #211 merge + independent whole-feature review):**
+> further deltas the review found unrecorded — the "pure refactor / zero assertion changes"
+> claim below no longer holds precisely: (a) `IMetsManager` Set* methods now return `Result`
+> instead of `void` (failures surface to callers; `SetModsInformation` propagates); (b)
+> `EditMets`/`LinkFile`/`UnLinkFile`/`SetFileLinks` normalise incoming paths (`./` strip,
+> trailing-`/` trim, BagIt `data/` strip), changing produced XML for variant path inputs;
+> (c) FLocat comparisons in update/delete/metadata paths are normalised the same way. All
+> deliberate improvements from the review rounds.
+>
+> **Step 2 checklist addition (2026-08-12, from the whole-feature review):**
+> `BuildFptr` and `LinkFile`/`UnLinkFile`/`SetFileLinks` must switch from MINTING
+> `FILE_`+path to RESOLVING the actual FILE element's ID (via the cached div's `Fptr`, or a
+> FLocat lookup) — on legacy documents the fileSec keeps raw IDs, so minting encoded IDs
+> would create dangling FILEID/smLink references and make raw-ID smLinks unremovable. The
+> §2.x "structLink FILE_ IDs — just re-mint" assumption (and its counterpart in
+> `issue-188-analysis.md`, now corrected there) was wrong for legacy content. Add a legacy
+> structLink/logical-fptr regression test on `Samples/path-fixture-spaces.xml` with it.
 
 > v2, 2026-08-10. Revised against `chore/sonar-cleanup-main` after full re-verification of every
 > code claim — see `issue-188-reassessment.md` for what changed and why the approach stands.

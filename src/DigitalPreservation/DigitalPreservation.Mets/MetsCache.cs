@@ -111,15 +111,14 @@ public static class MetsCache
                 break;
             case Constants.DirectoryType:
             {
-                // Legacy IDs may contain spaces, which the XML processor splits into multiple
-                // IDREFS tokens; joining reconstructs the single amdSec ID (see MetadataManager).
-                var admId = string.Join(' ', child.Admid);
-                var amdSec = mets.AmdSec.FirstOrDefault(a => a.Id == admId);
+                // ADMID is an IDREFS token collection; IdRefs resolves both legacy
+                // space-containing IDs and genuine multi-references.
+                var amdSec = IdRefs.ResolveSingle(child.Admid, id => mets.AmdSec.FirstOrDefault(a => a.Id == id));
                 path = ExtractPremisOriginalName(amdSec);
                 if (path == null)
                 {
                     diagnostics?.Add(
-                        $"Directory div '{child.Id}' has no premis:originalName via ADMID '{admId}'");
+                        $"Directory div '{child.Id}' has no premis:originalName via ADMID '{IdRefs.Joined(child.Admid)}'");
                 }
                 break;
             }
