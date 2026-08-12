@@ -20,6 +20,16 @@ public class IdRefsTests
 
     private static string? Lookup(string id) => Elements.GetValueOrDefault(id);
 
+    // The token collections under test, as fields rather than inline array arguments (CA1861).
+    private static readonly string[] PlainToken = ["ADM_objects/plain.pdf"];
+    private static readonly string[] UnknownToken = ["ADM_nope"];
+    private static readonly string[] TokenA = ["ADM_A"];
+    private static readonly string[] LegacySpacedTokens = ["ADM_objects/my", "file.pdf"];
+    private static readonly string[] GenuinePair = ["ADM_A", "ADM_B"];
+    private static readonly string[] SecondResolvesPair = ["ADM_missing", "ADM_B"];
+    private static readonly string[] NothingResolvesPair = ["ADM_missing", "ADM_also_missing"];
+    private static readonly string[] DuplicateTokens = ["ADM_A", "ADM_A"];
+
     // -----------------------------------------------------------------------
     // Collection overload (XmlGen side: tokens from the XmlSerializer's IDREFS split)
     // -----------------------------------------------------------------------
@@ -33,45 +43,45 @@ public class IdRefsTests
     [Fact]
     public void Single_token_resolves_directly()
     {
-        IdRefs.ResolveSingle(new[] { "ADM_objects/plain.pdf" }, Lookup).Should().Be("plain");
+        IdRefs.ResolveSingle(PlainToken, Lookup).Should().Be("plain");
     }
 
     [Fact]
     public void Single_unmatched_token_resolves_to_null()
     {
-        IdRefs.ResolveSingle(new[] { "ADM_nope" }, Lookup).Should().BeNull();
+        IdRefs.ResolveSingle(UnknownToken, Lookup).Should().BeNull();
     }
 
     [Fact]
     public void Legacy_spaced_id_split_into_tokens_resolves_via_the_joined_form()
     {
         // "ADM_objects/my file.pdf" arrives from the XmlSerializer as two tokens
-        IdRefs.ResolveSingle(new[] { "ADM_objects/my", "file.pdf" }, Lookup)
+        IdRefs.ResolveSingle(LegacySpacedTokens, Lookup)
             .Should().Be("legacy-spaced");
     }
 
     [Fact]
     public void Genuine_idrefs_list_resolves_to_the_first_matching_token()
     {
-        IdRefs.ResolveSingle(new[] { "ADM_A", "ADM_B" }, Lookup).Should().Be("a");
+        IdRefs.ResolveSingle(GenuinePair, Lookup).Should().Be("a");
     }
 
     [Fact]
     public void Genuine_idrefs_list_falls_through_to_a_later_token_when_earlier_ones_miss()
     {
-        IdRefs.ResolveSingle(new[] { "ADM_missing", "ADM_B" }, Lookup).Should().Be("b");
+        IdRefs.ResolveSingle(SecondResolvesPair, Lookup).Should().Be("b");
     }
 
     [Fact]
     public void Nothing_matching_resolves_to_null()
     {
-        IdRefs.ResolveSingle(new[] { "ADM_missing", "ADM_also_missing" }, Lookup).Should().BeNull();
+        IdRefs.ResolveSingle(NothingResolvesPair, Lookup).Should().BeNull();
     }
 
     [Fact]
     public void Joined_reconstructs_the_original_attribute_value()
     {
-        IdRefs.Joined(new[] { "ADM_objects/my", "file.pdf" }).Should().Be("ADM_objects/my file.pdf");
+        IdRefs.Joined(LegacySpacedTokens).Should().Be("ADM_objects/my file.pdf");
     }
 
     // -----------------------------------------------------------------------
@@ -131,32 +141,32 @@ public class IdRefsTests
     [Fact]
     public void ResolveAll_of_a_single_token_resolves_that_element()
     {
-        IdRefs.ResolveAll(new[] { "ADM_A" }, Lookup).Should().Equal("a");
+        IdRefs.ResolveAll(TokenA, Lookup).Should().Equal("a");
     }
 
     [Fact]
     public void ResolveAll_of_legacy_spaced_tokens_is_exactly_the_one_legacy_element()
     {
-        IdRefs.ResolveAll(new[] { "ADM_objects/my", "file.pdf" }, Lookup)
+        IdRefs.ResolveAll(LegacySpacedTokens, Lookup)
             .Should().Equal("legacy-spaced");
     }
 
     [Fact]
     public void ResolveAll_of_a_genuine_idrefs_list_resolves_every_token()
     {
-        IdRefs.ResolveAll(new[] { "ADM_A", "ADM_B" }, Lookup).Should().Equal("a", "b");
+        IdRefs.ResolveAll(GenuinePair, Lookup).Should().Equal("a", "b");
     }
 
     [Fact]
     public void ResolveAll_skips_tokens_that_do_not_resolve()
     {
-        IdRefs.ResolveAll(new[] { "ADM_missing", "ADM_B" }, Lookup).Should().Equal("b");
+        IdRefs.ResolveAll(SecondResolvesPair, Lookup).Should().Equal("b");
     }
 
     [Fact]
     public void ResolveAll_returns_distinct_elements_for_duplicate_tokens()
     {
-        IdRefs.ResolveAll(new[] { "ADM_A", "ADM_A" }, Lookup).Should().Equal("a");
+        IdRefs.ResolveAll(DuplicateTokens, Lookup).Should().Equal("a");
     }
 
     // -----------------------------------------------------------------------
@@ -166,26 +176,26 @@ public class IdRefsTests
     [Fact]
     public void References_matches_a_single_token()
     {
-        IdRefs.References(new[] { "ADM_A" }, "ADM_A").Should().BeTrue();
+        IdRefs.References(TokenA, "ADM_A").Should().BeTrue();
     }
 
     [Fact]
     public void References_matches_one_token_of_a_genuine_list()
     {
-        IdRefs.References(new[] { "ADM_A", "ADM_B" }, "ADM_B").Should().BeTrue();
+        IdRefs.References(GenuinePair, "ADM_B").Should().BeTrue();
     }
 
     [Fact]
     public void References_matches_the_joined_legacy_form()
     {
-        IdRefs.References(new[] { "ADM_objects/my", "file.pdf" }, "ADM_objects/my file.pdf")
+        IdRefs.References(LegacySpacedTokens, "ADM_objects/my file.pdf")
             .Should().BeTrue();
     }
 
     [Fact]
     public void References_does_not_match_an_unrelated_id()
     {
-        IdRefs.References(new[] { "ADM_A", "ADM_B" }, "ADM_C").Should().BeFalse();
+        IdRefs.References(GenuinePair, "ADM_C").Should().BeFalse();
     }
 
     [Fact]

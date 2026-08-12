@@ -45,6 +45,27 @@ public static class IdRefs
     }
 
     /// <summary>
+    /// Mirror-image resolution for the XDocument/raw-string side (MetsParser), where the whole
+    /// IDREFS attribute value arrives as one string: try the whole value first (a single ID,
+    /// or a legacy ID containing spaces), then each whitespace-separated token (schema-valid
+    /// IDREFS list - XML allows tab/newline/CR separators as well as spaces), first match
+    /// winning.
+    /// </summary>
+    public static T? ResolveSingle<T>(string attributeValue, Func<string, T?> lookupById)
+        where T : class
+    {
+        var whole = lookupById(attributeValue);
+        if (whole != null || attributeValue.IndexOfAny(XmlWhitespace) < 0)
+        {
+            return whole;
+        }
+        return attributeValue
+            .Split(XmlWhitespace, StringSplitOptions.RemoveEmptyEntries)
+            .Select(lookupById)
+            .FirstOrDefault(match => match != null);
+    }
+
+    /// <summary>
     /// Resolve an IDREFS token collection to every referenced element. The same tiering as
     /// <see cref="ResolveSingle{T}(IReadOnlyList{string},Func{string,T})"/>: a joined-form
     /// match means the tokens are ONE legacy space-containing ID, so exactly that element is
@@ -97,26 +118,5 @@ public static class IdRefs
         {
             tokens.Remove(resolvedId);
         }
-    }
-
-    /// <summary>
-    /// Mirror-image resolution for the XDocument/raw-string side (MetsParser), where the whole
-    /// IDREFS attribute value arrives as one string: try the whole value first (a single ID,
-    /// or a legacy ID containing spaces), then each whitespace-separated token (schema-valid
-    /// IDREFS list - XML allows tab/newline/CR separators as well as spaces), first match
-    /// winning.
-    /// </summary>
-    public static T? ResolveSingle<T>(string attributeValue, Func<string, T?> lookupById)
-        where T : class
-    {
-        var whole = lookupById(attributeValue);
-        if (whole != null || attributeValue.IndexOfAny(XmlWhitespace) < 0)
-        {
-            return whole;
-        }
-        return attributeValue
-            .Split(XmlWhitespace, StringSplitOptions.RemoveEmptyEntries)
-            .Select(lookupById)
-            .FirstOrDefault(match => match != null);
     }
 }

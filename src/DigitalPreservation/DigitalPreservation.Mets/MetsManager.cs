@@ -423,7 +423,7 @@ public class MetsManager(
     private static bool SectionReferencedElsewhere(
         DigitalPreservation.XmlGen.Mets.Mets mets,
         string sectionId,
-        ISet<DivType> excludedDivs,
+        HashSet<DivType> excludedDivs,
         FileType? excludedFile)
     {
         var referencingDivs = mets.StructMap
