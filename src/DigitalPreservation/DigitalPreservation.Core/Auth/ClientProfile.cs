@@ -10,9 +10,10 @@ public sealed class ClientProfile
     public required string Name { get; init; }
 
     /// <summary>
-    /// Optional deposit bucket this caller's deposits should be routed to. Modeled here for the
-    /// RFC-0001 Goobi use case but <b>not consumed in Phase 0</b> — deposit creation still uses
-    /// <c>AwsStorage:DefaultWorkingBucket</c>. Bucket routing is a later phase (RFC §8).
+    /// Optional deposit bucket this caller's deposits are routed to (RFC-0001 §8): deposit
+    /// creation carves the working files area here instead of <c>AwsStorage:DefaultWorkingBucket</c>,
+    /// and from then on the deposit's own Files URI is authoritative. Deposits outside the default
+    /// bucket cannot run the pipeline, which mounts only the default bucket as a filesystem.
     /// </summary>
     public string? DepositBucket { get; init; }
 }

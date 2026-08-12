@@ -90,4 +90,43 @@ public class CallerResolverTests
         result.Source.Should().Be(CallerResolver.SourceHeaderFallback);
         result.Name.Should().Be("header-name");
     }
+
+    [Fact]
+    public void ResolveDepositBucket_KnownMachine_GetsProfileBucket()
+    {
+        CallerResolver.ResolveDepositBucket(Principal(("azp", Goobi)), Directory())
+            .Should().Be("leeds-goobi-deposits");
+    }
+
+    [Fact]
+    public void ResolveDepositBucket_KnownMachineWithoutProfileBucket_GetsNull()
+    {
+        CallerResolver.ResolveDepositBucket(Principal(("appid", Iiif)), Directory())
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public void ResolveDepositBucket_HumanCaller_GetsNull_EvenWhenSignInAppIsKnown()
+    {
+        // A human signing in through an app that happens to be in KnownClients still gets the
+        // default bucket - profile buckets are for the machine caller itself.
+        CallerResolver.ResolveDepositBucket(
+                Principal(("preferred_username", "alice@leeds.ac.uk"), ("azp", Goobi)), Directory())
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public void ResolveDepositBucket_UnknownMachine_GetsNull()
+    {
+        CallerResolver.ResolveDepositBucket(
+                Principal(("azp", "99999999-9999-9999-9999-999999999999")), Directory())
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public void ResolveDepositBucket_NullDirectory_GetsNull()
+    {
+        CallerResolver.ResolveDepositBucket(Principal(("azp", Goobi)), clients: null)
+            .Should().BeNull();
+    }
 }

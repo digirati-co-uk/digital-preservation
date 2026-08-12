@@ -21,6 +21,10 @@ public static class CallerResolver
     {
         var appId = user.FindFirst("azp")?.Value ?? user.FindFirst("appid")?.Value;
 
+        // Single source of truth for bucket routing, shared with deposit creation - what /whoami
+        // reports is what CreateDeposit does.
+        var depositBucket = ResolveDepositBucket(user, clients) ?? defaultBucket;
+
         // 1. Human (delegated) caller — identified by a real user claim, not the injected machine name.
         var preferredUsername = user.FindFirstValue("preferred_username");
         if (!string.IsNullOrEmpty(preferredUsername))
@@ -30,7 +34,7 @@ public static class CallerResolver
                 Name = user.GetDisplayName() ?? preferredUsername,
                 Source = SourceUser,
                 AppId = appId,
-                DepositBucket = defaultBucket
+                DepositBucket = depositBucket
             };
         }
 
@@ -42,7 +46,7 @@ public static class CallerResolver
                 Name = profile.Name,
                 Source = SourceToken,
                 AppId = appId,
-                DepositBucket = profile.DepositBucket ?? defaultBucket
+                DepositBucket = depositBucket
             };
         }
 
@@ -54,7 +58,7 @@ public static class CallerResolver
                 Name = clientIdentityHeader,
                 Source = SourceHeaderFallback,
                 AppId = appId,
-                DepositBucket = defaultBucket
+                DepositBucket = depositBucket
             };
         }
 
@@ -64,7 +68,28 @@ public static class CallerResolver
             Name = "unknown",
             Source = SourceUnknown,
             AppId = appId,
-            DepositBucket = defaultBucket
+            DepositBucket = depositBucket
         };
+    }
+
+    /// <summary>
+    /// The deposit bucket override for the calling identity, or null when the caller's deposits
+    /// belong in the default working bucket (RFC-0001 §8). Only a machine caller resolved from
+    /// the SIGNED token (<c>azp</c>/<c>appid</c> found in <c>KnownClients</c>) is routed to a
+    /// profile bucket — a human user, or a machine identified only by the self-asserted
+    /// <c>X-Client-Identity</c> header, always gets the default, so the spoofable header can
+    /// never steer deposits into another caller's bucket.
+    /// </summary>
+    public static string? ResolveDepositBucket(ClaimsPrincipal user, IClientDirectory? clients)
+    {
+        if (!string.IsNullOrEmpty(user.FindFirstValue("preferred_username")))
+        {
+            return null;
+        }
+
+        var appId = user.FindFirst("azp")?.Value ?? user.FindFirst("appid")?.Value;
+        return clients != null && clients.TryResolve(appId, out var profile)
+            ? profile.DepositBucket
+            : null;
     }
 }

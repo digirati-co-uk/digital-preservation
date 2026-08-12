@@ -172,7 +172,6 @@ public static string GetCallerIdentity(this ClaimsPrincipal principal, IClientDi
 The same map is the natural home for **per-caller policy**, not just a display name. For the Goobi use case (§1.1) it generalises from `azp → name` to `azp → client profile`, e.g. carrying the target deposit bucket:
 
 ```jsonc
-// illustrative — the bucket-routing mechanism itself is deferred (see §8)
 "KnownClients": {
   "22222222-2222-2222-2222-222222222222": { "name": "goobi", "depositBucket": "leeds-goobi-deposits" },
   "11111111-1111-1111-1111-111111111111": { "name": "iiif-builder" }
@@ -180,6 +179,26 @@ The same map is the natural home for **per-caller policy**, not just a display n
 ```
 
 The point here is only that the verified `azp` is the safe key such policy hangs off; the deposit-create handler reads the resolved caller's profile to choose the bucket, and the caller cannot influence it.
+
+**Bucket routing is implemented** (on this branch), and is deliberately narrow:
+
+- `CallerResolver.ResolveDepositBucket` is the single decision point: it returns the profile
+  bucket **only** for a machine caller resolved from the signed `azp`/`appid`. A human user, or a
+  machine identified only by the self-asserted `X-Client-Identity` header, always gets the
+  default — the spoofable header can never steer deposits into another caller's bucket. `Resolve`
+  (the `/whoami` path) uses the same function, so what `/whoami` reports is what creation does.
+- `CreateDepositBase` passes the result as the `workingRoot` of
+  `IStorage.GetWorkingFilesLocation` (a bucket name in the S3 implementation; the parameter is
+  storage-neutral for future filesystem/other-blob implementations). This carve-out is the **only**
+  moment the choice matters: the deposit's own `Files` URI is stored on the entity and every
+  subsequent storage operation derives its location (and bucket) from that URI.
+- **The pipeline only runs on default-bucket deposits.** Pipeline.API reaches deposit files
+  through a filesystem mount of the default working bucket, so `RunPipelineHandler` — the only
+  producer of pipeline jobs — declines (400) any deposit whose `Files` URI is outside it.
+  Revisit if a routed caller ever needs characterisation.
+- Deployment prerequisite, not code: the task roles of every service that touches deposit
+  files (Preservation API, Storage API + Importer for export, UI) need IAM read/write on each
+  per-caller bucket, and the caller needs access to its own bucket.
 
 Why this is safe:
 
@@ -278,14 +297,14 @@ Each phase is independently reversible until Phase 4.
    - The **iiif-builder service account** is **still open**: the iiif-builder service itself is a daemon and should be purely app-only (client credentials), so a *user* account for it is unexpected. The leading hypothesis is that Leeds have built a **UI over iiif-builder** (source not currently available to us) that signs users in and calls the Preservation API on their behalf, with this account as its (test/service) login. That would explain a user-context path. What it does **not** yet explain is why that UI appears only as a user and not as its own client app registration — though that may simply be another instance of the registration-collapse described in §3 (if the iiif-builder UI also reuses `a616cf42`, it has no distinct app identity to surface). **Action:** confirm with Leeds whether such a UI exists, which registration it uses, and whether the account is live or a leftover — then fold it into the migration or retire it.
 3. **Role granularity — read/write, and per-API/per-endpoint (see §5.3.1).** Is a single `Preservation.Call` sufficient for v1, or do we split read vs write, and define Storage-specific roles (e.g. `Storage.Content.Read` gating `GET /content`) that an everyday Preservation caller does not hold? This interacts with Q1: Storage-specific roles are cleanest once Storage has its own audience.
 4. **Graph-based name resolution** vs the static `KnownClients` map — static is recommended for v1 (cheap, doubles as allow-list); revisit if caller churn becomes high.
-5. **Bucket: routing vs isolation (Goobi, §1.1).** Is the Goobi bucket purely *routing* ("Goobi's deposits go here" — config in the `KnownClients` profile), or also *isolation* ("**only** Goobi may write there" — an enforced authz rule)? Likely both. And does the `azp → bucket` policy live in Preservation API config, or is it better expressed as a per-caller app role?
+5. **Bucket: routing vs isolation (Goobi, §1.1).** *Routing* is now implemented (§5.2): config in the `KnownClients` profile, consumed at deposit creation. Still open is *isolation* ("**only** Goobi may write there") — an IAM/authz concern rather than routing code — and whether the policy would be better expressed as a per-caller app role.
 6. **Per-caller behaviour generally.** Bucket choice is the first identity-driven behaviour; others may follow (default rights statement, METS template, quota). Decide whether such policy belongs in the `KnownClients` profile or a separate policy store — and whether any of it warrants a change to the deposit-create API surface.
 
 ## 9. Testing the migrated identity
 
 Phase 0's `ApiAuthorizationStackTests` already characterise resolution at the filter level with a stubbed token (a signed `azp` → friendly name wins over the `X-Client-Identity` header). As later phases land, add end-to-end coverage that the *verified* identity drives real behaviour:
 
-1. **Goobi bucket routing — the driving use case (§1.1).** With a caller presenting Goobi's identity (resolved `azp` → the `goobi` profile carrying `depositBucket`), create a deposit and assert the deposit's `.files` S3 URIs point at the **Goobi bucket**, not `AwsStorage:DefaultWorkingBucket`. This proves verified-identity → data-isolation end to end. It lands with the bucket-routing consumer (deferred — §8 Q5), not Phase 0.
+1. **Goobi bucket routing — the driving use case (§1.1).** With a caller presenting Goobi's identity (resolved `azp` → the `goobi` profile carrying `depositBucket`), create a deposit and assert the deposit's `.files` S3 URIs point at the **Goobi bucket**, not `AwsStorage:DefaultWorkingBucket`. This proves verified-identity → data-isolation end to end. The routing mechanism is now implemented and unit-tested at each seam (`CallerResolverTests` for the identity→bucket decision, `StorageTests` for carving in an explicit `workingRoot`, `RunPipelineHandlerTests` for the pipeline's default-bucket-only guard); this end-to-end stubbed-`azp` test through the API surface is still the outstanding piece.
 2. **Default caller — e.g. the Playwright API identity.** A caller *without* a `depositBucket` in its profile creates a deposit and lands in the default bucket — proving Goobi's routing is specific to Goobi and the default path is unaffected. The app-only identity the Playwright suite uses for direct API calls (distinct from its browser-login user — §8 Q2) is the natural concrete subject once it has its own registration.
 
 **Test seam.** Real-Entra tokens are awkward in CI, so prefer driving these through the test host with a stubbed `azp` claim (as `ApiAuthorizationStackTests` does) for deterministic CI coverage, plus an optional `Category=Manual` smoke test using genuine client-credentials tokens against dev.
