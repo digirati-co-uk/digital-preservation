@@ -1,0 +1,634 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--XSLT was applied...-->
+<mets:mets xmlns:mets="http://www.loc.gov/METS/" xmlns:dv="http://dfg-viewer.de/" xmlns:mods="http://www.loc.gov/mods/v3" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OBJID="rosdok/ppn100673385X" TYPE="histbest.print.monograph" xsi:schemaLocation="http://www.loc.gov/METS/ http://www.loc.gov/standards/mets/mets.xsd http://www.w3.org/1999/xlink http://www.loc.gov/standards/xlink/xlink.xsd http://www.loc.gov/mods/v3 http://www.loc.gov/standards/mods/v3/mods.xsd http://www.loc.gov/mix/v20 http://www.loc.gov/standards/mix/mix20/mix20.xsd http://dfg-viewer.de/ http://purl.uni-rostock.de/ub/standards/dfg-viewer.xsd">
+  <mets:metsHdr CREATEDATE="2020-06-12T17:15:57Z" LASTMODDATE="2022-03-06T22:29:14Z" RECORDSTATUS="PRESENTATION_DV">
+    <mets:agent ROLE="CREATOR" TYPE="ORGANIZATION">
+      <mets:name>Rostock University Library</mets:name>
+    </mets:agent>
+    <mets:agent OTHERTYPE="SOFTWARE" ROLE="EDITOR" TYPE="OTHER">
+      <mets:name>UB Rostock: Goobi MyCoRe Importer 1.4.4</mets:name>
+      <mets:note xmlns:ubr="http://ub.uni-rostock.de" ubr:date="2022-03-06T22:29:14.506Z" ubr:type="execution" />
+    </mets:agent>
+  </mets:metsHdr>
+  <mets:dmdSec GROUPID="DMDLOG_0000" ID="DMDLOG_0000">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:recordInfo>
+            <mods:recordIdentifier source="DE-28">rosdok/ppn100673385X</mods:recordIdentifier>
+            <mods:recordInfoNote type="k10plus_ppn">100673385X</mods:recordInfoNote>
+            <mods:recordInfoNote type="k10plus_bbg">Oau</mods:recordInfoNote>
+            <mods:descriptionStandard>rda</mods:descriptionStandard>
+            <mods:recordOrigin>Converted from PICA to MODS using Pica2Mods XSLT Transformator 2.2 [SCM: "6f55f39418ac01aa24b956f3d89dc79f69ad6cf8" "v2.2" "2022-02-28T18:58:10+0100"] with mode 'REPRO'.</mods:recordOrigin>
+          </mods:recordInfo>
+          <mods:genre authorityURI="https://rosdok.uni-rostock.de/classifications/doctype" displayLabel="doctype" type="intern" usage="primary" valueURI="https://rosdok.uni-rostock.de/classifications/doctype#histbest.print.monograph">Druck</mods:genre>
+          <mods:genre authorityURI="http://www.mycore.org/classifications/aadgenres" displayLabel="aadgenre" type="aadgenre" valueURI="http://www.mycore.org/classifications/aadgenres#ppn_096631147">Dissertation</mods:genre>
+          <mods:titleInfo usage="primary">
+            <mods:title>Dissertatio Inauguralis Medica De Inversione Uteri</mods:title>
+          </mods:titleInfo>
+          <mods:titleInfo type="alternative">
+            <mods:title>De inversione uteri</mods:title>
+          </mods:titleInfo>
+          <mods:name type="personal">
+            <mods:namePart type="given">Karl Friedrich</mods:namePart>
+            <mods:namePart type="family">Köppen</mods:namePart>
+            <mods:role>
+              <mods:roleTerm authority="GBV" type="text">VerfasserIn</mods:roleTerm>
+              <mods:roleTerm authority="marcrelator" type="code">aut</mods:roleTerm>
+            </mods:role>
+            <mods:nameIdentifier type="gnd">1147717303</mods:nameIdentifier>
+          </mods:name>
+          <mods:name type="corporate">
+            <mods:nameIdentifier type="gnd">6146567-7</mods:nameIdentifier>
+            <mods:namePart>Johann Jakob Adler Erben</mods:namePart>
+            <mods:role>
+              <mods:roleTerm authority="GBV" type="text">DruckerIn</mods:roleTerm>
+              <mods:roleTerm authority="marcrelator" type="code">prt</mods:roleTerm>
+            </mods:role>
+          </mods:name>
+          <mods:identifier type="urn">urn:nbn:de:gbv:28-rosdok_ppn100673385X-0</mods:identifier>
+          <mods:identifier type="purl">http://purl.uni-rostock.de/rosdok/ppn100673385X</mods:identifier>
+          <mods:classification authorityURI="https://rosdok.uni-rostock.de/classifications/provider" displayLabel="provider" valueURI="https://rosdok.uni-rostock.de/classifications/provider#ubr">Universitätsbibliothek Rostock</mods:classification>
+          <mods:classification authorityURI="https://rosdok.uni-rostock.de/classifications/licenseinfo" displayLabel="licenseinfo" valueURI="https://rosdok.uni-rostock.de/classifications/licenseinfo#metadata.cc0">Lizenz Metadaten: CC0</mods:classification>
+          <mods:classification authorityURI="https://rosdok.uni-rostock.de/classifications/licenseinfo" displayLabel="licenseinfo" valueURI="https://rosdok.uni-rostock.de/classifications/licenseinfo#digitisedimages.norestrictions">Keine Einschränkungen</mods:classification>
+          <mods:classification authorityURI="https://rosdok.uni-rostock.de/classifications/licenseinfo" displayLabel="licenseinfo" valueURI="https://rosdok.uni-rostock.de/classifications/licenseinfo#deposit.publicdomain">gemeinfrei</mods:classification>
+          <mods:classification authorityURI="https://rosdok.uni-rostock.de/classifications/licenseinfo" displayLabel="licenseinfo" valueURI="https://rosdok.uni-rostock.de/classifications/licenseinfo#work.publicdomain">gemeinfrei</mods:classification>
+          <mods:classification authorityURI="https://rosdok.uni-rostock.de/classifications/accesscondition" displayLabel="accesscondition" valueURI="https://rosdok.uni-rostock.de/classifications/accesscondition#openaccess">frei zugänglich (Open Access)</mods:classification>
+          <mods:language>
+            <mods:languageTerm authority="rfc5646" type="code">la</mods:languageTerm>
+          </mods:language>
+          <mods:physicalDescription>
+            <mods:extent>19 Seiten</mods:extent>
+            <mods:note type="source_dimensions">4°</mods:note>
+            <mods:digitalOrigin>reformatted digital</mods:digitalOrigin>
+          </mods:physicalDescription>
+          <mods:originInfo eventType="publication">
+            <mods:dateIssued encoding="w3cdtf" keyDate="yes">1806</mods:dateIssued>
+            <mods:dateIssued>MDCCCVI.</mods:dateIssued>
+            <mods:publisher>Litteris Adlerianis</mods:publisher>
+            <mods:place>
+              <mods:placeTerm type="text">Rostochii</mods:placeTerm>
+            </mods:place>
+            <mods:place supplied="yes">
+              <mods:placeTerm lang="ger" type="text">Rostock</mods:placeTerm>
+            </mods:place>
+            <mods:issuance>monographic</mods:issuance>
+            <mods:dateOther encoding="w3cdtf" type="defence">1806</mods:dateOther>
+          </mods:originInfo>
+          <mods:originInfo eventType="digitization">
+            <mods:dateCaptured encoding="w3cdtf" keyDate="yes">2017</mods:dateCaptured>
+            <mods:publisher>Universitätsbibliothek Rostock</mods:publisher>
+            <mods:place>
+              <mods:placeTerm type="text">Rostock</mods:placeTerm>
+            </mods:place>
+            <mods:dateCaptured>2017</mods:dateCaptured>
+          </mods:originInfo>
+          <mods:location>
+            <mods:physicalLocation authorityURI="http://d-nb.info/gnd/" type="current" valueURI="http://d-nb.info/gnd/25968-8">Universitätsbibliothek Rostock</mods:physicalLocation>
+            <mods:shelfLocator>R.U.-med 1806 Köppen, Karl Friedrich</mods:shelfLocator>
+          </mods:location>
+          <mods:location>
+            <mods:physicalLocation authorityURI="http://d-nb.info/gnd/" type="online" valueURI="http://d-nb.info/gnd/25968-8">Universitätsbibliothek Rostock</mods:physicalLocation>
+            <mods:url access="object in context" usage="primary">http://purl.uni-rostock.de/rosdok/ppn100673385X</mods:url>
+          </mods:location>
+          <mods:note type="source_note">Vorlageform der Veröffentlichungsangabe: "Rostochii Litteris Adlerianis MDCCCVI."</mods:note>
+          <mods:note type="statement of responsibility">Quam Consensu ... Facultatis Medicae Rostochiensis Pro Obtinendo Doctoris Gradu Examini Publico Submittit Carolus Friedericus Köppen Treptoviensis</mods:note>
+          <mods:classification authority="ivdcc">bibliotheken#101ub_rostock</mods:classification>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:dmdSec ID="DMDLOG_0001">
+    <mets:mdWrap MDTYPE="MODS">
+      <mets:xmlData>
+        <mods:mods>
+          <mods:titleInfo>
+            <mods:title>Discrimen, quod corpus virile et  muliedre intercedit, in diversa...</mods:title>
+          </mods:titleInfo>
+        </mods:mods>
+      </mets:xmlData>
+    </mets:mdWrap>
+  </mets:dmdSec>
+  <mets:amdSec ID="AMD_DFGVIEWER">
+    <mets:rightsMD ID="RIGHTS">
+      <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml" OTHERMDTYPE="DVRIGHTS">
+        <mets:xmlData>
+          <dv:rights>
+            <dv:owner>Universitätsbibliothek Rostock</dv:owner>
+            <dv:ownerLogo>https://rosdok.uni-rostock.de/images/dfgviewer/dfgviewer_ublogo.png</dv:ownerLogo>
+            <dv:ownerSiteURL>http://www.ub.uni-rostock.de</dv:ownerSiteURL>
+            <dv:ownerContact>mailto:digibib.ub@uni-rostock.de</dv:ownerContact>
+          </dv:rights>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:rightsMD>
+    <mets:digiprovMD ID="DIGIPROV">
+      <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml" OTHERMDTYPE="DVLINKS">
+        <mets:xmlData>
+          <dv:links>
+            <dv:reference>https://opac.lbs-rostock.gbv.de/DB=1/PPN?PPN=100673385X</dv:reference>
+            <dv:presentation>http://purl.uni-rostock.de/rosdok/ppn100673385X</dv:presentation>
+            <dv:iiif>https://rosdok.uni-rostock.de/api/iiif/presentation/v2/rosdok_ppn100673385X/manifest</dv:iiif>
+          </dv:links>
+        </mets:xmlData>
+      </mets:mdWrap>
+    </mets:digiprovMD>
+  </mets:amdSec>
+  <mets:fileSec>
+    <mets:fileGrp ID="ALTO" USE="FULLTEXT">
+      <mets:file ID="ALTO_file_0001" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0001.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0002" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0002.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0003" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0003.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0004" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0004.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0005" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0005.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0006" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0006.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0007" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0007.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0008" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0008.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0009" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0009.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0010" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0010.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0011" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0011.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0012" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0012.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0013" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0013.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0014" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0014.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0015" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0015.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0016" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0016.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0017" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0017.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0018" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0018.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0019" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0019.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0020" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0020.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0021" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0021.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0022" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0022.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0023" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0023.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0024" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0024.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0025" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0025.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0026" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0026.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0027" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0027.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0028" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0028.alto.xml" />
+      </mets:file>
+      <mets:file ID="ALTO_file_0029" MIMETYPE="text/xml">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/depot/rosdok_ppn100673385X/alto/phys_0029.alto.xml" />
+      </mets:file>
+    </mets:fileGrp>
+    <mets:fileGrp USE="DEFAULT">
+      <mets:file ID="DEFAULT_file_0001" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0001/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0002" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0002/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0003" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0003/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0004" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0004/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0005" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0005/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0006" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0006/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0007" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0007/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0008" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0008/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0009" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0009/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0010" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0010/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0011" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0011/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0012" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0012/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0013" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0013/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0014" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0014/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0015" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0015/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0016" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0016/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0017" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0017/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0018" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0018/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0019" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0019/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0020" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0020/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0021" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0021/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0022" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0022/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0023" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0023/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0024" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0024/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0025" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0025/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0026" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0026/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0027" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0027/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0028" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0028/info.json" />
+      </mets:file>
+      <mets:file ID="DEFAULT_file_0029" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0029/info.json" />
+      </mets:file>
+    </mets:fileGrp>
+    <mets:fileGrp USE="THUMBS">
+      <mets:file ID="THUMBS_file_0001" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0001/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0002" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0002/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0003" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0003/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0004" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0004/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0005" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0005/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0006" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0006/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0007" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0007/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0008" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0008/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0009" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0009/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0010" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0010/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0011" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0011/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0012" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0012/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0013" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0013/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0014" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0014/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0015" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0015/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0016" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0016/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0017" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0017/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0018" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0018/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0019" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0019/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0020" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0020/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0021" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0021/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0022" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0022/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0023" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0023/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0024" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0024/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0025" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0025/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0026" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0026/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0027" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0027/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0028" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0028/full/!150,150/0/native.jpg" />
+      </mets:file>
+      <mets:file ID="THUMBS_file_0029" MIMETYPE="image/jpeg">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0029/full/!150,150/0/native.jpg" />
+      </mets:file>
+    </mets:fileGrp>
+    <mets:fileGrp USE="DOWNLOAD">
+      <mets:file ID="DOWNLOAD_file_0000" MIMETYPE="text/html">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/resolve/recordIdentifier/rosdok%252Fppn100673385X/pdfdownload" />
+      </mets:file>
+    </mets:fileGrp>
+    <mets:fileGrp USE="TEASER">
+      <mets:file ID="TEASER_file_0000" MIMETYPE="text/html">
+        <mets:FLocat LOCTYPE="URL" xlink:href="https://rosdok.uni-rostock.de/iiif/image-api/rosdok%252Fppn100673385X%252Fphys_0005/full/!400,400/0/native.jpg" />
+      </mets:file>
+    </mets:fileGrp>
+  </mets:fileSec>
+  <mets:structMap TYPE="PHYSICAL">
+    <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X" ID="phys_0000" TYPE="physSequence">
+      <mets:fptr FILEID="DOWNLOAD_file_0000" />
+      <mets:fptr FILEID="TEASER_file_0000" />
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0001" ID="phys_0001" ORDER="1" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0001" />
+        <mets:fptr FILEID="DEFAULT_file_0001" />
+        <mets:fptr FILEID="THUMBS_file_0001" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0002" ID="phys_0002" ORDER="2" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0002" />
+        <mets:fptr FILEID="DEFAULT_file_0002" />
+        <mets:fptr FILEID="THUMBS_file_0002" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0003" ID="phys_0003" ORDER="3" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0003" />
+        <mets:fptr FILEID="DEFAULT_file_0003" />
+        <mets:fptr FILEID="THUMBS_file_0003" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0004" ID="phys_0004" ORDER="4" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0004" />
+        <mets:fptr FILEID="DEFAULT_file_0004" />
+        <mets:fptr FILEID="THUMBS_file_0004" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0005" ID="phys_0005" ORDER="5" ORDERLABEL="[1]" TYPE="page" xlink:label="START_PAGE">
+        <mets:fptr FILEID="ALTO_file_0005" />
+        <mets:fptr FILEID="DEFAULT_file_0005" />
+        <mets:fptr FILEID="THUMBS_file_0005" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0006" ID="phys_0006" ORDER="6" ORDERLABEL="[2]" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0006" />
+        <mets:fptr FILEID="DEFAULT_file_0006" />
+        <mets:fptr FILEID="THUMBS_file_0006" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0007" ID="phys_0007" ORDER="7" ORDERLABEL="[3]" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0007" />
+        <mets:fptr FILEID="DEFAULT_file_0007" />
+        <mets:fptr FILEID="THUMBS_file_0007" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0008" ID="phys_0008" ORDER="8" ORDERLABEL="4" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0008" />
+        <mets:fptr FILEID="DEFAULT_file_0008" />
+        <mets:fptr FILEID="THUMBS_file_0008" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0009" ID="phys_0009" ORDER="9" ORDERLABEL="5" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0009" />
+        <mets:fptr FILEID="DEFAULT_file_0009" />
+        <mets:fptr FILEID="THUMBS_file_0009" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0010" ID="phys_0010" ORDER="10" ORDERLABEL="6" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0010" />
+        <mets:fptr FILEID="DEFAULT_file_0010" />
+        <mets:fptr FILEID="THUMBS_file_0010" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0011" ID="phys_0011" ORDER="11" ORDERLABEL="7" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0011" />
+        <mets:fptr FILEID="DEFAULT_file_0011" />
+        <mets:fptr FILEID="THUMBS_file_0011" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0012" ID="phys_0012" ORDER="12" ORDERLABEL="8" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0012" />
+        <mets:fptr FILEID="DEFAULT_file_0012" />
+        <mets:fptr FILEID="THUMBS_file_0012" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0013" ID="phys_0013" ORDER="13" ORDERLABEL="9" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0013" />
+        <mets:fptr FILEID="DEFAULT_file_0013" />
+        <mets:fptr FILEID="THUMBS_file_0013" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0014" ID="phys_0014" ORDER="14" ORDERLABEL="10" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0014" />
+        <mets:fptr FILEID="DEFAULT_file_0014" />
+        <mets:fptr FILEID="THUMBS_file_0014" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0015" ID="phys_0015" ORDER="15" ORDERLABEL="11" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0015" />
+        <mets:fptr FILEID="DEFAULT_file_0015" />
+        <mets:fptr FILEID="THUMBS_file_0015" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0016" ID="phys_0016" ORDER="16" ORDERLABEL="12" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0016" />
+        <mets:fptr FILEID="DEFAULT_file_0016" />
+        <mets:fptr FILEID="THUMBS_file_0016" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0017" ID="phys_0017" ORDER="17" ORDERLABEL="13" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0017" />
+        <mets:fptr FILEID="DEFAULT_file_0017" />
+        <mets:fptr FILEID="THUMBS_file_0017" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0018" ID="phys_0018" ORDER="18" ORDERLABEL="14" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0018" />
+        <mets:fptr FILEID="DEFAULT_file_0018" />
+        <mets:fptr FILEID="THUMBS_file_0018" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0019" ID="phys_0019" ORDER="19" ORDERLABEL="15" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0019" />
+        <mets:fptr FILEID="DEFAULT_file_0019" />
+        <mets:fptr FILEID="THUMBS_file_0019" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0020" ID="phys_0020" ORDER="20" ORDERLABEL="16" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0020" />
+        <mets:fptr FILEID="DEFAULT_file_0020" />
+        <mets:fptr FILEID="THUMBS_file_0020" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0021" ID="phys_0021" ORDER="21" ORDERLABEL="17" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0021" />
+        <mets:fptr FILEID="DEFAULT_file_0021" />
+        <mets:fptr FILEID="THUMBS_file_0021" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0022" ID="phys_0022" ORDER="22" ORDERLABEL="18" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0022" />
+        <mets:fptr FILEID="DEFAULT_file_0022" />
+        <mets:fptr FILEID="THUMBS_file_0022" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0023" ID="phys_0023" ORDER="23" ORDERLABEL="19" TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0023" />
+        <mets:fptr FILEID="DEFAULT_file_0023" />
+        <mets:fptr FILEID="THUMBS_file_0023" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0024" ID="phys_0024" ORDER="24" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0024" />
+        <mets:fptr FILEID="DEFAULT_file_0024" />
+        <mets:fptr FILEID="THUMBS_file_0024" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0025" ID="phys_0025" ORDER="25" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0025" />
+        <mets:fptr FILEID="DEFAULT_file_0025" />
+        <mets:fptr FILEID="THUMBS_file_0025" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0026" ID="phys_0026" ORDER="26" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0026" />
+        <mets:fptr FILEID="DEFAULT_file_0026" />
+        <mets:fptr FILEID="THUMBS_file_0026" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0027" ID="phys_0027" ORDER="27" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0027" />
+        <mets:fptr FILEID="DEFAULT_file_0027" />
+        <mets:fptr FILEID="THUMBS_file_0027" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0028" ID="phys_0028" ORDER="28" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0028" />
+        <mets:fptr FILEID="DEFAULT_file_0028" />
+        <mets:fptr FILEID="THUMBS_file_0028" />
+      </mets:div>
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/phys_0029" ID="phys_0029" ORDER="29" ORDERLABEL=" - " TYPE="page">
+        <mets:fptr FILEID="ALTO_file_0029" />
+        <mets:fptr FILEID="DEFAULT_file_0029" />
+        <mets:fptr FILEID="THUMBS_file_0029" />
+      </mets:div>
+    </mets:div>
+  </mets:structMap>
+  <mets:structMap TYPE="LOGICAL">
+    <mets:div ADMID="AMD_DFGVIEWER" CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X" DMDID="DMDLOG_0000" ID="log_0000" LABEL="Dissertatio Inauguralis Medica De Inversione Uteri" TYPE="monograph">
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/log_0001" ID="log_0001" TYPE="binding" />
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/log_0002" ID="log_0002" TYPE="title_page" />
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/log_0003" DMDID="DMDLOG_0001" ID="log_0003" LABEL="Discrimen, quod corpus virile et  muliedre intercedit, in diversa..." TYPE="section" />
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/log_0004" ID="log_0004" TYPE="binding" />
+      <mets:div CONTENTIDS="http://purl.uni-rostock.de/rosdok/ppn100673385X/log_0005" ID="log_0005" TYPE="colour_checker" />
+    </mets:div>
+  </mets:structMap>
+  <mets:structLink>
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0001" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0002" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0003" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0004" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0005" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0006" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0007" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0008" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0009" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0010" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0011" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0012" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0013" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0014" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0015" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0016" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0017" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0018" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0019" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0020" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0021" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0022" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0023" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0024" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0025" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0026" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0027" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0028" />
+    <mets:smLink xlink:from="log_0000" xlink:to="phys_0029" />
+    <mets:smLink xlink:from="log_0001" xlink:to="phys_0001" />
+    <mets:smLink xlink:from="log_0001" xlink:to="phys_0002" />
+    <mets:smLink xlink:from="log_0001" xlink:to="phys_0003" />
+    <mets:smLink xlink:from="log_0001" xlink:to="phys_0004" />
+    <mets:smLink xlink:from="log_0002" xlink:to="phys_0005" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0007" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0008" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0009" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0010" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0011" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0012" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0013" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0014" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0015" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0016" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0017" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0018" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0019" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0020" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0021" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0022" />
+    <mets:smLink xlink:from="log_0003" xlink:to="phys_0023" />
+    <mets:smLink xlink:from="log_0004" xlink:to="phys_0025" />
+    <mets:smLink xlink:from="log_0004" xlink:to="phys_0026" />
+    <mets:smLink xlink:from="log_0004" xlink:to="phys_0027" />
+    <mets:smLink xlink:from="log_0004" xlink:to="phys_0028" />
+    <mets:smLink xlink:from="log_0005" xlink:to="phys_0029" />
+  </mets:structLink>
+</mets:mets>

@@ -431,4 +431,70 @@ public class FileMetadataTests : MetsParserTestBase
 
         mets.Files[0].Metadata.OfType<ExtentMetadata>().Should().BeEmpty();
     }
+
+    private static string ClamAvDigiprov(string digiprovId) => $"""
+        <mets:amdSec ID="ADM_EXTRA">
+          <mets:digiprovMD ID="{digiprovId}">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+              <mets:xmlData>
+                <premis:event>
+                  <premis:eventDateTime>2026-03-18T12:00:00Z</premis:eventDateTime>
+                  <premis:eventDetailInformation>
+                    <premis:eventDetail>ClamAV 1.4.3/27944</premis:eventDetail>
+                  </premis:eventDetailInformation>
+                  <premis:eventOutcomeInformation>
+                    <premis:eventOutcome>pass</premis:eventOutcome>
+                    <premis:eventOutcomeDetail>
+                      <premis:eventOutcomeDetailNote></premis:eventOutcomeDetailNote>
+                    </premis:eventOutcomeDetail>
+                  </premis:eventOutcomeInformation>
+                </premis:event>
+              </mets:xmlData>
+            </mets:mdWrap>
+          </mets:digiprovMD>
+        </mets:amdSec>
+        """;
+
+    [Fact]
+    public void Virus_event_is_not_borrowed_from_a_file_whose_id_extends_this_files_id()
+    {
+        // Regression test for the digiprovMD lookup: it must be an exact match, not a
+        // substring match. Here the only digiprov entry belongs to a DIFFERENT file
+        // ("objects/a.txt.v2") whose expected key happens to CONTAIN this file's expected
+        // key ("...ADM_objects/a.txt"). A substring match would wrongly return that
+        // other file's virus-scan event for this file.
+        var extraAmdSecs = ClamAvDigiprov("digiprovMD_ClamAV_ADM_objects/a.txt.v2");
+
+        var xml = FullMets("ADM_objects/a.txt", "objects/a.txt", "text/plain", """
+            <premis:fixity>
+              <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+              <premis:messageDigest>plainFile</premis:messageDigest>
+            </premis:fixity>
+            """, extraAmdSecs);
+
+        var mets = Parse(xml);
+
+        mets.Files[0].Metadata.OfType<VirusScanMetadata>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Virus_event_with_case_variant_digiprov_id_is_still_matched()
+    {
+        // Case differences in the digiprovMD ID prefix must not lose the virus event -
+        // the fallback match is case-insensitive, but exact.
+        var extraAmdSecs = ClamAvDigiprov("digiprovmd_clamav_ADM_objects/safe.docx");
+
+        var xml = FullMets("ADM_objects/safe.docx", "objects/safe.docx", "application/msword", """
+            <premis:fixity>
+              <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+              <premis:messageDigest>safeFile</premis:messageDigest>
+            </premis:fixity>
+            """, extraAmdSecs);
+
+        var mets = Parse(xml);
+
+        var virus = mets.Files[0].Metadata.OfType<VirusScanMetadata>().Single();
+        virus.HasVirus.Should().BeFalse();
+        virus.VirusDefinition.Should().Be("ClamAV 1.4.3/27944");
+    }
 }

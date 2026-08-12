@@ -26,10 +26,18 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, ArchivalGroup archivalGroup, string? agNameFromDeposit)
     {
         var (file, mets) = await metsManager.GetStandardMets(metsLocation, agNameFromDeposit);
-        
+
         AddResourceToMets(mets, archivalGroup.Id!, mets.StructMap[0].Div, archivalGroup);
-        
-        var writeResult = await metsManager.WriteMets(new FullMets{ Mets = mets, Uri = file });
+
+        var fullMets = new FullMets { Mets = mets, Uri = file };
+        // This FullMets is write-only (navigation happens on a fresh load, which populates the
+        // cache), so the cache build inside AssertNavigable is debug/test-only: it puts this
+        // construction path under the same navigability check as MetsManager mutations - a
+        // structMap this class builds that cannot be resolved by path is a bug. In Release the
+        // whole call compiles out and no cache walk happens.
+        AssertNavigable(fullMets);
+
+        var writeResult = await metsManager.WriteMets(fullMets);
         if (writeResult.Success)
         {
             return await metsParser.GetMetsFileWrapper(file);
@@ -37,6 +45,23 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
         return Result.FailNotNull<MetsFileWrapper>(writeResult.ErrorCode!, writeResult.ErrorMessage);
     }
     
+    /// <summary>
+    /// Debug-build check (explicit throw rather than Debug.Assert, which can take down the
+    /// whole test process in .NET test hosts) that the structMap this class built is fully
+    /// navigable by path.
+    /// </summary>
+    [System.Diagnostics.Conditional("DEBUG")]
+    private static void AssertNavigable(FullMets fullMets)
+    {
+        var pathDiagnostics = MetsCache.Populate(fullMets);
+        if (pathDiagnostics.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "MetsFromArchivalGroup produced a structMap that is not fully navigable by path: "
+                + string.Join("; ", pathDiagnostics));
+        }
+    }
+
     /// <summary>
     /// This builds up the METS file from repository resources, not working files
     /// </summary>
@@ -49,16 +74,19 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
         var agLocalPath = archivalGroupUri.LocalPath;
         foreach (var childContainer in container.Containers)
         {
-            DivType? childDirectoryDiv = null;
-            if (container is ArchivalGroup && childContainer.GetSlug() == FolderNames.Objects)
-            {
-                // The objects div should already exist from our template
-                childDirectoryDiv = mets.StructMap[0].Div.Div.Single(d => d.Id == Constants.ObjectsDivId);
-            }
+            var localPath = childContainer.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
+
+            // The template already contains divs (and amdSecs) for objects/, metadata/ and
+            // metadata/ad-hoc/ - reuse any div the parent already has for this path rather
+            // than adding a duplicate div and duplicate-ID amdSec (which previously happened
+            // for any Archival Group with a preserved metadata/ folder). Matching is by the
+            // div's resolved path (premis:originalName), not by reconstructing its ID, so it
+            // stays correct when ID minting changes (issue #188 step 2).
+            var childDirectoryDiv = div.Div.FirstOrDefault(
+                d => MetsCache.TryResolvePath(d, mets) == localPath);
 
             if (childDirectoryDiv == null)
             {
-                var localPath = childContainer.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
                 var admId = Constants.AdmIdPrefix + localPath;
                 var techId = Constants.TechIdPrefix + localPath;
                 childDirectoryDiv = new DivType

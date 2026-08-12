@@ -73,6 +73,7 @@ public class FileSystemMetsStorage(IMetsParser metsParser) : IMetsStorage
             Uri = file,
             ETag = returnedETag
         };
+        MetsCache.Populate(fullMetal);
         return Result.OkNotNull(fullMetal);
     }
 }

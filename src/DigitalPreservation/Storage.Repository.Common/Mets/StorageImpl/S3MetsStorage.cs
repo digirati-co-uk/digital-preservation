@@ -120,6 +120,7 @@ public class S3MetsStorage(
             Uri = file,
             ETag = returnedETag
         };
+        MetsCache.Populate(fullMetal);
         return Result.OkNotNull(fullMetal);
 
     }

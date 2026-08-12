@@ -497,14 +497,16 @@ public class MetsParser(
                 }
 
                 // Use pre-built dictionary for O(1) lookup instead of LINQ query
-                // The digiprovMD ID contains a pattern like "digiprovmd_clamav_{admId}"
+                // The digiprovMD ID has the form "digiprovMD_ClamAV_{admId}"
                 var clamavKey = $"{Constants.VirusProvEventPrefix}{admId}";
                 if (!lookupMaps.DigiprovMdMap.TryGetValue(clamavKey, out var digiprovMd))
                 {
-                    var lowerKey = clamavKey.ToLowerInvariant();
-                    // Try case-insensitive search through the pre-built map
+                    // Fall back to a case-insensitive but EXACT match. A substring match here
+                    // cross-talks between files whose IDs are prefixes of each other
+                    // (e.g. "ADM_a" is contained in "ADM_a2"), returning one file's virus-scan
+                    // event for a different file.
                     var matchingKey = lookupMaps.DigiprovMdMap.Keys
-                        .FirstOrDefault(k => k.ToLower().Contains(lowerKey));
+                        .FirstOrDefault(k => string.Equals(k, clamavKey, StringComparison.OrdinalIgnoreCase));
                     if (matchingKey != null)
                     {
                         digiprovMd = lookupMaps.DigiprovMdMap[matchingKey];

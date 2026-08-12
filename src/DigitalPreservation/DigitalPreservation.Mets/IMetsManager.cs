@@ -30,14 +30,19 @@ public interface IMetsManager
     // SetAccessRestrictionsByPath(mets, "objects/child-folder", ["Closed"])
     // SetAccessRestrictionsByDivId(mets, "LOG_0003", ["Sundays Only"])
     // SetAccessRestrictionsByDivId(mets, "PHYS_objects/child-folder", ["Closed"])  // equiv to first one
-    void SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo);
-    void SetRecordInfoByDivId(FullMets mets, string divId, RecordInfo recordInfo);
-    void SetRightsStatementByPath(FullMets mets, string localPath, Uri? rightsStatement);
-    void SetRightsStatementByDivId(FullMets mets, string divId, Uri? rightsStatement);
-    void SuppressRightsInheritanceByPath(FullMets mets, string localPath);
-    void SuppressRightsInheritanceByDivId(FullMets mets, string divId);
-    void SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions);
-    void SetAccessRestrictionsByDivId(FullMets mets, string divId, List<string> accessRestrictions);
+    // Each returns a failure when the write did NOT happen, and the caller must not report
+    // success (silently writing to an ancestor div, or silently doing nothing, are both
+    // worse than failing). ByPath methods return BadRequest for an unresolvable path (the
+    // same condition and code as EditMets). ByDivId methods return NotFound for an unknown
+    // divId. Both return BadRequest when the descriptive metadata cannot be edited as MODS.
+    Result SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo);
+    Result SetRecordInfoByDivId(FullMets mets, string divId, RecordInfo recordInfo);
+    Result SetRightsStatementByPath(FullMets mets, string localPath, Uri? rightsStatement);
+    Result SetRightsStatementByDivId(FullMets mets, string divId, Uri? rightsStatement);
+    Result SuppressRightsInheritanceByPath(FullMets mets, string localPath);
+    Result SuppressRightsInheritanceByDivId(FullMets mets, string divId);
+    Result SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions);
+    Result SetAccessRestrictionsByDivId(FullMets mets, string divId, List<string> accessRestrictions);
 
 
     // There may be more than one so we need to address them better than this, which assumes only one
