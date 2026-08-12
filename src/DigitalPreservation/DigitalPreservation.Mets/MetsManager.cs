@@ -480,10 +480,7 @@ public class MetsManager(
 
     private static void AddReferences(IReadOnlyList<string> tokens, HashSet<string> referencedIds)
     {
-        foreach (var token in tokens)
-        {
-            referencedIds.Add(token);
-        }
+        referencedIds.UnionWith(tokens);
         if (tokens.Count > 1)
         {
             referencedIds.Add(IdRefs.Joined(tokens));
