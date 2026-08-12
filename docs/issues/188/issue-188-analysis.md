@@ -147,11 +147,21 @@ are already valid NCNames. No issue.
 
 ### structLink FILE_ IDs
 
-`LinkFile`, `UnLinkFile`, `SetFileLinks` (lines 671–708) construct smLink from/to IDs using
-`Constants.FileIdPrefix + localPath`. Both the FILE element in FileSec and the smLink from/to
-are constructed by the same code — changing the format keeps them mutually consistent.
+`LinkFile`, `UnLinkFile`, `SetFileLinks` construct smLink from/to IDs using
+`Constants.FileIdPrefix + localPath`, and `BuildFptr` mints logical-fptr FILEIDs the same way.
 MetsParser resolves `from`/`to` against its `FileMap` dictionary by exact string match.
 No external consumer parses a path from a structLink ID.
+
+> **Correction (2026-08-12, independent whole-feature review):** the original claim here —
+> that FILE element and smLink are "constructed by the same code so changing the format keeps
+> them mutually consistent" — is only true for files ADDED after the format change. A legacy
+> deposit keeps its raw FILE IDs (`FILE_objects/my file.pdf`) until a step 3 migration, so a
+> post-step-2 `LinkFile`/`SetStructMap` that MINTS the encoded form would create dangling
+> FILEID/smLink references, and `UnLinkFile`/`SetFileLinks` would be unable to remove
+> pre-existing raw-ID links. Step 2 must make these sites RESOLVE the actual FILE element's
+> ID (via the path cache div's `Fptr`, or a FLocat lookup in the fileSec) rather than mint —
+> the same navigate-don't-derive principle as the rest of the fix. See the step 2 checklist
+> in `issue-188-plan.md`.
 
 ### The ByDivId / UI round-trip
 
@@ -213,7 +223,7 @@ are already valid NCNames.
 | `iiif-builder` (Python) | None | None — already opaque |
 | `LocateMetsDivByDivId` / `FindDiv` | None | None — already format-agnostic |
 | Logical structMap / `logical-structmap.js` | None | None — LOG_ IDs already valid |
-| structLink FILE_ IDs | None | Update minting; lookups remain consistent |
+| structLink FILE_ IDs | None | **Resolve, don’t mint** — see correction in §structLink FILE_ IDs |
 | Test files with path-containing ID assertions | None | **Significant churn across 5+ files** |
 | Test `ByDivId` calls with `"PHYS_objects"` | None | None — no `/` in those IDs |
 | UI / API layer | None | None — opaque round-trip |

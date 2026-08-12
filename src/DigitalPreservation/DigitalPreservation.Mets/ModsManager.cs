@@ -219,7 +219,15 @@ public static class ModsManager
                 // The dmdSec carries information beyond the MODS we are clearing; leave it intact.
                 return false;
             }
-            mets.DmdSec.Remove(dmd);
+
+            // Parity with the deletion sites' shared-section guard: a dmdSec that another
+            // div or file still references is genuinely shared, so clearing THIS div's MODS
+            // drops only this div's reference and leaves the section (and its other
+            // referrers) untouched.
+            if (!MetsManager.CollectSectionReferences(mets, [div], null).Contains(dmd.Id))
+            {
+                mets.DmdSec.Remove(dmd);
+            }
             IdRefs.RemoveReference(div.Dmdid, dmd.Id);
 
             // Sweep any sibling tokens that resolve nothing (the pre-existing Clear()

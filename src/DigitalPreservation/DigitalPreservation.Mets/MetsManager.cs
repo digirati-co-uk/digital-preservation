@@ -205,7 +205,7 @@ public class MetsManager(
         if (dmdResult.Failure) return dmdResult;
 
         parentDiv.Div.Add(childItemDiv);
-        fullMets.PhysicalDivsByPath[localPath] = childItemDiv;
+        CacheAddedDiv(fullMets, localPath, childItemDiv);
 
         SortChildDivs(parentDiv);
         return Result.Ok();
@@ -246,10 +246,30 @@ public class MetsManager(
         // as AddNewFile).
         parentDiv.Div.Add(childDirectoryDiv);
         fullMets.Mets.AmdSec.Add(amdSec);
-        fullMets.PhysicalDivsByPath[localPath] = childDirectoryDiv;
+        CacheAddedDiv(fullMets, localPath, childDirectoryDiv);
 
         SortChildDivs(parentDiv);
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// Record a newly attached div in the path cache. If a div ELSEWHERE in the tree had
+    /// already claimed this path (its metadata resolves a path that disagrees with its tree
+    /// position - only producible by edited or third-party METS, since navigation rejects
+    /// such an entry as this path's target), a plain overwrite would leave the cache silently
+    /// disagreeing with a rebuild while no diagnostic records the duplicate. Rebuild instead:
+    /// the duplicate lands on PathDiagnostics/HasDuplicatePaths, so every trust gate sees it
+    /// and navigation drops to strict per-child resolution for the contested paths.
+    /// </summary>
+    private static void CacheAddedDiv(FullMets fullMets, string localPath, DivType div)
+    {
+        if (fullMets.PhysicalDivsByPath.TryGetValue(localPath, out var existing)
+            && !ReferenceEquals(existing, div))
+        {
+            MetsCache.Populate(fullMets);
+            return;
+        }
+        fullMets.PhysicalDivsByPath[localPath] = div;
     }
 
     private static void SortChildDivs(DivType div)
@@ -391,10 +411,18 @@ public class MetsManager(
         // section it resolves - except one that another div or file still references (e.g. a
         // rightsMD shared across files, common in Archivematica METS), which must survive.
         var referencedElsewhere = CollectSectionReferences(fullMets.Mets, [div], file);
+        MdSecType? DmdLookup(string id) => fullMets.Mets.DmdSec.FirstOrDefault(d => d.Id == id);
         var amdSecs = IdRefs.ResolveAll(admTokens, id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id))
             .Where(a => !referencedElsewhere.Contains(a.Id))
             .ToList();
-        var dmdSecs = IdRefs.ResolveAll(div.Dmdid, id => fullMets.Mets.DmdSec.FirstOrDefault(d => d.Id == id))
+        // DMDID can sit on the div or (in third-party shapes) on the FILE element - resolve
+        // both, matching what CollectSectionReferences excludes from the survival index.
+        var dmdCandidates = IdRefs.ResolveAll(div.Dmdid, DmdLookup);
+        if (file is { Dmdid.Count: > 0 })
+        {
+            dmdCandidates = dmdCandidates.Concat(IdRefs.ResolveAll(file.Dmdid, DmdLookup)).Distinct().ToList();
+        }
+        var dmdSecs = dmdCandidates
             .Where(d => !referencedElsewhere.Contains(d.Id))
             .ToList();
 
@@ -421,7 +449,7 @@ public class MetsManager(
     /// candidate section in O(1) instead of re-walking the document per section. A section
     /// whose ID is in this set is genuinely shared and must survive the deletion.
     /// </summary>
-    private static HashSet<string> CollectSectionReferences(
+    internal static HashSet<string> CollectSectionReferences(
         DigitalPreservation.XmlGen.Mets.Mets mets,
         HashSet<DivType> excludedDivs,
         FileType? excludedFile)
@@ -487,10 +515,14 @@ public class MetsManager(
             fullMets.PhysicalDivsByPath.Remove(key);
         }
 
-        if (keys.Count > 0 && fullMets.HasDuplicatePaths)
+        if (fullMets.PathDiagnostics.Count > 0)
         {
-            // In a duplicate-path document another div may have been claiming one of the
-            // evicted paths - rebuild so the cache reflects post-delete reality.
+            // In a flagged document this delete may have changed what the diagnostics
+            // describe: another div may have been claiming an evicted path, or the deleted
+            // div may BE the one a diagnostic recorded (deletion is how broken content gets
+            // cleaned up). Rebuild so both the cache and the diagnostics reflect post-delete
+            // reality instead of load-time state - a fully healed document regains the
+            // trusted-cache fast path.
             MetsCache.Populate(fullMets);
         }
     }
@@ -963,9 +995,12 @@ public class MetsManager(
 
     public void SetStructMapOrder(FullMets mets, string[] ids)
     {
-        var logicalMaps = mets.Mets.StructMap
-            .Where(sm => sm.Type == Constants.Logical)
-            .ToDictionary(sm => sm.Div.Id);
+        // Tolerate malformed logical structMaps rather than throwing: one with no root div
+        // (or no root ID) cannot be ordered, and only the first of two claiming the same ID
+        // is ordered - the same first-wins convention navigation uses.
+        var logicalMaps = new Dictionary<string, StructMapType>();
+        foreach (var sm in mets.Mets.StructMap.Where(sm => sm.Type == Constants.Logical && sm.Div?.Id != null))
+            logicalMaps.TryAdd(sm.Div.Id, sm);
 
         foreach (var map in logicalMaps.Values)
             mets.Mets.StructMap.Remove(map);

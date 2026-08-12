@@ -261,6 +261,78 @@ public class IdRefsMetsManagerTests
     }
 
     [Fact]
+    public async Task Clearing_Mods_On_One_Referrer_Of_A_Shared_DmdSec_Keeps_The_Section()
+    {
+        var fullMets = await CreateAndLoadStandardMets("idrefs-shared-dmdid-clear.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        var metadataDiv = physRoot.Div.Single(d => d.Label == FolderNames.Metadata);
+
+        var mods = ModsManager.GetModsForDiv(fullMets.Mets, objectsDiv, createDmd: true)!;
+        mods.AddAccessCondition("Restricted", Constants.RestrictionOnAccess);
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, mods);
+        var sharedDmdId = objectsDiv.Dmdid.Single();
+
+        // A second div genuinely references the same dmdSec (Goobi-style sharing).
+        metadataDiv.Dmdid.Add(sharedDmdId);
+
+        // Clearing the FIRST referrer's MODS drops only its reference - the shared section
+        // and the other referrer are untouched (parity with the deletion sites' guard).
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, new ModsDefinition());
+
+        fullMets.Mets.DmdSec.Should().Contain(d => d.Id == sharedDmdId);
+        objectsDiv.Dmdid.Should().BeEmpty();
+        metadataDiv.Dmdid.Should().Contain(sharedDmdId);
+    }
+
+    [Fact]
+    public async Task Legacy_Spaced_Div_Mods_Can_Be_Set_Read_Back_And_Cleared()
+    {
+        // The frozen fixture's div IDs contain spaces, so the derived DMDID
+        // ("DMD_objects/my file.pdf") splits into tokens on serialization - setting,
+        // re-reading and clearing MODS must all resolve it via the rejoined form.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "idrefs-legacy-mods.xml");
+        var loadResult = await metsStorage.GetFullMets(metsUri, null);
+        loadResult.Success.Should().BeTrue(loadResult.ErrorMessage ?? "");
+        var fullMets = loadResult.Value!;
+        var spacedDiv = fullMets.PhysicalDivsByPath["objects/my file.pdf"];
+
+        var mods = ModsManager.GetModsForDiv(fullMets.Mets, spacedDiv, createDmd: true)!;
+        mods.AddAccessCondition("Restricted", Constants.RestrictionOnAccess);
+        ModsManager.SetModsForDiv(fullMets.Mets, spacedDiv, mods);
+
+        ModsManager.GetModsForDiv(fullMets.Mets, spacedDiv)!
+            .GetAccessConditions(Constants.RestrictionOnAccess).Should().Equal("Restricted");
+        fullMets.Mets.DmdSec.Should().Contain(d => d.Id == "DMD_objects/my file.pdf");
+
+        ModsManager.SetModsForDiv(fullMets.Mets, spacedDiv, new ModsDefinition());
+
+        fullMets.Mets.DmdSec.Should().NotContain(d => d.Id == "DMD_objects/my file.pdf");
+        spacedDiv.Dmdid.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Legacy_Spaced_SmLinks_Reference_File_Ids_That_Exist_In_The_FileSec()
+    {
+        // Pins the invariant issue #188 step 2 must preserve: a link minted against a LEGACY
+        // document must reference the FILE element's ACTUAL (raw, space-containing) ID.
+        // If step 2 changes LinkFile to mint encoded IDs instead of resolving real ones,
+        // this test fails - see the step 2 checklist in issue-188-plan.md.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "idrefs-legacy-smlink.xml");
+        var loadResult = await metsStorage.GetFullMets(metsUri, null);
+        loadResult.Success.Should().BeTrue(loadResult.ErrorMessage ?? "");
+        var fullMets = loadResult.Value!;
+
+        metsManager.LinkFile(fullMets, "objects/my file.pdf", "objects/my file.pdf",
+            new Uri("http://example.org/roles/transcription-of"));
+
+        var link = fullMets.Mets.StructLink!.SmLink.OfType<StructLinkTypeSmLink>().Single();
+        var fileIds = fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Select(f => f.Id).ToList();
+        fileIds.Should().Contain(link.From);
+        fileIds.Should().Contain(link.To);
+    }
+
+    [Fact]
     public async Task Updating_A_Legacy_Spaced_File_Resolves_Its_AmdSec_Via_The_Rejoined_Tokens()
     {
         // The frozen fixture's file IDs contain spaces, so ADMID arrives as multiple tokens;
