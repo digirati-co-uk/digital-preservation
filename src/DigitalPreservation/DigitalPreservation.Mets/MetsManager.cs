@@ -478,7 +478,7 @@ public class MetsManager(
         return referencedIds;
     }
 
-    private static void AddReferences(IReadOnlyList<string> tokens, HashSet<string> referencedIds)
+    private static void AddReferences(System.Collections.ObjectModel.Collection<string> tokens, HashSet<string> referencedIds)
     {
         referencedIds.UnionWith(tokens);
         if (tokens.Count > 1)
