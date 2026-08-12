@@ -170,33 +170,8 @@ public class IdRefsTests
     }
 
     // -----------------------------------------------------------------------
-    // References / RemoveReference (pure token-collection bookkeeping)
+    // RemoveReference (pure token-collection bookkeeping)
     // -----------------------------------------------------------------------
-
-    [Fact]
-    public void References_matches_a_single_token()
-    {
-        IdRefs.References(TokenA, "ADM_A").Should().BeTrue();
-    }
-
-    [Fact]
-    public void References_matches_one_token_of_a_genuine_list()
-    {
-        IdRefs.References(GenuinePair, "ADM_B").Should().BeTrue();
-    }
-
-    [Fact]
-    public void References_matches_the_joined_legacy_form()
-    {
-        IdRefs.References(LegacySpacedTokens, "ADM_objects/my file.pdf")
-            .Should().BeTrue();
-    }
-
-    [Fact]
-    public void References_does_not_match_an_unrelated_id()
-    {
-        IdRefs.References(GenuinePair, "ADM_C").Should().BeFalse();
-    }
 
     [Fact]
     public void RemoveReference_clears_all_tokens_of_a_legacy_spaced_id()

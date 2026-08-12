@@ -15,6 +15,18 @@
 > `TryRemoveRedundantDmd` now drops only the reference to the dmdSec it removed
 > (`IdRefs.RemoveReference`), not the div's whole DMDID list. And the raw-string overload
 > splits on all XML whitespace (tab/newline/CR), not just spaces.
+>
+> **Round 2 (same day):** the shared-section guard became a single-pass index
+> (`CollectSectionReferences`) so deletion is one document walk, not one per section;
+> `TryRemoveRedundantDmd` additionally sweeps sibling tokens that resolve nothing (restoring
+> the old Clear() cleanup for danglers while keeping live references); the parser reads the
+> ClamAV digiprovMD structurally from the resolved amdSec (conventional-key lookup kept only
+> as fallback); and Get/SetModsForDiv's multi-DMDID stance is now documented + tested as
+> deliberate: the first-resolving dmdSec is the div's editable MODS record, further
+> referenced dmdSecs are third-party content that reads and writes never touch. The two
+> `ResolveSingle` overloads deliberately do NOT share an implementation - the raw-string
+> side's first tier must match the attribute value verbatim (any whitespace a filename can
+> contain), which the token side cannot reconstruct; see the doc comment on the overload.
 
 > 2026-08-11. Companion to `issue-188-plan.md` (v2). Analysed against
 > `feat/188-physical-divs-cache` (PR #211), which this work should follow.

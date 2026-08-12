@@ -49,7 +49,11 @@ public static class IdRefs
     /// IDREFS attribute value arrives as one string: try the whole value first (a single ID,
     /// or a legacy ID containing spaces), then each whitespace-separated token (schema-valid
     /// IDREFS list - XML allows tab/newline/CR separators as well as spaces), first match
-    /// winning.
+    /// winning. Deliberately NOT implemented by delegating to the token-collection overload:
+    /// this side's first tier must match the attribute value VERBATIM (a legacy ID could
+    /// contain any whitespace a filename can), whereas the collection overload's joined tier
+    /// reconstructs with single spaces because that is all the XmlSerializer's split leaves
+    /// it - the two first tiers are subtly different and each is right for its input.
     /// </summary>
     public static T? ResolveSingle<T>(string attributeValue, Func<string, T?> lookupById)
         where T : class
@@ -94,14 +98,6 @@ public static class IdRefs
                     .ToList();
         }
     }
-
-    /// <summary>
-    /// True when the token collection references the element with this ID - as its only token,
-    /// as one token of a genuine IDREFS list, or as the joined form of a legacy
-    /// space-containing ID. Pure string comparison; no lookup involved.
-    /// </summary>
-    public static bool References(IReadOnlyList<string> tokens, string id) =>
-        tokens.Contains(id) || (tokens.Count > 1 && Joined(tokens) == id);
 
     /// <summary>
     /// Remove from an IDREFS token collection the reference to an element previously resolved

@@ -498,21 +498,31 @@ public class MetsParser(
                     } // end else (techMd != null)
                 }
 
-                // The digiprovMD ID has the form "digiprovMD_ClamAV_{admId}". Derive the key
-                // from the RESOLVED amdSec/techMD's actual ID where we have one - for a
-                // genuine multi-token ADMID the raw attribute value is not an ID at all.
-                var clamavKey = $"{Constants.VirusProvEventPrefix}{techMd?.Attribute("ID")?.Value ?? admId}";
-                if (!lookupMaps.DigiprovMdMap.TryGetValue(clamavKey, out var digiprovMd))
+                // The virus-scan event is a digiprovMD in the same amdSec as the file's
+                // techMD, so read it structurally from the RESOLVED element (identified among
+                // its siblings by the platform's "digiprovMD_ClamAV_" ID prefix) rather than
+                // deriving its full ID by string convention - the derived key breaks for
+                // genuine multi-token ADMIDs and for IDs the platform didn't mint.
+                var amdScope = techMd?.Name == XNames.MetsAmdSec ? techMd : techMd?.Parent;
+                var digiprovMd = amdScope?.Elements(XNames.MetsDigiprovMD)
+                    .FirstOrDefault(d => (d.Attribute("ID")?.Value ?? "")
+                        .StartsWith(Constants.VirusProvEventPrefix, StringComparison.OrdinalIgnoreCase));
+                if (digiprovMd == null)
                 {
-                    // Fall back to a case-insensitive but EXACT match. A substring match here
+                    // Conventional-key fallback for documents where nothing resolved
+                    // structurally. Case-insensitive but EXACT match - a substring match here
                     // cross-talks between files whose IDs are prefixes of each other
                     // (e.g. "ADM_a" is contained in "ADM_a2"), returning one file's virus-scan
                     // event for a different file.
-                    var matchingKey = lookupMaps.DigiprovMdMap.Keys
-                        .FirstOrDefault(k => string.Equals(k, clamavKey, StringComparison.OrdinalIgnoreCase));
-                    if (matchingKey != null)
+                    var clamavKey = $"{Constants.VirusProvEventPrefix}{techMd?.Attribute("ID")?.Value ?? admId}";
+                    if (!lookupMaps.DigiprovMdMap.TryGetValue(clamavKey, out digiprovMd))
                     {
-                        digiprovMd = lookupMaps.DigiprovMdMap[matchingKey];
+                        var matchingKey = lookupMaps.DigiprovMdMap.Keys
+                            .FirstOrDefault(k => string.Equals(k, clamavKey, StringComparison.OrdinalIgnoreCase));
+                        if (matchingKey != null)
+                        {
+                            digiprovMd = lookupMaps.DigiprovMdMap[matchingKey];
+                        }
                     }
                 }
 

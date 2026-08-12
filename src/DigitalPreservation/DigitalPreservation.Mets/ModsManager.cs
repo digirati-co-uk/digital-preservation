@@ -153,6 +153,12 @@ public static class ModsManager
         return null;
     }
 
+    /// <summary>
+    /// The MODS for a div. When the div's DMDID is a genuine multi-token reference, the FIRST
+    /// dmdSec a token resolves is treated as the div's editable MODS record; the platform only
+    /// ever writes one descriptive record per div, so any further referenced dmdSecs are
+    /// third-party content that read/write operations deliberately leave untouched.
+    /// </summary>
     public static ModsDefinition? GetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, bool createDmd = false)
     {
         if (div.Dmdid.Count == 0 && createDmd)
@@ -175,6 +181,10 @@ public static class ModsManager
     }
 
     
+    /// <summary>
+    /// Write the div's MODS record - the same single dmdSec <see cref="GetModsForDiv"/>
+    /// resolves; other dmdSecs a genuine multi-token DMDID references are never mutated.
+    /// </summary>
     public static void SetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, ModsDefinition mods)
     {
         var dmd = IdRefs.ResolveSingle(div.Dmdid, id => mets.DmdSec.FirstOrDefault(x => x.Id == id));
@@ -211,6 +221,18 @@ public static class ModsManager
             }
             mets.DmdSec.Remove(dmd);
             IdRefs.RemoveReference(div.Dmdid, dmd.Id);
+
+            // Sweep any sibling tokens that resolve nothing (the pre-existing Clear()
+            // behaviour, scoped): they are dangling, while a token still naming a real
+            // dmdSec keeps both its reference and its section.
+            for (var i = div.Dmdid.Count - 1; i >= 0; i--)
+            {
+                var token = div.Dmdid[i];
+                if (mets.DmdSec.All(d => d.Id != token))
+                {
+                    div.Dmdid.RemoveAt(i);
+                }
+            }
         }
         else
         {

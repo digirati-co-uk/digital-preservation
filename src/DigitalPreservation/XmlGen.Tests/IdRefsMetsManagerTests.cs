@@ -212,6 +212,55 @@ public class IdRefsMetsManagerTests
     }
 
     [Fact]
+    public async Task Clearing_Mods_Sweeps_Dangling_Sibling_Tokens_But_Keeps_Live_Ones()
+    {
+        var fullMets = await CreateAndLoadStandardMets("idrefs-dangling-sibling-sweep.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+
+        var mods = ModsManager.GetModsForDiv(fullMets.Mets, objectsDiv, createDmd: true)!;
+        mods.AddAccessCondition("Restricted", Constants.RestrictionOnAccess);
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, mods);
+        var ownDmdId = objectsDiv.Dmdid.Single();
+
+        // A three-token DMDID: the div's own dmdSec, a dangling token, and a live reference.
+        fullMets.Mets.DmdSec.Add(new MdSecType { Id = "DMD_other" });
+        objectsDiv.Dmdid.Add("DMD_dangling");
+        objectsDiv.Dmdid.Add("DMD_other");
+
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, new ModsDefinition());
+
+        // Own dmdSec pruned, dangling sibling swept, live reference (and its dmdSec) kept.
+        fullMets.Mets.DmdSec.Should().NotContain(d => d.Id == ownDmdId);
+        fullMets.Mets.DmdSec.Should().Contain(d => d.Id == "DMD_other");
+        objectsDiv.Dmdid.Should().Equal("DMD_other");
+    }
+
+    [Fact]
+    public async Task Setting_Mods_On_A_Div_With_Genuine_Multi_Dmdid_Never_Mutates_The_Other_DmdSec()
+    {
+        var fullMets = await CreateAndLoadStandardMets("idrefs-multi-dmdid-set.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+
+        var mods = ModsManager.GetModsForDiv(fullMets.Mets, objectsDiv, createDmd: true)!;
+        var ownDmdId = objectsDiv.Dmdid.Single();
+        var otherDmd = new MdSecType { Id = "DMD_other" };
+        fullMets.Mets.DmdSec.Add(otherDmd);
+        objectsDiv.Dmdid.Add("DMD_other");
+
+        // The first-resolving dmdSec is the div's editable MODS record; the second referenced
+        // dmdSec is third-party content and must come through a write completely untouched.
+        mods.AddAccessCondition("Restricted", Constants.RestrictionOnAccess);
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, mods);
+
+        ModsManager.GetModsForDiv(fullMets.Mets, objectsDiv)!
+            .GetAccessConditions(Constants.RestrictionOnAccess).Should().Equal("Restricted");
+        otherDmd.MdWrap.Should().BeNull();
+        objectsDiv.Dmdid.Should().Equal(ownDmdId, "DMD_other");
+    }
+
+    [Fact]
     public async Task Updating_A_Legacy_Spaced_File_Resolves_Its_AmdSec_Via_The_Rejoined_Tokens()
     {
         // The frozen fixture's file IDs contain spaces, so ADMID arrives as multiple tokens;
