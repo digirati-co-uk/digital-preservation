@@ -387,16 +387,23 @@ public class MetsManager(
         // ADMID/DMDID are IDREFS token collections (see IdRefs). Deletion is tolerant of a
         // section that doesn't resolve - a dangling reference is exactly the kind of breakage
         // a delete may be cleaning up, and DMDID references dangle by design until metadata
-        // is first set (lazy dmdSec creation).
-        var amdSec = IdRefs.ResolveSingle(admTokens, id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id));
-        var dmdSec = IdRefs.ResolveSingle(div.Dmdid, id => fullMets.Mets.DmdSec.FirstOrDefault(d => d.Id == id));
+        // is first set (lazy dmdSec creation). A genuine multi-token reference removes EVERY
+        // section it resolves - except one that another div or file still references (e.g. a
+        // rightsMD shared across files, common in Archivematica METS), which must survive.
+        var doomed = new HashSet<DivType> { div };
+        var amdSecs = IdRefs.ResolveAll(admTokens, id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id))
+            .Where(a => !SectionReferencedElsewhere(fullMets.Mets, a.Id, doomed, file))
+            .ToList();
+        var dmdSecs = IdRefs.ResolveAll(div.Dmdid, id => fullMets.Mets.DmdSec.FirstOrDefault(d => d.Id == id))
+            .Where(d => !SectionReferencedElsewhere(fullMets.Mets, d.Id, doomed, file))
+            .ToList();
 
         fileGroup?.File.Remove(file!);
-        if (amdSec != null)
+        foreach (var amdSec in amdSecs)
         {
             fullMets.Mets.AmdSec.Remove(amdSec);
         }
-        if (dmdSec != null)
+        foreach (var dmdSec in dmdSecs)
         {
             fullMets.Mets.DmdSec.Remove(dmdSec);
         }
@@ -405,6 +412,43 @@ public class MetsManager(
         EvictFromPathCache(fullMets, div);
 
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// True when any div (in any structMap) or file other than the ones being deleted still
+    /// references the section - as a single token, as one token of a genuine IDREFS list, or
+    /// as the joined form of a legacy space-containing ID. Guards deletion from removing a
+    /// section that is genuinely shared.
+    /// </summary>
+    private static bool SectionReferencedElsewhere(
+        DigitalPreservation.XmlGen.Mets.Mets mets,
+        string sectionId,
+        ISet<DivType> excludedDivs,
+        FileType? excludedFile)
+    {
+        var referencingDivs = mets.StructMap
+            .Where(sm => sm.Div != null)
+            .SelectMany(sm => SelfAndDescendants(sm.Div))
+            .Where(d => !excludedDivs.Contains(d))
+            .Any(d => IdRefs.References(d.Admid, sectionId) || IdRefs.References(d.Dmdid, sectionId));
+        if (referencingDivs)
+        {
+            return true;
+        }
+
+        return (mets.FileSec?.FileGrp ?? [])
+            .SelectMany(fg => fg.File)
+            .Where(f => !ReferenceEquals(f, excludedFile))
+            .Any(f => IdRefs.References(f.Admid, sectionId) || IdRefs.References(f.Dmdid, sectionId));
+    }
+
+    private static IEnumerable<DivType> SelfAndDescendants(DivType div)
+    {
+        yield return div;
+        foreach (var descendant in div.Div.SelectMany(SelfAndDescendants))
+        {
+            yield return descendant;
+        }
     }
 
     /// <summary>
@@ -879,16 +923,21 @@ public class MetsManager(
         return new DivTypeFptr { Fileid = fileId };
     }
 
-    private static void RemoveLogicalStructMapDmdSecs(FullMets mets, DivType div)
+    private static void RemoveLogicalStructMapDmdSecs(FullMets mets, DivType root)
     {
-        foreach (var dmdId in div.Dmdid)
+        // DMDID is an IDREFS token collection (see IdRefs): resolve it properly so a legacy
+        // space-containing dmdSec ID (split into tokens by the XmlSerializer) is found and
+        // removed, not silently orphaned. A dmdSec still referenced from outside the structMap
+        // being removed (e.g. shared with a physical div) survives.
+        var structMapDivs = new HashSet<DivType>(SelfAndDescendants(root));
+        foreach (var div in structMapDivs)
         {
-            var dmdSec = mets.Mets.DmdSec.FirstOrDefault(d => d.Id == dmdId);
-            if (dmdSec != null)
+            var dmdSecs = IdRefs
+                .ResolveAll(div.Dmdid, id => mets.Mets.DmdSec.FirstOrDefault(d => d.Id == id))
+                .Where(d => !SectionReferencedElsewhere(mets.Mets, d.Id, structMapDivs, null));
+            foreach (var dmdSec in dmdSecs)
                 mets.Mets.DmdSec.Remove(dmdSec);
         }
-        foreach (var child in div.Div)
-            RemoveLogicalStructMapDmdSecs(mets, child);
     }
 
     public void SetStructMapOrder(FullMets mets, string[] ids)

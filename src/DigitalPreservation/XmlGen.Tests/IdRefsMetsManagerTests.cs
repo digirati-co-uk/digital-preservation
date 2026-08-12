@@ -1,6 +1,9 @@
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
+using DigitalPreservation.XmlGen.Mets;
+using DigitalPreservation.XmlGen.Mods.V3;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -131,6 +134,81 @@ public class IdRefsMetsManagerTests
         deleteFile.Success.Should().BeTrue(deleteFile.ErrorMessage ?? "");
         fileGroup.File.Should().BeEmpty();
         fullMets.PhysicalDivsByPath.Should().NotContainKey("objects/orphan.pdf");
+    }
+
+    [Fact]
+    public async Task Deleting_A_File_With_Genuine_Multi_Admid_Removes_Its_Sections_But_Keeps_Shared_Ones()
+    {
+        var fullMets = await CreateAndLoadStandardMets("idrefs-multi-admid-delete.xml");
+        metsManager.AddToMets(fullMets, SimpleFile("objects/a.pdf", "a.pdf")).Success.Should().BeTrue();
+        metsManager.AddToMets(fullMets, SimpleFile("objects/b.pdf", "b.pdf")).Success.Should().BeTrue();
+
+        var fileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+        var fileA = fileGroup.File.Single(
+            f => f.Id == fullMets.PhysicalDivsByPath["objects/a.pdf"].Fptr[0].Fileid);
+        var fileB = fileGroup.File.Single(
+            f => f.Id == fullMets.PhysicalDivsByPath["objects/b.pdf"].Fptr[0].Fileid);
+        var ownAdmId = fileA.Admid.Single();
+
+        // Give a.pdf a genuine multi-token ADMID: its own amdSec, an extra section of its
+        // own, and a section shared with b.pdf (the Archivematica shared-rightsMD pattern).
+        fullMets.Mets.AmdSec.Add(new AmdSecType { Id = "ADM_rights_a" });
+        fullMets.Mets.AmdSec.Add(new AmdSecType { Id = "ADM_rights_shared" });
+        fileA.Admid.Add("ADM_rights_a");
+        fileA.Admid.Add("ADM_rights_shared");
+        fileB.Admid.Add("ADM_rights_shared");
+
+        var delete = metsManager.DeleteFromMets(fullMets, "objects/a.pdf");
+
+        delete.Success.Should().BeTrue(delete.ErrorMessage ?? "");
+        fullMets.Mets.AmdSec.Should().NotContain(a => a.Id == ownAdmId);
+        fullMets.Mets.AmdSec.Should().NotContain(a => a.Id == "ADM_rights_a");
+        fullMets.Mets.AmdSec.Should().Contain(a => a.Id == "ADM_rights_shared");
+    }
+
+    [Fact]
+    public async Task Replacing_A_Logical_StructMap_Removes_A_Legacy_Spaced_DmdSec()
+    {
+        var fullMets = await CreateAndLoadStandardMets("idrefs-logical-replace.xml");
+        metsManager.SetStructMap(fullMets, new LogicalRange { Id = "RANGE_1", Type = "Sequence" });
+
+        // Simulate a legacy structMap div carrying a space-containing DMDID: the
+        // XmlSerializer delivers it as two tokens, but the dmdSec ID is the whole string.
+        var logical = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Logical);
+        fullMets.Mets.DmdSec.Add(new MdSecType { Id = "DMD_my range" });
+        logical.Div.Dmdid.Add("DMD_my");
+        logical.Div.Dmdid.Add("range");
+
+        metsManager.SetStructMap(fullMets, new LogicalRange { Id = "RANGE_1", Type = "Sequence" });
+
+        fullMets.Mets.DmdSec.Should().NotContain(d => d.Id == "DMD_my range");
+        fullMets.Mets.StructMap.Count(sm => sm.Type == Constants.Logical).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Clearing_Mods_On_A_Div_With_Genuine_Multi_Dmdid_Keeps_The_Other_DmdSec()
+    {
+        var fullMets = await CreateAndLoadStandardMets("idrefs-multi-dmdid-mods.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+
+        // Give the div MODS content (lazily creating its own dmdSec)...
+        var mods = ModsManager.GetModsForDiv(fullMets.Mets, objectsDiv, createDmd: true)!;
+        mods.AddAccessCondition("Restricted", Constants.RestrictionOnAccess);
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, mods);
+        var ownDmdId = objectsDiv.Dmdid.Single();
+
+        // ...then a second, genuine reference to another real dmdSec.
+        fullMets.Mets.DmdSec.Add(new MdSecType { Id = "DMD_other" });
+        objectsDiv.Dmdid.Add("DMD_other");
+
+        // Clearing the MODS must prune only the div's own (now empty) dmdSec and its
+        // reference - not the other genuinely-referenced dmdSec.
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, new ModsDefinition());
+
+        fullMets.Mets.DmdSec.Should().NotContain(d => d.Id == ownDmdId);
+        fullMets.Mets.DmdSec.Should().Contain(d => d.Id == "DMD_other");
+        objectsDiv.Dmdid.Should().Equal("DMD_other");
     }
 
     [Fact]

@@ -5,6 +5,16 @@
 > is *tolerant* of unresolvable amdSec/dmdSec references rather than failing cleanly —
 > deletion is how broken content gets cleaned up, and this also fixes a latent crash on
 > by-design dangling DMDIDs (lazy dmdSec creation).
+>
+> **Status (2026-08-12, after PR #213 review):** the review found the deletion sites needed
+> more than `ResolveSingle`, so — revising §"What NOT to do" point 3 — `IdRefs.ResolveAll`
+> now exists for them: `DeleteDiv` and `RemoveLogicalStructMapDmdSecs` (the one site the
+> original inventory missed) remove **every** section a reference resolves, EXCEPT a section
+> another div/file still references (`SectionReferencedElsewhere`) — a genuinely shared
+> section (e.g. Archivematica's shared rightsMD) must survive the deletion of one referrer.
+> `TryRemoveRedundantDmd` now drops only the reference to the dmdSec it removed
+> (`IdRefs.RemoveReference`), not the div's whole DMDID list. And the raw-string overload
+> splits on all XML whitespace (tab/newline/CR), not just spaces.
 
 > 2026-08-11. Companion to `issue-188-plan.md` (v2). Analysed against
 > `feat/188-physical-divs-cache` (PR #211), which this work should follow.
@@ -143,7 +153,8 @@ ordering intact).
   (this is the same lifecycle as the frozen `Samples/path-fixture-spaces.xml` corpus).
 - Do not try to make `ResolveSingle` return multiple elements for multi-IDREFS in step 1 of
   this work — no current caller can consume more than one; add `ResolveAll` only when a caller
-  needs it.
+  needs it. *(Superseded 2026-08-12: the deletion sites are exactly such callers — see the
+  status note above.)*
 
 ## Sequencing and tests
 

@@ -107,4 +107,108 @@ public class IdRefsTests
     {
         IdRefs.ResolveSingle("ADM_nope ADM_also_nope", Lookup).Should().BeNull();
     }
+
+    [Theory]
+    [InlineData("ADM_missing\tADM_B")]
+    [InlineData("ADM_missing\nADM_B")]
+    [InlineData("ADM_missing\r\nADM_B")]
+    public void Idrefs_attribute_value_splits_on_any_xml_whitespace(string attributeValue)
+    {
+        // XML permits tab/newline/CR as IDREFS separators, not just spaces
+        IdRefs.ResolveSingle(attributeValue, Lookup).Should().Be("b");
+    }
+
+    // -----------------------------------------------------------------------
+    // ResolveAll (deletion sites: every referenced element, not just the first)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void ResolveAll_of_an_empty_collection_is_empty()
+    {
+        IdRefs.ResolveAll(Array.Empty<string>(), Lookup).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ResolveAll_of_a_single_token_resolves_that_element()
+    {
+        IdRefs.ResolveAll(new[] { "ADM_A" }, Lookup).Should().Equal("a");
+    }
+
+    [Fact]
+    public void ResolveAll_of_legacy_spaced_tokens_is_exactly_the_one_legacy_element()
+    {
+        IdRefs.ResolveAll(new[] { "ADM_objects/my", "file.pdf" }, Lookup)
+            .Should().Equal("legacy-spaced");
+    }
+
+    [Fact]
+    public void ResolveAll_of_a_genuine_idrefs_list_resolves_every_token()
+    {
+        IdRefs.ResolveAll(new[] { "ADM_A", "ADM_B" }, Lookup).Should().Equal("a", "b");
+    }
+
+    [Fact]
+    public void ResolveAll_skips_tokens_that_do_not_resolve()
+    {
+        IdRefs.ResolveAll(new[] { "ADM_missing", "ADM_B" }, Lookup).Should().Equal("b");
+    }
+
+    [Fact]
+    public void ResolveAll_returns_distinct_elements_for_duplicate_tokens()
+    {
+        IdRefs.ResolveAll(new[] { "ADM_A", "ADM_A" }, Lookup).Should().Equal("a");
+    }
+
+    // -----------------------------------------------------------------------
+    // References / RemoveReference (pure token-collection bookkeeping)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void References_matches_a_single_token()
+    {
+        IdRefs.References(new[] { "ADM_A" }, "ADM_A").Should().BeTrue();
+    }
+
+    [Fact]
+    public void References_matches_one_token_of_a_genuine_list()
+    {
+        IdRefs.References(new[] { "ADM_A", "ADM_B" }, "ADM_B").Should().BeTrue();
+    }
+
+    [Fact]
+    public void References_matches_the_joined_legacy_form()
+    {
+        IdRefs.References(new[] { "ADM_objects/my", "file.pdf" }, "ADM_objects/my file.pdf")
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public void References_does_not_match_an_unrelated_id()
+    {
+        IdRefs.References(new[] { "ADM_A", "ADM_B" }, "ADM_C").Should().BeFalse();
+    }
+
+    [Fact]
+    public void RemoveReference_clears_all_tokens_of_a_legacy_spaced_id()
+    {
+        var tokens = new List<string> { "DMD_objects/my", "file.pdf" };
+        IdRefs.RemoveReference(tokens, "DMD_objects/my file.pdf");
+        tokens.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RemoveReference_removes_only_the_matching_token_of_a_genuine_list()
+    {
+        var tokens = new List<string> { "DMD_A", "DMD_B" };
+        IdRefs.RemoveReference(tokens, "DMD_A");
+        tokens.Should().Equal("DMD_B");
+    }
+
+    [Fact]
+    public void RemoveReference_leaves_tokens_untouched_when_nothing_matches()
+    {
+        var tokens = new List<string> { "DMD_A", "DMD_B" };
+        IdRefs.RemoveReference(tokens, "DMD_C");
+        tokens.Should().Equal("DMD_A", "DMD_B");
+    }
 }

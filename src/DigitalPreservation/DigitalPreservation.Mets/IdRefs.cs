@@ -17,6 +17,12 @@ namespace DigitalPreservation.Mets;
 /// </summary>
 public static class IdRefs
 {
+    /// <summary>
+    /// The characters XML treats as whitespace, and therefore as IDREFS separators. The
+    /// XmlSerializer splits on all of them; the raw-string side must do the same.
+    /// </summary>
+    private static readonly char[] XmlWhitespace = [' ', '\t', '\n', '\r'];
+
     /// <summary>The single intended ID that a legacy space-containing ID was split from.</summary>
     public static string Joined(IEnumerable<string> tokens) => string.Join(' ', tokens);
 
@@ -39,21 +45,77 @@ public static class IdRefs
     }
 
     /// <summary>
+    /// Resolve an IDREFS token collection to every referenced element. The same tiering as
+    /// <see cref="ResolveSingle{T}(IReadOnlyList{string},Func{string,T})"/>: a joined-form
+    /// match means the tokens are ONE legacy space-containing ID, so exactly that element is
+    /// returned; otherwise each token resolves individually (genuine IDREFS list), skipping
+    /// tokens that don't resolve. Never throws; empty when nothing matches.
+    /// </summary>
+    public static IReadOnlyList<T> ResolveAll<T>(IReadOnlyList<string> tokens, Func<string, T?> lookupById)
+        where T : class
+    {
+        switch (tokens.Count)
+        {
+            case 0:
+                return [];
+            case 1:
+                return lookupById(tokens[0]) is { } single ? [single] : [];
+            default:
+                if (lookupById(Joined(tokens)) is { } legacy)
+                {
+                    return [legacy];
+                }
+                return tokens
+                    .Select(lookupById)
+                    .Where(match => match != null)
+                    .Distinct()
+                    .Cast<T>()
+                    .ToList();
+        }
+    }
+
+    /// <summary>
+    /// True when the token collection references the element with this ID - as its only token,
+    /// as one token of a genuine IDREFS list, or as the joined form of a legacy
+    /// space-containing ID. Pure string comparison; no lookup involved.
+    /// </summary>
+    public static bool References(IReadOnlyList<string> tokens, string id) =>
+        tokens.Contains(id) || (tokens.Count > 1 && Joined(tokens) == id);
+
+    /// <summary>
+    /// Remove from an IDREFS token collection the reference to an element previously resolved
+    /// from it: every token when the tokens jointly formed a legacy space-containing ID, else
+    /// just the token equal to the element's ID. Other references are left intact.
+    /// </summary>
+    public static void RemoveReference(IList<string> tokens, string resolvedId)
+    {
+        if (Joined(tokens) == resolvedId)
+        {
+            tokens.Clear();
+        }
+        else
+        {
+            tokens.Remove(resolvedId);
+        }
+    }
+
+    /// <summary>
     /// Mirror-image resolution for the XDocument/raw-string side (MetsParser), where the whole
     /// IDREFS attribute value arrives as one string: try the whole value first (a single ID,
     /// or a legacy ID containing spaces), then each whitespace-separated token (schema-valid
-    /// IDREFS list), first match winning.
+    /// IDREFS list - XML allows tab/newline/CR separators as well as spaces), first match
+    /// winning.
     /// </summary>
     public static T? ResolveSingle<T>(string attributeValue, Func<string, T?> lookupById)
         where T : class
     {
         var whole = lookupById(attributeValue);
-        if (whole != null || !attributeValue.Contains(' '))
+        if (whole != null || attributeValue.IndexOfAny(XmlWhitespace) < 0)
         {
             return whole;
         }
         return attributeValue
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Split(XmlWhitespace, StringSplitOptions.RemoveEmptyEntries)
             .Select(lookupById)
             .FirstOrDefault(match => match != null);
     }

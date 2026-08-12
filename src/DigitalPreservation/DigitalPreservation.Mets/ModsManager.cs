@@ -183,7 +183,7 @@ public static class ModsManager
         // If clearing the last piece of metadata has left the MODS carrying nothing,
         // don't write an empty <mods/> shell wrapped in a redundant dmdSec — prune it.
         // Only do so when it is safe: the dmdSec must wrap MODS and nothing else.
-        if (mods.IsEmpty() && TryRemoveRedundantDmd(mets, div, normalised))
+        if (mods.IsEmpty() && TryRemoveRedundantDmd(mets, div, dmd))
         {
             return;
         }
@@ -192,16 +192,16 @@ public static class ModsManager
     }
 
     /// <summary>
-    /// Removes the dmdSec addressed by <paramref name="dmdId"/> together with the div's
-    /// (now dangling) DMDID reference, but ONLY when it is safe: the dmdSec must carry
-    /// nothing beyond the MODS we are clearing — no external mdRef, no admin links and
-    /// no other identifying attributes. Returns <c>true</c> if the dmdSec was removed
+    /// Removes the resolved dmdSec together with the div's DMDID reference to it, but ONLY
+    /// when it is safe: the dmdSec must carry nothing beyond the MODS we are clearing — no
+    /// external mdRef, no admin links and no other identifying attributes. Only the reference
+    /// to THIS dmdSec is dropped: a div with a genuine multi-token DMDID keeps its other
+    /// references (and their dmdSecs) intact. Returns <c>true</c> if the dmdSec was removed
     /// (or there was nothing to remove), <c>false</c> if it had to be kept because it
     /// still carries other information.
     /// </summary>
-    private static bool TryRemoveRedundantDmd(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, string dmdId)
+    private static bool TryRemoveRedundantDmd(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, MdSecType? dmd)
     {
-        var dmd = string.IsNullOrEmpty(dmdId) ? null : mets.DmdSec.FirstOrDefault(d => d.Id == dmdId);
         if (dmd != null)
         {
             if (!DmdSecWrapsOnlyMods(dmd))
@@ -210,10 +210,14 @@ public static class ModsManager
                 return false;
             }
             mets.DmdSec.Remove(dmd);
+            IdRefs.RemoveReference(div.Dmdid, dmd.Id);
         }
-
-        // Drop the div's now-dangling DMDID reference (a no-op if it was never set).
-        div.Dmdid.Clear();
+        else
+        {
+            // Nothing resolved at all: every token dangles, so clearing them is cleanup
+            // (and a no-op if DMDID was never set).
+            div.Dmdid.Clear();
+        }
         return true;
     }
 
