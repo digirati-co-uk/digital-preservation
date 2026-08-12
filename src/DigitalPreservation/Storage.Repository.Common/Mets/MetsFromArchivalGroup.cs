@@ -31,11 +31,11 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
 
         var fullMets = new FullMets { Mets = mets, Uri = file };
         // This FullMets is write-only (navigation happens on a fresh load, which populates the
-        // cache), but building the cache here puts this construction path under the same
-        // navigability check as MetsManager mutations: a structMap this class builds that
-        // cannot be resolved by path is a bug, caught in debug builds and tests.
-        var pathDiagnostics = MetsCache.Populate(fullMets);
-        AssertNavigable(pathDiagnostics);
+        // cache), so the cache build inside AssertNavigable is debug/test-only: it puts this
+        // construction path under the same navigability check as MetsManager mutations - a
+        // structMap this class builds that cannot be resolved by path is a bug. In Release the
+        // whole call compiles out and no cache walk happens.
+        AssertNavigable(fullMets);
 
         var writeResult = await metsManager.WriteMets(fullMets);
         if (writeResult.Success)
@@ -51,8 +51,9 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
     /// navigable by path.
     /// </summary>
     [System.Diagnostics.Conditional("DEBUG")]
-    private static void AssertNavigable(List<string> pathDiagnostics)
+    private static void AssertNavigable(FullMets fullMets)
     {
+        var pathDiagnostics = MetsCache.Populate(fullMets);
         if (pathDiagnostics.Count > 0)
         {
             throw new InvalidOperationException(
@@ -78,8 +79,11 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
             // The template already contains divs (and amdSecs) for objects/, metadata/ and
             // metadata/ad-hoc/ - reuse any div the parent already has for this path rather
             // than adding a duplicate div and duplicate-ID amdSec (which previously happened
-            // for any Archival Group with a preserved metadata/ folder).
-            var childDirectoryDiv = div.Div.FirstOrDefault(d => d.Id == $"{Constants.PhysIdPrefix}{localPath}");
+            // for any Archival Group with a preserved metadata/ folder). Matching is by the
+            // div's resolved path (premis:originalName), not by reconstructing its ID, so it
+            // stays correct when ID minting changes (issue #188 step 2).
+            var childDirectoryDiv = div.Div.FirstOrDefault(
+                d => MetsCache.TryResolvePath(d, mets) == localPath);
 
             if (childDirectoryDiv == null)
             {

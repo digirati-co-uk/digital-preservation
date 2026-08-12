@@ -92,9 +92,10 @@ public static class MetsCache
     /// <summary>
     /// Resolve a single div to its deposit-relative path from its own metadata, without
     /// reporting diagnostics. Used by MetsManager's navigation fallback when the cache entry
-    /// for a path is missing or ambiguous.
+    /// for a path is missing or ambiguous, and by MetsFromArchivalGroup to match template
+    /// divs by path rather than by reconstructed ID.
     /// </summary>
-    internal static string? TryResolvePath(DivType div, DigitalPreservation.XmlGen.Mets.Mets mets)
+    public static string? TryResolvePath(DivType div, DigitalPreservation.XmlGen.Mets.Mets mets)
         => ResolvePath(div, mets, null);
 
     private static string? ResolvePath(
