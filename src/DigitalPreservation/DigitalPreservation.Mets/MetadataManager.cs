@@ -91,7 +91,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
             }
         }
 
-        ProcessVirusDataForFile(ctx, workingFile, fullMets);
+        ProcessVirusDataForFile(ctx, workingFile);
 
         if (newUpload)
             fullMets.Mets.AmdSec.Add(ctx.AmdSec);
@@ -167,7 +167,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         return Result.Ok();
     }
 
-    private void ProcessVirusDataForFile(ProcessingContext ctx, WorkingFile workingFile, FullMets fullMets)
+    private void ProcessVirusDataForFile(ProcessingContext ctx, WorkingFile workingFile)
     {
         var virusScan = workingFile.GetVirusScanMetadata();
         if (virusScan == null)
@@ -182,7 +182,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
         if (ctx.AmdSec == null) return;
 
-        AppendVirusEvent(ctx, fullMets.Mets);
+        AppendVirusEvent(ctx);
     }
 
     private static Result GetMetadataXml(ProcessingContext ctx, FullMets fullMets, DivType? div, string operationPath)
@@ -301,14 +301,14 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     /// is modified or removed — not earlier scans, and not events written by tools we neither
     /// recognise nor need to understand (issue #219).
     /// </summary>
-    private static void AppendVirusEvent(ProcessingContext ctx, DigitalPreservation.XmlGen.Mets.Mets mets)
+    private static void AppendVirusEvent(ProcessingContext ctx)
     {
         if (ctx.AmdSec is null)
             return;
 
         ctx.AmdSec.DigiprovMd.Add(new MdSecType
         {
-            Id = UnusedDigiprovId(ctx, mets),
+            Id = UnusedDigiprovId(ctx),
             MdWrap = new MdSecTypeMdWrap
             {
                 Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
@@ -323,14 +323,12 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     /// xs:ID has to stay unique within the document. IDs we did not mint are counted as taken
     /// without being interpreted.
     /// </summary>
-    private static string UnusedDigiprovId(ProcessingContext ctx, DigitalPreservation.XmlGen.Mets.Mets mets)
+    private static string UnusedDigiprovId(ProcessingContext ctx)
     {
-        // Across the WHOLE document, not just this amdSec: an xs:ID is unique per document, and
-        // the suffix can otherwise collide between files. A second scan of "objects/a" wants
-        // …ADM_objects_x002F_a_2, which is also the conventional ID for the FIRST scan of a
-        // file genuinely named "objects/a_2".
-        var taken = mets.AmdSec
-            .SelectMany(amdSec => amdSec.DigiprovMd)
+        // Only this file's own amdSec needs checking, because the ID embeds this file's admId
+        // and so cannot collide with another file's. Scanning the whole document would make
+        // minting O(total scans in the deposit) for every file that gets an event.
+        var taken = ctx.AmdSec!.DigiprovMd
             .Select(digiprovMd => digiprovMd.Id)
             .Where(id => id != null)
             .ToHashSet(StringComparer.Ordinal);
@@ -340,13 +338,27 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
             return ctx.DigiprovId;
         }
 
-        var suffix = 2;
-        while (taken.Contains($"{ctx.DigiprovId}_{suffix}"))
+        // The counter goes BEFORE the admId, not after it. A trailing "_2" would read as part
+        // of a path: "…ClamAV_ADM_objects_x002F_a_2" is both the second scan of "objects/a" and
+        // the plain conventional ID of a file genuinely named "objects/a_2", so a reader that
+        // resolves by ID could report one file's virus status as another's. A conventional ID
+        // always has the admId's own prefix straight after the ClamAV prefix, never a digit, so
+        // putting the counter there cannot be confused with any file's key.
+        var identifier = ctx.DigiprovId[Constants.VirusProvEventPrefix.Length..];
+        var occurrence = 2;
+        while (taken.Contains(NumberedDigiprovId(occurrence, identifier)))
         {
-            suffix++;
+            occurrence++;
         }
-        return $"{ctx.DigiprovId}_{suffix}";
+        return NumberedDigiprovId(occurrence, identifier);
     }
+
+    /// <summary>
+    /// The ID of the Nth virus-scan event for a file, N &gt; 1 — the counter sits between the
+    /// ClamAV prefix and the identifier so it can never be mistaken for part of a path.
+    /// </summary>
+    internal static string NumberedDigiprovId(int occurrence, string identifier) =>
+        $"{Constants.VirusProvEventPrefix}{occurrence}_{identifier}";
 
     private static void SetAmdSec(ProcessingContext ctx, XmlElement? premisXml, bool newUpload)
     {

@@ -762,6 +762,43 @@ public class MetsManagerWithPremis
     }
 
     [Fact]
+    public async Task One_File_S_Later_Scan_Is_Never_Reported_As_Another_File_S_Status()
+    {
+        // The victim is a file whose name looks like a numbered scan of its neighbour
+        // ("objects/a" rescanned vs a file called "objects/a_2"), which has never been scanned
+        // itself and whose techMD is not PREMIS - so it takes the conventional-key fallback.
+        // A trailing counter would make the neighbour's second scan carry exactly this file's
+        // conventional ID, and its virus status would be reported here.
+        const string scanned = "objects/a";
+        const string lookalike = "objects/a_2";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-cross-file-misattribution.xml");
+        eTag = await AddFile(metsUri, SimpleFile(scanned, "a"), eTag);
+        eTag = await AddFile(metsUri, SimpleFile(lookalike, "a_2"), eTag);
+
+        // Two scans of the neighbour, the second one INFECTED.
+        eTag = await AddFile(metsUri, ScannedFile(scanned, "a", false, "defs-1"), eTag);
+        eTag = await AddFile(metsUri, ScannedFile(scanned, "a", true, "defs-2"), eTag);
+
+        // Force the victim onto the fallback path, and never scan it.
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        fullMets.Mets.AmdSec.Single(a => a.Id == MetsIds.Adm(lookalike)).TechMd[0].MdWrap.XmlData =
+            new MdSecTypeMdWrapXmlData
+            {
+                Any = { new System.Xml.XmlDocument().CreateElement("mix", "http://www.loc.gov/mix/v20") }
+            };
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        var parsed = await parser.GetMetsFileWrapper(metsUri);
+        parsed.Success.Should().BeTrue(parsed.ErrorMessage ?? "");
+        parsed.Value!.Files.Single(f => f.LocalPath == lookalike)
+            .Metadata.OfType<VirusScanMetadata>().Should().BeEmpty(
+                "this file has never been scanned; its neighbour's result is not its own");
+        parsed.Value.Files.Single(f => f.LocalPath == scanned)
+            .Metadata.OfType<VirusScanMetadata>().Should().ContainSingle()
+            .Which.HasVirus.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task The_Conventional_Key_Fallback_Reports_The_LATEST_Scan()
     {
         // When a file's techMD carries no premis:object the structural lookup cannot run, and

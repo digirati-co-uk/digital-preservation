@@ -31,54 +31,6 @@ public class MetsParser(
     /// Builds lookup dictionaries for efficient O(1) access to METS elements by ID.
     /// This is equivalent to the Python version's amd_map, file_map, and tech_map.
     /// </summary>
-    /// <summary>
-    /// The most recent virus-scan digiprovMD reachable by the conventional key: the key itself
-    /// for the first scan, then the key with a <c>_2</c>, <c>_3</c> … suffix, because scans
-    /// accumulate as separate events and each needs a unique xs:ID.
-    /// </summary>
-    /// <remarks>
-    /// Taking the plain key alone would resolve only the FIRST scan a file ever had, so a file
-    /// rescanned and found infected could still report clean — the very failure the accumulating
-    /// model exists to prevent, arriving by the fallback path instead.
-    /// Matching stays case-insensitive and ANCHORED on the separator: a looser test cross-talks
-    /// between files whose IDs are prefixes of one another (<c>ADM_a</c> inside <c>ADM_a2</c>),
-    /// returning one file's scan for another.
-    /// </remarks>
-    private static XElement? LatestByConventionalKey(
-        IReadOnlyDictionary<string, XElement> digiprovMdMap, string conventionalKey)
-    {
-        XElement? latest = null;
-        var highestSuffix = -1;
-
-        foreach (var (key, element) in digiprovMdMap)
-        {
-            int suffix;
-            if (string.Equals(key, conventionalKey, StringComparison.OrdinalIgnoreCase))
-            {
-                suffix = 0;
-            }
-            else if (key.Length > conventionalKey.Length + 1
-                     && key.StartsWith(conventionalKey, StringComparison.OrdinalIgnoreCase)
-                     && key[conventionalKey.Length] == '_'
-                     && int.TryParse(key[(conventionalKey.Length + 1)..], out var parsed))
-            {
-                suffix = parsed;
-            }
-            else
-            {
-                continue;
-            }
-
-            if (suffix > highestSuffix)
-            {
-                highestSuffix = suffix;
-                latest = element;
-            }
-        }
-
-        return latest;
-    }
-
     private static MetsLookupMaps BuildLookupMaps(XDocument xMets, XElement physicalStructMap)
     {
         // Build amdSec map: ID -> XElement
@@ -120,6 +72,50 @@ public class MetsParser(
             .ToDictionary(x => x.Id!, x => x.Use);
 
         return new MetsLookupMaps(amdSecMap, dmdSecMap, fileMap, techMdMap, digiprovMdMap, physDivMap, fileGrpUseMap);
+    }
+
+    /// <summary>
+    /// The most recent virus-scan digiprovMD for one file: the plain conventional ID for its
+    /// first scan, then the numbered forms, because scans accumulate as separate events and
+    /// each needs a unique xs:ID.
+    /// </summary>
+    /// <remarks>
+    /// Taking the plain ID alone would resolve only the FIRST scan a file ever had, so a file
+    /// rescanned and found infected could still report clean — the very failure the accumulating
+    /// model exists to prevent, arriving by the fallback path instead.
+    /// Every candidate is CONSTRUCTED from this file's own identifier and compared in full, so
+    /// no other file's event can be matched: numbering later scans between the prefix and the
+    /// identifier is what makes that possible, since a trailing counter would be
+    /// indistinguishable from part of another file's path.
+    /// </remarks>
+    private static XElement? LatestByConventionalKey(
+        IReadOnlyDictionary<string, XElement> digiprovMdMap, string? identifier)
+    {
+        if (identifier == null)
+        {
+            return null;
+        }
+
+        var latest = digiprovMdMap.Keys
+            .FirstOrDefault(key => string.Equals(
+                key, Constants.VirusProvEventPrefix + identifier, StringComparison.OrdinalIgnoreCase));
+
+        // Later scans are numbered BETWEEN the prefix and the identifier, so each candidate
+        // still names this file and nothing else. Walk upwards rather than scanning every key
+        // in the document: an event numbered N only exists if N-1 does.
+        for (var occurrence = 2; ; occurrence++)
+        {
+            var numbered = MetadataManager.NumberedDigiprovId(occurrence, identifier);
+            var match = digiprovMdMap.Keys
+                .FirstOrDefault(key => string.Equals(key, numbered, StringComparison.OrdinalIgnoreCase));
+            if (match == null)
+            {
+                break;
+            }
+            latest = match;
+        }
+
+        return latest == null ? null : digiprovMdMap[latest];
     }
     
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
@@ -583,12 +579,12 @@ public class MetsParser(
                 if (digiprovMd == null)
                 {
                     // Conventional-key fallback for documents where nothing resolved
-                    // structurally. Case-insensitive but EXACT match - a substring match here
-                    // cross-talks between files whose IDs are prefixes of each other
-                    // (e.g. "ADM_a" is contained in "ADM_a2"), returning one file's virus-scan
-                    // event for a different file.
-                    var clamavKey = $"{Constants.VirusProvEventPrefix}{techMd?.Attribute("ID")?.Value ?? admId}";
-                    digiprovMd = LatestByConventionalKey(lookupMaps.DigiprovMdMap, clamavKey);
+                    // structurally. Every candidate ID is built from THIS file's identifier and
+                    // matched in full, case-insensitively: a looser test cross-talks between
+                    // files whose identifiers are prefixes of each other ("ADM_a" inside
+                    // "ADM_a2"), reporting one file's virus status as another's.
+                    var identifier = techMd?.Attribute("ID")?.Value ?? admId;
+                    digiprovMd = LatestByConventionalKey(lookupMaps.DigiprovMdMap, identifier);
                 }
 
                 var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();
