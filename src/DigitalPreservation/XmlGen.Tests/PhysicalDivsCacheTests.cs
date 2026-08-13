@@ -360,6 +360,62 @@ public class PhysicalDivsCacheTests
     }
 
     [Fact]
+    public async Task A_File_Add_That_Fails_LATE_Leaves_No_Orphan_And_The_Retry_Adds_One_File()
+    {
+        // Issue #216. The test above covers a failure in the metadata step, which returns
+        // before attaching anything. This covers a failure AFTER that step - which used to
+        // strand a FILE and an amdSec with no div, so the retry minted a SECOND FILE with the
+        // same xs:ID and the path could never be updated or deleted again.
+        var fullMets = await CreateAndLoadStandardMets("cache-failed-add-late.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+
+        // A dmdSec already sitting on the ID this add will mint, wrapping something that is
+        // not MODS - so the descriptive-metadata step cannot materialise it and fails.
+        var blocker = new MdSecType
+        {
+            Id = MetsIds.Dmd("objects/new.tif"),
+            MdWrap = new MdSecTypeMdWrap
+            {
+                Mdtype = MdSecTypeMdWrapMdtype.Dc,
+                XmlData = new MdSecTypeMdWrapXmlData()
+            }
+        };
+        fullMets.Mets.DmdSec.Add(blocker);
+        var dmdSecCountBefore = fullMets.Mets.DmdSec.Count;
+        var amdSecCountBefore = fullMets.Mets.AmdSec.Count;
+        var fileCountBefore = fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Count();
+
+        var fileWithMetadata = SimpleFile("objects/new.tif", "new.tif");
+        fileWithMetadata.AccessRestrictions = ["Closed"];
+
+        var failedAdd = metsManager.AddToMets(fullMets, fileWithMetadata);
+
+        failedAdd.Failure.Should().BeTrue();
+        objectsDiv.Div.Should().BeEmpty("a failed add must not leave a div behind");
+        fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Should().HaveCount(fileCountBefore,
+            "a failed add must not leave a FILE behind");
+        fullMets.Mets.AmdSec.Count.Should().Be(amdSecCountBefore, "nor an amdSec");
+        fullMets.Mets.DmdSec.Count.Should().Be(dmdSecCountBefore, "nor a dmdSec");
+        AssertCacheMatchesRebuild(fullMets);
+
+        // With the obstruction gone the retry succeeds, and adds exactly one FILE - not a
+        // second one colliding on xs:ID with an orphan from the failed attempt.
+        fullMets.Mets.DmdSec.Remove(blocker);
+        var retry = metsManager.AddToMets(fullMets, SimpleFile("objects/new.tif", "new.tif"));
+
+        retry.Success.Should().BeTrue(retry.ErrorMessage ?? "");
+        objectsDiv.Div.Should().ContainSingle(d => d.Label == "new.tif");
+        fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File)
+            .Select(f => f.Id).Should().OnlyHaveUniqueItems();
+        AssertCacheMatchesRebuild(fullMets);
+
+        // ...and the path remains editable, which it did not once a duplicate ID existed.
+        var update = metsManager.AddToMets(fullMets, SimpleFile("objects/new.tif", "new.tif"));
+        update.Success.Should().BeTrue(update.ErrorMessage ?? "");
+    }
+
+    [Fact]
     public async Task Setting_Metadata_By_An_Unresolvable_Path_Fails_And_Does_Not_Write_To_An_Ancestor()
     {
         var fullMets = await CreateAndLoadStandardMets("cache-setbypath-miss.xml");
