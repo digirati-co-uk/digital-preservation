@@ -269,11 +269,7 @@ public class MetsManagerWithPremis
         premisObject.Descendants(PremisNs + "format").Should().HaveCount(1);
 
         // --- Also: only one amdSec for this file ---
-        // Matched on the whole ID: METS IDs are opaque, and since #188 they no longer contain
-        // the path as a substring.
-        xml.Descendants(MetsNs + "amdSec")
-            .Where(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"))
-            .Should().HaveCount(1);
+        AssertSingleAmdSecFor(xml, "objects/document.pdf");
     }
 
     // -----------------------------------------------------------------------
@@ -630,10 +626,21 @@ public class MetsManagerWithPremis
         ffm.PronomKey.Should().Be("fmt/276");
 
         // --- Raw XML: exactly one amdSec for this file (no duplicate created by overwrite) ---
-        var xml = XDocument.Load(metsUri.LocalPath);
+        AssertSingleAmdSecFor(XDocument.Load(metsUri.LocalPath), "objects/document.pdf");
+    }
+
+    /// <summary>
+    /// Exactly one amdSec describes the file at this path. Matched on the PREMIS originalName
+    /// inside the techMD, NOT on the amdSec's ID: the regression being guarded against is a
+    /// SECOND amdSec for the same file, and a duplicate minted under a different ID scheme
+    /// (a raw-path ID alongside an encoded one, in a mixed-format document) is invisible to an
+    /// ID-equality check — which is how this assertion was silently defanged once already.
+    /// </summary>
+    private static void AssertSingleAmdSecFor(XDocument xml, string localPath)
+    {
         xml.Descendants(MetsNs + "amdSec")
-            .Where(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"))
-            .Should().HaveCount(1, "overwriting a file must not create a second amdSec");
+            .Where(amdSec => amdSec.Descendants(PremisNs + "originalName").Any(n => n.Value == localPath))
+            .Should().HaveCount(1, $"exactly one amdSec may describe '{localPath}'");
     }
 
     [Fact]

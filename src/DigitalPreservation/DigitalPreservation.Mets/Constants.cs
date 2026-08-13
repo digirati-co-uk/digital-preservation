@@ -22,6 +22,9 @@ public static class Constants
     // written before that fix carry the raw "PHYS_metadata/ad-hoc" form and are still navigated
     // by path, so nothing reads this constant to identify an existing div.
     public static readonly string MetadataAdHocDivId = PhysIdPrefix + FolderNames.MetadataAdHoc.ToMetsId();
+    // The fileGrp holding the preserved files. Other groups (derivatives, ALTO, thumbnails)
+    // appear in third-party METS and may carry an entry with the same href.
+    public const string ObjectsFileGrpUse = "OBJECTS";
     public const string DirectoryType = "Directory";
     public const string ItemType = "Item";
     public const string VirusProvEventPrefix = "digiprovMD_ClamAV_";

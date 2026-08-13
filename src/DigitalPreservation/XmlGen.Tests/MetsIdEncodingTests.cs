@@ -34,6 +34,37 @@ public class MetsIdEncodingTests
         "9-leading-digit.txt"
     };
 
+    // ---------------------------------------------------------------------
+    // The anchor. Everything else in this file, and every expectation built through MetsIds,
+    // computes its expected value with the production encoder - which catches a mint site that
+    // FORGETS to encode, but cannot catch the encoding itself changing. These literals are the
+    // only thing pinning the actual on-disk format, which is permanent: a step 3 bulk migration
+    // will be written against exactly these strings. If one of these fails, the format has
+    // changed and every METS file already written is affected.
+    // ---------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("objects/simple.pdf", "objects_x002F_simple.pdf")]
+    [InlineData("objects/my file.pdf", "objects_x002F_my_x0020_file.pdf")]
+    [InlineData("objects/AT&T guide.pdf", "objects_x002F_AT_x0026_T_x0020_guide.pdf")]
+    [InlineData("metadata/ad-hoc", "metadata_x002F_ad-hoc")]
+    [InlineData("objects", "objects")]
+    public void The_Encoded_Form_Is_Exactly_This(string path, string expected)
+    {
+        path.ToMetsId().Should().Be(expected);
+    }
+
+    [Fact]
+    public void A_Minted_Id_Is_Exactly_This()
+    {
+        MetsIds.Phys("objects/my file.pdf").Should().Be("PHYS_objects_x002F_my_x0020_file.pdf");
+        MetsIds.File("objects/my file.pdf").Should().Be("FILE_objects_x002F_my_x0020_file.pdf");
+        MetsIds.Adm("objects/my file.pdf").Should().Be("ADM_objects_x002F_my_x0020_file.pdf");
+        MetsIds.Tech("objects/my file.pdf").Should().Be("TECH_objects_x002F_my_x0020_file.pdf");
+        MetsIds.Dmd("objects/my file.pdf").Should().Be("DMD_objects_x002F_my_x0020_file.pdf");
+        Constants.MetadataAdHocDivId.Should().Be("PHYS_metadata_x002F_ad-hoc");
+    }
+
     [Theory]
     [MemberData(nameof(Paths))]
     public void Encoded_Path_Is_A_Valid_Ncname(string path)
@@ -82,9 +113,10 @@ public class MetsIdEncodingTests
     }
 
     [Fact]
-    public void The_Ad_Hoc_Div_Id_Constant_Is_The_Encoded_Form_Of_Its_Path()
+    public void The_Ad_Hoc_Div_Id_Constant_Is_A_Usable_Id()
     {
-        Constants.MetadataAdHocDivId.Should().Be(MetsIds.Phys(FolderNames.MetadataAdHoc));
+        // Its exact value is pinned by A_Minted_Id_Is_Exactly_This; comparing it against
+        // MetsIds.Phys(...) here would only restate its own definition.
         Constants.MetadataAdHocDivId.Should().NotContain("/");
         var act = () => XmlConvert.VerifyNCName(Constants.MetadataAdHocDivId);
         act.Should().NotThrow();

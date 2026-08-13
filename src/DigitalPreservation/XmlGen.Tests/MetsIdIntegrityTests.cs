@@ -227,7 +227,15 @@ public class MetsIdIntegrityTests
             new Uri("http://example.org/roles/transcription-of"));
         (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
 
-        AssertIdIntegrity(XDocument.Load(metsUri.LocalPath));
+        var doc = XDocument.Load(metsUri.LocalPath);
+        // The reference checks below iterate collections, so they pass vacuously if nothing was
+        // written. Assert the document actually contains what this test claims to be checking.
+        doc.Descendants(MetsNs + "smLink").Should().ContainSingle("the link must have been written");
+        doc.Descendants(MetsNs + "structMap")
+            .Single(sm => (string?)sm.Attribute("TYPE") == Constants.Logical)
+            .Descendants(MetsNs + "fptr")
+            .Should().HaveCount(2, "both logical ranges paint a file");
+        AssertIdIntegrity(doc);
     }
 
     [Fact]
@@ -292,6 +300,70 @@ public class MetsIdIntegrityTests
         link.Attribute(XLinkNs + "from")!.Value.Should().Be("FILE_objects/my file.pdf");
         link.Attribute(XLinkNs + "to")!.Value
             .Should().Be(MetsIds.File("objects/my folder/new addition.pdf"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Deleting a file takes its references with it
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task Deleting_A_File_Removes_The_Links_And_Fptrs_That_Named_It()
+    {
+        var (metsUri, eTag) = await CreateEmptyMets("id-integrity-delete-refs.xml");
+        foreach (var path in new[] { "objects/a.tif", "objects/b.tif" })
+        {
+            var add = await metsManager.HandleSingleFileUpload(metsUri, SimpleFile(path, LastSegment(path)), eTag);
+            add.Success.Should().BeTrue(add.ErrorMessage ?? "");
+            eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+        }
+
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        metsManager.SetStructMap(fullMets, new LogicalRange
+        {
+            Id = "LOG_0000", Type = "Sequence", Name = "Both pages",
+            Files = [new FilePointer { LocalPath = "objects/a.tif" }, new FilePointer { LocalPath = "objects/b.tif" }]
+        }).Success.Should().BeTrue();
+        metsManager.LinkFile(fullMets, "objects/a.tif", "objects/b.tif",
+            new Uri("http://example.org/roles/transcription-of"));
+
+        var delete = metsManager.DeleteFromMets(fullMets, "objects/b.tif");
+        delete.Success.Should().BeTrue(delete.ErrorMessage ?? "");
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        // Both fptr/@FILEID and smLink/@xlink:from|to are IDREFs, so a leftover reference to
+        // the removed file makes the document invalid.
+        var doc = XDocument.Load(metsUri.LocalPath);
+        doc.Descendants(MetsNs + "smLink").Should().BeEmpty("the only link named the deleted file");
+        doc.Descendants(MetsNs + "structMap")
+            .Single(sm => (string?)sm.Attribute("TYPE") == Constants.Logical)
+            .Descendants(MetsNs + "fptr")
+            .Should().ContainSingle("only the surviving file may still be painted");
+        AssertIdIntegrity(doc);
+    }
+
+    [Fact]
+    public async Task Deleting_And_Re_Adding_A_Linked_File_Leaves_Nothing_Dangling()
+    {
+        // Before step 2 a re-add re-minted the same raw ID and quietly healed a stale link.
+        // Now it mints an encoded one, so a link left behind by the delete could never be
+        // matched again - by UnLinkFile or anything else. The delete has to clean up.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "id-integrity-relink-legacy.xml");
+        var eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+
+        var role = new Uri("http://example.org/roles/transcription-of");
+        metsManager.LinkFile(fullMets, "objects/my file.pdf", "objects/my great file.pdf", role);
+        fullMets.Mets.StructLink!.SmLink.Should().ContainSingle();
+
+        metsManager.DeleteFromMets(fullMets, "objects/my great file.pdf")
+            .Success.Should().BeTrue();
+        fullMets.Mets.StructLink.SmLink.Should().BeEmpty("the link named the file that was deleted");
+
+        var readd = metsManager.AddToMets(fullMets, SimpleFile("objects/my great file.pdf", "my great file.pdf"));
+        readd.Success.Should().BeTrue(readd.ErrorMessage ?? "");
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        AssertIdIntegrity(XDocument.Load(metsUri.LocalPath), requireValidIds: false);
     }
 
     private static string LastSegment(string localPath) => localPath.Split('/')[^1];

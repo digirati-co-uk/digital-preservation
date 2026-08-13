@@ -178,7 +178,7 @@ public class MetsManager(
         var physId = Constants.PhysIdPrefix + localPath.ToMetsId();
         var fileId = Constants.FileIdPrefix + localPath.ToMetsId();
 
-        var conflict = FindConflictingChild(parentDiv, localPath, physId);
+        var conflict = FindConflictingChild(parentDiv, localPath, physId, fullMets);
         if (conflict != null)
         {
             return Result.Fail(ErrorCodes.BadRequest,
@@ -215,7 +215,7 @@ public class MetsManager(
         var admId = Constants.AdmIdPrefix + localPath.ToMetsId();
         var techId = Constants.TechIdPrefix + localPath.ToMetsId();
 
-        var conflict = FindConflictingChild(parentDiv, localPath, physId);
+        var conflict = FindConflictingChild(parentDiv, localPath, physId, fullMets);
         if (conflict != null)
         {
             return Result.Fail(ErrorCodes.BadRequest,
@@ -252,18 +252,41 @@ public class MetsManager(
     }
 
     /// <summary>
-    /// The ID of an existing child div that already stands for <paramref name="localPath"/>, or
-    /// null if the path is free. Reaching an add for a path whose div already exists means that
-    /// div could not be resolved by path OR by the legacy ID fallback - adding anyway would put
-    /// a second div for one path into the METS. Both ID forms count: the encoded form this add
-    /// would mint, and the raw-path form carried by documents written before issue #188 (where
-    /// an encoded mint would not collide on the ID attribute, so the raw form has to be checked
-    /// explicitly).
+    /// A description of an existing child div that already stands for <paramref name="localPath"/>,
+    /// or null if the path is free. Reaching an add for a path whose div already exists means
+    /// that div could not be resolved unambiguously - adding anyway would put a second div for
+    /// one path into the METS.
     /// </summary>
-    private static string? FindConflictingChild(DivType parentDiv, string localPath, string physId)
+    /// <remarks>
+    /// Three ways a child can already stand for the path, and all three have to be checked:
+    /// the encoded ID this add would mint; the raw-path ID carried by documents written before
+    /// issue #188 (an encoded mint would not collide with it, so it cannot be caught by the
+    /// first check); and - the case IDs cannot catch at all - a div whose own metadata resolves
+    /// to this path while carrying an ID of some entirely different scheme. That last one is
+    /// exactly what happens when two siblings resolve to one path: navigation rightly refuses
+    /// to guess between them, which brings the operation here as an ADD.
+    /// </remarks>
+    private static string? FindConflictingChild(
+        DivType parentDiv, string localPath, string physId, FullMets fullMets)
     {
         var legacyPhysId = Constants.PhysIdPrefix + localPath;
-        return parentDiv.Div.FirstOrDefault(d => d.Id == physId || d.Id == legacyPhysId)?.Id;
+        var byId = parentDiv.Div.FirstOrDefault(d => d.Id == physId || d.Id == legacyPhysId);
+        if (byId != null)
+        {
+            return byId.Id;
+        }
+
+        // A complete cache with no entry for this path proves no div resolves to it, so the
+        // scan below cannot match. Skipping it keeps the ordinary add - by far the common case -
+        // free of a per-sibling resolution.
+        if (fullMets.PathDiagnostics.Count == 0 && !fullMets.PhysicalDivsByPath.ContainsKey(localPath))
+        {
+            return null;
+        }
+
+        var index = new MetsIdIndex(fullMets.Mets);
+        var byPath = parentDiv.Div.FirstOrDefault(d => MetsCache.TryResolvePath(d, fullMets.Mets, index) == localPath);
+        return byPath == null ? null : byPath.Id ?? "(no ID)";
     }
 
     /// <summary>
@@ -325,7 +348,7 @@ public class MetsManager(
             {
                 FileGrp =
                 {
-                    new MetsTypeFileSecFileGrp { Use = "OBJECTS" }
+                    new MetsTypeFileSecFileGrp { Use = Constants.ObjectsFileGrpUse }
                 }
             },
             StructMap =
@@ -447,6 +470,10 @@ public class MetsManager(
             .ToList();
 
         fileGroup?.File.Remove(file!);
+        if (file?.Id != null)
+        {
+            RemoveReferencesToFile(fullMets.Mets, file.Id);
+        }
         foreach (var amdSec in amdSecs)
         {
             fullMets.Mets.AmdSec.Remove(amdSec);
@@ -460,6 +487,41 @@ public class MetsManager(
         EvictFromPathCache(fullMets, div);
 
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// Drop every structLink and logical-structMap pointer to a FILE element that has just been
+    /// removed. Both <c>fptr/@FILEID</c> and <c>smLink/@xlink:from|to</c> are IDREFs, so leaving
+    /// them behind makes the document invalid - and worse than invalid: since issue #188 step 2
+    /// a file re-added at the same path is minted a NEW (encoded) ID, so the stale reference can
+    /// never again be matched, and no API call can remove it. Before step 2 the re-add happened
+    /// to reproduce the same raw ID and quietly healed the link.
+    /// </summary>
+    private static void RemoveReferencesToFile(DigitalPreservation.XmlGen.Mets.Mets mets, string fileId)
+    {
+        if (mets.StructLink != null)
+        {
+            var staleLinks = mets.StructLink.SmLink
+                .Where(link => link.From == fileId || link.To == fileId)
+                .ToList();
+            foreach (var link in staleLinks)
+            {
+                mets.StructLink.SmLink.Remove(link);
+            }
+        }
+
+        // fptrs live on divs in every structMap - the physical div being deleted takes its own
+        // with it, but a LOGICAL div painting this file keeps pointing at a file that is gone.
+        foreach (var div in mets.StructMap.Where(sm => sm.Div != null).SelectMany(sm => SelfAndDescendants(sm.Div)))
+        {
+            var staleFptrs = div.Fptr
+                .Where(fptr => fptr.Fileid == fileId || fptr.Area?.Fileid == fileId)
+                .ToList();
+            foreach (var fptr in staleFptrs)
+            {
+                div.Fptr.Remove(fptr);
+            }
+        }
     }
 
     /// <summary>
@@ -547,7 +609,7 @@ public class MetsManager(
     private static (FileType file, MetsTypeFileSecFileGrp fileGroup) SetFileAndFileGroup(DivType div, FullMets fullMets)
     {
         var fileId = div.Fptr[0].Fileid;
-        var fileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+        var fileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == Constants.ObjectsFileGrpUse);
         var file = fileGroup.File.Single(f => f.Id == fileId);
         return (file, fileGroup);
     }
@@ -587,14 +649,26 @@ public class MetsManager(
             // diagnostics exist (duplicate paths, unresolvable divs) every step resolves
             // strictly among the current div's children, so an ambiguous path can never be
             // silently satisfied by whichever div the cache walked first.
-            DivType? childDiv = null;
-            if (fullMets.PathDiagnostics.Count == 0 &&
-                fullMets.PhysicalDivsByPath.TryGetValue(testPath, out var cached) &&
-                div.Div.Contains(cached))
+            DivType? childDiv;
+            DivType? cached = null;
+            var cacheIsComplete = fullMets.PathDiagnostics.Count == 0;
+            var cacheHit = cacheIsComplete &&
+                           fullMets.PhysicalDivsByPath.TryGetValue(testPath, out cached);
+            if (cacheHit && div.Div.Contains(cached!))
             {
                 childDiv = cached;
             }
-            childDiv ??= FindChildDivByPath(div, testPath, fullMets.Mets);
+            else
+            {
+                // A complete cache already records the path every div's own metadata resolves
+                // to, so on a MISS no sibling can resolve this path and the metadata tier is
+                // provably empty - skipping it is what stops an add from resolving every
+                // sibling (and rescanning the fileSec for each one). The ID-convention tier
+                // still runs: it answers a different question, and dropping it would narrow
+                // backwards compatibility rather than just speed things up.
+                var metadataTierCanMatch = !cacheIsComplete || cacheHit;
+                childDiv = FindChildDivByPath(div, testPath, fullMets.Mets, metadataTierCanMatch);
+            }
 
             if (childDiv is null)
             {
@@ -619,7 +693,8 @@ public class MetsManager(
     /// broken is reachable by nothing else. It can be removed after a bulk ID migration
     /// (issue #188 step 3).
     /// </summary>
-    private static DivType? FindChildDivByPath(DivType parent, string testPath, DigitalPreservation.XmlGen.Mets.Mets mets)
+    private static DivType? FindChildDivByPath(
+        DivType parent, string testPath, DigitalPreservation.XmlGen.Mets.Mets mets, bool tryMetadataTier = true)
     {
         // In each tier the match must be UNIQUE among the parent's children - if two children
         // claim the same path or the same conventional ID (corrupted METS), guessing one would
@@ -627,13 +702,19 @@ public class MetsManager(
         // incomplete-path error with the load-time diagnostics attached. An AMBIGUOUS
         // metadata tier is terminal: falling through to the legacy-ID tier would resolve by
         // guesswork exactly the ambiguity this method exists to refuse.
-        var byMetadata = parent.Div
-            .Where(d => MetsCache.TryResolvePath(d, mets) == testPath)
-            .Take(2)
-            .ToList();
-        if (byMetadata.Count > 0)
+        if (tryMetadataTier)
         {
-            return byMetadata.Count == 1 ? byMetadata[0] : null;
+            // One ID index for the whole sibling scan - resolving each child independently
+            // would rescan the fileSec per child.
+            var index = new MetsIdIndex(mets);
+            var byMetadata = parent.Div
+                .Where(d => MetsCache.TryResolvePath(d, mets, index) == testPath)
+                .Take(2)
+                .ToList();
+            if (byMetadata.Count > 0)
+            {
+                return byMetadata.Count == 1 ? byMetadata[0] : null;
+            }
         }
         var encodedId = $"{Constants.PhysIdPrefix}{testPath.ToMetsId()}";
         var legacyId = $"{Constants.PhysIdPrefix}{testPath}";
@@ -921,6 +1002,13 @@ public class MetsManager(
                 $"Logical structMap range ID '{invalid}' is not a valid XML name.");
         }
 
+        var duplicate = FindDuplicateRangeId(mets, logSm);
+        if (duplicate != null)
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"Logical structMap range ID '{duplicate}' is already used in this METS file.");
+        }
+
         var existing = mets.Mets.StructMap
             .FirstOrDefault(sm => sm.Type == Constants.Logical && SameStructMapId(sm.Div?.Id, logSm.Id));
         if (existing != null)
@@ -958,6 +1046,45 @@ public class MetsManager(
             return range.Id;
         }
         return range.Ranges.Select(FindInvalidRangeId).FirstOrDefault(invalid => invalid != null);
+    }
+
+    /// <summary>
+    /// The first range ID that would not be unique in the document, or null if all are.
+    /// An xs:ID is an NCName AND unique - validating only the first half would still let a
+    /// caller write a document no schema-aware consumer can load. Both halves of the check
+    /// matter in practice: the UI mints LOG_ + epoch-milliseconds, so two ranges created in the
+    /// same millisecond collide with each other.
+    /// </summary>
+    /// <remarks>
+    /// IDs already in the structMap being REPLACED don't count as taken - re-applying an edited
+    /// structMap under its own ID is the normal path, and that map is removed before the new
+    /// one is written.
+    /// </remarks>
+    private static string? FindDuplicateRangeId(FullMets mets, LogicalRange logSm)
+    {
+        var replaced = mets.Mets.StructMap
+            .FirstOrDefault(sm => sm.Type == Constants.Logical && SameStructMapId(sm.Div?.Id, logSm.Id));
+        var replacedDivs = replaced?.Div == null
+            ? []
+            : new HashSet<DivType>(SelfAndDescendants(replaced.Div));
+
+        var taken = new HashSet<string>(mets.Mets.StructMap
+            .Where(sm => sm.Div != null)
+            .SelectMany(sm => SelfAndDescendants(sm.Div))
+            .Where(d => !replacedDivs.Contains(d) && d.Id.HasText())
+            .Select(d => d.Id));
+
+        return FindFirstTakenId(logSm, taken);
+    }
+
+    private static string? FindFirstTakenId(LogicalRange range, HashSet<string> taken)
+    {
+        // An ID-less range takes no ID, so several of them are not a collision with each other.
+        if (range.Id.HasText() && !taken.Add(range.Id))
+        {
+            return range.Id;
+        }
+        return range.Ranges.Select(child => FindFirstTakenId(child, taken)).FirstOrDefault(found => found != null);
     }
 
     private static bool IsValidNCName(string candidate)
@@ -1026,14 +1153,28 @@ public class MetsManager(
     private static string ResolveFileId(DigitalPreservation.XmlGen.Mets.Mets mets, string? localPath)
     {
         var normalised = MetsCache.NormalisePathKey(localPath);
-        // First-wins among duplicate hrefs, the same convention navigation uses for a
+        if (normalised == null)
+        {
+            return Constants.FileIdPrefix + string.Empty.ToMetsId();
+        }
+
+        // The OBJECTS group holds the preserved files; other groups (THUMBS, ALTO, derivatives
+        // in third-party METS) can carry an entry with the SAME href for a derivative of the
+        // same source. A link must name the master, so OBJECTS is searched first and the other
+        // groups only as a fallback - matching SetFileAndFileGroup, which requires OBJECTS
+        // outright. First-wins within a group, the same convention navigation uses for a
         // malformed document.
-        var file = (mets.FileSec?.FileGrp ?? [])
-            .SelectMany(fg => fg.File)
-            .FirstOrDefault(f => normalised != null
-                                 && MetsCache.NormalisePathKey(f.FLocat.FirstOrDefault()?.Href) == normalised);
-        return file?.Id ?? Constants.FileIdPrefix + (normalised ?? string.Empty).ToMetsId();
+        var fileGrps = mets.FileSec?.FileGrp ?? [];
+        var file = fileGrps.Where(fg => fg.Use == Constants.ObjectsFileGrpUse).SelectMany(fg => fg.File)
+                       .FirstOrDefault(f => HrefMatches(f, normalised))
+                   ?? fileGrps.Where(fg => fg.Use != Constants.ObjectsFileGrpUse).SelectMany(fg => fg.File)
+                       .FirstOrDefault(f => HrefMatches(f, normalised));
+
+        return file?.Id ?? Constants.FileIdPrefix + normalised.ToMetsId();
     }
+
+    private static bool HrefMatches(FileType file, string normalisedPath) =>
+        MetsCache.NormalisePathKey(file.FLocat.FirstOrDefault()?.Href) == normalisedPath;
 
     private static DivTypeFptr BuildFptr(DigitalPreservation.XmlGen.Mets.Mets mets, FilePointer fp)
     {

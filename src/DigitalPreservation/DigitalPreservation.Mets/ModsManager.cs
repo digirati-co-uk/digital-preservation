@@ -175,7 +175,7 @@ public static class ModsManager
             var idPart = localPath != null
                 ? localPath.ToMetsId()
                 : div.Id.RemoveStart(Constants.PhysIdPrefix);
-            div.Dmdid.Add(Constants.DmdIdPrefix + idPart);
+            div.Dmdid.Add(idPart.HasText() ? Constants.DmdIdPrefix + idPart : UnusedDmdId(mets));
         }
         // Resolve the DMDID tokens to the actual dmdSec where one exists; the id used for
         // lazy creation is the joined legacy form only when no dmdSec resolves (see IdRefs).
@@ -184,6 +184,28 @@ public static class ModsManager
     }
 
     
+    /// <summary>
+    /// A dmdSec ID for a div that offers nothing to derive one from: a logical div with no ID
+    /// of its own, which third-party structMaps use freely and which the parser reports as an
+    /// empty ID. Deriving from the absent ID yields the bare prefix <c>DMD_</c> for EVERY such
+    /// div, so they would all share one section and each save would overwrite the previous
+    /// div's metadata. A dmdSec ID is ours to choose - unlike a div ID, which belongs to the
+    /// client and is never rewritten - so an unused one is minted instead.
+    /// </summary>
+    private static string UnusedDmdId(DigitalPreservation.XmlGen.Mets.Mets mets)
+    {
+        // Each caller creates its dmdSec before the next one asks, so the count is enough to
+        // make progress; the loop covers a document that already contains these IDs.
+        var suffix = 1;
+        string candidate;
+        do
+        {
+            candidate = $"{Constants.DmdIdPrefix}ANON_{suffix++}";
+        }
+        while (mets.DmdSec.Any(dmdSec => dmdSec.Id == candidate));
+        return candidate;
+    }
+
     /// <summary>
     /// Write the div's MODS record - the same single dmdSec <see cref="GetModsForDiv"/>
     /// resolves; other dmdSecs a genuine multi-token DMDID references are never mutated.

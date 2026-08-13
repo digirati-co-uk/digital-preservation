@@ -2,6 +2,7 @@ using System.Xml;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
 using DigitalPreservation.XmlGen.Mets;
@@ -55,6 +56,17 @@ public class EncodedMetsIdTests
         File.Copy(source.FullName, dest.FullName, overwrite: true);
         return new Uri(dest.FullName);
     }
+
+    private static WorkingFile SimpleFile(string localPath, string name) =>
+        new()
+        {
+            LocalPath = localPath,
+            Name = name,
+            ContentType = "application/pdf",
+            Digest = "eb634d64ce8e6be5195174ceaef9ac9e19c37119f3b31618630aa633ccdbf68f",
+            Size = 54321,
+            Modified = DateTime.UtcNow
+        };
 
     private static void AssertIsValidId(string? id)
     {
@@ -233,6 +245,196 @@ public class EncodedMetsIdTests
 
         result.Success.Should().BeTrue(result.ErrorMessage ?? "");
         objectsDiv.Dmdid.Should().ContainSingle().Which.Should().Be($"{Constants.DmdIdPrefix}{FolderNames.Objects}");
+    }
+
+    // -----------------------------------------------------------------------
+    // Regressions found by the cumulative adversarial review (2026-08-13)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task Writing_A_Virus_Scan_To_A_Legacy_Document_Mints_A_VALID_Digiprov_Id()
+    {
+        // The digiprovMD ID used to be built from the RESOLVED amdSec's ID, which on a legacy
+        // document is the raw form - so a pipeline run over a legacy deposit minted a brand-new
+        // ID containing a slash and a space, from the very code step 2 was meant to make valid.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "encoded-legacy-digiprov.xml");
+        var fullMets = (await metsStorage.GetFullMets(metsUri, null)).Value!;
+
+        var file = SimpleFile("objects/my file.pdf", "my file.pdf");
+        file.Metadata.Add(new VirusScanMetadata
+        {
+            Source = "ClamAV", HasVirus = false, VirusFound = null, VirusDefinition = "27000"
+        });
+
+        var result = metsManager.AddToMets(fullMets, file);
+
+        result.Success.Should().BeTrue(result.ErrorMessage ?? "");
+        var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == "ADM_objects/my file.pdf");
+        var digiprov = amdSec.DigiprovMd.Should().ContainSingle().Subject;
+        digiprov.Id.Should().StartWith(Constants.VirusProvEventPrefix);
+        AssertIsValidId(digiprov.Id);
+        amdSec.Id.Should().Be("ADM_objects/my file.pdf", "the legacy amdSec's own ID is never rewritten");
+    }
+
+    [Fact]
+    public async Task An_Ambiguous_Path_Is_Refused_Even_When_No_Div_Has_A_Conventional_Id()
+    {
+        // Two siblings resolving to one path make navigation refuse to guess, which arrives
+        // here as an ADD. The guard used to compare IDs only, so divs carrying a third-party
+        // ID scheme slipped past it and the add produced a THIRD div for the same path.
+        var uri = new Uri(new FileInfo("Outputs/encoded-ambiguous-foreign-ids.xml").FullName);
+        var (_, mets) = await metsManager.GetStandardMets(uri, "Foreign ID Ambiguity");
+
+        var physRoot = mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        var objectsAmdSec = mets.AmdSec.Single(a => a.Id == MetsIds.Adm(FolderNames.Objects));
+        var twinAdmId = "AMD-0001";
+        mets.AmdSec.Add(new AmdSecType { Id = twinAdmId, TechMd = { objectsAmdSec.TechMd[0] } });
+        objectsAmdSec.TechMd[0].MdWrap.XmlData.Any![0]
+            .GetElementsByTagName("originalName", "http://www.loc.gov/premis/v3")[0]!
+            .InnerText = "objects/twin";
+        objectsDiv.Admid.Clear();
+        // Neither div carries a PHYS_ id, so nothing the guard used to check can see them.
+        objectsDiv.Div.Add(new DivType
+        {
+            Id = "div-1", Type = Constants.DirectoryType, Label = "twin a", Admid = { twinAdmId }
+        });
+        objectsDiv.Div.Add(new DivType
+        {
+            Id = "div-2", Type = Constants.DirectoryType, Label = "twin b", Admid = { twinAdmId }
+        });
+
+        var fullMets = new FullMets { Mets = mets, Uri = uri };
+        MetsCache.Populate(fullMets);
+        var divCountBefore = objectsDiv.Div.Count;
+
+        var result = metsManager.AddToMets(fullMets, new WorkingDirectory
+        {
+            LocalPath = "objects/twin", Name = "twin", Modified = DateTime.UtcNow
+        });
+
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        objectsDiv.Div.Count.Should().Be(divCountBefore, "no third div may be added for one path");
+    }
+
+    [Fact]
+    public async Task Links_Resolve_To_The_OBJECTS_File_Not_A_Derivative_With_The_Same_Href()
+    {
+        // Third-party METS carries derivative groups (THUMBS, ALTO) whose entries can repeat the
+        // master's href. A link must name the master, so the OBJECTS group is searched first.
+        var fullMets = await CreateAndLoadStandardMets("encoded-objects-filegrp.xml");
+        var add = metsManager.AddToMets(fullMets, SimpleFile("objects/page.tif", "page.tif"));
+        add.Success.Should().BeTrue(add.ErrorMessage ?? "");
+
+        // A derivative group, placed FIRST so a naive first-wins scan would find it.
+        fullMets.Mets.FileSec.FileGrp.Insert(0, new MetsTypeFileSecFileGrp
+        {
+            Use = "THUMBS",
+            File = { new FileType
+            {
+                Id = "FILE_THUMB_1",
+                FLocat = { new FileTypeFLocat { Href = "objects/page.tif", Loctype = FileTypeFLocatLoctype.Url } }
+            }}
+        });
+
+        metsManager.LinkFile(fullMets, "objects/page.tif", "objects/page.tif",
+            new Uri("http://example.org/roles/derived-from"));
+
+        var link = fullMets.Mets.StructLink!.SmLink.OfType<StructLinkTypeSmLink>().Single();
+        link.From.Should().Be(MetsIds.File("objects/page.tif"));
+        link.From.Should().NotBe("FILE_THUMB_1");
+    }
+
+    [Fact]
+    public async Task Two_Ranges_With_No_Id_Get_Their_Own_Descriptive_Records()
+    {
+        // A logical div with no ID is a real shape (third-party structMaps, and what the parser
+        // reports for an ID-less div). Deriving its dmdSec ID from the absent div ID gave every
+        // such div the bare prefix "DMD_", so they shared one section and the last save won.
+        var fullMets = await CreateAndLoadStandardMets("encoded-anon-logical-dmds.xml");
+
+        var result = metsManager.SetStructMap(fullMets, new LogicalRange
+        {
+            Id = "", Type = "Sequence", Name = "Root",
+            Ranges =
+            [
+                new LogicalRange { Id = "", Type = "Item", Name = "Chapter One" },
+                new LogicalRange { Id = "", Type = "Item", Name = "Chapter Two" }
+            ]
+        });
+
+        result.Success.Should().BeTrue(result.ErrorMessage ?? "");
+        var root = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Logical).Div!;
+        var titles = new[] { root }.Concat(root.Div)
+            .Select(div => ModsManager.GetModsForDiv(fullMets.Mets, div)?.TitleInfo.FirstOrDefault()?.Title
+                .FirstOrDefault()?.Value)
+            .ToList();
+        titles.Should().Equal("Root", "Chapter One", "Chapter Two");
+        fullMets.Mets.DmdSec.Select(d => d.Id).Should().OnlyHaveUniqueItems();
+    }
+
+    [Theory]
+    [InlineData("LOG_2")]
+    [InlineData("PHYS_objects")]
+    public async Task SetStructMap_Rejects_A_Range_Id_That_Is_Already_Used(string clashingId)
+    {
+        // xs:ID means NCName AND unique. Validating only the first half still lets a caller
+        // write a document no schema-aware consumer can load - and the UI mints
+        // LOG_<epoch-ms>, so two ranges created in the same millisecond collide.
+        var fullMets = await CreateAndLoadStandardMets($"encoded-dup-id-{clashingId.GetHashCode()}.xml");
+        metsManager.SetStructMap(fullMets, new LogicalRange { Id = "LOG_2", Type = "Sequence" })
+            .Success.Should().BeTrue();
+
+        var result = metsManager.SetStructMap(fullMets, new LogicalRange
+        {
+            Id = "LOG_0000",
+            Type = "Sequence",
+            Ranges = [new LogicalRange { Id = clashingId, Type = "Item" }]
+        });
+
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        result.ErrorMessage.Should().Contain(clashingId);
+    }
+
+    [Fact]
+    public async Task SetStructMap_Rejects_Two_Sibling_Ranges_Sharing_An_Id()
+    {
+        var fullMets = await CreateAndLoadStandardMets("encoded-dup-sibling-id.xml");
+
+        var result = metsManager.SetStructMap(fullMets, new LogicalRange
+        {
+            Id = "LOG_0000",
+            Type = "Sequence",
+            Ranges =
+            [
+                new LogicalRange { Id = "LOG_SAME", Type = "Item" },
+                new LogicalRange { Id = "LOG_SAME", Type = "Item" }
+            ]
+        });
+
+        result.Failure.Should().BeTrue();
+        result.ErrorMessage.Should().Contain("LOG_SAME");
+    }
+
+    [Fact]
+    public async Task Replacing_A_StructMap_Under_Its_Own_Id_Is_Not_A_Duplicate()
+    {
+        // The IDs in the structMap being replaced must not count as taken - re-applying an
+        // edited structMap under its own ID is the normal editing path.
+        var fullMets = await CreateAndLoadStandardMets("encoded-replace-not-duplicate.xml");
+        var range = () => new LogicalRange
+        {
+            Id = "LOG_0000", Type = "Sequence", Name = "A sequence",
+            Ranges = [new LogicalRange { Id = "LOG_0001", Type = "Item", Name = "An item" }]
+        };
+        metsManager.SetStructMap(fullMets, range()).Success.Should().BeTrue();
+
+        var result = metsManager.SetStructMap(fullMets, range());
+
+        result.Success.Should().BeTrue(result.ErrorMessage ?? "");
+        fullMets.Mets.StructMap.Count(sm => sm.Type == Constants.Logical).Should().Be(1);
     }
 
     // -----------------------------------------------------------------------
