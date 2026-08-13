@@ -49,6 +49,16 @@
 >    in it is about the frozen legacy corpus and none changed. Mixed-format coverage lives in
 >    `MetsIdIntegrityTests.Editing_A_Legacy_Document_Leaves_Every_Reference_Resolvable`.
 >
+> **Cumulative adversarial review (2026-08-13, six independent reviewers over PRs #211+#213+#214).**
+> Ten of its findings are fixed on this branch — seven regressions this change set introduced or
+> made unrecoverable (quadratic navigation on the add path; the ClamAV digiprovMD ID still minted
+> from a legacy amdSec ID; delete leaving unremovable fptr/smLink references; the duplicate-div
+> guard comparing IDs only; `SetStructMap` not checking ID uniqueness; `ResolveFileId` ignoring the
+> OBJECTS fileGrp; every ID-less logical div sharing one dmdSec) and three test defects that let
+> them through. The remaining ~20 findings are pre-existing and tracked separately; **one needs a
+> product decision — `MetsParser.BuildLookupMaps` throws on duplicate IDs, and the pre-#211
+> `MetsFromArchivalGroup` bug wrote such documents into OCFL, so they are unloadable today.**
+>
 > `Constants.ObjectsDivId`/`MetadataDivId` stay `const` (their folder names need no encoding);
 > `MetsIdEncodingTests` pins that `.ToMetsId()` is the identity for them, so the constants and
 > the minted form cannot drift apart. `MetadataAdHocDivId` became `static readonly`.
