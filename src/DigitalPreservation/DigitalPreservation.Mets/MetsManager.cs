@@ -178,7 +178,7 @@ public class MetsManager(
         var physId = Constants.PhysIdPrefix + localPath.ToMetsId();
         var fileId = Constants.FileIdPrefix + localPath.ToMetsId();
 
-        var conflict = FindConflictingChild(parentDiv, localPath, physId, fullMets);
+        var conflict = FindConflictingChild(parentDiv, localPath, fullMets);
         if (conflict != null)
         {
             return Result.Fail(ErrorCodes.BadRequest,
@@ -215,7 +215,7 @@ public class MetsManager(
         var admId = Constants.AdmIdPrefix + localPath.ToMetsId();
         var techId = Constants.TechIdPrefix + localPath.ToMetsId();
 
-        var conflict = FindConflictingChild(parentDiv, localPath, physId, fullMets);
+        var conflict = FindConflictingChild(parentDiv, localPath, fullMets);
         if (conflict != null)
         {
             return Result.Fail(ErrorCodes.BadRequest,
@@ -266,11 +266,10 @@ public class MetsManager(
     /// exactly what happens when two siblings resolve to one path: navigation rightly refuses
     /// to guess between them, which brings the operation here as an ADD.
     /// </remarks>
-    private static string? FindConflictingChild(
-        DivType parentDiv, string localPath, string physId, FullMets fullMets)
+    private static string? FindConflictingChild(DivType parentDiv, string localPath, FullMets fullMets)
     {
-        var legacyPhysId = Constants.PhysIdPrefix + localPath;
-        var byId = parentDiv.Div.FirstOrDefault(d => d.Id == physId || d.Id == legacyPhysId);
+        var (encodedId, legacyId) = PhysicalDivIdCandidates(localPath);
+        var byId = parentDiv.Div.FirstOrDefault(d => d.Id == encodedId || d.Id == legacyId);
         if (byId != null)
         {
             return byId.Id;
@@ -725,10 +724,22 @@ public class MetsManager(
                 return byMetadata.Count == 1 ? byMetadata[0] : null;
             }
         }
-        var encodedId = $"{Constants.PhysIdPrefix}{testPath.ToMetsId()}";
-        var legacyId = $"{Constants.PhysIdPrefix}{testPath}";
+        var (encodedId, legacyId) = PhysicalDivIdCandidates(testPath);
         return UniqueOrNull(parent.Div.Where(d => d.Id == encodedId || d.Id == legacyId));
     }
+
+    /// <summary>
+    /// The two ID forms a physical div may carry for one path: the encoded form minted since
+    /// issue #188, and the raw-path form in documents written before it.
+    /// </summary>
+    /// <remarks>
+    /// Navigation's ID-convention tier and the duplicate-div guard both accept either form, and
+    /// they have to agree on the set — if they disagree, a div one of them can find is invisible
+    /// to the other, which is precisely the duplicate-div bug the guard exists to prevent. A
+    /// step 3 migration would change what belongs here, so it is one place rather than two.
+    /// </remarks>
+    private static (string Encoded, string Legacy) PhysicalDivIdCandidates(string localPath) =>
+        (Constants.PhysIdPrefix + localPath.ToMetsId(), Constants.PhysIdPrefix + localPath);
 
     private static DivType? UniqueOrNull(IEnumerable<DivType> divs)
     {
@@ -866,6 +877,21 @@ public class MetsManager(
     /// be resolved. Used by the ByDivId entry points, which are given an ID rather than a path,
     /// so that a lazily created dmdSec is still identified by path (issue #188).
     /// </summary>
+    /// <remarks>
+    /// The reverse scan is deliberate, and is doing more than recovering a path: only physical
+    /// divs are in the cache, so a miss is what tells us the div is LOGICAL. Resolving the div's
+    /// metadata directly instead (<see cref="MetsCache.TryResolvePath(DivType,
+    /// DigitalPreservation.XmlGen.Mets.Mets)"/>) would look like the same answer for less work,
+    /// but a logical div of TYPE="Item" carrying an fptr resolves the path of the file it paints
+    /// — so it would be handed the DMD_ id of the PHYSICAL div for that path, and the two would
+    /// share a dmdSec. Any future change here has to keep the physical/logical distinction.
+    ///
+    /// Cost is O(cache) per call, which is fine for the one-div-at-a-time callers that exist
+    /// today (none is wired to a controller yet). The ByDivId shape is documented on
+    /// <see cref="IMetsManager"/> as suiting a caller looping over many div IDs against one
+    /// FullMets, and that caller would be O(divs x cache): it should hoist a reverse map, or a
+    /// physical-div set, across its loop rather than paying this per div.
+    /// </remarks>
     private static string? PathForDiv(FullMets mets, DivType div)
     {
         EnsureCache(mets);
