@@ -304,7 +304,7 @@ public static class ModsManager
     /// are therefore matched longest-first, so the legacy ID wins over its own fragments.
     /// </remarks>
     private static HashSet<int> LiveTokenIndexes(
-        DigitalPreservation.XmlGen.Mets.Mets mets, IReadOnlyList<string> tokens)
+        DigitalPreservation.XmlGen.Mets.Mets mets, System.Collections.ObjectModel.Collection<string> tokens)
     {
         var live = new HashSet<int>();
         var ids = mets.DmdSec.Select(dmdSec => dmdSec.Id).Where(id => id != null).ToHashSet(StringComparer.Ordinal);
