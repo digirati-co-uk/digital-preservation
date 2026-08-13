@@ -432,12 +432,11 @@ public class MetsParser(
                     // exactly that. Taking the first candidate that merely EXISTS would stop on
                     // the rights section and lose the fixity, leaving the binary with no SHA256
                     // (issue #215).
-                    techMd = IdRefs.ResolveSingle(admId, id =>
-                    {
-                        var candidate = lookupMaps.TechMdMap.GetValueOrDefault(id)
-                                        ?? lookupMaps.AmdSecMap.GetValueOrDefault(id);
-                        return candidate?.Descendants(XNames.PremisObject).Any() == true ? candidate : null;
-                    });
+                    techMd = IdRefs.ResolveSingle(
+                        admId,
+                        id => lookupMaps.TechMdMap.GetValueOrDefault(id)
+                              ?? lookupMaps.AmdSecMap.GetValueOrDefault(id),
+                        candidate => candidate.Descendants(XNames.PremisObject).Any());
 
                     if (techMd == null)
                     {

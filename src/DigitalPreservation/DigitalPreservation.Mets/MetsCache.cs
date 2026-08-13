@@ -132,14 +132,26 @@ public static class MetsCache
                 // so a directory may name a shared rightsMD before the section describing it,
                 // and stopping at the first section that merely EXISTS would leave the div with
                 // no path at all — taking every edit beneath it down with it (issue #215).
-                var amdSec = IdRefs.ResolveSingle(child.Admid, id =>
-                {
-                    var candidate = index != null
+                // The name of the last candidate tested, so the winner isn't parsed twice: this
+                // runs for every directory div on every cache build.
+                AmdSecType? lastTested = null;
+                string? lastTestedName = null;
+
+                var amdSec = IdRefs.ResolveSingle(
+                    child.Admid,
+                    id => index != null
                         ? index.AmdSecById(id)
-                        : mets.AmdSec.FirstOrDefault(a => a.Id == id);
-                    return ExtractPremisOriginalName(candidate) != null ? candidate : null;
-                });
-                path = ExtractPremisOriginalName(amdSec);
+                        : mets.AmdSec.FirstOrDefault(a => a.Id == id),
+                    candidate =>
+                    {
+                        lastTested = candidate;
+                        lastTestedName = ExtractPremisOriginalName(candidate);
+                        return lastTestedName != null;
+                    });
+
+                path = ReferenceEquals(amdSec, lastTested)
+                    ? lastTestedName
+                    : ExtractPremisOriginalName(amdSec);
                 if (path == null)
                 {
                     diagnostics?.Add(

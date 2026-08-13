@@ -221,12 +221,14 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         // own techMD - the Archivematica shape. Accepting the first section that merely EXISTS
         // would hand back the rights section, and the update would then write this file's
         // PREMIS into it (or throw indexing TechMd[0]) - issue #215.
-        var amdSec = IdRefs.ResolveSingle(ctx.File.Admid,
-            id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id && a.TechMd.Count > 0));
-        if (amdSec == null)
+        var amdSec = IdRefs.ResolveSingle(
+            ctx.File.Admid,
+            id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id),
+            CarriesPremisObject);
+        if (amdSec == null || !CarriesPremisObject(amdSec))
         {
             return Result.Fail(ErrorCodes.BadRequest,
-                $"No amdSec carrying technical metadata found for ADMID " +
+                $"No amdSec carrying PREMIS technical metadata found for ADMID " +
                 $"'{IdRefs.Joined(ctx.File.Admid)}' of file {operationPath}");
         }
         ctx.FileAdmId = amdSec.Id;
@@ -236,6 +238,22 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
         return Result.Ok();
     }
+
+    /// <summary>
+    /// True when this amdSec carries the file's PREMIS object — the thing the metadata paths
+    /// actually read and patch. Merely having SOME techMD is not enough: an Archivematica-shaped
+    /// ADMID can name a section whose techMD holds only FITS or EXIF output, and treating that
+    /// as usable stops resolution on the wrong section, then hands non-PREMIS XML to
+    /// <c>GetPremisComplexType()</c> to deserialise into a null it does not expect. This is the
+    /// same check the parser and the path cache use, so all three agree on what "usable" means.
+    /// </summary>
+    private static bool CarriesPremisObject(AmdSecType amdSec) =>
+        amdSec.TechMd.Any(techMd =>
+            techMd.MdWrap?.XmlData?.Any?.FirstOrDefault() is XmlElement element &&
+            (element.LocalName == "object" && element.NamespaceURI == PremisNamespace ||
+             element.GetElementsByTagName("object", PremisNamespace).Count > 0));
+
+    private const string PremisNamespace = "http://www.loc.gov/premis/v3";
 
     private static void SetFileAndFileGroup(ProcessingContext ctx, DivType? div, FullMets fullMets)
     {

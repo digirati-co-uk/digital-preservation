@@ -281,18 +281,50 @@ public static class ModsManager
     /// </remarks>
     private static void SweepDanglingDmdTokens(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div)
     {
-        if (div.Dmdid.Count > 1 && mets.DmdSec.Any(d => d.Id == IdRefs.Joined(div.Dmdid)))
-        {
-            return;
-        }
-
+        var live = LiveTokenIndexes(mets, div.Dmdid);
         for (var i = div.Dmdid.Count - 1; i >= 0; i--)
         {
-            if (mets.DmdSec.All(d => d.Id != div.Dmdid[i]))
+            if (!live.Contains(i))
             {
                 div.Dmdid.RemoveAt(i);
             }
         }
+    }
+
+    /// <summary>
+    /// The positions in a DMDID token collection that take part in a reference to a dmdSec that
+    /// exists — either a token naming one on its own, or a RUN of consecutive tokens whose
+    /// joined form does, which is how a legacy space-containing ID arrives.
+    /// </summary>
+    /// <remarks>
+    /// Testing the collection as a whole is not enough. A div can mix one genuine single-token
+    /// reference with one legacy multi-token reference — <c>["DMD_valid", "DMD_legacy/my",
+    /// "file.pdf"]</c> — where joining ALL of them matches nothing, so an all-or-nothing check
+    /// falls through to per-token pruning and strips the legacy pair, orphaning its dmdSec. Runs
+    /// are therefore matched longest-first, so the legacy ID wins over its own fragments.
+    /// </remarks>
+    private static HashSet<int> LiveTokenIndexes(
+        DigitalPreservation.XmlGen.Mets.Mets mets, IReadOnlyList<string> tokens)
+    {
+        var live = new HashSet<int>();
+        var ids = mets.DmdSec.Select(dmdSec => dmdSec.Id).Where(id => id != null).ToHashSet(StringComparer.Ordinal);
+
+        for (var length = tokens.Count; length >= 1; length--)
+        {
+            for (var start = 0; start + length <= tokens.Count; start++)
+            {
+                if (Enumerable.Range(start, length).Any(live.Contains))
+                {
+                    continue;
+                }
+                if (ids.Contains(IdRefs.Joined(tokens.Skip(start).Take(length))))
+                {
+                    live.UnionWith(Enumerable.Range(start, length));
+                }
+            }
+        }
+
+        return live;
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Xml;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
@@ -203,19 +203,19 @@ public class MetsManager(
         //
         // The one thing that does land early is a dmdSec, which the descriptive step may create;
         // if the step after it fails, that section is removed again.
-        var dmdSecCountBefore = fullMets.Mets.DmdSec.Count;
+        var dmdSecsBefore = fullMets.Mets.DmdSec.ToHashSet();
 
         var dmdResult = PopulateDmdFromResource(fullMets, workingFile, childItemDiv, localPath);
         if (dmdResult.Failure)
         {
-            RemoveDmdSecsAddedSince(fullMets, dmdSecCountBefore);
+            RemoveDmdSecsAddedSince(fullMets, dmdSecsBefore);
             return dmdResult;
         }
 
         var metadataResult = metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, localPath, true);
         if (metadataResult.Failure)
         {
-            RemoveDmdSecsAddedSince(fullMets, dmdSecCountBefore);
+            RemoveDmdSecsAddedSince(fullMets, dmdSecsBefore);
             return metadataResult;
         }
 
@@ -269,14 +269,19 @@ public class MetsManager(
     }
 
     /// <summary>
-    /// Undo the dmdSecs an abandoned add created. They are appended, so anything past the
-    /// count taken before the step belongs to it.
+    /// Undo the dmdSecs an abandoned add created — identified by REFERENCE against a snapshot
+    /// taken beforehand, not by position. A count-and-truncate would remove whatever happens to
+    /// sit at the end, so anything another edit against the same in-memory FullMets legitimately
+    /// added in the meantime would be destroyed instead. MetsManager is not thread-safe today
+    /// (see the bug/metsmanager-thread-safety work), which is exactly why this should not add a
+    /// new way for concurrent edits to lose unrelated metadata.
     /// </summary>
-    private static void RemoveDmdSecsAddedSince(FullMets fullMets, int dmdSecCountBefore)
+    private static void RemoveDmdSecsAddedSince(FullMets fullMets, HashSet<MdSecType> dmdSecsBefore)
     {
-        while (fullMets.Mets.DmdSec.Count > dmdSecCountBefore)
+        var added = fullMets.Mets.DmdSec.Where(dmdSec => !dmdSecsBefore.Contains(dmdSec)).ToList();
+        foreach (var dmdSec in added)
         {
-            fullMets.Mets.DmdSec.RemoveAt(fullMets.Mets.DmdSec.Count - 1);
+            fullMets.Mets.DmdSec.Remove(dmdSec);
         }
     }
 

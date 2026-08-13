@@ -61,6 +61,28 @@ public class IdRefsCandidateSelectionTests
     private static AmdSecType RightsOnlyAmdSec(string id) =>
         new() { Id = id, RightsMd = { new MdSecType { Id = id + "_RIGHTS" } } };
 
+    /// <summary>An amdSec carrying a PREMIS object — a genuinely usable candidate.</summary>
+    private static AmdSecType PremisBearingAmdSec(string id) =>
+        new()
+        {
+            Id = id,
+            TechMd =
+            {
+                new MdSecType
+                {
+                    Id = id + "_TECH",
+                    MdWrap = new MdSecTypeMdWrap
+                    {
+                        Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
+                        XmlData = new MdSecTypeMdWrapXmlData
+                        {
+                            Any = { new System.Xml.XmlDocument().CreateElement("object", "http://www.loc.gov/premis/v3") }
+                        }
+                    }
+                }
+            }
+        };
+
     // -----------------------------------------------------------------------
 
     [Fact]
@@ -165,6 +187,82 @@ public class IdRefsCandidateSelectionTests
         update.Failure.Should().BeTrue();
         update.ErrorCode.Should().Be(DigitalPreservation.Common.Model.ErrorCodes.BadRequest);
         update.ErrorMessage.Should().Contain("technical metadata");
+    }
+
+    [Fact]
+    public async Task A_Section_With_A_Non_PREMIS_TechMd_Is_Not_Treated_As_Usable()
+    {
+        // "Has a techMD" is not the same as "has the PREMIS we are about to read and patch".
+        // Archivematica-shaped input can name a section whose techMD holds only FITS or EXIF
+        // output; stopping there hands non-PREMIS XML to GetPremisComplexType().
+        const string path = "objects/report.pdf";
+        var (_, fullMets) = await CreateWithOneFile("candidate-non-premis-techmd.xml", path);
+
+        var file = fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Single(f => f.Admid.Count > 0);
+        var fitsOnly = new AmdSecType
+        {
+            Id = "ADM_fits_only",
+            TechMd =
+            {
+                new MdSecType
+                {
+                    Id = "TECH_fits_only",
+                    MdWrap = new MdSecTypeMdWrap
+                    {
+                        Mdtype = MdSecTypeMdWrapMdtype.Other,
+                        XmlData = new MdSecTypeMdWrapXmlData
+                        {
+                            Any = { new System.Xml.XmlDocument().CreateElement("fits", "http://hul.harvard.edu/ois/xml/ns/fits/fits_output") }
+                        }
+                    }
+                }
+            }
+        };
+        fullMets.Mets.AmdSec.Add(fitsOnly);
+        file.Admid.Insert(0, "ADM_fits_only");
+
+        var update = metsManager.AddToMets(fullMets, new WorkingFile
+        {
+            LocalPath = path, Name = "report.pdf", ContentType = "application/pdf",
+            Digest = TestDigest, Size = 4242, Modified = DateTime.UtcNow
+        });
+
+        update.Success.Should().BeTrue(update.ErrorMessage ?? "");
+        fitsOnly.TechMd.Should().ContainSingle()
+            .Which.MdWrap.XmlData!.Any![0].LocalName.Should().Be("fits",
+                "the FITS section must not be overwritten with this file's PREMIS");
+    }
+
+    [Fact]
+    public async Task A_Legacy_Reference_To_An_Unusable_Section_Fails_Loudly_Rather_Than_Guessing()
+    {
+        // A legacy space-containing ADMID is an IDENTITY match once rejoined, so if the section
+        // it names is unusable the answer is "this document is broken", not "try each half of
+        // the ID against whatever else is lying around" - which can resolve a fragment against
+        // an unrelated section and answer with confident nonsense.
+        const string path = "objects/report.pdf";
+        var (_, fullMets) = await CreateWithOneFile("candidate-legacy-unusable.xml", path);
+
+        var file = fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Single(f => f.Admid.Count > 0);
+        // The file names ONE legacy section, split into two tokens by the serialiser...
+        fullMets.Mets.AmdSec.Remove(fullMets.Mets.AmdSec.Single(a => a.Id == file.Admid[0]));
+        fullMets.Mets.AmdSec.Add(RightsOnlyAmdSec("ADM_objects/my file.pdf"));
+        file.Admid.Clear();
+        file.Admid.Add("ADM_objects/my");
+        file.Admid.Add("file.pdf");
+        // ...and a decoy that one of those fragments matches, carrying PREMIS so it is a
+        // perfectly USABLE candidate. Walking on would resolve to it and write this file's
+        // technical metadata into an unrelated section.
+        fullMets.Mets.AmdSec.Add(PremisBearingAmdSec("file.pdf"));
+
+        var update = metsManager.AddToMets(fullMets, new WorkingFile
+        {
+            LocalPath = path, Name = "report.pdf", ContentType = "application/pdf",
+            Digest = TestDigest, Size = 1, Modified = DateTime.UtcNow
+        });
+
+        update.Failure.Should().BeTrue("the section the file names has no PREMIS");
+        update.ErrorMessage.Should().Contain("PREMIS");
     }
 
     [Fact]

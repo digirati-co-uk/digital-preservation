@@ -416,6 +416,38 @@ public class PhysicalDivsCacheTests
     }
 
     [Fact]
+    public async Task A_File_Add_That_Fails_AFTER_Creating_A_DmdSec_Rolls_That_DmdSec_Back()
+    {
+        // The sibling test above reaches the failure before any dmdSec is created, so it never
+        // exercises the rollback at all - it asserted a count that was zero either way. Here the
+        // descriptive step SUCCEEDS (creating a dmdSec) and the metadata step then fails, which
+        // is the only path where there is something to roll back.
+        var fullMets = await CreateAndLoadStandardMets("cache-failed-add-rollback.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        var dmdSecsBefore = fullMets.Mets.DmdSec.Select(d => d.Id).ToList();
+
+        // Access restrictions make PopulateDmdFromResource create a dmdSec; conflicting digests
+        // then make ProcessAllFileMetadata fail after it.
+        var file = SimpleFile("objects/new.tif", "new.tif");
+        file.AccessRestrictions = ["Closed"];
+        file.Metadata.Add(new DigestMetadata { Digest = "aaa", Source = "test-a" });
+        file.Metadata.Add(new DigestMetadata { Digest = "bbb", Source = "test-b" });
+
+        var failedAdd = metsManager.AddToMets(fullMets, file);
+
+        failedAdd.Failure.Should().BeTrue();
+        fullMets.Mets.DmdSec.Select(d => d.Id).Should().Equal(dmdSecsBefore,
+            "the dmdSec created before the failure must be rolled back");
+        objectsDiv.Div.Should().BeEmpty();
+        fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Should().BeEmpty();
+        AssertCacheMatchesRebuild(fullMets);
+
+        var retry = metsManager.AddToMets(fullMets, SimpleFile("objects/new.tif", "new.tif"));
+        retry.Success.Should().BeTrue(retry.ErrorMessage ?? "");
+    }
+
+    [Fact]
     public async Task Setting_Metadata_By_An_Unresolvable_Path_Fails_And_Does_Not_Write_To_An_Ancestor()
     {
         var fullMets = await CreateAndLoadStandardMets("cache-setbypath-miss.xml");
