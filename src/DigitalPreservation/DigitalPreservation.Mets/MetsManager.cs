@@ -512,7 +512,7 @@ public class MetsManager(
 
         // fptrs live on divs in every structMap - the physical div being deleted takes its own
         // with it, but a LOGICAL div painting this file keeps pointing at a file that is gone.
-        foreach (var div in mets.StructMap.Where(sm => sm.Div != null).SelectMany(sm => SelfAndDescendants(sm.Div)))
+        foreach (var div in AllDivs(mets))
         {
             var staleFptrs = div.Fptr
                 .Where(fptr => fptr.Fileid == fileId || fptr.Area?.Fileid == fileId)
@@ -538,10 +538,7 @@ public class MetsManager(
     {
         var referencedIds = new HashSet<string>();
 
-        var divs = mets.StructMap
-            .Where(sm => sm.Div != null)
-            .SelectMany(sm => SelfAndDescendants(sm.Div))
-            .Where(d => !excludedDivs.Contains(d));
+        var divs = AllDivs(mets).Where(d => !excludedDivs.Contains(d));
         foreach (var d in divs)
         {
             AddReferences(d.Admid, referencedIds);
@@ -566,6 +563,28 @@ public class MetsManager(
         if (tokens.Count > 1)
         {
             referencedIds.Add(IdRefs.Joined(tokens));
+        }
+    }
+
+    /// <summary>
+    /// Every div in the document, across all structMaps. The generated model types
+    /// <c>StructMapType.Div</c> as non-nullable, but a structMap element with no root div is
+    /// legal XML and does occur in malformed documents - dereferencing it unguarded is a real
+    /// crash, so this is the single place that tolerance lives.
+    /// </summary>
+    private static IEnumerable<DivType> AllDivs(DigitalPreservation.XmlGen.Mets.Mets mets)
+    {
+        foreach (var structMap in mets.StructMap)
+        {
+            var root = structMap.Div;
+            if (root is null)
+            {
+                continue;
+            }
+            foreach (var div in SelfAndDescendants(root))
+            {
+                yield return div;
+            }
         }
     }
 
@@ -1068,9 +1087,7 @@ public class MetsManager(
             ? []
             : new HashSet<DivType>(SelfAndDescendants(replaced.Div));
 
-        var taken = new HashSet<string>(mets.Mets.StructMap
-            .Where(sm => sm.Div != null)
-            .SelectMany(sm => SelfAndDescendants(sm.Div))
+        var taken = new HashSet<string>(AllDivs(mets.Mets)
             .Where(d => !replacedDivs.Contains(d) && d.Id.HasText())
             .Select(d => d.Id));
 
