@@ -28,6 +28,23 @@ public static class Constants
     public const string DirectoryType = "Directory";
     public const string ItemType = "Item";
     public const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
+
+    /// <summary>
+    /// The ID of the Nth virus-scan event for one file, for N greater than 1 — scans accumulate
+    /// as separate events and each needs a unique xs:ID.
+    /// </summary>
+    /// <remarks>
+    /// The counter sits BETWEEN the prefix and the identifier, and that placement is load-bearing.
+    /// A trailing counter reads as part of a path: <c>…ClamAV_ADM_objects_x002F_a_2</c> would be
+    /// both the second scan of <c>objects/a</c> and the plain ID of a file genuinely named
+    /// <c>objects/a_2</c>, so one file's virus status could be reported as another's. A
+    /// conventional ID always has the identifier's own prefix straight after the ClamAV prefix,
+    /// never a digit, so a numbered ID cannot be mistaken for any file's.
+    /// This lives here rather than on either side because the writer mints it and the parser
+    /// reads it, and they must not drift — see the MetsParser/MetsManager separation in CLAUDE.md.
+    /// </remarks>
+    public static string NumberedVirusProvEventId(int occurrence, string identifier) =>
+        $"{VirusProvEventPrefix}{occurrence}_{identifier}";
     public const string NullRightsStatement = "null";
 
     public const string Physical = "PHYSICAL";

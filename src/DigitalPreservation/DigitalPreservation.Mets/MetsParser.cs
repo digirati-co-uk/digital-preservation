@@ -73,6 +73,83 @@ public class MetsParser(
 
         return new MetsLookupMaps(amdSecMap, dmdSecMap, fileMap, techMdMap, digiprovMdMap, physDivMap, fileGrpUseMap);
     }
+
+    /// <summary>
+    /// The most recent virus-scan digiprovMD for one file: the plain conventional ID for its
+    /// first scan, then the numbered forms, because scans accumulate as separate events and
+    /// each needs a unique xs:ID.
+    /// </summary>
+    /// <remarks>
+    /// Taking the plain ID alone would resolve only the FIRST scan a file ever had, so a file
+    /// rescanned and found infected could still report clean — the very failure the accumulating
+    /// model exists to prevent, arriving by the fallback path instead.
+    /// Every candidate is matched in full against this file's own identifier, so no other
+    /// file's event can be selected: numbering later scans between the prefix and the identifier
+    /// is what makes that possible, since a trailing counter would be indistinguishable from
+    /// part of another file's path.
+    /// </remarks>
+    private static XElement? LatestByConventionalKey(
+        IReadOnlyDictionary<string, XElement> digiprovMdMap, string? identifier)
+    {
+        if (identifier == null)
+        {
+            return null;
+        }
+
+        // ONE pass over the map. The dictionary is keyed ordinally, so a case-insensitive
+        // lookup cannot use TryGetValue; probing per candidate would mean a full scan for the
+        // plain ID and another for every numbered one.
+        XElement? latest = null;
+        var highest = -1;
+
+        foreach (var (key, element) in digiprovMdMap)
+        {
+            var occurrence = ScanOccurrence(key, identifier);
+            if (occurrence > highest)
+            {
+                highest = occurrence;
+                latest = element;
+            }
+        }
+
+        return latest;
+    }
+
+    /// <summary>
+    /// Which scan of <paramref name="identifier"/> this digiprovMD ID names: 0 for the plain
+    /// conventional form, N for a numbered one, and -1 when the ID belongs to another file or
+    /// is not a virus-scan event at all.
+    /// </summary>
+    private static int ScanOccurrence(string key, string identifier)
+    {
+        if (!key.StartsWith(Constants.VirusProvEventPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return -1;
+        }
+
+        var remainder = key.AsSpan(Constants.VirusProvEventPrefix.Length);
+        if (remainder.Equals(identifier, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var separator = remainder.IndexOf('_');
+        if (separator <= 0 || !remainder[(separator + 1)..].Equals(identifier, StringComparison.OrdinalIgnoreCase))
+        {
+            return -1;
+        }
+
+        var digits = remainder[..separator];
+        foreach (var character in digits)
+        {
+            if (!char.IsAsciiDigit(character))
+            {
+                return -1;
+            }
+        }
+
+        return int.TryParse(digits, out var occurrence) ? occurrence : -1;
+    }
     
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
     {
@@ -524,27 +601,23 @@ public class MetsParser(
                 // its siblings by the platform's "digiprovMD_ClamAV_" ID prefix) rather than
                 // deriving its full ID by string convention - the derived key breaks for
                 // genuine multi-token ADMIDs and for IDs the platform didn't mint.
+                // LAST, not first: scans accumulate as separate events, so the file's current
+                // virus status is the most recently appended one. Everything else in the
+                // amdSec - earlier scans, and provenance from tools we don't recognise - is
+                // simply not ours to interpret.
                 var amdScope = techMd?.Name == XNames.MetsAmdSec ? techMd : techMd?.Parent;
                 var digiprovMd = amdScope?.Elements(XNames.MetsDigiprovMD)
-                    .FirstOrDefault(d => (d.Attribute("ID")?.Value ?? "")
+                    .LastOrDefault(d => (d.Attribute("ID")?.Value ?? "")
                         .StartsWith(Constants.VirusProvEventPrefix, StringComparison.OrdinalIgnoreCase));
                 if (digiprovMd == null)
                 {
                     // Conventional-key fallback for documents where nothing resolved
-                    // structurally. Case-insensitive but EXACT match - a substring match here
-                    // cross-talks between files whose IDs are prefixes of each other
-                    // (e.g. "ADM_a" is contained in "ADM_a2"), returning one file's virus-scan
-                    // event for a different file.
-                    var clamavKey = $"{Constants.VirusProvEventPrefix}{techMd?.Attribute("ID")?.Value ?? admId}";
-                    if (!lookupMaps.DigiprovMdMap.TryGetValue(clamavKey, out digiprovMd))
-                    {
-                        var matchingKey = lookupMaps.DigiprovMdMap.Keys
-                            .FirstOrDefault(k => string.Equals(k, clamavKey, StringComparison.OrdinalIgnoreCase));
-                        if (matchingKey != null)
-                        {
-                            digiprovMd = lookupMaps.DigiprovMdMap[matchingKey];
-                        }
-                    }
+                    // structurally. Every candidate ID is built from THIS file's identifier and
+                    // matched in full, case-insensitively: a looser test cross-talks between
+                    // files whose identifiers are prefixes of each other ("ADM_a" inside
+                    // "ADM_a2"), reporting one file's virus status as another's.
+                    var identifier = techMd?.Attribute("ID")?.Value ?? admId;
+                    digiprovMd = LatestByConventionalKey(lookupMaps.DigiprovMdMap, identifier);
                 }
 
                 var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();

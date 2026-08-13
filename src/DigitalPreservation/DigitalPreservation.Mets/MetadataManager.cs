@@ -169,32 +169,20 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
     private void ProcessVirusDataForFile(ProcessingContext ctx, WorkingFile workingFile)
     {
-        var patchPremisVirus = workingFile.GetVirusScanMetadata();
-
-        EventComplexType? virusEventComplexType = null;
-        if (ctx.VirusXml is not null)
+        var virusScan = workingFile.GetVirusScanMetadata();
+        if (virusScan == null)
         {
-            virusEventComplexType = ctx.VirusXml.GetEventComplexType()!;
-
-            if (patchPremisVirus != null)
-            {
-                premisEventManagerVirus.Patch(virusEventComplexType, patchPremisVirus);
-            }
-        }
-        else
-        {
-            if (patchPremisVirus != null)
-            {
-                virusEventComplexType = premisEventManagerVirus.Create(patchPremisVirus);
-            }
+            // Nothing was scanned in this upload, so there is no event to record. Whatever
+            // provenance the amdSec already holds - earlier scans, or events from tools we
+            // know nothing about - is left exactly as it is.
+            return;
         }
 
-        if (virusEventComplexType is null) return;
-        ctx.VirusXml = PremisEventManagerVirus.GetXmlElement(virusEventComplexType);
+        ctx.VirusXml = PremisEventManagerVirus.GetXmlElement(premisEventManagerVirus.Create(virusScan));
 
         if (ctx.AmdSec == null) return;
 
-        AddVirusXml(ctx);
+        AppendVirusEvent(ctx);
     }
 
     private static Result GetMetadataXml(ProcessingContext ctx, FullMets fullMets, DivType? div, string operationPath)
@@ -234,7 +222,10 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         ctx.FileAdmId = amdSec.Id;
         ctx.AmdSec = amdSec;
         ctx.PremisIncExifXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault(); //TODO: this includes exif - separate this out
-        ctx.VirusXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(Constants.VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault();
+        // The existing digiprovMDs are deliberately NOT read here. A scan is appended as a new
+        // event rather than merged into an old one, so nothing about what is already recorded
+        // needs interpreting - which is also what lets provenance we don't recognise pass
+        // through untouched.
 
         return Result.Ok();
     }
@@ -303,27 +294,63 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         return amdSec;
     }
 
-    private static void AddVirusXml(ProcessingContext ctx)
+    /// <summary>
+    /// Record this scan as a NEW digiprovMD. A digiprovMD holds a digital provenance EVENT, and
+    /// events accumulate: each scan is its own event, with its own outcome and date, and the
+    /// file's current virus status is simply the most recent of them. Nothing already present
+    /// is modified or removed — not earlier scans, and not events written by tools we neither
+    /// recognise nor need to understand (issue #219).
+    /// </summary>
+    private static void AppendVirusEvent(ProcessingContext ctx)
     {
         if (ctx.AmdSec is null)
             return;
 
-        if (ctx.AmdSec.DigiprovMd.Count != 0)
+        ctx.AmdSec.DigiprovMd.Add(new MdSecType
         {
-            ctx.AmdSec.DigiprovMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { ctx.VirusXml } };
-        }
-        else
-        {
-            ctx.AmdSec.DigiprovMd.Add(new MdSecType
+            Id = UnusedDigiprovId(ctx),
+            MdWrap = new MdSecTypeMdWrap
             {
-                Id = ctx.DigiprovId,
-                MdWrap = new MdSecTypeMdWrap
-                {
-                    Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
-                    XmlData = new MdSecTypeMdWrapXmlData { Any = { ctx.VirusXml } }
-                }
-            });
+                Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
+                XmlData = new MdSecTypeMdWrapXmlData { Any = { ctx.VirusXml } }
+            }
+        });
+    }
+
+    /// <summary>
+    /// A digiprovMD ID for this scan that nothing in the amdSec is already using. Events
+    /// accumulate, so the first scan takes the plain ID and each later one is suffixed; an
+    /// xs:ID has to stay unique within the document. IDs we did not mint are counted as taken
+    /// without being interpreted.
+    /// </summary>
+    private static string UnusedDigiprovId(ProcessingContext ctx)
+    {
+        // Only this file's own amdSec needs checking, because the ID embeds this file's admId
+        // and so cannot collide with another file's. Scanning the whole document would make
+        // minting O(total scans in the deposit) for every file that gets an event.
+        var taken = ctx.AmdSec!.DigiprovMd
+            .Select(digiprovMd => digiprovMd.Id)
+            .Where(id => id != null)
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (!taken.Contains(ctx.DigiprovId))
+        {
+            return ctx.DigiprovId;
         }
+
+        // The counter goes BEFORE the admId, not after it. A trailing "_2" would read as part
+        // of a path: "…ClamAV_ADM_objects_x002F_a_2" is both the second scan of "objects/a" and
+        // the plain conventional ID of a file genuinely named "objects/a_2", so a reader that
+        // resolves by ID could report one file's virus status as another's. A conventional ID
+        // always has the admId's own prefix straight after the ClamAV prefix, never a digit, so
+        // putting the counter there cannot be confused with any file's key.
+        var identifier = ctx.DigiprovId[Constants.VirusProvEventPrefix.Length..];
+        var occurrence = 2;
+        while (taken.Contains(Constants.NumberedVirusProvEventId(occurrence, identifier)))
+        {
+            occurrence++;
+        }
+        return Constants.NumberedVirusProvEventId(occurrence, identifier);
     }
 
     private static void SetAmdSec(ProcessingContext ctx, XmlElement? premisXml, bool newUpload)
