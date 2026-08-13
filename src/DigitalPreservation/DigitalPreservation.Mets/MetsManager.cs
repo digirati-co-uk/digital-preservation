@@ -512,15 +512,15 @@ public class MetsManager(
 
         // fptrs live on divs in every structMap - the physical div being deleted takes its own
         // with it, but a LOGICAL div painting this file keeps pointing at a file that is gone.
-        foreach (var div in AllDivs(mets))
-        {
-            var staleFptrs = div.Fptr
+        // Materialise before mutating - the divs cannot be walked while their fptrs are removed.
+        var stalePointers = AllDivs(mets)
+            .SelectMany(div => div.Fptr
                 .Where(fptr => fptr.Fileid == fileId || fptr.Area?.Fileid == fileId)
-                .ToList();
-            foreach (var fptr in staleFptrs)
-            {
-                div.Fptr.Remove(fptr);
-            }
+                .Select(fptr => (div, fptr)))
+            .ToList();
+        foreach (var (div, fptr) in stalePointers)
+        {
+            div.Fptr.Remove(fptr);
         }
     }
 
@@ -572,21 +572,11 @@ public class MetsManager(
     /// legal XML and does occur in malformed documents - dereferencing it unguarded is a real
     /// crash, so this is the single place that tolerance lives.
     /// </summary>
-    private static IEnumerable<DivType> AllDivs(DigitalPreservation.XmlGen.Mets.Mets mets)
-    {
-        foreach (var structMap in mets.StructMap)
-        {
-            var root = structMap.Div;
-            if (root is null)
-            {
-                continue;
-            }
-            foreach (var div in SelfAndDescendants(root))
-            {
-                yield return div;
-            }
-        }
-    }
+    private static IEnumerable<DivType> AllDivs(DigitalPreservation.XmlGen.Mets.Mets mets) =>
+        mets.StructMap
+            .Select(structMap => structMap.Div)
+            .Where(root => root is not null)
+            .SelectMany(SelfAndDescendants);
 
     private static IEnumerable<DivType> SelfAndDescendants(DivType div)
     {
