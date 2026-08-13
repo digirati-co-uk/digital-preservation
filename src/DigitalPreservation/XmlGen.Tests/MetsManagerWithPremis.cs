@@ -736,6 +736,63 @@ public class MetsManagerWithPremis
     }
 
     [Fact]
+    public async Task Accumulated_Scan_Ids_Do_Not_Collide_With_Another_File_S_Conventional_Id()
+    {
+        // The suffix that makes a second scan's ID unique (…_2) is also the conventional ID of
+        // the FIRST scan of a file genuinely named "…_2". xs:ID is unique per document, so the
+        // mint has to look at the whole document rather than just this file's amdSec.
+        const string plain = "objects/a";
+        const string lookalike = "objects/a_2";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-suffix-collision.xml");
+        eTag = await AddFile(metsUri, SimpleFile(plain, "a"), eTag);
+        eTag = await AddFile(metsUri, SimpleFile(lookalike, "a_2"), eTag);
+
+        // Two scans of the first file (the second one takes a suffix), then one of the other.
+        eTag = await AddFile(metsUri, ScannedFile(plain, "a", false, "defs-1"), eTag);
+        eTag = await AddFile(metsUri, ScannedFile(plain, "a", false, "defs-2"), eTag);
+        await AddFile(metsUri, ScannedFile(lookalike, "a_2", false, "defs-1"), eTag);
+
+        var ids = XDocument.Load(metsUri.LocalPath)
+            .Descendants(MetsNs + "digiprovMD")
+            .Select(d => (string?)d.Attribute("ID"))
+            .ToList();
+
+        ids.Should().HaveCount(3);
+        ids.Should().OnlyHaveUniqueItems("an xs:ID must be unique across the whole document");
+    }
+
+    [Fact]
+    public async Task The_Conventional_Key_Fallback_Reports_The_LATEST_Scan()
+    {
+        // When a file's techMD carries no premis:object the structural lookup cannot run, and
+        // the parser falls back to the conventional key. That key names the FIRST scan, so
+        // without suffix-awareness a rescanned-and-infected file still reported clean — the
+        // exact bug the accumulating model exists to prevent, on the fallback path.
+        const string path = "objects/document.pdf";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-fallback-latest.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000"), eTag);
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", true, "defs-27932"), eTag);
+
+        // Replace the PREMIS techMD payload with something the structural path cannot use,
+        // leaving the accumulated digiprovMDs where they are.
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == MetsIds.Adm(path));
+        amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData
+        {
+            Any = { new System.Xml.XmlDocument().CreateElement("mix", "http://www.loc.gov/mix/v20") }
+        };
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        var parsed = await parser.GetMetsFileWrapper(metsUri);
+        parsed.Success.Should().BeTrue(parsed.ErrorMessage ?? "");
+        var virusScan = parsed.Value!.Files.Single(f => f.LocalPath == path)
+            .Metadata.OfType<VirusScanMetadata>().Should().ContainSingle().Subject;
+        virusScan.HasVirus.Should().BeTrue("the later scan found a virus");
+        virusScan.VirusDefinition.Should().Be("defs-27932");
+    }
+
+    [Fact]
     public async Task An_Upload_Carrying_No_Scan_Adds_No_Event()
     {
         // Only an actual scan produces an event. An ordinary metadata update must not append a

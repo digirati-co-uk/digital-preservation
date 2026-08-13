@@ -91,7 +91,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
             }
         }
 
-        ProcessVirusDataForFile(ctx, workingFile);
+        ProcessVirusDataForFile(ctx, workingFile, fullMets);
 
         if (newUpload)
             fullMets.Mets.AmdSec.Add(ctx.AmdSec);
@@ -167,7 +167,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         return Result.Ok();
     }
 
-    private void ProcessVirusDataForFile(ProcessingContext ctx, WorkingFile workingFile)
+    private void ProcessVirusDataForFile(ProcessingContext ctx, WorkingFile workingFile, FullMets fullMets)
     {
         var virusScan = workingFile.GetVirusScanMetadata();
         if (virusScan == null)
@@ -182,7 +182,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
         if (ctx.AmdSec == null) return;
 
-        AppendVirusEvent(ctx);
+        AppendVirusEvent(ctx, fullMets.Mets);
     }
 
     private static Result GetMetadataXml(ProcessingContext ctx, FullMets fullMets, DivType? div, string operationPath)
@@ -301,14 +301,14 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     /// is modified or removed — not earlier scans, and not events written by tools we neither
     /// recognise nor need to understand (issue #219).
     /// </summary>
-    private static void AppendVirusEvent(ProcessingContext ctx)
+    private static void AppendVirusEvent(ProcessingContext ctx, DigitalPreservation.XmlGen.Mets.Mets mets)
     {
         if (ctx.AmdSec is null)
             return;
 
         ctx.AmdSec.DigiprovMd.Add(new MdSecType
         {
-            Id = UnusedDigiprovId(ctx),
+            Id = UnusedDigiprovId(ctx, mets),
             MdWrap = new MdSecTypeMdWrap
             {
                 Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
@@ -323,9 +323,14 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     /// xs:ID has to stay unique within the document. IDs we did not mint are counted as taken
     /// without being interpreted.
     /// </summary>
-    private static string UnusedDigiprovId(ProcessingContext ctx)
+    private static string UnusedDigiprovId(ProcessingContext ctx, DigitalPreservation.XmlGen.Mets.Mets mets)
     {
-        var taken = ctx.AmdSec!.DigiprovMd
+        // Across the WHOLE document, not just this amdSec: an xs:ID is unique per document, and
+        // the suffix can otherwise collide between files. A second scan of "objects/a" wants
+        // …ADM_objects_x002F_a_2, which is also the conventional ID for the FIRST scan of a
+        // file genuinely named "objects/a_2".
+        var taken = mets.AmdSec
+            .SelectMany(amdSec => amdSec.DigiprovMd)
             .Select(digiprovMd => digiprovMd.Id)
             .Where(id => id != null)
             .ToHashSet(StringComparer.Ordinal);
