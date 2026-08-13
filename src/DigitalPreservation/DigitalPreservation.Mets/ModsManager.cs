@@ -159,20 +159,23 @@ public static class ModsManager
     /// ever writes one descriptive record per div, so any further referenced dmdSecs are
     /// third-party content that read/write operations deliberately leave untouched.
     /// </summary>
-    public static ModsDefinition? GetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, bool createDmd = false)
+    /// <param name="localPath">
+    /// The div's deposit-relative path, where it has one. A dmdSec created for a physical div is
+    /// identified from this path rather than from the div's ID, so a legacy raw-ID div gets a
+    /// valid encoded DMD_ id instead of a second invalid one (issue #188). Null for logical divs,
+    /// and for a physical div whose path could not be resolved - both fall back to deriving the
+    /// ID from div.Id, which for a logical div is the client-supplied (NCName-validated) ID.
+    /// </param>
+    public static ModsDefinition? GetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div,
+        bool createDmd = false, string? localPath = null)
     {
         if (div.Dmdid.Count == 0 && createDmd)
         {
             // There is no DMDID on this div
-            if (div.Id.StartsWith(Constants.PhysIdPrefix))
-            {
-                div.Dmdid.Add(Constants.DmdIdPrefix + div.Id.RemoveStart(Constants.PhysIdPrefix));
-            }
-            else
-            {
-                // A logical structMap div that might have been supplied by the client
-                div.Dmdid.Add(Constants.DmdIdPrefix + div.Id);
-            }
+            var idPart = localPath != null
+                ? localPath.ToMetsId()
+                : div.Id.RemoveStart(Constants.PhysIdPrefix);
+            div.Dmdid.Add(Constants.DmdIdPrefix + idPart);
         }
         // Resolve the DMDID tokens to the actual dmdSec where one exists; the id used for
         // lazy creation is the joined legacy form only when no dmdSec resolves (see IdRefs).

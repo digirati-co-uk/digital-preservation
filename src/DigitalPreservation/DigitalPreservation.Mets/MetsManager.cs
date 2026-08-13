@@ -118,7 +118,7 @@ public class MetsManager(
             if (workingBase is WorkingFile workingFile)
                 return UpdateExistingFile(contextDiv, fullMets, workingFile, localPath);
             if (workingBase is WorkingDirectory workingDirectory)
-                return UpdateExistingDirectory(fullMets, workingDirectory, contextDiv);
+                return UpdateExistingDirectory(fullMets, workingDirectory, contextDiv, localPath);
             return Result.Fail(ErrorCodes.BadRequest, "WorkingBase is unsupported type");
         }
 
@@ -157,12 +157,12 @@ public class MetsManager(
         if (MetsCache.NormalisePathKey(file.FLocat[0].Href) != localPath)
             return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
 
-        var dmdResult = PopulateDmdFromResource(fullMets, workingFile, contextDiv);
+        var dmdResult = PopulateDmdFromResource(fullMets, workingFile, contextDiv, localPath);
         if (dmdResult.Failure) return dmdResult;
         return metadataManager.ProcessAllFileMetadata(fullMets, contextDiv, workingFile, localPath);
     }
 
-    private static Result UpdateExistingDirectory(FullMets fullMets, WorkingDirectory workingDirectory, DivType contextDiv)
+    private static Result UpdateExistingDirectory(FullMets fullMets, WorkingDirectory workingDirectory, DivType contextDiv, string localPath)
     {
         if (contextDiv.Type != Constants.DirectoryType)
             return Result.Fail(ErrorCodes.BadRequest, "WorkingDirectory path does not end on a directory");
@@ -170,21 +170,19 @@ public class MetsManager(
         if (workingDirectory.Name.HasText())
             contextDiv.Label = workingDirectory.Name;
 
-        return PopulateDmdFromResource(fullMets, workingDirectory, contextDiv);
+        return PopulateDmdFromResource(fullMets, workingDirectory, contextDiv, localPath);
     }
 
     private Result AddNewFile(DivType parentDiv, FullMets fullMets, WorkingFile workingFile, string localPath)
     {
-        var physId = Constants.PhysIdPrefix + localPath;
-        var fileId = Constants.FileIdPrefix + localPath;
+        var physId = Constants.PhysIdPrefix + localPath.ToMetsId();
+        var fileId = Constants.FileIdPrefix + localPath.ToMetsId();
 
-        // Reaching an add for a path whose div already exists means that div could not be
-        // resolved by path OR by the legacy ID fallback - adding again would write duplicate
-        // ID attributes into the METS. Refuse rather than corrupt.
-        if (parentDiv.Div.Any(d => d.Id == physId))
+        var conflict = FindConflictingChild(parentDiv, localPath, physId);
+        if (conflict != null)
         {
             return Result.Fail(ErrorCodes.BadRequest,
-                $"METS already contains a div '{physId}' that could not be resolved to path '{localPath}'.");
+                $"METS already contains a div '{conflict}' that could not be resolved to path '{localPath}'.");
         }
 
         var childItemDiv = new DivType
@@ -201,7 +199,7 @@ public class MetsManager(
         if (metadataResult.Failure)
             return metadataResult;
 
-        var dmdResult = PopulateDmdFromResource(fullMets, workingFile, childItemDiv);
+        var dmdResult = PopulateDmdFromResource(fullMets, workingFile, childItemDiv, localPath);
         if (dmdResult.Failure) return dmdResult;
 
         parentDiv.Div.Add(childItemDiv);
@@ -213,14 +211,15 @@ public class MetsManager(
 
     private Result AddNewDirectory(DivType parentDiv, FullMets fullMets, WorkingDirectory workingDirectory, string localPath)
     {
-        var physId = Constants.PhysIdPrefix + localPath;
-        var admId = Constants.AdmIdPrefix + localPath;
-        var techId = Constants.TechIdPrefix + localPath;
+        var physId = Constants.PhysIdPrefix + localPath.ToMetsId();
+        var admId = Constants.AdmIdPrefix + localPath.ToMetsId();
+        var techId = Constants.TechIdPrefix + localPath.ToMetsId();
 
-        if (parentDiv.Div.Any(d => d.Id == physId))
+        var conflict = FindConflictingChild(parentDiv, localPath, physId);
+        if (conflict != null)
         {
             return Result.Fail(ErrorCodes.BadRequest,
-                $"METS already contains a div '{physId}' that could not be resolved to path '{localPath}'.");
+                $"METS already contains a div '{conflict}' that could not be resolved to path '{localPath}'.");
         }
 
         var childDirectoryDiv = new DivType
@@ -238,7 +237,7 @@ public class MetsManager(
             StorageLocation = null
         };
         var amdSec = metadataManager.GetAmdSecType(premisFile, admId, techId);
-        var dmdResult = PopulateDmdFromResource(fullMets, workingDirectory, childDirectoryDiv);
+        var dmdResult = PopulateDmdFromResource(fullMets, workingDirectory, childDirectoryDiv, localPath);
         if (dmdResult.Failure) return dmdResult;
 
         // Attach div, amdSec and cache entry together, after anything that could throw,
@@ -250,6 +249,21 @@ public class MetsManager(
 
         SortChildDivs(parentDiv);
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// The ID of an existing child div that already stands for <paramref name="localPath"/>, or
+    /// null if the path is free. Reaching an add for a path whose div already exists means that
+    /// div could not be resolved by path OR by the legacy ID fallback - adding anyway would put
+    /// a second div for one path into the METS. Both ID forms count: the encoded form this add
+    /// would mint, and the raw-path form carried by documents written before issue #188 (where
+    /// an encoded mint would not collide on the ID attribute, so the raw form has to be checked
+    /// explicitly).
+    /// </summary>
+    private static string? FindConflictingChild(DivType parentDiv, string localPath, string physId)
+    {
+        var legacyPhysId = Constants.PhysIdPrefix + localPath;
+        return parentDiv.Div.FirstOrDefault(d => d.Id == physId || d.Id == legacyPhysId)?.Id;
     }
 
     /// <summary>
@@ -282,6 +296,12 @@ public class MetsManager(
 
     private DigitalPreservation.XmlGen.Mets.Mets GetEmptyMets()
     {
+        // Every ID is built as prefix + encoded path, even where the path needs no encoding, so
+        // that no minting site anywhere concatenates a raw path into an ID (issue #188).
+        var objectsIdPart = FolderNames.Objects.ToMetsId();
+        var metadataIdPart = FolderNames.Metadata.ToMetsId();
+        var adHocIdPart = FolderNames.MetadataAdHoc.ToMetsId();
+
         var mets = new DigitalPreservation.XmlGen.Mets.Mets
         {
             MetsHdr = new()
@@ -325,17 +345,17 @@ public class MetsManager(
                                 Id = Constants.MetadataDivId,
                                 Type = Constants.DirectoryType,
                                 Label = FolderNames.Metadata,
-                                Dmdid = { $"{Constants.DmdIdPrefix}{FolderNames.Metadata}" },
-                                Admid = { $"{Constants.AdmIdPrefix}{FolderNames.Metadata}" },
-                                Div = 
+                                Dmdid = { $"{Constants.DmdIdPrefix}{metadataIdPart}" },
+                                Admid = { $"{Constants.AdmIdPrefix}{metadataIdPart}" },
+                                Div =
                                     {
                                         new DivType
                                         {
                                             Id = Constants.MetadataAdHocDivId,
                                             Type = Constants.DirectoryType,
                                             Label = FolderNames.AdHoc,
-                                            Admid = { $"{Constants.AdmIdPrefix}{FolderNames.MetadataAdHoc}" },
-                                            Dmdid = { $"{Constants.DmdIdPrefix}{FolderNames.MetadataAdHoc}" },
+                                            Admid = { $"{Constants.AdmIdPrefix}{adHocIdPart}" },
+                                            Dmdid = { $"{Constants.DmdIdPrefix}{adHocIdPart}" },
                                         }
                                     }
                             },
@@ -344,8 +364,8 @@ public class MetsManager(
                                 Id = Constants.ObjectsDivId,
                                 Type = Constants.DirectoryType,
                                 Label = FolderNames.Objects,
-                                Dmdid = { $"{Constants.DmdIdPrefix}{FolderNames.Objects}" },
-                                Admid = { $"{Constants.AdmIdPrefix}{FolderNames.Objects}" }
+                                Dmdid = { $"{Constants.DmdIdPrefix}{objectsIdPart}" },
+                                Admid = { $"{Constants.AdmIdPrefix}{objectsIdPart}" }
                             }
                         }
                     }
@@ -357,17 +377,17 @@ public class MetsManager(
                     {
                         Source = Constants.Mets, OriginalName = FolderNames.Objects
                     },
-                    $"{Constants.AdmIdPrefix}{FolderNames.Objects}", $"{Constants.TechIdPrefix}{FolderNames.Objects}"),
+                    $"{Constants.AdmIdPrefix}{objectsIdPart}", $"{Constants.TechIdPrefix}{objectsIdPart}"),
                 metadataManager.GetAmdSecType(new FileFormatMetadata
                     {
                         Source = Constants.Mets, OriginalName = FolderNames.Metadata
                     },
-                    $"{Constants.AdmIdPrefix}{FolderNames.Metadata}", $"{Constants.TechIdPrefix}{FolderNames.Metadata}"),
+                    $"{Constants.AdmIdPrefix}{metadataIdPart}", $"{Constants.TechIdPrefix}{metadataIdPart}"),
                 metadataManager.GetAmdSecType(new FileFormatMetadata
                     {
                         Source = Constants.Mets, OriginalName = FolderNames.MetadataAdHoc
                     },
-                    $"{Constants.AdmIdPrefix}{FolderNames.MetadataAdHoc}", $"{Constants.TechIdPrefix}{FolderNames.MetadataAdHoc}")
+                    $"{Constants.AdmIdPrefix}{adHocIdPart}", $"{Constants.TechIdPrefix}{adHocIdPart}")
             }
             // NB we don't have a structLink because we have no logical structMap (yet)
         };
@@ -592,9 +612,12 @@ public class MetsManager(
     /// <summary>
     /// Fallback resolution among the current div's children when the cache has no usable entry
     /// for a path: first by each child's own path metadata (correct even when an unrelated div
-    /// elsewhere claims the same path), then by the legacy ID convention, which keeps divs with
-    /// broken path metadata navigable exactly as they were before the cache existed. The legacy
-    /// tier can be removed after a bulk ID migration (issue #188 step 3).
+    /// elsewhere claims the same path), then by the ID convention, which keeps divs with broken
+    /// path metadata navigable exactly as they were before the cache existed. The convention
+    /// tier tries BOTH ID forms - the encoded one minted since issue #188 and the raw-path one
+    /// in older documents - because a document can hold both, and a div whose path metadata is
+    /// broken is reachable by nothing else. It can be removed after a bulk ID migration
+    /// (issue #188 step 3).
     /// </summary>
     private static DivType? FindChildDivByPath(DivType parent, string testPath, DigitalPreservation.XmlGen.Mets.Mets mets)
     {
@@ -612,7 +635,9 @@ public class MetsManager(
         {
             return byMetadata.Count == 1 ? byMetadata[0] : null;
         }
-        return UniqueOrNull(parent.Div.Where(d => d.Id == $"{Constants.PhysIdPrefix}{testPath}"));
+        var encodedId = $"{Constants.PhysIdPrefix}{testPath.ToMetsId()}";
+        var legacyId = $"{Constants.PhysIdPrefix}{testPath}";
+        return UniqueOrNull(parent.Div.Where(d => d.Id == encodedId || d.Id == legacyId));
     }
 
     private static DivType? UniqueOrNull(IEnumerable<DivType> divs)
@@ -718,30 +743,43 @@ public class MetsManager(
     /// <param name="mets"></param>
     /// <param name="resource"></param>
     /// <param name="div"></param>
-    private static Result PopulateDmdFromResource(FullMets mets, ResourceBase resource, DivType div)
+    /// <param name="localPath">the div's deposit-relative path, already normalised</param>
+    private static Result PopulateDmdFromResource(FullMets mets, ResourceBase resource, DivType div, string localPath)
     {
         if (resource.AccessRestrictions != null)
         {
             // If it's an empty array rather than null, this will clear the access restrictions
-            var result = SetAccessRestrictionsForDiv(mets, div, resource.AccessRestrictions);
+            var result = SetAccessRestrictionsForDiv(mets, div, resource.AccessRestrictions, localPath);
             if (result.Failure) return result;
         }
 
         if (resource.RightsStatement != null)
         {
             // OK how to clear a Rights statement?
-            var result = SetRightsStatementForDiv(mets, div, resource.RightsStatement);
+            var result = SetRightsStatementForDiv(mets, div, resource.RightsStatement, localPath);
             if (result.Failure) return result;
         }
 
         if (resource.RecordInfo != null)
         {
             // Clear this by passing in a RecordInfo with empty RecordIdentifiers[]
-            var result = SetRecordInfoForDiv(mets, div, resource.RecordInfo);
+            var result = SetRecordInfoForDiv(mets, div, resource.RecordInfo, localPath);
             if (result.Failure) return result;
         }
 
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// The deposit-relative path a div stands for, taken from the path cache. Null for a logical
+    /// div (only physical divs are cached) and for a physical div whose path metadata could not
+    /// be resolved. Used by the ByDivId entry points, which are given an ID rather than a path,
+    /// so that a lazily created dmdSec is still identified by path (issue #188).
+    /// </summary>
+    private static string? PathForDiv(FullMets mets, DivType div)
+    {
+        EnsureCache(mets);
+        return mets.PhysicalDivsByPath.FirstOrDefault(kvp => ReferenceEquals(kvp.Value, div)).Key;
     }
 
     // The failure a Set*ForDiv method returns when the div's descriptive metadata cannot be
@@ -758,7 +796,7 @@ public class MetsManager(
         // BadRequest for consistency with EditMets, which reports the same condition.
         if (foundDepth != totalDepth)
             return Result.Fail(ErrorCodes.BadRequest, DescribePathFailure(mets, localPath));
-        return SetRecordInfoForDiv(mets, div, recordInfo);
+        return SetRecordInfoForDiv(mets, div, recordInfo, MetsCache.NormalisePathKey(localPath));
     }
 
     public Result SetRecordInfoByDivId(FullMets mets, string divId, RecordInfo recordInfo)
@@ -766,12 +804,12 @@ public class MetsManager(
         var div = LocateMetsDivByDivId(mets, divId);
         if (div is null)
             return Result.Fail(ErrorCodes.NotFound, $"No div with ID '{divId}' in METS");
-        return SetRecordInfoForDiv(mets, div, recordInfo);
+        return SetRecordInfoForDiv(mets, div, recordInfo, PathForDiv(mets, div));
     }
 
-    private static Result SetRecordInfoForDiv(FullMets mets, DivType div, RecordInfo recordInfo)
+    private static Result SetRecordInfoForDiv(FullMets mets, DivType div, RecordInfo recordInfo, string? localPath)
     {
-        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true);
+        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true, localPath);
         if (mods is null) return ModsUnavailable(div);
 
         mods.SetRecordInfo(recordInfo);
@@ -784,7 +822,7 @@ public class MetsManager(
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
         if (foundDepth != totalDepth)
             return Result.Fail(ErrorCodes.BadRequest, DescribePathFailure(mets, localPath));
-        return SetRightsStatementForDiv(mets, div, rightsStatement);
+        return SetRightsStatementForDiv(mets, div, rightsStatement, MetsCache.NormalisePathKey(localPath));
     }
 
     public Result SetRightsStatementByDivId(FullMets mets, string divId, Uri? rightsStatement)
@@ -792,7 +830,7 @@ public class MetsManager(
         var div = LocateMetsDivByDivId(mets, divId);
         if (div is null)
             return Result.Fail(ErrorCodes.NotFound, $"No div with ID '{divId}' in METS");
-        return SetRightsStatementForDiv(mets, div, rightsStatement);
+        return SetRightsStatementForDiv(mets, div, rightsStatement, PathForDiv(mets, div));
     }
 
     // Writes a UseAndReproduction element with a non-URI sentinel value so that the
@@ -804,7 +842,7 @@ public class MetsManager(
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
         if (foundDepth != totalDepth)
             return Result.Fail(ErrorCodes.BadRequest, DescribePathFailure(mets, localPath));
-        return SuppressRightsInheritanceForDiv(mets, div);
+        return SuppressRightsInheritanceForDiv(mets, div, MetsCache.NormalisePathKey(localPath));
     }
 
     public Result SuppressRightsInheritanceByDivId(FullMets mets, string divId)
@@ -812,12 +850,12 @@ public class MetsManager(
         var div = LocateMetsDivByDivId(mets, divId);
         if (div is null)
             return Result.Fail(ErrorCodes.NotFound, $"No div with ID '{divId}' in METS");
-        return SuppressRightsInheritanceForDiv(mets, div);
+        return SuppressRightsInheritanceForDiv(mets, div, PathForDiv(mets, div));
     }
 
-    private static Result SuppressRightsInheritanceForDiv(FullMets mets, DivType div)
+    private static Result SuppressRightsInheritanceForDiv(FullMets mets, DivType div, string? localPath)
     {
-        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true);
+        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd: true, localPath);
         if (mods is null) return ModsUnavailable(div);
         mods.RemoveAccessConditions(Constants.UseAndReproduction);
         mods.AddAccessCondition(Constants.NullRightsStatement, Constants.UseAndReproduction);
@@ -825,9 +863,9 @@ public class MetsManager(
         return Result.Ok();
     }
 
-    private static Result SetRightsStatementForDiv(FullMets mets, DivType div, Uri? rightsStatement)
+    private static Result SetRightsStatementForDiv(FullMets mets, DivType div, Uri? rightsStatement, string? localPath)
     {
-        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true);
+        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true, localPath);
         if (mods is null) return ModsUnavailable(div);
 
         mods.RemoveAccessConditions(Constants.UseAndReproduction);
@@ -845,7 +883,7 @@ public class MetsManager(
         var (div, _, foundDepth, totalDepth) = LocateMetsDivByLocalPath(mets, localPath);
         if (foundDepth != totalDepth)
             return Result.Fail(ErrorCodes.BadRequest, DescribePathFailure(mets, localPath));
-        return SetAccessRestrictionsForDiv(mets, div, accessRestrictions);
+        return SetAccessRestrictionsForDiv(mets, div, accessRestrictions, MetsCache.NormalisePathKey(localPath));
     }
 
     public Result SetAccessRestrictionsByDivId(FullMets mets, string divId, List<string> accessRestrictions)
@@ -853,12 +891,12 @@ public class MetsManager(
         var div = LocateMetsDivByDivId(mets, divId);
         if (div is null)
             return Result.Fail(ErrorCodes.NotFound, $"No div with ID '{divId}' in METS");
-        return SetAccessRestrictionsForDiv(mets, div, accessRestrictions);
+        return SetAccessRestrictionsForDiv(mets, div, accessRestrictions, PathForDiv(mets, div));
     }
 
-    private static Result SetAccessRestrictionsForDiv(FullMets mets, DivType div, List<string> accessRestrictions)
+    private static Result SetAccessRestrictionsForDiv(FullMets mets, DivType div, List<string> accessRestrictions, string? localPath)
     {
-        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true);
+        var mods = ModsManager.GetModsForDiv(mets.Mets, div, createDmd:true, localPath);
         if (mods is null) return ModsUnavailable(div);
 
         mods.RemoveAccessConditions(Constants.RestrictionOnAccess);
@@ -870,10 +908,21 @@ public class MetsManager(
         return Result.Ok();
     }
 
-    public void SetStructMap(FullMets mets, LogicalRange logSm)
+    public Result SetStructMap(FullMets mets, LogicalRange logSm)
     {
+        // Logical div IDs are the client's, not ours: they are written into the METS verbatim
+        // and the client round-trips them, so an invalid one is REJECTED rather than encoded -
+        // silently changing an ID would break the client's own references. This is the only
+        // route by which a caller-supplied string becomes an xs:ID (issue #188).
+        var invalid = FindInvalidRangeId(logSm);
+        if (invalid != null)
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"Logical structMap range ID '{invalid}' is not a valid XML name.");
+        }
+
         var existing = mets.Mets.StructMap
-            .FirstOrDefault(sm => sm.Type == Constants.Logical && sm.Div?.Id == logSm.Id);
+            .FirstOrDefault(sm => sm.Type == Constants.Logical && SameStructMapId(sm.Div?.Id, logSm.Id));
         if (existing != null)
         {
             RemoveLogicalStructMapDmdSecs(mets, existing.Div);
@@ -885,13 +934,54 @@ public class MetsManager(
             Type = Constants.Logical,
             Div = BuildLogicalDiv(mets, logSm)
         });
+        return Result.Ok();
+    }
+
+    /// <summary>
+    /// Match the root IDs of two logical structMaps, treating absent and empty as the same
+    /// thing. A logical div in third-party METS may carry no ID at all; the parser surfaces
+    /// that as an empty string and this class writes it back as no attribute, so both forms
+    /// must go on identifying the same structMap for replace and remove.
+    /// </summary>
+    private static bool SameStructMapId(string? a, string? b) =>
+        (a ?? string.Empty) == (b ?? string.Empty);
+
+    /// <summary>
+    /// The first range ID in the tree that could not be used as an xs:ID, or null if all are
+    /// usable. An absent ID (null, or the empty string the parser reports for a logical div
+    /// with no ID attribute) is not a rejection: BuildLogicalDiv writes no ID attribute for it.
+    /// </summary>
+    private static string? FindInvalidRangeId(LogicalRange range)
+    {
+        if (range.Id.HasText() && !IsValidNCName(range.Id))
+        {
+            return range.Id;
+        }
+        return range.Ranges.Select(FindInvalidRangeId).FirstOrDefault(invalid => invalid != null);
+    }
+
+    private static bool IsValidNCName(string candidate)
+    {
+        try
+        {
+            XmlConvert.VerifyNCName(candidate);
+            return true;
+        }
+        catch (XmlException)
+        {
+            return false;
+        }
     }
 
     private static DivType BuildLogicalDiv(FullMets mets, LogicalRange range)
     {
         var div = new DivType
         {
-            Id = range.Id,
+            // An empty ID would be written as ID="", which is not a valid xs:ID. A logical div
+            // with no ID is a real shape - third-party METS often has one, and the parser
+            // reports it as an empty string - so it is written back as no ID attribute rather
+            // than an empty one (issue #188).
+            Id = range.Id.HasText() ? range.Id : null,
             Type = range.Type,
             Label = range.Name
         };
@@ -907,14 +997,16 @@ public class MetsManager(
             ModsManager.SetModsForDiv(mets.Mets, div, mods);
         }
 
+        // A logical div has no deposit-relative path: its dmdSec is identified from the
+        // client-supplied div ID, which SetStructMap has validated as an NCName.
         if (range.AccessRestrictions is { Count: > 0 })
-            SetAccessRestrictionsForDiv(mets, div, range.AccessRestrictions);
+            SetAccessRestrictionsForDiv(mets, div, range.AccessRestrictions, null);
 
         if (range.RightsStatement != null)
-            SetRightsStatementForDiv(mets, div, range.RightsStatement);
+            SetRightsStatementForDiv(mets, div, range.RightsStatement, null);
 
         foreach (var fp in range.Files)
-            div.Fptr.Add(BuildFptr(fp));
+            div.Fptr.Add(BuildFptr(mets.Mets, fp));
 
         foreach (var child in range.Ranges)
             div.Div.Add(BuildLogicalDiv(mets, child));
@@ -922,9 +1014,30 @@ public class MetsManager(
         return div;
     }
 
-    private static DivTypeFptr BuildFptr(FilePointer fp)
+    /// <summary>
+    /// The ID of the FILE element in the fileSec that stands for a deposit-relative path -
+    /// looked up by FLocat href, never reconstructed from the path. A METS file written before
+    /// issue #188 carries raw-path FILE IDs, so minting the encoded form here would produce
+    /// fptr/smLink references to IDs that do not exist in the document (and would make the
+    /// existing raw-ID smLinks unremovable, since removal matches on the same derivation).
+    /// Minting is the last resort, for a path with no FILE element at all; the caller is then
+    /// writing a reference the fileSec has yet to catch up with, exactly as before.
+    /// </summary>
+    private static string ResolveFileId(DigitalPreservation.XmlGen.Mets.Mets mets, string? localPath)
     {
-        var fileId = Constants.FileIdPrefix + fp.LocalPath;
+        var normalised = MetsCache.NormalisePathKey(localPath);
+        // First-wins among duplicate hrefs, the same convention navigation uses for a
+        // malformed document.
+        var file = (mets.FileSec?.FileGrp ?? [])
+            .SelectMany(fg => fg.File)
+            .FirstOrDefault(f => normalised != null
+                                 && MetsCache.NormalisePathKey(f.FLocat.FirstOrDefault()?.Href) == normalised);
+        return file?.Id ?? Constants.FileIdPrefix + (normalised ?? string.Empty).ToMetsId();
+    }
+
+    private static DivTypeFptr BuildFptr(DigitalPreservation.XmlGen.Mets.Mets mets, FilePointer fp)
+    {
+        var fileId = ResolveFileId(mets, fp.LocalPath);
 
         if (fp.BeginTime.HasValue || fp.EndTime.HasValue)
         {
@@ -1012,23 +1125,24 @@ public class MetsManager(
     public void RemoveStructMap(FullMets mets, string id)
     {
         var existing = mets.Mets.StructMap
-            .FirstOrDefault(sm => sm.Type == Constants.Logical && sm.Div?.Id == id);
+            .FirstOrDefault(sm => sm.Type == Constants.Logical && SameStructMapId(sm.Div?.Id, id));
         if (existing == null) return;
 
         RemoveLogicalStructMapDmdSecs(mets, existing.Div);
         mets.Mets.StructMap.Remove(existing);
     }
 
-    // FILE_ ids are minted from paths; normalise incoming paths the same way navigation and
-    // ID minting do, so that a path variant the setters accept (./, BagIt data/ prefix)
-    // cannot produce smLinks referencing FILE ids that don't exist.
+    // smLinks reference the FILE elements the fileSec actually holds, so both ends are resolved
+    // by path (see ResolveFileId) rather than reconstructed - which keeps links to legacy
+    // raw-ID files correct, and removable. Paths are normalised first (./, BagIt data/ prefix)
+    // so the variants the setters accept all resolve to the same file.
     public void LinkFile(FullMets mets, string from, string to, Uri role)
     {
         mets.Mets.StructLink ??= new MetsTypeStructLink();
         mets.Mets.StructLink.SmLink.Add(new StructLinkTypeSmLink
         {
-            From = Constants.FileIdPrefix + MetsCache.NormalisePathKey(from),
-            To = Constants.FileIdPrefix + MetsCache.NormalisePathKey(to),
+            From = ResolveFileId(mets.Mets, from),
+            To = ResolveFileId(mets.Mets, to),
             Arcrole = role.ToString()
         });
     }
@@ -1037,8 +1151,8 @@ public class MetsManager(
     {
         if (mets.Mets.StructLink == null) return;
 
-        var fromId = Constants.FileIdPrefix + MetsCache.NormalisePathKey(from);
-        var toId = Constants.FileIdPrefix + MetsCache.NormalisePathKey(to);
+        var fromId = ResolveFileId(mets.Mets, from);
+        var toId = ResolveFileId(mets.Mets, to);
         var arcrole = role.ToString();
 
         var link = mets.Mets.StructLink.SmLink
@@ -1052,7 +1166,7 @@ public class MetsManager(
         // Remove all existing outgoing smLinks from this file
         if (mets.Mets.StructLink != null)
         {
-            var fromId = Constants.FileIdPrefix + MetsCache.NormalisePathKey(localPath);
+            var fromId = ResolveFileId(mets.Mets, localPath);
             var toRemove = mets.Mets.StructLink.SmLink.Where(sl => sl.From == fromId).ToList();
             foreach (var sl in toRemove)
                 mets.Mets.StructLink.SmLink.Remove(sl);

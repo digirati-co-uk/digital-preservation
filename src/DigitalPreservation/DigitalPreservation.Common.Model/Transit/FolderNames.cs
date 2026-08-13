@@ -8,7 +8,9 @@ public static class FolderNames
     public const string Metadata = "metadata";
     public const string BagItData = "data";
     public const string AdHoc = "ad-hoc";
-    public const string MetadataAdHoc = $"{Metadata}/{AdHoc}"; // TODO: #188 do not use this as an ID component
+    // A path, never an ID component on its own: the '/' is not valid in an xs:ID. ID minting
+    // encodes it first (see MetsIdEncoding.ToMetsId / Constants.MetadataAdHocDivId, issue #188).
+    public const string MetadataAdHoc = $"{Metadata}/{AdHoc}";
 
     public static bool PathIsKnownFirstLevelDirectory(string localPath)
     {

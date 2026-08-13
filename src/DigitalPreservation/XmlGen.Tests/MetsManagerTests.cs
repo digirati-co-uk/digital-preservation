@@ -95,7 +95,7 @@ public class MetsManagerTests
         physical.Descendants(mets + "div")
             .Count(d => (string?)d.Attribute("ID") == Constants.MetadataDivId).Should().Be(1);
         xml.Descendants(mets + "file")
-            .Count(f => (string?)f.Attribute("ID") == "FILE_metadata/report.txt").Should().Be(1);
+            .Count(f => (string?)f.Attribute("ID") == MetsIds.File("metadata/report.txt")).Should().Be(1);
     }
 
     [Fact]
@@ -654,8 +654,8 @@ public class MetsManagerTests
         result.Success.Should().BeTrue();
 
         var xDoc = result.Value!.XDocument!;
-        var expectedAdmId = $"{Constants.AdmIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}";
-        var expectedTechId = $"{Constants.TechIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}";
+        var expectedAdmId = MetsIds.Adm(FolderNames.MetadataAdHoc);
+        var expectedTechId = MetsIds.Tech(FolderNames.MetadataAdHoc);
 
         var amdSec = xDoc.Descendants(XNames.MetsAmdSec)
             .SingleOrDefault(a => a.Attribute("ID")?.Value == expectedAdmId);
@@ -694,7 +694,7 @@ public class MetsManagerTests
 
         adHocDiv.Should().NotBeNull("the ad-hoc div must be a direct child of the metadata div");
 
-        var expectedAdmId = $"{Constants.AdmIdPrefix}{FolderNames.Metadata}/{FolderNames.AdHoc}";
+        var expectedAdmId = MetsIds.Adm(FolderNames.MetadataAdHoc);
         adHocDiv!.Attribute("ADMID")?.Value.Should().Be(expectedAdmId);
     }
 
@@ -769,8 +769,8 @@ public class MetsManagerTests
     /// </summary>
     private static void AssertBuiltInDirectoryDiv(XDocument doc, string localPath, string expectedLabel)
     {
-        var physId = $"PHYS_{localPath}";
-        var admId  = $"ADM_{localPath}";
+        var physId = MetsIds.Phys(localPath);
+        var admId  = MetsIds.Adm(localPath);
 
         var divEl = doc.Descendants(XNames.MetsDiv)
             .FirstOrDefault(d => d.Attribute("ID")?.Value == physId);

@@ -21,7 +21,11 @@ public class SetLogicalStructMapHandler(IMetsManager metsManager) : IRequestHand
         if (metsResult is { Success: true, Value: not null })
         {
             var fullMets = metsResult.Value;
-            metsManager.SetStructMap(fullMets, request.LogicalRange);
+            var setResult = metsManager.SetStructMap(fullMets, request.LogicalRange);
+            if (setResult.Failure)
+            {
+                return setResult;
+            }
             var writeMetsResult = await metsManager.WriteMets(fullMets);
             if (writeMetsResult.Failure)
             {

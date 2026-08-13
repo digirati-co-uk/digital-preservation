@@ -217,27 +217,27 @@ public class MetsManagerSyncTests
 
         // FileType in fileSec
         var fileEl = doc.Descendants(MetsNs + "file")
-            .Single(f => (string)f.Attribute("ID")! == "FILE_objects/doc.tif");
-        fileEl.Attribute("ADMID")!.Value.Should().Be("ADM_objects/doc.tif");
+            .Single(f => (string)f.Attribute("ID")! == MetsIds.File("objects/doc.tif"));
+        fileEl.Attribute("ADMID")!.Value.Should().Be(MetsIds.Adm("objects/doc.tif"));
         fileEl.Elements(MetsNs + "FLocat").Single()
             .Attribute(XLinkNs + "href")!.Value.Should().Be("objects/doc.tif");
 
         // AmdSec with matching ID
         doc.Descendants(MetsNs + "amdSec")
-            .Should().Contain(a => (string?)a.Attribute("ID") == "ADM_objects/doc.tif");
+            .Should().Contain(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/doc.tif"));
 
         // TechMD inside that AmdSec
         var amdSec = doc.Descendants(MetsNs + "amdSec")
-            .Single(a => (string)a.Attribute("ID")! == "ADM_objects/doc.tif");
+            .Single(a => (string)a.Attribute("ID")! == MetsIds.Adm("objects/doc.tif"));
         amdSec.Elements(MetsNs + "techMD").Single()
-            .Attribute("ID")!.Value.Should().Be("TECH_objects/doc.tif");
+            .Attribute("ID")!.Value.Should().Be(MetsIds.Tech("objects/doc.tif"));
 
         // StructMap Div
         var divEl = doc.Descendants(MetsNs + "div")
-            .Single(d => (string?)d.Attribute("ID") == "PHYS_objects/doc.tif");
+            .Single(d => (string?)d.Attribute("ID") == MetsIds.Phys("objects/doc.tif"));
         divEl.Attribute("TYPE")!.Value.Should().Be("Item");
         divEl.Elements(MetsNs + "fptr").Single()
-            .Attribute("FILEID")!.Value.Should().Be("FILE_objects/doc.tif");
+            .Attribute("FILEID")!.Value.Should().Be(MetsIds.File("objects/doc.tif"));
     }
 
     [Fact]
@@ -284,14 +284,14 @@ public class MetsManagerSyncTests
 
         // StructMap Div for the directory
         var dirDiv = doc.Descendants(MetsNs + "div")
-            .Single(d => (string?)d.Attribute("ID") == "PHYS_objects/archive");
+            .Single(d => (string?)d.Attribute("ID") == MetsIds.Phys("objects/archive"));
         dirDiv.Attribute("TYPE")!.Value.Should().Be("Directory");
         dirDiv.Attribute("LABEL")!.Value.Should().Be("Archive");
-        dirDiv.Attribute("ADMID")!.Value.Should().Be("ADM_objects/archive");
+        dirDiv.Attribute("ADMID")!.Value.Should().Be(MetsIds.Adm("objects/archive"));
 
         // AmdSec for the directory
         doc.Descendants(MetsNs + "amdSec")
-            .Should().Contain(a => (string?)a.Attribute("ID") == "ADM_objects/archive");
+            .Should().Contain(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/archive"));
     }
 
     [Fact]
@@ -363,12 +363,12 @@ public class MetsManagerSyncTests
         // Raw XML: fileSec entry and amdSec entry for the removed file must be gone.
         var doc = XDocument.Load(metsUri.LocalPath);
         doc.Descendants(MetsNs + "file")
-            .Should().NotContain(f => (string?)f.Attribute("ID") == "FILE_objects/remove.tif");
+            .Should().NotContain(f => (string?)f.Attribute("ID") == MetsIds.File("objects/remove.tif"));
         doc.Descendants(MetsNs + "amdSec")
-            .Should().NotContain(a => (string?)a.Attribute("ID") == "ADM_objects/remove.tif");
+            .Should().NotContain(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/remove.tif"));
         // The structMap Div for the deleted file must also be gone.
         doc.Descendants(MetsNs + "div")
-            .Should().NotContain(d => (string?)d.Attribute("ID") == "PHYS_objects/remove.tif");
+            .Should().NotContain(d => (string?)d.Attribute("ID") == MetsIds.Phys("objects/remove.tif"));
     }
 
     [Fact]
@@ -405,9 +405,9 @@ public class MetsManagerSyncTests
         // Raw XML: structMap Div and amdSec for the removed directory must be gone.
         var doc = XDocument.Load(metsUri.LocalPath);
         doc.Descendants(MetsNs + "div")
-            .Should().NotContain(d => (string?)d.Attribute("ID") == "PHYS_objects/remove-dir");
+            .Should().NotContain(d => (string?)d.Attribute("ID") == MetsIds.Phys("objects/remove-dir"));
         doc.Descendants(MetsNs + "amdSec")
-            .Should().NotContain(a => (string?)a.Attribute("ID") == "ADM_objects/remove-dir");
+            .Should().NotContain(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/remove-dir"));
     }
 
     [Fact]

@@ -383,12 +383,12 @@ public class MetsManagerMetadataTests
 
         // No dmdSec for the file, and no empty mods left anywhere.
         doc.Descendants(MetsNs + "dmdSec")
-            .Any(d => (string?)d.Attribute("ID") == "DMD_objects/file.tif")
+            .Any(d => (string?)d.Attribute("ID") == MetsIds.Dmd("objects/file.tif"))
             .Should().BeFalse("the dmdSec should be removed once it carries no MODS information");
 
         // The file div must no longer reference the removed dmdSec.
         var fileDiv = doc.Descendants(MetsNs + "div")
-            .Single(d => (string?)d.Attribute("ID") == "PHYS_objects/file.tif");
+            .Single(d => (string?)d.Attribute("ID") == MetsIds.Phys("objects/file.tif"));
         fileDiv.Attribute("DMDID").Should().BeNull("the dangling DMDID reference should be dropped");
     }
 

@@ -25,9 +25,10 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
     public Result ProcessAllFileMetadata(FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
-        var fileId = Constants.FileIdPrefix + operationPath;
-        var admId = Constants.AdmIdPrefix + operationPath;
-        var techId = Constants.TechIdPrefix + operationPath;
+        var idPart = operationPath.ToMetsId();
+        var fileId = Constants.FileIdPrefix + idPart;
+        var admId = Constants.AdmIdPrefix + idPart;
+        var techId = Constants.TechIdPrefix + idPart;
 
         var ctx = new ProcessingContext { FileAdmId = admId, TechId = techId };
 
@@ -35,8 +36,8 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         {
             // GetMetadataXml resolves the file's amdSec from its ADMID tokens and sets
             // ctx.AmdSec / ctx.FileAdmId from the resolved element - which handles legacy
-            // space-containing IDs, whose convention-derived form may not equal
-            // AdmIdPrefix + operationPath in a mixed-format METS.
+            // space-containing IDs, whose form may not equal the ID minted above in a
+            // mixed-format METS.
             var resultGetMetadataXml = GetMetadataXml(ctx, fullMets, div, operationPath);
 
             if (resultGetMetadataXml.Failure)
