@@ -83,10 +83,10 @@ public class MetsParser(
     /// Taking the plain ID alone would resolve only the FIRST scan a file ever had, so a file
     /// rescanned and found infected could still report clean — the very failure the accumulating
     /// model exists to prevent, arriving by the fallback path instead.
-    /// Every candidate is CONSTRUCTED from this file's own identifier and compared in full, so
-    /// no other file's event can be matched: numbering later scans between the prefix and the
-    /// identifier is what makes that possible, since a trailing counter would be
-    /// indistinguishable from part of another file's path.
+    /// Every candidate is matched in full against this file's own identifier, so no other
+    /// file's event can be selected: numbering later scans between the prefix and the identifier
+    /// is what makes that possible, since a trailing counter would be indistinguishable from
+    /// part of another file's path.
     /// </remarks>
     private static XElement? LatestByConventionalKey(
         IReadOnlyDictionary<string, XElement> digiprovMdMap, string? identifier)
@@ -96,26 +96,59 @@ public class MetsParser(
             return null;
         }
 
-        var latest = digiprovMdMap.Keys
-            .FirstOrDefault(key => string.Equals(
-                key, Constants.VirusProvEventPrefix + identifier, StringComparison.OrdinalIgnoreCase));
+        // ONE pass over the map. The dictionary is keyed ordinally, so a case-insensitive
+        // lookup cannot use TryGetValue; probing per candidate would mean a full scan for the
+        // plain ID and another for every numbered one.
+        XElement? latest = null;
+        var highest = -1;
 
-        // Later scans are numbered BETWEEN the prefix and the identifier, so each candidate
-        // still names this file and nothing else. Walk upwards rather than scanning every key
-        // in the document: an event numbered N only exists if N-1 does.
-        for (var occurrence = 2; ; occurrence++)
+        foreach (var (key, element) in digiprovMdMap)
         {
-            var numbered = MetadataManager.NumberedDigiprovId(occurrence, identifier);
-            var match = digiprovMdMap.Keys
-                .FirstOrDefault(key => string.Equals(key, numbered, StringComparison.OrdinalIgnoreCase));
-            if (match == null)
+            var occurrence = ScanOccurrence(key, identifier);
+            if (occurrence > highest)
             {
-                break;
+                highest = occurrence;
+                latest = element;
             }
-            latest = match;
         }
 
-        return latest == null ? null : digiprovMdMap[latest];
+        return latest;
+    }
+
+    /// <summary>
+    /// Which scan of <paramref name="identifier"/> this digiprovMD ID names: 0 for the plain
+    /// conventional form, N for a numbered one, and -1 when the ID belongs to another file or
+    /// is not a virus-scan event at all.
+    /// </summary>
+    private static int ScanOccurrence(string key, string identifier)
+    {
+        if (!key.StartsWith(Constants.VirusProvEventPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return -1;
+        }
+
+        var remainder = key.AsSpan(Constants.VirusProvEventPrefix.Length);
+        if (remainder.Equals(identifier, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var separator = remainder.IndexOf('_');
+        if (separator <= 0 || !remainder[(separator + 1)..].Equals(identifier, StringComparison.OrdinalIgnoreCase))
+        {
+            return -1;
+        }
+
+        var digits = remainder[..separator];
+        foreach (var character in digits)
+        {
+            if (!char.IsAsciiDigit(character))
+            {
+                return -1;
+            }
+        }
+
+        return int.TryParse(digits, out var occurrence) ? occurrence : -1;
     }
     
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)

@@ -346,19 +346,12 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         // putting the counter there cannot be confused with any file's key.
         var identifier = ctx.DigiprovId[Constants.VirusProvEventPrefix.Length..];
         var occurrence = 2;
-        while (taken.Contains(NumberedDigiprovId(occurrence, identifier)))
+        while (taken.Contains(Constants.NumberedVirusProvEventId(occurrence, identifier)))
         {
             occurrence++;
         }
-        return NumberedDigiprovId(occurrence, identifier);
+        return Constants.NumberedVirusProvEventId(occurrence, identifier);
     }
-
-    /// <summary>
-    /// The ID of the Nth virus-scan event for a file, N &gt; 1 — the counter sits between the
-    /// ClamAV prefix and the identifier so it can never be mistaken for part of a path.
-    /// </summary>
-    internal static string NumberedDigiprovId(int occurrence, string identifier) =>
-        $"{Constants.VirusProvEventPrefix}{occurrence}_{identifier}";
 
     private static void SetAmdSec(ProcessingContext ctx, XmlElement? premisXml, bool newUpload)
     {

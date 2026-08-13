@@ -738,9 +738,11 @@ public class MetsManagerWithPremis
     [Fact]
     public async Task Accumulated_Scan_Ids_Do_Not_Collide_With_Another_File_S_Conventional_Id()
     {
-        // The suffix that makes a second scan's ID unique (…_2) is also the conventional ID of
-        // the FIRST scan of a file genuinely named "…_2". xs:ID is unique per document, so the
-        // mint has to look at the whole document rather than just this file's amdSec.
+        // A file named "…_2" is the shape that a trailing counter would have collided with.
+        // Numbering scans between the prefix and the identifier removes that by construction —
+        // a conventional ID never has a digit straight after the ClamAV prefix — which is why
+        // minting only has to check this file's own amdSec. This pins that the two families of
+        // ID stay disjoint.
         const string plain = "objects/a";
         const string lookalike = "objects/a_2";
         var (metsUri, eTag) = await CreateEmptyMets("premis-suffix-collision.xml");
