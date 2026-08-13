@@ -425,9 +425,30 @@ public class MetsParser(
                 if (!haveUsedAdmIdAlready && admId != null)
                 {
                     // IDREFS-aware, preserving the techMD-then-amdSec fallback per candidate id
-                    // (Archivematica points ADMID at the amdSec rather than the techMD)
-                    techMd = IdRefs.ResolveSingle(admId, id =>
-                        lookupMaps.TechMdMap.GetValueOrDefault(id) ?? lookupMaps.AmdSecMap.GetValueOrDefault(id));
+                    // (Archivematica points ADMID at the amdSec rather than the techMD).
+                    // The candidate must actually contain PREMIS: ADMID is a LIST and its order
+                    // carries no meaning, so a file may legitimately name a shared rightsMD
+                    // before the section holding its own technical metadata - Archivematica does
+                    // exactly that. Taking the first candidate that merely EXISTS would stop on
+                    // the rights section and lose the fixity, leaving the binary with no SHA256
+                    // (issue #215).
+                    techMd = IdRefs.ResolveSingle(
+                        admId,
+                        id => lookupMaps.TechMdMap.GetValueOrDefault(id)
+                              ?? lookupMaps.AmdSecMap.GetValueOrDefault(id),
+                        candidate => candidate.Descendants(XNames.PremisObject).Any());
+
+                    // The identity tier returns its match whether or not the caller can use it,
+                    // so that a broken reference fails loudly instead of resolving a fragment
+                    // of a legacy ID against something unrelated. That makes the recheck the
+                    // CALLER's job, here as at the other two sites. A section with no
+                    // premis:object holds none of what is read below - and worse, treating it
+                    // as this file's would scope the virus-scan lookup to it, which for a
+                    // SHARED rights section means reporting another file's scan as this one's.
+                    if (techMd?.Descendants(XNames.PremisObject).Any() != true)
+                    {
+                        techMd = null;
+                    }
 
                     if (techMd == null)
                     {

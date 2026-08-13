@@ -237,6 +237,75 @@ public class IdRefsMetsManagerTests
     }
 
     [Fact]
+    public async Task Clearing_Mods_Keeps_A_Live_Legacy_Reference_That_Arrives_As_Several_Tokens()
+    {
+        // Issue #217. The sweep used to compare each DMDID token verbatim against dmdSec.Id -
+        // but a legacy space-containing ID arrives as SEVERAL tokens, none of which equals any
+        // dmdSec ID on its own. So a LIVE reference read as several dangling ones was stripped,
+        // costing the div its descriptive record and orphaning the section.
+        var fullMets = await CreateAndLoadStandardMets("idrefs-legacy-token-sweep.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+
+        var mods = ModsManager.GetModsForDiv(fullMets.Mets, objectsDiv, createDmd: true)!;
+        mods.AddAccessCondition("Restricted", Constants.RestrictionOnAccess);
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, mods);
+        var ownDmdId = objectsDiv.Dmdid.Single();
+
+        // A legacy dmdSec whose ID contains a space, referenced the way the XmlSerializer
+        // presents it: two tokens that mean one ID.
+        const string legacyDmdId = "DMD_objects/my file.pdf";
+        fullMets.Mets.DmdSec.Add(new MdSecType { Id = legacyDmdId });
+        objectsDiv.Dmdid.Clear();
+        objectsDiv.Dmdid.Add("DMD_objects/my");
+        objectsDiv.Dmdid.Add("file.pdf");
+        // ...and re-attach the div's own dmdSec so there is something to prune.
+        objectsDiv.Dmdid.Insert(0, ownDmdId);
+
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, new ModsDefinition());
+
+        // The div's own dmdSec goes; the legacy reference and its section survive intact.
+        fullMets.Mets.DmdSec.Should().NotContain(d => d.Id == ownDmdId);
+        fullMets.Mets.DmdSec.Should().Contain(d => d.Id == legacyDmdId);
+        objectsDiv.Dmdid.Should().Equal("DMD_objects/my", "file.pdf");
+        IdRefs.Joined(objectsDiv.Dmdid).Should().Be(legacyDmdId);
+    }
+
+    [Fact]
+    public async Task Clearing_Mods_Keeps_A_Legacy_Reference_That_Sits_ALONGSIDE_A_Genuine_One()
+    {
+        // The mixed case: one genuine single-token reference and one legacy multi-token one in
+        // the same DMDID. Joining ALL of them matches nothing, so an all-or-nothing check falls
+        // through to per-token pruning and strips the legacy pair - orphaning its dmdSec, which
+        // is #217 again for a shape the first fix didn't cover.
+        var fullMets = await CreateAndLoadStandardMets("idrefs-mixed-legacy-sweep.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+
+        var mods = ModsManager.GetModsForDiv(fullMets.Mets, objectsDiv, createDmd: true)!;
+        mods.AddAccessCondition("Restricted", Constants.RestrictionOnAccess);
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, mods);
+        var ownDmdId = objectsDiv.Dmdid.Single();
+
+        const string legacyDmdId = "DMD_objects/my file.pdf";
+        fullMets.Mets.DmdSec.Add(new MdSecType { Id = "DMD_valid" });
+        fullMets.Mets.DmdSec.Add(new MdSecType { Id = legacyDmdId });
+        objectsDiv.Dmdid.Clear();
+        objectsDiv.Dmdid.Add(ownDmdId);
+        objectsDiv.Dmdid.Add("DMD_valid");
+        objectsDiv.Dmdid.Add("DMD_objects/my");
+        objectsDiv.Dmdid.Add("file.pdf");
+
+        ModsManager.SetModsForDiv(fullMets.Mets, objectsDiv, new ModsDefinition());
+
+        fullMets.Mets.DmdSec.Should().NotContain(d => d.Id == ownDmdId);
+        fullMets.Mets.DmdSec.Should().Contain(d => d.Id == "DMD_valid");
+        fullMets.Mets.DmdSec.Should().Contain(d => d.Id == legacyDmdId);
+        // The genuine reference and BOTH halves of the legacy one survive.
+        objectsDiv.Dmdid.Should().Equal("DMD_valid", "DMD_objects/my", "file.pdf");
+    }
+
+    [Fact]
     public async Task Setting_Mods_On_A_Div_With_Genuine_Multi_Dmdid_Never_Mutates_The_Other_DmdSec()
     {
         var fullMets = await CreateAndLoadStandardMets("idrefs-multi-dmdid-set.xml");

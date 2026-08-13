@@ -193,14 +193,31 @@ public class MetsManager(
             Fptr = { new DivTypeFptr { Fileid = fileId } }
         };
 
-        // Nothing is attached to the METS until the fallible metadata step has succeeded,
-        // so a failed add leaves the document (and the cache) exactly as it was.
-        var metadataResult = metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, localPath, true);
-        if (metadataResult.Failure)
-            return metadataResult;
+        // Every fallible step runs before anything is attached, so a failed add leaves the
+        // document and the cache exactly as they were. The order matters: ProcessAllFileMetadata
+        // ATTACHES the FILE and the amdSec (it fails, when it fails, before doing so), so it has
+        // to come after the descriptive-metadata step rather than before it - otherwise a
+        // failure there strands a FILE and an amdSec with no div, and the retry mints a SECOND
+        // FILE with the same xs:ID, after which the path can no longer be updated or deleted
+        // at all (issue #216).
+        //
+        // The one thing that does land early is a dmdSec, which the descriptive step may create;
+        // if the step after it fails, that section is removed again.
+        var dmdSecsBefore = fullMets.Mets.DmdSec.ToHashSet();
 
         var dmdResult = PopulateDmdFromResource(fullMets, workingFile, childItemDiv, localPath);
-        if (dmdResult.Failure) return dmdResult;
+        if (dmdResult.Failure)
+        {
+            RemoveDmdSecsAddedSince(fullMets, dmdSecsBefore);
+            return dmdResult;
+        }
+
+        var metadataResult = metadataManager.ProcessAllFileMetadata(fullMets, childItemDiv, workingFile, localPath, true);
+        if (metadataResult.Failure)
+        {
+            RemoveDmdSecsAddedSince(fullMets, dmdSecsBefore);
+            return metadataResult;
+        }
 
         parentDiv.Div.Add(childItemDiv);
         CacheAddedDiv(fullMets, localPath, childItemDiv);
@@ -249,6 +266,23 @@ public class MetsManager(
 
         SortChildDivs(parentDiv);
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// Undo the dmdSecs an abandoned add created — identified by REFERENCE against a snapshot
+    /// taken beforehand, not by position. A count-and-truncate would remove whatever happens to
+    /// sit at the end, so anything another edit against the same in-memory FullMets legitimately
+    /// added in the meantime would be destroyed instead. MetsManager is not thread-safe today
+    /// (see the bug/metsmanager-thread-safety work), which is exactly why this should not add a
+    /// new way for concurrent edits to lose unrelated metadata.
+    /// </summary>
+    private static void RemoveDmdSecsAddedSince(FullMets fullMets, HashSet<MdSecType> dmdSecsBefore)
+    {
+        var added = fullMets.Mets.DmdSec.Where(dmdSec => !dmdSecsBefore.Contains(dmdSec)).ToList();
+        foreach (var dmdSec in added)
+        {
+            fullMets.Mets.DmdSec.Remove(dmdSec);
+        }
     }
 
     /// <summary>

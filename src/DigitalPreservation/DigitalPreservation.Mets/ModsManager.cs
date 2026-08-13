@@ -255,17 +255,7 @@ public static class ModsManager
             }
             IdRefs.RemoveReference(div.Dmdid, dmd.Id);
 
-            // Sweep any sibling tokens that resolve nothing (the pre-existing Clear()
-            // behaviour, scoped): they are dangling, while a token still naming a real
-            // dmdSec keeps both its reference and its section.
-            for (var i = div.Dmdid.Count - 1; i >= 0; i--)
-            {
-                var token = div.Dmdid[i];
-                if (mets.DmdSec.All(d => d.Id != token))
-                {
-                    div.Dmdid.RemoveAt(i);
-                }
-            }
+            SweepDanglingDmdTokens(mets, div);
         }
         else
         {
@@ -274,6 +264,67 @@ public static class ModsManager
             div.Dmdid.Clear();
         }
         return true;
+    }
+
+    /// <summary>
+    /// Drop the DMDID tokens left over after a reference was removed that no longer name
+    /// anything, leaving any that still do.
+    /// </summary>
+    /// <remarks>
+    /// The tokens have to be judged the way <see cref="IdRefs"/> resolves them, not one at a
+    /// time against <c>dmdSec.Id</c>. A legacy space-containing dmdSec ID arrives from the
+    /// XmlSerializer as SEVERAL tokens, none of which equals any dmdSec ID on its own, so a
+    /// verbatim per-token test reads one live reference as several dangling ones and strips
+    /// it — silently costing the div its descriptive record while orphaning the section
+    /// (issue #217). So: if the joined form names a real dmdSec, the tokens are one reference
+    /// and all of them stay; only a genuine multi-token list is pruned token by token.
+    /// </remarks>
+    private static void SweepDanglingDmdTokens(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div)
+    {
+        var live = LiveTokenIndexes(mets, div.Dmdid);
+        for (var i = div.Dmdid.Count - 1; i >= 0; i--)
+        {
+            if (!live.Contains(i))
+            {
+                div.Dmdid.RemoveAt(i);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The positions in a DMDID token collection that take part in a reference to a dmdSec that
+    /// exists — either a token naming one on its own, or a RUN of consecutive tokens whose
+    /// joined form does, which is how a legacy space-containing ID arrives.
+    /// </summary>
+    /// <remarks>
+    /// Testing the collection as a whole is not enough. A div can mix one genuine single-token
+    /// reference with one legacy multi-token reference — <c>["DMD_valid", "DMD_legacy/my",
+    /// "file.pdf"]</c> — where joining ALL of them matches nothing, so an all-or-nothing check
+    /// falls through to per-token pruning and strips the legacy pair, orphaning its dmdSec. Runs
+    /// are therefore matched longest-first, so the legacy ID wins over its own fragments.
+    /// </remarks>
+    private static HashSet<int> LiveTokenIndexes(
+        DigitalPreservation.XmlGen.Mets.Mets mets, System.Collections.ObjectModel.Collection<string> tokens)
+    {
+        var live = new HashSet<int>();
+        var ids = mets.DmdSec.Select(dmdSec => dmdSec.Id).Where(id => id != null).ToHashSet(StringComparer.Ordinal);
+
+        for (var length = tokens.Count; length >= 1; length--)
+        {
+            for (var start = 0; start + length <= tokens.Count; start++)
+            {
+                if (Enumerable.Range(start, length).Any(live.Contains))
+                {
+                    continue;
+                }
+                if (ids.Contains(IdRefs.Joined(tokens.Skip(start).Take(length))))
+                {
+                    live.UnionWith(Enumerable.Range(start, length));
+                }
+            }
+        }
+
+        return live;
     }
 
     /// <summary>
