@@ -524,9 +524,13 @@ public class MetsParser(
                 // its siblings by the platform's "digiprovMD_ClamAV_" ID prefix) rather than
                 // deriving its full ID by string convention - the derived key breaks for
                 // genuine multi-token ADMIDs and for IDs the platform didn't mint.
+                // LAST, not first: scans accumulate as separate events, so the file's current
+                // virus status is the most recently appended one. Everything else in the
+                // amdSec - earlier scans, and provenance from tools we don't recognise - is
+                // simply not ours to interpret.
                 var amdScope = techMd?.Name == XNames.MetsAmdSec ? techMd : techMd?.Parent;
                 var digiprovMd = amdScope?.Elements(XNames.MetsDigiprovMD)
-                    .FirstOrDefault(d => (d.Attribute("ID")?.Value ?? "")
+                    .LastOrDefault(d => (d.Attribute("ID")?.Value ?? "")
                         .StartsWith(Constants.VirusProvEventPrefix, StringComparison.OrdinalIgnoreCase));
                 if (digiprovMd == null)
                 {
