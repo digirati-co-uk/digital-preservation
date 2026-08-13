@@ -55,9 +55,13 @@
 > from a legacy amdSec ID; delete leaving unremovable fptr/smLink references; the duplicate-div
 > guard comparing IDs only; `SetStructMap` not checking ID uniqueness; `ResolveFileId` ignoring the
 > OBJECTS fileGrp; every ID-less logical div sharing one dmdSec) and three test defects that let
-> them through. The remaining ~20 findings are pre-existing and tracked separately; **one needs a
-> product decision — `MetsParser.BuildLookupMaps` throws on duplicate IDs, and the pre-#211
-> `MetsFromArchivalGroup` bug wrote such documents into OCFL, so they are unloadable today.**
+> them through. The remaining ~20 findings are pre-existing and tracked separately; none requires
+> remediating data already in storage. (The review initially flagged `MetsParser.BuildLookupMaps`
+> throwing on duplicate IDs as a remediation problem, on the assumption that the pre-#211
+> `MetsFromArchivalGroup` bug had written such documents into OCFL. It had not — production
+> content only began going in once the platform was METS-first, so nothing was ever preserved
+> through that path. Tolerating duplicate IDs with a diagnostic is still worth doing for
+> third-party and hand-edited METS, but it is robustness, not recovery.)
 >
 > `Constants.ObjectsDivId`/`MetadataDivId` stay `const` (their folder names need no encoding);
 > `MetsIdEncodingTests` pins that `.ToMetsId()` is the identity for them, so the constants and
