@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Mets;
 
@@ -16,7 +17,14 @@ public static class Constants
     public const string DmdPhysRoot = "DMD_PHYS_ROOT";
     public const string ObjectsDivId = PhysIdPrefix + FolderNames.Objects;
     public const string MetadataDivId = PhysIdPrefix + FolderNames.Metadata;
-    public const string MetadataAdHocDivId = $"{MetadataDivId}/{FolderNames.AdHoc}";
+    // Not a const: the path this ID is built from contains a '/', which an xs:ID may not, so it
+    // has to go through the same encoding as every other minted ID (issue #188). METS files
+    // written before that fix carry the raw "PHYS_metadata/ad-hoc" form and are still navigated
+    // by path, so nothing reads this constant to identify an existing div.
+    public static readonly string MetadataAdHocDivId = PhysIdPrefix + FolderNames.MetadataAdHoc.ToMetsId();
+    // The fileGrp holding the preserved files. Other groups (derivatives, ALTO, thumbnails)
+    // appear in third-party METS and may carry an entry with the same href.
+    public const string ObjectsFileGrpUse = "OBJECTS";
     public const string DirectoryType = "Directory";
     public const string ItemType = "Item";
     public const string VirusProvEventPrefix = "digiprovMD_ClamAV_";

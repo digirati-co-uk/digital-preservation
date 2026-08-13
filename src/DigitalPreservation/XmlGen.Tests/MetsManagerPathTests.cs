@@ -15,16 +15,18 @@ namespace XmlGen.Tests;
 /// problematic in XML ID / IDREFS attributes — in particular spaces, ampersands,
 /// and Unicode characters.
 ///
-/// Background: MetsManager generates ID, ADMID, FILEID, and DMDID attribute values
-/// directly from LocalPath strings without escaping. Spaces are especially
-/// problematic because ADMID is typed as IDREFS in the METS schema, which means
-/// the XmlSerializer backing XmlGen types splits the attribute value on whitespace
-/// into a Collection&lt;string&gt; of individual tokens. MetadataManager line 195
-/// works around this with:
+/// Background: MetsManager builds ID, ADMID, FILEID and DMDID values from LocalPath.
+/// A path is not a valid xs:ID — <c>/</c> and space are both illegal — so since issue
+/// #188 the path goes through <see cref="DigitalPreservation.Utils.MetsIdEncoding.ToMetsId"/>
+/// first and the ID becomes e.g. <c>FILE_objects_x002F_my_x0020_file.pdf</c>. Expected
+/// values here are therefore built with <see cref="MetsIds"/> rather than written out.
+/// The paths themselves (FLocat href, premis:originalName) are NOT encoded and keep
+/// their spaces and slashes.
 ///
-///     ctx.FileAdmId = string.Join(' ', ctx.File.Admid);
-///
-/// which rejoins the tokens before looking up the matching AmdSec element.
+/// This removes the IDREFS hazard for everything the platform writes from now on: an
+/// encoded ADMID is a single token, so the XmlSerializer no longer splits it. The
+/// rejoining logic (IdRefs) stays for METS written BEFORE the fix, whose raw IDs still
+/// split — see MetsManagerPathFixtureTests for that frozen corpus.
 ///
 /// Every test validates at two levels:
 ///   1. Parser round-trip — MetsParser reads back what MetsManager wrote and
@@ -117,10 +119,9 @@ public class MetsManagerPathTests
     [Fact]
     public async Task File_With_Space_In_Name_Round_Trips()
     {
-        // A file whose LocalPath contains a space in the filename.
-        // The ADMID attribute "ADM_objects/my file.pdf" is split by the XmlSerializer
-        // into ["ADM_objects/my", "file.pdf"], but all top-level WorkingFile properties
-        // must survive the full write/parse cycle unchanged.
+        // A file whose LocalPath contains a space in the filename. The space is encoded
+        // out of the IDs, but the path itself keeps it, and all top-level WorkingFile
+        // properties must survive the full write/parse cycle unchanged.
 
         var (metsUri, eTag) = await CreateEmptyMets("path-space-filename.xml");
         await AddFile(metsUri, SimpleFile("objects/my file.pdf", "my file.pdf"), eTag);
@@ -142,50 +143,49 @@ public class MetsManagerPathTests
         // generated XML are mutually consistent: each attribute that references
         // another element uses exactly the same string as that element's ID.
         //
-        // Note: ADMID is typed as IDREFS in the METS schema, so schema-aware parsers
-        // will split "ADM_objects/my file.pdf" on the space. That is a known limitation
-        // documented at MetadataManager line 192-195 and is out of scope for this test.
-        // This test focuses on whether the string values written are self-consistent
-        // (i.e., every cross-reference resolves to the right element).
+        // Since #188 the ADMID is also a single IDREFS token — the space that used to
+        // split it is encoded — so a schema-aware parser resolves it to one amdSec.
 
+        const string path = "objects/my file.pdf";
         var (metsUri, eTag) = await CreateEmptyMets("path-space-rawxml.xml");
-        await AddFile(metsUri, SimpleFile("objects/my file.pdf", "my file.pdf"), eTag);
+        await AddFile(metsUri, SimpleFile(path, "my file.pdf"), eTag);
 
         var doc = XDocument.Load(metsUri.LocalPath);
 
         // FileType: ID and ADMID attribute values
         var fileEl = doc.Descendants(MetsNs + "file")
-            .Single(f => (string)f.Attribute("ID")! == "FILE_objects/my file.pdf");
-        fileEl.Attribute("ADMID")!.Value.Should().Be("ADM_objects/my file.pdf");
+            .Single(f => (string)f.Attribute("ID")! == MetsIds.File(path));
+        fileEl.Attribute("ADMID")!.Value.Should().Be(MetsIds.Adm(path));
+        fileEl.Attribute("ADMID")!.Value.Should().NotContain(" ",
+            "an encoded ADMID is one IDREFS token, not several");
 
-        // FLocat HREF
+        // FLocat HREF — the path itself is never encoded
         fileEl.Elements(MetsNs + "FLocat").Single()
-            .Attribute(XLinkNs + "href")!.Value.Should().Be("objects/my file.pdf");
+            .Attribute(XLinkNs + "href")!.Value.Should().Be(path);
 
         // AmdSec ID matches the ADMID on the FileType
         var amdSecEl = doc.Descendants(MetsNs + "amdSec")
-            .Single(a => (string)a.Attribute("ID")! == "ADM_objects/my file.pdf");
+            .Single(a => (string)a.Attribute("ID")! == MetsIds.Adm(path));
 
         // TechMD inside that AmdSec
         amdSecEl.Elements(MetsNs + "techMD").Single()
-            .Attribute("ID")!.Value.Should().Be("TECH_objects/my file.pdf");
+            .Attribute("ID")!.Value.Should().Be(MetsIds.Tech(path));
 
         // StructMap Div: ID, and its Fptr FILEID
         var divEl = doc.Descendants(MetsNs + "div")
-            .Single(d => (string?)d.Attribute("ID") == "PHYS_objects/my file.pdf");
+            .Single(d => (string?)d.Attribute("ID") == MetsIds.Phys(path));
         divEl.Elements(MetsNs + "fptr").Single()
-            .Attribute("FILEID")!.Value.Should().Be("FILE_objects/my file.pdf");
+            .Attribute("FILEID")!.Value.Should().Be(MetsIds.File(path));
     }
 
     [Fact]
     public async Task File_With_Space_In_Name_Can_Be_Overwritten()
     {
-        // Verifies that the update path through MetadataManager.GetMetadataXml (line 195)
-        // correctly locates the AmdSec for a file whose path contains a space.
-        //
-        // On update (newUpload=false), MetadataManager sets ctx.FileAdmId by space-joining
-        // ctx.File.Admid to reconstruct "ADM_objects/my file.pdf" from ["ADM_objects/my", "file.pdf"],
-        // then finds the AmdSec by that ID. If the join were wrong the update would throw.
+        // Verifies that the update path through MetadataManager.GetMetadataXml correctly
+        // locates the AmdSec for a file whose path contains a space. On update
+        // (newUpload=false) the amdSec is resolved from the file's ADMID tokens via IdRefs,
+        // which handles both the single encoded token written here and the several tokens a
+        // legacy raw ID splits into.
 
         var (metsUri, eTag) = await CreateEmptyMets("path-space-overwrite.xml");
         eTag = await AddFile(metsUri, SimpleFile("objects/my file.pdf", "my file.pdf"), eTag);
@@ -218,23 +218,22 @@ public class MetsManagerPathTests
     [Fact]
     public async Task File_With_Multiple_Spaces_In_Name_Round_Trips_And_Overwrite_Works()
     {
-        // A path element with more than one space, e.g. "my great file.pdf".
-        // The ADMID attribute "ADM_objects/my great file.pdf" is split by the XmlSerializer
-        // into ["ADM_objects/my", "great", "file.pdf"] — three tokens, not two.
-        // string.Join(' ', ...) must reconstruct the original string correctly in both
-        // the initial upload path and the overwrite path.
+        // A path element with more than one space, e.g. "my great file.pdf" — which before
+        // #188 produced an ADMID that split into THREE tokens. Both spaces are now encoded,
+        // in the initial upload path and in the overwrite path.
 
+        const string path = "objects/my great file.pdf";
         var (metsUri, eTag) = await CreateEmptyMets("path-multi-space.xml");
-        eTag = await AddFile(metsUri, SimpleFile("objects/my great file.pdf", "my great file.pdf"), eTag);
+        eTag = await AddFile(metsUri, SimpleFile(path, "my great file.pdf"), eTag);
 
         // Initial round-trip
         var parseResult = await parser.GetMetsFileWrapper(metsUri);
-        var file = parseResult.Value!.Files.Single(f => f.LocalPath == "objects/my great file.pdf");
+        var file = parseResult.Value!.Files.Single(f => f.LocalPath == path);
         file.Name.Should().Be("my great file.pdf");
         file.Digest.Should().Be(TestDigest);
 
-        // Overwrite — tests that the multi-token Admid Collection is handled in the update path
-        var updatedFile = SimpleFile("objects/my great file.pdf", "my great file.pdf");
+        // Overwrite — tests that the Admid Collection is resolved in the update path
+        var updatedFile = SimpleFile(path, "my great file.pdf");
         updatedFile.Metadata.Add(new FileFormatMetadata
         {
             Source = "Siegfried",
@@ -248,14 +247,15 @@ public class MetsManagerPathTests
         overwriteResult.Success.Should().BeTrue();
 
         var parseResult2 = await parser.GetMetsFileWrapper(metsUri);
-        var updatedFile2 = parseResult2.Value!.Files.Single(f => f.LocalPath == "objects/my great file.pdf");
+        var updatedFile2 = parseResult2.Value!.Files.Single(f => f.LocalPath == path);
         updatedFile2.Metadata.OfType<FileFormatMetadata>().Single().PronomKey.Should().Be("fmt/19");
 
-        // Raw XML: ADMID contains all three space-separated tokens in a single attribute string
+        // Raw XML: both spaces are encoded, so the ADMID is a single IDREFS token
         var doc = XDocument.Load(metsUri.LocalPath);
         var fileEl = doc.Descendants(MetsNs + "file")
-            .Single(f => (string)f.Attribute("ID")! == "FILE_objects/my great file.pdf");
-        fileEl.Attribute("ADMID")!.Value.Should().Be("ADM_objects/my great file.pdf");
+            .Single(f => (string)f.Attribute("ID")! == MetsIds.File(path));
+        fileEl.Attribute("ADMID")!.Value.Should().Be(MetsIds.Adm(path));
+        fileEl.Attribute("ADMID")!.Value.Should().NotContain(" ");
     }
 
     // -----------------------------------------------------------------------
@@ -265,9 +265,9 @@ public class MetsManagerPathTests
     [Fact]
     public async Task Directory_With_Space_In_Name_Round_Trips()
     {
-        // A child directory under objects/ whose LocalPath contains a space.
-        // Navigation through GetMetsElements uses Div IDs derived from the path,
-        // so "PHYS_objects/my folder" must be findable in memory after writing.
+        // A child directory under objects/ whose LocalPath contains a space. Navigation is
+        // by premis:originalName (the path cache), so the div is findable whatever form its
+        // ID takes; the ID itself is now the encoded form.
 
         var (metsUri, eTag) = await CreateEmptyMets("path-space-dirname.xml");
         eTag = await AddDirectory(metsUri, SimpleDirectory("objects/my folder", "my folder"), eTag);
@@ -287,41 +287,42 @@ public class MetsManagerPathTests
         // Raw XML: directory Div ID and its ADMID
         var doc = XDocument.Load(metsUri.LocalPath);
         var dirDiv = doc.Descendants(MetsNs + "div")
-            .Single(d => (string?)d.Attribute("ID") == "PHYS_objects/my folder");
-        dirDiv.Attribute("ADMID")!.Value.Should().Be("ADM_objects/my folder");
+            .Single(d => (string?)d.Attribute("ID") == MetsIds.Phys("objects/my folder"));
+        dirDiv.Attribute("ADMID")!.Value.Should().Be(MetsIds.Adm("objects/my folder"));
     }
 
     [Fact]
     public async Task File_With_Space_In_Both_Directory_And_Name_Round_Trips()
     {
-        // Combines a spaced directory name with a spaced filename.
-        // GetMetsElements navigates two levels of IDs, both containing spaces.
+        // Combines a spaced directory name with a spaced filename: navigation crosses two
+        // levels whose paths both contain spaces.
 
+        const string dirPath = "objects/some archive";
+        const string filePath = "objects/some archive/scanned page.pdf";
         var (metsUri, eTag) = await CreateEmptyMets("path-space-both.xml");
-        eTag = await AddDirectory(metsUri, SimpleDirectory("objects/some archive", "some archive"), eTag);
-        await AddFile(metsUri, SimpleFile("objects/some archive/scanned page.pdf", "scanned page.pdf"), eTag);
+        eTag = await AddDirectory(metsUri, SimpleDirectory(dirPath, "some archive"), eTag);
+        await AddFile(metsUri, SimpleFile(filePath, "scanned page.pdf"), eTag);
 
         var parseResult = await parser.GetMetsFileWrapper(metsUri);
         parseResult.Success.Should().BeTrue();
 
-        var file = parseResult.Value!.Files
-            .Single(f => f.LocalPath == "objects/some archive/scanned page.pdf");
+        var file = parseResult.Value!.Files.Single(f => f.LocalPath == filePath);
         file.Name.Should().Be("scanned page.pdf");
         file.Digest.Should().Be(TestDigest);
 
-        // Raw XML: both the directory Div ID and the file Div ID contain spaces
+        // Raw XML: the spaces and slashes are encoded out of both Div IDs
         var doc = XDocument.Load(metsUri.LocalPath);
         doc.Descendants(MetsNs + "div")
-            .Should().Contain(d => (string?)d.Attribute("ID") == "PHYS_objects/some archive");
+            .Should().Contain(d => (string?)d.Attribute("ID") == MetsIds.Phys(dirPath));
         doc.Descendants(MetsNs + "div")
-            .Should().Contain(d => (string?)d.Attribute("ID") == "PHYS_objects/some archive/scanned page.pdf");
+            .Should().Contain(d => (string?)d.Attribute("ID") == MetsIds.Phys(filePath));
 
         // The file FileType ADMID and AmdSec ID are consistent
         var fileEl = doc.Descendants(MetsNs + "file")
-            .Single(f => (string)f.Attribute("ID")! == "FILE_objects/some archive/scanned page.pdf");
-        fileEl.Attribute("ADMID")!.Value.Should().Be("ADM_objects/some archive/scanned page.pdf");
+            .Single(f => (string)f.Attribute("ID")! == MetsIds.File(filePath));
+        fileEl.Attribute("ADMID")!.Value.Should().Be(MetsIds.Adm(filePath));
         doc.Descendants(MetsNs + "amdSec")
-            .Should().Contain(a => (string?)a.Attribute("ID") == "ADM_objects/some archive/scanned page.pdf");
+            .Should().Contain(a => (string?)a.Attribute("ID") == MetsIds.Adm(filePath));
     }
 
     // -----------------------------------------------------------------------
@@ -374,11 +375,13 @@ public class MetsManagerPathTests
         file.Name.Should().Be("résumé.pdf");
         file.Digest.Should().Be(TestDigest);
 
-        // Raw XML: ID attributes contain the unescaped Unicode characters
+        // Raw XML: accented characters are valid NCName characters and pass through the ID
+        // encoding untouched — only the path separator is escaped.
         var doc = XDocument.Load(metsUri.LocalPath);
+        MetsIds.File("objects/résumé.pdf").Should().EndWith("résumé.pdf");
         doc.Descendants(MetsNs + "file")
-            .Should().Contain(f => (string)f.Attribute("ID")! == "FILE_objects/résumé.pdf");
+            .Should().Contain(f => (string)f.Attribute("ID")! == MetsIds.File("objects/résumé.pdf"));
         doc.Descendants(MetsNs + "amdSec")
-            .Should().Contain(a => (string?)a.Attribute("ID") == "ADM_objects/résumé.pdf");
+            .Should().Contain(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/résumé.pdf"));
     }
 }

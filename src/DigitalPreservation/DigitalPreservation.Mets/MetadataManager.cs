@@ -16,6 +16,16 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     {
         public required string FileAdmId { get; set; }
         public required string TechId { get; set; }
+
+        /// <summary>
+        /// ID for a virus-scan digiprovMD this run may need to create. Derived from the file's
+        /// PATH, not from <see cref="FileAdmId"/>: on a pre-issue-#188 document that resolves to
+        /// the legacy raw amdSec ID, and embedding it would mint a brand-new ID containing a
+        /// slash and a space - after step 2, from the code step 2 was supposed to have made
+        /// schema-valid. Nothing anywhere references a digiprovMD by ID (the readers find it
+        /// structurally, or by prefix), so there is no compatibility cost to choosing our own.
+        /// </summary>
+        public required string DigiprovId { get; set; }
         public AmdSecType? AmdSec { get; set; }
         public FileType? File { get; set; }
         public MetsTypeFileSecFileGrp? FileGroup { get; set; }
@@ -25,18 +35,24 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
     public Result ProcessAllFileMetadata(FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
-        var fileId = Constants.FileIdPrefix + operationPath;
-        var admId = Constants.AdmIdPrefix + operationPath;
-        var techId = Constants.TechIdPrefix + operationPath;
+        var idPart = operationPath.ToMetsId();
+        var fileId = Constants.FileIdPrefix + idPart;
+        var admId = Constants.AdmIdPrefix + idPart;
+        var techId = Constants.TechIdPrefix + idPart;
 
-        var ctx = new ProcessingContext { FileAdmId = admId, TechId = techId };
+        var ctx = new ProcessingContext
+        {
+            FileAdmId = admId,
+            TechId = techId,
+            DigiprovId = $"{Constants.VirusProvEventPrefix}{Constants.AdmIdPrefix}{idPart}"
+        };
 
         if (!newUpload)
         {
             // GetMetadataXml resolves the file's amdSec from its ADMID tokens and sets
             // ctx.AmdSec / ctx.FileAdmId from the resolved element - which handles legacy
-            // space-containing IDs, whose convention-derived form may not equal
-            // AdmIdPrefix + operationPath in a mixed-format METS.
+            // space-containing IDs, whose form may not equal the ID minted above in a
+            // mixed-format METS.
             var resultGetMetadataXml = GetMetadataXml(ctx, fullMets, div, operationPath);
 
             if (resultGetMetadataXml.Failure)
@@ -218,7 +234,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     {
         if (div == null) return;
         var fileId = div.Fptr[0].Fileid;
-        ctx.FileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+        ctx.FileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == Constants.ObjectsFileGrpUse);
         ctx.File = ctx.FileGroup.File.Single(f => f.Id == fileId);
     }
 
@@ -275,7 +291,7 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         {
             ctx.AmdSec.DigiprovMd.Add(new MdSecType
             {
-                Id = $"{Constants.VirusProvEventPrefix}{ctx.FileAdmId}",
+                Id = ctx.DigiprovId,
                 MdWrap = new MdSecTypeMdWrap
                 {
                     Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,

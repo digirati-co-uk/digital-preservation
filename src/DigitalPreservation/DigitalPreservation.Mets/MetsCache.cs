@@ -43,6 +43,10 @@ public static class MetsCache
         DigitalPreservation.XmlGen.Mets.Mets mets, Dictionary<string, DivType> cache)
     {
         var diagnostics = new List<string>();
+        // One ID index for the whole walk. Without it each div's resolution scans the fileSec
+        // (or the amdSecs) end to end, which makes building the cache quadratic in the size of
+        // the deposit - and the cache is built on every load.
+        var index = new MetsIdIndex(mets);
 
         // Tolerate malformed METS: never throw here, this runs on every load. Zero or many
         // PHYSICAL structMaps are diagnostics, not exceptions; with many, the first is used
@@ -66,7 +70,7 @@ public static class MetsCache
             return diagnostics;
         }
 
-        Walk(physRoot, mets, cache, diagnostics);
+        Walk(physRoot, mets, cache, diagnostics, index);
         return diagnostics;
     }
 
@@ -74,18 +78,19 @@ public static class MetsCache
         DivType div,
         DigitalPreservation.XmlGen.Mets.Mets mets,
         Dictionary<string, DivType> cache,
-        List<string> diagnostics)
+        List<string> diagnostics,
+        MetsIdIndex index)
     {
         foreach (var child in div.Div)
         {
-            var key = ResolvePath(child, mets, diagnostics);
+            var key = ResolvePath(child, mets, diagnostics, index);
             if (key != null && !cache.TryAdd(key, child))
             {
                 diagnostics.Add(
                     $"Divs '{cache[key].Id}' and '{child.Id}' {DuplicatePathFragment} '{key}'");
             }
 
-            Walk(child, mets, cache, diagnostics);
+            Walk(child, mets, cache, diagnostics, index);
         }
     }
 
@@ -96,12 +101,22 @@ public static class MetsCache
     /// divs by path rather than by reconstructed ID.
     /// </summary>
     public static string? TryResolvePath(DivType div, DigitalPreservation.XmlGen.Mets.Mets mets)
-        => ResolvePath(div, mets, null);
+        => ResolvePath(div, mets, null, null);
+
+    /// <summary>
+    /// As <see cref="TryResolvePath(DivType, DigitalPreservation.XmlGen.Mets.Mets)"/>, but reusing
+    /// a caller-built ID index. Use this when resolving several divs against the same document -
+    /// resolving each one independently rescans the fileSec every time.
+    /// </summary>
+    internal static string? TryResolvePath(
+        DivType div, DigitalPreservation.XmlGen.Mets.Mets mets, MetsIdIndex index)
+        => ResolvePath(div, mets, null, index);
 
     private static string? ResolvePath(
         DivType child,
         DigitalPreservation.XmlGen.Mets.Mets mets,
-        List<string>? diagnostics)
+        List<string>? diagnostics,
+        MetsIdIndex? index)
     {
         string? path = null;
         switch (child.Type)
@@ -113,7 +128,9 @@ public static class MetsCache
             {
                 // ADMID is an IDREFS token collection; IdRefs resolves both legacy
                 // space-containing IDs and genuine multi-references.
-                var amdSec = IdRefs.ResolveSingle(child.Admid, id => mets.AmdSec.FirstOrDefault(a => a.Id == id));
+                var amdSec = IdRefs.ResolveSingle(child.Admid, id => index != null
+                    ? index.AmdSecById(id)
+                    : mets.AmdSec.FirstOrDefault(a => a.Id == id));
                 path = ExtractPremisOriginalName(amdSec);
                 if (path == null)
                 {
@@ -128,9 +145,9 @@ public static class MetsCache
             case Constants.ItemType:
             {
                 var fileId = child.Fptr[0].Fileid;
-                var file = mets.FileSec?.FileGrp
-                    .SelectMany(fg => fg.File)
-                    .FirstOrDefault(f => f.Id == fileId);
+                var file = index != null
+                    ? index.FileById(fileId)
+                    : mets.FileSec?.FileGrp.SelectMany(fg => fg.File).FirstOrDefault(f => f.Id == fileId);
                 path = file?.FLocat.FirstOrDefault()?.Href;
                 if (path == null)
                 {

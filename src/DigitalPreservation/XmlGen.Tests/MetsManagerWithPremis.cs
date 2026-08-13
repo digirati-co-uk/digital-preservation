@@ -130,12 +130,12 @@ public class MetsManagerWithPremis
 
         // fileSec: file element has correct MIMETYPE
         var fileEl = xml.Descendants(MetsNs + "file")
-            .Single(f => (string?)f.Attribute("ID") == "FILE_objects/document.pdf");
+            .Single(f => (string?)f.Attribute("ID") == MetsIds.File("objects/document.pdf"));
         fileEl.Attribute("MIMETYPE")?.Value.Should().Be("application/pdf");
 
         // amdSec: has techMD with PREMIS, but no digiprovMD (no virus event)
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf");
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"));
         amdSec.Elements(MetsNs + "techMD").Should().HaveCount(1);
         amdSec.Elements(MetsNs + "digiprovMD").Should().BeEmpty();
 
@@ -195,7 +195,7 @@ public class MetsManagerWithPremis
         // --- Raw XML ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf");
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"));
         var premisObject = amdSec.Descendants(PremisNs + "object").Single();
 
         // Fixity
@@ -264,14 +264,12 @@ public class MetsManagerWithPremis
         // --- Raw XML: exactly one format element in PREMIS ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var premisObject = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"))
             .Descendants(PremisNs + "object").Single();
         premisObject.Descendants(PremisNs + "format").Should().HaveCount(1);
 
         // --- Also: only one amdSec for this file ---
-        xml.Descendants(MetsNs + "amdSec")
-            .Where(a => ((string?)a.Attribute("ID"))!.Contains("objects/document.pdf"))
-            .Should().HaveCount(1);
+        AssertSingleAmdSecFor(xml, "objects/document.pdf");
     }
 
     // -----------------------------------------------------------------------
@@ -319,7 +317,7 @@ public class MetsManagerWithPremis
         // --- Raw XML ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf");
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"));
 
         var digiprovMd = amdSec.Elements(MetsNs + "digiprovMD").Single();
         var premisEvent = digiprovMd.Descendants(PremisNs + "event").Single();
@@ -369,7 +367,7 @@ public class MetsManagerWithPremis
         // --- Raw XML ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var premisEvent = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/suspect.exe")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/suspect.exe"))
             .Descendants(MetsNs + "digiprovMD").Single()
             .Descendants(PremisNs + "event").Single();
 
@@ -439,7 +437,7 @@ public class MetsManagerWithPremis
         // --- Raw XML: ObjectCharacteristicsExtension contains ExifMetadata element ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var premisObject = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/photo.tif")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/photo.tif"))
             .Descendants(PremisNs + "object").Single();
 
         var exifEl = premisObject.Descendants("ExifMetadata").SingleOrDefault();
@@ -489,7 +487,7 @@ public class MetsManagerWithPremis
         // --- Raw XML: PREMIS significantProperties written for Duration and Bitrate ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var premisObject = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/recording.mp3")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/recording.mp3"))
             .Descendants(PremisNs + "object").Single();
 
         var sigProps = premisObject.Descendants(PremisNs + "significantProperties").ToList();
@@ -569,7 +567,7 @@ public class MetsManagerWithPremis
         // --- Raw XML: one techMD, one digiprovMD ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/photo.tif");
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/photo.tif"));
         amdSec.Elements(MetsNs + "techMD").Should().HaveCount(1);
         amdSec.Elements(MetsNs + "digiprovMD").Should().HaveCount(1);
     }
@@ -628,10 +626,21 @@ public class MetsManagerWithPremis
         ffm.PronomKey.Should().Be("fmt/276");
 
         // --- Raw XML: exactly one amdSec for this file (no duplicate created by overwrite) ---
-        var xml = XDocument.Load(metsUri.LocalPath);
+        AssertSingleAmdSecFor(XDocument.Load(metsUri.LocalPath), "objects/document.pdf");
+    }
+
+    /// <summary>
+    /// Exactly one amdSec describes the file at this path. Matched on the PREMIS originalName
+    /// inside the techMD, NOT on the amdSec's ID: the regression being guarded against is a
+    /// SECOND amdSec for the same file, and a duplicate minted under a different ID scheme
+    /// (a raw-path ID alongside an encoded one, in a mixed-format document) is invisible to an
+    /// ID-equality check — which is how this assertion was silently defanged once already.
+    /// </summary>
+    private static void AssertSingleAmdSecFor(XDocument xml, string localPath)
+    {
         xml.Descendants(MetsNs + "amdSec")
-            .Where(a => ((string?)a.Attribute("ID"))?.Contains("objects/document.pdf") == true)
-            .Should().HaveCount(1, "overwriting a file must not create a second amdSec");
+            .Where(amdSec => amdSec.Descendants(PremisNs + "originalName").Any(n => n.Value == localPath))
+            .Should().HaveCount(1, $"exactly one amdSec may describe '{localPath}'");
     }
 
     [Fact]
@@ -699,7 +708,7 @@ public class MetsManagerWithPremis
         // --- Raw XML: still exactly one digiprovMD (not two) ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf");
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"));
         amdSec.Elements(MetsNs + "digiprovMD").Should().HaveCount(1);
     }
 

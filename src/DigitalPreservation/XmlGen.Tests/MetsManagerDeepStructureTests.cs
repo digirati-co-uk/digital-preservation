@@ -548,8 +548,8 @@ public class MetsManagerDeepStructureTests
     // and that a matching amdSec element is present.
     private static void AssertDirectoryDiv(XDocument doc, string localPath, string expectedLabel)
     {
-        var physId = $"PHYS_{localPath}";
-        var admId  = $"ADM_{localPath}";
+        var physId = MetsIds.Phys(localPath);
+        var admId  = MetsIds.Adm(localPath);
 
         var divEl = doc.Descendants(MetsNs + "div")
             .FirstOrDefault(d => (string?)d.Attribute("ID") == physId);
@@ -567,9 +567,9 @@ public class MetsManagerDeepStructureTests
     // amdSec, and the matching structMap Div (with its fptr) are all consistent.
     private static void AssertFileElement(XDocument doc, string localPath)
     {
-        var fileId = $"FILE_{localPath}";
-        var admId  = $"ADM_{localPath}";
-        var physId = $"PHYS_{localPath}";
+        var fileId = MetsIds.File(localPath);
+        var admId  = MetsIds.Adm(localPath);
+        var physId = MetsIds.Phys(localPath);
 
         var fileEl = doc.Descendants(MetsNs + "file")
             .FirstOrDefault(f => (string?)f.Attribute("ID") == fileId);

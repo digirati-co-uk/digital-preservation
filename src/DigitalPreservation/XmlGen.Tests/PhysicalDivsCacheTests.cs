@@ -108,7 +108,7 @@ public class PhysicalDivsCacheTests
     private static System.Xml.XmlElement GetPremisOriginalNameElement(
         DigitalPreservation.XmlGen.Mets.Mets mets, string directoryPath)
     {
-        var amdSec = mets.AmdSec.Single(a => a.Id == $"{Constants.AdmIdPrefix}{directoryPath}");
+        var amdSec = mets.AmdSec.Single(a => a.Id == MetsIds.Adm(directoryPath));
         var premisXml = amdSec.TechMd[0].MdWrap.XmlData.Any[0];
         var elements = premisXml.GetElementsByTagName("originalName", "http://www.loc.gov/premis/v3");
         return (System.Xml.XmlElement)elements[0]!;
