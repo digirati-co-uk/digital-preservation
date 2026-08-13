@@ -255,17 +255,7 @@ public static class ModsManager
             }
             IdRefs.RemoveReference(div.Dmdid, dmd.Id);
 
-            // Sweep any sibling tokens that resolve nothing (the pre-existing Clear()
-            // behaviour, scoped): they are dangling, while a token still naming a real
-            // dmdSec keeps both its reference and its section.
-            for (var i = div.Dmdid.Count - 1; i >= 0; i--)
-            {
-                var token = div.Dmdid[i];
-                if (mets.DmdSec.All(d => d.Id != token))
-                {
-                    div.Dmdid.RemoveAt(i);
-                }
-            }
+            SweepDanglingDmdTokens(mets, div);
         }
         else
         {
@@ -274,6 +264,35 @@ public static class ModsManager
             div.Dmdid.Clear();
         }
         return true;
+    }
+
+    /// <summary>
+    /// Drop the DMDID tokens left over after a reference was removed that no longer name
+    /// anything, leaving any that still do.
+    /// </summary>
+    /// <remarks>
+    /// The tokens have to be judged the way <see cref="IdRefs"/> resolves them, not one at a
+    /// time against <c>dmdSec.Id</c>. A legacy space-containing dmdSec ID arrives from the
+    /// XmlSerializer as SEVERAL tokens, none of which equals any dmdSec ID on its own, so a
+    /// verbatim per-token test reads one live reference as several dangling ones and strips
+    /// it — silently costing the div its descriptive record while orphaning the section
+    /// (issue #217). So: if the joined form names a real dmdSec, the tokens are one reference
+    /// and all of them stay; only a genuine multi-token list is pruned token by token.
+    /// </remarks>
+    private static void SweepDanglingDmdTokens(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div)
+    {
+        if (div.Dmdid.Count > 1 && mets.DmdSec.Any(d => d.Id == IdRefs.Joined(div.Dmdid)))
+        {
+            return;
+        }
+
+        for (var i = div.Dmdid.Count - 1; i >= 0; i--)
+        {
+            if (mets.DmdSec.All(d => d.Id != div.Dmdid[i]))
+            {
+                div.Dmdid.RemoveAt(i);
+            }
+        }
     }
 
     /// <summary>
