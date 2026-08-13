@@ -216,11 +216,18 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         // IdRefs handles both; FileAdmId is then the RESOLVED amdSec's actual ID (identical
         // to the rejoined tokens for legacy content), so IDs derived from it - the ClamAV
         // digiprovMD ID - always embed a real amdSec ID.
-        var amdSec = IdRefs.ResolveSingle(ctx.File.Admid, id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id));
+        // The candidate must actually carry technical metadata. ADMID is a LIST and its order
+        // means nothing, so a file may name a shared rightsMD before the section holding its
+        // own techMD - the Archivematica shape. Accepting the first section that merely EXISTS
+        // would hand back the rights section, and the update would then write this file's
+        // PREMIS into it (or throw indexing TechMd[0]) - issue #215.
+        var amdSec = IdRefs.ResolveSingle(ctx.File.Admid,
+            id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id && a.TechMd.Count > 0));
         if (amdSec == null)
         {
             return Result.Fail(ErrorCodes.BadRequest,
-                $"No amdSec found for ADMID '{IdRefs.Joined(ctx.File.Admid)}' of file {operationPath}");
+                $"No amdSec carrying technical metadata found for ADMID " +
+                $"'{IdRefs.Joined(ctx.File.Admid)}' of file {operationPath}");
         }
         ctx.FileAdmId = amdSec.Id;
         ctx.AmdSec = amdSec;
@@ -322,9 +329,25 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
                 },
             };
         }
-        else
+        else if (ctx.AmdSec.TechMd.Count > 0)
         {
             ctx.AmdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
+        }
+        else
+        {
+            // Resolution only accepts an amdSec that already has a techMD, so this is
+            // unreachable today - but it used to throw here rather than degrade, and an
+            // unhandled index is a 500 on the upload path where everything else is a
+            // Result.Fail. Writing the techMD we were about to update is the repair.
+            ctx.AmdSec.TechMd.Add(new MdSecType
+            {
+                Id = ctx.TechId,
+                MdWrap = new MdSecTypeMdWrap
+                {
+                    Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
+                    XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } }
+                }
+            });
         }
     }
 }

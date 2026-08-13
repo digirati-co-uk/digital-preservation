@@ -127,10 +127,18 @@ public static class MetsCache
             case Constants.DirectoryType:
             {
                 // ADMID is an IDREFS token collection; IdRefs resolves both legacy
-                // space-containing IDs and genuine multi-references.
-                var amdSec = IdRefs.ResolveSingle(child.Admid, id => index != null
-                    ? index.AmdSecById(id)
-                    : mets.AmdSec.FirstOrDefault(a => a.Id == id));
+                // space-containing IDs and genuine multi-references. The candidate must
+                // actually carry an originalName: ADMID is a LIST whose order means nothing,
+                // so a directory may name a shared rightsMD before the section describing it,
+                // and stopping at the first section that merely EXISTS would leave the div with
+                // no path at all — taking every edit beneath it down with it (issue #215).
+                var amdSec = IdRefs.ResolveSingle(child.Admid, id =>
+                {
+                    var candidate = index != null
+                        ? index.AmdSecById(id)
+                        : mets.AmdSec.FirstOrDefault(a => a.Id == id);
+                    return ExtractPremisOriginalName(candidate) != null ? candidate : null;
+                });
                 path = ExtractPremisOriginalName(amdSec);
                 if (path == null)
                 {
