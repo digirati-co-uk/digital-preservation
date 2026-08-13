@@ -119,7 +119,7 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
         foreach (var binary in binaries)
         {
             var localPath = binary.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
-            if (MetsUtils.IsMetsFile(localPath!, true))
+            if (MetsUtils.IsMetsFile(localPath, true))
             {
                 continue;
             }

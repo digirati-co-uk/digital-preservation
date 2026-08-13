@@ -36,6 +36,9 @@ public static class StringUtils
     /// <param name="str"></param>
     /// <param name="start"></param>
     /// <returns></returns>
+    // Null in, null out - and never null otherwise, so callers starting from a non-null string
+    // keep a non-null one through a chain of RemoveStart calls.
+    [return: NotNullIfNotNull(nameof(str))]
     public static string? RemoveStart(this string? str, string start)
     {
         switch (str)
