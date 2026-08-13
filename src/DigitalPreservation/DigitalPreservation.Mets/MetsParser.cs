@@ -438,6 +438,18 @@ public class MetsParser(
                               ?? lookupMaps.AmdSecMap.GetValueOrDefault(id),
                         candidate => candidate.Descendants(XNames.PremisObject).Any());
 
+                    // The identity tier returns its match whether or not the caller can use it,
+                    // so that a broken reference fails loudly instead of resolving a fragment
+                    // of a legacy ID against something unrelated. That makes the recheck the
+                    // CALLER's job, here as at the other two sites. A section with no
+                    // premis:object holds none of what is read below - and worse, treating it
+                    // as this file's would scope the virus-scan lookup to it, which for a
+                    // SHARED rights section means reporting another file's scan as this one's.
+                    if (techMd?.Descendants(XNames.PremisObject).Any() != true)
+                    {
+                        techMd = null;
+                    }
+
                     if (techMd == null)
                     {
                         haveUsedAdmIdAlready = true;

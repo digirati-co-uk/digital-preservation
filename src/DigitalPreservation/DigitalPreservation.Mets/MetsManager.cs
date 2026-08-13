@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Xml;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;

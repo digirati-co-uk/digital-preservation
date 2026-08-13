@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
 using DigitalPreservation.XmlGen.Mets;
@@ -263,6 +264,53 @@ public class IdRefsCandidateSelectionTests
 
         update.Failure.Should().BeTrue("the section the file names has no PREMIS");
         update.ErrorMessage.Should().Contain("PREMIS");
+    }
+
+    [Fact]
+    public async Task The_Parser_Does_Not_Treat_An_Unusable_Identity_Match_As_The_File_S_Metadata()
+    {
+        // The other two call sites recheck what the identity tier hands back - MetadataManager
+        // explicitly, MetsCache implicitly (its path comes back null). The parser must too.
+        // A SINGLE-token ADMID naming a rights-only section is an identity match, so it is
+        // returned unusable by design; treating it as resolved scopes the virus-scan lookup to
+        // that section, and a shared rights section carries someone else's scan.
+        const string path = "objects/report.pdf";
+        var (uri, fullMets) = await CreateWithOneFile("candidate-parser-identity-recheck.xml", path);
+
+        var file = fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Single(f => f.Admid.Count > 0);
+        var shared = RightsOnlyAmdSec("ADM_shared_rights");
+        // Another FILE's scan, parked in the shared section - note the ID names that other
+        // file, not this one, so it is discoverable only by scoping the search to this section.
+        shared.DigiprovMd.Add(new MdSecType
+        {
+            Id = Constants.VirusProvEventPrefix + MetsIds.Adm("objects/some-other-file.pdf"),
+            MdWrap = new MdSecTypeMdWrap
+            {
+                Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
+                XmlData = new MdSecTypeMdWrapXmlData
+                {
+                    Any = { PremisEventManagerVirus.GetXmlElement(
+                        new PremisEventManagerVirus().Create(new VirusScanMetadata
+                        {
+                            Source = "ClamAV", HasVirus = true,
+                            VirusFound = "Someone-Elses-Virus", VirusDefinition = "defs-x"
+                        })) }
+                }
+            }
+        });
+        fullMets.Mets.AmdSec.Add(shared);
+        // The file names ONLY that section - a single token, so the identity tier returns it.
+        file.Admid.Clear();
+        file.Admid.Add("ADM_shared_rights");
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        var parsed = await parser.GetMetsFileWrapper(uri);
+        parsed.Success.Should().BeTrue(parsed.ErrorMessage ?? "");
+        var workingFile = parsed.Value!.Files.Single(f => f.LocalPath == path);
+
+        workingFile.Metadata.OfType<VirusScanMetadata>().Should().BeEmpty(
+            "a shared rights section's scan is not this file's");
+        workingFile.Digest.Should().BeNull("the section it names carries no PREMIS");
     }
 
     [Fact]
