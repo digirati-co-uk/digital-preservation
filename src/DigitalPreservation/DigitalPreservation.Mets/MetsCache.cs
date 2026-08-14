@@ -31,7 +31,6 @@ public static class MetsCache
         var diagnostics = Build(fullMets.Mets, fullMets.PhysicalDivsByPath);
         fullMets.PathDiagnostics.Clear();
         fullMets.PathDiagnostics.AddRange(diagnostics);
-        fullMets.HasDuplicatePaths = diagnostics.Any(d => d.Contains(DuplicatePathFragment));
         return diagnostics;
     }
 
@@ -132,26 +131,22 @@ public static class MetsCache
                 // so a directory may name a shared rightsMD before the section describing it,
                 // and stopping at the first section that merely EXISTS would leave the div with
                 // no path at all — taking every edit beneath it down with it (issue #215).
-                // The name of the last candidate tested, so the winner isn't parsed twice: this
+                // Resolve, then take the first candidate that yields a name - stopping there, so
+                // nothing is parsed twice and nothing beyond the winner is parsed at all. This
                 // runs for every directory div on every cache build.
-                AmdSecType? lastTested = null;
-                string? lastTestedName = null;
-
-                var amdSec = IdRefs.ResolveSingle(
-                    child.Admid,
-                    id => index != null
-                        ? index.AmdSecById(id)
-                        : mets.AmdSec.FirstOrDefault(a => a.Id == id),
-                    candidate =>
+                foreach (var candidate in IdRefs.ResolveAll(
+                             child.Admid,
+                             id => index != null
+                                 ? index.AmdSecById(id)
+                                 : mets.AmdSec.FirstOrDefault(a => a.Id == id)))
+                {
+                    path = ExtractPremisOriginalName(candidate);
+                    if (path != null)
                     {
-                        lastTested = candidate;
-                        lastTestedName = ExtractPremisOriginalName(candidate);
-                        return lastTestedName != null;
-                    });
+                        break;
+                    }
+                }
 
-                path = ReferenceEquals(amdSec, lastTested)
-                    ? lastTestedName
-                    : ExtractPremisOriginalName(amdSec);
                 if (path == null)
                 {
                     diagnostics?.Add(

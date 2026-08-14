@@ -13,7 +13,7 @@ public class PremisEventManagerVirus
         {
             EventType = new StringPlusAuthority
             {
-                Value = "virus check"
+                Value = Constants.VirusCheckEventType
             },
             EventDateTime = DateTime.Now.ToLongDateString()
         };

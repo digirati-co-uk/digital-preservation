@@ -30,6 +30,13 @@ public static class Constants
     public const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
 
     /// <summary>
+    /// The premis:eventType we write for a virus scan, and how a scan event is recognised again on
+    /// the way back in. The writer mints it and the reader matches it, so it lives here rather than
+    /// on either side - the same reason as <see cref="NumberedVirusProvEventId"/>.
+    /// </summary>
+    public const string VirusCheckEventType = "virus check";
+
+    /// <summary>
     /// The ID of the Nth virus-scan event for one file, for N greater than 1 — scans accumulate
     /// as separate events and each needs a unique xs:ID.
     /// </summary>
