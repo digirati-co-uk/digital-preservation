@@ -2,6 +2,7 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Xml.Serialization;
 using DigitalPreservation.Mets;
+using FluentAssertions;
 using Xunit.Abstractions;
 
 namespace XmlGen.Tests.Experimental.Parsing;
@@ -43,6 +44,11 @@ public class SurveyMetsCorpus(ITestOutputHelper output)
             }
         }
 
+        // The one thing a survey can assert: if a corpus was pointed at, it was read. An empty
+        // result otherwise looks exactly like a corpus in which nothing was worth reporting,
+        // when in fact it usually means the path is wrong or holds no METS.
+        verdicts.Should().NotBeEmpty($"{PathVariable} ('{root}') should hold METS files to survey");
+
         output.WriteLine("");
         output.WriteLine($"=== {verdicts.Count} document(s) ===");
         foreach (var group in verdicts.GroupBy(v => v).OrderByDescending(g => g.Count()))
@@ -56,7 +62,7 @@ public class SurveyMetsCorpus(ITestOutputHelper output)
     /// <c>mets-objects</c> element, and a document we cannot deserialise is reported rather than
     /// thrown - a survey that stops at the first unreadable file surveys nothing.
     /// </summary>
-    private IEnumerable<(DigitalPreservation.XmlGen.Mets.Mets? Mets, string Label)> ReadMetsDocuments(string file)
+    private static IEnumerable<(DigitalPreservation.XmlGen.Mets.Mets? Mets, string Label)> ReadMetsDocuments(string file)
     {
         var name = Path.GetFileName(file);
         XDocument? document = null;
