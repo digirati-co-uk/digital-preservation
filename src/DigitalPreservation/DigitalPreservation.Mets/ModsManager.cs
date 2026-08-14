@@ -172,16 +172,8 @@ public static class ModsManager
     {
         if (div.Dmdid.Count == 0 && createDmd)
         {
-            // There is no DMDID on this div, so one is minted. A path gives a stable, meaningful
-            // ID. Failing that the div's own ID is used as a stem - which is not the same as
-            // reading meaning out of it: the whole ID is carried through, nothing is parsed from
-            // it. It is encoded on the way, so a legacy div whose ID contains a slash or a space
-            // yields a VALID new dmdSec ID rather than a second invalid one; encoding is a no-op
-            // for the NCName-validated IDs a client supplies for logical ranges.
-            var dmdId = localPath != null
-                ? MetsIds.Dmd(localPath)
-                : div.Id.HasText() ? Constants.DmdIdPrefix + div.Id.ToMetsId() : UnusedDmdId(mets);
-            div.Dmdid.Add(dmdId);
+            // There is no DMDID on this div
+            div.Dmdid.Add(MintDmdId(mets, div, localPath));
         }
         // Resolve the DMDID tokens to the actual dmdSec where one exists; the id used for
         // lazy creation is the joined legacy form only when no dmdSec resolves (see IdRefs).
@@ -190,6 +182,26 @@ public static class ModsManager
     }
 
     
+    /// <summary>
+    /// A dmdSec ID for a div that has no DMDID yet.
+    /// </summary>
+    /// <remarks>
+    /// A path gives a stable, meaningful ID. Failing that the div's own ID is used as a stem,
+    /// which is not the same as reading meaning out of it: the whole ID is carried through and
+    /// nothing is parsed from it. It is encoded on the way, so a legacy div whose ID contains a
+    /// slash or a space yields a VALID new dmdSec ID rather than a second invalid one - encoding
+    /// is a no-op for the NCName-validated IDs a client supplies for logical ranges.
+    /// </remarks>
+    private static string MintDmdId(
+        DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, string? localPath)
+    {
+        if (localPath != null)
+        {
+            return MetsIds.Dmd(localPath);
+        }
+        return div.Id.HasText() ? Constants.DmdIdPrefix + div.Id.ToMetsId() : UnusedDmdId(mets);
+    }
+
     /// <summary>
     /// A dmdSec ID for a div that offers nothing to derive one from: a logical div with no ID
     /// of its own, which third-party structMaps use freely and which the parser reports as an
