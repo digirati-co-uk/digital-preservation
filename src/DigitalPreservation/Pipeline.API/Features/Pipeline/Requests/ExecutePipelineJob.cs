@@ -133,7 +133,24 @@ public class ProcessPipelineJobHandler(
 
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
-        await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
+        // Claiming the job IS the start: Preservation API moves it out of "waiting" only once, and a
+        // Conflict means someone else already did. SQS is at-least-once, so the same start message can
+        // be delivered more than once for one job; running it again would re-scan the deposit and
+        // append a second virus-scan provenance event for a scan that only ever happened once (#221).
+        // Any other failure is treated as it was before - it is far more likely to be a transient
+        // problem reaching Preservation API than a duplicate, and refusing to run on that basis would
+        // silently strand a job that nothing will retry.
+        var claim = await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
+        if (claim.ErrorCode == ErrorCodes.Conflict)
+        {
+            logger.LogWarning(
+                "Abandoning pipeline job {JobIdentifier} for deposit {DepositId}: it is not waiting to be run, " +
+                "so this is a repeat delivery. {Error}",
+                request.JobIdentifier, request.DepositId, claim.ErrorMessage);
+
+            return Result.FailNotNull<Result>(ErrorCodes.Conflict,
+                $"Pipeline job {request.JobIdentifier} for deposit {request.DepositId} has already been started.");
+        }
 
         var workspaceResult = await GetWorkspaceManager(request, true, cancellationToken);
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)

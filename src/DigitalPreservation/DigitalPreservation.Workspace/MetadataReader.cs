@@ -168,8 +168,19 @@ public class MetadataReader : IMetadataReader
 
         var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
 
+        // When the scan actually ran, not when we happened to read its output. A virus scan becomes a
+        // PREMIS event, and an event's date is the date of the event - so it has to survive being read
+        // again later, or a redelivered pipeline job produces two events that look like two scans
+        // (issue #221). The ClamAV log is written by the scan itself, so its last-modified time is the
+        // closest thing to a scan time we have without changing Brunnhilde's output.
+        var virusScanTimestamp = timestamp;
+        if (brunnhildeAVResult is { Success: true } && brunnhildeAVResult.Value.LastModified != default)
+        {
+            virusScanTimestamp = brunnhildeAVResult.Value.LastModified;
+        }
+
         if (brunnhildeAVResult.Success)
-            AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
+            AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", virusScanTimestamp, virusDefinition);
 
         exifMetadataList = await GetExifOutputForAllFiles();
 
