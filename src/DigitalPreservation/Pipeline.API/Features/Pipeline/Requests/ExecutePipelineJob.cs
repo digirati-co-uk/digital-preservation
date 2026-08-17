@@ -138,8 +138,10 @@ public class ProcessPipelineJobHandler(
         // be delivered more than once for one job; running it again would re-scan the deposit and
         // append a second virus-scan provenance event for a scan that only ever happened once (#221).
         // Any other failure is treated as it was before - it is far more likely to be a transient
-        // problem reaching Preservation API than a duplicate, and refusing to run on that basis would
-        // silently strand a job that nothing will retry.
+        // problem reaching Preservation API than a duplicate, and there is no retry to fall back on:
+        // SqsPipelineQueue.DequeueRequest deletes the message the moment it reads it, before we get
+        // here, so a job abandoned on a transient error is abandoned for good. Bailing out on
+        // anything short of a definite duplicate would silently strand it.
         var claim = await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
         if (claim.ErrorCode == ErrorCodes.Conflict)
         {
