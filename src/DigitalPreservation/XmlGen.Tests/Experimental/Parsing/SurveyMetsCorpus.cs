@@ -187,7 +187,9 @@ public class SurveyMetsCorpus(ITestOutputHelper output)
         if (diagnostic.Contains("has no ADMID")) return "directory div has no ADMID";
         if (diagnostic.Contains("has no fptr")) return "item div has no fptr";
         if (diagnostic.Contains("no FLocat href")) return "item div's FILEID resolves to no FLocat href";
-        if (diagnostic.Contains("already", StringComparison.OrdinalIgnoreCase)) return "two divs claim one path";
+        // Matched via the constant, not a copy of the wording: this bucket was dead for exactly that
+        // reason, looking for an "already" that the diagnostic has never said.
+        if (diagnostic.Contains(MetsCache.DuplicatePathFragment)) return "two divs claim one path";
         return diagnostic;
     }
 

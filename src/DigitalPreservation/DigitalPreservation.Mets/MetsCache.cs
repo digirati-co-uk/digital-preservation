@@ -18,13 +18,24 @@ namespace DigitalPreservation.Mets;
 public static class MetsCache
 {
     /// <summary>
+    /// The invariant part of the diagnostic reported when two divs resolve to one path. The rest of
+    /// that message names the two divs, so this is the only part of it anything can match on.
+    /// </summary>
+    /// <remarks>
+    /// Public because recognising this diagnostic is not just an internal concern: a caller looking
+    /// at <see cref="FullMets.PathDiagnostics"/> can tell a collision from the other six shapes only
+    /// by this text. Sharing the constant is the point - a matcher written against a copy of the
+    /// wording silently stops matching the first time the wording changes, which is precisely how
+    /// the corpus survey's collision bucket came to be dead code.
+    /// </remarks>
+    public const string DuplicatePathFragment = "both resolve to path";
+
+    /// <summary>
     /// Rebuild the path cache from the current state of the METS. Returns diagnostics for any
     /// div whose path could not be resolved, or that collided with another div's path; an empty
     /// list means the whole physical structMap is navigable by path. The diagnostics are also
     /// stored on <see cref="FullMets.PathDiagnostics"/> so later failures can explain themselves.
     /// </summary>
-    internal const string DuplicatePathFragment = "both resolve to path";
-
     public static List<string> Populate(FullMets fullMets)
     {
         fullMets.PhysicalDivsByPath.Clear();
