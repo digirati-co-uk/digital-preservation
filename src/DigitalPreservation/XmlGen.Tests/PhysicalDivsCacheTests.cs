@@ -1,12 +1,15 @@
+using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
+using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Storage.Repository.Common.Mets;
 
 namespace XmlGen.Tests;
 
@@ -21,6 +24,7 @@ public class PhysicalDivsCacheTests
 {
     private readonly MetsManager metsManager;
     private readonly FileSystemMetsStorage metsStorage;
+    private readonly MetsFromArchivalGroup metsFromArchivalGroup;
 
     private const string TestDigest = "eb634d64ce8e6be5195174ceaef9ac9e19c37119f3b31618630aa633ccdbf68f";
 
@@ -40,6 +44,7 @@ public class PhysicalDivsCacheTests
         var premisEventManager = new PremisEventManagerVirus();
         var metadataManager = new MetadataManager(premisManager, premisManagerExif, premisEventManager);
         metsManager = new MetsManager(parser, metsStorage, metadataManager);
+        metsFromArchivalGroup = new MetsFromArchivalGroup(metsManager, parser, metadataManager);
     }
 
     // -----------------------------------------------------------------------
@@ -731,5 +736,93 @@ public class PhysicalDivsCacheTests
         fullMets.PhysicalDivsByPath.Keys.Should().NotContain(
             ["objects/my folder", "objects/my folder/my document.pdf"]);
         AssertCacheMatchesRebuild(fullMets);
+    }
+
+    // -----------------------------------------------------------------------
+    // METS built from an Archival Group, rather than by MetsManager mutation
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// A METS that MetsFromArchivalGroup builds must be navigable by path, exactly as one built
+    /// by MetsManager must be — the whole of #188 step 1 rests on it.
+    /// </summary>
+    /// <remarks>
+    /// This was previously checked only by <c>MetsFromArchivalGroup.AssertNavigable</c>, which is
+    /// <c>[Conditional("DEBUG")]</c>, while the CI job that gates merges builds Release (issue
+    /// #222). Breaking navigability here — by dropping the <c>premis:originalName</c> that
+    /// directory divs resolve through — failed 8 tests in Debug and 1 in Release, and that 1 was
+    /// an incidental catch in a delete test. Notably
+    /// <c>MetsIdIntegrityTests.A_Mets_Built_From_An_Archival_Group_Has_Valid_Unique_Resolvable_Ids</c>
+    /// passed: IDs stay valid and unique when paths stop resolving, so the ID gate says nothing
+    /// about navigability. This test is the coverage, and it does not depend on build configuration.
+    /// </remarks>
+    [Fact]
+    public async Task A_Mets_Built_From_An_Archival_Group_Is_Fully_Navigable_By_Path()
+    {
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(
+            await File.ReadAllTextAsync(new FileInfo("Samples/archivalGroup.json").FullName))!;
+
+        var metsUri = OutputUri("cache-archival-group-export.xml");
+        var created = await metsFromArchivalGroup.CreateStandardMets(metsUri, archivalGroup, "Cache AG Export");
+        created.Success.Should().BeTrue(created.ErrorMessage ?? "");
+
+        // Load it back the way anything reading this METS would, which is what populates the cache.
+        var loaded = await metsManager.GetFullMets(metsUri, created.Value!.ETag);
+        loaded.Success.Should().BeTrue(loaded.ErrorMessage ?? "");
+        var fullMets = loaded.Value!;
+
+        fullMets.PathDiagnostics.Should().BeEmpty(
+            "every div in an exported Archival Group must resolve to a path");
+
+        // Every container and binary the Archival Group holds, by its deposit-relative path.
+        // Derived from the Archival Group itself rather than listed here, so the test cannot
+        // drift from the fixture, and so it states the contract independently of the code that
+        // builds the structMap.
+        var expected = DepositPathsIn(archivalGroup);
+        expected.Should().HaveCountGreaterThan(5, "the fixture is meant to be a nested structure");
+        fullMets.PhysicalDivsByPath.Keys.Should().Contain(expected);
+
+        // The nested case spelled out, because that is where a path-building bug shows first.
+        fullMets.PhysicalDivsByPath.Keys.Should().Contain(
+            "objects/folder-b/folder-bb/minutes-laqm-22-april-2020.pdf");
+    }
+
+    /// <summary>
+    /// Paths of everything in an Archival Group, relative to the group's own root — except the
+    /// METS file itself, which does not appear in its own structMap.
+    /// </summary>
+    /// <remarks>
+    /// The exclusion is deliberately the same expression <c>MetsFromArchivalGroup.AddBinariesToMets</c>
+    /// uses to decide what to leave out — the deposit-relative path, matched exactly. The looser
+    /// name-only form agrees with it on today's fixture, where the METS sits at the root and is
+    /// called <c>mets.xml</c>, but the two come apart the moment that stops being true: a binary
+    /// named <c>old-mets-backup.xml</c> would be dropped from the expected set while production
+    /// still put it in the structMap, and a METS in a subdirectory would be the reverse. Both
+    /// divergences make this test cover less while still passing, which is the failure mode a
+    /// derived expectation exists to avoid.
+    /// </remarks>
+    private static List<string> DepositPathsIn(ArchivalGroup archivalGroup)
+    {
+        var root = archivalGroup.Id!.LocalPath;
+        var paths = new List<string>();
+
+        void Collect(Container container)
+        {
+            foreach (var binary in container.Binaries)
+            {
+                if (MetsUtils.IsMetsFile(Relative(binary.Id!), true)) continue;
+                paths.Add(Relative(binary.Id!));
+            }
+            foreach (var child in container.Containers)
+            {
+                paths.Add(Relative(child.Id!));
+                Collect(child);
+            }
+        }
+
+        string Relative(Uri id) => id.LocalPath.RemoveStart(root).RemoveStart("/");
+
+        Collect(archivalGroup);
+        return paths.Where(path => path.HasText()).ToList();
     }
 }

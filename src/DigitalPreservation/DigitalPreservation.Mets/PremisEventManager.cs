@@ -15,7 +15,7 @@ public class PremisEventManagerVirus
             {
                 Value = Constants.VirusCheckEventType
             },
-            EventDateTime = DateTime.Now.ToLongDateString()
+            EventDateTime = EventDateTimeFor(virusScanMetadata)
         };
 
         var eventDetailInformationComplexType = new EventDetailInformationComplexType
@@ -41,6 +41,28 @@ public class PremisEventManagerVirus
         return eventComplexType;
     }
 
+    /// <summary>
+    /// When the scan ran, as an ISO 8601 UTC instant.
+    /// </summary>
+    /// <remarks>
+    /// This used to be <c>DateTime.Now.ToLongDateString()</c>: the time the METS was written rather
+    /// than the time of the event, to a day's precision, in whatever format the host's culture
+    /// happened to produce ("16 June 2026"). Since scans accumulate as separate events (#219),
+    /// eventDateTime is what puts them in order and what distinguishes a genuine re-scan from the
+    /// same scan recorded twice, so it has to be precise, machine-readable, and about the scan.
+    /// </remarks>
+    private static string EventDateTimeFor(VirusScanMetadata virusScanMetadata)
+    {
+        // Metadata.Timestamp carries the scan's own time (the ClamAV log's last-modified time - see
+        // MetadataReader). Fall back to now only when we genuinely have nothing better, rather than
+        // writing a default DateTime and claiming the scan happened in the year 1.
+        var scanned = virusScanMetadata.Timestamp == default
+            ? DateTime.UtcNow
+            : virusScanMetadata.Timestamp;
+
+        return XmlConvert.ToString(scanned.ToUniversalTime(), XmlDateTimeSerializationMode.Utc);
+    }
+
     public static string Serialise(EventComplexType eventComplexType)
     {
         var serializer = new XmlSerializer(typeof(EventComplexType));
@@ -64,7 +86,7 @@ public class PremisEventManagerVirus
     private static XmlSerializerNamespaces GetXmlSerializerNameSpaces()
     {
         var namespaces = new XmlSerializerNamespaces();
-        namespaces.Add("premis", "http://www.loc.gov/premis/v3");
+        namespaces.Add("premis", Constants.PremisNamespace);
         namespaces.Add("version", "3.0");
 
         return namespaces;

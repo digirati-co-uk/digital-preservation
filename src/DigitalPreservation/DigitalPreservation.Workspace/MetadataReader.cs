@@ -38,6 +38,33 @@ public class MetadataReader : IMetadataReader
         workingRootUri = rootUri;
     }
 
+    /// <summary>
+    /// Nothing in S3 predates S3. A last-modified time below this did not come from a stored object,
+    /// so it is an absent value wearing a date.
+    /// </summary>
+    private static readonly DateTime EarliestPlausibleScanTime = new(2006, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>
+    /// A scan time we are willing to write, or <c>default</c> when we do not have one.
+    /// </summary>
+    /// <remarks>
+    /// The tempting fallback - the time we happened to read the output - is worse than no value at
+    /// all. It changes on every read, so a redelivered job would mint a fresh eventDateTime each
+    /// time and <c>MetadataManager.AlreadyRecorded</c> would never match, silently restoring the
+    /// duplicate events this exists to prevent (issue #221), with nothing failing to say so.
+    /// Returning <c>default</c> routes that case to the writer's explicit "no scan time" branch,
+    /// which prefers a duplicated event to an unrecorded scan - the same outcome, but as a decision
+    /// taken in the open rather than one arrived at by accident.
+    /// <para>
+    /// Tested by plausibility rather than <c>!= default</c> because <see cref="IStorage.GetStream"/>
+    /// normalises with <c>ToUniversalTime()</c>, and on a host west of UTC that shifts an unset
+    /// <see cref="DateTime"/> to 0001-01-01T05:00 - meaningless as a date, but no longer equal to
+    /// <c>default</c>.
+    /// </para>
+    /// </remarks>
+    private static DateTime ScanTimeFrom(DateTime lastModified)
+        => lastModified > EarliestPlausibleScanTime ? lastModified : default;
+
     private async Task FindMetadata()
     {
         var timestamp = DateTime.UtcNow;
@@ -168,8 +195,17 @@ public class MetadataReader : IMetadataReader
 
         var brunnhildeFiles = brunnhildeSiegfriedOutput is { Files.Count: > 0 } ? brunnhildeSiegfriedOutput.Files : [];
 
+        // When the scan actually ran, not when we happened to read its output. A virus scan becomes a
+        // PREMIS event, and an event's date is the date of the event - so it has to survive being read
+        // again later, or a redelivered pipeline job produces two events that look like two scans
+        // (issue #221). The ClamAV log is written by the scan itself, so its last-modified time is the
+        // closest thing to a scan time we have without changing Brunnhilde's output.
+        var virusScanTimestamp = ScanTimeFrom(brunnhildeAVResult.Success
+            ? brunnhildeAVResult.Value.LastModified
+            : default);
+
         if (brunnhildeAVResult.Success)
-            AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", timestamp, virusDefinition);
+            AddVirusScanMetadata(brunnhildeFiles, brunnhildeCommonPrefix, brunnhildeSiegfriedCommonParent, "ClamAv", virusScanTimestamp, virusDefinition);
 
         exifMetadataList = await GetExifOutputForAllFiles();
 

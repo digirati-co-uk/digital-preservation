@@ -192,7 +192,57 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
         if (ctx.AmdSec == null) return;
 
+        // A scan is an event, and one event is recorded once. Reading the same unchanged ClamAV
+        // output a second time - which happens whenever this file is put through the METS writer
+        // again while the last run's output is still sitting in the deposit - is not a second scan
+        // (issue #221). Two scans of the same file cannot share an instant, so the scan's own time
+        // is what tells them apart; a genuine re-scan writes a later one and is appended normally.
+        if (AlreadyRecorded(ctx, virusScan))
+        {
+            return;
+        }
+
         AppendVirusEvent(ctx);
+    }
+
+    /// <summary>
+    /// Whether this exact scan is already in the amdSec, matched on the event's date. Only events we
+    /// recognise as virus checks are considered; anything else present - earlier scans, provenance
+    /// from tools we know nothing about - is neither read for meaning nor disturbed.
+    /// </summary>
+    private static bool AlreadyRecorded(ProcessingContext ctx, VirusScanMetadata virusScan)
+    {
+        if (virusScan.Timestamp == default)
+        {
+            // Metadata from a source that does not say when it scanned. Nothing here can tell that
+            // apart from a re-scan, and a duplicated event is a much smaller problem than a scan
+            // that went unrecorded, so record it.
+            return false;
+        }
+
+        var scannedAt = EventDateTime(ctx.VirusXml);
+        if (scannedAt is null)
+        {
+            return false;
+        }
+
+        return ctx.AmdSec!.DigiprovMd
+            .Select(digiprovMd => digiprovMd.MdWrap?.XmlData?.Any.FirstOrDefault())
+            .OfType<XmlElement>()
+            .Where(IsVirusCheck)
+            .Any(existing => EventDateTime(existing) == scannedAt);
+    }
+
+    private static bool IsVirusCheck(XmlElement premisEvent) =>
+        ChildValue(premisEvent, "eventType") == Constants.VirusCheckEventType;
+
+    private static string? EventDateTime(XmlElement? premisEvent) =>
+        premisEvent is null ? null : ChildValue(premisEvent, "eventDateTime");
+
+    private static string? ChildValue(XmlElement premisEvent, string localName)
+    {
+        var elements = premisEvent.GetElementsByTagName(localName, Constants.PremisNamespace);
+        return elements.Count == 0 ? null : elements[0]?.InnerText.Trim();
     }
 
     private static Result GetMetadataXml(ProcessingContext ctx, FullMets fullMets, DivType? div, string operationPath)
@@ -250,10 +300,8 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     private static bool CarriesPremisObject(AmdSecType amdSec) =>
         amdSec.TechMd.Any(techMd =>
             techMd.MdWrap?.XmlData?.Any?.FirstOrDefault() is XmlElement element &&
-            (element.LocalName == "object" && element.NamespaceURI == PremisNamespace ||
-             element.GetElementsByTagName("object", PremisNamespace).Count > 0));
-
-    private const string PremisNamespace = "http://www.loc.gov/premis/v3";
+            (element.LocalName == "object" && element.NamespaceURI == Constants.PremisNamespace ||
+             element.GetElementsByTagName("object", Constants.PremisNamespace).Count > 0));
 
     private static void SetFileAndFileGroup(ProcessingContext ctx, DivType? div, FullMets fullMets)
     {

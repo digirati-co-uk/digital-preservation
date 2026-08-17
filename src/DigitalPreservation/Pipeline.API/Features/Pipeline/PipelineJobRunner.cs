@@ -1,4 +1,5 @@
-﻿using MediatR;
+﻿using DigitalPreservation.Common.Model;
+using MediatR;
 using Pipeline.API.Features.Pipeline.Requests;
 
 namespace Pipeline.API.Features.Pipeline;
@@ -30,6 +31,17 @@ public class PipelineJobRunner(
                 logger.LogInformation("Successfully sent execute pipeline job for the deposit {DepositId} and job id {JobId} ", depositId, jobId);
                 return;
 
+            }
+
+            if (executeResult.ErrorCode == ErrorCodes.Conflict)
+            {
+                // A duplicate SQS delivery that lost the race to claim the job (#221). The handler
+                // abandoned it deliberately and correctly; that is not an error, and logging it as
+                // one puts routine at-least-once behaviour into whatever watches the error rate.
+                logger.LogInformation(
+                    "Abandoned duplicate delivery of pipeline job for the deposit {DepositId} and job id {JobId}: {ErrorMessage}",
+                    depositId, jobId, executeResult.ErrorMessage);
+                return;
             }
 
             logger.LogError("Could not successfully send execute pipeline job for the deposit {DepositId} and job id {JobId} because of {ErrorMessage}", depositId, jobId, executeResult.ErrorMessage);

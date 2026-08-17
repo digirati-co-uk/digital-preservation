@@ -32,9 +32,20 @@ public static class Constants
     /// <summary>
     /// The premis:eventType we write for a virus scan, and how a scan event is recognised again on
     /// the way back in. The writer mints it and the reader matches it, so it lives here rather than
-    /// on either side - the same reason as <see cref="NumberedVirusProvEventId"/>.
+    /// on either side - the same reason as <see cref="NumberedVirusProvEventId"/>. Two readers want
+    /// different things from it: MetadataManager asks whether THIS scan is already recorded before
+    /// appending another (#221), and MetsParser asks which event carries a file's current virus
+    /// status - including events we did not write, since a scan is recognised by what it says it is
+    /// rather than by how its ID is spelt.
     /// </summary>
     public const string VirusCheckEventType = "virus check";
+
+    /// <summary>
+    /// The PREMIS v3 namespace, and the only place in this library it is spelled out. A version
+    /// change is a change to what we write and what we recognise, so it should be one edit rather
+    /// than a search.
+    /// </summary>
+    public const string PremisNamespace = "http://www.loc.gov/premis/v3";
 
     /// <summary>
     /// The ID of the Nth virus-scan event for one file, for N greater than 1 — scans accumulate
