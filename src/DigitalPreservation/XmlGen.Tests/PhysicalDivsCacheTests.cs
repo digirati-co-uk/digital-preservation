@@ -791,6 +791,16 @@ public class PhysicalDivsCacheTests
     /// Paths of everything in an Archival Group, relative to the group's own root — except the
     /// METS file itself, which does not appear in its own structMap.
     /// </summary>
+    /// <remarks>
+    /// The exclusion is deliberately the same expression <c>MetsFromArchivalGroup.AddBinariesToMets</c>
+    /// uses to decide what to leave out — the deposit-relative path, matched exactly. The looser
+    /// name-only form agrees with it on today's fixture, where the METS sits at the root and is
+    /// called <c>mets.xml</c>, but the two come apart the moment that stops being true: a binary
+    /// named <c>old-mets-backup.xml</c> would be dropped from the expected set while production
+    /// still put it in the structMap, and a METS in a subdirectory would be the reverse. Both
+    /// divergences make this test cover less while still passing, which is the failure mode a
+    /// derived expectation exists to avoid.
+    /// </remarks>
     private static List<string> DepositPathsIn(ArchivalGroup archivalGroup)
     {
         var root = archivalGroup.Id!.LocalPath;
@@ -800,7 +810,7 @@ public class PhysicalDivsCacheTests
         {
             foreach (var binary in container.Binaries)
             {
-                if (MetsUtils.IsMetsFile(binary.Name ?? "")) continue;
+                if (MetsUtils.IsMetsFile(Relative(binary.Id!), true)) continue;
                 paths.Add(Relative(binary.Id!));
             }
             foreach (var child in container.Containers)
