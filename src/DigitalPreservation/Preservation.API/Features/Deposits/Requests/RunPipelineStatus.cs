@@ -29,9 +29,6 @@ public class RunPipelineStatusHandler(
         {
             return Result.Fail(ErrorCodes.NotFound, "No deposit for deposit id " + request.PipelineDeposit.DepositId);
         }
-        var entity = await dbContext.PipelineRunJobs.SingleAsync(
-            d => d.Deposit == request.PipelineDeposit.DepositId && d.Id == request.PipelineDeposit.Id, cancellationToken);
-
         if (request.PipelineDeposit.Status == PipelineJobStates.Running)
         {
             // Starting a job is a CLAIM, not a status report: the job moves out of "waiting" exactly
@@ -39,8 +36,15 @@ public class RunPipelineStatusHandler(
             // pipeline is driven by SNS/SQS, which is at-least-once, so the same start message can
             // arrive more than once for one job; without this, each delivery would run Brunnhilde
             // again and append another virus-scan provenance event for a scan that only happened once.
+            // Deliberately ahead of the load below: ClaimJob's own WHERE clause carries the whole
+            // correctness guarantee, so loading the row first would be a round-trip that decides
+            // nothing - and SingleAsync would throw on a job that no longer exists, where the claim
+            // reports a clean Conflict and the delivery is abandoned as it should be.
             return await ClaimJob(request, deposit.MintedId, cancellationToken);
         }
+
+        var entity = await dbContext.PipelineRunJobs.SingleAsync(
+            d => d.Deposit == request.PipelineDeposit.DepositId && d.Id == request.PipelineDeposit.Id, cancellationToken);
 
         switch (request.PipelineDeposit.Status)
         {
@@ -102,11 +106,17 @@ public class RunPipelineStatusHandler(
 
         if (claimed == 0)
         {
-            // The job exists - it was loaded above - so it is simply no longer waiting.
+            // Nothing matched, which is either "not waiting" or "not there". The caller does the same
+            // thing in both cases - abandon the delivery - so this costs an extra round trip only on
+            // the branch that is already the exceptional one, and buys a log line that says which.
+            var exists = await dbContext.PipelineRunJobs.AnyAsync(
+                job => job.Deposit == depositId && job.Id == request.PipelineDeposit.Id, cancellationToken);
+
             logger.LogWarning(
-                "Pipeline job {JobId} for deposit {DepositId} was asked to start but is not waiting; " +
+                "Pipeline job {JobId} for deposit {DepositId} was asked to start but {Reason}; " +
                 "treating this as a repeat delivery and refusing the claim",
-                request.PipelineDeposit.Id, depositId);
+                request.PipelineDeposit.Id, depositId,
+                exists ? "it is not waiting" : "no such job exists");
 
             return Result.Fail(ErrorCodes.Conflict,
                 $"Pipeline job {request.PipelineDeposit.Id} is not waiting to be run, so it cannot be started again.");

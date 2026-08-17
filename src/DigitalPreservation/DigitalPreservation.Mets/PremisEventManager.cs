@@ -86,7 +86,7 @@ public class PremisEventManagerVirus
     private static XmlSerializerNamespaces GetXmlSerializerNameSpaces()
     {
         var namespaces = new XmlSerializerNamespaces();
-        namespaces.Add("premis", "http://www.loc.gov/premis/v3");
+        namespaces.Add("premis", Constants.PremisNamespace);
         namespaces.Add("version", "3.0");
 
         return namespaces;

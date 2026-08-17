@@ -291,10 +291,8 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     private static bool CarriesPremisObject(AmdSecType amdSec) =>
         amdSec.TechMd.Any(techMd =>
             techMd.MdWrap?.XmlData?.Any?.FirstOrDefault() is XmlElement element &&
-            (element.LocalName == "object" && element.NamespaceURI == PremisNamespace ||
-             element.GetElementsByTagName("object", PremisNamespace).Count > 0));
-
-    private const string PremisNamespace = "http://www.loc.gov/premis/v3";
+            (element.LocalName == "object" && element.NamespaceURI == Constants.PremisNamespace ||
+             element.GetElementsByTagName("object", Constants.PremisNamespace).Count > 0));
 
     private static void SetFileAndFileGroup(ProcessingContext ctx, DivType? div, FullMets fullMets)
     {

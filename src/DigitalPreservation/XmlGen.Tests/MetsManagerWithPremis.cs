@@ -717,8 +717,8 @@ public class MetsManagerWithPremis
     public async Task A_Later_Scan_Of_The_Same_File_Is_Still_Recorded()
     {
         // The guard above must not swallow a genuine re-scan, which is the whole point of keeping
-        // a history. Two scans cannot share an instant, so their dates are what tell them apart -
-        // even when they found exactly the same thing with exactly the same definitions.
+        // a history. Their dates are what tell them apart - even when they found exactly the same
+        // thing with exactly the same definitions.
         const string path = "objects/document.pdf";
         var firstScan = new DateTime(2026, 6, 16, 14, 30, 45, DateTimeKind.Utc);
         var (metsUri, eTag) = await CreateEmptyMets("premis-rescan-recorded.xml");
@@ -730,6 +730,29 @@ public class MetsManagerWithPremis
 
         ScanEventsFor(metsUri, path).Should().HaveCount(2,
             "\"re-checked a month later, still clean\" is provenance in its own right");
+    }
+
+    [Fact]
+    public async Task Two_Scans_One_Second_Apart_Are_Both_Recorded()
+    {
+        // Where the resolution actually runs out. eventDateTime is written to the second, because
+        // its source is an S3 last-modified time and that is all S3 stores - so one second is the
+        // smallest gap at which two scans of one file are still distinguishable, and this pins it.
+        // Closer than this they would share a date and the second would be read as a repeat of the
+        // first. That is out of reach in practice rather than merely unlikely: a scan is a whole
+        // Brunnhilde/ClamAV run over the deposit, and the deposit lock serialises runs, so two of
+        // them cannot start and finish inside the same second. If this test ever needs to assert a
+        // finer gap, that reasoning has changed and the dedup key needs to change with it.
+        const string path = "objects/document.pdf";
+        var firstScan = new DateTime(2026, 6, 16, 14, 30, 45, DateTimeKind.Utc);
+        var (metsUri, eTag) = await CreateEmptyMets("premis-rescan-one-second.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000", firstScan), eTag);
+        await AddFile(metsUri,
+            ScannedFile(path, "document.pdf", false, "defs-27000", firstScan.AddSeconds(1)), eTag);
+
+        ScanEventsFor(metsUri, path).Should().HaveCount(2);
     }
 
     [Fact]

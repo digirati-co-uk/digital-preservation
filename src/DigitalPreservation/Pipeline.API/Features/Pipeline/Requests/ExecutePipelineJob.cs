@@ -123,6 +123,15 @@ public class ProcessPipelineJobHandler(
             logger.LogError("Updated pipeline job {JobIdentifier} to status: {Status}, recording errors {Errors}",
                 jobId, status, errors);
         }
+        else if (updateResult.ErrorCode == ErrorCodes.Conflict)
+        {
+            // Since #221 a Conflict here is an ordinary, expected outcome - a duplicate SQS delivery
+            // losing the race to claim a job - which Handle detects and handles by design. Logging it
+            // at Error would make every correctly-handled duplicate look like a failure to anything
+            // watching error rates, and page whoever is on call for the system working as intended.
+            logger.LogInformation("Job {JobIdentifier} was not moved to {Status}: {Error}",
+                jobId, status, updateResult.CodeAndMessage());
+        }
         else
         {
             logger.LogError("Failed to update job {JobIdentifier} status: {Status}; {Error}, was trying to log errors: {Errors}",

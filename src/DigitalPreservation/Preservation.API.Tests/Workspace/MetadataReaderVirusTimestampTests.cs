@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -65,6 +65,28 @@ public class MetadataReaderVirusTimestampTests
         second.Timestamp.Should().Be(first.Timestamp);
     }
 
+    [Theory]
+    [InlineData(0L)]
+    [InlineData(5L * TimeSpan.TicksPerHour)]
+    public async Task A_Scan_Whose_Time_We_Do_Not_Know_Is_Left_Unstamped(long lastModifiedTicks)
+    {
+        // Two shapes of "S3 did not tell us": an unset value, and the same unset value after
+        // Storage.GetStream's ToUniversalTime() has shifted it off exactly-default on a host west
+        // of UTC. Both must be recognised, or the second writes a scan dated to the year 1.
+        var reader = await MetadataReader.Create(
+            FakeDepositStorage(new DateTime(lastModifiedTicks, DateTimeKind.Utc)), Root);
+
+        var scan = VirusScanFor(reader, "objects/a.txt");
+
+        // Deliberately NOT the time we read it. That value looks real, passes MetadataManager's
+        // "do we have a scan time?" guard, and is different on every read - so the dedup would
+        // silently never match and every redelivery would append another event, which is the whole
+        // of issue #221 coming back with nothing to show it. An unset timestamp instead routes this
+        // to the writer's explicit branch, which prefers a duplicate event to a lost one.
+        scan.Timestamp.Should().Be(default,
+            "an unknown scan time must stay unknown rather than become the time we happened to read it");
+    }
+
     private static VirusScanMetadata VirusScanFor(MetadataReader reader, string localPath)
     {
         var file = new WorkingFile { LocalPath = localPath, Name = localPath.GetSlug() };
@@ -72,7 +94,7 @@ public class MetadataReaderVirusTimestampTests
         return file.Metadata.OfType<VirusScanMetadata>().Should().ContainSingle().Subject;
     }
 
-    private static IStorage FakeDepositStorage()
+    private static IStorage FakeDepositStorage(DateTime? virusLogLastModified = null)
     {
         var storage = A.Fake<IStorage>();
 
@@ -94,7 +116,7 @@ public class MetadataReaderVirusTimestampTests
         // Streams are created per call: they are read to the end, and MetadataReader may ask for the
         // virus log more than once.
         A.CallTo(() => storage.GetStream(virusLog))
-            .ReturnsLazily(() => Found(CleanVirusLog, ScannedAt));
+            .ReturnsLazily(() => Found(CleanVirusLog, virusLogLastModified ?? ScannedAt));
         A.CallTo(() => storage.GetStream(siegfried))
             .ReturnsLazily(() => Found(SiegfriedCsv, ScannedAt.AddMinutes(-1)));
 

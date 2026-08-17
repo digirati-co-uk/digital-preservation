@@ -37,6 +37,11 @@ public static class Constants
     /// </summary>
     public const string VirusCheckEventType = "virus check";
 
+    /// <summary>
+    /// The PREMIS v3 namespace, and the only place in this library it is spelled out. A version
+    /// change is a change to what we write and what we recognise, so it should be one edit rather
+    /// than a search.
+    /// </summary>
     public const string PremisNamespace = "http://www.loc.gov/premis/v3";
 
     /// <summary>
