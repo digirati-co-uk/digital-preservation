@@ -627,36 +627,48 @@ public class MetsParser(
                     digiprovMd = LatestByConventionalKey(lookupMaps.DigiprovMdMap, identifier);
                 }
 
-                var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();
+                // The digiprovMD was chosen because it CONTAINS a virus-check event, so take that
+                // event rather than assume it is the only one wrapped. A digiprovMD holding several
+                // premis:events is legal METS, and it is reachable now that eventType rather than
+                // an ID prefix decides what counts as a scan: third-party provenance is in scope,
+                // and its shape is not ours to predict. The conventional-key fallback above matches
+                // on our own ID prefix, so fall back to the event it wrapped when nothing there
+                // names itself a virus check.
+                var premisEvents = digiprovMd?.Descendants(XNames.PremisEvent).ToList() ?? [];
+                var virusEvent = premisEvents.LastOrDefault(IsVirusCheckEvent) ?? premisEvents.FirstOrDefault();
                 if (virusEvent != null)
                 {
-                    var eventDatetime = virusEvent.Descendants(XNames.PremisEventDateTime).SingleOrDefault();
+                    // FirstOrDefault throughout, not SingleOrDefault. PREMIS allows several
+                    // eventOutcomeInformation elements on one event, and a producer we have never
+                    // seen may repeat others too; a parser whose whole job is tolerating other
+                    // people's METS must not turn a cardinality it did not expect into an exception.
+                    var eventDatetime = virusEvent.Descendants(XNames.PremisEventDateTime).FirstOrDefault();
                     var eventOutcomeInformation = virusEvent.Descendants(XNames.PremisEventOutcomeInformation)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
 
                     XElement? eventOutcomeDetailNote = null;
                     var eventOutcomeDetail = eventOutcomeInformation?.Descendants(XNames.PremisEventOutcomeDetail)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
                     if (eventOutcomeDetail != null)
                     {
                         eventOutcomeDetailNote = eventOutcomeDetail.Descendants(XNames.PremisEventOutcomeDetailNote)
-                            .SingleOrDefault();
+                            .FirstOrDefault();
                     }
 
                     var eventOutcome = eventOutcomeInformation?
                         .Descendants(XNames.PremisEventOutcome)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
 
                     var eventDetailInformation = virusEvent
                         .Descendants(XNames.PremisEventDetailInformation)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
 
                     XElement? eventDetail = null;
                     if (eventDetailInformation != null)
                     {
                         eventDetail = eventDetailInformation
                             .Descendants(XNames.PremisEventDetail)
-                            .SingleOrDefault();
+                            .FirstOrDefault();
                     }
 
                     virusScanMetadata = new VirusScanMetadata

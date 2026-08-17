@@ -199,7 +199,7 @@ public static class ModsManager
         {
             return MetsIds.Dmd(localPath);
         }
-        return div.Id.HasText() ? Constants.DmdIdPrefix + div.Id.ToMetsId() : UnusedDmdId(mets);
+        return div.Id.HasText() ? MetsIds.DmdFromDivId(div.Id) : UnusedDmdId(mets);
     }
 
     /// <summary>

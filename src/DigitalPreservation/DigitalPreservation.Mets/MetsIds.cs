@@ -25,6 +25,14 @@ public static class MetsIds
     public static string Dmd(string localPath) => Constants.DmdIdPrefix + localPath.ToMetsId();
 
     /// <summary>
+    /// A dmdSec ID for a div with no deposit-relative path — a logical div, where the div's own ID
+    /// is the only stable stem there is. The same scheme as <see cref="Dmd"/>, named separately so
+    /// the call site says which stem it is using; sharing the implementation is the point, so that
+    /// a change to how a dmdSec ID is spelt stays one edit here.
+    /// </summary>
+    public static string DmdFromDivId(string divId) => Dmd(divId);
+
+    /// <summary>
     /// The digiprovMD ID for a file's FIRST virus scan. Later scans of the same file are numbered
     /// by <see cref="Constants.NumberedVirusProvEventId"/>, which takes the identifier this is
     /// built from rather than taking this ID apart again.

@@ -1,4 +1,4 @@
-using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+﻿using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using FluentAssertions;
 
 namespace XmlGen.Tests.Parsing;
@@ -496,5 +496,81 @@ public class FileMetadataTests : MetsParserTestBase
         var virus = mets.Files[0].Metadata.OfType<VirusScanMetadata>().Single();
         virus.HasVirus.Should().BeFalse();
         virus.VirusDefinition.Should().Be("ClamAV 1.4.3/27944");
+    }
+    [Fact]
+    public void A_DigiprovMD_Wrapping_Several_Events_Yields_The_Virus_Check_One()
+    {
+        // A scan is recognised by its eventType rather than by its ID, which is what lets a
+        // third-party document's virus provenance be read at all - and which also brings that
+        // document's SHAPE into scope. PREMIS lets one digiprovMD wrap several events, and this
+        // one puts an unrelated event first, so taking "the only event" throws and taking "the
+        // first event" reports an ingestion as a virus scan. Neither is acceptable in a parser
+        // whose job is other people's METS.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3">
+              <mets:amdSec ID="ADM_objects/report.pdf">
+                <mets:techMD ID="TECH_objects/report.pdf">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>reportFile</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+                <mets:digiprovMD ID="digiprovMD_114">
+                  <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                    <mets:xmlData>
+                      <premis:event>
+                        <premis:eventType>ingestion</premis:eventType>
+                        <premis:eventDateTime>2024-03-13T14:51:00Z</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                          <premis:eventDetail>not a scan at all</premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                          <premis:eventOutcome>fail</premis:eventOutcome>
+                        </premis:eventOutcomeInformation>
+                      </premis:event>
+                      <premis:event>
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>2024-03-13T14:52:00Z</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                          <premis:eventDetail>ClamAV 1.2.2/27182</premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                          <premis:eventOutcome>pass</premis:eventOutcome>
+                        </premis:eventOutcomeInformation>
+                      </premis:event>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:digiprovMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_1" MIMETYPE="application/pdf" ADMID="ADM_objects/report.pdf">
+                    <mets:FLocat xlink:href="objects/report.pdf"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap TYPE="PHYSICAL">
+                <mets:div TYPE="Item" ADMID="ADM_objects/report.pdf">
+                  <mets:fptr FILEID="FILE_1"/>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        var virus = mets.Files[0].Metadata.OfType<VirusScanMetadata>().Single();
+        virus.HasVirus.Should().BeFalse("the virus-check event passed; the failure belongs to the ingestion event");
+        virus.VirusDefinition.Should().Be("ClamAV 1.2.2/27182");
     }
 }
