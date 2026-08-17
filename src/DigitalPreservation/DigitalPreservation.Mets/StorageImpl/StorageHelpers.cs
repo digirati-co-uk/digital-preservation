@@ -11,7 +11,7 @@ public static class StorageHelpers
         var ns = new XmlSerializerNamespaces();
         ns.Add("mets", "http://www.loc.gov/METS/");
         ns.Add("mods", "http://www.loc.gov/mods/v3");
-        ns.Add("premis", "http://www.loc.gov/premis/v3");
+        ns.Add("premis", Constants.PremisNamespace);
         ns.Add("xlink", "http://www.w3.org/1999/xlink");
         ns.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
         return ns;

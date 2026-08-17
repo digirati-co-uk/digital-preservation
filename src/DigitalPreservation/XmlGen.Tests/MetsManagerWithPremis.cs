@@ -634,7 +634,8 @@ public class MetsManagerWithPremis
     // A virus scan must not disturb other digital provenance (issue #219)
     // -----------------------------------------------------------------------
 
-    private static WorkingFile ScannedFile(string path, string name, bool hasVirus, string definition)
+    private static WorkingFile ScannedFile(string path, string name, bool hasVirus, string definition,
+        DateTime scannedAt = default)
     {
         var file = SimpleFile(path, name);
         file.Metadata.Add(new VirusScanMetadata
@@ -642,7 +643,8 @@ public class MetsManagerWithPremis
             Source = "ClamAV",
             HasVirus = hasVirus,
             VirusFound = hasVirus ? "Eicar-Test-Signature" : null,
-            VirusDefinition = definition
+            VirusDefinition = definition,
+            Timestamp = scannedAt
         });
         return file;
     }
@@ -692,6 +694,87 @@ public class MetsManagerWithPremis
         virusScan.HasVirus.Should().BeTrue();
         virusScan.VirusDefinition.Should().Be("defs-27932");
     }
+
+    [Fact]
+    public async Task The_Same_Scan_Read_Twice_Is_Recorded_Once()
+    {
+        // Reading the same unchanged ClamAV output again is not a second scan - it is the same
+        // event, seen again. It happens whenever a file goes through the writer while the last
+        // run's output is still in the deposit, and it is what a redelivered pipeline job does
+        // to every file in the deposit (issue #221).
+        const string path = "objects/document.pdf";
+        var scannedAt = new DateTime(2026, 6, 16, 14, 30, 45, DateTimeKind.Utc);
+        var (metsUri, eTag) = await CreateEmptyMets("premis-scan-recorded-once.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000", scannedAt), eTag);
+        await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000", scannedAt), eTag);
+
+        ScanEventsFor(metsUri, path).Should().ContainSingle("one scan is one event, however often it is read");
+    }
+
+    [Fact]
+    public async Task A_Later_Scan_Of_The_Same_File_Is_Still_Recorded()
+    {
+        // The guard above must not swallow a genuine re-scan, which is the whole point of keeping
+        // a history. Their dates are what tell them apart - even when they found exactly the same
+        // thing with exactly the same definitions.
+        const string path = "objects/document.pdf";
+        var firstScan = new DateTime(2026, 6, 16, 14, 30, 45, DateTimeKind.Utc);
+        var (metsUri, eTag) = await CreateEmptyMets("premis-rescan-recorded.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000", firstScan), eTag);
+        await AddFile(metsUri,
+            ScannedFile(path, "document.pdf", false, "defs-27000", firstScan.AddDays(30)), eTag);
+
+        ScanEventsFor(metsUri, path).Should().HaveCount(2,
+            "\"re-checked a month later, still clean\" is provenance in its own right");
+    }
+
+    [Fact]
+    public async Task Two_Scans_One_Second_Apart_Are_Both_Recorded()
+    {
+        // Where the resolution actually runs out. eventDateTime is written to the second, because
+        // its source is an S3 last-modified time and that is all S3 stores - so one second is the
+        // smallest gap at which two scans of one file are still distinguishable, and this pins it.
+        // Closer than this they would share a date and the second would be read as a repeat of the
+        // first. That is out of reach in practice rather than merely unlikely: a scan is a whole
+        // Brunnhilde/ClamAV run over the deposit, and the deposit lock serialises runs, so two of
+        // them cannot start and finish inside the same second. If this test ever needs to assert a
+        // finer gap, that reasoning has changed and the dedup key needs to change with it.
+        const string path = "objects/document.pdf";
+        var firstScan = new DateTime(2026, 6, 16, 14, 30, 45, DateTimeKind.Utc);
+        var (metsUri, eTag) = await CreateEmptyMets("premis-rescan-one-second.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000", firstScan), eTag);
+        await AddFile(metsUri,
+            ScannedFile(path, "document.pdf", false, "defs-27000", firstScan.AddSeconds(1)), eTag);
+
+        ScanEventsFor(metsUri, path).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task A_Scan_That_Does_Not_Say_When_It_Ran_Is_Always_Recorded()
+    {
+        // Nothing can tell such a scan from a re-scan, and losing a scan is worse than repeating one.
+        const string path = "objects/document.pdf";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-scan-no-time.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000"), eTag);
+        await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000"), eTag);
+
+        ScanEventsFor(metsUri, path).Should().HaveCount(2);
+    }
+
+    private static List<XElement> ScanEventsFor(Uri metsUri, string localPath) =>
+        XDocument.Load(metsUri.LocalPath).Descendants(MetsNs + "amdSec")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm(localPath))
+            .Elements(MetsNs + "digiprovMD")
+            .Where(d => (d.Attribute("ID")?.Value ?? "").StartsWith(Constants.VirusProvEventPrefix))
+            .ToList();
 
     [Fact]
     public async Task Provenance_We_Do_Not_Recognise_Is_Left_Untouched_By_A_Scan()

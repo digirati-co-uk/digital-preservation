@@ -30,6 +30,21 @@ public static class Constants
     public const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
 
     /// <summary>
+    /// The premis:eventType we write for a virus scan, and the only value by which we recognise one
+    /// of our own scan events again. Here rather than on either side for the same reason as
+    /// <see cref="NumberedVirusProvEventId"/>: the writer mints it and the writer later reads it
+    /// back to tell whether a scan is already recorded, and the two must not drift.
+    /// </summary>
+    public const string VirusCheckEventType = "virus check";
+
+    /// <summary>
+    /// The PREMIS v3 namespace, and the only place in this library it is spelled out. A version
+    /// change is a change to what we write and what we recognise, so it should be one edit rather
+    /// than a search.
+    /// </summary>
+    public const string PremisNamespace = "http://www.loc.gov/premis/v3";
+
+    /// <summary>
     /// The ID of the Nth virus-scan event for one file, for N greater than 1 — scans accumulate
     /// as separate events and each needs a unique xs:ID.
     /// </summary>
