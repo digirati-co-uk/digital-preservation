@@ -1,3 +1,4 @@
+using System.Xml;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Mets;
@@ -357,14 +358,18 @@ public class IdRefsMetsManagerTests
     [Fact]
     public async Task Legacy_Spaced_Div_Mods_Can_Be_Set_Read_Back_And_Cleared()
     {
-        // The frozen fixture's div IDs contain spaces, so the derived DMDID
-        // ("DMD_objects/my file.pdf") splits into tokens on serialization - setting,
-        // re-reading and clearing MODS must all resolve it via the rejoined form.
+        // A legacy DMDID ("DMD_objects/my file.pdf") splits into tokens on serialization -
+        // setting, re-reading and clearing MODS must all resolve it via the rejoined form.
+        // The reference is put on the div the way a pre-#188 document carries it, rather than
+        // minted here: minting one would be minting a NEW invalid xs:ID, which is the thing
+        // issue #188 exists to stop, and is no longer what the code does.
         var metsUri = CopyFixture("path-fixture-spaces.xml", "idrefs-legacy-mods.xml");
         var loadResult = await metsStorage.GetFullMets(metsUri, null);
         loadResult.Success.Should().BeTrue(loadResult.ErrorMessage ?? "");
         var fullMets = loadResult.Value!;
         var spacedDiv = fullMets.PhysicalDivsByPath["objects/my file.pdf"];
+        spacedDiv.Dmdid.Add("DMD_objects/my");
+        spacedDiv.Dmdid.Add("file.pdf");
 
         var mods = ModsManager.GetModsForDiv(fullMets.Mets, spacedDiv, createDmd: true)!;
         mods.AddAccessCondition("Restricted", Constants.RestrictionOnAccess);
@@ -378,6 +383,24 @@ public class IdRefsMetsManagerTests
 
         fullMets.Mets.DmdSec.Should().NotContain(d => d.Id == "DMD_objects/my file.pdf");
         spacedDiv.Dmdid.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_DmdSec_Minted_For_A_Legacy_Div_Has_A_Valid_Id()
+    {
+        // With no path to derive from, the dmdSec ID is built from the div's own ID - carried
+        // through whole, never parsed - and encoded, so a div whose ID contains a slash and a
+        // space yields a VALID new ID instead of a second invalid one.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "idrefs-legacy-mint.xml");
+        var fullMets = (await metsStorage.GetFullMets(metsUri, null)).Value!;
+        var spacedDiv = fullMets.PhysicalDivsByPath["objects/my file.pdf"];
+        spacedDiv.Id.Should().Be("PHYS_objects/my file.pdf", "the fixture is a pre-#188 document");
+
+        ModsManager.GetModsForDiv(fullMets.Mets, spacedDiv, createDmd: true);
+
+        var minted = spacedDiv.Dmdid.Single();
+        minted.Should().NotContain(" ").And.NotContain("/");
+        XmlConvert.VerifyNCName(minted).Should().Be(minted);
     }
 
     [Fact]

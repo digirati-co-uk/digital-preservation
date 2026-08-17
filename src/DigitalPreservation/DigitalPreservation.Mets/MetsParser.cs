@@ -1,4 +1,4 @@
-﻿using System.Xml.Linq;
+using System.Xml.Linq;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -114,6 +114,15 @@ public class MetsParser(
 
         return latest;
     }
+
+    /// <summary>
+    /// Whether a digiprovMD holds one of our virus-scan events, judged by its premis:eventType.
+    /// Provenance with no eventType at all is legal METS and is simply not ours to interpret.
+    /// </summary>
+    private static bool IsVirusCheckEvent(XElement digiprovMd) =>
+        digiprovMd.Descendants(XNames.PremisEventType)
+            .Any(eventType => string.Equals(
+                eventType.Value.Trim(), Constants.VirusCheckEventType, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Which scan of <paramref name="identifier"/> this digiprovMD ID names: 0 for the plain
@@ -509,23 +518,16 @@ public class MetsParser(
                     // exactly that. Taking the first candidate that merely EXISTS would stop on
                     // the rights section and lose the fixity, leaving the binary with no SHA256
                     // (issue #215).
-                    techMd = IdRefs.ResolveSingle(
-                        admId,
-                        id => lookupMaps.TechMdMap.GetValueOrDefault(id)
-                              ?? lookupMaps.AmdSecMap.GetValueOrDefault(id),
-                        candidate => candidate.Descendants(XNames.PremisObject).Any());
-
-                    // The identity tier returns its match whether or not the caller can use it,
-                    // so that a broken reference fails loudly instead of resolving a fragment
-                    // of a legacy ID against something unrelated. That makes the recheck the
-                    // CALLER's job, here as at the other two sites. A section with no
-                    // premis:object holds none of what is read below - and worse, treating it
-                    // as this file's would scope the virus-scan lookup to it, which for a
-                    // SHARED rights section means reporting another file's scan as this one's.
-                    if (techMd?.Descendants(XNames.PremisObject).Any() != true)
-                    {
-                        techMd = null;
-                    }
+                    // Resolve, then select. A section with no premis:object holds none of
+                    // what is read below - and worse, treating it as this file's would scope the
+                    // virus-scan lookup to it, which for a SHARED rights section means reporting
+                    // another file's scan as this one's.
+                    techMd = IdRefs
+                        .ResolveAll(
+                            admId,
+                            id => lookupMaps.TechMdMap.GetValueOrDefault(id)
+                                  ?? lookupMaps.AmdSecMap.GetValueOrDefault(id))
+                        .FirstOrDefault(candidate => candidate.Descendants(XNames.PremisObject).Any());
 
                     if (techMd == null)
                     {
@@ -605,10 +607,15 @@ public class MetsParser(
                 // virus status is the most recently appended one. Everything else in the
                 // amdSec - earlier scans, and provenance from tools we don't recognise - is
                 // simply not ours to interpret.
+                // A scan event is recognised by what it SAYS it is, not by how its ID is spelt.
+                // The writer's guarantee is a premis:event whose eventType is "virus check"; the
+                // ID convention is only a naming habit, and reading meaning out of an ID is the
+                // thing IDs are not for (see 02d, "Opaque to code, legible to people"). Matching
+                // on the event type is also more tolerant: provenance from tools we do not
+                // recognise is passed over rather than mistaken for a scan because of its name.
                 var amdScope = techMd?.Name == XNames.MetsAmdSec ? techMd : techMd?.Parent;
                 var digiprovMd = amdScope?.Elements(XNames.MetsDigiprovMD)
-                    .LastOrDefault(d => (d.Attribute("ID")?.Value ?? "")
-                        .StartsWith(Constants.VirusProvEventPrefix, StringComparison.OrdinalIgnoreCase));
+                    .LastOrDefault(IsVirusCheckEvent);
                 if (digiprovMd == null)
                 {
                     // Conventional-key fallback for documents where nothing resolved
@@ -620,36 +627,48 @@ public class MetsParser(
                     digiprovMd = LatestByConventionalKey(lookupMaps.DigiprovMdMap, identifier);
                 }
 
-                var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();
+                // The digiprovMD was chosen because it CONTAINS a virus-check event, so take that
+                // event rather than assume it is the only one wrapped. A digiprovMD holding several
+                // premis:events is legal METS, and it is reachable now that eventType rather than
+                // an ID prefix decides what counts as a scan: third-party provenance is in scope,
+                // and its shape is not ours to predict. The conventional-key fallback above matches
+                // on our own ID prefix, so fall back to the event it wrapped when nothing there
+                // names itself a virus check.
+                var premisEvents = digiprovMd?.Descendants(XNames.PremisEvent).ToList() ?? [];
+                var virusEvent = premisEvents.LastOrDefault(IsVirusCheckEvent) ?? premisEvents.FirstOrDefault();
                 if (virusEvent != null)
                 {
-                    var eventDatetime = virusEvent.Descendants(XNames.PremisEventDateTime).SingleOrDefault();
+                    // FirstOrDefault throughout, not SingleOrDefault. PREMIS allows several
+                    // eventOutcomeInformation elements on one event, and a producer we have never
+                    // seen may repeat others too; a parser whose whole job is tolerating other
+                    // people's METS must not turn a cardinality it did not expect into an exception.
+                    var eventDatetime = virusEvent.Descendants(XNames.PremisEventDateTime).FirstOrDefault();
                     var eventOutcomeInformation = virusEvent.Descendants(XNames.PremisEventOutcomeInformation)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
 
                     XElement? eventOutcomeDetailNote = null;
                     var eventOutcomeDetail = eventOutcomeInformation?.Descendants(XNames.PremisEventOutcomeDetail)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
                     if (eventOutcomeDetail != null)
                     {
                         eventOutcomeDetailNote = eventOutcomeDetail.Descendants(XNames.PremisEventOutcomeDetailNote)
-                            .SingleOrDefault();
+                            .FirstOrDefault();
                     }
 
                     var eventOutcome = eventOutcomeInformation?
                         .Descendants(XNames.PremisEventOutcome)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
 
                     var eventDetailInformation = virusEvent
                         .Descendants(XNames.PremisEventDetailInformation)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
 
                     XElement? eventDetail = null;
                     if (eventDetailInformation != null)
                     {
                         eventDetail = eventDetailInformation
                             .Descendants(XNames.PremisEventDetail)
-                            .SingleOrDefault();
+                            .FirstOrDefault();
                     }
 
                     virusScanMetadata = new VirusScanMetadata

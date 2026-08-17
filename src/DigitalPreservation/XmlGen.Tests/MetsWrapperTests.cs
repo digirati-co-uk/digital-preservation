@@ -112,6 +112,17 @@ public class MetsWrapperTests
         phys.Directories.Should().HaveCount(1);
         
         result.Value.Files.Count.Should().Be(38 + 1);
+
+        // Archivematica records its own ClamAV scans, and since a scan is recognised by its
+        // premis:eventType rather than by our ID prefix, they are now read rather than ignored.
+        // That is a behaviour change worth pinning: it is the point of matching on content, and it
+        // is also what puts a third-party document's event structure on the parser's critical path
+        // (see A_DigiprovMD_Wrapping_Several_Events_Yields_The_Virus_Check_One).
+        var scanned = result.Value.Files
+            .Where(f => f.Metadata.OfType<VirusScanMetadata>().Any())
+            .ToList();
+        scanned.Should().HaveCount(38, "every file Archivematica scanned carries its scan event");
+        scanned.Should().OnlyContain(f => !f.Metadata.OfType<VirusScanMetadata>().Single().HasVirus);
         result.Value.Files.Should().Contain(f => f.LocalPath == "objects/Edgware_Community_Hospital/03_05_01.tif");
         result.Value.Files.Should().Contain(f => f.LocalPath == "objects/Edgware_Community_Hospital/presentation_site_plan_A3.pdf");
         result.Value.Files.Should().Contain(f => f.LocalPath == "objects/metadata/transfers/ARTCOOB9-4840a241-d397-4554-abfe-69f1ad674126/rights.csv");

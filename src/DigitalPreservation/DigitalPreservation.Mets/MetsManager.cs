@@ -175,8 +175,8 @@ public class MetsManager(
 
     private Result AddNewFile(DivType parentDiv, FullMets fullMets, WorkingFile workingFile, string localPath)
     {
-        var physId = Constants.PhysIdPrefix + localPath.ToMetsId();
-        var fileId = Constants.FileIdPrefix + localPath.ToMetsId();
+        var physId = MetsIds.Phys(localPath);
+        var fileId = MetsIds.File(localPath);
 
         var conflict = FindConflictingChild(parentDiv, localPath, fullMets);
         if (conflict != null)
@@ -228,9 +228,9 @@ public class MetsManager(
 
     private Result AddNewDirectory(DivType parentDiv, FullMets fullMets, WorkingDirectory workingDirectory, string localPath)
     {
-        var physId = Constants.PhysIdPrefix + localPath.ToMetsId();
-        var admId = Constants.AdmIdPrefix + localPath.ToMetsId();
-        var techId = Constants.TechIdPrefix + localPath.ToMetsId();
+        var physId = MetsIds.Phys(localPath);
+        var admId = MetsIds.Adm(localPath);
+        var techId = MetsIds.Tech(localPath);
 
         var conflict = FindConflictingChild(parentDiv, localPath, fullMets);
         if (conflict != null)
@@ -328,7 +328,7 @@ public class MetsManager(
     /// position - only producible by edited or third-party METS, since navigation rejects
     /// such an entry as this path's target), a plain overwrite would leave the cache silently
     /// disagreeing with a rebuild while no diagnostic records the duplicate. Rebuild instead:
-    /// the duplicate lands on PathDiagnostics/HasDuplicatePaths, so every trust gate sees it
+    /// the duplicate lands on PathDiagnostics, which is what every trust gate tests, so it sees it
     /// and navigation drops to strict per-child resolution for the contested paths.
     /// </summary>
     private static void CacheAddedDiv(FullMets fullMets, string localPath, DivType div)
@@ -773,7 +773,7 @@ public class MetsManager(
     /// step 3 migration would change what belongs here, so it is one place rather than two.
     /// </remarks>
     private static (string Encoded, string Legacy) PhysicalDivIdCandidates(string localPath) =>
-        (Constants.PhysIdPrefix + localPath.ToMetsId(), Constants.PhysIdPrefix + localPath);
+        (MetsIds.Phys(localPath), Constants.PhysIdPrefix + localPath);
 
     private static DivType? UniqueOrNull(IEnumerable<DivType> divs)
     {
@@ -1222,7 +1222,7 @@ public class MetsManager(
         var normalised = MetsCache.NormalisePathKey(localPath);
         if (normalised == null)
         {
-            return Constants.FileIdPrefix + string.Empty.ToMetsId();
+            return MetsIds.File(string.Empty);
         }
 
         // The OBJECTS group holds the preserved files; other groups (THUMBS, ALTO, derivatives
@@ -1237,7 +1237,7 @@ public class MetsManager(
                    ?? fileGrps.Where(fg => fg.Use != Constants.ObjectsFileGrpUse).SelectMany(fg => fg.File)
                        .FirstOrDefault(f => HrefMatches(f, normalised));
 
-        return file?.Id ?? Constants.FileIdPrefix + normalised.ToMetsId();
+        return file?.Id ?? MetsIds.File(normalised);
     }
 
     private static bool HrefMatches(FileType file, string normalisedPath) =>

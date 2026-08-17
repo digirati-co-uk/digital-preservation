@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -87,14 +87,13 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
 
             if (childDirectoryDiv == null)
             {
-                var idPart = localPath.ToMetsId();
-                var admId = Constants.AdmIdPrefix + idPart;
-                var techId = Constants.TechIdPrefix + idPart;
+                var admId = MetsIds.Adm(localPath);
+                var techId = MetsIds.Tech(localPath);
                 childDirectoryDiv = new DivType
                 {
                     Type = Constants.DirectoryType,
                     Label = childContainer.Name,
-                    Id = $"{Constants.PhysIdPrefix}{idPart}",
+                    Id = MetsIds.Phys(localPath),
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
@@ -123,15 +122,14 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
             {
                 continue;
             }
-            var idPart = localPath.ToMetsId();
-            var fileId = Constants.FileIdPrefix + idPart;
-            var admId = Constants.AdmIdPrefix + idPart;
-            var techId = Constants.TechIdPrefix + idPart;
+            var fileId = MetsIds.File(localPath);
+            var admId = MetsIds.Adm(localPath);
+            var techId = MetsIds.Tech(localPath);
             var childItemDiv = new DivType
             {
                 Type = Constants.ItemType,
                 Label = binary.Name,
-                Id = $"{Constants.PhysIdPrefix}{idPart}",
+                Id = MetsIds.Phys(localPath),
                 Fptr = { new DivTypeFptr { Fileid = fileId } }
             };
             div.Div.Add(childItemDiv);

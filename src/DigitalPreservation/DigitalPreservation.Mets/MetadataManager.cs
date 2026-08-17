@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -26,6 +26,15 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         /// structurally, or by prefix), so there is no compatibility cost to choosing our own.
         /// </summary>
         public required string DigiprovId { get; set; }
+
+        /// <summary>
+        /// The part of <see cref="DigiprovId"/> after the ClamAV prefix - what a numbered ID for a
+        /// later scan of this file is built around. Carried rather than recovered by stripping the
+        /// prefix back off <see cref="DigiprovId"/>: an ID is opaque, and code that takes it apart
+        /// is code that would break if the shape ever changed (see 02d, "Opaque to code, legible
+        /// to people").
+        /// </summary>
+        public required string DigiprovIdentifier { get; set; }
         public AmdSecType? AmdSec { get; set; }
         public FileType? File { get; set; }
         public MetsTypeFileSecFileGrp? FileGroup { get; set; }
@@ -35,16 +44,17 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
     public Result ProcessAllFileMetadata(FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
-        var idPart = operationPath.ToMetsId();
-        var fileId = Constants.FileIdPrefix + idPart;
-        var admId = Constants.AdmIdPrefix + idPart;
-        var techId = Constants.TechIdPrefix + idPart;
+        var fileId = MetsIds.File(operationPath);
+        var admId = MetsIds.Adm(operationPath);
+        var techId = MetsIds.Tech(operationPath);
 
+        var digiprovIdentifier = admId;
         var ctx = new ProcessingContext
         {
             FileAdmId = admId,
             TechId = techId,
-            DigiprovId = $"{Constants.VirusProvEventPrefix}{Constants.AdmIdPrefix}{idPart}"
+            DigiprovIdentifier = digiprovIdentifier,
+            DigiprovId = MetsIds.VirusProvEvent(digiprovIdentifier)
         };
 
         if (!newUpload)
@@ -259,11 +269,10 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         // own techMD - the Archivematica shape. Accepting the first section that merely EXISTS
         // would hand back the rights section, and the update would then write this file's
         // PREMIS into it (or throw indexing TechMd[0]) - issue #215.
-        var amdSec = IdRefs.ResolveSingle(
-            ctx.File.Admid,
-            id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id),
-            CarriesPremisObject);
-        if (amdSec == null || !CarriesPremisObject(amdSec))
+        var amdSec = IdRefs
+            .ResolveAll(ctx.File.Admid, id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id))
+            .FirstOrDefault(CarriesPremisObject);
+        if (amdSec == null)
         {
             return Result.Fail(ErrorCodes.BadRequest,
                 $"No amdSec carrying PREMIS technical metadata found for ADMID " +
@@ -392,13 +401,12 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         // resolves by ID could report one file's virus status as another's. A conventional ID
         // always has the admId's own prefix straight after the ClamAV prefix, never a digit, so
         // putting the counter there cannot be confused with any file's key.
-        var identifier = ctx.DigiprovId[Constants.VirusProvEventPrefix.Length..];
         var occurrence = 2;
-        while (taken.Contains(Constants.NumberedVirusProvEventId(occurrence, identifier)))
+        while (taken.Contains(Constants.NumberedVirusProvEventId(occurrence, ctx.DigiprovIdentifier)))
         {
             occurrence++;
         }
-        return Constants.NumberedVirusProvEventId(occurrence, identifier);
+        return Constants.NumberedVirusProvEventId(occurrence, ctx.DigiprovIdentifier);
     }
 
     private static void SetAmdSec(ProcessingContext ctx, XmlElement? premisXml, bool newUpload)

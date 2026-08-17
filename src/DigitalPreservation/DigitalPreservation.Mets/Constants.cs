@@ -30,10 +30,13 @@ public static class Constants
     public const string VirusProvEventPrefix = "digiprovMD_ClamAV_";
 
     /// <summary>
-    /// The premis:eventType we write for a virus scan, and the only value by which we recognise one
-    /// of our own scan events again. Here rather than on either side for the same reason as
-    /// <see cref="NumberedVirusProvEventId"/>: the writer mints it and the writer later reads it
-    /// back to tell whether a scan is already recorded, and the two must not drift.
+    /// The premis:eventType we write for a virus scan, and how a scan event is recognised again on
+    /// the way back in. The writer mints it and the reader matches it, so it lives here rather than
+    /// on either side - the same reason as <see cref="NumberedVirusProvEventId"/>. Two readers want
+    /// different things from it: MetadataManager asks whether THIS scan is already recorded before
+    /// appending another (#221), and MetsParser asks which event carries a file's current virus
+    /// status - including events we did not write, since a scan is recognised by what it says it is
+    /// rather than by how its ID is spelt.
     /// </summary>
     public const string VirusCheckEventType = "virus check";
 

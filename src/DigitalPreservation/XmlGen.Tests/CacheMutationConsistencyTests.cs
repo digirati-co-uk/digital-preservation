@@ -12,7 +12,8 @@ namespace XmlGen.Tests;
 /// <summary>
 /// The path cache must stay truthful under mutation even when a document's metadata
 /// disagrees with its tree structure (edited or third-party METS): a mutation that creates
-/// a duplicate-path state must RECORD it (diagnostics/HasDuplicatePaths) rather than
+/// a duplicate-path state must RECORD it (in PathDiagnostics, which is what every trust
+/// gate tests) rather than
 /// silently overwrite a cache entry, and a delete in a flagged document must refresh the
 /// diagnostics so a healed document regains the trusted-cache fast path.
 /// </summary>
@@ -89,7 +90,6 @@ public class CacheMutationConsistencyTests
         // state is RECORDED rather than silently overwriting the foreign div's cache entry.
         var firstAdd = metsManager.AddToMets(fullMets, SimpleFile("objects/clash.pdf", "clash.pdf"));
         firstAdd.Success.Should().BeTrue(firstAdd.ErrorMessage ?? "");
-        fullMets.HasDuplicatePaths.Should().BeTrue();
         fullMets.PathDiagnostics.Should().Contain(d => d.Contains("objects/clash.pdf"));
 
         // The next mutation must not trip the cache-consistency assertion (it previously
@@ -110,14 +110,13 @@ public class CacheMutationConsistencyTests
         MetsCache.Populate(fullMets);
         metsManager.AddToMets(fullMets, SimpleFile("objects/clash.pdf", "clash.pdf"))
             .Success.Should().BeTrue();
-        fullMets.HasDuplicatePaths.Should().BeTrue();
+        fullMets.PathDiagnostics.Should().Contain(d => d.Contains("objects/clash.pdf"));
 
         // Deleting the real file leaves only the foreign claim - the rebuild on delete must
         // reflect that: the duplicate diagnostic is gone and the claim owns the path again.
         var delete = metsManager.DeleteFromMets(fullMets, "objects/clash.pdf");
 
         delete.Success.Should().BeTrue(delete.ErrorMessage ?? "");
-        fullMets.HasDuplicatePaths.Should().BeFalse();
         fullMets.PathDiagnostics.Should().BeEmpty();
         fullMets.PhysicalDivsByPath["objects/clash.pdf"].Should().BeSameAs(adHocDiv);
     }

@@ -42,7 +42,6 @@ public static class MetsCache
         var diagnostics = Build(fullMets.Mets, fullMets.PhysicalDivsByPath);
         fullMets.PathDiagnostics.Clear();
         fullMets.PathDiagnostics.AddRange(diagnostics);
-        fullMets.HasDuplicatePaths = diagnostics.Any(d => d.Contains(DuplicatePathFragment));
         return diagnostics;
     }
 
@@ -123,6 +122,39 @@ public static class MetsCache
         DivType div, DigitalPreservation.XmlGen.Mets.Mets mets, MetsIdIndex index)
         => ResolvePath(div, mets, null, index);
 
+    /// <summary>
+    /// A directory div's path, from the premis:originalName of the amdSec its ADMID names.
+    /// </summary>
+    /// <remarks>
+    /// ADMID is an IDREFS token collection; IdRefs resolves both legacy space-containing IDs and
+    /// genuine multi-references. The candidate must actually carry an originalName: ADMID is a
+    /// LIST whose order means nothing, so a directory may name a shared rightsMD before the
+    /// section describing it, and stopping at the first section that merely EXISTS would leave
+    /// the div with no path at all - taking every edit beneath it down with it (issue #215).
+    /// Resolve, then take the first candidate that yields a name, stopping there: nothing is
+    /// parsed twice and nothing beyond the winner is parsed at all. This runs for every directory
+    /// div on every cache build.
+    /// </remarks>
+    private static string? ResolveDirectoryPath(
+        DivType child, DigitalPreservation.XmlGen.Mets.Mets mets, MetsIdIndex? index)
+    {
+        var candidates = IdRefs.ResolveAll(
+            child.Admid,
+            id => index != null
+                ? index.AmdSecById(id)
+                : mets.AmdSec.FirstOrDefault(a => a.Id == id));
+
+        foreach (var candidate in candidates)
+        {
+            var name = ExtractPremisOriginalName(candidate);
+            if (name != null)
+            {
+                return name;
+            }
+        }
+        return null;
+    }
+
     private static string? ResolvePath(
         DivType child,
         DigitalPreservation.XmlGen.Mets.Mets mets,
@@ -136,40 +168,13 @@ public static class MetsCache
                 diagnostics?.Add($"Directory div '{child.Id}' has no ADMID, so no path");
                 break;
             case Constants.DirectoryType:
-            {
-                // ADMID is an IDREFS token collection; IdRefs resolves both legacy
-                // space-containing IDs and genuine multi-references. The candidate must
-                // actually carry an originalName: ADMID is a LIST whose order means nothing,
-                // so a directory may name a shared rightsMD before the section describing it,
-                // and stopping at the first section that merely EXISTS would leave the div with
-                // no path at all — taking every edit beneath it down with it (issue #215).
-                // The name of the last candidate tested, so the winner isn't parsed twice: this
-                // runs for every directory div on every cache build.
-                AmdSecType? lastTested = null;
-                string? lastTestedName = null;
-
-                var amdSec = IdRefs.ResolveSingle(
-                    child.Admid,
-                    id => index != null
-                        ? index.AmdSecById(id)
-                        : mets.AmdSec.FirstOrDefault(a => a.Id == id),
-                    candidate =>
-                    {
-                        lastTested = candidate;
-                        lastTestedName = ExtractPremisOriginalName(candidate);
-                        return lastTestedName != null;
-                    });
-
-                path = ReferenceEquals(amdSec, lastTested)
-                    ? lastTestedName
-                    : ExtractPremisOriginalName(amdSec);
+                path = ResolveDirectoryPath(child, mets, index);
                 if (path == null)
                 {
                     diagnostics?.Add(
                         $"Directory div '{child.Id}' has no premis:originalName via ADMID '{IdRefs.Joined(child.Admid)}'");
                 }
                 break;
-            }
             case Constants.ItemType when child.Fptr.Count == 0:
                 diagnostics?.Add($"Item div '{child.Id}' has no fptr, so no path");
                 break;

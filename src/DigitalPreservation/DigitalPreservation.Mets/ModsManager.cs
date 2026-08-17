@@ -1,4 +1,4 @@
-﻿using System.Xml;
+using System.Xml;
 using System.Xml.Serialization;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Utils;
@@ -163,8 +163,9 @@ public static class ModsManager
     /// The div's deposit-relative path, where it has one. A dmdSec created for a physical div is
     /// identified from this path rather than from the div's ID, so a legacy raw-ID div gets a
     /// valid encoded DMD_ id instead of a second invalid one (issue #188). Null for logical divs,
-    /// and for a physical div whose path could not be resolved - both fall back to deriving the
-    /// ID from div.Id, which for a logical div is the client-supplied (NCName-validated) ID.
+    /// whose own client-supplied (NCName-validated) ID is used as the stem, and for a physical div
+    /// whose path could not be resolved, which gets a minted ID rather than one derived from an
+    /// identifier it would have to be read out of.
     /// </param>
     public static ModsDefinition? GetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div,
         bool createDmd = false, string? localPath = null)
@@ -172,10 +173,7 @@ public static class ModsManager
         if (div.Dmdid.Count == 0 && createDmd)
         {
             // There is no DMDID on this div
-            var idPart = localPath != null
-                ? localPath.ToMetsId()
-                : div.Id.RemoveStart(Constants.PhysIdPrefix);
-            div.Dmdid.Add(idPart.HasText() ? Constants.DmdIdPrefix + idPart : UnusedDmdId(mets));
+            div.Dmdid.Add(MintDmdId(mets, div, localPath));
         }
         // Resolve the DMDID tokens to the actual dmdSec where one exists; the id used for
         // lazy creation is the joined legacy form only when no dmdSec resolves (see IdRefs).
@@ -184,6 +182,26 @@ public static class ModsManager
     }
 
     
+    /// <summary>
+    /// A dmdSec ID for a div that has no DMDID yet.
+    /// </summary>
+    /// <remarks>
+    /// A path gives a stable, meaningful ID. Failing that the div's own ID is used as a stem,
+    /// which is not the same as reading meaning out of it: the whole ID is carried through and
+    /// nothing is parsed from it. It is encoded on the way, so a legacy div whose ID contains a
+    /// slash or a space yields a VALID new dmdSec ID rather than a second invalid one - encoding
+    /// is a no-op for the NCName-validated IDs a client supplies for logical ranges.
+    /// </remarks>
+    private static string MintDmdId(
+        DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, string? localPath)
+    {
+        if (localPath != null)
+        {
+            return MetsIds.Dmd(localPath);
+        }
+        return div.Id.HasText() ? MetsIds.DmdFromDivId(div.Id) : UnusedDmdId(mets);
+    }
+
     /// <summary>
     /// A dmdSec ID for a div that offers nothing to derive one from: a logical div with no ID
     /// of its own, which third-party structMaps use freely and which the parser reports as an

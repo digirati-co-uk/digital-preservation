@@ -45,38 +45,6 @@ public static class IdRefs
     }
 
     /// <summary>
-    /// As <see cref="ResolveSingle{T}(IReadOnlyList{string}, Func{string, T?})"/>, but for a
-    /// caller that can only USE certain referenced elements — a file's technical metadata has to
-    /// come from a section that actually carries PREMIS, not merely from one that exists.
-    /// </summary>
-    /// <remarks>
-    /// The two tiers are deliberately NOT treated alike, and the asymmetry is the whole point.
-    /// The joined form is an IDENTITY match: it says "this one section is what the reference
-    /// names", so if it resolves, that is the answer whether the caller can use it or not —
-    /// returning it lets the caller report a precise diagnostic, where walking on would resolve
-    /// a FRAGMENT of a legacy ID against some unrelated section and answer with confident
-    /// nonsense. Per-token resolution is a genuine LIST whose order carries no meaning, so there
-    /// an unusable candidate is simply skipped and the next tried.
-    /// A single token is an identity match too, and is returned unfiltered for the same reason.
-    /// </remarks>
-    public static T? ResolveSingle<T>(
-        IReadOnlyList<string> tokens, Func<string, T?> lookupById, Func<T, bool> isUsable)
-        where T : class
-    {
-        switch (tokens.Count)
-        {
-            case 0:
-                return null;
-            case 1:
-                return lookupById(tokens[0]);
-            default:
-                return lookupById(Joined(tokens))
-                       ?? tokens.Select(lookupById)
-                           .FirstOrDefault(match => match != null && isUsable(match));
-        }
-    }
-
-    /// <summary>
     /// Mirror-image resolution for the XDocument/raw-string side (MetsParser), where the whole
     /// IDREFS attribute value arrives as one string: try the whole value first (a single ID,
     /// or a legacy ID containing spaces), then each whitespace-separated token (schema-valid
@@ -102,33 +70,27 @@ public static class IdRefs
     }
 
     /// <summary>
-    /// The raw-string counterpart of
-    /// <see cref="ResolveSingle{T}(IReadOnlyList{string}, Func{string, T?}, Func{T, bool})"/>,
-    /// with the same asymmetry: the whole attribute value is an identity match and is returned
-    /// whether the caller can use it or not, while the per-token tier skips what it cannot use.
-    /// </summary>
-    public static T? ResolveSingle<T>(
-        string attributeValue, Func<string, T?> lookupById, Func<T, bool> isUsable)
-        where T : class
-    {
-        var whole = lookupById(attributeValue);
-        if (whole != null || attributeValue.IndexOfAny(XmlWhitespace) < 0)
-        {
-            return whole;
-        }
-        return attributeValue
-            .Split(XmlWhitespace, StringSplitOptions.RemoveEmptyEntries)
-            .Select(lookupById)
-            .FirstOrDefault(match => match != null && isUsable(match));
-    }
-
-    /// <summary>
     /// Resolve an IDREFS token collection to every referenced element. The same tiering as
     /// <see cref="ResolveSingle{T}(IReadOnlyList{string},Func{string,T})"/>: a joined-form
     /// match means the tokens are ONE legacy space-containing ID, so exactly that element is
     /// returned; otherwise each token resolves individually (genuine IDREFS list), skipping
     /// tokens that don't resolve. Never throws; empty when nothing matches.
     /// </summary>
+    /// <remarks>
+    /// This is also what a caller wants when it can only USE some referenced elements - a file's
+    /// technical metadata has to come from a section that actually carries PREMIS, not merely one
+    /// that exists. Resolve, then select: <c>ResolveAll(...).FirstOrDefault(usable)</c>.
+    /// <para>
+    /// Selecting afterwards is what preserves the tiering's meaning rather than fighting it. A
+    /// joined-form (or single-token) match is an IDENTITY match - it says "this one section is
+    /// what the reference names" - so it is the only candidate, and an unusable one yields
+    /// nothing rather than sending the caller on to resolve a FRAGMENT of a legacy ID against
+    /// some unrelated section. A genuine multi-token list has no meaningful order, so every
+    /// candidate is offered and the caller takes the first it can use. An empty result means the
+    /// reference dangles; a non-empty result with nothing usable means the sections exist but
+    /// hold none of what was wanted - two different diagnostics, distinguishable at the call site.
+    /// </para>
+    /// </remarks>
     public static IReadOnlyList<T> ResolveAll<T>(IReadOnlyList<string> tokens, Func<string, T?> lookupById)
         where T : class
     {
@@ -150,6 +112,34 @@ public static class IdRefs
                     .Cast<T>()
                     .ToList();
         }
+    }
+
+    /// <summary>
+    /// The raw-string counterpart of
+    /// <see cref="ResolveAll{T}(IReadOnlyList{string},Func{string,T})"/>, for the
+    /// XDocument side where the whole IDREFS attribute value arrives as one string. Same tiering,
+    /// and the same reason for not delegating to the collection overload: this side's first tier
+    /// must match the attribute value VERBATIM, since a legacy ID could contain any whitespace a
+    /// filename can.
+    /// </summary>
+    public static IReadOnlyList<T> ResolveAll<T>(string attributeValue, Func<string, T?> lookupById)
+        where T : class
+    {
+        if (lookupById(attributeValue) is { } whole)
+        {
+            return [whole];
+        }
+        if (attributeValue.IndexOfAny(XmlWhitespace) < 0)
+        {
+            return [];
+        }
+        return attributeValue
+            .Split(XmlWhitespace, StringSplitOptions.RemoveEmptyEntries)
+            .Select(lookupById)
+            .Where(match => match != null)
+            .Distinct()
+            .Cast<T>()
+            .ToList();
     }
 
     /// <summary>
