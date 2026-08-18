@@ -38,10 +38,12 @@ The APIs accept two kinds of caller:
 
 ### 2.2 How identity is derived today
 
-`DigitalPreservation.Core/Auth/ClaimsPrincipalX.GetCallerIdentity` returns:
+`DigitalPreservation.Core/Auth/ClaimsPrincipalX.GetCallerIdentity` (the `ClaimsPrincipal` overload — the one its ~21 call sites use) returns:
 
 - the principal's display name for a human caller, else
-- `"dlipdev"` / `"unknown"` fallbacks.
+- the `"dlipdev"` fallback.
+
+(Sibling overloads taking an `HttpContext`/`HttpRequest`/raw token return `"unknown"` fallbacks — and derive identity by reading `upn` from the `Authorization` header's JWT **without signature validation**. They are attribution-only today, but they violate G1 and should be retired as part of this work — see Appendix B.)
 
 Because app-only tokens have no display name, machine callers produce no useful identity here. To compensate, `DigitalPreservation.Core/Auth/AuthFilterIdentifier` reads the **`X-Client-Identity`** header and synthesises a `Name` claim from whatever string the caller sent. This header is the *only* thing currently distinguishing one machine caller from another.
 
@@ -160,16 +162,19 @@ public static string GetCallerIdentity(this ClaimsPrincipal principal, IClientDi
 ```
 
 ```jsonc
-// appsettings — the allow-list doubles as friendly-name resolution AND a list of permitted callers
+// appsettings — the allow-list doubles as friendly-name resolution AND a list of permitted callers.
+// Entries are always objects: as implemented, the section binds to Dictionary<string, ClientProfile>,
+// and a flat `"guid": "name"` string form does NOT bind — the config binder silently ignores the
+// scalar value, leaving a profile with a null name.
 "KnownClients": {
-  "11111111-1111-1111-1111-111111111111": "iiif-builder",
-  "22222222-2222-2222-2222-222222222222": "goobi",
-  "33333333-3333-3333-3333-333333333333": "eprints-migration",
-  "44444444-4444-4444-4444-444444444444": "playwright-tests"
+  "11111111-1111-1111-1111-111111111111": { "name": "iiif-builder" },
+  "22222222-2222-2222-2222-222222222222": { "name": "goobi" },
+  "33333333-3333-3333-3333-333333333333": { "name": "eprints-migration" },
+  "44444444-4444-4444-4444-444444444444": { "name": "playwright-tests" }
 }
 ```
 
-The same map is the natural home for **per-caller policy**, not just a display name. For the Goobi use case (§1.1) it generalises from `azp → name` to `azp → client profile`, e.g. carrying the target deposit bucket:
+The same map is the natural home for **per-caller policy**, not just a display name. For the Goobi use case (§1.1) the profile carries more than a name, e.g. the target deposit bucket:
 
 ```jsonc
 "KnownClients": {
@@ -193,9 +198,12 @@ The point here is only that the verified `azp` is the safe key such policy hangs
   moment the choice matters: the deposit's own `Files` URI is stored on the entity and every
   subsequent storage operation derives its location (and bucket) from that URI.
 - **The pipeline only runs on default-bucket deposits.** Pipeline.API reaches deposit files
-  through a filesystem mount of the default working bucket, so `RunPipelineHandler` — the only
-  producer of pipeline jobs — declines (400) any deposit whose `Files` URI is outside it.
-  Revisit if a routed caller ever needs characterisation.
+  through a filesystem mount of the default working bucket, so `RunPipelineHandler` declines
+  (400) any deposit whose `Files` URI is outside it. **Caveat: it is *not* the only producer of
+  pipeline jobs** — Pipeline.API's own `POST /pipeline` (`PipelineController`, guarded only by
+  `X-API-KEY`) publishes the same message to the same topic with no bucket check, bypassing this
+  guard. That entrypoint needs the same check, or retiring. Revisit if a routed caller ever
+  needs characterisation.
 - Deployment prerequisite, not code: the task roles of every service that touches deposit
   files (Preservation API, Storage API + Importer for export, UI) need IAM read/write on each
   per-caller bucket, and the caller needs access to its own bucket.
@@ -205,6 +213,7 @@ Why this is safe:
 - The `azp`/`appid` claim is **signed by Entra** and validated as part of token validation — a caller cannot forge it.
 - The allow-list is a closed set: an app ID we do not recognise resolves to `"unknown"` and (see §5.3) can be rejected outright.
 - No code path trusts `X-Client-Identity` for identity. It survives, if at all, only as a cosmetic hint that must agree with the resolved identity or be ignored.
+- **Caveat (open — see §8 Q7):** the human-vs-machine test is not yet unified. `AuthFilterIdentifier` detects a human via `GetDisplayName()` (which also honours `name`/`upn`), while `CallerResolver` keys on the literal `preferred_username` claim. A v1.0-format delegated token (which carries `upn`/`unique_name` but no `preferred_username`) would be classed human by the filter but *machine* by `ResolveDepositBucket` — and, if its `azp` matched a `KnownClients` profile with a bucket, could route a **human's** deposit into a per-caller bucket. The guarantee above currently holds for v2.0 delegated tokens (the UI's shape today); both chokepoints should share one predicate built on `idtyp` (Appendix A).
 
 A future enhancement (out of scope here) can resolve unknown app IDs live via Microsoft Graph (`GET /servicePrincipals(appId='{azp}')`) instead of, or in addition to, the static map.
 
@@ -213,7 +222,7 @@ A future enhancement (out of scope here) can resolve unknown app IDs live via Mi
 Today's boundary (§3.1) already relies on **Assignment required = Yes** — but on `a616cf42`, admitting one shared identity. Option A keeps the same mechanism and simply moves it to the real API registration with a role per caller:
 
 - Set **Assignment required = Yes** on the API registration (`84c62880`) so Entra will only issue tokens to callers that have been assigned a role — the same gate that protects `a616cf42` today, now per-caller.
-- Enforce the role in the API — e.g. `Microsoft.Identity.Web`'s `[RequiredScopeOrAppPermission]`, or a policy that checks the `roles` claim — so a token without `Preservation.Call` is rejected (403) even if otherwise valid.
+- Enforce the role in the API — e.g. `Microsoft.Identity.Web`'s `[RequiredScopeOrAppPermission]`, or a policy that checks the `roles` claim — so a token without `Preservation.Call` is rejected (403) even if otherwise valid. **Delegated callers must not be forgotten here:** a human's token via the UI carries `scp` (the delegated scope), never `roles`, so enforcement must accept *role or scope* — checking the app role alone would 403 every human. This is one reason the API must expose a delegated scope (see Phase 0/Phase 3).
 - Optionally split read vs write roles so iiif-builder cannot mutate and Goobi can.
 
 This is what turns the "who can call me" portal page (G4) into a real, enforced list.
@@ -231,25 +240,34 @@ This is cleanest once **Storage has its own audience and its own app roles** (§
 The key enabler for a non-breaking migration is that the API can be configured to accept **both** audiences during transition.
 
 **Phase 0 — Prepare the API (no caller impact).**
-- Add the Application ID URI and the `Preservation.Call` app role to `84c62880`.
-- Configure the API to accept **both** audiences. With `Microsoft.Identity.Web` 3.8.3 (our current version), this is just a config change — swap the singular `Audience` for the plural `Audiences` array in each API's `appsettings`; the binder maps it onto `TokenValidationParameters.ValidAudiences`, so no custom `JwtBearerOptions` post-configuration is needed:
+- Add the Application ID URI and the `Preservation.Call` app role to `84c62880`, and expose one **delegated scope** (e.g. `access_as_user`). The scope is dormant now but is a hard prerequisite for Phase 3: the UI's delegated `/.default` request only succeeds against a consented delegated permission, and app roles are invisible to the delegated flow.
+- Configure the API to accept **both** audiences.
+
+  > [!CAUTION]
+  > **A top-level plural `Audiences` key does NOT work** — an earlier draft of this RFC prescribed exactly that, wrongly. In the `AddMicrosoftIdentityWebApi(GetSection("AzureAd"))` path both APIs use, the section is bound onto exactly two types: `JwtBearerOptions` (singular `Audience` only) and `MicrosoftIdentityOptions` (no audience properties at all). The class that *does* expose `Audience`/`Audiences` — `MicrosoftIdentityApplicationOptions` — is never bound in this path. An `Audiences` key therefore binds to nothing, and with the singular `Audience` removed, `Microsoft.Identity.Web` falls back to its **default** audiences derived from `ClientId` (the `84c62880…` forms only) and **rejects every current caller's `api://a616cf42…` token** (`IDX10214`) — turning the "no caller impact" phase into a full outage. Verified empirically against `Microsoft.Identity.Web` 3.8.3.
+
+  What works in config is binding through `TokenValidationParameters`, which the JwtBearer binder populates directly (verified against 3.8.3):
 
   ```jsonc
   "AzureAd": {
     "Instance": "https://login.microsoftonline.com/",
     "TenantId": "bdeaeda8…",
     "ClientId": "84c62880…",
-    "Audiences": [
-      "api://a616cf42…",   // current audience (the UI registration) — accepted during transition
-      "api://84c62880…"    // the API's own App ID URI — the target audience
-    ],
+    "TokenValidationParameters": {
+      "ValidAudiences": [
+        "api://a616cf42…",   // current audience (the UI registration) — accepted during transition
+        "api://84c62880…"    // the API's own App ID URI — the target audience
+      ]
+    },
     "ClientSecret": "…"
   }
   ```
 
-  Replace the old `"Audience": "api://a616cf42…"` line entirely — set `Audiences` only, rather than keeping both keys. (`MicrosoftIdentityOptions` exposes both `Audience` and `Audiences`; populating just the plural form keeps the config unambiguous.) In Phase 4 this collapses back to a single-entry `Audiences` array (or back to `Audience`) once `api://a616cf42…` is removed.
+  Remove the old `"Audience": "api://a616cf42…"` key when adding this. The equivalent code-side form — Microsoft's documented approach for multiple audiences — is `services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, o => o.TokenValidationParameters.ValidAudiences = …)`. Two hardening notes:
+  - Consider also listing the bare-GUID forms (`a616cf42…`, `84c62880…`) alongside the `api://` URIs, so a future `accessTokenAcceptedVersion: 2` flip (v2 tokens carry the bare GUID as `aud`) cannot silently break validation. Microsoft.Identity.Web's *default* validation accepts both forms; an explicit list drops that tolerance.
+  - A mis-shaped audience config deploys cleanly and only fails when tokens arrive. **Before shipping this change, add an integration test that validates one token per accepted audience and rejects a foreign audience** — no such test exists today.
 - Ship the new `IClientDirectory` allow-list in **dual mode**: prefer the resolved `azp`, fall back to `X-Client-Identity` for callers not yet migrated. Log whenever the fallback is used.
-  - **As implemented**, this dual-mode resolution lives in `AuthFilterIdentifier` — the existing post-auth chokepoint that already synthesises the machine caller's `Name` claim — rather than in `GetCallerIdentity`. It resolves `azp`/`appid` against `IClientDirectory` and injects the resolved name as that same `Name` claim, falling back to the header otherwise. This keeps `GetCallerIdentity`'s signature (and its ~15 call sites) untouched; the §5.2 form remains the eventual target. With `KnownClients` empty, no `azp` resolves, so behaviour is identical to today bar the fallback log line.
+  - **As implemented**, this dual-mode resolution lives in `AuthFilterIdentifier` — the existing post-auth chokepoint that already synthesises the machine caller's `Name` claim — rather than in `GetCallerIdentity`. It resolves `azp`/`appid` against `IClientDirectory` and injects the resolved name as that same `Name` claim, falling back to the header otherwise. This keeps `GetCallerIdentity`'s signature (and its ~21 call sites) untouched; the §5.2 form remains the eventual target. With `KnownClients` empty, no `azp` resolves, so behaviour is identical to today bar the fallback log line. Two operational caveats: the platform's own service-to-service calls self-assert `X-Client-Identity: "api-call"` (§3.2 #7), so the fallback warning fires on essentially **every internal request** until Phase 2 completes — log once per unresolved `appId`, or at `Information`, rather than a warning per request; and the fallback warning is currently asserted by no test, so the Phase 2 "watch the logs" mechanism is unverified.
 
 **Phase 1 — Create per-caller registrations.**
 - Create a registration per caller, each with its own credential, assigned `Preservation.Call` on the API (admin consent). Add each app ID to `KnownClients`.
@@ -258,8 +276,12 @@ The key enabler for a non-breaking migration is that the API can be configured t
 **Phase 2 — Repoint callers one at a time.**
 - For each machine caller, switch its config to its own `client_id` + credential and scope `api://84c62880…/.default`. Because the API accepts both audiences, callers move independently with no coordinated cutover. Watch the logs: the `X-Client-Identity` fallback warning should stop firing for each caller as it migrates.
 - **Ordering is strict, because `84c62880` already has `Assignment required = Yes`** (see §3 warning): each caller must already hold its `Preservation.Call` assignment (Phase 1) *before* it is repointed here, or Entra rejects the token request with `AADSTS501051`. There is no grace window — assign, *then* repoint.
+- **The `TokenProvider` callers (the APIs' own service-to-service identity, §3.2 #7) are *not* config-only.** `AccessTokenProvider` can only request its own `client_id` as the resource (the §8 Q1 constraint), so a new per-service registration cannot request `api://84c62880…/.default` without a code change. Choose explicitly: (a) extend `AccessTokenProvider` to decouple the requested resource from the client credential — the same change §8 Q1 wants for a Storage audience; or (b) as a stopgap, have the internal services authenticate *as* `84c62880` itself (own-resource then works) — which requires assigning `Preservation.Call` to `84c62880`'s **own service principal** (the same self-assignment linchpin §3.1 describes on `a616cf42`), an admin action that must be scheduled.
 
 **Phase 3 — Repoint the UI.**
+- **Prerequisites — without both, the delegated flow fails at token acquisition:**
+  - The API registration must expose a **delegated scope** (created in Phase 0), the UI registration must be granted that permission, and **admin consent** given. A delegated `/.default` request resolves to the client's statically consented delegated permissions; with none configured, the request fails outright. App roles do not substitute — delegated tokens carry `scp`, never `roles`.
+  - Because `84c62880` already has **Assignment required = Yes**, every UI *user* must be assigned on its enterprise application *before* the UI is repointed, or Entra rejects them with `AADSTS50105`. The human users already assigned there (Phase 0 admin doc) are the **start of this required list, not leftovers to remove** — extend it to all UI users (ideally via a group), including the Playwright browser-login account.
 - Change the UI's downstream `ScopeUri` to `api://84c62880…/.default`. The UI continues to sign users in with `a616cf42`; only the API-call audience changes.
 
 **Phase 4 — Tighten.**
@@ -270,13 +292,15 @@ The key enabler for a non-breaking migration is that the API can be configured t
     "Instance": "https://login.microsoftonline.com/",
     "TenantId": "bdeaeda8…",
     "ClientId": "84c62880…",
-    "Audiences": [ "api://84c62880…" ],
+    "TokenValidationParameters": {
+      "ValidAudiences": [ "api://84c62880…" ]
+    },
     "ClientSecret": "…"
   }
   ```
 
-  With a single entry you may instead revert to the singular `"Audience": "api://84c62880…"`; either form is equivalent once the transitional audience is gone.
-- **Assignment required = Yes** on `84c62880` is **already set** (see §3 warning), so the only remaining tightening is to enforce the `Preservation.Call` role in code. (Verify the setting is still on rather than re-enabling it.)
+  With a single entry you may instead revert to the singular `"Audience": "api://84c62880…"` (which *does* bind, via `JwtBearerOptions`) — but never a top-level `Audiences` key, which binds to nothing (see the Phase 0 caution).
+- **Assignment required = Yes** on `84c62880` is **already set** (see §3 warning), so the only remaining tightening is to enforce the `Preservation.Call` role in code — accepting *role or delegated scope*, per §5.3, so humans via the UI are not locked out. (Verify the setting is still on rather than re-enabling it.)
 - Switch `GetCallerIdentity` out of dual mode: unknown `azp` ⇒ rejected; `X-Client-Identity` no longer consulted for identity.
 - Remove or down-grade `X-Client-Identity` to a purely cosmetic, ignored-on-mismatch hint.
 
@@ -288,6 +312,8 @@ Each phase is independently reversible until Phase 4.
 - **Defence in depth for Storage.API.** Because Storage currently re-validates the same forwarded token, it should remain reachable **only** from the Preservation API / importer at the network layer, regardless of this change.
 - **No trust in transport-set headers.** After Phase 4, identity is derived solely from validated token claims. `X-Client-Identity` (and any similar header) must never influence an authorization or audit-trust decision.
 - **Audit integrity.** Distinct `azp` per caller makes logs and METS authorship trustworthy and non-repudiable, which the shared-registration model cannot provide.
+- **`FeatureFlags:DisableAuth` blast radius.** The flag skips the *entire* filter set — `AuthorizeFilter` **and** `AuthFilterIdentifier` — plus `UseAuthentication()`/`UseAuthorization()`. With it on, `/whoami` is anonymous and happily echoes a spoofed `X-Client-Identity` as the resolved name. It must never be enabled outside local/test environments; note that `Storage.API/appsettings.Example.json` currently ships it as `"true"`.
+- **Header relay.** `PropagateCorrelationIdHandler` relays any *inbound* `X-Client-Identity` verbatim downstream, so a spoofed header propagates Preservation → Storage until Phase 4 removes the header entirely.
 
 ## 8. Open questions / follow-ups
 
@@ -299,6 +325,7 @@ Each phase is independently reversible until Phase 4.
 4. **Graph-based name resolution** vs the static `KnownClients` map — static is recommended for v1 (cheap, doubles as allow-list); revisit if caller churn becomes high.
 5. **Bucket: routing vs isolation (Goobi, §1.1).** *Routing* is now implemented (§5.2): config in the `KnownClients` profile, consumed at deposit creation. Still open is *isolation* ("**only** Goobi may write there") — an IAM/authz concern rather than routing code — and whether the policy would be better expressed as a per-caller app role.
 6. **Per-caller behaviour generally.** Bucket choice is the first identity-driven behaviour; others may follow (default rights statement, METS template, quota). Decide whether such policy belongs in the `KnownClients` profile or a separate policy store — and whether any of it warrants a change to the deposit-create API surface.
+7. **Unify the human/machine discriminator.** `AuthFilterIdentifier` decides "is this a human" via `GetDisplayName()` (which honours `name`/`upn` as well), while `CallerResolver` keys on the literal `preferred_username` claim; the two chokepoints can disagree on the same token (see the §5.2 caveat), and a v1.0-format delegated token would be classed human by one and machine by the other — with bucket-routing consequences. Appendix A already names the right discriminator (`idtyp = app`): both should share a single predicate built on it, covered by tests that stub v1-shaped (`upn`-only) as well as v2-shaped (`preferred_username`) tokens.
 
 ## 9. Testing the migrated identity
 
@@ -308,6 +335,8 @@ Phase 0's `ApiAuthorizationStackTests` already characterise resolution at the fi
 2. **Default caller — e.g. the Playwright API identity.** A caller *without* a `depositBucket` in its profile creates a deposit and lands in the default bucket — proving Goobi's routing is specific to Goobi and the default path is unaffected. The app-only identity the Playwright suite uses for direct API calls (distinct from its browser-login user — §8 Q2) is the natural concrete subject once it has its own registration.
 
 **Test seam.** Real-Entra tokens are awkward in CI, so prefer driving these through the test host with a stubbed `azp` claim (as `ApiAuthorizationStackTests` does) for deterministic CI coverage, plus an optional `Category=Manual` smoke test using genuine client-credentials tokens against dev.
+
+**Known coverage gaps.** Two things this plan depends on are asserted by no test today: the accepted-audience configuration (a mis-shaped config deploys cleanly and fails only when tokens arrive — the Phase 0 `Audiences` defect would have been caught by a single test that validates one token per audience), and the `X-Client-Identity` fallback warning that Phase 2 uses as its migration diagnostic. Add both.
 
 ### 9.1 The caller-identity endpoint (implemented)
 
@@ -329,7 +358,7 @@ It exists to:
 - give the tests above a **direct assertion target** for resolution, independent of any side effect such as bucket choice — and cover callers (like the Playwright API user) that have no distinctive side effect;
 - serve as a **migration diagnostic**: during Phase 2 a caller confirms its `source` flips from `header-fallback` to `token` the moment it is repointed, mirroring the fallback warning log.
 
-Keep it minimal and self-only: it sits behind the standard `AuthorizeFilter` and returns only the *caller's own* identity — never the `KnownClients` map or other callers. It **does** report the caller's resolved **deposit bucket** ("this is where deposits would be made for you"), since callers are expected to interact with that bucket directly; the bucket falls back to `AwsStorage:DefaultWorkingBucket` when the caller's profile carries none.
+Keep it minimal and self-only: it sits behind the standard `AuthorizeFilter` and returns only the *caller's own* identity — never the `KnownClients` map or other callers. It **does** report the caller's resolved **deposit bucket** ("this is where deposits would be made for you"), since callers are expected to interact with that bucket directly; the bucket falls back to `AwsStorage:DefaultWorkingBucket` when the caller's profile carries none. Two caveats: each API resolves that fallback from its *own* `AwsStorage:DefaultWorkingBucket`, and Storage's value can differ from Preservation's — only the **Preservation** API's `/whoami` is authoritative for where a deposit would actually be created; and "sits behind the standard `AuthorizeFilter`" holds only when `FeatureFlags:DisableAuth` is off (see §7).
 
 ## Appendix A — App-only token claims we rely on
 
@@ -343,9 +372,10 @@ Keep it minimal and self-only: it sits behind the standard `AuthorizeFilter` and
 
 ## Appendix B — Key code touchpoints
 
-- `DigitalPreservation.Core/Auth/ClaimsPrincipalX.cs` — `GetCallerIdentity` (rewrite per §5.2).
-- `DigitalPreservation.Core/Auth/AuthFilterIdentifier.cs` — stop synthesising identity from `X-Client-Identity`; enforce role.
+- `DigitalPreservation.Core/Auth/ClaimsPrincipalX.cs` — `GetCallerIdentity` (rewrite per §5.2). Also retire the `HttpContext`/`HttpRequest`/raw-token overloads, which parse the bearer token **without signature validation** (§2.2).
+- `DigitalPreservation.Core/Auth/AuthFilterIdentifier.cs` — stop synthesising identity from `X-Client-Identity`; enforce role; unify the human/machine predicate with `CallerResolver` on `idtyp` (§8 Q7).
 - `Preservation.API/Program.cs`, `Storage.API/Program.cs` — `AzureAd` audience config; role enforcement filter.
-- `DigitalPreservation.Core/Web/Headers/PropagateCorrelationIdHandler.cs` — relays the inbound user token downstream, and when there is none falls back to `AccessTokenProvider` for an app-only token, hard-coding `X-Client-Identity: "api-call"` (remove in Phase 4).
-- `DigitalPreservation.Core/Web/Headers/AccessTokenProvider.cs` + the `TokenProvider` config section (`Preservation.API`, `Pipeline.API`) — the APIs' own machine credentials/identity for service-to-service calls (see §3.2 #7). Repoint to a per-service registration + `api://84c62880…` in Phase 2; the own-resource-only limitation is the §8.1 constraint.
+- `DigitalPreservation.Core/Web/Headers/PropagateCorrelationIdHandler.cs` — relays the inbound user token downstream, and when there is none falls back to `AccessTokenProvider` for an app-only token, hard-coding `X-Client-Identity: "api-call"`; it also relays any *inbound* `X-Client-Identity` verbatim (remove both in Phase 4).
+- `DigitalPreservation.Core/Web/Headers/AccessTokenProvider.cs` + the `TokenProvider` config section (`Preservation.API`, `Pipeline.API`) — the APIs' own machine credentials/identity for service-to-service calls (see §3.2 #7). Migrating these in Phase 2 is *not* config-only — the own-resource-only limitation (§8 Q1) forces either a code change here or the run-as-`84c62880` stopgap (see Phase 2). While touching it, move off the legacy v1 `/oauth2/token` endpoint.
+- `Pipeline.API/Features/Pipeline/PipelineController.cs` — `POST /pipeline` enqueues pipeline jobs with no default-bucket guard, bypassing `RunPipelineHandler`'s check (§5.2); add the guard or retire the entrypoint.
 - `Storage.API.Tests/Integration/ApiAuthorizationStackTests.cs` — existing characterisation of the authorization stack; extend with role-enforcement cases.
