@@ -116,6 +116,55 @@ public class CallerResolverTests
     }
 
     [Fact]
+    public void V1Human_WithUpnClaim_ResolvesToUser_WithDefaultBucket()
+    {
+        // v1.0-format delegated tokens carry upn/unique_name and no preferred_username. The human
+        // predicate must still classify them as human (RFC-0001 §8 Q7), or /whoami misreports and
+        // ResolveDepositBucket could route a human into a per-caller bucket.
+        var result = CallerResolver.Resolve(
+            Principal(("upn", "alice@leeds.ac.uk"), ("azp", Goobi)),
+            clientIdentityHeader: null, Directory(), DefaultBucket);
+
+        result.Source.Should().Be(CallerResolver.SourceUser);
+        result.Name.Should().Be("alice@leeds.ac.uk");
+        result.DepositBucket.Should().Be(DefaultBucket);
+    }
+
+    [Fact]
+    public void V1Human_WithMappedUniqueName_ResolvesToUser()
+    {
+        // unique_name is mapped to ClaimTypes.Name by the default inbound claim mapping.
+        var result = CallerResolver.Resolve(
+            Principal((ClaimTypes.Name, "Alice Smith"), ("azp", Goobi)),
+            clientIdentityHeader: null, Directory(), DefaultBucket);
+
+        result.Source.Should().Be(CallerResolver.SourceUser);
+        result.DepositBucket.Should().Be(DefaultBucket);
+    }
+
+    [Fact]
+    public void ResolveDepositBucket_V1Human_GetsNull_EvenWhenSignInAppIsKnown()
+    {
+        CallerResolver.ResolveDepositBucket(
+                Principal(("upn", "alice@leeds.ac.uk"), ("azp", Goobi)), Directory())
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public void MachineWithInjectedNameClaim_StillResolvesAsMachine()
+    {
+        // AuthFilterIdentifier injects a literal "Name" claim for machine callers before /whoami
+        // runs; that claim must not flip the caller to human (it is not a user-identifying claim).
+        var result = CallerResolver.Resolve(
+            Principal(("azp", Goobi), ("Name", "goobi")),
+            clientIdentityHeader: null, Directory(), DefaultBucket);
+
+        result.Source.Should().Be(CallerResolver.SourceToken);
+        result.Name.Should().Be("goobi");
+        result.DepositBucket.Should().Be("leeds-goobi-deposits");
+    }
+
+    [Fact]
     public void ResolveDepositBucket_UnknownMachine_GetsNull()
     {
         CallerResolver.ResolveDepositBucket(

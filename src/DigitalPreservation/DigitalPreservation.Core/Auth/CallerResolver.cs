@@ -25,13 +25,14 @@ public static class CallerResolver
         // reports is what CreateDeposit does.
         var depositBucket = ResolveDepositBucket(user, clients) ?? defaultBucket;
 
-        // 1. Human (delegated) caller — identified by a real user claim, not the injected machine name.
-        var preferredUsername = user.FindFirstValue("preferred_username");
-        if (!string.IsNullOrEmpty(preferredUsername))
+        // 1. Human (delegated) caller — the same predicate AuthFilterIdentifier uses, so /whoami
+        // mirrors attribution. Covers v2.0 (preferred_username) and v1.0 (upn/unique_name) token
+        // shapes, and is not fooled by the "Name" claim the filter injects for machine callers.
+        if (user.IsHumanCaller())
         {
             return new WhoAmIResult
             {
-                Name = user.GetDisplayName() ?? preferredUsername,
+                Name = user.GetDisplayName() ?? HumanName(user) ?? "user",
                 Source = SourceUser,
                 AppId = appId,
                 DepositBucket = depositBucket
@@ -82,7 +83,7 @@ public static class CallerResolver
     /// </summary>
     public static string? ResolveDepositBucket(ClaimsPrincipal user, IClientDirectory? clients)
     {
-        if (!string.IsNullOrEmpty(user.FindFirstValue("preferred_username")))
+        if (user.IsHumanCaller())
         {
             return null;
         }
@@ -92,4 +93,12 @@ public static class CallerResolver
             ? profile.DepositBucket
             : null;
     }
+
+    /// <summary>The user-identifying claim value for a human caller, across v2.0 and v1.0 token shapes.</summary>
+    private static string? HumanName(ClaimsPrincipal user) =>
+        user.FindFirstValue("preferred_username")
+        ?? user.FindFirstValue(ClaimTypes.Upn)
+        ?? user.FindFirstValue("upn")
+        ?? user.FindFirstValue(ClaimTypes.Name)
+        ?? user.FindFirstValue("unique_name");
 }

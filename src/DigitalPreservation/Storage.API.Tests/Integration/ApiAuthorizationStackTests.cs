@@ -41,7 +41,7 @@ public class ApiAuthorizationStackTests
 {
     private const string SecurePath = "/secure";
 
-    private static TestServer BuildServer(IClientDirectory? clients = null)
+    private static TestServer BuildServer(IClientDirectory? clients = null, CapturingLoggerProvider? logs = null)
     {
         var builder = new WebHostBuilder()
             .ConfigureServices(services =>
@@ -49,6 +49,14 @@ public class ApiAuthorizationStackTests
                 services.AddAuthentication("Test")
                     .AddScheme<AuthenticationSchemeOptions, StubAuthHandler>("Test", _ => { });
                 services.AddAuthorization();
+                if (logs != null)
+                {
+                    services.AddLogging(logging =>
+                    {
+                        logging.SetMinimumLevel(LogLevel.Debug);
+                        logging.AddProvider(logs);
+                    });
+                }
                 if (clients != null)
                 {
                     // RFC-0001 Phase 0: when a KnownClients allow-list is registered, AuthFilterIdentifier
@@ -143,6 +151,70 @@ public class ApiAuthorizationStackTests
     }
 
     [Fact]
+    public async Task Request_WithV1AuthenticatedUser_IsAuthorized()
+    {
+        // A v1.0-format delegated token carries upn/unique_name but no preferred_username. The
+        // shared IsHumanCaller predicate must class it human, so no machine Name claim is injected.
+        using var server = BuildServer();
+        var client = server.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
+        request.Headers.Add(StubAuthHandler.AuthenticateV1UserHeader, "true");
+        // A spoofed header must be irrelevant for a human caller.
+        request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "not-a-machine-really");
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Be("authenticated-user");
+    }
+
+    [Fact]
+    public async Task FallbackWarning_IsLoggedOncePerAppId_ThenAtDebug()
+    {
+        // RFC-0001 Phase 0: the header-fallback warning is the Phase 2 migration diagnostic, but the
+        // platform's own service-to-service calls take this path on every request until they migrate,
+        // so it must not warn per request.
+        var logs = new CapturingLoggerProvider();
+        using var server = BuildServer(logs: logs);
+        var client = server.CreateClient();
+
+        for (var i = 0; i < 2; i++)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
+            request.Headers.Add(StubAuthHandler.AuthenticateMachineHeader, "true");
+            request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "legacy-caller");
+            (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        var fallbackEntries = logs.Entries
+            .Where(e => e.Message.Contains("not resolved from KnownClients")).ToList();
+        fallbackEntries.Where(e => e.Level == LogLevel.Warning).Should().HaveCount(1,
+            "the first unresolved request for an appId warns");
+        fallbackEntries.Where(e => e.Level == LogLevel.Debug).Should().HaveCount(1,
+            "subsequent requests from the same appId log at Debug");
+    }
+
+    [Fact]
+    public async Task KnownMachine_DoesNotLogFallbackWarning()
+    {
+        var clients = new ClientDirectory(new Dictionary<string, ClientProfile>
+        {
+            ["11111111-1111-1111-1111-111111111111"] = new() { Name = "iiif-builder" }
+        });
+        var logs = new CapturingLoggerProvider();
+        using var server = BuildServer(clients, logs);
+        var client = server.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
+        request.Headers.Add(StubAuthHandler.AuthenticateMachineHeader, "true");
+        request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "spoofed");
+        (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        logs.Entries.Should().NotContain(e => e.Message.Contains("not resolved from KnownClients"));
+    }
+
+    [Fact]
     public async Task Request_FromKnownMachine_IsAttributedToTheSignedTokenIdentity_NotTheHeader()
     {
         // RFC-0001 Phase 0: once the caller's azp is in the KnownClients allow-list, the signed token
@@ -178,6 +250,9 @@ public class StubAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
     /// <summary>Authenticate as a human user that carries a display name.</summary>
     public const string AuthenticateUserHeader = "Test-Authenticate-User";
 
+    /// <summary>Authenticate as a human user with a v1.0-format token (upn, no preferred_username).</summary>
+    public const string AuthenticateV1UserHeader = "Test-Authenticate-V1-User";
+
     /// <summary>Authenticate as a client-credentials machine caller with NO display name.</summary>
     public const string AuthenticateMachineHeader = "Test-Authenticate-Machine";
 
@@ -197,6 +272,12 @@ public class StubAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
             return Authenticated(new Claim("preferred_username", "real-user@leeds.ac.uk"));
         }
 
+        if (Request.Headers.ContainsKey(AuthenticateV1UserHeader))
+        {
+            // v1.0 delegated tokens identify the user by upn/unique_name instead.
+            return Authenticated(new Claim("upn", "v1-user@leeds.ac.uk"));
+        }
+
         if (Request.Headers.ContainsKey(AuthenticateMachineHeader))
         {
             // A client-credentials token: valid, but no display-name claim.
@@ -212,6 +293,36 @@ public class StubAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
             new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")),
             "Test");
         return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
+
+/// <summary>Collects log entries so tests can assert on levels and messages.</summary>
+public sealed class CapturingLoggerProvider : ILoggerProvider
+{
+    private readonly List<(LogLevel Level, string Message)> entries = new();
+
+    public IReadOnlyList<(LogLevel Level, string Message)> Entries
+    {
+        get { lock (entries) return entries.ToList(); }
+    }
+
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(this);
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class CapturingLogger(CapturingLoggerProvider owner) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (owner.entries) owner.entries.Add((logLevel, formatter(state, exception)));
+        }
     }
 }
 

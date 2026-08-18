@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -22,8 +23,9 @@ public sealed class AuthFilterIdentifier : IAsyncAuthorizationFilter
             return Task.CompletedTask;
         }
 
-        //return if valid standard user user
-        if (!string.IsNullOrEmpty(context.HttpContext.User.GetDisplayName()))
+        //Return if valid standard (human) user. IsHumanCaller is the shared predicate also used by
+        //CallerResolver, so attribution, /whoami and bucket routing agree on who is human.
+        if (context.HttpContext.User.IsHumanCaller())
         {
             return Task.CompletedTask;
         }
@@ -45,7 +47,14 @@ public sealed class AuthFilterIdentifier : IAsyncAuthorizationFilter
         return Task.CompletedTask;
     }
 
-    private static string? ResolveMachineName(AuthorizationFilterContext context)
+    //The filter is registered as a single instance in Program.cs, so this set lives for the process:
+    //the fallback below warns once per unresolved appId (then logs at Debug), instead of a warning on
+    //every request - the platform's own service-to-service calls all take the fallback path until
+    //RFC-0001 Phase 2, which would otherwise be a warning per internal request. Per-caller migration
+    //progress is observable via /whoami (source flips from header-fallback to token).
+    private readonly ConcurrentDictionary<string, bool> warnedAppIds = new();
+
+    private string? ResolveMachineName(AuthorizationFilterContext context)
     {
         var services = context.HttpContext.RequestServices;
         var clients = services.GetService<IClientDirectory>();
@@ -63,9 +72,20 @@ public sealed class AuthFilterIdentifier : IAsyncAuthorizationFilter
         if (context.HttpContext.Request.Headers.TryGetValue(MachineHeaderName, out var header))
         {
             var headerValue = header.FirstOrDefault() ?? string.Empty;
-            services.GetService<ILogger<AuthFilterIdentifier>>()?.LogWarning(
-                "Caller {AppId} not resolved from KnownClients; falling back to self-asserted "
-                + "X-Client-Identity '{ClientIdentity}'", appId ?? "(no azp)", headerValue);
+            var logger = services.GetService<ILogger<AuthFilterIdentifier>>();
+            if (warnedAppIds.TryAdd(appId ?? "(no azp)", true))
+            {
+                logger?.LogWarning(
+                    "Caller {AppId} not resolved from KnownClients; falling back to self-asserted "
+                    + "X-Client-Identity '{ClientIdentity}'. Further requests from this appId log at Debug.",
+                    appId ?? "(no azp)", headerValue);
+            }
+            else
+            {
+                logger?.LogDebug(
+                    "Caller {AppId} not resolved from KnownClients; falling back to self-asserted "
+                    + "X-Client-Identity '{ClientIdentity}'", appId ?? "(no azp)", headerValue);
+            }
             return headerValue;
         }
 
