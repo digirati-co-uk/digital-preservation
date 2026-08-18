@@ -336,7 +336,7 @@ Phase 0's `ApiAuthorizationStackTests` already characterise resolution at the fi
 
 **Test seam.** Real-Entra tokens are awkward in CI, so prefer driving these through the test host with a stubbed `azp` claim (as `ApiAuthorizationStackTests` does) for deterministic CI coverage, plus an optional `Category=Manual` smoke test using genuine client-credentials tokens against dev.
 
-**Known coverage gaps.** Two things this plan depends on are asserted by no test today: the accepted-audience configuration (a mis-shaped config deploys cleanly and fails only when tokens arrive — the Phase 0 `Audiences` defect would have been caught by a single test that validates one token per audience), and the `X-Client-Identity` fallback warning that Phase 2 uses as its migration diagnostic. Add both.
+**Known coverage gaps.** The accepted-audience configuration is now pinned by `Storage.API.Tests/Integration/AudienceValidationTests.cs`, which drives locally signed tokens through the real `AddMicrosoftIdentityWebApi` pipeline for all three config shapes: the Phase 0 `TokenValidationParameters:ValidAudiences` transition shape (both audiences accepted, foreign rejected), today's singular `Audience` shape, and — as a regression pin for the defect this section's caution describes — the top-level `Audiences` key binding to nothing and locking out the transitional audience. Still uncovered: the `X-Client-Identity` fallback warning that Phase 2 uses as its migration diagnostic.
 
 ### 9.1 The caller-identity endpoint (implemented)
 
