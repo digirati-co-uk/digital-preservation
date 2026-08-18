@@ -32,9 +32,11 @@ public interface IMetsManager
     // SetAccessRestrictionsByDivId(mets, "PHYS_objects/child-folder", ["Closed"])  // equiv to first one
     // Each returns a failure when the write did NOT happen, and the caller must not report
     // success (silently writing to an ancestor div, or silently doing nothing, are both
-    // worse than failing). ByPath methods return BadRequest for an unresolvable path (the
-    // same condition and code as EditMets). ByDivId methods return NotFound for an unknown
-    // divId. Both return BadRequest when the descriptive metadata cannot be edited as MODS.
+    // worse than failing). ByPath methods return BadRequest for an unresolvable path (as
+    // EditMets does for adds and updates; EditMets' DELETE of a missing entry returns
+    // NotFound - deleting a thing that isn't there). ByDivId methods return NotFound for an
+    // unknown divId. Both return BadRequest when the descriptive metadata cannot be edited
+    // as MODS.
     Result SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo);
     Result SetRecordInfoByDivId(FullMets mets, string divId, RecordInfo recordInfo);
     Result SetRightsStatementByPath(FullMets mets, string localPath, Uri? rightsStatement);
@@ -47,8 +49,9 @@ public interface IMetsManager
 
     // There may be more than one so we need to address them better than this, which assumes only one
     // address by ID? There will almost always be only one so we don't want to complicate the UI
-    // Sets a logical struct map (never a physical one)
-    void SetStructMap(FullMets mets, LogicalRange logSm);
+    // Sets a logical struct map (never a physical one). Returns BadRequest, writing nothing, if
+    // any range ID in the supplied tree could not be used as an XML ID.
+    Result SetStructMap(FullMets mets, LogicalRange logSm);
     // This will overwrite a structMap with the same ID, and append one if the ID is different to any currently existing.
 
     // maybe this rarely used operation, if we need to change the order:

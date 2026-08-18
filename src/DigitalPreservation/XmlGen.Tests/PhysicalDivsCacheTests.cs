@@ -1,12 +1,15 @@
+using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Mets.StorageImpl;
+using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Storage.Repository.Common.Mets;
 
 namespace XmlGen.Tests;
 
@@ -21,6 +24,7 @@ public class PhysicalDivsCacheTests
 {
     private readonly MetsManager metsManager;
     private readonly FileSystemMetsStorage metsStorage;
+    private readonly MetsFromArchivalGroup metsFromArchivalGroup;
 
     private const string TestDigest = "eb634d64ce8e6be5195174ceaef9ac9e19c37119f3b31618630aa633ccdbf68f";
 
@@ -40,6 +44,7 @@ public class PhysicalDivsCacheTests
         var premisEventManager = new PremisEventManagerVirus();
         var metadataManager = new MetadataManager(premisManager, premisManagerExif, premisEventManager);
         metsManager = new MetsManager(parser, metsStorage, metadataManager);
+        metsFromArchivalGroup = new MetsFromArchivalGroup(metsManager, parser, metadataManager);
     }
 
     // -----------------------------------------------------------------------
@@ -108,7 +113,7 @@ public class PhysicalDivsCacheTests
     private static System.Xml.XmlElement GetPremisOriginalNameElement(
         DigitalPreservation.XmlGen.Mets.Mets mets, string directoryPath)
     {
-        var amdSec = mets.AmdSec.Single(a => a.Id == $"{Constants.AdmIdPrefix}{directoryPath}");
+        var amdSec = mets.AmdSec.Single(a => a.Id == MetsIds.Adm(directoryPath));
         var premisXml = amdSec.TechMd[0].MdWrap.XmlData.Any[0];
         var elements = premisXml.GetElementsByTagName("originalName", "http://www.loc.gov/premis/v3");
         return (System.Xml.XmlElement)elements[0]!;
@@ -357,6 +362,94 @@ public class PhysicalDivsCacheTests
         retry.Success.Should().BeTrue(retry.ErrorMessage ?? "");
         objectsDiv.Div.Should().ContainSingle(d => d.Label == "new.tif");
         AssertCacheMatchesRebuild(fullMets);
+    }
+
+    [Fact]
+    public async Task A_File_Add_That_Fails_LATE_Leaves_No_Orphan_And_The_Retry_Adds_One_File()
+    {
+        // Issue #216. The test above covers a failure in the metadata step, which returns
+        // before attaching anything. This covers a failure AFTER that step - which used to
+        // strand a FILE and an amdSec with no div, so the retry minted a SECOND FILE with the
+        // same xs:ID and the path could never be updated or deleted again.
+        var fullMets = await CreateAndLoadStandardMets("cache-failed-add-late.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+
+        // A dmdSec already sitting on the ID this add will mint, wrapping something that is
+        // not MODS - so the descriptive-metadata step cannot materialise it and fails.
+        var blocker = new MdSecType
+        {
+            Id = MetsIds.Dmd("objects/new.tif"),
+            MdWrap = new MdSecTypeMdWrap
+            {
+                Mdtype = MdSecTypeMdWrapMdtype.Dc,
+                XmlData = new MdSecTypeMdWrapXmlData()
+            }
+        };
+        fullMets.Mets.DmdSec.Add(blocker);
+        var dmdSecCountBefore = fullMets.Mets.DmdSec.Count;
+        var amdSecCountBefore = fullMets.Mets.AmdSec.Count;
+        var fileCountBefore = fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Count();
+
+        var fileWithMetadata = SimpleFile("objects/new.tif", "new.tif");
+        fileWithMetadata.AccessRestrictions = ["Closed"];
+
+        var failedAdd = metsManager.AddToMets(fullMets, fileWithMetadata);
+
+        failedAdd.Failure.Should().BeTrue();
+        objectsDiv.Div.Should().BeEmpty("a failed add must not leave a div behind");
+        fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Should().HaveCount(fileCountBefore,
+            "a failed add must not leave a FILE behind");
+        fullMets.Mets.AmdSec.Count.Should().Be(amdSecCountBefore, "nor an amdSec");
+        fullMets.Mets.DmdSec.Count.Should().Be(dmdSecCountBefore, "nor a dmdSec");
+        AssertCacheMatchesRebuild(fullMets);
+
+        // With the obstruction gone the retry succeeds, and adds exactly one FILE - not a
+        // second one colliding on xs:ID with an orphan from the failed attempt.
+        fullMets.Mets.DmdSec.Remove(blocker);
+        var retry = metsManager.AddToMets(fullMets, SimpleFile("objects/new.tif", "new.tif"));
+
+        retry.Success.Should().BeTrue(retry.ErrorMessage ?? "");
+        objectsDiv.Div.Should().ContainSingle(d => d.Label == "new.tif");
+        fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File)
+            .Select(f => f.Id).Should().OnlyHaveUniqueItems();
+        AssertCacheMatchesRebuild(fullMets);
+
+        // ...and the path remains editable, which it did not once a duplicate ID existed.
+        var update = metsManager.AddToMets(fullMets, SimpleFile("objects/new.tif", "new.tif"));
+        update.Success.Should().BeTrue(update.ErrorMessage ?? "");
+    }
+
+    [Fact]
+    public async Task A_File_Add_That_Fails_AFTER_Creating_A_DmdSec_Rolls_That_DmdSec_Back()
+    {
+        // The sibling test above reaches the failure before any dmdSec is created, so it never
+        // exercises the rollback at all - it asserted a count that was zero either way. Here the
+        // descriptive step SUCCEEDS (creating a dmdSec) and the metadata step then fails, which
+        // is the only path where there is something to roll back.
+        var fullMets = await CreateAndLoadStandardMets("cache-failed-add-rollback.xml");
+        var physRoot = fullMets.Mets.StructMap.Single(sm => sm.Type == Constants.Physical).Div!;
+        var objectsDiv = physRoot.Div.Single(d => d.Label == FolderNames.Objects);
+        var dmdSecsBefore = fullMets.Mets.DmdSec.Select(d => d.Id).ToList();
+
+        // Access restrictions make PopulateDmdFromResource create a dmdSec; conflicting digests
+        // then make ProcessAllFileMetadata fail after it.
+        var file = SimpleFile("objects/new.tif", "new.tif");
+        file.AccessRestrictions = ["Closed"];
+        file.Metadata.Add(new DigestMetadata { Digest = "aaa", Source = "test-a" });
+        file.Metadata.Add(new DigestMetadata { Digest = "bbb", Source = "test-b" });
+
+        var failedAdd = metsManager.AddToMets(fullMets, file);
+
+        failedAdd.Failure.Should().BeTrue();
+        fullMets.Mets.DmdSec.Select(d => d.Id).Should().Equal(dmdSecsBefore,
+            "the dmdSec created before the failure must be rolled back");
+        objectsDiv.Div.Should().BeEmpty();
+        fullMets.Mets.FileSec.FileGrp.SelectMany(fg => fg.File).Should().BeEmpty();
+        AssertCacheMatchesRebuild(fullMets);
+
+        var retry = metsManager.AddToMets(fullMets, SimpleFile("objects/new.tif", "new.tif"));
+        retry.Success.Should().BeTrue(retry.ErrorMessage ?? "");
     }
 
     [Fact]
@@ -643,5 +736,93 @@ public class PhysicalDivsCacheTests
         fullMets.PhysicalDivsByPath.Keys.Should().NotContain(
             ["objects/my folder", "objects/my folder/my document.pdf"]);
         AssertCacheMatchesRebuild(fullMets);
+    }
+
+    // -----------------------------------------------------------------------
+    // METS built from an Archival Group, rather than by MetsManager mutation
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// A METS that MetsFromArchivalGroup builds must be navigable by path, exactly as one built
+    /// by MetsManager must be — the whole of #188 step 1 rests on it.
+    /// </summary>
+    /// <remarks>
+    /// This was previously checked only by <c>MetsFromArchivalGroup.AssertNavigable</c>, which is
+    /// <c>[Conditional("DEBUG")]</c>, while the CI job that gates merges builds Release (issue
+    /// #222). Breaking navigability here — by dropping the <c>premis:originalName</c> that
+    /// directory divs resolve through — failed 8 tests in Debug and 1 in Release, and that 1 was
+    /// an incidental catch in a delete test. Notably
+    /// <c>MetsIdIntegrityTests.A_Mets_Built_From_An_Archival_Group_Has_Valid_Unique_Resolvable_Ids</c>
+    /// passed: IDs stay valid and unique when paths stop resolving, so the ID gate says nothing
+    /// about navigability. This test is the coverage, and it does not depend on build configuration.
+    /// </remarks>
+    [Fact]
+    public async Task A_Mets_Built_From_An_Archival_Group_Is_Fully_Navigable_By_Path()
+    {
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(
+            await File.ReadAllTextAsync(new FileInfo("Samples/archivalGroup.json").FullName))!;
+
+        var metsUri = OutputUri("cache-archival-group-export.xml");
+        var created = await metsFromArchivalGroup.CreateStandardMets(metsUri, archivalGroup, "Cache AG Export");
+        created.Success.Should().BeTrue(created.ErrorMessage ?? "");
+
+        // Load it back the way anything reading this METS would, which is what populates the cache.
+        var loaded = await metsManager.GetFullMets(metsUri, created.Value!.ETag);
+        loaded.Success.Should().BeTrue(loaded.ErrorMessage ?? "");
+        var fullMets = loaded.Value!;
+
+        fullMets.PathDiagnostics.Should().BeEmpty(
+            "every div in an exported Archival Group must resolve to a path");
+
+        // Every container and binary the Archival Group holds, by its deposit-relative path.
+        // Derived from the Archival Group itself rather than listed here, so the test cannot
+        // drift from the fixture, and so it states the contract independently of the code that
+        // builds the structMap.
+        var expected = DepositPathsIn(archivalGroup);
+        expected.Should().HaveCountGreaterThan(5, "the fixture is meant to be a nested structure");
+        fullMets.PhysicalDivsByPath.Keys.Should().Contain(expected);
+
+        // The nested case spelled out, because that is where a path-building bug shows first.
+        fullMets.PhysicalDivsByPath.Keys.Should().Contain(
+            "objects/folder-b/folder-bb/minutes-laqm-22-april-2020.pdf");
+    }
+
+    /// <summary>
+    /// Paths of everything in an Archival Group, relative to the group's own root — except the
+    /// METS file itself, which does not appear in its own structMap.
+    /// </summary>
+    /// <remarks>
+    /// The exclusion is deliberately the same expression <c>MetsFromArchivalGroup.AddBinariesToMets</c>
+    /// uses to decide what to leave out — the deposit-relative path, matched exactly. The looser
+    /// name-only form agrees with it on today's fixture, where the METS sits at the root and is
+    /// called <c>mets.xml</c>, but the two come apart the moment that stops being true: a binary
+    /// named <c>old-mets-backup.xml</c> would be dropped from the expected set while production
+    /// still put it in the structMap, and a METS in a subdirectory would be the reverse. Both
+    /// divergences make this test cover less while still passing, which is the failure mode a
+    /// derived expectation exists to avoid.
+    /// </remarks>
+    private static List<string> DepositPathsIn(ArchivalGroup archivalGroup)
+    {
+        var root = archivalGroup.Id!.LocalPath;
+        var paths = new List<string>();
+
+        void Collect(Container container)
+        {
+            foreach (var binary in container.Binaries)
+            {
+                if (MetsUtils.IsMetsFile(Relative(binary.Id!), true)) continue;
+                paths.Add(Relative(binary.Id!));
+            }
+            foreach (var child in container.Containers)
+            {
+                paths.Add(Relative(child.Id!));
+                Collect(child);
+            }
+        }
+
+        string Relative(Uri id) => id.LocalPath.RemoveStart(root).RemoveStart("/");
+
+        Collect(archivalGroup);
+        return paths.Where(path => path.HasText()).ToList();
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Xml.Linq;
+using System.Xml.Linq;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -72,6 +72,92 @@ public class MetsParser(
             .ToDictionary(x => x.Id!, x => x.Use);
 
         return new MetsLookupMaps(amdSecMap, dmdSecMap, fileMap, techMdMap, digiprovMdMap, physDivMap, fileGrpUseMap);
+    }
+
+    /// <summary>
+    /// The most recent virus-scan digiprovMD for one file: the plain conventional ID for its
+    /// first scan, then the numbered forms, because scans accumulate as separate events and
+    /// each needs a unique xs:ID.
+    /// </summary>
+    /// <remarks>
+    /// Taking the plain ID alone would resolve only the FIRST scan a file ever had, so a file
+    /// rescanned and found infected could still report clean — the very failure the accumulating
+    /// model exists to prevent, arriving by the fallback path instead.
+    /// Every candidate is matched in full against this file's own identifier, so no other
+    /// file's event can be selected: numbering later scans between the prefix and the identifier
+    /// is what makes that possible, since a trailing counter would be indistinguishable from
+    /// part of another file's path.
+    /// </remarks>
+    private static XElement? LatestByConventionalKey(
+        IReadOnlyDictionary<string, XElement> digiprovMdMap, string? identifier)
+    {
+        if (identifier == null)
+        {
+            return null;
+        }
+
+        // ONE pass over the map. The dictionary is keyed ordinally, so a case-insensitive
+        // lookup cannot use TryGetValue; probing per candidate would mean a full scan for the
+        // plain ID and another for every numbered one.
+        XElement? latest = null;
+        var highest = -1;
+
+        foreach (var (key, element) in digiprovMdMap)
+        {
+            var occurrence = ScanOccurrence(key, identifier);
+            if (occurrence > highest)
+            {
+                highest = occurrence;
+                latest = element;
+            }
+        }
+
+        return latest;
+    }
+
+    /// <summary>
+    /// Whether a digiprovMD holds one of our virus-scan events, judged by its premis:eventType.
+    /// Provenance with no eventType at all is legal METS and is simply not ours to interpret.
+    /// </summary>
+    private static bool IsVirusCheckEvent(XElement digiprovMd) =>
+        digiprovMd.Descendants(XNames.PremisEventType)
+            .Any(eventType => string.Equals(
+                eventType.Value.Trim(), Constants.VirusCheckEventType, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Which scan of <paramref name="identifier"/> this digiprovMD ID names: 0 for the plain
+    /// conventional form, N for a numbered one, and -1 when the ID belongs to another file or
+    /// is not a virus-scan event at all.
+    /// </summary>
+    private static int ScanOccurrence(string key, string identifier)
+    {
+        if (!key.StartsWith(Constants.VirusProvEventPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return -1;
+        }
+
+        var remainder = key.AsSpan(Constants.VirusProvEventPrefix.Length);
+        if (remainder.Equals(identifier, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var separator = remainder.IndexOf('_');
+        if (separator <= 0 || !remainder[(separator + 1)..].Equals(identifier, StringComparison.OrdinalIgnoreCase))
+        {
+            return -1;
+        }
+
+        var digits = remainder[..separator];
+        foreach (var character in digits)
+        {
+            if (!char.IsAsciiDigit(character))
+            {
+                return -1;
+            }
+        }
+
+        return int.TryParse(digits, out var occurrence) ? occurrence : -1;
     }
     
     public async Task<Result<(Uri root, Uri? file)>> GetRootAndFile(Uri metsLocation)
@@ -326,8 +412,10 @@ public class MetsParser(
                 var admId = div.Attribute("ADMID")?.Value;
                 if (admId.HasText())
                 {
-                    // Use pre-built dictionary for O(1) lookup instead of LINQ query
-                    if (lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
+                    // IDREFS-aware: whole value first (single or legacy space-containing ID),
+                    // then per-token (schema-valid multi-reference)
+                    var amd = IdRefs.ResolveSingle(admId, id => lookupMaps.AmdSecMap.GetValueOrDefault(id));
+                    if (amd != null)
                     {
                         var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
                         Uri? storageLocation = null;
@@ -419,13 +507,27 @@ public class MetsParser(
                 VirusScanMetadata? virusScanMetadata = null;
                 ExifMetadata? exifMetadata = null;
                 ExtentMetadata? extentMetadata = null;
+                XElement? techMd = null;
                 if (!haveUsedAdmIdAlready && admId != null)
                 {
-                    if (!lookupMaps.TechMdMap.TryGetValue(admId, out var techMd))
-                    {
-                        // Archivematica does it this way - fall back to amdSec map
-                        lookupMaps.AmdSecMap.TryGetValue(admId, out techMd);
-                    }
+                    // IDREFS-aware, preserving the techMD-then-amdSec fallback per candidate id
+                    // (Archivematica points ADMID at the amdSec rather than the techMD).
+                    // The candidate must actually contain PREMIS: ADMID is a LIST and its order
+                    // carries no meaning, so a file may legitimately name a shared rightsMD
+                    // before the section holding its own technical metadata - Archivematica does
+                    // exactly that. Taking the first candidate that merely EXISTS would stop on
+                    // the rights section and lose the fixity, leaving the binary with no SHA256
+                    // (issue #215).
+                    // Resolve, then select. A section with no premis:object holds none of
+                    // what is read below - and worse, treating it as this file's would scope the
+                    // virus-scan lookup to it, which for a SHARED rights section means reporting
+                    // another file's scan as this one's.
+                    techMd = IdRefs
+                        .ResolveAll(
+                            admId,
+                            id => lookupMaps.TechMdMap.GetValueOrDefault(id)
+                                  ?? lookupMaps.AmdSecMap.GetValueOrDefault(id))
+                        .FirstOrDefault(candidate => candidate.Descendants(XNames.PremisObject).Any());
 
                     if (techMd == null)
                     {
@@ -496,53 +598,77 @@ public class MetsParser(
                     } // end else (techMd != null)
                 }
 
-                // Use pre-built dictionary for O(1) lookup instead of LINQ query
-                // The digiprovMD ID has the form "digiprovMD_ClamAV_{admId}"
-                var clamavKey = $"{Constants.VirusProvEventPrefix}{admId}";
-                if (!lookupMaps.DigiprovMdMap.TryGetValue(clamavKey, out var digiprovMd))
+                // The virus-scan event is a digiprovMD in the same amdSec as the file's
+                // techMD, so read it structurally from the RESOLVED element (identified among
+                // its siblings by the platform's "digiprovMD_ClamAV_" ID prefix) rather than
+                // deriving its full ID by string convention - the derived key breaks for
+                // genuine multi-token ADMIDs and for IDs the platform didn't mint.
+                // LAST, not first: scans accumulate as separate events, so the file's current
+                // virus status is the most recently appended one. Everything else in the
+                // amdSec - earlier scans, and provenance from tools we don't recognise - is
+                // simply not ours to interpret.
+                // A scan event is recognised by what it SAYS it is, not by how its ID is spelt.
+                // The writer's guarantee is a premis:event whose eventType is "virus check"; the
+                // ID convention is only a naming habit, and reading meaning out of an ID is the
+                // thing IDs are not for (see 02d, "Opaque to code, legible to people"). Matching
+                // on the event type is also more tolerant: provenance from tools we do not
+                // recognise is passed over rather than mistaken for a scan because of its name.
+                var amdScope = techMd?.Name == XNames.MetsAmdSec ? techMd : techMd?.Parent;
+                var digiprovMd = amdScope?.Elements(XNames.MetsDigiprovMD)
+                    .LastOrDefault(IsVirusCheckEvent);
+                if (digiprovMd == null)
                 {
-                    // Fall back to a case-insensitive but EXACT match. A substring match here
-                    // cross-talks between files whose IDs are prefixes of each other
-                    // (e.g. "ADM_a" is contained in "ADM_a2"), returning one file's virus-scan
-                    // event for a different file.
-                    var matchingKey = lookupMaps.DigiprovMdMap.Keys
-                        .FirstOrDefault(k => string.Equals(k, clamavKey, StringComparison.OrdinalIgnoreCase));
-                    if (matchingKey != null)
-                    {
-                        digiprovMd = lookupMaps.DigiprovMdMap[matchingKey];
-                    }
+                    // Conventional-key fallback for documents where nothing resolved
+                    // structurally. Every candidate ID is built from THIS file's identifier and
+                    // matched in full, case-insensitively: a looser test cross-talks between
+                    // files whose identifiers are prefixes of each other ("ADM_a" inside
+                    // "ADM_a2"), reporting one file's virus status as another's.
+                    var identifier = techMd?.Attribute("ID")?.Value ?? admId;
+                    digiprovMd = LatestByConventionalKey(lookupMaps.DigiprovMdMap, identifier);
                 }
 
-                var virusEvent = digiprovMd?.Descendants(XNames.PremisEvent).SingleOrDefault();
+                // The digiprovMD was chosen because it CONTAINS a virus-check event, so take that
+                // event rather than assume it is the only one wrapped. A digiprovMD holding several
+                // premis:events is legal METS, and it is reachable now that eventType rather than
+                // an ID prefix decides what counts as a scan: third-party provenance is in scope,
+                // and its shape is not ours to predict. The conventional-key fallback above matches
+                // on our own ID prefix, so fall back to the event it wrapped when nothing there
+                // names itself a virus check.
+                var premisEvents = digiprovMd?.Descendants(XNames.PremisEvent).ToList() ?? [];
+                var virusEvent = premisEvents.LastOrDefault(IsVirusCheckEvent) ?? premisEvents.FirstOrDefault();
                 if (virusEvent != null)
                 {
-                    var eventDatetime = virusEvent.Descendants(XNames.PremisEventDateTime).SingleOrDefault();
+                    // FirstOrDefault throughout, not SingleOrDefault. PREMIS allows several
+                    // eventOutcomeInformation elements on one event, and a producer we have never
+                    // seen may repeat others too; a parser whose whole job is tolerating other
+                    // people's METS must not turn a cardinality it did not expect into an exception.
+                    var eventDatetime = virusEvent.Descendants(XNames.PremisEventDateTime).FirstOrDefault();
                     var eventOutcomeInformation = virusEvent.Descendants(XNames.PremisEventOutcomeInformation)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
 
                     XElement? eventOutcomeDetailNote = null;
                     var eventOutcomeDetail = eventOutcomeInformation?.Descendants(XNames.PremisEventOutcomeDetail)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
                     if (eventOutcomeDetail != null)
                     {
                         eventOutcomeDetailNote = eventOutcomeDetail.Descendants(XNames.PremisEventOutcomeDetailNote)
-                            .SingleOrDefault();
+                            .FirstOrDefault();
                     }
 
                     var eventOutcome = eventOutcomeInformation?
                         .Descendants(XNames.PremisEventOutcome)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
 
                     var eventDetailInformation = virusEvent
                         .Descendants(XNames.PremisEventDetailInformation)
-                        .SingleOrDefault();
+                        .FirstOrDefault();
 
                     XElement? eventDetail = null;
                     if (eventDetailInformation != null)
                     {
                         eventDetail = eventDetailInformation
                             .Descendants(XNames.PremisEventDetail)
-                            .SingleOrDefault();
+                            .FirstOrDefault();
                     }
 
                     virusScanMetadata = new VirusScanMetadata
@@ -557,9 +683,12 @@ public class MetsParser(
                 }
                 
                 
-                if (admId != null && lookupMaps.AmdSecMap.TryGetValue(admId, out var amd))
+                var exifAmd = admId == null
+                    ? null
+                    : IdRefs.ResolveSingle(admId, id => lookupMaps.AmdSecMap.GetValueOrDefault(id));
+                if (exifAmd != null)
                 {
-                    var exifMetadataNode = amd.Descendants("ExifMetadata").SingleOrDefault();
+                    var exifMetadataNode = exifAmd.Descendants("ExifMetadata").SingleOrDefault();
                
                     if (exifMetadataNode != null)
                     {
@@ -711,7 +840,8 @@ public class MetsParser(
 
         var dmdId = div.Attribute("DMDID")?.Value;
         if (!dmdId.HasText()) return (null, null, null, false);
-        if (!lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd)) return (null, null, null, false);
+        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
+        if (dmd == null) return (null, null, null, false);
 
         foreach (var accessConditionEl in dmd.Descendants(XNames.ModsAccessCondition))
         {
@@ -1090,8 +1220,8 @@ public class MetsParser(
     {
         var dmdId = div.Attribute("DMDID")?.Value;
         if (!dmdId.HasText()) return null;
-        if (!lookupMaps.DmdSecMap.TryGetValue(dmdId, out var dmd)) return null;
-        return dmd.Descendants(XNames.ModsTitle).FirstOrDefault()?.Value;
+        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
+        return dmd?.Descendants(XNames.ModsTitle).FirstOrDefault()?.Value;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

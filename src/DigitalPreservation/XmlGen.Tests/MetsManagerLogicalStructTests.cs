@@ -145,7 +145,7 @@ public class MetsManagerLogicalStructTests
         childDiv.Attribute("ID")!.Value.Should().Be("LOG_0001");
         childDiv.Attribute("TYPE")!.Value.Should().Be("Item");
         var fptr = childDiv.Elements(MetsNs + "fptr").Single();
-        fptr.Attribute("FILEID")!.Value.Should().Be("FILE_objects/page.tif");
+        fptr.Attribute("FILEID")!.Value.Should().Be(MetsIds.File("objects/page.tif"));
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public class MetsManagerLogicalStructTests
         // Must use area, not direct FILEID.
         fptr.Attribute("FILEID").Should().BeNull();
         var area = fptr.Elements(MetsNs + "area").Single();
-        area.Attribute("FILEID")!.Value.Should().Be("FILE_objects/audio.wav");
+        area.Attribute("FILEID")!.Value.Should().Be(MetsIds.File("objects/audio.wav"));
         area.Attribute("BETYPE")!.Value.Should().Be("TIME");
         area.Attribute("BEGIN")!.Value.Should().Be("00:00:15");
         area.Attribute("END")!.Value.Should().Be("00:35:09.5");
@@ -296,7 +296,7 @@ public class MetsManagerLogicalStructTests
 
         fptr.Attribute("FILEID").Should().BeNull();
         var area = fptr.Elements(MetsNs + "area").Single();
-        area.Attribute("FILEID")!.Value.Should().Be("FILE_objects/page.tif");
+        area.Attribute("FILEID")!.Value.Should().Be(MetsIds.File("objects/page.tif"));
         area.Attribute("SHAPE")!.Value.Should().Be("RECT");
         area.Attribute("COORDS")!.Value.Should().Be("0,0,6000,2000");
     }
@@ -459,7 +459,7 @@ public class MetsManagerLogicalStructTests
 
         fptr.Attribute("FILEID").Should().BeNull("area element should be used, not direct FILEID");
         var area = fptr.Elements(MetsNs + "area").Single();
-        area.Attribute("FILEID")!.Value.Should().Be("FILE_objects/audio.wav");
+        area.Attribute("FILEID")!.Value.Should().Be(MetsIds.File("objects/audio.wav"));
         area.Attribute("BETYPE")!.Value.Should().Be("BYTE");
         area.Attribute("BEGIN")!.Value.Should().Be("0");
         area.Attribute("END")!.Value.Should().Be("44100");
@@ -772,8 +772,8 @@ public class MetsManagerLogicalStructTests
         var structLink = doc.Descendants(MetsNs + "structLink").Single();
         var smLink = structLink.Elements(MetsNs + "smLink").Single();
 
-        smLink.Attribute(XLinkNs + "from")!.Value.Should().Be("FILE_objects/audio.m4a");
-        smLink.Attribute(XLinkNs + "to")!.Value.Should().Be("FILE_objects/transcript.docx");
+        smLink.Attribute(XLinkNs + "from")!.Value.Should().Be(MetsIds.File("objects/audio.m4a"));
+        smLink.Attribute(XLinkNs + "to")!.Value.Should().Be(MetsIds.File("objects/transcript.docx"));
         smLink.Attribute(XLinkNs + "arcrole")!.Value.Should().Be(Supplementing.ToString());
     }
 
@@ -798,8 +798,8 @@ public class MetsManagerLogicalStructTests
         var smLinks = doc.Descendants(MetsNs + "smLink").ToList();
 
         smLinks.Should().HaveCount(2);
-        smLinks.Should().Contain(sl => sl.Attribute(XLinkNs + "from")!.Value == "FILE_objects/a.m4a");
-        smLinks.Should().Contain(sl => sl.Attribute(XLinkNs + "from")!.Value == "FILE_objects/b.m4a");
+        smLinks.Should().Contain(sl => sl.Attribute(XLinkNs + "from")!.Value == MetsIds.File("objects/a.m4a"));
+        smLinks.Should().Contain(sl => sl.Attribute(XLinkNs + "from")!.Value == MetsIds.File("objects/b.m4a"));
     }
 
     // -----------------------------------------------------------------------
@@ -831,7 +831,7 @@ public class MetsManagerLogicalStructTests
         var smLinks = doc.Descendants(MetsNs + "smLink").ToList();
 
         smLinks.Should().HaveCount(1);
-        smLinks[0].Attribute(XLinkNs + "from")!.Value.Should().Be("FILE_objects/b.m4a");
+        smLinks[0].Attribute(XLinkNs + "from")!.Value.Should().Be(MetsIds.File("objects/b.m4a"));
     }
 
     [Fact]

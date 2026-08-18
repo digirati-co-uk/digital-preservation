@@ -18,20 +18,30 @@ namespace DigitalPreservation.Mets;
 public static class MetsCache
 {
     /// <summary>
+    /// The invariant part of the diagnostic reported when two divs resolve to one path. The rest of
+    /// that message names the two divs, so this is the only part of it anything can match on.
+    /// </summary>
+    /// <remarks>
+    /// Public because recognising this diagnostic is not just an internal concern: a caller looking
+    /// at <see cref="FullMets.PathDiagnostics"/> can tell a collision from the other six shapes only
+    /// by this text. Sharing the constant is the point - a matcher written against a copy of the
+    /// wording silently stops matching the first time the wording changes, which is precisely how
+    /// the corpus survey's collision bucket came to be dead code.
+    /// </remarks>
+    public const string DuplicatePathFragment = "both resolve to path";
+
+    /// <summary>
     /// Rebuild the path cache from the current state of the METS. Returns diagnostics for any
     /// div whose path could not be resolved, or that collided with another div's path; an empty
     /// list means the whole physical structMap is navigable by path. The diagnostics are also
     /// stored on <see cref="FullMets.PathDiagnostics"/> so later failures can explain themselves.
     /// </summary>
-    internal const string DuplicatePathFragment = "both resolve to path";
-
     public static List<string> Populate(FullMets fullMets)
     {
         fullMets.PhysicalDivsByPath.Clear();
         var diagnostics = Build(fullMets.Mets, fullMets.PhysicalDivsByPath);
         fullMets.PathDiagnostics.Clear();
         fullMets.PathDiagnostics.AddRange(diagnostics);
-        fullMets.HasDuplicatePaths = diagnostics.Any(d => d.Contains(DuplicatePathFragment));
         return diagnostics;
     }
 
@@ -43,6 +53,10 @@ public static class MetsCache
         DigitalPreservation.XmlGen.Mets.Mets mets, Dictionary<string, DivType> cache)
     {
         var diagnostics = new List<string>();
+        // One ID index for the whole walk. Without it each div's resolution scans the fileSec
+        // (or the amdSecs) end to end, which makes building the cache quadratic in the size of
+        // the deposit - and the cache is built on every load.
+        var index = new MetsIdIndex(mets);
 
         // Tolerate malformed METS: never throw here, this runs on every load. Zero or many
         // PHYSICAL structMaps are diagnostics, not exceptions; with many, the first is used
@@ -66,7 +80,7 @@ public static class MetsCache
             return diagnostics;
         }
 
-        Walk(physRoot, mets, cache, diagnostics);
+        Walk(physRoot, mets, cache, diagnostics, index);
         return diagnostics;
     }
 
@@ -74,18 +88,19 @@ public static class MetsCache
         DivType div,
         DigitalPreservation.XmlGen.Mets.Mets mets,
         Dictionary<string, DivType> cache,
-        List<string> diagnostics)
+        List<string> diagnostics,
+        MetsIdIndex index)
     {
         foreach (var child in div.Div)
         {
-            var key = ResolvePath(child, mets, diagnostics);
+            var key = ResolvePath(child, mets, diagnostics, index);
             if (key != null && !cache.TryAdd(key, child))
             {
                 diagnostics.Add(
                     $"Divs '{cache[key].Id}' and '{child.Id}' {DuplicatePathFragment} '{key}'");
             }
 
-            Walk(child, mets, cache, diagnostics);
+            Walk(child, mets, cache, diagnostics, index);
         }
     }
 
@@ -96,12 +111,55 @@ public static class MetsCache
     /// divs by path rather than by reconstructed ID.
     /// </summary>
     public static string? TryResolvePath(DivType div, DigitalPreservation.XmlGen.Mets.Mets mets)
-        => ResolvePath(div, mets, null);
+        => ResolvePath(div, mets, null, null);
+
+    /// <summary>
+    /// As <see cref="TryResolvePath(DivType, DigitalPreservation.XmlGen.Mets.Mets)"/>, but reusing
+    /// a caller-built ID index. Use this when resolving several divs against the same document -
+    /// resolving each one independently rescans the fileSec every time.
+    /// </summary>
+    internal static string? TryResolvePath(
+        DivType div, DigitalPreservation.XmlGen.Mets.Mets mets, MetsIdIndex index)
+        => ResolvePath(div, mets, null, index);
+
+    /// <summary>
+    /// A directory div's path, from the premis:originalName of the amdSec its ADMID names.
+    /// </summary>
+    /// <remarks>
+    /// ADMID is an IDREFS token collection; IdRefs resolves both legacy space-containing IDs and
+    /// genuine multi-references. The candidate must actually carry an originalName: ADMID is a
+    /// LIST whose order means nothing, so a directory may name a shared rightsMD before the
+    /// section describing it, and stopping at the first section that merely EXISTS would leave
+    /// the div with no path at all - taking every edit beneath it down with it (issue #215).
+    /// Resolve, then take the first candidate that yields a name, stopping there: nothing is
+    /// parsed twice and nothing beyond the winner is parsed at all. This runs for every directory
+    /// div on every cache build.
+    /// </remarks>
+    private static string? ResolveDirectoryPath(
+        DivType child, DigitalPreservation.XmlGen.Mets.Mets mets, MetsIdIndex? index)
+    {
+        var candidates = IdRefs.ResolveAll(
+            child.Admid,
+            id => index != null
+                ? index.AmdSecById(id)
+                : mets.AmdSec.FirstOrDefault(a => a.Id == id));
+
+        foreach (var candidate in candidates)
+        {
+            var name = ExtractPremisOriginalName(candidate);
+            if (name != null)
+            {
+                return name;
+            }
+        }
+        return null;
+    }
 
     private static string? ResolvePath(
         DivType child,
         DigitalPreservation.XmlGen.Mets.Mets mets,
-        List<string>? diagnostics)
+        List<string>? diagnostics,
+        MetsIdIndex? index)
     {
         string? path = null;
         switch (child.Type)
@@ -110,28 +168,22 @@ public static class MetsCache
                 diagnostics?.Add($"Directory div '{child.Id}' has no ADMID, so no path");
                 break;
             case Constants.DirectoryType:
-            {
-                // Legacy IDs may contain spaces, which the XML processor splits into multiple
-                // IDREFS tokens; joining reconstructs the single amdSec ID (see MetadataManager).
-                var admId = string.Join(' ', child.Admid);
-                var amdSec = mets.AmdSec.FirstOrDefault(a => a.Id == admId);
-                path = ExtractPremisOriginalName(amdSec);
+                path = ResolveDirectoryPath(child, mets, index);
                 if (path == null)
                 {
                     diagnostics?.Add(
-                        $"Directory div '{child.Id}' has no premis:originalName via ADMID '{admId}'");
+                        $"Directory div '{child.Id}' has no premis:originalName via ADMID '{IdRefs.Joined(child.Admid)}'");
                 }
                 break;
-            }
             case Constants.ItemType when child.Fptr.Count == 0:
                 diagnostics?.Add($"Item div '{child.Id}' has no fptr, so no path");
                 break;
             case Constants.ItemType:
             {
                 var fileId = child.Fptr[0].Fileid;
-                var file = mets.FileSec?.FileGrp
-                    .SelectMany(fg => fg.File)
-                    .FirstOrDefault(f => f.Id == fileId);
+                var file = index != null
+                    ? index.FileById(fileId)
+                    : mets.FileSec?.FileGrp.SelectMany(fg => fg.File).FirstOrDefault(f => f.Id == fileId);
                 path = file?.FLocat.FirstOrDefault()?.Href;
                 if (path == null)
                 {

@@ -7,6 +7,75 @@
 > (`issue-188-idrefs-plan.md`) is also implemented, on `feat/188-idrefs-resolution`, stacked
 > on #211. Step 2 is not started. `chore/sonar-cleanup-main` has since merged; "the mainline"
 > below now simply means `main`.
+>
+> **Status addendum (2026-08-12, after PR #211 merge + independent whole-feature review):**
+> further deltas the review found unrecorded — the "pure refactor / zero assertion changes"
+> claim below no longer holds precisely: (a) `IMetsManager` Set* methods now return `Result`
+> instead of `void` (failures surface to callers; `SetModsInformation` propagates); (b)
+> `EditMets`/`LinkFile`/`UnLinkFile`/`SetFileLinks` normalise incoming paths (`./` strip,
+> trailing-`/` trim, BagIt `data/` strip), changing produced XML for variant path inputs;
+> (c) FLocat comparisons in update/delete/metadata paths are normalised the same way. All
+> deliberate improvements from the review rounds.
+>
+> **Status (2026-08-13): Step 2 is IMPLEMENTED** on `feat/188-encoded-mets-ids`. All minting
+> sites in §2.2 go through `MetsIdEncoding.ToMetsId`; the checklist items below are done. Six
+> things differ from the plan as written, all deliberate:
+>
+> 1. **The ID-convention navigation tier had to learn BOTH forms** (not anticipated anywhere in
+>    the plan). `FindChildDivByPath`'s third tier reconstructed only `PHYS_` + raw path, so a
+>    div minted with an encoded ID that later loses its path metadata became unreachable — the
+>    exact failure the tier exists to prevent. Caught by an existing test
+>    (`Deleting_The_Div_A_Diagnostic_Describes_Clears_The_Diagnostic`), not by a new one. It now
+>    tries the encoded ID and the legacy raw ID, and stays ambiguity-safe.
+> 2. **The duplicate-div guard in `AddNewFile`/`AddNewDirectory` needed widening**, not just the
+>    verification §2.2 item (5) asked for: an encoded mint no longer collides with a legacy
+>    raw-ID div for the same path, so the guard checks both forms (`FindConflictingChild`).
+>    Without it an add could silently create a second div for one path.
+> 3. **The merge gate is an ID-integrity gate, not XSD validation** (`MetsIdIntegrityTests`):
+>    every ID valid and unique, every ADMID/FILEID/smLink reference resolving, across empty,
+>    awkward-path, logical-structMap, Archival-Group and mixed legacy documents. Full XSD
+>    validation would need the METS + xlink schema set committed for offline CI, and would fail
+>    on an unrelated pre-existing issue — the template writes DMDID onto the objects/metadata/
+>    ad-hoc divs whose dmdSecs are only created lazily, so those references dangle by design.
+>    **Dangling-DMDID and full XSD validation both go to the conformance-checker backlog.**
+> 4. **`SetStructMap` now returns `Result`** (`IMetsManager` change, propagated by
+>    `SetLogicalStructMapHandler`) — §2.4 asked for BadRequest but the method returned void.
+>    Validation covers nested ranges, and rejects before writing anything.
+> 5. **`GetModsForDiv` takes `localPath`** as §2.3 planned; the `ByDivId` entry points recover
+>    it from the path cache (`PathForDiv`) rather than passing null, so a legacy div edited by
+>    ID also gets a valid encoded DMD id. The div-ID fallback remains only for logical divs and
+>    for physical divs whose path cannot be resolved at all.
+> 6. **No legacy/new split of `MetsManagerPathFixtureTests`** (§2.5) was needed: every assertion
+>    in it is about the frozen legacy corpus and none changed. Mixed-format coverage lives in
+>    `MetsIdIntegrityTests.Editing_A_Legacy_Document_Leaves_Every_Reference_Resolvable`.
+>
+> **Cumulative adversarial review (2026-08-13, six independent reviewers over PRs #211+#213+#214).**
+> Ten of its findings are fixed on this branch — seven regressions this change set introduced or
+> made unrecoverable (quadratic navigation on the add path; the ClamAV digiprovMD ID still minted
+> from a legacy amdSec ID; delete leaving unremovable fptr/smLink references; the duplicate-div
+> guard comparing IDs only; `SetStructMap` not checking ID uniqueness; `ResolveFileId` ignoring the
+> OBJECTS fileGrp; every ID-less logical div sharing one dmdSec) and three test defects that let
+> them through. The remaining ~20 findings are pre-existing and tracked separately; none requires
+> remediating data already in storage. (The review initially flagged `MetsParser.BuildLookupMaps`
+> throwing on duplicate IDs as a remediation problem, on the assumption that the pre-#211
+> `MetsFromArchivalGroup` bug had written such documents into OCFL. It had not — production
+> content only began going in once the platform was METS-first, so nothing was ever preserved
+> through that path. Tolerating duplicate IDs with a diagnostic is still worth doing for
+> third-party and hand-edited METS, but it is robustness, not recovery.)
+>
+> `Constants.ObjectsDivId`/`MetadataDivId` stay `const` (their folder names need no encoding);
+> `MetsIdEncodingTests` pins that `.ToMetsId()` is the identity for them, so the constants and
+> the minted form cannot drift apart. `MetadataAdHocDivId` became `static readonly`.
+> **Still outstanding: the atomic deploy of every embedder (§2.7) and the docs-repo pass (§2.8).**
+
+> **Step 2 checklist addition (2026-08-12, from the whole-feature review):**
+> `BuildFptr` and `LinkFile`/`UnLinkFile`/`SetFileLinks` must switch from MINTING
+> `FILE_`+path to RESOLVING the actual FILE element's ID (via the cached div's `Fptr`, or a
+> FLocat lookup) — on legacy documents the fileSec keeps raw IDs, so minting encoded IDs
+> would create dangling FILEID/smLink references and make raw-ID smLinks unremovable. The
+> §2.x "structLink FILE_ IDs — just re-mint" assumption (and its counterpart in
+> `issue-188-analysis.md`, now corrected there) was wrong for legacy content. Add a legacy
+> structLink/logical-fptr regression test on `Samples/path-fixture-spaces.xml` with it.
 
 > v2, 2026-08-10. Revised against `chore/sonar-cleanup-main` after full re-verification of every
 > code claim — see `issue-188-reassessment.md` for what changed and why the approach stands.

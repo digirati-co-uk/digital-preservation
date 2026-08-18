@@ -123,6 +123,15 @@ public class ProcessPipelineJobHandler(
             logger.LogError("Updated pipeline job {JobIdentifier} to status: {Status}, recording errors {Errors}",
                 jobId, status, errors);
         }
+        else if (updateResult.ErrorCode == ErrorCodes.Conflict)
+        {
+            // Since #221 a Conflict here is an ordinary, expected outcome - a duplicate SQS delivery
+            // losing the race to claim a job - which Handle detects and handles by design. Logging it
+            // at Error would make every correctly-handled duplicate look like a failure to anything
+            // watching error rates, and page whoever is on call for the system working as intended.
+            logger.LogInformation("Job {JobIdentifier} was not moved to {Status}: {Error}",
+                jobId, status, updateResult.CodeAndMessage());
+        }
         else
         {
             logger.LogError("Failed to update job {JobIdentifier} status: {Status}; {Error}, was trying to log errors: {Errors}",
@@ -133,7 +142,26 @@ public class ProcessPipelineJobHandler(
 
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
-        await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
+        // Claiming the job IS the start: Preservation API moves it out of "waiting" only once, and a
+        // Conflict means someone else already did. SQS is at-least-once, so the same start message can
+        // be delivered more than once for one job; running it again would re-scan the deposit and
+        // append a second virus-scan provenance event for a scan that only ever happened once (#221).
+        // Any other failure is treated as it was before - it is far more likely to be a transient
+        // problem reaching Preservation API than a duplicate, and there is no retry to fall back on:
+        // SqsPipelineQueue.DequeueRequest deletes the message the moment it reads it, before we get
+        // here, so a job abandoned on a transient error is abandoned for good. Bailing out on
+        // anything short of a definite duplicate would silently strand it.
+        var claim = await UpdateJobStatus(request, PipelineJobStates.Running, cancellationToken);
+        if (claim.ErrorCode == ErrorCodes.Conflict)
+        {
+            logger.LogWarning(
+                "Abandoning pipeline job {JobIdentifier} for deposit {DepositId}: it is not waiting to be run, " +
+                "so this is a repeat delivery. {Error}",
+                request.JobIdentifier, request.DepositId, claim.ErrorMessage);
+
+            return Result.FailNotNull<Result>(ErrorCodes.Conflict,
+                $"Pipeline job {request.JobIdentifier} for deposit {request.DepositId} has already been started.");
+        }
 
         var workspaceResult = await GetWorkspaceManager(request, true, cancellationToken);
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)

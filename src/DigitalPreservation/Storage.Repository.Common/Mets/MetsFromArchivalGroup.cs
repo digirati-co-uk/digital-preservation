@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -87,13 +87,13 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
 
             if (childDirectoryDiv == null)
             {
-                var admId = Constants.AdmIdPrefix + localPath;
-                var techId = Constants.TechIdPrefix + localPath;
+                var admId = MetsIds.Adm(localPath);
+                var techId = MetsIds.Tech(localPath);
                 childDirectoryDiv = new DivType
                 {
                     Type = Constants.DirectoryType,
                     Label = childContainer.Name,
-                    Id = $"{Constants.PhysIdPrefix}{localPath}",
+                    Id = MetsIds.Phys(localPath),
                     Admid = { admId }
                 };
                 div.Div.Add(childDirectoryDiv);
@@ -118,18 +118,18 @@ public class MetsFromArchivalGroup(IMetsManager metsManager, IMetsParser metsPar
         foreach (var binary in binaries)
         {
             var localPath = binary.Id!.LocalPath.RemoveStart(agLocalPath).RemoveStart("/");
-            if (MetsUtils.IsMetsFile(localPath!, true))
+            if (MetsUtils.IsMetsFile(localPath, true))
             {
                 continue;
             }
-            var fileId = Constants.FileIdPrefix + localPath;
-            var admId = Constants.AdmIdPrefix + localPath;
-            var techId = Constants.TechIdPrefix + localPath;
+            var fileId = MetsIds.File(localPath);
+            var admId = MetsIds.Adm(localPath);
+            var techId = MetsIds.Tech(localPath);
             var childItemDiv = new DivType
             {
                 Type = Constants.ItemType,
                 Label = binary.Name,
-                Id = $"{Constants.PhysIdPrefix}{localPath}",
+                Id = MetsIds.Phys(localPath),
                 Fptr = { new DivTypeFptr { Fileid = fileId } }
             };
             div.Div.Add(childItemDiv);

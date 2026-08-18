@@ -1,6 +1,7 @@
-using System.Xml.Linq;
+﻿using System.Xml.Linq;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Mets;
+using DigitalPreservation.XmlGen.Mets;
 using DigitalPreservation.Mets.StorageImpl;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -130,12 +131,12 @@ public class MetsManagerWithPremis
 
         // fileSec: file element has correct MIMETYPE
         var fileEl = xml.Descendants(MetsNs + "file")
-            .Single(f => (string?)f.Attribute("ID") == "FILE_objects/document.pdf");
+            .Single(f => (string?)f.Attribute("ID") == MetsIds.File("objects/document.pdf"));
         fileEl.Attribute("MIMETYPE")?.Value.Should().Be("application/pdf");
 
         // amdSec: has techMD with PREMIS, but no digiprovMD (no virus event)
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf");
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"));
         amdSec.Elements(MetsNs + "techMD").Should().HaveCount(1);
         amdSec.Elements(MetsNs + "digiprovMD").Should().BeEmpty();
 
@@ -195,7 +196,7 @@ public class MetsManagerWithPremis
         // --- Raw XML ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf");
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"));
         var premisObject = amdSec.Descendants(PremisNs + "object").Single();
 
         // Fixity
@@ -264,14 +265,12 @@ public class MetsManagerWithPremis
         // --- Raw XML: exactly one format element in PREMIS ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var premisObject = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"))
             .Descendants(PremisNs + "object").Single();
         premisObject.Descendants(PremisNs + "format").Should().HaveCount(1);
 
         // --- Also: only one amdSec for this file ---
-        xml.Descendants(MetsNs + "amdSec")
-            .Where(a => ((string?)a.Attribute("ID"))!.Contains("objects/document.pdf"))
-            .Should().HaveCount(1);
+        AssertSingleAmdSecFor(xml, "objects/document.pdf");
     }
 
     // -----------------------------------------------------------------------
@@ -319,7 +318,7 @@ public class MetsManagerWithPremis
         // --- Raw XML ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf");
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"));
 
         var digiprovMd = amdSec.Elements(MetsNs + "digiprovMD").Single();
         var premisEvent = digiprovMd.Descendants(PremisNs + "event").Single();
@@ -369,7 +368,7 @@ public class MetsManagerWithPremis
         // --- Raw XML ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var premisEvent = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/suspect.exe")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/suspect.exe"))
             .Descendants(MetsNs + "digiprovMD").Single()
             .Descendants(PremisNs + "event").Single();
 
@@ -439,7 +438,7 @@ public class MetsManagerWithPremis
         // --- Raw XML: ObjectCharacteristicsExtension contains ExifMetadata element ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var premisObject = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/photo.tif")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/photo.tif"))
             .Descendants(PremisNs + "object").Single();
 
         var exifEl = premisObject.Descendants("ExifMetadata").SingleOrDefault();
@@ -489,7 +488,7 @@ public class MetsManagerWithPremis
         // --- Raw XML: PREMIS significantProperties written for Duration and Bitrate ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var premisObject = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/recording.mp3")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/recording.mp3"))
             .Descendants(PremisNs + "object").Single();
 
         var sigProps = premisObject.Descendants(PremisNs + "significantProperties").ToList();
@@ -569,7 +568,7 @@ public class MetsManagerWithPremis
         // --- Raw XML: one techMD, one digiprovMD ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/photo.tif");
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/photo.tif"));
         amdSec.Elements(MetsNs + "techMD").Should().HaveCount(1);
         amdSec.Elements(MetsNs + "digiprovMD").Should().HaveCount(1);
     }
@@ -628,18 +627,331 @@ public class MetsManagerWithPremis
         ffm.PronomKey.Should().Be("fmt/276");
 
         // --- Raw XML: exactly one amdSec for this file (no duplicate created by overwrite) ---
-        var xml = XDocument.Load(metsUri.LocalPath);
+        AssertSingleAmdSecFor(XDocument.Load(metsUri.LocalPath), "objects/document.pdf");
+    }
+
+    // -----------------------------------------------------------------------
+    // A virus scan must not disturb other digital provenance (issue #219)
+    // -----------------------------------------------------------------------
+
+    private static WorkingFile ScannedFile(string path, string name, bool hasVirus, string definition,
+        DateTime scannedAt = default)
+    {
+        var file = SimpleFile(path, name);
+        file.Metadata.Add(new VirusScanMetadata
+        {
+            Source = "ClamAV",
+            HasVirus = hasVirus,
+            VirusFound = hasVirus ? "Eicar-Test-Signature" : null,
+            VirusDefinition = definition,
+            Timestamp = scannedAt
+        });
+        return file;
+    }
+
+    /// <summary>Provenance from some other tool, in a shape this platform knows nothing about.</summary>
+    private static MdSecType ForeignProvenance(string id, string marker)
+    {
+        var payload = new System.Xml.XmlDocument().CreateElement("ingestEvent", "http://example.org/prov");
+        payload.InnerText = marker;
+        return new MdSecType
+        {
+            Id = id,
+            MdWrap = new MdSecTypeMdWrap
+            {
+                Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
+                XmlData = new MdSecTypeMdWrapXmlData { Any = { payload } }
+            }
+        };
+    }
+
+    [Fact]
+    public async Task Repeated_Scans_Accumulate_As_Separate_Events_And_The_Latest_Wins()
+    {
+        // A digiprovMD records an EVENT, and events accumulate: each scan is its own, with its
+        // own outcome, and the file's current virus status is the most recent one. Earlier
+        // scans stay as history rather than being overwritten.
+        const string path = "objects/document.pdf";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-scans-accumulate.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000"), eTag);
+        await AddFile(metsUri, ScannedFile(path, "document.pdf", true, "defs-27932"), eTag);
+
+        var amdSec = XDocument.Load(metsUri.LocalPath).Descendants(MetsNs + "amdSec")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm(path));
+        var scans = amdSec.Elements(MetsNs + "digiprovMD")
+            .Where(d => (d.Attribute("ID")?.Value ?? "").StartsWith(Constants.VirusProvEventPrefix))
+            .ToList();
+
+        scans.Should().HaveCount(2, "each scan is its own event; the first is not overwritten");
+        scans.Select(d => (string?)d.Attribute("ID")).Should().OnlyHaveUniqueItems();
+
+        // The reported status is the later scan.
+        var parsed = await parser.GetMetsFileWrapper(metsUri);
+        var virusScan = parsed.Value!.Files.Single(f => f.LocalPath == path)
+            .Metadata.OfType<VirusScanMetadata>().Should().ContainSingle().Subject;
+        virusScan.HasVirus.Should().BeTrue();
+        virusScan.VirusDefinition.Should().Be("defs-27932");
+    }
+
+    [Fact]
+    public async Task The_Same_Scan_Read_Twice_Is_Recorded_Once()
+    {
+        // Reading the same unchanged ClamAV output again is not a second scan - it is the same
+        // event, seen again. It happens whenever a file goes through the writer while the last
+        // run's output is still in the deposit, and it is what a redelivered pipeline job does
+        // to every file in the deposit (issue #221).
+        const string path = "objects/document.pdf";
+        var scannedAt = new DateTime(2026, 6, 16, 14, 30, 45, DateTimeKind.Utc);
+        var (metsUri, eTag) = await CreateEmptyMets("premis-scan-recorded-once.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000", scannedAt), eTag);
+        await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000", scannedAt), eTag);
+
+        ScanEventsFor(metsUri, path).Should().ContainSingle("one scan is one event, however often it is read");
+    }
+
+    [Fact]
+    public async Task A_Later_Scan_Of_The_Same_File_Is_Still_Recorded()
+    {
+        // The guard above must not swallow a genuine re-scan, which is the whole point of keeping
+        // a history. Their dates are what tell them apart - even when they found exactly the same
+        // thing with exactly the same definitions.
+        const string path = "objects/document.pdf";
+        var firstScan = new DateTime(2026, 6, 16, 14, 30, 45, DateTimeKind.Utc);
+        var (metsUri, eTag) = await CreateEmptyMets("premis-rescan-recorded.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000", firstScan), eTag);
+        await AddFile(metsUri,
+            ScannedFile(path, "document.pdf", false, "defs-27000", firstScan.AddDays(30)), eTag);
+
+        ScanEventsFor(metsUri, path).Should().HaveCount(2,
+            "\"re-checked a month later, still clean\" is provenance in its own right");
+    }
+
+    [Fact]
+    public async Task Two_Scans_One_Second_Apart_Are_Both_Recorded()
+    {
+        // Where the resolution actually runs out. eventDateTime is written to the second, because
+        // its source is an S3 last-modified time and that is all S3 stores - so one second is the
+        // smallest gap at which two scans of one file are still distinguishable, and this pins it.
+        // Closer than this they would share a date and the second would be read as a repeat of the
+        // first. That is out of reach in practice rather than merely unlikely: a scan is a whole
+        // Brunnhilde/ClamAV run over the deposit, and the deposit lock serialises runs, so two of
+        // them cannot start and finish inside the same second. If this test ever needs to assert a
+        // finer gap, that reasoning has changed and the dedup key needs to change with it.
+        const string path = "objects/document.pdf";
+        var firstScan = new DateTime(2026, 6, 16, 14, 30, 45, DateTimeKind.Utc);
+        var (metsUri, eTag) = await CreateEmptyMets("premis-rescan-one-second.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000", firstScan), eTag);
+        await AddFile(metsUri,
+            ScannedFile(path, "document.pdf", false, "defs-27000", firstScan.AddSeconds(1)), eTag);
+
+        ScanEventsFor(metsUri, path).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task A_Scan_That_Does_Not_Say_When_It_Ran_Is_Always_Recorded()
+    {
+        // Nothing can tell such a scan from a re-scan, and losing a scan is worse than repeating one.
+        const string path = "objects/document.pdf";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-scan-no-time.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000"), eTag);
+        await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000"), eTag);
+
+        ScanEventsFor(metsUri, path).Should().HaveCount(2);
+    }
+
+    private static List<XElement> ScanEventsFor(Uri metsUri, string localPath) =>
+        XDocument.Load(metsUri.LocalPath).Descendants(MetsNs + "amdSec")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm(localPath))
+            .Elements(MetsNs + "digiprovMD")
+            .Where(d => (d.Attribute("ID")?.Value ?? "").StartsWith(Constants.VirusProvEventPrefix))
+            .ToList();
+
+    [Fact]
+    public async Task Provenance_We_Do_Not_Recognise_Is_Left_Untouched_By_A_Scan()
+    {
+        // Anything that is not one of our ClamAV events is not ours to interpret, reorder or
+        // remove - including an event with no ID at all, which METS permits.
+        const string path = "objects/document.pdf";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-foreign-digiprov.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        var fileAmdSec = fullMets.Mets.AmdSec.Single(a => a.Id == MetsIds.Adm(path));
+        fileAmdSec.DigiprovMd.Add(ForeignProvenance("digiprovMD_ingest_doc", "ingested 2026-01-01"));
+        fileAmdSec.DigiprovMd.Add(new MdSecType
+        {
+            MdWrap = new MdSecTypeMdWrap { Mdtype = MdSecTypeMdWrapMdtype.PremisEvent }
+        });
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+        eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+
+        var scan = await metsManager.HandleSingleFileUpload(
+            metsUri, ScannedFile(path, "document.pdf", false, ClamAvDefinition), eTag);
+        scan.Success.Should().BeTrue(scan.ErrorMessage ?? "");
+
+        var amdSec = XDocument.Load(metsUri.LocalPath).Descendants(MetsNs + "amdSec")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm(path));
+        var digiprovs = amdSec.Elements(MetsNs + "digiprovMD").ToList();
+
+        var foreign = digiprovs.Should()
+            .ContainSingle(d => (string?)d.Attribute("ID") == "digiprovMD_ingest_doc").Subject;
+        foreign.Descendants().Should().Contain(e => e.Value == "ingested 2026-01-01",
+            "a scan must not overwrite provenance written by something else");
+        digiprovs.Should().ContainSingle(d => d.Attribute("ID") == null,
+            "an ID-less event is legal METS and is left alone");
+        digiprovs.Where(d => (d.Attribute("ID")?.Value ?? "").StartsWith(Constants.VirusProvEventPrefix))
+            .Should().ContainSingle("the scan is recorded as its own event");
+
+        var parsed = await parser.GetMetsFileWrapper(metsUri);
+        parsed.Value!.Files.Single(f => f.LocalPath == path)
+            .Metadata.OfType<VirusScanMetadata>().Should().ContainSingle()
+            .Which.VirusDefinition.Should().Be(ClamAvDefinition);
+    }
+
+    [Fact]
+    public async Task Accumulated_Scan_Ids_Do_Not_Collide_With_Another_File_S_Conventional_Id()
+    {
+        // A file named "…_2" is the shape that a trailing counter would have collided with.
+        // Numbering scans between the prefix and the identifier removes that by construction —
+        // a conventional ID never has a digit straight after the ClamAV prefix — which is why
+        // minting only has to check this file's own amdSec. This pins that the two families of
+        // ID stay disjoint.
+        const string plain = "objects/a";
+        const string lookalike = "objects/a_2";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-suffix-collision.xml");
+        eTag = await AddFile(metsUri, SimpleFile(plain, "a"), eTag);
+        eTag = await AddFile(metsUri, SimpleFile(lookalike, "a_2"), eTag);
+
+        // Two scans of the first file (the second one takes a suffix), then one of the other.
+        eTag = await AddFile(metsUri, ScannedFile(plain, "a", false, "defs-1"), eTag);
+        eTag = await AddFile(metsUri, ScannedFile(plain, "a", false, "defs-2"), eTag);
+        await AddFile(metsUri, ScannedFile(lookalike, "a_2", false, "defs-1"), eTag);
+
+        var ids = XDocument.Load(metsUri.LocalPath)
+            .Descendants(MetsNs + "digiprovMD")
+            .Select(d => (string?)d.Attribute("ID"))
+            .ToList();
+
+        ids.Should().HaveCount(3);
+        ids.Should().OnlyHaveUniqueItems("an xs:ID must be unique across the whole document");
+    }
+
+    [Fact]
+    public async Task One_File_S_Later_Scan_Is_Never_Reported_As_Another_File_S_Status()
+    {
+        // The victim is a file whose name looks like a numbered scan of its neighbour
+        // ("objects/a" rescanned vs a file called "objects/a_2"), which has never been scanned
+        // itself and whose techMD is not PREMIS - so it takes the conventional-key fallback.
+        // A trailing counter would make the neighbour's second scan carry exactly this file's
+        // conventional ID, and its virus status would be reported here.
+        const string scanned = "objects/a";
+        const string lookalike = "objects/a_2";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-cross-file-misattribution.xml");
+        eTag = await AddFile(metsUri, SimpleFile(scanned, "a"), eTag);
+        eTag = await AddFile(metsUri, SimpleFile(lookalike, "a_2"), eTag);
+
+        // Two scans of the neighbour, the second one INFECTED.
+        eTag = await AddFile(metsUri, ScannedFile(scanned, "a", false, "defs-1"), eTag);
+        eTag = await AddFile(metsUri, ScannedFile(scanned, "a", true, "defs-2"), eTag);
+
+        // Force the victim onto the fallback path, and never scan it.
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        fullMets.Mets.AmdSec.Single(a => a.Id == MetsIds.Adm(lookalike)).TechMd[0].MdWrap.XmlData =
+            new MdSecTypeMdWrapXmlData
+            {
+                Any = { new System.Xml.XmlDocument().CreateElement("mix", "http://www.loc.gov/mix/v20") }
+            };
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        var parsed = await parser.GetMetsFileWrapper(metsUri);
+        parsed.Success.Should().BeTrue(parsed.ErrorMessage ?? "");
+        parsed.Value!.Files.Single(f => f.LocalPath == lookalike)
+            .Metadata.OfType<VirusScanMetadata>().Should().BeEmpty(
+                "this file has never been scanned; its neighbour's result is not its own");
+        parsed.Value.Files.Single(f => f.LocalPath == scanned)
+            .Metadata.OfType<VirusScanMetadata>().Should().ContainSingle()
+            .Which.HasVirus.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task The_Conventional_Key_Fallback_Reports_The_LATEST_Scan()
+    {
+        // When a file's techMD carries no premis:object the structural lookup cannot run, and
+        // the parser falls back to the conventional key. That key names the FIRST scan, so
+        // without suffix-awareness a rescanned-and-infected file still reported clean — the
+        // exact bug the accumulating model exists to prevent, on the fallback path.
+        const string path = "objects/document.pdf";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-fallback-latest.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, "defs-27000"), eTag);
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", true, "defs-27932"), eTag);
+
+        // Replace the PREMIS techMD payload with something the structural path cannot use,
+        // leaving the accumulated digiprovMDs where they are.
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == MetsIds.Adm(path));
+        amdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData
+        {
+            Any = { new System.Xml.XmlDocument().CreateElement("mix", "http://www.loc.gov/mix/v20") }
+        };
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        var parsed = await parser.GetMetsFileWrapper(metsUri);
+        parsed.Success.Should().BeTrue(parsed.ErrorMessage ?? "");
+        var virusScan = parsed.Value!.Files.Single(f => f.LocalPath == path)
+            .Metadata.OfType<VirusScanMetadata>().Should().ContainSingle().Subject;
+        virusScan.HasVirus.Should().BeTrue("the later scan found a virus");
+        virusScan.VirusDefinition.Should().Be("defs-27932");
+    }
+
+    [Fact]
+    public async Task An_Upload_Carrying_No_Scan_Adds_No_Event()
+    {
+        // Only an actual scan produces an event. An ordinary metadata update must not append a
+        // duplicate of the last one.
+        const string path = "objects/document.pdf";
+        var (metsUri, eTag) = await CreateEmptyMets("premis-no-scan-no-event.xml");
+        eTag = await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+        eTag = await AddFile(metsUri, ScannedFile(path, "document.pdf", false, ClamAvDefinition), eTag);
+
+        await AddFile(metsUri, SimpleFile(path, "document.pdf"), eTag);
+
+        XDocument.Load(metsUri.LocalPath).Descendants(MetsNs + "amdSec")
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm(path))
+            .Elements(MetsNs + "digiprovMD").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Exactly one amdSec describes the file at this path. Matched on the PREMIS originalName
+    /// inside the techMD, NOT on the amdSec's ID: the regression being guarded against is a
+    /// SECOND amdSec for the same file, and a duplicate minted under a different ID scheme
+    /// (a raw-path ID alongside an encoded one, in a mixed-format document) is invisible to an
+    /// ID-equality check — which is how this assertion was silently defanged once already.
+    /// </summary>
+    private static void AssertSingleAmdSecFor(XDocument xml, string localPath)
+    {
         xml.Descendants(MetsNs + "amdSec")
-            .Where(a => ((string?)a.Attribute("ID"))?.Contains("objects/document.pdf") == true)
-            .Should().HaveCount(1, "overwriting a file must not create a second amdSec");
+            .Where(amdSec => amdSec.Descendants(PremisNs + "originalName").Any(n => n.Value == localPath))
+            .Should().HaveCount(1, $"exactly one amdSec may describe '{localPath}'");
     }
 
     [Fact]
     public async Task Overwriting_File_Updates_Virus_Scan_From_Clean_To_Infected()
     {
-        // A file previously scanned as clean is re-scanned and found infected
-        // (e.g., updated virus definitions). The digiprovMD must be updated in place,
-        // not duplicated.
+        // A file previously scanned as clean is re-scanned and found infected (e.g. updated
+        // virus definitions). The reported status is the LATER scan; the earlier one stays as
+        // history rather than being overwritten — a digiprovMD records an event, and events
+        // accumulate (issue #219).
 
         var (metsUri, eTag) = await CreateEmptyMets("premis-overwrite-virus.xml");
 
@@ -696,11 +1008,13 @@ public class MetsManagerWithPremis
         virus.HasVirus.Should().BeTrue();
         virus.VirusFound.Should().Be("Win.Test.EICAR_HDB-1");
 
-        // --- Raw XML: still exactly one digiprovMD (not two) ---
+        // --- Raw XML: both scans are recorded, under distinct IDs ---
         var xml = XDocument.Load(metsUri.LocalPath);
         var amdSec = xml.Descendants(MetsNs + "amdSec")
-            .Single(a => (string?)a.Attribute("ID") == "ADM_objects/document.pdf");
-        amdSec.Elements(MetsNs + "digiprovMD").Should().HaveCount(1);
+            .Single(a => (string?)a.Attribute("ID") == MetsIds.Adm("objects/document.pdf"));
+        var digiprovs = amdSec.Elements(MetsNs + "digiprovMD").ToList();
+        digiprovs.Should().HaveCount(2, "the earlier scan is history, not something to overwrite");
+        digiprovs.Select(d => (string?)d.Attribute("ID")).Should().OnlyHaveUniqueItems();
     }
 
     // -----------------------------------------------------------------------

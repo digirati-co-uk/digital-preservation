@@ -586,7 +586,12 @@ public class Storage(
             var s3Resp = await s3Client.GetObjectAsync(s3Req);
             if (s3Resp.HttpStatusCode == HttpStatusCode.OK)
             {
-                return Result.Ok<(Stream?, DateTime)>((s3Resp.ResponseStream, s3Resp.LastModified));
+                // Normalised here rather than left to the caller, so this read matches the other two
+                // LastModified reads in this file - keep an eye on https://github.com/aws/aws-sdk-net/issues/1885.
+                // MetadataReader is the only consumer of this value and both of its uses want a UTC
+                // instant: one is compared against DateTime.UtcNow, the other becomes a PREMIS
+                // eventDateTime (#221).
+                return Result.Ok<(Stream?, DateTime)>((s3Resp.ResponseStream, s3Resp.LastModified.ToUniversalTime()));
             }
             return Result.Fail<(Stream?, DateTime)>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get stream for " + binaryOrigin);
         }

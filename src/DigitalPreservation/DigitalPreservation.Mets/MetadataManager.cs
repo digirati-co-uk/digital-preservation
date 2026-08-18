@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
@@ -16,6 +16,25 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
     {
         public required string FileAdmId { get; set; }
         public required string TechId { get; set; }
+
+        /// <summary>
+        /// ID for a virus-scan digiprovMD this run may need to create. Derived from the file's
+        /// PATH, not from <see cref="FileAdmId"/>: on a pre-issue-#188 document that resolves to
+        /// the legacy raw amdSec ID, and embedding it would mint a brand-new ID containing a
+        /// slash and a space - after step 2, from the code step 2 was supposed to have made
+        /// schema-valid. Nothing anywhere references a digiprovMD by ID (the readers find it
+        /// structurally, or by prefix), so there is no compatibility cost to choosing our own.
+        /// </summary>
+        public required string DigiprovId { get; set; }
+
+        /// <summary>
+        /// The part of <see cref="DigiprovId"/> after the ClamAV prefix - what a numbered ID for a
+        /// later scan of this file is built around. Carried rather than recovered by stripping the
+        /// prefix back off <see cref="DigiprovId"/>: an ID is opaque, and code that takes it apart
+        /// is code that would break if the shape ever changed (see 02d, "Opaque to code, legible
+        /// to people").
+        /// </summary>
+        public required string DigiprovIdentifier { get; set; }
         public AmdSecType? AmdSec { get; set; }
         public FileType? File { get; set; }
         public MetsTypeFileSecFileGrp? FileGroup { get; set; }
@@ -25,15 +44,25 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
     public Result ProcessAllFileMetadata(FullMets fullMets, DivType? div, WorkingFile workingFile, string operationPath, bool newUpload = false)
     {
-        var fileId = Constants.FileIdPrefix + operationPath;
-        var admId = Constants.AdmIdPrefix + operationPath;
-        var techId = Constants.TechIdPrefix + operationPath;
+        var fileId = MetsIds.File(operationPath);
+        var admId = MetsIds.Adm(operationPath);
+        var techId = MetsIds.Tech(operationPath);
 
-        var ctx = new ProcessingContext { FileAdmId = admId, TechId = techId };
+        var digiprovIdentifier = admId;
+        var ctx = new ProcessingContext
+        {
+            FileAdmId = admId,
+            TechId = techId,
+            DigiprovIdentifier = digiprovIdentifier,
+            DigiprovId = MetsIds.VirusProvEvent(digiprovIdentifier)
+        };
 
         if (!newUpload)
         {
-            ctx.AmdSec = fullMets.Mets.AmdSec.Single(a => a.Id == ctx.FileAdmId);
+            // GetMetadataXml resolves the file's amdSec from its ADMID tokens and sets
+            // ctx.AmdSec / ctx.FileAdmId from the resolved element - which handles legacy
+            // space-containing IDs, whose form may not equal the ID minted above in a
+            // mixed-format METS.
             var resultGetMetadataXml = GetMetadataXml(ctx, fullMets, div, operationPath);
 
             if (resultGetMetadataXml.Failure)
@@ -150,32 +179,70 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
 
     private void ProcessVirusDataForFile(ProcessingContext ctx, WorkingFile workingFile)
     {
-        var patchPremisVirus = workingFile.GetVirusScanMetadata();
-
-        EventComplexType? virusEventComplexType = null;
-        if (ctx.VirusXml is not null)
+        var virusScan = workingFile.GetVirusScanMetadata();
+        if (virusScan == null)
         {
-            virusEventComplexType = ctx.VirusXml.GetEventComplexType()!;
-
-            if (patchPremisVirus != null)
-            {
-                premisEventManagerVirus.Patch(virusEventComplexType, patchPremisVirus);
-            }
-        }
-        else
-        {
-            if (patchPremisVirus != null)
-            {
-                virusEventComplexType = premisEventManagerVirus.Create(patchPremisVirus);
-            }
+            // Nothing was scanned in this upload, so there is no event to record. Whatever
+            // provenance the amdSec already holds - earlier scans, or events from tools we
+            // know nothing about - is left exactly as it is.
+            return;
         }
 
-        if (virusEventComplexType is null) return;
-        ctx.VirusXml = PremisEventManagerVirus.GetXmlElement(virusEventComplexType);
+        ctx.VirusXml = PremisEventManagerVirus.GetXmlElement(premisEventManagerVirus.Create(virusScan));
 
         if (ctx.AmdSec == null) return;
 
-        AddVirusXml(ctx);
+        // A scan is an event, and one event is recorded once. Reading the same unchanged ClamAV
+        // output a second time - which happens whenever this file is put through the METS writer
+        // again while the last run's output is still sitting in the deposit - is not a second scan
+        // (issue #221). Two scans of the same file cannot share an instant, so the scan's own time
+        // is what tells them apart; a genuine re-scan writes a later one and is appended normally.
+        if (AlreadyRecorded(ctx, virusScan))
+        {
+            return;
+        }
+
+        AppendVirusEvent(ctx);
+    }
+
+    /// <summary>
+    /// Whether this exact scan is already in the amdSec, matched on the event's date. Only events we
+    /// recognise as virus checks are considered; anything else present - earlier scans, provenance
+    /// from tools we know nothing about - is neither read for meaning nor disturbed.
+    /// </summary>
+    private static bool AlreadyRecorded(ProcessingContext ctx, VirusScanMetadata virusScan)
+    {
+        if (virusScan.Timestamp == default)
+        {
+            // Metadata from a source that does not say when it scanned. Nothing here can tell that
+            // apart from a re-scan, and a duplicated event is a much smaller problem than a scan
+            // that went unrecorded, so record it.
+            return false;
+        }
+
+        var scannedAt = EventDateTime(ctx.VirusXml);
+        if (scannedAt is null)
+        {
+            return false;
+        }
+
+        return ctx.AmdSec!.DigiprovMd
+            .Select(digiprovMd => digiprovMd.MdWrap?.XmlData?.Any.FirstOrDefault())
+            .OfType<XmlElement>()
+            .Where(IsVirusCheck)
+            .Any(existing => EventDateTime(existing) == scannedAt);
+    }
+
+    private static bool IsVirusCheck(XmlElement premisEvent) =>
+        ChildValue(premisEvent, "eventType") == Constants.VirusCheckEventType;
+
+    private static string? EventDateTime(XmlElement? premisEvent) =>
+        premisEvent is null ? null : ChildValue(premisEvent, "eventDateTime");
+
+    private static string? ChildValue(XmlElement premisEvent, string localName)
+    {
+        var elements = premisEvent.GetElementsByTagName(localName, Constants.PremisNamespace);
+        return elements.Count == 0 ? null : elements[0]?.InnerText.Trim();
     }
 
     private static Result GetMetadataXml(ProcessingContext ctx, FullMets fullMets, DivType? div, string operationPath)
@@ -192,22 +259,55 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
             return Result.Fail(ErrorCodes.BadRequest, "WorkingFile path doesn't match METS flocat");
         }
 
-        // TODO: This is a quick fix to get round the problem of spaces in XML IDs.
-        // We need to not have any spaces in XML IDs, which means we need to escape them
-        // in a reversible way (replacing with _ won't do)
-        ctx.FileAdmId = string.Join(' ', ctx.File.Admid);
-        var amdSec = fullMets.Mets.AmdSec.Single(a => a.Id == ctx.FileAdmId);
+        // ADMID is IDREFS: legacy platform IDs containing spaces arrive split into several
+        // tokens, while a schema-valid METS may genuinely reference several amdSecs.
+        // IdRefs handles both; FileAdmId is then the RESOLVED amdSec's actual ID (identical
+        // to the rejoined tokens for legacy content), so IDs derived from it - the ClamAV
+        // digiprovMD ID - always embed a real amdSec ID.
+        // The candidate must actually carry technical metadata. ADMID is a LIST and its order
+        // means nothing, so a file may name a shared rightsMD before the section holding its
+        // own techMD - the Archivematica shape. Accepting the first section that merely EXISTS
+        // would hand back the rights section, and the update would then write this file's
+        // PREMIS into it (or throw indexing TechMd[0]) - issue #215.
+        var amdSec = IdRefs
+            .ResolveAll(ctx.File.Admid, id => fullMets.Mets.AmdSec.FirstOrDefault(a => a.Id == id))
+            .FirstOrDefault(CarriesPremisObject);
+        if (amdSec == null)
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"No amdSec carrying PREMIS technical metadata found for ADMID " +
+                $"'{IdRefs.Joined(ctx.File.Admid)}' of file {operationPath}");
+        }
+        ctx.FileAdmId = amdSec.Id;
+        ctx.AmdSec = amdSec;
         ctx.PremisIncExifXml = amdSec.TechMd.FirstOrDefault()?.MdWrap.XmlData.Any?.FirstOrDefault(); //TODO: this includes exif - separate this out
-        ctx.VirusXml = amdSec.DigiprovMd.FirstOrDefault(x => x.Id.Contains(Constants.VirusProvEventPrefix))?.MdWrap.XmlData.Any?.FirstOrDefault();
+        // The existing digiprovMDs are deliberately NOT read here. A scan is appended as a new
+        // event rather than merged into an old one, so nothing about what is already recorded
+        // needs interpreting - which is also what lets provenance we don't recognise pass
+        // through untouched.
 
         return Result.Ok();
     }
+
+    /// <summary>
+    /// True when this amdSec carries the file's PREMIS object — the thing the metadata paths
+    /// actually read and patch. Merely having SOME techMD is not enough: an Archivematica-shaped
+    /// ADMID can name a section whose techMD holds only FITS or EXIF output, and treating that
+    /// as usable stops resolution on the wrong section, then hands non-PREMIS XML to
+    /// <c>GetPremisComplexType()</c> to deserialise into a null it does not expect. This is the
+    /// same check the parser and the path cache use, so all three agree on what "usable" means.
+    /// </summary>
+    private static bool CarriesPremisObject(AmdSecType amdSec) =>
+        amdSec.TechMd.Any(techMd =>
+            techMd.MdWrap?.XmlData?.Any?.FirstOrDefault() is XmlElement element &&
+            (element.LocalName == "object" && element.NamespaceURI == Constants.PremisNamespace ||
+             element.GetElementsByTagName("object", Constants.PremisNamespace).Count > 0));
 
     private static void SetFileAndFileGroup(ProcessingContext ctx, DivType? div, FullMets fullMets)
     {
         if (div == null) return;
         var fileId = div.Fptr[0].Fileid;
-        ctx.FileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == "OBJECTS");
+        ctx.FileGroup = fullMets.Mets.FileSec.FileGrp.Single(fg => fg.Use == Constants.ObjectsFileGrpUse);
         ctx.File = ctx.FileGroup.File.Single(f => f.Id == fileId);
     }
 
@@ -251,27 +351,62 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
         return amdSec;
     }
 
-    private static void AddVirusXml(ProcessingContext ctx)
+    /// <summary>
+    /// Record this scan as a NEW digiprovMD. A digiprovMD holds a digital provenance EVENT, and
+    /// events accumulate: each scan is its own event, with its own outcome and date, and the
+    /// file's current virus status is simply the most recent of them. Nothing already present
+    /// is modified or removed — not earlier scans, and not events written by tools we neither
+    /// recognise nor need to understand (issue #219).
+    /// </summary>
+    private static void AppendVirusEvent(ProcessingContext ctx)
     {
         if (ctx.AmdSec is null)
             return;
 
-        if (ctx.AmdSec.DigiprovMd.Count != 0)
+        ctx.AmdSec.DigiprovMd.Add(new MdSecType
         {
-            ctx.AmdSec.DigiprovMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { ctx.VirusXml } };
-        }
-        else
-        {
-            ctx.AmdSec.DigiprovMd.Add(new MdSecType
+            Id = UnusedDigiprovId(ctx),
+            MdWrap = new MdSecTypeMdWrap
             {
-                Id = $"{Constants.VirusProvEventPrefix}{ctx.FileAdmId}",
-                MdWrap = new MdSecTypeMdWrap
-                {
-                    Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
-                    XmlData = new MdSecTypeMdWrapXmlData { Any = { ctx.VirusXml } }
-                }
-            });
+                Mdtype = MdSecTypeMdWrapMdtype.PremisEvent,
+                XmlData = new MdSecTypeMdWrapXmlData { Any = { ctx.VirusXml } }
+            }
+        });
+    }
+
+    /// <summary>
+    /// A digiprovMD ID for this scan that nothing in the amdSec is already using. Events
+    /// accumulate, so the first scan takes the plain ID and each later one is suffixed; an
+    /// xs:ID has to stay unique within the document. IDs we did not mint are counted as taken
+    /// without being interpreted.
+    /// </summary>
+    private static string UnusedDigiprovId(ProcessingContext ctx)
+    {
+        // Only this file's own amdSec needs checking, because the ID embeds this file's admId
+        // and so cannot collide with another file's. Scanning the whole document would make
+        // minting O(total scans in the deposit) for every file that gets an event.
+        var taken = ctx.AmdSec!.DigiprovMd
+            .Select(digiprovMd => digiprovMd.Id)
+            .Where(id => id != null)
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (!taken.Contains(ctx.DigiprovId))
+        {
+            return ctx.DigiprovId;
         }
+
+        // The counter goes BEFORE the admId, not after it. A trailing "_2" would read as part
+        // of a path: "…ClamAV_ADM_objects_x002F_a_2" is both the second scan of "objects/a" and
+        // the plain conventional ID of a file genuinely named "objects/a_2", so a reader that
+        // resolves by ID could report one file's virus status as another's. A conventional ID
+        // always has the admId's own prefix straight after the ClamAV prefix, never a digit, so
+        // putting the counter there cannot be confused with any file's key.
+        var occurrence = 2;
+        while (taken.Contains(Constants.NumberedVirusProvEventId(occurrence, ctx.DigiprovIdentifier)))
+        {
+            occurrence++;
+        }
+        return Constants.NumberedVirusProvEventId(occurrence, ctx.DigiprovIdentifier);
     }
 
     private static void SetAmdSec(ProcessingContext ctx, XmlElement? premisXml, bool newUpload)
@@ -295,9 +430,25 @@ public class MetadataManager(PremisManager premisManager, PremisManagerExif prem
                 },
             };
         }
-        else
+        else if (ctx.AmdSec.TechMd.Count > 0)
         {
             ctx.AmdSec.TechMd[0].MdWrap.XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } };
+        }
+        else
+        {
+            // Resolution only accepts an amdSec that already has a techMD, so this is
+            // unreachable today - but it used to throw here rather than degrade, and an
+            // unhandled index is a 500 on the upload path where everything else is a
+            // Result.Fail. Writing the techMD we were about to update is the repair.
+            ctx.AmdSec.TechMd.Add(new MdSecType
+            {
+                Id = ctx.TechId,
+                MdWrap = new MdSecTypeMdWrap
+                {
+                    Mdtype = MdSecTypeMdWrapMdtype.PremisObject,
+                    XmlData = new MdSecTypeMdWrapXmlData { Any = { premisXml } }
+                }
+            });
         }
     }
 }

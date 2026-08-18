@@ -48,7 +48,7 @@ public static class XNames
     public static readonly XName XLinkTo = xlink + "to";
     public static readonly XName XLinkHref = xlink + "href";
 
-    public static readonly XNamespace premis = "http://www.loc.gov/premis/v3";
+    public static readonly XNamespace premis = Constants.PremisNamespace;
     public static readonly XName PremisObject = premis + "object";
     public static readonly XName PremisObjectIdentifier = premis + "objectIdentifier";
     public static readonly XName PremisObjectIdentifierType = premis + "objectIdentifierType";

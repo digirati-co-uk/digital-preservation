@@ -1,4 +1,4 @@
-﻿using System.Xml;
+using System.Xml;
 using System.Xml.Serialization;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Utils;
@@ -122,7 +122,7 @@ public static class ModsManager
 
     public static ModsDefinition? GetModsForDmdId(DigitalPreservation.XmlGen.Mets.Mets mets, string dmdId, bool createDmd = false)
     {
-        var dmd = mets.DmdSec.SingleOrDefault(x => x.Id == dmdId);
+        var dmd = mets.DmdSec.FirstOrDefault(x => x.Id == dmdId);
         if (dmd == null && createDmd)
         {
             dmd = new MdSecType
@@ -153,34 +153,90 @@ public static class ModsManager
         return null;
     }
 
-    public static ModsDefinition? GetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, bool createDmd = false)
+    /// <summary>
+    /// The MODS for a div. When the div's DMDID is a genuine multi-token reference, the FIRST
+    /// dmdSec a token resolves is treated as the div's editable MODS record; the platform only
+    /// ever writes one descriptive record per div, so any further referenced dmdSecs are
+    /// third-party content that read/write operations deliberately leave untouched.
+    /// </summary>
+    /// <param name="localPath">
+    /// The div's deposit-relative path, where it has one. A dmdSec created for a physical div is
+    /// identified from this path rather than from the div's ID, so a legacy raw-ID div gets a
+    /// valid encoded DMD_ id instead of a second invalid one (issue #188). Null for logical divs,
+    /// whose own client-supplied (NCName-validated) ID is used as the stem, and for a physical div
+    /// whose path could not be resolved, which gets a minted ID rather than one derived from an
+    /// identifier it would have to be read out of.
+    /// </param>
+    public static ModsDefinition? GetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div,
+        bool createDmd = false, string? localPath = null)
     {
         if (div.Dmdid.Count == 0 && createDmd)
         {
             // There is no DMDID on this div
-            if (div.Id.StartsWith(Constants.PhysIdPrefix))
-            {
-                div.Dmdid.Add(Constants.DmdIdPrefix + div.Id.RemoveStart(Constants.PhysIdPrefix));
-            }
-            else
-            {
-                // A logical structMap div that might have been supplied by the client
-                div.Dmdid.Add(Constants.DmdIdPrefix + div.Id);
-            }
+            div.Dmdid.Add(MintDmdId(mets, div, localPath));
         }
-        var normalised = string.Join(' ', div.Dmdid);
-        return GetModsForDmdId(mets, normalised, createDmd);
+        // Resolve the DMDID tokens to the actual dmdSec where one exists; the id used for
+        // lazy creation is the joined legacy form only when no dmdSec resolves (see IdRefs).
+        var dmd = IdRefs.ResolveSingle(div.Dmdid, id => mets.DmdSec.FirstOrDefault(x => x.Id == id));
+        return GetModsForDmdId(mets, dmd?.Id ?? IdRefs.Joined(div.Dmdid), createDmd);
     }
 
     
+    /// <summary>
+    /// A dmdSec ID for a div that has no DMDID yet.
+    /// </summary>
+    /// <remarks>
+    /// A path gives a stable, meaningful ID. Failing that the div's own ID is used as a stem,
+    /// which is not the same as reading meaning out of it: the whole ID is carried through and
+    /// nothing is parsed from it. It is encoded on the way, so a legacy div whose ID contains a
+    /// slash or a space yields a VALID new dmdSec ID rather than a second invalid one - encoding
+    /// is a no-op for the NCName-validated IDs a client supplies for logical ranges.
+    /// </remarks>
+    private static string MintDmdId(
+        DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, string? localPath)
+    {
+        if (localPath != null)
+        {
+            return MetsIds.Dmd(localPath);
+        }
+        return div.Id.HasText() ? MetsIds.DmdFromDivId(div.Id) : UnusedDmdId(mets);
+    }
+
+    /// <summary>
+    /// A dmdSec ID for a div that offers nothing to derive one from: a logical div with no ID
+    /// of its own, which third-party structMaps use freely and which the parser reports as an
+    /// empty ID. Deriving from the absent ID yields the bare prefix <c>DMD_</c> for EVERY such
+    /// div, so they would all share one section and each save would overwrite the previous
+    /// div's metadata. A dmdSec ID is ours to choose - unlike a div ID, which belongs to the
+    /// client and is never rewritten - so an unused one is minted instead.
+    /// </summary>
+    private static string UnusedDmdId(DigitalPreservation.XmlGen.Mets.Mets mets)
+    {
+        // Each caller creates its dmdSec before the next one asks, so the count is enough to
+        // make progress; the loop covers a document that already contains these IDs.
+        var suffix = 1;
+        string candidate;
+        do
+        {
+            candidate = $"{Constants.DmdIdPrefix}ANON_{suffix++}";
+        }
+        while (mets.DmdSec.Any(dmdSec => dmdSec.Id == candidate));
+        return candidate;
+    }
+
+    /// <summary>
+    /// Write the div's MODS record - the same single dmdSec <see cref="GetModsForDiv"/>
+    /// resolves; other dmdSecs a genuine multi-token DMDID references are never mutated.
+    /// </summary>
     public static void SetModsForDiv(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, ModsDefinition mods)
     {
-        var normalised = string.Join(' ', div.Dmdid);
+        var dmd = IdRefs.ResolveSingle(div.Dmdid, id => mets.DmdSec.FirstOrDefault(x => x.Id == id));
+        var normalised = dmd?.Id ?? IdRefs.Joined(div.Dmdid);
 
         // If clearing the last piece of metadata has left the MODS carrying nothing,
         // don't write an empty <mods/> shell wrapped in a redundant dmdSec — prune it.
         // Only do so when it is safe: the dmdSec must wrap MODS and nothing else.
-        if (mods.IsEmpty() && TryRemoveRedundantDmd(mets, div, normalised))
+        if (mods.IsEmpty() && TryRemoveRedundantDmd(mets, div, dmd))
         {
             return;
         }
@@ -189,16 +245,16 @@ public static class ModsManager
     }
 
     /// <summary>
-    /// Removes the dmdSec addressed by <paramref name="dmdId"/> together with the div's
-    /// (now dangling) DMDID reference, but ONLY when it is safe: the dmdSec must carry
-    /// nothing beyond the MODS we are clearing — no external mdRef, no admin links and
-    /// no other identifying attributes. Returns <c>true</c> if the dmdSec was removed
+    /// Removes the resolved dmdSec together with the div's DMDID reference to it, but ONLY
+    /// when it is safe: the dmdSec must carry nothing beyond the MODS we are clearing — no
+    /// external mdRef, no admin links and no other identifying attributes. Only the reference
+    /// to THIS dmdSec is dropped: a div with a genuine multi-token DMDID keeps its other
+    /// references (and their dmdSecs) intact. Returns <c>true</c> if the dmdSec was removed
     /// (or there was nothing to remove), <c>false</c> if it had to be kept because it
     /// still carries other information.
     /// </summary>
-    private static bool TryRemoveRedundantDmd(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, string dmdId)
+    private static bool TryRemoveRedundantDmd(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div, MdSecType? dmd)
     {
-        var dmd = string.IsNullOrEmpty(dmdId) ? null : mets.DmdSec.FirstOrDefault(d => d.Id == dmdId);
         if (dmd != null)
         {
             if (!DmdSecWrapsOnlyMods(dmd))
@@ -206,12 +262,87 @@ public static class ModsManager
                 // The dmdSec carries information beyond the MODS we are clearing; leave it intact.
                 return false;
             }
-            mets.DmdSec.Remove(dmd);
+
+            // Parity with the deletion sites' shared-section guard: a dmdSec that another
+            // div or file still references is genuinely shared, so clearing THIS div's MODS
+            // drops only this div's reference and leaves the section (and its other
+            // referrers) untouched.
+            if (!MetsManager.CollectSectionReferences(mets, [div], null).Contains(dmd.Id))
+            {
+                mets.DmdSec.Remove(dmd);
+            }
+            IdRefs.RemoveReference(div.Dmdid, dmd.Id);
+
+            SweepDanglingDmdTokens(mets, div);
+        }
+        else
+        {
+            // Nothing resolved at all: every token dangles, so clearing them is cleanup
+            // (and a no-op if DMDID was never set).
+            div.Dmdid.Clear();
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Drop the DMDID tokens left over after a reference was removed that no longer name
+    /// anything, leaving any that still do.
+    /// </summary>
+    /// <remarks>
+    /// The tokens have to be judged the way <see cref="IdRefs"/> resolves them, not one at a
+    /// time against <c>dmdSec.Id</c>. A legacy space-containing dmdSec ID arrives from the
+    /// XmlSerializer as SEVERAL tokens, none of which equals any dmdSec ID on its own, so a
+    /// verbatim per-token test reads one live reference as several dangling ones and strips
+    /// it — silently costing the div its descriptive record while orphaning the section
+    /// (issue #217). So: if the joined form names a real dmdSec, the tokens are one reference
+    /// and all of them stay; only a genuine multi-token list is pruned token by token.
+    /// </remarks>
+    private static void SweepDanglingDmdTokens(DigitalPreservation.XmlGen.Mets.Mets mets, DivType div)
+    {
+        var live = LiveTokenIndexes(mets, div.Dmdid);
+        for (var i = div.Dmdid.Count - 1; i >= 0; i--)
+        {
+            if (!live.Contains(i))
+            {
+                div.Dmdid.RemoveAt(i);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The positions in a DMDID token collection that take part in a reference to a dmdSec that
+    /// exists — either a token naming one on its own, or a RUN of consecutive tokens whose
+    /// joined form does, which is how a legacy space-containing ID arrives.
+    /// </summary>
+    /// <remarks>
+    /// Testing the collection as a whole is not enough. A div can mix one genuine single-token
+    /// reference with one legacy multi-token reference — <c>["DMD_valid", "DMD_legacy/my",
+    /// "file.pdf"]</c> — where joining ALL of them matches nothing, so an all-or-nothing check
+    /// falls through to per-token pruning and strips the legacy pair, orphaning its dmdSec. Runs
+    /// are therefore matched longest-first, so the legacy ID wins over its own fragments.
+    /// </remarks>
+    private static HashSet<int> LiveTokenIndexes(
+        DigitalPreservation.XmlGen.Mets.Mets mets, System.Collections.ObjectModel.Collection<string> tokens)
+    {
+        var live = new HashSet<int>();
+        var ids = mets.DmdSec.Select(dmdSec => dmdSec.Id).Where(id => id != null).ToHashSet(StringComparer.Ordinal);
+
+        for (var length = tokens.Count; length >= 1; length--)
+        {
+            for (var start = 0; start + length <= tokens.Count; start++)
+            {
+                if (Enumerable.Range(start, length).Any(live.Contains))
+                {
+                    continue;
+                }
+                if (ids.Contains(IdRefs.Joined(tokens.Skip(start).Take(length))))
+                {
+                    live.UnionWith(Enumerable.Range(start, length));
+                }
+            }
         }
 
-        // Drop the div's now-dangling DMDID reference (a no-op if it was never set).
-        div.Dmdid.Clear();
-        return true;
+        return live;
     }
 
     /// <summary>
