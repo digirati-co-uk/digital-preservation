@@ -140,13 +140,31 @@ def _survey_one(ledger: Ledger, path: str) -> None:
     logger.info("%s: %s invalid ID(s) [%s], e.g. %s", path, len(invalid), offenders, invalid[0])
 
 
-def check_completeness(ledger: Ledger) -> None:
+def check_completeness(ledger: Ledger, partial: bool = False) -> None:
     """
-    Compare the number of distinct Archival Groups the survey found against the number the Activity
-    Stream has ever mentioned. They will not match exactly - the stream starts at a seeded backstop
-    event, and suppressed events are not published - but a large shortfall means the deposits query
-    is not seeing everything, and the list should not be trusted until that is understood.
+    Answer a question the survey cannot answer about itself: did the deposits query show us
+    everything?
+
+    The survey finds Archival Groups through deposits, and an Archival Group whose deposit rows were
+    hard-deleted therefore does not appear. The Activity Stream is the other record of the same
+    population - it has an entry for every create and update - so comparing the two says whether
+    anything was missed. It reads the stream and nothing else; the survey itself is unaffected by
+    whether this runs.
+
+    The two will not match exactly, and the mismatches are expected rather than alarming: the stream
+    begins at a seeded backstop event so it does not reach the earliest Archival Groups, and
+    suppressed events (the migration's own) are not published. What matters is the other direction -
+    something in the stream that the survey never saw, which means the list is not the whole job.
     """
+    if partial:
+        # Comparing a deliberately partial survey against the whole stream would report thousands
+        # of "missing" Archival Groups and mean nothing at all.
+        logger.warning(
+            "Skipping the completeness check: this survey was narrowed by --limit, --path or "
+            "--path-prefix, so it is not meant to have seen everything. Run `survey "
+            "--check-completeness` on its own once a full survey has finished.")
+        return
+
     from_deposits = len(ledger.known_paths())
     from_stream = set()
     page_number = 1

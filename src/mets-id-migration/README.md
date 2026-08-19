@@ -171,13 +171,39 @@ SELECT path, ids_rewritten, from_version, to_version FROM archival_groups WHERE 
 SELECT path, note FROM archival_groups WHERE state = 'failed';
 ```
 
-## What the survey can miss
+## What the survey can miss, and `--check-completeness`
 
 Deposits index *deposits*, not Archival Groups: a group whose deposit rows were hard-deleted will not
-appear. `--check-completeness` compares the survey against the Activity Stream, which records every
-create and update. The two will not match exactly — the stream begins at a seeded backstop event, and
-suppressed events are not published — but a large shortfall means the list should not be trusted
-until it is understood.
+appear in the survey at all, and the survey has no way to notice its own blind spot.
+
+`--check-completeness` answers that from the other direction. After the survey it reads the
+**Activity Stream** — the platform's other record of the same population, with an entry for every
+Archival Group create and update — and compares the two sets:
+
+```
+Archival Groups known from deposits: 812
+Archival Groups mentioned in the activity stream: 814
+2 Archival Group(s) appear in the stream but not in the survey, e.g. ['cc/abc', 'cc/def']
+```
+
+Without the flag, `survey` does exactly the same work and simply doesn't run that comparison. It
+changes nothing about what is surveyed or recorded — it is a read-only cross-check, and it can be run
+on its own later (`survey --check-completeness` over an already-complete ledger does no new
+surveying, just the check).
+
+The two sets will not match exactly, and the differences are expected rather than alarming:
+
+- the stream begins at a **seeded backstop event**, so it does not reach the earliest Archival Groups
+  — the survey will know about groups the stream has never mentioned;
+- **suppressed events** (this migration's own) are not published.
+
+What matters is the other direction: anything in the stream that the survey never saw means the
+deposits query is not showing you the whole job, and the list should not be trusted until that is
+understood.
+
+**It is only meaningful after a full survey.** Comparing a deliberately narrowed survey (`--limit`,
+`--path`, `--path-prefix`) against the whole stream would report everything else as missing, so the
+tool detects that and skips the check with a warning rather than printing a frightening number.
 
 ## If a migration goes wrong
 

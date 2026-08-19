@@ -37,11 +37,11 @@ internal static class MetsGraph
     /// </summary>
     private sealed class TypePlan
     {
-        public required PropertyInfo[] Children { get; init; }
-        public required PropertyInfo[] ChildCollections { get; init; }
-        public PropertyInfo? Id { get; init; }
-        public required PropertyInfo[] SingleIdRefs { get; init; }
-        public required PropertyInfo[] TokenIdRefs { get; init; }
+        public required PropertyInfo[] ChildProperties { get; init; }
+        public required PropertyInfo[] ChildCollectionProperties { get; init; }
+        public PropertyInfo? IdProperty { get; init; }
+        public required PropertyInfo[] SingleIdRefProperties { get; init; }
+        public required PropertyInfo[] TokenIdRefProperties { get; init; }
     }
 
     /// <summary>
@@ -85,14 +85,14 @@ internal static class MetsGraph
     private static IEnumerable<object> ChildrenOf(object node)
     {
         var plan = PlanFor(node.GetType());
-        foreach (var property in plan.Children)
+        foreach (var property in plan.ChildProperties)
         {
             if (property.GetValue(node) is { } child)
             {
                 yield return child;
             }
         }
-        foreach (var property in plan.ChildCollections)
+        foreach (var property in plan.ChildCollectionProperties)
         {
             if (property.GetValue(node) is not IEnumerable collection)
             {
@@ -109,14 +109,14 @@ internal static class MetsGraph
     }
 
     /// <summary>The node's xs:ID, or null if it has no ID attribute or has not been given one.</summary>
-    internal static string? GetId(object node) => PlanFor(node.GetType()).Id?.GetValue(node) as string;
+    internal static string? GetId(object node) => PlanFor(node.GetType()).IdProperty?.GetValue(node) as string;
 
-    internal static void SetId(object node, string id) => PlanFor(node.GetType()).Id?.SetValue(node, id);
+    internal static void SetId(object node, string id) => PlanFor(node.GetType()).IdProperty?.SetValue(node, id);
 
     /// <summary>The node's single-valued IDREF attributes (FILEID), as get/set pairs.</summary>
     internal static IEnumerable<(string Attribute, string Value, Action<string> Set)> SingleIdRefs(object node)
     {
-        foreach (var property in PlanFor(node.GetType()).SingleIdRefs)
+        foreach (var property in PlanFor(node.GetType()).SingleIdRefProperties)
         {
             if (property.GetValue(node) is string value && value.Length > 0)
             {
@@ -131,7 +131,7 @@ internal static class MetsGraph
     /// </summary>
     internal static IEnumerable<(string Attribute, IList<string> Tokens)> TokenIdRefs(object node)
     {
-        foreach (var property in PlanFor(node.GetType()).TokenIdRefs)
+        foreach (var property in PlanFor(node.GetType()).TokenIdRefProperties)
         {
             if (property.GetValue(node) is IList<string> tokens && tokens.Count > 0)
             {
@@ -192,11 +192,11 @@ internal static class MetsGraph
 
         return new TypePlan
         {
-            Children = children.ToArray(),
-            ChildCollections = childCollections.ToArray(),
-            Id = id,
-            SingleIdRefs = singleIdRefs.ToArray(),
-            TokenIdRefs = tokenIdRefs.ToArray()
+            ChildProperties = children.ToArray(),
+            ChildCollectionProperties = childCollections.ToArray(),
+            IdProperty = id,
+            SingleIdRefProperties = singleIdRefs.ToArray(),
+            TokenIdRefProperties = tokenIdRefs.ToArray()
         };
     }
 

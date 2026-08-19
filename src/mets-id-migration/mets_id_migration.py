@@ -44,7 +44,10 @@ def main() -> int:
     survey_command.add_argument("--rescan", action="store_true",
                                 help="re-examine groups already in the ledger")
     survey_command.add_argument("--check-completeness", action="store_true",
-                                help="compare the survey against the Activity Stream")
+                                help="afterwards, cross-check the surveyed Archival Groups against "
+                                     "the Activity Stream, which is the other record of the same "
+                                     "population. Answers 'did the deposits query show us "
+                                     "everything?'. Only meaningful after a FULL survey")
     # Three ways to look at part of a deployment rather than all of it. Use them freely: the survey
     # writes only to the ledger, so a partial one costs nothing and can be widened later.
     survey_command.add_argument("--newest-first", action="store_true",
@@ -104,7 +107,8 @@ def _run(arguments, ledger: Ledger) -> int:
                       newest_first=arguments.newest_first, path_prefix=arguments.path_prefix,
                       paths=arguments.paths)
         if arguments.check_completeness:
-            survey.check_completeness(ledger)
+            narrowed = bool(arguments.limit or arguments.paths or arguments.path_prefix)
+            survey.check_completeness(ledger, partial=narrowed)
         return 0
 
     if arguments.command == "report":
