@@ -33,8 +33,12 @@ _NAME_START = (
 _NAME_CHAR = _NAME_START + "\\-.0-9\u00b7\u0300-\u036f\u203f-\u2040"
 _NCNAME = re.compile(f"^[{_NAME_START}][{_NAME_CHAR}]*$")
 
-#: The attributes METS types as ID or IDREF(S). ID declares one; the rest reference one.
-_ID_ATTRIBUTES = ("ID", "ADMID", "DMDID", "FILEID", "STRUCTID")
+#: Attributes holding exactly one ID: ID declares one, FILEID references one.
+_SINGLE_ID_ATTRIBUTES = ("ID", "FILEID")
+
+#: Attributes holding IDREFS - a whitespace-separated list of IDs. Ambiguous in a legacy document,
+#: because a legacy ID can itself contain spaces; see _idrefs_values.
+_IDREFS_ATTRIBUTES = ("ADMID", "DMDID", "STRUCTID")
 
 
 def is_valid_id(value: str) -> bool:
@@ -42,26 +46,54 @@ def is_valid_id(value: str) -> bool:
     return bool(value) and _NCNAME.match(value) is not None
 
 
-def _id_values(root) -> list[tuple[str, str]]:
-    """
-    Every (attribute, value) in the document where an ID may legitimately appear.
+def _declared_ids(root) -> set[str]:
+    """Every value of an ID attribute in the document - the IDs something could refer to."""
+    return {element.get("ID") for element in root.iter()
+            if isinstance(element.tag, str) and element.get("ID") is not None}
 
-    IDREFS values are whitespace-separated lists, but a legacy ID contains spaces, so splitting
-    them here would turn one invalid ID into several fragments that each look valid. The whole
-    value is tested instead: for a genuine list of legal IDs the joined form is legal too, so this
-    only ever reports the thing it should.
+
+def _idrefs_values(value: str, declared: set[str]) -> list[str]:
     """
+    What one IDREFS attribute actually names.
+
+    This is genuinely ambiguous in a legacy document, and getting it wrong goes both ways:
+    `ADMID="ADM_a ADM_b"` is two legal references, while `ADMID="ADM_objects/my file.pdf"` is ONE
+    legacy ID that merely looks like several. Testing the whole value would flag the first (a false
+    positive); splitting on whitespace would pass the second off as the fragments `ADM_objects/my`
+    and `file.pdf` - and where the path has no `/` in it, both fragments are legal and the document
+    would be missed entirely.
+
+    Resolve it the way the platform does (issue #213): try the whole value as a single ID first,
+    because only a legacy ID can look like that, and accept that reading only if the document
+    actually declares such an ID. Otherwise it is a list, and each token stands on its own.
+    """
+    if value in declared:
+        return [value]
+    return value.split()
+
+
+def _id_values(root) -> list[tuple[str, str]]:
+    """Every (attribute, value) in the document where an ID may legitimately appear."""
+    declared = _declared_ids(root)
     found = []
     for element in root.iter():
         if not isinstance(element.tag, str):
             continue  # comment or processing instruction
-        for name in _ID_ATTRIBUTES:
+
+        for name in _SINGLE_ID_ATTRIBUTES:
             value = element.get(name)
             if value is not None:
                 found.append((name, value))
 
+        for name in _IDREFS_ATTRIBUTES:
+            value = element.get(name)
+            if value is not None:
+                found.extend((name, one) for one in _idrefs_values(value, declared))
+
         local = etree.QName(element).localname
         if local == "smLink":
+            # xlink:from and xlink:to are single IDREFs. (smArcLink has the same attribute names
+            # but they hold xlink labels, which are not IDs - so it is not listed here.)
             for end in ("from", "to"):
                 value = element.get(f"{{{XLINK_NS}}}{end}")
                 if value is not None:

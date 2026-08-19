@@ -24,6 +24,31 @@ The `mets:agent` creator name narrows the population — EPrints, Archivematica 
 carry their own ID schemes, are legal NCNames, and are not ours to renumber — but it is the filter,
 not the trigger.
 
+### Where it looks, and the one ambiguous case
+
+`app/ids.py` reads every attribute METS types as an ID or a reference to one, and tests each value
+against an XML 1.0 NCName pattern spelt out in full (an accented letter is legal and must not be
+flagged; an ampersand is not and must be):
+
+| where | attributes |
+|---|---|
+| declarations and single references | `ID`, `FILEID` |
+| reference lists | `ADMID`, `DMDID`, `STRUCTID` |
+| structural links | `smLink/@xlink:from`, `@xlink:to`, and `smLocatorLink/@xlink:href` minus its `#` |
+
+Only those. A file name, a checksum or a PREMIS note is content, however much it may look like an
+ID — which is why `objects/my file.pdf` in an `FLocat` is not a finding.
+
+The reference lists are the ambiguous case, and it is issue #213 again. `ADMID="ADM_a ADM_b"` is two
+legal references; `ADMID="ADM_objects/my file.pdf"` is **one** legacy ID that merely looks like
+several. Testing the whole value would flag the first wrongly; splitting on whitespace would let the
+second through as `ADM_objects/my` and `file.pdf` — and where the path contains no `/`, both
+fragments are legal and the document would be missed entirely. So it is resolved the way the platform
+resolves it: try the whole value as a single ID first, and accept that reading only if the document
+actually declares an ID of that name; otherwise it is a list, and each token stands on its own.
+
+`python -m unittest tests` covers all of this, including the corpus.
+
 ## How one Archival Group is migrated
 
 1. **Create a deposit against the Archival Group, without export.** This is why the migration is
