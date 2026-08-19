@@ -349,13 +349,14 @@ public class PreservationApiClient(
         }
     }
 
-    public async Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, CancellationToken cancellationToken)
+    public async Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, bool suppressActivityStreamEvent, CancellationToken cancellationToken)
     {
         try
         {
             var importJob = new ImportJob
             {
-                Id = new Uri(preservationHttpClient.BaseAddress + $"/deposits/{depositId}/importjobs/diff")
+                Id = new Uri(preservationHttpClient.BaseAddress + $"/deposits/{depositId}/importjobs/diff"),
+                SuppressActivityStreamEvent = suppressActivityStreamEvent
             };
             var relPath = $"/deposits/{depositId}/importjobs";
             var uri = new Uri(relPath, UriKind.Relative);
@@ -375,6 +376,33 @@ public class PreservationApiClient(
         {
             logger.LogError(e, "Could not send diff import job");
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    public async Task<Result<MetsIdNormalisationReport>> NormaliseDepositMetsIds(
+        string depositId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var uri = new Uri($"/deposits/{depositId}/mets/normalise", UriKind.Relative);
+            var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var report = await response.Content
+                    .ReadFromJsonAsync<MetsIdNormalisationReport>(cancellationToken: cancellationToken);
+                if (report is not null)
+                {
+                    return Result.OkNotNull(report);
+                }
+                return Result.FailNotNull<MetsIdNormalisationReport>(
+                    ErrorCodes.UnknownError, "No normalisation report returned by " + uri);
+            }
+            return await response.ToFailNotNullResult<MetsIdNormalisationReport>("Unable to normalise METS IDs");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not normalise METS IDs for deposit {DepositId}", depositId);
+            return Result.FailNotNull<MetsIdNormalisationReport>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

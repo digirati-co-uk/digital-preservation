@@ -25,11 +25,17 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
     
     public async Task<Result<OrderedCollectionPage>> Handle(GetArchivalGroupsOrderedCollectionPage request, CancellationToken cancellationToken)
     {
-        var totalItems = await dbContext.ArchivalGroupEvents.CountAsync(cancellationToken: cancellationToken);
-        
+        // Published events only, and the same filter as the count in
+        // GetArchivalGroupsOrderedCollection - the two decide the page boundaries between them, so
+        // a difference would put a "next" link on the last page or leave one off.
+        var totalItems = await dbContext.ArchivalGroupEvents
+            .Where(e => !e.Suppressed)
+            .CountAsync(cancellationToken: cancellationToken);
+
         try
         {
             var entities = await dbContext.ArchivalGroupEvents
+                .Where(e => !e.Suppressed)
                 .OrderBy(e => e.EventDate)
                 .Skip((request.Page - 1) * OrderedCollectionPage.DefaultPageSize)
                 .Take(OrderedCollectionPage.DefaultPageSize)

@@ -1,0 +1,561 @@
+using System.Xml;
+using System.Xml.Linq;
+using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Common.Model.Transit.Extensions;
+using DigitalPreservation.Mets;
+using DigitalPreservation.Mets.StorageImpl;
+using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace XmlGen.Tests;
+
+/// <summary>
+/// Issue #188 step 3: migrating a document minted before #214 so that every xs:ID in it is a legal
+/// NCName, and every reference still names what it named before.
+///
+/// The property under test throughout is that the migration is a rename and nothing else. The paths
+/// are not touched, the content is not touched, the navigation still works, and an ID that was
+/// already legal - anyone's, including a client-supplied logical range ID that is public through
+/// the IIIF Range URI built from it - comes out the other side identical.
+/// </summary>
+public class MetsIdNormalisationTests
+{
+    private readonly MetsManager metsManager;
+
+    /// <summary>
+    /// The same manager with <c>NormaliseMetsIdsOnWrite</c> set, which is how the platform is
+    /// configured once the flag is on: every write migrates the document it is writing.
+    /// </summary>
+    private readonly MetsManager migratingOnWrite;
+
+    private readonly MetsParser parser;
+
+    private static readonly XNamespace MetsNs = "http://www.loc.gov/METS/";
+    private static readonly XNamespace XLinkNs = "http://www.w3.org/1999/xlink";
+
+    private const string TestDigest = "eb634d64ce8e6be5195174ceaef9ac9e19c37119f3b31618630aa633ccdbf68f";
+
+    public MetsIdNormalisationTests()
+    {
+        var serviceProvider = new ServiceCollection().AddLogging().BuildServiceProvider();
+        var factory = serviceProvider.GetService<ILoggerFactory>();
+        var metsLoader = new FileSystemMetsLoader();
+        parser = new MetsParser(metsLoader, factory!.CreateLogger<MetsParser>());
+        var metsStorage = new FileSystemMetsStorage(parser);
+        var metadataManager = new MetadataManager(
+            new PremisManager(), new PremisManagerExif(), new PremisEventManagerVirus());
+        metsManager = new MetsManager(parser, metsStorage, metadataManager);
+        migratingOnWrite = new MetsManager(parser, metsStorage, metadataManager,
+            Options.Create(new MetsManagerOptions { NormaliseMetsIdsOnWrite = true }));
+    }
+
+    // -----------------------------------------------------------------------
+    // How one ID is respelt
+    // -----------------------------------------------------------------------
+
+    [Theory]
+    // The stem after a known prefix is encoded, so the result is what the minting methods produce.
+    [InlineData("PHYS_objects/my file.pdf", "PHYS_objects_x002F_my_x0020_file.pdf")]
+    [InlineData("FILE_objects/my file.pdf", "FILE_objects_x002F_my_x0020_file.pdf")]
+    [InlineData("ADM_objects/my file.pdf", "ADM_objects_x002F_my_x0020_file.pdf")]
+    [InlineData("TECH_objects/my file.pdf", "TECH_objects_x002F_my_x0020_file.pdf")]
+    [InlineData("DMD_objects/my file.pdf", "DMD_objects_x002F_my_x0020_file.pdf")]
+    // A virus event ID is a prefix in front of another ID, not in front of a path, so the
+    // remainder is respelt in its own right rather than encoded as one blob.
+    [InlineData("digiprovMD_ClamAV_ADM_objects/a.tif", "digiprovMD_ClamAV_ADM_objects_x002F_a.tif")]
+    [InlineData("digiprovMD_ClamAV_2_ADM_objects/a.tif", "digiprovMD_ClamAV_2_ADM_objects_x002F_a.tif")]
+    // Nothing we recognise: still made legal, just not split at a prefix.
+    [InlineData("someone elses id", "someone_x0020_elses_x0020_id")]
+    public void An_Invalid_Id_Is_Respelt_The_Way_The_Platform_Spells_Ids_Now(string legacy, string expected)
+    {
+        MetsIds.Normalise(legacy).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("PHYS_ROOT")]
+    [InlineData("DMD_PHYS_ROOT")]
+    [InlineData("PHYS_objects")]
+    [InlineData("LOG_0001")]                                       // a client-supplied range ID
+    [InlineData("FILE_objects_x002F_my_x0020_file.pdf")]           // already migrated
+    [InlineData("digiprovMD_ingest")]                              // somebody else's
+    public void A_Valid_Id_Is_Left_Exactly_As_It_Is(string id)
+    {
+        MetsIds.Normalise(id).Should().Be(id);
+    }
+
+    [Fact]
+    public void Respelling_An_Id_Agrees_With_Minting_One()
+    {
+        // The two must not drift: after a migration, a document's IDs have to be indistinguishable
+        // from those of a document written from scratch today.
+        foreach (var path in new[]
+                 { "objects/my file.pdf", "objects/A&B/AT&T guide.pdf", "objects/2020 files/9 lives.pdf" })
+        {
+            MetsIds.Normalise(Constants.PhysIdPrefix + path).Should().Be(MetsIds.Phys(path));
+            MetsIds.Normalise(Constants.FileIdPrefix + path).Should().Be(MetsIds.File(path));
+            MetsIds.Normalise(Constants.AdmIdPrefix + path).Should().Be(MetsIds.Adm(path));
+            MetsIds.Normalise(Constants.TechIdPrefix + path).Should().Be(MetsIds.Tech(path));
+            MetsIds.Normalise(Constants.DmdIdPrefix + path).Should().Be(MetsIds.Dmd(path));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // A whole legacy document
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task Normalising_A_Legacy_Document_Makes_Every_Id_Valid_And_Every_Reference_Resolve()
+    {
+        var (metsUri, report) = await NormaliseFixture("path-fixture-spaces.xml", "normalise-spaces.xml");
+
+        report.Changed.Should().BeTrue();
+        var doc = XDocument.Load(metsUri.LocalPath);
+        AssertEveryIdIsValidAndEveryReferenceResolves(doc);
+
+        // Spot-check the shape rather than only the invariants: an ID, the IDREFS that names it,
+        // and the IDREF from the structMap all have to have moved together.
+        var expectedFileId = MetsIds.File("objects/my file.pdf");
+        var file = doc.Descendants(MetsNs + "file")
+            .Single(f => (string?)f.Attribute("ID") == expectedFileId);
+        file.Attribute("ADMID")!.Value.Should().Be(MetsIds.Adm("objects/my file.pdf"));
+        doc.Descendants(MetsNs + "fptr").Select(f => (string?)f.Attribute("FILEID"))
+            .Should().Contain(expectedFileId);
+        doc.Descendants(MetsNs + "div").Select(d => (string?)d.Attribute("ID"))
+            .Should().Contain(MetsIds.Phys("objects/my file.pdf"));
+    }
+
+    [Fact]
+    public async Task Normalising_Leaves_The_Paths_And_The_Content_Alone()
+    {
+        var (metsUri, _) = await NormaliseFixture("path-fixture-spaces.xml", "normalise-content.xml");
+        var doc = XDocument.Load(metsUri.LocalPath);
+
+        // The migration renames identifiers. Everything that says what the object IS - the file
+        // locations, the PREMIS names, the digests, the title - has to come out untouched, or the
+        // diff this produces is no longer a one-file change.
+        doc.Descendants(MetsNs + "FLocat").Select(l => (string?)l.Attribute(XLinkNs + "href"))
+            .Should().BeEquivalentTo("objects/my file.pdf", "objects/my great file.pdf",
+                "objects/my folder/my document.pdf");
+        doc.Descendants(XName.Get("originalName", Constants.PremisNamespace)).Select(n => n.Value)
+            .Should().Contain(["objects", "metadata", "objects/my file.pdf", "objects/my folder"]);
+        doc.Descendants(XName.Get("messageDigest", Constants.PremisNamespace)).Select(n => n.Value)
+            .Should().Contain(TestDigest);
+        doc.Descendants(XName.Get("title", "http://www.loc.gov/mods/v3")).Single().Value
+            .Should().Be("Spaces Test Fixture");
+    }
+
+    [Fact]
+    public async Task Normalising_Is_Idempotent()
+    {
+        var (metsUri, first) = await NormaliseFixture("path-fixture-spaces.xml", "normalise-twice.xml");
+        first.Changed.Should().BeTrue();
+        var afterFirst = await File.ReadAllTextAsync(metsUri.LocalPath);
+
+        var second = await NormaliseInPlace(metsUri);
+        second.Changed.Should().BeFalse("a document that already conforms must not be modified");
+        second.IdsRewritten.Should().Be(0);
+        (await File.ReadAllTextAsync(metsUri.LocalPath)).Should().Be(afterFirst);
+    }
+
+    [Fact]
+    public async Task A_Document_Written_By_The_Current_Code_Reports_No_Change()
+    {
+        // The migration must be able to tell "nothing to do" from "done", because preserving a
+        // document that did not change would bump an Archival Group's version for nothing.
+        var metsUri = new Uri(new FileInfo("Outputs/normalise-already-conforms.xml").FullName);
+        var created = await metsManager.CreateStandardMets(metsUri, "Already Conforms");
+        created.Success.Should().BeTrue(created.ErrorMessage ?? "");
+        var eTag = created.Value!.ETag!;
+
+        foreach (var path in new[] { "objects/my file.pdf", "objects/report (final), v2.pdf" })
+        {
+            var add = await metsManager.HandleSingleFileUpload(metsUri, SimpleFile(path), eTag);
+            add.Success.Should().BeTrue(add.ErrorMessage ?? "");
+            eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+        }
+
+        var report = await NormaliseInPlace(metsUri);
+        report.Changed.Should().BeFalse();
+        report.Rewrites.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_Normalised_Document_Is_Still_Navigable_By_Path()
+    {
+        // The point of the whole exercise: paths keep working, and keep working through the cache
+        // rather than through any ID convention.
+        var (metsUri, _) = await NormaliseFixture("path-fixture-spaces.xml", "normalise-navigable.xml");
+
+        var eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+        var reloaded = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        reloaded.PathDiagnostics.Should().BeEmpty();
+        reloaded.PhysicalDivsByPath.Keys.Should().Contain(
+            ["objects", "metadata", "objects/my file.pdf", "objects/my folder",
+                "objects/my folder/my document.pdf"]);
+
+        // And it is still editable: adding a file to the migrated document works, and adds an ID
+        // in the same form as the ones now around it.
+        var add = await metsManager.HandleSingleFileUpload(
+            metsUri, SimpleFile("objects/my folder/late arrival.pdf"), eTag);
+        add.Success.Should().BeTrue(add.ErrorMessage ?? "");
+        AssertEveryIdIsValidAndEveryReferenceResolves(XDocument.Load(metsUri.LocalPath));
+    }
+
+    // -----------------------------------------------------------------------
+    // The parts that are easy to get wrong
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_Legacy_Link_Between_Two_Files_Follows_Both_Of_Its_Ends()
+    {
+        // smLink's ends are IDREFs held in xlink attributes, so they are not found the way ADMID
+        // and FILEID are. A link left behind pointing at an ID that no longer exists is the
+        // clearest way this migration could silently corrupt a document.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "normalise-links.xml");
+        var eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        metsManager.LinkFile(fullMets, "objects/my file.pdf", "objects/my great file.pdf",
+            new Uri("http://example.org/roles/transcription-of"));
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        await NormaliseInPlace(metsUri);
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        var link = doc.Descendants(MetsNs + "smLink").Single();
+        link.Attribute(XLinkNs + "from")!.Value.Should().Be(MetsIds.File("objects/my file.pdf"));
+        link.Attribute(XLinkNs + "to")!.Value.Should().Be(MetsIds.File("objects/my great file.pdf"));
+        AssertEveryIdIsValidAndEveryReferenceResolves(doc);
+    }
+
+    [Fact]
+    public async Task A_Logical_Range_Keeps_Its_Own_Id_And_Its_Pointers_Follow()
+    {
+        // A range ID comes from the client and is already a legal NCName. It is also public - the
+        // IIIF Range URI is built from it - so renaming one would change a published identifier for
+        // no reason. Its fptr, which names a legacy FILE id, does have to move.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "normalise-logical.xml");
+        var eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        metsManager.SetStructMap(fullMets, new LogicalRange
+        {
+            Id = "LOG_0000", Type = "Sequence", Name = "A sequence",
+            Files = [new FilePointer { LocalPath = "objects/my file.pdf" }]
+        }).Success.Should().BeTrue();
+        (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        var report = await NormaliseInPlace(metsUri);
+        report.Rewrites.Select(r => r.From).Should().NotContain("LOG_0000");
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        var logical = doc.Descendants(MetsNs + "structMap")
+            .Single(sm => (string?)sm.Attribute("TYPE") == Constants.Logical);
+        logical.Descendants(MetsNs + "div").Select(d => (string?)d.Attribute("ID"))
+            .Should().Contain("LOG_0000");
+        logical.Descendants(MetsNs + "fptr").Single().Attribute("FILEID")!.Value
+            .Should().Be(MetsIds.File("objects/my file.pdf"));
+        AssertEveryIdIsValidAndEveryReferenceResolves(doc);
+    }
+
+    [Fact]
+    public async Task A_Reference_That_Names_Nothing_Is_Still_Made_Legal_And_Reported()
+    {
+        // The template writes DMDID onto folder divs before the dmdSec that would satisfy it is
+        // created, so a dangling DMDID is normal - and a legacy one is not a legal NCName. Leaving
+        // it would mean the document still did not conform after a migration that said it did.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "normalise-dangling.xml");
+        var xml = await File.ReadAllTextAsync(metsUri.LocalPath);
+        xml.Should().Contain("DMDID=\"DMD_metadata\"");
+        await File.WriteAllTextAsync(metsUri.LocalPath,
+            xml.Replace("DMDID=\"DMD_metadata\"", "DMDID=\"DMD_metadata/ad-hoc\""));
+
+        var report = await NormaliseInPlace(metsUri);
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        var metadataDiv = doc.Descendants(MetsNs + "div")
+            .Single(d => (string?)d.Attribute("LABEL") == "metadata");
+        metadataDiv.Attribute("DMDID")!.Value.Should().Be("DMD_metadata_x002F_ad-hoc");
+        report.Warnings.Should().Contain(w => w.Contains("DMD_metadata/ad-hoc"));
+
+        foreach (var id in AllIds(doc))
+        {
+            var verify = () => XmlConvert.VerifyNCName(id);
+            verify.Should().NotThrow($"'{id}' is written into an ID-typed attribute");
+        }
+    }
+
+    [Fact]
+    public async Task A_Half_Migrated_Document_Comes_Out_Whole()
+    {
+        // What a deposit taken from an Archival Group preserved before #214 and then added to
+        // actually looks like: legacy IDs and encoded ones side by side, referring to each other.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "normalise-mixed.xml");
+        var eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+        var add = await metsManager.HandleSingleFileUpload(
+            metsUri, SimpleFile("objects/my folder/new addition.pdf"), eTag);
+        add.Success.Should().BeTrue(add.ErrorMessage ?? "");
+
+        var report = await NormaliseInPlace(metsUri);
+
+        // Only the legacy half moved.
+        report.Rewrites.Select(r => r.From).Should().Contain("FILE_objects/my file.pdf");
+        report.Rewrites.Select(r => r.From).Should()
+            .NotContain(MetsIds.File("objects/my folder/new addition.pdf"));
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        AssertEveryIdIsValidAndEveryReferenceResolves(doc);
+        AllIds(doc).Should().Contain(MetsIds.File("objects/my folder/new addition.pdf"));
+    }
+
+    [Fact]
+    public async Task Unicode_And_Ampersands_Survive_The_Respelling()
+    {
+        var (metsUri, _) = await NormaliseFixture("path-fixture-special.xml", "normalise-special.xml");
+        var doc = XDocument.Load(metsUri.LocalPath);
+
+        AssertEveryIdIsValidAndEveryReferenceResolves(doc);
+        // An accented letter is legal in an NCName, so it stays a letter; an ampersand is not.
+        AllIds(doc).Should().Contain(MetsIds.File("objects/résumé.pdf"));
+        AllIds(doc).Should().Contain(MetsIds.File("objects/AT&T guide.pdf"));
+        doc.Descendants(MetsNs + "FLocat").Select(l => (string?)l.Attribute(XLinkNs + "href"))
+            .Should().Contain("objects/AT&T guide.pdf", "the path itself is not encoded");
+    }
+
+    [Theory]
+    // Real documents the platform wrote, kept as samples for other reasons entirely. They are here
+    // because the fixtures are small and tidy and production is neither: these carry logical
+    // structMaps, PREMIS events, several fileGrps and metadata folders, and between them they are
+    // the closest thing in the repository to the corpus the migration will actually meet.
+    [InlineData("liddle.mets.xml")]
+    [InlineData("mets-sample-001.xml")]
+    [InlineData("response-book.mets.xml")]
+    [InlineData("simple-image.mets.xml")]
+    [InlineData("wow.mets.xml")]
+    public async Task Real_Preserved_Documents_Come_Out_Conforming(string sampleName)
+    {
+        var metsUri = CopyFixture(sampleName, $"normalise-{sampleName}");
+        // Some of these already carry a dangling reference - liddle and wow both have a div whose
+        // ADMID names an amdSec that is not there. Not the migration's business to fix, and the
+        // measure of it doing no harm is that it leaves no more than it found.
+        var danglingBefore = DanglingReferences(XDocument.Load(metsUri.LocalPath)).Count;
+
+        var report = await NormaliseInPlace(metsUri);
+        report.Changed.Should().BeTrue($"{sampleName} was written before the fix");
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        AssertEveryIdIsValidAndUnique(doc);
+        DanglingReferences(doc).Should().HaveCountLessThanOrEqualTo(danglingBefore);
+
+        // And running it again is a no-op, on a real document as much as a contrived one.
+        (await NormaliseInPlace(metsUri)).Changed.Should().BeFalse();
+    }
+
+    // -----------------------------------------------------------------------
+    // Migrating on write, so that an edit fixes the document it touches
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task With_The_Flag_Off_An_Edit_Leaves_The_Legacy_Ids_Alone()
+    {
+        // The behaviour every other test in the suite assumes, stated here so the flag's effect can
+        // be read against it: adding to a legacy document mints an encoded ID for the new entry and
+        // leaves the old ones exactly as they were. MetsIdIntegrityTests pins that this stays
+        // navigable; what it costs is a document with two ID generations in it.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "write-flag-off.xml");
+        var eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+
+        var add = await metsManager.HandleSingleFileUpload(
+            metsUri, SimpleFile("objects/added.pdf"), eTag);
+        add.Success.Should().BeTrue(add.ErrorMessage ?? "");
+
+        var ids = AllIds(XDocument.Load(metsUri.LocalPath));
+        ids.Should().Contain("FILE_objects/my file.pdf", "the legacy IDs are untouched");
+        ids.Should().Contain(MetsIds.File("objects/added.pdf"), "and the new one is encoded");
+    }
+
+    [Fact]
+    public async Task With_The_Flag_On_An_Edit_Migrates_The_Document_It_Touches()
+    {
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "write-flag-on.xml");
+        var eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+
+        var add = await migratingOnWrite.HandleSingleFileUpload(
+            metsUri, SimpleFile("objects/added.pdf"), eTag);
+        add.Success.Should().BeTrue(add.ErrorMessage ?? "");
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        AssertEveryIdIsValidAndEveryReferenceResolves(doc);
+        AllIds(doc).Should().NotContain("FILE_objects/my file.pdf",
+            "the whole document was migrated, not just the part that was edited");
+        AllIds(doc).Should().Contain(MetsIds.File("objects/my file.pdf"));
+        AllIds(doc).Should().Contain(MetsIds.File("objects/added.pdf"));
+    }
+
+    [Fact]
+    public async Task Migrating_On_Write_Applies_To_Every_Kind_Of_Edit()
+    {
+        // WriteMets is the single point every mutation passes through, which is the whole reason
+        // the migration hangs off it. Prove that for a path that does not go through
+        // HandleSingleChange at all.
+        var metsUri = CopyFixture("path-fixture-spaces.xml", "write-flag-on-structmap.xml");
+        var eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+        var fullMets = (await migratingOnWrite.GetFullMets(metsUri, eTag)).Value!;
+
+        migratingOnWrite.SetStructMap(fullMets, new LogicalRange
+        {
+            Id = "LOG_0000", Type = "Sequence", Name = "A sequence",
+            Files = [new FilePointer { LocalPath = "objects/my file.pdf" }]
+        }).Success.Should().BeTrue();
+        (await migratingOnWrite.WriteMets(fullMets)).Success.Should().BeTrue();
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        AssertEveryIdIsValidAndEveryReferenceResolves(doc);
+        AllIds(doc).Should().Contain("LOG_0000", "a range ID was already legal and is not renamed");
+    }
+
+    [Fact]
+    public async Task Migrating_On_Write_Does_Nothing_To_A_Document_Written_Today()
+    {
+        // The flag must be free for the overwhelming majority of writes, which are to documents
+        // that already conform.
+        var metsUri = new Uri(new FileInfo("Outputs/write-flag-on-fresh.xml").FullName);
+        var created = await migratingOnWrite.CreateStandardMets(metsUri, "Fresh");
+        created.Success.Should().BeTrue(created.ErrorMessage ?? "");
+
+        var eTag = created.Value!.ETag!;
+        var add = await migratingOnWrite.HandleSingleFileUpload(
+            metsUri, SimpleFile("objects/report (final), v2.pdf"), eTag);
+        add.Success.Should().BeTrue(add.ErrorMessage ?? "");
+
+        var doc = XDocument.Load(metsUri.LocalPath);
+        AssertEveryIdIsValidAndEveryReferenceResolves(doc);
+        (await NormaliseInPlace(metsUri)).Changed.Should().BeFalse();
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Every value written into an ID-typed attribute must be a valid NCName and unique, and every
+    /// reference must name one of them. The same contract as <see cref="MetsIdIntegrityTests"/>,
+    /// checked here on the far side of a migration rather than after a write.
+    /// </summary>
+    private static void AssertEveryIdIsValidAndEveryReferenceResolves(XDocument doc)
+    {
+        AssertEveryIdIsValidAndUnique(doc);
+        DanglingReferences(doc).Should().BeEmpty();
+    }
+
+    private static void AssertEveryIdIsValidAndUnique(XDocument doc)
+    {
+        var ids = AllIds(doc);
+        ids.Should().OnlyHaveUniqueItems();
+        foreach (var id in ids)
+        {
+            var verify = () => XmlConvert.VerifyNCName(id);
+            verify.Should().NotThrow($"'{id}' is written into an xs:ID attribute");
+        }
+    }
+
+    /// <summary>
+    /// Every reference that names no element in the document, as "attribute -> value".
+    /// </summary>
+    /// <remarks>
+    /// DMDID is excluded for the reason given in <see cref="MetsIdIntegrityTests"/>: the template
+    /// writes it onto folder divs before their dmdSec exists, so it dangles by design. ADMID is not
+    /// excluded, but real preserved documents turn out to carry the occasional dangling one too -
+    /// so this is counted rather than forbidden, and the migration is held to leaving it no worse.
+    /// A dangling reference may name nothing; it may not be illegal XML, and that part is absolute.
+    /// </remarks>
+    private static List<string> DanglingReferences(XDocument doc)
+    {
+        var declared = AllIds(doc).ToHashSet();
+        var dangling = new List<string>();
+
+        foreach (var element in doc.Descendants())
+        {
+            foreach (var name in new[] { "ADMID", "STRUCTID" })
+            {
+                var value = (string?)element.Attribute(name);
+                if (value is null || declared.Contains(value)) continue;
+                foreach (var token in value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (!declared.Contains(token))
+                    {
+                        dangling.Add($"{element.Name.LocalName}/@{name} -> {token}");
+                    }
+                }
+            }
+
+            var fileId = (string?)element.Attribute("FILEID");
+            if (fileId is not null && !declared.Contains(fileId))
+            {
+                dangling.Add($"{element.Name.LocalName}/@FILEID -> {fileId}");
+            }
+        }
+
+        foreach (var link in doc.Descendants(MetsNs + "smLink"))
+        {
+            foreach (var end in new[] { "from", "to" })
+            {
+                var value = (string?)link.Attribute(XLinkNs + end);
+                if (value is not null && !declared.Contains(value))
+                {
+                    dangling.Add($"smLink/@xlink:{end} -> {value}");
+                }
+            }
+        }
+
+        return dangling;
+    }
+
+    /// <summary>Every xs:ID the document declares.</summary>
+    private static List<string> AllIds(XDocument doc) =>
+        doc.Descendants()
+            .Select(e => (string?)e.Attribute("ID"))
+            .Where(id => id is not null)
+            .Select(id => id!)
+            .ToList();
+
+    private async Task<(Uri metsUri, MetsIdNormalisationReport report)>
+        NormaliseFixture(string fixtureName, string outputName)
+    {
+        var metsUri = CopyFixture(fixtureName, outputName);
+        return (metsUri, await NormaliseInPlace(metsUri));
+    }
+
+    private async Task<MetsIdNormalisationReport> NormaliseInPlace(Uri metsUri)
+    {
+        var eTag = (await parser.GetMetsFileWrapper(metsUri)).Value!.ETag!;
+        var fullMets = (await metsManager.GetFullMets(metsUri, eTag)).Value!;
+        var result = metsManager.NormaliseIds(fullMets);
+        result.Success.Should().BeTrue(result.ErrorMessage ?? "");
+        if (result.Value!.Changed)
+        {
+            (await metsManager.WriteMets(fullMets)).Success.Should().BeTrue();
+        }
+        return result.Value!;
+    }
+
+    private static WorkingFile SimpleFile(string localPath) =>
+        new()
+        {
+            LocalPath = localPath,
+            Name = localPath.Split('/')[^1],
+            ContentType = "application/pdf",
+            Digest = TestDigest,
+            Size = 54321,
+            Modified = DateTime.UtcNow
+        };
+
+    private static Uri CopyFixture(string fixtureName, string outputName)
+    {
+        var source = new FileInfo($"Samples/{fixtureName}");
+        var dest = new FileInfo($"Outputs/{outputName}");
+        File.Copy(source.FullName, dest.FullName, overwrite: true);
+        return new Uri(dest.FullName);
+    }
+}

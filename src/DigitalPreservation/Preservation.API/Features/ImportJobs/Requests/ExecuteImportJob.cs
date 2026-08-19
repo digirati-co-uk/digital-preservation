@@ -37,6 +37,14 @@ public class ExecuteImportJobHandler(
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "Deposit is locked by another user: " + callerIdentity);
         }
         logger.LogInformation("ExecuteImportJobHandler handling import job {ImportJobSummary}", request.ImportJob.LogSummary());
+        if (request.ImportJob.SuppressActivityStreamEvent)
+        {
+            // Loudly, because it is the one thing about this job that a later reader of the
+            // Activity Stream cannot discover from the stream itself.
+            logger.LogWarning(
+                "Import job for {ArchivalGroup} requested by {CallerIdentity} will NOT appear in the Activity Stream",
+                request.ImportJob.ArchivalGroup, callerIdentity);
+        }
         var now = DateTime.UtcNow;
         var mintedId = identityService.MintIdentity(nameof(ImportJob));
         logger.LogInformation("Identity service gave us id for import job: {MintedId}", mintedId);
@@ -71,6 +79,7 @@ public class ExecuteImportJobHandler(
                 LastUpdated = now,
                 DateSubmitted = now,
                 SourceVersion = storageImportJobResult.SourceVersion,
+                SuppressActivityStreamEvent = request.ImportJob.SuppressActivityStreamEvent,
                 LatestStorageApiResultJson = JsonSerializer.Serialize(storageImportJobResult),
                 LatestPreservationApiResultJson = JsonSerializer.Serialize(preservationImportJobResult)
             };

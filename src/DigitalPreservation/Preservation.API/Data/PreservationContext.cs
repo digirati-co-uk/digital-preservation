@@ -21,6 +21,22 @@ public class PreservationContext : DbContext
         return ImportJobs.SingleOrDefault(j => j.StorageImportJobResultId == storageResultUri);
     }
 
+    /// <summary>
+    /// The most recent Archival Group event, which is how far we have read Storage API's own import
+    /// job activities. <b>Deliberately includes suppressed events</b>: suppression keeps an event out
+    /// of the PUBLISHED stream, not out of this reckoning.
+    /// </summary>
+    /// <remarks>
+    /// Filtering suppressed events out here would leave the watermark behind whenever the newest
+    /// event is a suppressed one, and StorageImportJobsProcessor would re-read the same window of
+    /// Storage activities on every pass, for ever. A bulk migration, where every job is suppressed,
+    /// would cause exactly that - which is why the event row is written at all rather than skipped.
+    /// </remarks>
+    public ArchivalGroupEvent? GetLatestArchivalGroupEvent()
+    {
+        return ArchivalGroupEvents.OrderByDescending(e => e.EventDate).FirstOrDefault();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Deposit>(builder =>

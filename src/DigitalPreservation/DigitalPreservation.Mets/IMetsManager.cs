@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.Results;
+﻿using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 
@@ -20,6 +21,20 @@ public interface IMetsManager
     Result AddToMets(FullMets fullMets, WorkingBase workingBase); // , Uri? storageLocation
     Result DeleteFromMets(FullMets fullMets, string deletePath); // , Uri? storageLocation
     Task<Result> WriteMets(FullMets fullMets);
+
+    /// <summary>
+    /// Rewrite every xs:ID that is not a legal NCName into the form the platform mints now, and
+    /// follow every reference to it (issue #188 step 3). Synchronous, like the other FullMets
+    /// mutations - does not save to disk.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent: an ID that is already legal is left alone, so a document that has been
+    /// normalised once reports no change the next time. A report whose Changed is false means
+    /// nothing was touched, and the caller must NOT preserve it - an Archival Group should not gain
+    /// a version for a document that did not change. Fails, writing nothing, if the result would
+    /// not be a valid document.
+    /// </remarks>
+    Result<MetsIdNormalisationReport> NormaliseIds(FullMets fullMets);
 
     // Extensions
     // We don't need getters because this information will be exposed in either WorkingFile/Dir or Logical ... Ranges

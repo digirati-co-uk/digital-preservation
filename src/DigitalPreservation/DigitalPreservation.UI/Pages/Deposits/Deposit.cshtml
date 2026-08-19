@@ -115,6 +115,19 @@
                                     <span class="ms-2">Create logical structure</span>
                                 </button>
                             </li>
+                            @if (Model.ShowNormaliseMetsIds)
+                            {
+                                @* Issue #188 step 3, behind FeatureFlags:ShowNormaliseMetsIds so the
+                                   migration can be tried on one deposit before it is run in bulk.
+                                   Safe to invoke on a deposit that needs nothing: it says so and
+                                   writes nothing. *@
+                                <li>
+                                    <button disabled="@jobRunningOrArchived" class="dropdown-item @(jobRunningOrArchived ? "text-secondary" : "text-primary")" type="submit" asp-page-handler="NormaliseMetsIds" id="normaliseMetsIds">
+                                        <svg class="bi" aria-hidden="true"><use xlink:href="#arrow-counterclockwise"/></svg>
+                                        <span class="ms-2">Normalise METS IDs</span>
+                                    </button>
+                                </li>
+                            }
                         }
                         <li><hr class="dropdown-divider"></li>
                         <li>

@@ -1,0 +1,158 @@
+# METS ID migration
+
+Bulk migration of preserved METS documents to legal `xs:ID` values — issue #188 step 3.
+
+Before release 1.3.0 the platform minted METS IDs by concatenating a prefix and the item's path, so
+`objects/my file.pdf` became `PHYS_objects/my file.pdf`. That is not a legal `xs:ID`: an `xs:ID` must
+be an XML NCName, which excludes both the `/` and the space. Since #214 the path part is escaped
+(`PHYS_objects_x002F_my_x0020_file.pdf`), but existing documents are never rewritten, so both
+generations are live. This tool rewrites the older ones.
+
+## What decides that a document needs migrating
+
+Not its age, and not who wrote it — **whether it contains an ID that is not a legal NCName**. That is
+the actual defect, it is decidable from the document alone, and it stops being true once the
+migration has run. Three consequences worth knowing:
+
+- **The campaign converges**, and re-running is safe. A migrated document reports nothing to do.
+- **An ID that is already legal is never touched**, whoever minted it. That includes client-supplied
+  logical range IDs, which are public through the IIIF Range URIs built from them.
+- **A pre-#214 document whose paths happened to contain no illegal characters is left alone**, rather
+  than gaining a version for a rewrite that would produce the identical string.
+
+The `mets:agent` creator name narrows the population — EPrints, Archivematica and Goobi documents
+carry their own ID schemes, are legal NCNames, and are not ours to renumber — but it is the filter,
+not the trigger.
+
+## How one Archival Group is migrated
+
+1. **Create a deposit against the Archival Group, without export.** This is why the migration is
+   cheap: an export copies every binary into the deposit's S3 area, whereas a plain deposit against
+   an existing group copies only the METS. The diff still comes out right, because the deposit's
+   combined tree takes every other file from the METS, with the digests the group already holds.
+2. **Normalise the IDs** — `POST /deposits/{id}/mets/normalise`. The rewriting happens in the
+   platform's own `MetsManager`, never here, so there is one implementation of how an ID is spelt.
+3. **If nothing changed, stop.** An Archival Group must not gain a version for a document that did
+   not change.
+4. **Generate the diff import job and refuse unless it is exactly one binary to patch — the METS.**
+   This is the gate that matters. Because a METS-only deposit gets its file list from the METS, a
+   file the Archival Group holds but the METS does not mention would be listed for *deletion* rather
+   than failing the diff. The assertion closes that.
+5. **Execute it**, with `suppressActivityStreamEvent` set.
+6. **Verify**: re-read the preserved METS and check the set of paths and digests is byte-identical
+   to what it was before. A rename of identifiers cannot change it; anything worse would.
+
+The result is one new OCFL version whose only new content is `mets.xml`.
+
+## Why the Activity Stream event is suppressed
+
+The stream is a IIIF Change Discovery feed. Its readers — `iiif-builder` among them — treat an entry
+as "this object changed, rebuild what you derived from it". Renaming identifiers inside a METS gives
+them nothing to rebuild, so an entry would be both wasted work and a misleading account of the
+object's history.
+
+It suppresses the *entry*, not the *record*: Preservation API still writes the event row, and OCFL
+still holds the new version with everything that made it. Nothing is lost — it just is not announced
+as a change. (The row is written for a practical reason too: the stream reader takes its watermark
+from the latest event date, so skipping rows entirely would leave it re-reading the same window for
+ever, which is exactly what a bulk migration would cause.)
+
+## Running it
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env      # and fill it in
+```
+
+The Preservation API needs `FeatureFlags:EnableMetsIdNormalisation` set to `true`, or the normalise
+endpoint is refused.
+
+**Start by finding out how big the job is. That costs nothing and changes nothing:**
+
+```bash
+python mets_id_migration.py survey --check-completeness   # read-only
+python mets_id_migration.py report                        # counts by state
+python mets_id_migration.py list                          # the actual list
+python mets_id_migration.py list --csv candidates.csv
+```
+
+`survey` reads the deposits query and each Archival Group's METS and writes only to the local
+ledger. `list` prints what it found. If that list is short — and on production it is expected to be,
+since almost everything there is EPrints material that was never affected — **stop here and do them
+by hand**; see below. The bulk migration is for when it isn't.
+
+```bash
+python mets_id_migration.py migrate --dry-run             # rehearse; nothing is preserved
+python mets_id_migration.py migrate --limit 1             # then one
+python mets_id_migration.py migrate                       # then the rest
+python mets_id_migration.py verify                        # read-only
+```
+
+`--dry-run` goes all the way to generating the diff and checking the gate, then throws the deposit
+away without preserving. It is the rehearsal that proves, per Archival Group, that the change really
+is a single METS patch.
+
+There is deliberately no command that does the whole thing unattended. Read `report` between steps.
+
+## Doing it by hand
+
+Set `FeatureFlags:ShowNormaliseMetsIds` on the UI and `FeatureFlags:EnableMetsIdNormalisation` on
+Preservation API. Then, for each Archival Group on the list:
+
+1. Browse to the Archival Group and create a deposit for it — **not** an export. Only the METS comes
+   down, which is what makes this quick even for a large object.
+2. On the deposit, **Actions → Normalise METS IDs**. It says how many IDs and references it
+   rewrote, or that the document already conforms. If it already conforms, delete the deposit and
+   move on: there is nothing here to preserve.
+3. Generate the import job. **Check it is a single binary to patch, and that it is the METS file.**
+   The tool refuses automatically at this point; by hand, this is the check to make yourself.
+4. Tick **"Maintenance only — keep this version out of the Activity Stream"**, then Preserve.
+5. Delete the deposit.
+
+That checkbox appears next to Preserve under the same feature flag, so a migration done by hand
+leaves the same clean history as one done in bulk.
+
+## Migrating by attrition
+
+`FeatureFlags:NormaliseMetsIdsOnWrite` (on Preservation API, Pipeline API, the UI and the Deposit
+Archiver) makes every METS write migrate the document it is writing. It exists because an edit to a
+pre-#214 document otherwise makes it *worse* — the new entries get encoded IDs while the old ones
+keep their raw form, so editing is the only thing that creates mixed-generation documents.
+
+With it on, anything anyone edits fixes itself, and this tool only has to deal with what nobody
+touches. **Turn it on after a campaign has been through the same documents**, not before: the first
+real runs of the normaliser should happen in a controlled batch rather than while somebody waits for
+a page to save.
+
+It does not replace this tool. Most preserved Archival Groups are never edited again.
+
+**Rehearse on development first.** It holds far more affected Archival Groups than production does —
+the accumulated residue of testing and the nightly Playwright runs — which makes it both the larger
+corpus and the expendable one.
+
+## The ledger
+
+One SQLite file (`ledger.sqlite` by default) with a row per Archival Group. It makes the campaign
+resumable, stops anything being migrated twice, and is the record of what the identifiers used to
+be — a question with no other home, since after migration the old IDs exist only in the previous
+OCFL version.
+
+States: `candidate` (ours, has invalid IDs), `conforms` (ours, already legal), `foreign` (someone
+else's METS), `no-mets`, `done`, `no-change`, `failed` (see the `note` column).
+
+```sql
+SELECT path, ids_rewritten, from_version, to_version FROM archival_groups WHERE state = 'done';
+SELECT path, note FROM archival_groups WHERE state = 'failed';
+```
+
+## What the survey can miss
+
+Deposits index *deposits*, not Archival Groups: a group whose deposit rows were hard-deleted will not
+appear. `--check-completeness` compares the survey against the Activity Stream, which records every
+create and update. The two will not match exactly — the stream begins at a seeded backstop event, and
+suppressed events are not published — but a large shortfall means the list should not be trusted
+until it is understood.
+
+## If a migration goes wrong
+
+OCFL keeps the previous version. The fix is to preserve the old METS again, not to delete a version.

@@ -92,11 +92,15 @@ public class ImportJobsController(
         if (IsPostedDiffReference(importJob, Request.Path))
         {
             logger.LogInformation("Submitted import job is a diff reference, creating job...");
+            // The posted body is about to be replaced by a freshly generated diff, so anything the
+            // caller asked for that the generator does not know about has to be carried across.
+            var suppressActivityStreamEvent = importJob.SuppressActivityStreamEvent;
             var diffImportJobResult = await mediator.Send(new GetDiffImportJob(deposit, User), cancellationToken);
             if (diffImportJobResult is { Success: true, Value: not null })
             {
                 importJob = diffImportJobResult.Value;
                 importJob.OriginalId = GetDiffUri(depositId);
+                importJob.SuppressActivityStreamEvent = suppressActivityStreamEvent;
             }
             else
             {

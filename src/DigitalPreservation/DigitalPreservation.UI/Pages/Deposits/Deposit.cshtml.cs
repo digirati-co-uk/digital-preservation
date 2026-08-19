@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
+using System.Net;
 using System.Text.Json;
 using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Common.Model.Transit.Extensions;
@@ -43,6 +44,16 @@ public class DepositModel(
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
 
     public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
+
+    /// <summary>
+    /// Whether to offer the METS ID migration (issue #188 step 3) from the Actions menu. Off by
+    /// default: it exists so the operation can be tried on one deposit before anything is run in
+    /// bulk, not as an everyday action. Preservation API gates the endpoint itself with its own
+    /// EnableMetsIdNormalisation flag, so turning this on alone shows a menu item that will be
+    /// refused.
+    /// </summary>
+    public bool ShowNormaliseMetsIds =>
+        configuration.GetValue<bool?>("FeatureFlags:ShowNormaliseMetsIds") ?? false;
 
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
     public List<string> FilesWithViruses { get; set; } = [];
@@ -377,6 +388,48 @@ public class DepositModel(
             {
                 TempData[TempDataError] = result.ErrorMessage;
             }
+        }
+
+        return Redirect($"/deposits/{id}");
+    }
+
+
+    public async Task<IActionResult> OnPostNormaliseMetsIds([FromRoute] string id)
+    {
+        if (!ShowNormaliseMetsIds)
+        {
+            TempData[TempDataError] = "METS ID normalisation is not enabled.";
+            return Redirect($"/deposits/{id}");
+        }
+
+        var result = await mediator.Send(new NormaliseMetsIds(id));
+        if (result is { Success: true, Value: not null })
+        {
+            var report = result.Value;
+            // Say which of the two outcomes it was. "Nothing to do" is the answer for most
+            // deposits, and is not the same as "done" - it is the answer that means this Archival
+            // Group needs no new version.
+            var message = report.Changed
+                ? $"METS IDs normalised: {report.IdsRewritten} ID(s) and " +
+                  $"{report.ReferencesRewritten} reference(s) rewritten. " +
+                  "Generate an import job to preserve the change."
+                : "METS IDs already conform - nothing was changed.";
+
+            if (report.Warnings.Count > 0)
+            {
+                logger.LogWarning("Normalising METS IDs for deposit {DepositId} produced warnings: {Warnings}",
+                    id, string.Join("; ", report.Warnings));
+                // Encoded because the banner renders with Html.Raw and a warning quotes IDs taken
+                // from the document.
+                message += $" {report.Warnings.Count} warning(s), the first being: " +
+                           WebUtility.HtmlEncode(report.Warnings[0]);
+            }
+
+            TempData["Valid"] = message;
+        }
+        else
+        {
+            TempData[TempDataError] = result.ErrorMessage;
         }
 
         return Redirect($"/deposits/{id}");

@@ -50,11 +50,23 @@ public interface IPreservationApiClient
     Task<Result<List<ImportJobResult>>> GetImportJobResultsForDeposit(string depositId, CancellationToken cancellationToken);
     Task<Result<ImportJobResult>> GetImportJobResult(string depositId, string importJobResultId, CancellationToken cancellationToken);
     Task<Result<ImportJob>> GetDiffImportJob(string depositId, CancellationToken cancellationToken);
-    Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Post the deposit's diff import job. <paramref name="suppressActivityStreamEvent"/> keeps the
+    /// resulting version out of the published Activity Stream, for maintenance that changes how an
+    /// object is recorded rather than what it holds.
+    /// </summary>
+    Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, bool suppressActivityStreamEvent, CancellationToken cancellationToken);
     Task<Result> DeleteContainer(string path, bool requestPurge, CancellationToken cancellationToken);
     Task<Result<List<Uri>>> GetAllAgents(CancellationToken cancellationToken);
     
     Task<Result<(string, string)>> GetMetsWithETag(string depositId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Rewrite the deposit's METS IDs into the form the platform mints now (issue #188 step 3).
+    /// A report whose Changed is false means the document already conformed and was not written.
+    /// </summary>
+    Task<Result<MetsIdNormalisationReport>> NormaliseDepositMetsIds(string depositId, CancellationToken cancellationToken);
+
     Task<Result<string>> GetParsedDepositMets(string depositId, CancellationToken cancellationToken);
     Task<Result<string>> GetIIIF(string depositId, CancellationToken cancellationToken);
     
