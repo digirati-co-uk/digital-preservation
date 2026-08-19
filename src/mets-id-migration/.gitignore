@@ -4,3 +4,8 @@
 *.sqlite-journal
 *.csv
 *.log
+
+# The root .gitignore already covers these; repeated here so this directory stands on its own.
+.venv/
+venv/
+__pycache__/

@@ -135,10 +135,20 @@ A local Preservation API and Storage API have their **own** Postgres (5433, 5434
 
 ## Running it
 
+**Python 3.10 or later** — the code uses PEP 604 unions (`str | None`) in annotations, which are
+evaluated at import time. Developed and tested on 3.12, matching the version `iiif-builder`'s image
+uses.
+
 ```bash
+py -3.12 -m venv .venv                 # Windows; python3.12 -m venv .venv elsewhere
+.venv/Scripts/activate                 # or: source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env      # and fill it in
+python -m unittest tests               # 14 tests, no environment needed
+
+cp .env.example .env                   # and fill it in
 ```
+
+`.venv/` is gitignored.
 
 **Start by finding out how big the job is. That costs nothing and changes nothing:**
 
