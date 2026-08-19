@@ -57,15 +57,63 @@ as a change. (The row is written for a practical reason too: the stream reader t
 from the latest event date, so skipping rows entirely would leave it re-reading the same window for
 ever, which is exactly what a bulk migration would cause.)
 
+## What needs deploying, and where to point it
+
+**`survey`, `list`, `report` and `verify` need nothing deployed.** They call only endpoints that have
+been there all along:
+
+| call | endpoint |
+|---|---|
+| discovery | `GET /deposits?ShowAll&Archived&OrderBy=Created` |
+| the decision | `GET /repository/{path}?view=mets` |
+| cross-check | `GET /activity/archivalgroups/pages/{n}` |
+
+So you can size the job against development *or production* today, before any of this ships.
+
+**`migrate` needs this branch deployed**, with `FeatureFlags:EnableMetsIdNormalisation` set. Two
+things go wrong without it, and they fail differently:
+
+- `POST /deposits/{id}/mets/normalise` does not exist, so the tool gets a 404, records the Archival
+  Group as `failed`, and moves on. Noisy, but harmless — it deletes the deposit it made.
+- `suppressActivityStreamEvent` on the import job is an unknown property to an older API, and
+  `System.Text.Json` ignores unknown properties. So a migration would run and **publish an Activity
+  Stream event anyway**, silently. That is the more dangerous half, and the reason not to point
+  `migrate` at an environment you have not checked.
+
+To get it onto development, add the `deploy` label to the PR — but note `build-push-images` needs
+`test-dotnet`, which is skipped while the PR is a draft, so mark it ready for review first or the
+label does nothing.
+
+### If your local stack shares development's Fedora
+
+A local Preservation API and Storage API have their **own** Postgres (5433, 5434) but may talk to the
+**shared** Fedora and S3. That splits the tool's two halves in a way worth knowing:
+
+- **Pointing `PRESERVATION_API` at `localhost` makes `survey` nearly empty.** The deposits query
+  reads Preservation API's own database, which locally is yours and holds only your deposits — even
+  though the Fedora behind it is full of Archival Groups. Point it at the deployed development API to
+  survey development.
+- **`--path` is the exception, and the useful one.** It skips the deposits query entirely and reads
+  `/repository/{path}?view=mets`, which goes through your local Storage API to the shared Fedora. So
+  `survey --path cc/something` against `localhost` sees real content, and is the natural way to try
+  one document locally.
+- **`migrate` against a local stack is not sandboxed.** Executing the import job writes a real new
+  OCFL version into the shared repository, through your local Storage API. The same is true of the
+  UI action followed by Preserve.
+- **`migrate --dry-run` cannot create a version.** It stops before executing the import job. It does
+  create and then delete a deposit, which touches your local database and the deposit area in S3, and
+  it reads the Archival Group's METS — but nothing preserved changes.
+- **`NormaliseMetsIdsOnWrite` is set in the tracked `appsettings.Development.json` examples.** If it
+  is on locally, any edit you preserve against a pre-#214 Archival Group migrates its whole METS into
+  the shared repository as a side effect. Intended behaviour, but turn it off locally until you want
+  it.
+
 ## Running it
 
 ```bash
 pip install -r requirements.txt
 cp .env.example .env      # and fill it in
 ```
-
-The Preservation API needs `FeatureFlags:EnableMetsIdNormalisation` set to `true`, or the normalise
-endpoint is refused.
 
 **Start by finding out how big the job is. That costs nothing and changes nothing:**
 
