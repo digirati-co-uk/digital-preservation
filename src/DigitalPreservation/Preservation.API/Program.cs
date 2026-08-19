@@ -61,13 +61,22 @@ try
             JwtBearerDefaults.AuthenticationScheme,
             options =>
             {
-                options.TokenValidationParameters.ValidAudiences =
-                    builder.Configuration
-                        .GetSection("Authentication:ValidAudiences")
-                        .Get<string[]>();
+                //Only add it exists
+                var audiences = builder.Configuration
+                    .GetSection("Authentication:ValidAudiences")
+                    .Get<string[]>();
 
-                options.TokenValidationParameters.ValidAudience = null;
-                options.Audience = null;
+                if (audiences is { Length: > 0 })
+                {
+
+                    options.TokenValidationParameters.ValidAudiences =
+                        builder.Configuration
+                            .GetSection("Authentication:ValidAudiences")
+                            .Get<string[]>();
+
+                    options.TokenValidationParameters.ValidAudience = null;
+                    options.Audience = null;
+                }
             });
     }
 
