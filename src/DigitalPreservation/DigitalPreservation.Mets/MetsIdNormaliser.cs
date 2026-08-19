@@ -148,14 +148,14 @@ public static class MetsIdNormaliser
     {
         foreach (var node in nodes)
         {
-            foreach (var (_, value, _) in MetsGraph.IdRefs(node))
+            foreach (var (_, value, _) in MetsGraph.SingleIdRefs(node))
             {
                 if (!MetsIds.IsValidId(value))
                 {
                     return true;
                 }
             }
-            foreach (var (_, tokens) in MetsGraph.IdRefsCollections(node))
+            foreach (var (_, tokens) in MetsGraph.TokenIdRefs(node))
             {
                 if (tokens.Any(token => !MetsIds.IsValidId(token)))
                 {
@@ -175,7 +175,7 @@ public static class MetsIdNormaliser
     {
         var changed = 0;
 
-        foreach (var (attribute, value, set) in MetsGraph.IdRefs(node).ToList())
+        foreach (var (attribute, value, set) in MetsGraph.SingleIdRefs(node).ToList())
         {
             var replacement = RewriteSingle(value, rewrites, attribute, report);
             if (replacement != value)
@@ -185,7 +185,7 @@ public static class MetsIdNormaliser
             }
         }
 
-        foreach (var (attribute, tokens) in MetsGraph.IdRefsCollections(node).ToList())
+        foreach (var (attribute, tokens) in MetsGraph.TokenIdRefs(node).ToList())
         {
             changed += RewriteTokens(tokens, rewrites, attribute, report);
         }

@@ -66,20 +66,23 @@ def _request(method: str, path: str, what: str, **kwargs) -> requests.Response:
 # Reading
 # ---------------------------------------------------------------------------
 
-def list_deposits(page: int, page_size: int) -> dict[str, Any]:
+def list_deposits(page: int, page_size: int, newest_first: bool = False) -> dict[str, Any]:
     """
-    One page of deposits, oldest first.
+    One page of deposits.
 
-    Ordered by creation ascending so that paging is stable while the platform is in use: a deposit
-    created during the walk sorts after everything already seen, so it cannot shift a later page
-    underneath us. Archived deposits are included - an Archival Group is a candidate whether or not
-    its deposit was tidied away afterwards.
+    Ordered by creation ASCENDING by default, so that paging is stable while the platform is in use:
+    a deposit created during the walk sorts after everything already seen, so it cannot shift a later
+    page underneath us. `newest_first` reverses that and gives up the guarantee - it is for sampling
+    a live system, not for a campaign that has to see everything.
+
+    Archived deposits are included either way: an Archival Group is a candidate whether or not its
+    deposit was tidied away afterwards.
     """
     response = _request("GET", "/deposits", "Could not list deposits", params={
         "ShowAll": "true",
         "Archived": "true",
         "OrderBy": "Created",
-        "Ascending": "true",
+        "Ascending": "false" if newest_first else "true",
         "Page": page,
         "PageSize": page_size,
     })

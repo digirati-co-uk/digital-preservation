@@ -11,6 +11,8 @@ and the completeness cross-check is the Activity Stream, which records every cre
 Run `survey --check-completeness` to compare the two counts before trusting the list.
 """
 
+from typing import Iterator
+
 from lxml import etree
 from logzero import logger
 
@@ -18,20 +20,32 @@ from app import api, ids, settings
 from app.ledger import CANDIDATE, CONFORMS, FOREIGN, NO_METS, Ledger
 
 
-def archival_group_paths() -> list[str]:
-    """Every distinct Archival Group path any deposit has ever pointed at, in page order."""
-    paths: list[str] = []
+def archival_group_paths(newest_first: bool = False) -> Iterator[str]:
+    """
+    Every distinct Archival Group path any deposit has ever pointed at.
+
+    A generator rather than a list, so that a caller which stops early stops the paging too. That is
+    what makes `--limit` cheap enough to use against development, where there are far more deposits
+    than anyone wants to walk to look at five Archival Groups.
+
+    Oldest first by default, because ascending order is stable under concurrent inserts: a deposit
+    created during the walk sorts after everything already seen and cannot shift a later page
+    underneath us. `newest_first` gives up that guarantee, and is for sampling only - on development
+    the newest deposits are the ones the nightly Playwright run just made, which is usually exactly
+    what you want to test against.
+    """
     seen: set[str] = set()
     page = 1
     total = None
     while True:
-        result = api.list_deposits(page, settings.DEPOSIT_PAGE_SIZE)
+        result = api.list_deposits(page, settings.DEPOSIT_PAGE_SIZE, newest_first)
         deposits = result.get("deposits", [])
         if total is None:
             total = result.get("total")
-            logger.info("Walking %s deposits, %s at a time", total, settings.DEPOSIT_PAGE_SIZE)
+            logger.info("Walking %s deposits, %s at a time, %s first",
+                        total, settings.DEPOSIT_PAGE_SIZE, "newest" if newest_first else "oldest")
         if not deposits:
-            break
+            return
         for deposit in deposits:
             archival_group = deposit.get("archivalGroup")
             if not archival_group:
@@ -39,11 +53,8 @@ def archival_group_paths() -> list[str]:
             path = _path_under_root(archival_group)
             if path and path not in seen:
                 seen.add(path)
-                paths.append(path)
+                yield path
         page += 1
-
-    logger.info("%s deposits reference %s distinct Archival Groups", total, len(paths))
-    return paths
 
 
 def _path_under_root(archival_group_uri: str) -> str | None:
@@ -54,17 +65,32 @@ def _path_under_root(archival_group_uri: str) -> str | None:
     return archival_group_uri[index + len(marker):].strip("/") or None
 
 
-def survey(ledger: Ledger, limit: int | None = None, rescan: bool = False) -> None:
+def survey(
+    ledger: Ledger,
+    limit: int | None = None,
+    rescan: bool = False,
+    newest_first: bool = False,
+    path_prefix: str | None = None,
+    paths: list[str] | None = None,
+) -> None:
     """
     Decide, for each Archival Group, whether it needs migrating - and write that to the ledger.
 
     Resumable: paths already in the ledger are skipped unless `rescan`. Read-only against the
     platform; the only thing that changes is the ledger.
+
+    Every narrowing here exists for the same reason - trying this against development without
+    walking the whole of it. `paths` skips the deposits query entirely and examines exactly what it
+    is given; `path_prefix` keeps only Archival Groups under one container; `limit` stops after that
+    many, and because the walk is lazy it stops the paging too.
     """
     already_known = set() if rescan else ledger.known_paths()
     examined = 0
 
-    for path in archival_group_paths():
+    candidates = iter(paths) if paths is not None else archival_group_paths(newest_first)
+    for path in candidates:
+        if path_prefix and not path.startswith(path_prefix):
+            continue
         if path in already_known:
             continue
         if limit is not None and examined >= limit:
@@ -73,6 +99,7 @@ def survey(ledger: Ledger, limit: int | None = None, rescan: bool = False) -> No
         examined += 1
         _survey_one(ledger, path)
 
+    logger.info("Examined %s Archival Group(s) this run", examined)
     counts = ledger.counts()
     logger.info("Survey so far: %s", ", ".join(f"{state}={n}" for state, n in sorted(counts.items())))
 

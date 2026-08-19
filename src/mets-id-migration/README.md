@@ -81,6 +81,32 @@ ledger. `list` prints what it found. If that list is short — and on production
 since almost everything there is EPrints material that was never affected — **stop here and do them
 by hand**; see below. The bulk migration is for when it isn't.
 
+### Surveying part of a deployment
+
+A full survey of development means walking every deposit it has ever had, which is not what you want
+when trying this out. Three ways to look at less, all of which still write only to the ledger:
+
+```bash
+# a handful of the most recently deposited Archival Groups - on dev, whatever the nightly
+# Playwright run just made
+python mets_id_migration.py survey --limit 5 --newest-first
+
+# everything under one container
+python mets_id_migration.py survey --path-prefix cc-test/ --limit 20
+
+# exactly these, skipping the deposits query altogether
+python mets_id_migration.py survey --path cc/pdc7mlqc --path cc-test/1000001
+```
+
+`--limit` stops the paging as well as the examining, because the walk is lazy: `--limit 5` fetches
+one page of deposits and five METS documents, not the whole deposit list. `--newest-first` gives up
+the stable-paging guarantee that ascending order provides, so it is for sampling, not for a campaign
+that has to see everything.
+
+The ledger accumulates, so a narrow survey can be widened later — rerunning without `--limit` picks
+up everything not already recorded, and `--rescan` re-examines what is. `list`, `migrate` and their
+`--path-prefix` work the same way, so a partial survey leads naturally to a partial migration.
+
 ```bash
 python mets_id_migration.py migrate --dry-run             # rehearse; nothing is preserved
 python mets_id_migration.py migrate --limit 1             # then one

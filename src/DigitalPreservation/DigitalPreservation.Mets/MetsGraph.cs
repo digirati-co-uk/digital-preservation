@@ -40,8 +40,8 @@ internal static class MetsGraph
         public required PropertyInfo[] Children { get; init; }
         public required PropertyInfo[] ChildCollections { get; init; }
         public PropertyInfo? Id { get; init; }
-        public required PropertyInfo[] IdRefs { get; init; }
-        public required PropertyInfo[] IdRefsCollections { get; init; }
+        public required PropertyInfo[] SingleIdRefs { get; init; }
+        public required PropertyInfo[] TokenIdRefs { get; init; }
     }
 
     /// <summary>
@@ -74,26 +74,35 @@ internal static class MetsGraph
             }
             yield return node;
 
-            var plan = PlanFor(node.GetType());
-            foreach (var property in plan.Children)
+            foreach (var child in ChildrenOf(node))
             {
-                if (property.GetValue(node) is { } child)
-                {
-                    stack.Push(child);
-                }
+                stack.Push(child);
             }
-            foreach (var property in plan.ChildCollections)
+        }
+    }
+
+    /// <summary>The nodes one node holds directly, singly or in a collection.</summary>
+    private static IEnumerable<object> ChildrenOf(object node)
+    {
+        var plan = PlanFor(node.GetType());
+        foreach (var property in plan.Children)
+        {
+            if (property.GetValue(node) is { } child)
             {
-                if (property.GetValue(node) is not IEnumerable collection)
+                yield return child;
+            }
+        }
+        foreach (var property in plan.ChildCollections)
+        {
+            if (property.GetValue(node) is not IEnumerable collection)
+            {
+                continue;
+            }
+            foreach (var item in collection)
+            {
+                if (item is not null)
                 {
-                    continue;
-                }
-                foreach (var item in collection)
-                {
-                    if (item is not null)
-                    {
-                        stack.Push(item);
-                    }
+                    yield return item;
                 }
             }
         }
@@ -105,9 +114,9 @@ internal static class MetsGraph
     internal static void SetId(object node, string id) => PlanFor(node.GetType()).Id?.SetValue(node, id);
 
     /// <summary>The node's single-valued IDREF attributes (FILEID), as get/set pairs.</summary>
-    internal static IEnumerable<(string Attribute, string Value, Action<string> Set)> IdRefs(object node)
+    internal static IEnumerable<(string Attribute, string Value, Action<string> Set)> SingleIdRefs(object node)
     {
-        foreach (var property in PlanFor(node.GetType()).IdRefs)
+        foreach (var property in PlanFor(node.GetType()).SingleIdRefs)
         {
             if (property.GetValue(node) is string value && value.Length > 0)
             {
@@ -120,9 +129,9 @@ internal static class MetsGraph
     /// The node's IDREFS attributes (ADMID, DMDID, STRUCTID) as the live token collections the
     /// XmlSerializer split them into. Mutating one rewrites the attribute.
     /// </summary>
-    internal static IEnumerable<(string Attribute, IList<string> Tokens)> IdRefsCollections(object node)
+    internal static IEnumerable<(string Attribute, IList<string> Tokens)> TokenIdRefs(object node)
     {
-        foreach (var property in PlanFor(node.GetType()).IdRefsCollections)
+        foreach (var property in PlanFor(node.GetType()).TokenIdRefs)
         {
             if (property.GetValue(node) is IList<string> tokens && tokens.Count > 0)
             {
@@ -148,54 +157,36 @@ internal static class MetsGraph
         }
     }
 
+    /// <summary>What one property of a generated type is, to this walk.</summary>
+    private enum Role
+    {
+        Ignored,
+        Id,
+        SingleIdRef,
+        TokenIdRef,
+        Child,
+        ChildCollection
+    }
+
     private static TypePlan BuildPlan(Type type)
     {
         var children = new List<PropertyInfo>();
         var childCollections = new List<PropertyInfo>();
-        var idRefs = new List<PropertyInfo>();
-        var idRefsCollections = new List<PropertyInfo>();
+        var singleIdRefs = new List<PropertyInfo>();
+        var tokenIdRefs = new List<PropertyInfo>();
         PropertyInfo? id = null;
 
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            if (property.GetIndexParameters().Length > 0 || property.GetMethod is null)
+            switch (RoleOf(property))
             {
-                continue;
-            }
-
-            // XmlIgnore marks the generated *Specified companions and backing views, which are
-            // duplicates of properties already covered.
-            if (property.GetCustomAttribute<XmlIgnoreAttribute>() is not null)
-            {
-                continue;
-            }
-
-            var attributeName = property.GetCustomAttribute<XmlAttributeAttribute>()?.AttributeName;
-            if (attributeName == IdAttributeName && property.PropertyType == typeof(string))
-            {
-                id = property;
-                continue;
-            }
-            if (attributeName is not null && IdRefAttributeNames.Contains(attributeName))
-            {
-                if (property.PropertyType == typeof(string))
-                {
-                    idRefs.Add(property);
-                }
-                else if (typeof(IList<string>).IsAssignableFrom(property.PropertyType))
-                {
-                    idRefsCollections.Add(property);
-                }
-                continue;
-            }
-
-            if (IsGenerated(property.PropertyType))
-            {
-                children.Add(property);
-            }
-            else if (CollectionElementType(property.PropertyType) is { } element && IsGenerated(element))
-            {
-                childCollections.Add(property);
+                case Role.Id: id = property; break;
+                case Role.SingleIdRef: singleIdRefs.Add(property); break;
+                case Role.TokenIdRef: tokenIdRefs.Add(property); break;
+                case Role.Child: children.Add(property); break;
+                case Role.ChildCollection: childCollections.Add(property); break;
+                case Role.Ignored:
+                default: break;
             }
         }
 
@@ -204,14 +195,53 @@ internal static class MetsGraph
             Children = children.ToArray(),
             ChildCollections = childCollections.ToArray(),
             Id = id,
-            IdRefs = idRefs.ToArray(),
-            IdRefsCollections = idRefsCollections.ToArray()
+            SingleIdRefs = singleIdRefs.ToArray(),
+            TokenIdRefs = tokenIdRefs.ToArray()
         };
+    }
+
+    private static Role RoleOf(PropertyInfo property)
+    {
+        if (property.GetIndexParameters().Length > 0 || property.GetMethod is null)
+        {
+            return Role.Ignored;
+        }
+
+        // XmlIgnore marks the generated *Specified companions and backing views, which are
+        // duplicates of properties already covered.
+        if (property.GetCustomAttribute<XmlIgnoreAttribute>() is not null)
+        {
+            return Role.Ignored;
+        }
+
+        var attributeName = property.GetCustomAttribute<XmlAttributeAttribute>()?.AttributeName;
+        if (attributeName == IdAttributeName && property.PropertyType == typeof(string))
+        {
+            return Role.Id;
+        }
+        if (attributeName is not null && IdRefAttributeNames.Contains(attributeName))
+        {
+            if (property.PropertyType == typeof(string))
+            {
+                return Role.SingleIdRef;
+            }
+            return typeof(IList<string>).IsAssignableFrom(property.PropertyType)
+                ? Role.TokenIdRef
+                : Role.Ignored;
+        }
+
+        if (IsGenerated(property.PropertyType))
+        {
+            return Role.Child;
+        }
+        return CollectionElementType(property.PropertyType) is { } element && IsGenerated(element)
+            ? Role.ChildCollection
+            : Role.Ignored;
     }
 
     private static bool IsGenerated(Type type) =>
         type is { IsClass: true, Namespace: not null }
-        && Array.Exists(GeneratedNamespaces, ns => type.Namespace!.StartsWith(ns, StringComparison.Ordinal));
+        && Array.Exists(GeneratedNamespaces, ns => type.Namespace.StartsWith(ns, StringComparison.Ordinal));
 
     private static Type? CollectionElementType(Type type)
     {

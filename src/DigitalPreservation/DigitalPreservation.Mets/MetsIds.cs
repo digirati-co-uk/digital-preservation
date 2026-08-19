@@ -78,8 +78,12 @@ public static class MetsIds
     /// (see <see cref="VirusProvEvent"/>, which concatenates rather than encoding), so it is
     /// normalised in its own right.
     /// </summary>
-    private static readonly Regex VirusProvEventPrefixPattern =
-        new($"^{Regex.Escape(Constants.VirusProvEventPrefix)}(?:[0-9]+_)?", RegexOptions.Compiled);
+    private static readonly Regex VirusProvEventPrefixPattern = new(
+        $"^{Regex.Escape(Constants.VirusProvEventPrefix)}(?:[0-9]+_)?",
+        RegexOptions.Compiled,
+        // The pattern is anchored and cannot backtrack, so this can never be reached; it is here
+        // because a regex run against a document we did not write should have a bound regardless.
+        TimeSpan.FromSeconds(1));
 
     /// <summary>
     /// The same ID, spelt the way this platform spells IDs now - for migrating a document minted
@@ -112,12 +116,10 @@ public static class MetsIds
             return virusPrefix.Value + Normalise(id[virusPrefix.Length..]);
         }
 
-        foreach (var prefix in StemPrefixes)
+        var stemPrefix = Array.Find(StemPrefixes, prefix => id.StartsWith(prefix, StringComparison.Ordinal));
+        if (stemPrefix is not null)
         {
-            if (id.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                return prefix + id[prefix.Length..].ToMetsId();
-            }
+            return stemPrefix + id[stemPrefix.Length..].ToMetsId();
         }
 
         // Not one of ours, or one whose prefix we no longer mint. Encoding the whole string still

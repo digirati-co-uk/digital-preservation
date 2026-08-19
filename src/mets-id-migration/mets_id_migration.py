@@ -3,6 +3,7 @@
 Bulk migration of preserved METS documents to legal xs:ID values (issue #188 step 3).
 
     python mets_id_migration.py survey                 # find what needs doing; changes nothing
+    python mets_id_migration.py survey --limit 5 --newest-first    # or just look at a few
     python mets_id_migration.py report                 # what the ledger holds
     python mets_id_migration.py list                   # the actual list, for doing by hand
     python mets_id_migration.py migrate --dry-run      # rehearse: everything but the preserve
@@ -44,6 +45,18 @@ def main() -> int:
                                 help="re-examine groups already in the ledger")
     survey_command.add_argument("--check-completeness", action="store_true",
                                 help="compare the survey against the Activity Stream")
+    # Three ways to look at part of a deployment rather than all of it. Use them freely: the survey
+    # writes only to the ledger, so a partial one costs nothing and can be widened later.
+    survey_command.add_argument("--newest-first", action="store_true",
+                                help="walk the newest deposits first - for sampling a live system "
+                                     "(on dev, what the nightly Playwright run just made). Paging "
+                                     "is only stable oldest-first, so do not use this for a "
+                                     "campaign that has to see everything")
+    survey_command.add_argument("--path-prefix",
+                                help="only Archival Groups whose path starts with this, e.g. cc-test/")
+    survey_command.add_argument("--path", action="append", dest="paths", metavar="PATH",
+                                help="examine exactly this Archival Group and skip the deposits "
+                                     "query entirely. Repeatable")
 
     commands.add_parser("report", help="summarise the ledger")
 
@@ -52,10 +65,14 @@ def main() -> int:
     list_command.add_argument("--csv", help="write the list here instead of logging it")
     list_command.add_argument("--state", default=CANDIDATE,
                               help="which ledger state to list (default: %(default)s)")
+    list_command.add_argument("--path-prefix",
+                              help="only Archival Groups whose path starts with this")
 
     migrate_command = commands.add_parser(
         "migrate", help="migrate the Archival Groups the survey marked as candidates")
     migrate_command.add_argument("--limit", type=int, help="migrate at most this many")
+    migrate_command.add_argument("--path-prefix",
+                                 help="only Archival Groups whose path starts with this")
     migrate_command.add_argument(
         "--dry-run", action="store_true",
         help="do everything up to and including checking the diff, then stop without preserving")
@@ -83,7 +100,9 @@ def main() -> int:
 
 def _run(arguments, ledger: Ledger) -> int:
     if arguments.command == "survey":
-        survey.survey(ledger, limit=arguments.limit, rescan=arguments.rescan)
+        survey.survey(ledger, limit=arguments.limit, rescan=arguments.rescan,
+                      newest_first=arguments.newest_first, path_prefix=arguments.path_prefix,
+                      paths=arguments.paths)
         if arguments.check_completeness:
             survey.check_completeness(ledger)
         return 0
@@ -93,11 +112,15 @@ def _run(arguments, ledger: Ledger) -> int:
         return 0
 
     if arguments.command == "list":
-        _list(ledger, arguments.state, arguments.csv)
+        _list(ledger, arguments.state, arguments.csv, arguments.path_prefix)
         return 0
 
     if arguments.command == "migrate":
-        candidates = ledger.in_state(CANDIDATE, arguments.limit)
+        candidates = ledger.in_state(CANDIDATE)
+        if arguments.path_prefix:
+            candidates = [row for row in candidates if row["path"].startswith(arguments.path_prefix)]
+        if arguments.limit is not None:
+            candidates = candidates[:arguments.limit]
         if not candidates:
             logger.info("Nothing to migrate. Run `survey` first, or `report` to see the state.")
             return 0
@@ -115,7 +138,7 @@ def _run(arguments, ledger: Ledger) -> int:
     return 2
 
 
-def _list(ledger: Ledger, state: str, csv_path: str | None) -> None:
+def _list(ledger: Ledger, state: str, csv_path: str | None, path_prefix: str | None = None) -> None:
     """
     The list of Archival Groups that need migrating, and nothing else.
 
@@ -126,6 +149,8 @@ def _list(ledger: Ledger, state: str, csv_path: str | None) -> None:
     README for that route.
     """
     rows = ledger.in_state(state)
+    if path_prefix:
+        rows = [row for row in rows if row["path"].startswith(path_prefix)]
     if not rows:
         logger.info("Nothing in state '%s'. Run `survey` first.", state)
         return
