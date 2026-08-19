@@ -67,9 +67,21 @@ public class AccessTokenProvider : IAccessTokenProvider
         {
             collection.Add(new("client_id", options.ClientId));
             if (options.ClientSecret != null) collection.Add(new("client_secret", options.ClientSecret));
-            collection.Add(new("scope", $"api://{options.ClientId}/.default"));
-            collection.Add(new("resource", $"api://{options.ClientId}"));
+
+            //Use ResourceUri if provided, otherwise use default value with client_id appended
+            if (options.ResourceUri is not null)
+            {
+                collection.Add(new("scope", $"{options.ResourceUri}/.default"));
+                collection.Add(new("resource", $"{options.ClientId}"));
+            }
+
+            else
+            {
+                collection.Add(new("scope", $"api://{options.ClientId}/.default"));
+                collection.Add(new("resource", $"api://{options.ClientId}"));
+            }
         }
+
 
         var content = new FormUrlEncodedContent(collection);
         request.Content = content;
@@ -95,6 +107,7 @@ public class AccessTokenProviderOptions  : IAccessTokenProviderOptions
     public string? ClientId { get; set; }
     public string? ClientSecret { get; set; }
     public string? TenantId { get; set; }
+    public string? ResourceUri { get; set; }
 }
 
 public interface IAccessTokenProviderOptions
@@ -102,4 +115,5 @@ public interface IAccessTokenProviderOptions
     string? ClientId { get; set; }
     string? ClientSecret { get; set; }
     string? TenantId { get; set; }
+    string? ResourceUri { get; set; }
 }

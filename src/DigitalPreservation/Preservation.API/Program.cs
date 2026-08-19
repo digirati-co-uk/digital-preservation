@@ -23,7 +23,6 @@ using Microsoft.OpenApi.Models;
 using Preservation.API.IIIF;
 using Storage.Repository.Common.Mets.StorageImpl;
 
-
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateLogger();
@@ -48,10 +47,28 @@ try
     //Auth 
     if (useAuthFeatureFlag)
     {
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        builder.Services
+            .AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
             .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
             .EnableTokenAcquisitionToCallDownstreamApi()
             .AddInMemoryTokenCaches();
+
+        builder.Services.PostConfigure<JwtBearerOptions>(
+            JwtBearerDefaults.AuthenticationScheme,
+            options =>
+            {
+                options.TokenValidationParameters.ValidAudiences =
+                    builder.Configuration
+                        .GetSection("Authentication:ValidAudiences")
+                        .Get<string[]>();
+
+                options.TokenValidationParameters.ValidAudience = null;
+                options.Audience = null;
+            });
     }
 
     builder.Services.AddAWSService<IAmazonSimpleNotificationService>();

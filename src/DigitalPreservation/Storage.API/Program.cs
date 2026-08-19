@@ -47,15 +47,30 @@ try
     var useLocalHostedServiceForImport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForImport");
     var useLocalHostedServiceForExport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForExport");
 
-
     if (useAuthFeatureFlag)
     {
-        // Auth
         builder.Services
-            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
             .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
             .EnableTokenAcquisitionToCallDownstreamApi()
             .AddInMemoryTokenCaches();
+
+        builder.Services.PostConfigure<JwtBearerOptions>(
+            JwtBearerDefaults.AuthenticationScheme,
+            options =>
+            {
+                options.TokenValidationParameters.ValidAudiences =
+                    builder.Configuration
+                        .GetSection("Authentication:ValidAudiences")
+                        .Get<string[]>();
+
+                options.TokenValidationParameters.ValidAudience = null;
+                options.Audience = null;
+            });
     }
 
 
