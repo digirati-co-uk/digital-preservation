@@ -172,8 +172,14 @@ def _list(ledger: Ledger, state: str, csv_path: str | None, path_prefix: str | N
 
     logger.info("%s Archival Group(s) in state '%s':", len(rows), state)
     for row in rows:
-        detail = (f"  ({row['invalid_id_count']} invalid ID(s) [{row['invalid_id_chars']}], "
-                  f"e.g. {row['invalid_id_sample']})" if row["invalid_id_count"] else "")
+        if row["invalid_id_count"]:
+            detail = (f"  ({row['invalid_id_count']} invalid ID(s) [{row['invalid_id_chars']}], "
+                      f"e.g. {row['invalid_id_sample']})")
+        elif row["state"] == "foreign":
+            # The agent is the whole reason the row is in this state, so say it.
+            detail = f"  (METS by {row['agent'] or 'no CREATOR agent'})"
+        else:
+            detail = ""
         link = f"  {_ui_link(row['path'])}" if settings.UI_BASE_URL else ""
         logger.info("  %s%s%s", row["path"], detail, link)
 

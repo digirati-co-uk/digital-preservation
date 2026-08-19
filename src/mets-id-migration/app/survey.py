@@ -110,6 +110,7 @@ def _survey_one(ledger: Ledger, path: str) -> None:
     except api.ApiError as error:
         if error.status_code == 404:
             ledger.record(path, NO_METS, note="No METS in this Archival Group")
+            logger.info("%s: NO METS - the Archival Group has no METS file", path)
             return
         ledger.record(path, NO_METS, note=str(error))
         logger.warning("%s: %s", path, error)
@@ -122,22 +123,28 @@ def _survey_one(ledger: Ledger, path: str) -> None:
         logger.warning("%s: METS is not well-formed XML", path)
         return
 
+    # Every verdict is logged, not just the interesting one. "Examined 1, foreign=1" tells you the
+    # answer without telling you the reason, and the reason is the whole point of the survey.
     agent = ids.creator_agent(root)
     if agent != ids.METS_CREATOR_AGENT:
         # EPrints, Archivematica and Goobi documents carry their own ID schemes, which are legal
         # NCNames. Not ours to renumber, and nothing to fix.
         ledger.record(path, FOREIGN, agent=agent or "")
+        logger.info("%s: FOREIGN - METS created by %s, so not ours to migrate",
+                    path, f"'{agent}'" if agent else "nobody (no CREATOR agent in the METS header)")
         return
 
     invalid = ids.invalid_ids(root)
     if not invalid:
         ledger.record(path, CONFORMS, agent=agent)
+        logger.info("%s: CONFORMS - ours, and every ID is already a legal xs:ID", path)
         return
 
     offenders = ids.offending_characters(invalid)
     ledger.record(path, CANDIDATE, agent=agent, invalid_id_count=len(invalid),
                   invalid_id_sample=invalid[0], invalid_id_chars=offenders)
-    logger.info("%s: %s invalid ID(s) [%s], e.g. %s", path, len(invalid), offenders, invalid[0])
+    logger.info("%s: CANDIDATE - %s invalid ID(s) [%s], e.g. %s",
+                path, len(invalid), offenders, invalid[0])
 
 
 def check_completeness(ledger: Ledger, partial: bool = False) -> None:
