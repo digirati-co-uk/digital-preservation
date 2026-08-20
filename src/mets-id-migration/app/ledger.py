@@ -23,6 +23,10 @@ NO_CHANGE = "no-change"      # normalise reported nothing to do, so nothing was 
 FAILED = "failed"            # see the note column
 
 _SCHEMA = """
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS archival_groups (
     path              TEXT PRIMARY KEY,
     state             TEXT NOT NULL,
@@ -44,12 +48,68 @@ CREATE INDEX IF NOT EXISTS archival_groups_state ON archival_groups (state);
 """
 
 
+DEPLOYMENT = "preservation_api"
+
+
+class WrongDeployment(RuntimeError):
+    """The ledger was built against a different Preservation API than the one now configured."""
+
+
 class Ledger:
-    def __init__(self, path: str):
+    def __init__(self, path: str, deployment: str):
         self.connection = sqlite3.connect(path)
         self.connection.row_factory = sqlite3.Row
         with closing(self.connection.cursor()) as cursor:
             cursor.executescript(_SCHEMA)
+        self.connection.commit()
+        self._bind_to(path, deployment)
+
+    def _bind_to(self, path: str, deployment: str) -> None:
+        """
+        Tie this ledger to one deployment, and refuse to open it against any other.
+
+        Rows are keyed by Archival Group path alone, and the same paths exist on development and on
+        production - the Playwright fixtures, the Goobi tests, and any real object that exists on
+        both. Sharing one ledger between deployments would not merely mix the counts: `survey` skips
+        paths it already knows before `--limit` counts them, so a production survey would silently
+        adopt development's verdict for every path in common and never read the production document
+        at all. `migrate` then works from that list. Neither failure announces itself, so the
+        cheapest safe thing is to make it impossible.
+        """
+        recorded = self.get_meta(DEPLOYMENT)
+        current = deployment.rstrip("/")
+        if recorded is None:
+            if self.known_paths():
+                # A ledger from before this check existed. It holds verdicts from some deployment,
+                # and there is nothing in the file that says which - so adopting it for whichever
+                # one happens to be configured now is the very mistake this guards against.
+                raise WrongDeployment(
+                    f"The ledger '{path}' has rows but does not record which deployment they came "
+                    f"from, because it predates this check. If they are from {current}, adopt it "
+                    f"with:\n"
+                    f"    sqlite3 {path} \"INSERT INTO meta (key, value) "
+                    f"VALUES ('{DEPLOYMENT}', '{current}');\"\n"
+                    f"If they are from somewhere else, keep it and start a new one with --ledger.")
+            self.set_meta(DEPLOYMENT, current)
+            return
+        if recorded.lower() != current.lower():
+            raise WrongDeployment(
+                f"The ledger '{path}' was built against {recorded}, but PRESERVATION_API is now "
+                f"{current}. Keep one ledger per deployment - pass --ledger, or set LEDGER_PATH in "
+                f".env, e.g. --ledger ledger-prod.sqlite. Sharing one would let a verdict reached "
+                f"on one system stand for the other.")
+
+    def get_meta(self, key: str) -> str | None:
+        with closing(self.connection.cursor()) as cursor:
+            cursor.execute("SELECT value FROM meta WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            return row["value"] if row else None
+
+    def set_meta(self, key: str, value: str) -> None:
+        with closing(self.connection.cursor()) as cursor:
+            cursor.execute(
+                "INSERT INTO meta (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
         self.connection.commit()
 
     def close(self) -> None:

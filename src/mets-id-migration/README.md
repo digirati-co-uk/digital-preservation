@@ -274,6 +274,26 @@ OCFL version.
 States: `candidate` (ours, has invalid IDs), `conforms` (ours, already legal), `foreign` (someone
 else's METS), `no-mets`, `done`, `no-change`, `failed` (see the `note` column).
 
+### One ledger per deployment
+
+A ledger is bound to the `PRESERVATION_API` it was first opened against, and opening it against a
+different one is refused. Use a file per deployment:
+
+```bash
+python mets_id_migration.py --ledger ledger-dev.sqlite  survey
+python mets_id_migration.py --ledger ledger-prod.sqlite survey --pause 0.5
+```
+
+This is not tidiness. Rows are keyed by Archival Group path alone, and development and production
+share paths — the Playwright fixtures, the Goobi tests, and any real object that exists on both. A
+shared ledger would not merely mix the counts: `survey` skips paths it already knows *before*
+`--limit` counts them, so a production survey would silently adopt development's verdict for every
+path in common and never read the production document at all — and `migrate` works from that list.
+Neither failure announces itself, so it is refused instead.
+
+A ledger written before this check has rows but no record of where they came from. It is not adopted
+either; the error says how to stamp it if you know, and otherwise to start a new one.
+
 ```sql
 SELECT path, ids_rewritten, from_version, to_version FROM archival_groups WHERE state = 'done';
 SELECT path, note FROM archival_groups WHERE state = 'failed';

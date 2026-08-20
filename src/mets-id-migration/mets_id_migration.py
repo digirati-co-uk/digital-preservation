@@ -27,7 +27,7 @@ import logzero
 from logzero import logger
 
 from app import api, migrate, settings, survey
-from app.ledger import CANDIDATE, Ledger
+from app.ledger import CANDIDATE, Ledger, WrongDeployment
 
 
 def main() -> int:
@@ -104,7 +104,12 @@ def main() -> int:
             logger.error(problem)
         return 2
 
-    ledger = Ledger(arguments.ledger)
+    try:
+        ledger = Ledger(arguments.ledger, settings.PRESERVATION_API)
+    except WrongDeployment as wrong:
+        logger.error(str(wrong))
+        return 2
+
     try:
         return _run(arguments, ledger)
     finally:

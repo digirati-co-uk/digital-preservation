@@ -26,7 +26,9 @@ CLIENT_IDENTITY = os.environ.get("CLIENT_IDENTITY", "mets-id-migration")
 #: the deposits endpoint.
 SUBMISSION_TEXT = os.environ.get("SUBMISSION_TEXT", "METS ID normalisation (issue #188 step 3)")
 
-#: Where the ledger lives. One file, safe to copy, and the record of what was done.
+#: Where the ledger lives. One file, safe to copy, and the record of what was done. One per
+#: deployment: it is bound to the PRESERVATION_API it was first opened against and refuses any
+#: other, because its rows are keyed on Archival Group paths, which dev and prod have in common.
 LEDGER_PATH = os.environ.get("LEDGER_PATH", "ledger.sqlite")
 
 #: Root of the UI, if there is one. Only used to turn the candidate list into links someone can

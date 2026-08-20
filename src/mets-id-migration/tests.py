@@ -10,11 +10,16 @@ XmlGen.Tests/MetsIdNormalisationTests.cs against the same sample documents.
 
 import glob
 import os
+import shutil
+import sqlite3
+import tempfile
 import unittest
+from contextlib import closing
 
 from lxml import etree
 
 from app import ids
+from app.ledger import CANDIDATE, DEPLOYMENT, Ledger, WrongDeployment
 
 SAMPLES = os.path.join(os.path.dirname(__file__), "..", "DigitalPreservation", "XmlGen.Tests", "Samples")
 
@@ -153,6 +158,72 @@ class SampleCorpusTests(unittest.TestCase):
             offenders = set(ids.offending_characters(ids.invalid_ids(document)).split())
             self.assertTrue(offenders <= {"/", "SPACE", "(", ")", "&"},
                             f"{os.path.basename(path)} has unexpected offenders: {offenders}")
+
+
+class LedgerDeploymentTests(unittest.TestCase):
+    """
+    One ledger, one deployment. Rows are keyed by Archival Group path, and development and
+    production share paths - so a shared ledger would let a verdict reached on one stand for the
+    other, silently, because `survey` skips paths it already knows.
+    """
+
+    DEV = "https://dev.example.ac.uk"
+    PROD = "https://prod.example.ac.uk"
+
+    def setUp(self):
+        self.directory = tempfile.mkdtemp()
+        self.path = os.path.join(self.directory, "ledger.sqlite")
+
+    def tearDown(self):
+        shutil.rmtree(self.directory, ignore_errors=True)
+
+    def _open(self, deployment):
+        return closing(Ledger(self.path, deployment))
+
+    def test_a_new_ledger_takes_the_deployment_it_is_opened_against(self):
+        with self._open(self.DEV) as ledger:
+            self.assertEqual(self.DEV, ledger.get_meta(DEPLOYMENT))
+
+    def test_reopening_against_the_same_deployment_is_fine(self):
+        with self._open(self.DEV) as ledger:
+            ledger.record("cc-test/1000001", CANDIDATE)
+        with self._open(self.DEV) as ledger:
+            self.assertEqual({"cc-test/1000001"}, ledger.known_paths())
+
+    def test_a_trailing_slash_is_not_a_different_deployment(self):
+        with self._open(self.DEV):
+            pass
+        with self._open(self.DEV + "/") as ledger:
+            self.assertEqual(self.DEV, ledger.get_meta(DEPLOYMENT))
+
+    def test_opening_against_another_deployment_is_refused(self):
+        with self._open(self.DEV) as ledger:
+            ledger.record("cc-test/1000001", CANDIDATE)
+        with self.assertRaises(WrongDeployment) as refused:
+            Ledger(self.path, self.PROD)
+        self.assertIn(self.DEV, str(refused.exception))
+        self.assertIn(self.PROD, str(refused.exception))
+
+    def test_a_ledger_with_rows_but_no_stamp_is_not_adopted(self):
+        # A ledger written before this check existed. Nothing in the file says where its rows came
+        # from, so adopting it for whatever is configured now is exactly the mistake being guarded.
+        with self._open(self.DEV) as ledger:
+            ledger.record("cc-test/1000001", CANDIDATE)
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute("DELETE FROM meta")
+            connection.commit()
+        with self.assertRaises(WrongDeployment):
+            Ledger(self.path, self.PROD)
+
+    def test_an_empty_ledger_with_no_stamp_is_adopted(self):
+        # Nothing to get wrong: no rows means no verdicts that could belong to somewhere else.
+        with self._open(self.DEV):
+            pass
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute("DELETE FROM meta")
+            connection.commit()
+        with self._open(self.PROD) as ledger:
+            self.assertEqual(self.PROD, ledger.get_meta(DEPLOYMENT))
 
 
 if __name__ == "__main__":
