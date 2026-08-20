@@ -250,8 +250,11 @@ def _report_offending_characters(ledger: Ledger) -> None:
 
 
 def _ui_link(path: str) -> str:
-    """Where the Archival Group is in the UI, for working through the list by hand."""
-    return f"{settings.UI_BASE_URL}/{path}" if settings.UI_BASE_URL else ""
+    """
+    Where the Archival Group is in the UI, for working through the list by hand. The UI's route is
+    /browse/{path} (Browse.cshtml), not the bare path - a link that 404s is worse than no link.
+    """
+    return f"{settings.UI_BASE_URL}/browse/{path}" if settings.UI_BASE_URL else ""
 
 
 def _report(ledger: Ledger) -> None:
