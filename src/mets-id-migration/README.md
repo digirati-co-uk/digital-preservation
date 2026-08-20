@@ -27,7 +27,7 @@ not the trigger.
 ### Where it looks, and the one ambiguous case
 
 `app/ids.py` reads every attribute METS types as an ID or a reference to one, and tests each value
-against an XML 1.0 NCName pattern spelt out in full (an accented letter is legal and must not be
+against the platform's own definition of a legal NCName (an accented letter is legal and must not be
 flagged; an ampersand is not and must be):
 
 | where | attributes |
@@ -38,6 +38,14 @@ flagged; an ampersand is not and must be):
 
 Only those. A file name, a checksum or a PREMIS note is content, however much it may look like an
 ID — which is why `objects/my file.pdf` in an `FLocat` is not a finding.
+
+"Legal" means what .NET's `XmlConvert` means by it, not what the current XML spec means. `XmlConvert`
+implements XML 1.0 **fourth** edition name rules, whose letter tables are enumerated and have gaps —
+U+0132, U+0133 and U+017F are letters the fifth edition allows and it does not. A definition written
+from the modern production would call such an ID legal while the platform still rejected it, and the
+survey would report an Archival Group as conforming when its METS was still invalid: a campaign that
+fails while looking like it succeeded. So `app/ncname_ranges.json` is **generated from `XmlConvert`**
+and checked against it by `XmlGen.Tests/NCNameRangesTests.cs`, which is the only side that can.
 
 The reference lists are the ambiguous case, and it is issue #213 again. `ADMID="ADM_a ADM_b"` is two
 legal references; `ADMID="ADM_objects/my file.pdf"` is **one** legacy ID that merely looks like

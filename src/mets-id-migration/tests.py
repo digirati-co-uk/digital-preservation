@@ -48,6 +48,34 @@ class NCNameTests(unittest.TestCase):
             self.assertFalse(ids.is_valid_id(value), value)
 
 
+class XmlConvertAgreementTests(unittest.TestCase):
+    """
+    The survey's verdict has to be the platform's verdict. .NET's XmlConvert, which is what the
+    platform enforces, implements XML 1.0 FOURTH edition name rules - enumerated letter tables with
+    gaps in them - so the modern NameStartChar production is too generous. Getting this wrong in
+    that direction is the dangerous one: the survey would call an Archival Group conforming and the
+    campaign would skip a document that is still invalid.
+
+    XmlGen.Tests/NCNameRangesTests.cs checks the generated ranges against XmlConvert itself. These
+    check that this module actually uses them.
+    """
+
+    def test_letters_the_fifth_edition_allows_and_the_platform_does_not(self):
+        for excluded in ("Ĳ", "ĳ", "ſ"):
+            self.assertFalse(ids.is_valid_id(excluded + "abc"),
+                             f"U+{ord(excluded):04X} is not legal to XmlConvert")
+
+    def test_an_accented_letter_is_still_legal(self):
+        self.assertTrue(ids.is_valid_id("café"))
+        self.assertTrue(ids.is_valid_id("Ärger_1"))
+
+    def test_the_ordinary_rules_still_hold(self):
+        self.assertTrue(ids.is_valid_id("FILE_objects_x002F_a.pdf"))
+        self.assertFalse(ids.is_valid_id("1leading-digit"))
+        self.assertFalse(ids.is_valid_id("has space"))
+        self.assertFalse(ids.is_valid_id(""))
+
+
 class IdrefsAmbiguityTests(unittest.TestCase):
     """
     The hard case, and the reason this is not a whitespace split: a legacy ID can contain spaces,

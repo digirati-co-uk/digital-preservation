@@ -1,4 +1,4 @@
-using System.Xml;
+﻿using System.Xml;
 using System.Xml.Linq;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
@@ -550,6 +550,145 @@ public class MetsIdNormalisationTests
             Size = 54321,
             Modified = DateTime.UtcNow
         };
+
+    // -----------------------------------------------------------------------
+    // The ways a document can be worse than "some IDs need renaming"
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task An_Area_That_Points_At_An_Id_Follows_It()
+    {
+        // BEGIN holds an IDREF when BETYPE says so. This platform never writes that, but a document
+        // it did not write can arrive at the normalise endpoint - nothing checks the creating agent
+        // - and a BEGIN left naming a renamed ID is a dangling reference like any other.
+        var metsUri = EditedFixture("normalise-area-idref.xml", doc =>
+        {
+            var fptr = doc.Descendants(MetsNs + "fptr")
+                .Single(f => f.Attribute("FILEID")!.Value == "FILE_objects/my file.pdf");
+            fptr.Add(new XElement(MetsNs + "area",
+                new XAttribute("FILEID", "FILE_objects/my great file.pdf"),
+                new XAttribute("BETYPE", "IDREF"),
+                new XAttribute("BEGIN", "FILE_objects/my great file.pdf")));
+        });
+
+        var report = await NormaliseInPlace(metsUri);
+
+        report.Changed.Should().BeTrue();
+        var area = XDocument.Load(metsUri.LocalPath).Descendants(MetsNs + "area").Single();
+        area.Attribute("BEGIN")!.Value.Should()
+            .Be(MetsIds.File("objects/my great file.pdf"), "BEGIN named an ID that has been renamed");
+        AssertEveryIdIsValidAndEveryReferenceResolves(XDocument.Load(metsUri.LocalPath));
+    }
+
+    [Fact]
+    public async Task An_Area_Whose_Begin_Is_Not_An_Id_Is_Left_Alone()
+    {
+        // The same attribute holds a byte offset, a time code or an ordinal for every other BETYPE.
+        // Normalising one of those would corrupt the area while looking like the same job.
+        var metsUri = EditedFixture("normalise-area-byte.xml", doc =>
+        {
+            var fptr = doc.Descendants(MetsNs + "fptr")
+                .Single(f => f.Attribute("FILEID")!.Value == "FILE_objects/my file.pdf");
+            fptr.Add(new XElement(MetsNs + "area",
+                new XAttribute("FILEID", "FILE_objects/my file.pdf"),
+                new XAttribute("BETYPE", "BYTE"),
+                new XAttribute("BEGIN", "0"),
+                new XAttribute("END", "1024")));
+        });
+
+        await NormaliseInPlace(metsUri);
+
+        var area = XDocument.Load(metsUri.LocalPath).Descendants(MetsNs + "area").Single();
+        area.Attribute("BEGIN")!.Value.Should().Be("0");
+        area.Attribute("END")!.Value.Should().Be("1024");
+    }
+
+    [Fact]
+    public async Task A_Legacy_Id_Spelt_With_Two_Spaces_Is_Still_Followed()
+    {
+        // An IDREFS attribute reaches the normaliser already split on whitespace, so an ID spelt
+        // with two spaces comes back with one and cannot be found by its real name. Both halves are
+        // legal NCNames on their own, so nothing downstream would notice the reference going stale.
+        const string legacy = "ADM_objects/my  file.pdf";
+        var metsUri = EditedFixture("normalise-double-space.xml", doc =>
+        {
+            doc.Descendants(MetsNs + "amdSec")
+                .Single(a => a.Attribute("ID")!.Value == "ADM_objects/my file.pdf")
+                .SetAttributeValue("ID", legacy);
+            doc.Descendants(MetsNs + "file")
+                .Single(f => f.Attribute("ID")!.Value == "FILE_objects/my file.pdf")
+                .SetAttributeValue("ADMID", legacy);
+        });
+
+        var report = await NormaliseInPlace(metsUri);
+
+        var doc2 = XDocument.Load(metsUri.LocalPath);
+        var expected = MetsIds.Normalise(legacy);
+        doc2.Descendants(MetsNs + "amdSec").Select(a => a.Attribute("ID")!.Value)
+            .Should().Contain(expected);
+        doc2.Descendants(MetsNs + "file")
+            .Single(f => f.Attribute("ID")!.Value == MetsIds.File("objects/my file.pdf"))
+            .Attribute("ADMID")!.Value.Should().Be(expected);
+        report.Warnings.Should().NotContain(w => w.Contains("names no element"),
+            "the reference does name an element, just one whose spelling the round trip lost");
+        AssertEveryIdIsValidAndEveryReferenceResolves(doc2);
+    }
+
+    [Fact]
+    public async Task A_Document_With_The_Same_Id_On_Two_Elements_Is_Refused()
+    {
+        // Already invalid, and a rewrite maps an ID rather than an element - so both would take the
+        // same new legal ID and the duplication would stop being visible. Nothing is touched.
+        var metsUri = EditedFixture("normalise-duplicate-ids.xml", doc =>
+            doc.Descendants(MetsNs + "amdSec")
+                .Single(a => a.Attribute("ID")!.Value == "ADM_objects/my great file.pdf")
+                .SetAttributeValue("ID", "ADM_objects/my file.pdf"));
+        var before = await File.ReadAllTextAsync(metsUri.LocalPath);
+
+        // No ETag, because there is no getting one: MetsParser indexes IDs into a dictionary and
+        // throws on the second copy. GetFullMets does not, which is the whole point - the document
+        // reaches the normaliser even though the parser cannot make sense of it.
+        var fullMets = await metsManager.GetFullMets(metsUri, null);
+        fullMets.Success.Should().BeTrue("this is the path a normalise request actually takes");
+
+        var result = metsManager.NormaliseIds(fullMets.Value!);
+
+        result.Success.Should().BeFalse("the document carries one ID on two elements");
+        result.ErrorMessage.Should().Contain("ADM_objects/my file.pdf");
+        (await File.ReadAllTextAsync(metsUri.LocalPath)).Should().Be(before);
+    }
+
+    [Fact]
+    public async Task Writing_A_Document_With_Duplicate_Ids_Is_Refused_When_Migrating_On_Write()
+    {
+        // The write path must not quietly launder the same corruption on its way past.
+        var metsUri = EditedFixture("normalise-duplicate-on-write.xml", doc =>
+            doc.Descendants(MetsNs + "amdSec")
+                .Single(a => a.Attribute("ID")!.Value == "ADM_objects/my great file.pdf")
+                .SetAttributeValue("ID", "ADM_objects/my file.pdf"));
+
+        var fullMets = (await migratingOnWrite.GetFullMets(metsUri, null)).Value!;
+        var before = await File.ReadAllTextAsync(metsUri.LocalPath);
+
+        var write = await migratingOnWrite.WriteMets(fullMets);
+
+        write.Success.Should().BeFalse();
+        write.ErrorMessage.Should().Contain("normalise");
+        (await File.ReadAllTextAsync(metsUri.LocalPath)).Should().Be(before, "nothing was written");
+    }
+
+    /// <summary>
+    /// A copy of the standard legacy fixture with one thing about it changed - the defect under
+    /// test - so that everything around it is a document the parser is known to accept.
+    /// </summary>
+    private static Uri EditedFixture(string outputName, Action<XDocument> edit)
+    {
+        var doc = XDocument.Load(new FileInfo("Samples/path-fixture-spaces.xml").FullName);
+        edit(doc);
+        var dest = new FileInfo($"Outputs/{outputName}");
+        doc.Save(dest.FullName);
+        return new Uri(dest.FullName);
+    }
 
     private static Uri CopyFixture(string fixtureName, string outputName)
     {

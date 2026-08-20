@@ -37,6 +37,20 @@ public class PreservationContext : DbContext
         return ArchivalGroupEvents.OrderByDescending(e => e.EventDate).FirstOrDefault();
     }
 
+    /// <summary>
+    /// The Archival Group events that appear in the published Activity Stream - everything except
+    /// the ones a maintenance import job asked to be kept out of it.
+    /// </summary>
+    /// <remarks>
+    /// One definition rather than one per query. The collection's count and the page's count and
+    /// its page of rows decide the stream's page boundaries between them, so a filter applied to
+    /// some of them and not the others puts a "next" link on the last page or leaves one off. It is
+    /// the opposite of <see cref="GetLatestArchivalGroupEvent"/>, which must see suppressed events;
+    /// the two together are the whole of what suppression means.
+    /// </remarks>
+    public IQueryable<ArchivalGroupEvent> PublishedArchivalGroupEvents() =>
+        ArchivalGroupEvents.Where(e => !e.Suppressed);
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Deposit>(builder =>

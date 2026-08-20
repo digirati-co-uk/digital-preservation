@@ -18,12 +18,17 @@ namespace DigitalPreservation.Mets;
 /// opaque to code.
 /// </para>
 /// <para>
-/// One METS feature is deliberately not covered: <c>BEGIN</c>/<c>END</c> hold an IDREF when the
-/// accompanying <c>BETYPE</c> says <c>IDREF</c>. The platform never writes that, and this only ever
-/// runs against a document the platform wrote (<c>GetFullMets</c> refuses any other agent), so the
-/// case is unreachable here. It is named rather than left implicit because the safety net for it is
-/// elsewhere: the migration verifies the preserved document's ID integrity afterwards, so an ID
-/// this missed shows up as a failed migration rather than as a quietly invalid document.
+/// Every place an ID can be referenced is covered, including the two the schema types as plain
+/// strings and so hides from the reflective walk: the xlink attributes on <c>smLink</c> and
+/// <c>smLocatorLink</c>, and <c>BEGIN</c>/<c>END</c> on an <c>area</c> whose <c>BETYPE</c> says
+/// <c>IDREF</c>. The platform writes neither, but nothing stops a document it did not write reaching
+/// here - <c>GetFullMets</c> reads whatever METS the deposit holds and makes no check of the
+/// creating agent - so "we never write it" is not a reason to leave a reference behind.
+/// </para>
+/// <para>
+/// A document that already carries the same ID on two elements is refused rather than normalised.
+/// It is not a valid document to begin with, and rewriting both to one new legal ID would turn a
+/// visible corruption into an invisible one.
 /// </para>
 /// </remarks>
 public static class MetsIdNormaliser
@@ -37,8 +42,13 @@ public static class MetsIdNormaliser
         var report = new MetsIdNormalisationReport();
         var nodes = MetsGraph.Nodes(mets).ToList();
 
-        var rewrites = PlanRewrites(nodes, report);
-        if (rewrites.Count == 0 && !AnyInvalidReference(nodes))
+        var plan = PlanRewrites(nodes, report);
+        if (report.DuplicateIds.Count > 0)
+        {
+            // Refused before anything is touched, so the caller gets the document as it was.
+            return report;
+        }
+        if (plan.ById.Count == 0 && !AnyInvalidReference(nodes))
         {
             return report;
         }
@@ -46,25 +56,38 @@ public static class MetsIdNormaliser
         foreach (var node in nodes)
         {
             var id = MetsGraph.GetId(node);
-            if (id is not null && rewrites.TryGetValue(id, out var newId))
+            if (id is not null && plan.ById.TryGetValue(id, out var newId))
             {
                 MetsGraph.SetId(node, newId);
                 report.IdsRewritten++;
             }
-            report.ReferencesRewritten += RewriteReferences(node, rewrites, report);
+            report.ReferencesRewritten += RewriteReferences(node, plan, report);
         }
 
         return report;
     }
 
     /// <summary>
+    /// The rewrites to apply, indexed the two ways a reference can arrive.
+    /// </summary>
+    /// <param name="ById">Old ID exactly as it is spelt, to new ID.</param>
+    /// <param name="ByCollapsedId">
+    /// The same, keyed by the old ID with each run of whitespace collapsed to one space - which is
+    /// all that survives of a legacy ID once the XmlSerializer has split an IDREFS attribute into
+    /// tokens. Only IDs whose spelling does not survive that appear here.
+    /// </param>
+    private sealed record RewritePlan(
+        Dictionary<string, string> ById, Dictionary<string, string> ByCollapsedId);
+
+    /// <summary>
     /// Every ID that needs to change, old to new, with the collisions that would make the result
     /// invalid ruled out first.
     /// </summary>
-    private static Dictionary<string, string> PlanRewrites(
+    private static RewritePlan PlanRewrites(
         List<object> nodes, MetsIdNormalisationReport report)
     {
         var existing = new HashSet<string>(StringComparer.Ordinal);
+        var seenTwice = new HashSet<string>(StringComparer.Ordinal);
         var invalid = new List<string>();
         foreach (var node in nodes)
         {
@@ -73,11 +96,28 @@ public static class MetsIdNormaliser
             {
                 continue;
             }
-            existing.Add(id);
+            if (!existing.Add(id))
+            {
+                // Two elements already share this ID, so the document is not valid and never was.
+                // A rewrite maps an ID value, not an element, so both would land on one new ID and
+                // the duplication would survive - legal-looking, and no longer obvious. Refuse.
+                seenTwice.Add(id);
+            }
             if (!MetsIds.IsValidId(id))
             {
                 invalid.Add(id);
             }
+        }
+
+        if (seenTwice.Count > 0)
+        {
+            report.DuplicateIds.AddRange(seenTwice.OrderBy(id => id, StringComparer.Ordinal));
+            foreach (var id in report.DuplicateIds)
+            {
+                report.Warnings.Add($"ID '{id}' is used by more than one element; nothing was rewritten");
+            }
+            return new RewritePlan(new Dictionary<string, string>(StringComparer.Ordinal),
+                                   new Dictionary<string, string>(StringComparer.Ordinal));
         }
 
         var rewrites = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -99,8 +139,52 @@ public static class MetsIdNormaliser
         report.Rewrites.AddRange(rewrites
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)
             .Select(pair => new MetsIdRewrite { From = pair.Key, To = pair.Value }));
-        return rewrites;
+        return new RewritePlan(rewrites, IndexByCollapsedId(rewrites, report));
     }
+
+    /// <summary>
+    /// The rewrites whose old ID cannot be recovered from an IDREFS attribute, keyed by what can.
+    /// </summary>
+    /// <remarks>
+    /// An IDREFS value reaches us already split on whitespace, so a legacy ID spelt with two spaces
+    /// - a filename can contain them - comes back from <see cref="IdRefs.Joined"/> with one, and
+    /// looking it up by its real spelling finds nothing. Both fragments of such an ID are usually
+    /// legal NCNames in their own right, so nothing further downstream notices either: the reference
+    /// would simply be left naming an ID that no longer exists.
+    /// <para>
+    /// Two IDs that differ only in their whitespace collapse to the same key. Which one a reference
+    /// meant is then unknowable, so neither is offered here and the document is reported instead.
+    /// </para>
+    /// </remarks>
+    private static Dictionary<string, string> IndexByCollapsedId(
+        Dictionary<string, string> rewrites, MetsIdNormalisationReport report)
+    {
+        var byCollapsed = new Dictionary<string, string>(StringComparer.Ordinal);
+        var ambiguous = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (from, to) in rewrites)
+        {
+            var collapsed = Collapse(from);
+            if (collapsed == from)
+            {
+                continue; // Recoverable as it stands; the exact lookup will find it.
+            }
+            if (!byCollapsed.TryAdd(collapsed, to))
+            {
+                ambiguous.Add(collapsed);
+            }
+        }
+        foreach (var collapsed in ambiguous)
+        {
+            byCollapsed.Remove(collapsed);
+            report.Warnings.Add(
+                $"More than one ID collapses to '{collapsed}'; references to it were left alone");
+        }
+        return byCollapsed;
+    }
+
+    /// <summary>Every run of whitespace as a single space - what an IDREFS round trip leaves.</summary>
+    private static string Collapse(string id) =>
+        IdRefs.Joined(id.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>
     /// Drop any rewrite whose new ID is already taken, or that two old IDs both want. Encoding is
@@ -162,7 +246,7 @@ public static class MetsIdNormaliser
                     return true;
                 }
             }
-            if (XLinkIdRefs(node).Any(reference => !MetsIds.IsValidId(reference.Value)))
+            if (UntypedIdRefs(node).Any(reference => !MetsIds.IsValidId(reference.Value)))
             {
                 return true;
             }
@@ -171,13 +255,14 @@ public static class MetsIdNormaliser
     }
 
     private static int RewriteReferences(
-        object node, IReadOnlyDictionary<string, string> rewrites, MetsIdNormalisationReport report)
+        object node, RewritePlan plan, MetsIdNormalisationReport report)
     {
         var changed = 0;
 
-        foreach (var (attribute, value, set) in MetsGraph.SingleIdRefs(node).ToList())
+        foreach (var (attribute, value, set) in MetsGraph.SingleIdRefs(node)
+                     .Concat(UntypedIdRefs(node)).ToList())
         {
-            var replacement = RewriteSingle(value, rewrites, attribute, report);
+            var replacement = RewriteSingle(value, plan.ById, attribute, report);
             if (replacement != value)
             {
                 set(replacement);
@@ -187,17 +272,7 @@ public static class MetsIdNormaliser
 
         foreach (var (attribute, tokens) in MetsGraph.TokenIdRefs(node).ToList())
         {
-            changed += RewriteTokens(tokens, rewrites, attribute, report);
-        }
-
-        foreach (var (attribute, value, set) in XLinkIdRefs(node).ToList())
-        {
-            var replacement = RewriteSingle(value, rewrites, attribute, report);
-            if (replacement != value)
-            {
-                set(replacement);
-                changed++;
-            }
+            changed += RewriteTokens(tokens, plan, attribute, report);
         }
 
         return changed;
@@ -230,12 +305,16 @@ public static class MetsIdNormaliser
     /// </summary>
     private static int RewriteTokens(
         IList<string> tokens,
-        IReadOnlyDictionary<string, string> rewrites,
+        RewritePlan plan,
         string attribute,
         MetsIdNormalisationReport report)
     {
+        var rewrites = plan.ById;
         var joined = IdRefs.Joined(tokens);
-        if (rewrites.TryGetValue(joined, out var mappedWhole))
+        // Exactly as spelt first, then - only for the IDs whose spelling an IDREFS round trip
+        // destroys - by the collapsed form, which is all the attribute can still tell us.
+        if (rewrites.TryGetValue(joined, out var mappedWhole)
+            || plan.ByCollapsedId.TryGetValue(joined, out mappedWhole))
         {
             tokens.Clear();
             tokens.Add(mappedWhole);
@@ -268,19 +347,36 @@ public static class MetsIdNormaliser
     }
 
     /// <summary>
-    /// The xlink attributes that hold IDs, which the schema types as plain strings so they cannot
+    /// The attributes that hold an ID but which the schema types as a plain string, so they cannot
     /// be found the way ADMID and FILEID are.
     /// </summary>
     /// <remarks>
-    /// Only these two elements. <c>smArcLink/@xlink:from</c> and <c>@xlink:to</c> have the same
-    /// names but hold xlink LABELS, which name <c>smLocatorLink</c> elements within the link group
-    /// rather than IDs anywhere in the document; rewriting those would break the group while
-    /// looking, from the attribute name alone, like exactly the same job.
+    /// Only these elements. <c>smArcLink/@xlink:from</c> and <c>@xlink:to</c> have the same names as
+    /// the <c>smLink</c> ones but hold xlink LABELS, which name <c>smLocatorLink</c> elements within
+    /// the link group rather than IDs anywhere in the document; rewriting those would break the
+    /// group while looking, from the attribute name alone, like exactly the same job.
+    /// <para>
+    /// <c>BEGIN</c> and <c>END</c> hold an ID only when <c>BETYPE</c> says <c>IDREF</c> - otherwise
+    /// they are a byte offset, a time code or an ordinal, and rewriting one would corrupt the area.
+    /// The platform never writes <c>BETYPE="IDREF"</c>, but nothing stops a document that does from
+    /// reaching here, so it is followed rather than assumed away.
+    /// </para>
     /// </remarks>
-    private static IEnumerable<(string Attribute, string Value, Action<string> Set)> XLinkIdRefs(object node)
+    private static IEnumerable<(string Attribute, string Value, Action<string> Set)> UntypedIdRefs(object node)
     {
         switch (node)
         {
+            case AreaType { BetypeValueSpecified: true, BetypeValue: AreaTypeBetype.Idref } area:
+                if (!string.IsNullOrEmpty(area.Begin))
+                {
+                    yield return ("area/@BEGIN", area.Begin, value => area.Begin = value);
+                }
+                if (!string.IsNullOrEmpty(area.End))
+                {
+                    yield return ("area/@END", area.End, value => area.End = value);
+                }
+                break;
+
             case StructLinkTypeSmLink link:
                 if (!string.IsNullOrEmpty(link.From))
                 {

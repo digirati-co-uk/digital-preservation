@@ -31,8 +31,15 @@ public interface IMetsManager
     /// Idempotent: an ID that is already legal is left alone, so a document that has been
     /// normalised once reports no change the next time. A report whose Changed is false means
     /// nothing was touched, and the caller must NOT preserve it - an Archival Group should not gain
-    /// a version for a document that did not change. Fails, writing nothing, if the result would
-    /// not be a valid document.
+    /// a version for a document that did not change.
+    /// <para>
+    /// Fails, having touched nothing, in the two cases where carrying on would leave a document
+    /// that is invalid but no longer looks it: when an ID is carried by more than one element (see
+    /// MetsIdNormalisationReport.DuplicateIds), and when the rewrite would leave a div unreachable
+    /// by its path. Anything else it cannot fix is reported in Warnings and does not fail - a
+    /// reference naming nothing is normal here, since the template writes DMDID onto folder divs
+    /// before their dmdSec exists.
+    /// </para>
     /// </remarks>
     Result<MetsIdNormalisationReport> NormaliseIds(FullMets fullMets);
 

@@ -299,7 +299,10 @@ public class DepositsController(
             });
         }
 
-        var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit);
+        // Uninitialised on purpose: normalising reads and parses the METS for itself, so building
+        // the combined directory first would read and parse the same document a second time - once
+        // per Archival Group, for the whole migration campaign.
+        var workspaceManager = workspaceManagerFactory.CreateUninitialised(deposit);
         var result = await workspaceManager.NormaliseMetsIds();
         return this.StatusResponseFromResult(result);
     }

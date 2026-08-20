@@ -118,6 +118,15 @@ public class MetsManager(
         var before = fullMets.PathDiagnostics.ToHashSet();
 
         var report = MetsIdNormaliser.Normalise(fullMets.Mets);
+        if (report.DuplicateIds.Count > 0)
+        {
+            // Already invalid, and not a thing a rewrite can mend: an ID maps to an ID, so both
+            // elements would take the same new one and the duplication would stop being visible.
+            // Nothing was touched, so the caller still has the document it had.
+            return Result.FailNotNull<MetsIdNormalisationReport>(ErrorCodes.UnknownError,
+                "The METS carries the same ID on more than one element, so its IDs were not "
+                + "normalised: " + string.Join("; ", report.DuplicateIds));
+        }
         if (!report.Changed)
         {
             return Result.OkNotNull(report);

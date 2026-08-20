@@ -10,6 +10,8 @@ Nothing here writes. The rewriting lives in the platform's own MetsManager, reac
 Preservation API, so that there is exactly one implementation of how an ID is spelt.
 """
 
+import json
+import pathlib
 import re
 
 from lxml import etree
@@ -22,16 +24,30 @@ XLINK_NS = "http://www.w3.org/1999/xlink"
 #: NCNames and were never affected by #188.
 METS_CREATOR_AGENT = "University of Leeds Digital Library Infrastructure Project"
 
-# XML 1.0 (5th edition) NameStartChar and NameChar, less the colon: an xs:ID must be an NCName.
-# Spelt out rather than approximated because the difference matters in both directions - an
-# accented letter is legal and must not be flagged, an ampersand is not and must be.
-_NAME_START = (
-    "A-Z_a-z"
-    "\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u02ff\u0370-\u037d\u037f-\u1fff"
-    "\u200c-\u200d\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd"
-)
-_NAME_CHAR = _NAME_START + "\\-.0-9\u00b7\u0300-\u036f\u203f-\u2040"
-_NCNAME = re.compile(f"^[{_NAME_START}][{_NAME_CHAR}]*$")
+# What counts as a legal NCName character, taken from the platform rather than from the spec.
+#
+# The distinction matters. .NET's XmlConvert - which is what MetsIds.IsValidId uses, and therefore
+# what the platform actually enforces - implements XML 1.0 FOURTH edition name rules, whose letter
+# tables are enumerated and have gaps: U+0132, U+0133 and U+017F are all letters that the fifth
+# edition's NameStartChar production accepts and XmlConvert does not. Writing the modern production
+# here would make this tool call such an ID legal while the platform still rejects it, and the
+# survey would then report an Archival Group as conforming when its METS is still invalid - the one
+# failure a migration campaign cannot afford, because it looks like success.
+#
+# So the ranges are generated from XmlConvert itself and checked against it by a test on the .NET
+# side, which is where the authority is. See ncname_ranges.json.
+_RANGES = json.loads(
+    (pathlib.Path(__file__).parent / "ncname_ranges.json").read_text(encoding="utf-8"))
+
+
+def _char_class(ranges: list[list[int]]) -> str:
+    return "".join(
+        re.escape(chr(low)) if low == high else f"{re.escape(chr(low))}-{re.escape(chr(high))}"
+        for low, high in ranges)
+
+
+_NCNAME = re.compile(
+    f"^[{_char_class(_RANGES['nameStart'])}][{_char_class(_RANGES['nameChar'])}]*$")
 
 #: Attributes holding exactly one ID: ID declares one, FILEID references one.
 _SINGLE_ID_ATTRIBUTES = ("ID", "FILEID")

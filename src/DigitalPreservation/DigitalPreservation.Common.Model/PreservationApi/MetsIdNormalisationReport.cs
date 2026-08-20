@@ -40,6 +40,16 @@ public class MetsIdNormalisationReport
     public List<string> Warnings { get; set; } = [];
 
     /// <summary>
+    /// IDs carried by more than one element. Unlike <see cref="Warnings"/> this does stop the
+    /// operation: a rewrite maps an ID value rather than an element, so both would land on the same
+    /// new ID and a document that is visibly invalid would become one that is invalid but looks
+    /// fine. Nothing is rewritten when this is non-empty, and the document is left as it was for a
+    /// person to sort out.
+    /// </summary>
+    [JsonPropertyName("duplicateIds")]
+    public List<string> DuplicateIds { get; set; } = [];
+
+    /// <summary>
     /// Whether the document was actually modified. A normalisation that changed nothing must not
     /// be preserved.
     /// </summary>
