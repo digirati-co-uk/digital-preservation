@@ -328,12 +328,16 @@ class DepositorSkipTests(SurveyLedgerTestCase):
     EPRINTS = "https://preservation.library.leeds.ac.uk/agents/eprints-migration-app"
 
     def test_a_skipped_depositors_group_is_recorded_without_reading_its_mets(self):
-        rows = [("cc/eprints-thing", "2026-01-01T00:00:00Z", "eprints-migration-app")]
+        rows = [("cc/eprints-thing", "2026-01-01T00:00:00Z", "eprints-migration-app",
+                 "2026-01-01T01:00:00Z")]
         with mock.patch.object(survey, "deposit_rows", return_value=iter(rows)), \
              mock.patch.object(api, "get_archival_group_mets") as read:
             survey.survey(self.ledger, skip_creators=[self.EPRINTS])
         read.assert_not_called()
-        self.assertEqual(SKIPPED, self.ledger.get("cc/eprints-thing")["state"])
+        row = self.ledger.get("cc/eprints-thing")
+        self.assertEqual(SKIPPED, row["state"])
+        self.assertEqual("2026-01-01T01:00:00Z", row["preserved"],
+                         "the preserved date is free knowledge even for a skipped group")
 
     def test_the_skip_matches_the_identity_however_it_is_spelt(self):
         # The same agent's URI base differs between environments; a bare id, the dev URI and the
@@ -343,8 +347,8 @@ class DepositorSkipTests(SurveyLedgerTestCase):
             self.assertEqual(frozenset({"eprints-migration-app"}), survey._skip_slugs([spelling]))
 
     def test_a_deposit_by_anyone_else_upgrades_a_skipped_group_to_a_real_verdict(self):
-        rows = [("cc/mixed", "2026-01-01T00:00:00Z", "eprints-migration-app"),
-                ("cc/mixed", "2026-01-02T00:00:00Z", "some-human")]
+        rows = [("cc/mixed", "2026-01-01T00:00:00Z", "eprints-migration-app", "2026-01-01T01:00:00Z"),
+                ("cc/mixed", "2026-01-02T00:00:00Z", "some-human", "2026-01-02T01:00:00Z")]
         with mock.patch.object(survey, "deposit_rows", return_value=iter(rows)), \
              mock.patch.object(survey, "_survey_one", side_effect=self._recording()) as surveyed:
             survey.survey(self.ledger, skip_creators=["eprints-migration-app"])
@@ -352,17 +356,36 @@ class DepositorSkipTests(SurveyLedgerTestCase):
         self.assertEqual(FOREIGN, self.ledger.get("cc/mixed")["state"])
 
     def test_nothing_is_skipped_unless_asked(self):
-        rows = [("cc/eprints-thing", "2026-01-01T00:00:00Z", "eprints-migration-app")]
+        rows = [("cc/eprints-thing", "2026-01-01T00:00:00Z", "eprints-migration-app", None)]
         with mock.patch.object(survey, "deposit_rows", return_value=iter(rows)), \
              mock.patch.object(survey, "_survey_one", side_effect=self._recording()) as surveyed:
             survey.survey(self.ledger, skip_creators=[])
         surveyed.assert_called_once()
 
 
+class PreservedDateTests(SurveyLedgerTestCase):
+    def test_the_latest_preserved_date_across_deposits_wins(self):
+        rows = [("cc/thing", "2026-01-01T00:00:00Z", "human", "2026-01-01T01:00:00Z"),
+                ("cc/thing", "2026-01-02T00:00:00Z", "human", "2026-03-05T12:00:00Z"),
+                ("cc/thing", "2026-01-03T00:00:00Z", "human", None)]  # never preserved: no regress
+        with mock.patch.object(survey, "deposit_rows", return_value=iter(rows)), \
+             mock.patch.object(survey, "_survey_one", side_effect=self._recording()):
+            survey.survey(self.ledger)
+        self.assertEqual("2026-03-05T12:00:00Z", self.ledger.get("cc/thing")["preserved"])
+
+    def test_variable_length_fractions_compare_by_time_not_by_string(self):
+        # '...12.13Z' vs '...12.130231Z': as strings the shorter sorts LATER ('Z' beats any
+        # digit), which would let an earlier date overwrite a later one.
+        self.ledger.record("cc/thing", FOREIGN, agent="test")
+        self.ledger.note_preserved("cc/thing", "2026-01-01T00:00:12.130231Z")
+        self.ledger.note_preserved("cc/thing", "2026-01-01T00:00:12.13Z")
+        self.assertEqual("2026-01-01T00:00:12.130231Z", self.ledger.get("cc/thing")["preserved"])
+
+
 class ResumeCursorTests(SurveyLedgerTestCase):
-    ROWS = [("cc/one", "2026-01-01T00:00:00Z", "human"),
-            ("cc/two", "2026-01-02T00:00:00Z", "human"),
-            ("cc/three", "2026-01-03T00:00:00Z", "human")]
+    ROWS = [("cc/one", "2026-01-01T00:00:00Z", "human", None),
+            ("cc/two", "2026-01-02T00:00:00Z", "human", None),
+            ("cc/three", "2026-01-03T00:00:00Z", "human", None)]
 
     def test_a_full_walk_leaves_the_cursor_at_the_last_deposit_dealt_with(self):
         with mock.patch.object(survey, "deposit_rows", return_value=iter(self.ROWS)), \

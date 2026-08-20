@@ -34,12 +34,14 @@ _CURSOR = "deposits_cursor"
 _CURSOR_EVERY = 200
 
 
-def deposit_rows(newest_first: bool = False,
-                 created_after: str | None = None) -> Iterator[tuple[str, str | None, str | None]]:
+def deposit_rows(
+    newest_first: bool = False,
+    created_after: str | None = None,
+) -> Iterator[tuple[str, str | None, str | None, str | None]]:
     """
-    Every deposit that names an Archival Group, as (path, created, creator slug) - in deposit
-    order, one tuple per deposit, duplicates and all. The caller decides what a path means; this
-    just turns pages into rows lazily, so a caller that stops early stops the paging too.
+    Every deposit that names an Archival Group, as (path, created, creator slug, preserved) - in
+    deposit order, one tuple per deposit, duplicates and all. The caller decides what a path means;
+    this just turns pages into rows lazily, so a caller that stops early stops the paging too.
 
     Oldest first by default, because ascending order is stable under concurrent inserts: a deposit
     created during the walk sorts after everything already seen and cannot shift a later page
@@ -67,7 +69,8 @@ def deposit_rows(newest_first: bool = False,
             path = _path_under_root(archival_group)
             if path:
                 creator = deposit.get("createdBy")
-                yield path, deposit.get("created"), api.slug(creator) if creator else None
+                yield (path, deposit.get("created"),
+                       api.slug(creator) if creator else None, deposit.get("preserved"))
         page += 1
 
 
@@ -149,16 +152,18 @@ def survey(
     consecutive_unread = 0
     dealt_with: set[str] = set()
 
-    candidates = (((path, None, None) for path in paths) if paths is not None
+    candidates = (((path, None, None, None) for path in paths) if paths is not None
                   else deposit_rows(newest_first, cursor))
     try:
-        for path, created, creator in candidates:
+        for path, created, creator, preserved in candidates:
             if limit is not None and examined >= limit:
                 logger.info("Stopping at the requested limit of %s", limit)
                 break
             if path_prefix and not path.startswith(path_prefix):
                 continue
             if path in dealt_with or path in already_known:
+                # A later deposit can still teach us when the group was last preserved.
+                ledger.note_preserved(path, preserved)
                 advance(created)
                 continue
             if creator is not None and creator in skip:
@@ -168,6 +173,7 @@ def survey(
                     logger.info("%s: SKIPPED - deposited by '%s', METS not read", path, creator)
                     skipped_before.add(path)
                     skipped += 1
+                ledger.note_preserved(path, preserved)
                 advance(created)
                 continue
             if path in skipped_before:
@@ -179,6 +185,7 @@ def survey(
             examined += 1
             dealt_with.add(path)
             if _survey_one(ledger, path):
+                ledger.note_preserved(path, preserved)
                 consecutive_unread = 0
                 advance(created)
             else:

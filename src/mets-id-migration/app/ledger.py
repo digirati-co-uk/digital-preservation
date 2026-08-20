@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS archival_groups (
     path              TEXT PRIMARY KEY,
     state             TEXT NOT NULL,
     agent             TEXT,
+    preserved         TEXT,  -- latest preserved date seen among the group's deposits, at survey time
     invalid_id_count  INTEGER DEFAULT 0,
     invalid_id_sample TEXT,
     invalid_id_chars  TEXT,
@@ -60,12 +61,29 @@ class WrongDeployment(RuntimeError):
     """The ledger was built against a different Preservation API than the one now configured."""
 
 
+def _timestamp_key(timestamp: str) -> str:
+    """
+    An API timestamp as a string that compares correctly. The fractional seconds vary in length
+    ('...12.13Z' vs '...12.130231Z'), and plain string comparison misorders those - 'Z' sorts
+    after any digit - so the fraction is padded to a fixed width instead of parsing: .NET can emit
+    seven fractional digits, which Python's own fromisoformat refuses.
+    """
+    value = timestamp.rstrip("Z")
+    whole, _, fraction = value.partition(".")
+    return f"{whole}.{fraction:0<9}"
+
+
 class Ledger:
     def __init__(self, path: str, deployment: str):
         self.connection = sqlite3.connect(path)
         self.connection.row_factory = sqlite3.Row
         with closing(self.connection.cursor()) as cursor:
             cursor.executescript(_SCHEMA)
+            # CREATE IF NOT EXISTS does not add columns to a table that already exists, so a
+            # ledger from before a column was invented gets it here rather than failing later.
+            columns = {row[1] for row in cursor.execute("PRAGMA table_info(archival_groups)")}
+            if "preserved" not in columns:
+                cursor.execute("ALTER TABLE archival_groups ADD COLUMN preserved TEXT")
         self.connection.commit()
         self._bind_to(path, deployment)
 
@@ -146,6 +164,26 @@ class Ledger:
         with closing(self.connection.cursor()) as cursor:
             cursor.execute("SELECT * FROM archival_groups WHERE path = ?", (path,))
             return cursor.fetchone()
+
+    def note_preserved(self, path: str, preserved: str | None) -> None:
+        """
+        Record when the Archival Group was preserved, keeping the LATEST date seen. A group can
+        have many deposits and the walk streams past all of them, so this is called for every one;
+        it only writes when the row exists and the date moves forward, and record() never touches
+        the column - so an upgrade from skipped to a real verdict keeps the date already gathered.
+        """
+        if not preserved:
+            return
+        row = self.get(path)
+        if row is None:
+            return
+        current = row["preserved"]
+        if current is not None and _timestamp_key(current) >= _timestamp_key(preserved):
+            return
+        with closing(self.connection.cursor()) as cursor:
+            cursor.execute("UPDATE archival_groups SET preserved = ? WHERE path = ?",
+                           (preserved, path))
+        self.connection.commit()
 
     def known_paths(self) -> set[str]:
         with closing(self.connection.cursor()) as cursor:

@@ -199,16 +199,19 @@ def _list(ledger: Ledger, state: str, csv_path: str | None, path_prefix: str | N
     if csv_path:
         with open(csv_path, "w", newline="", encoding="utf-8") as handle:
             writer = csv.writer(handle)
-            writer.writerow(["archivalGroupPath", "invalidIdCount", "invalidIdChars",
+            writer.writerow(["archivalGroupPath", "preserved", "invalidIdCount", "invalidIdChars",
                              "invalidIdSample", "ui"])
             for row in rows:
-                writer.writerow([row["path"], row["invalid_id_count"], row["invalid_id_chars"],
-                                 row["invalid_id_sample"], _ui_link(row["path"])])
+                writer.writerow([row["path"], row["preserved"], row["invalid_id_count"],
+                                 row["invalid_id_chars"], row["invalid_id_sample"],
+                                 _ui_link(row["path"])])
         logger.info("Wrote %s row(s) to %s", len(rows), csv_path)
         return
 
     logger.info("%s Archival Group(s) in state '%s':", len(rows), state)
     for row in rows:
+        # The date, not the full timestamp: enough to see at a glance which era a group is from.
+        when = f"  preserved {row['preserved'][:10]}" if row["preserved"] else ""
         if row["invalid_id_count"]:
             detail = (f"  ({row['invalid_id_count']} invalid ID(s) [{row['invalid_id_chars']}], "
                       f"e.g. {row['invalid_id_sample']})")
@@ -218,7 +221,7 @@ def _list(ledger: Ledger, state: str, csv_path: str | None, path_prefix: str | N
         else:
             detail = ""
         link = f"  {_ui_link(row['path'])}" if settings.UI_BASE_URL else ""
-        logger.info("  %s%s%s", row["path"], detail, link)
+        logger.info("  %s%s%s%s", row["path"], when, detail, link)
 
     if state == CANDIDATE and len(rows) <= 25:
         logger.info("That is few enough to do by hand from the UI if you would rather - "
