@@ -33,6 +33,9 @@ _CURSOR = "deposits_cursor"
 #: still keeps most of its progress.
 _CURSOR_EVERY = 200
 
+#: How often (in deposit rows) to say something during the quiet stretches of a walk.
+_PROGRESS_EVERY = 1000
+
 
 def deposit_rows(
     newest_first: bool = False,
@@ -148,14 +151,28 @@ def survey(
 
     examined = 0
     skipped = 0
+    known = 0
     unread = 0
     consecutive_unread = 0
     dealt_with: set[str] = set()
 
+    def progress() -> None:
+        """
+        A heartbeat for the quiet stretches. Known and depositor-skipped rows are silent one by
+        one - a resumed walk can pass thousands of them without a single new group - and a survey
+        that says nothing for minutes looks hung rather than busy.
+        """
+        logger.info("...%s deposit rows in: %s for already-known groups, %s group(s) skipped by "
+                    "depositor, %s examined this run", rows_seen, known, skipped, examined)
+
+    rows_seen = 0
     candidates = (((path, None, None, None) for path in paths) if paths is not None
                   else deposit_rows(newest_first, cursor))
     try:
         for path, created, creator, preserved in candidates:
+            rows_seen += 1
+            if rows_seen % _PROGRESS_EVERY == 0:
+                progress()
             if limit is not None and examined >= limit:
                 logger.info("Stopping at the requested limit of %s", limit)
                 break
@@ -163,6 +180,7 @@ def survey(
                 continue
             if path in dealt_with or path in already_known:
                 # A later deposit can still teach us when the group was last preserved.
+                known += 1
                 ledger.note_preserved(path, preserved)
                 advance(created)
                 continue
