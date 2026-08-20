@@ -11,6 +11,7 @@ and the completeness cross-check is the Activity Stream, which records every cre
 Run `survey --check-completeness` to compare the two counts before trusting the list.
 """
 
+import time
 from typing import Iterator
 
 from lxml import etree
@@ -72,19 +73,27 @@ def survey(
     newest_first: bool = False,
     path_prefix: str | None = None,
     paths: list[str] | None = None,
+    pause: float | None = None,
 ) -> None:
     """
     Decide, for each Archival Group, whether it needs migrating - and write that to the ledger.
 
-    Resumable: paths already in the ledger are skipped unless `rescan`. Read-only against the
-    platform; the only thing that changes is the ledger.
+    Resumable: paths already in the ledger are skipped unless `rescan`, and skipped before the limit
+    counts them, so running the same `--limit 100` command again examines the next hundred rather
+    than the same hundred. Read-only against the platform; the only thing that changes is the ledger.
 
     Every narrowing here exists for the same reason - trying this against development without
     walking the whole of it. `paths` skips the deposits query entirely and examines exactly what it
     is given; `path_prefix` keeps only Archival Groups under one container; `limit` stops after that
     many, and because the walk is lazy it stops the paging too.
+
+    `pause` is the other kind of restraint: seconds to wait between Archival Groups. Reading one is
+    not free - see SURVEY_PAUSE_SECONDS - and the walk is otherwise as fast as the platform will
+    answer, which is not what you want alongside people doing their work.
     """
     already_known = set() if rescan else ledger.known_paths()
+    if pause is None:
+        pause = settings.SURVEY_PAUSE_SECONDS
     examined = 0
 
     candidates = iter(paths) if paths is not None else archival_group_paths(newest_first)
@@ -96,6 +105,9 @@ def survey(
         if limit is not None and examined >= limit:
             logger.info("Stopping at the requested limit of %s", limit)
             break
+        if pause and examined:
+            # Between groups, not after the last one.
+            time.sleep(pause)
         examined += 1
         _survey_one(ledger, path)
 

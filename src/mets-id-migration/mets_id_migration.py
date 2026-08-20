@@ -4,6 +4,7 @@ Bulk migration of preserved METS documents to legal xs:ID values (issue #188 ste
 
     python mets_id_migration.py survey                 # find what needs doing; changes nothing
     python mets_id_migration.py survey --limit 5 --newest-first    # or just look at a few
+    python mets_id_migration.py survey --pause 0.5     # ...gently, on a system in use
     python mets_id_migration.py report                 # what the ledger holds
     python mets_id_migration.py list                   # the actual list, for doing by hand
     python mets_id_migration.py migrate --dry-run      # rehearse: everything but the preserve
@@ -42,7 +43,16 @@ def main() -> int:
         "survey", help="find the Archival Groups that need migrating. Read-only.")
     survey_command.add_argument("--limit", type=int, help="examine at most this many new groups")
     survey_command.add_argument("--rescan", action="store_true",
-                                help="re-examine groups already in the ledger")
+                                help="re-examine groups already in the ledger. Without it, groups "
+                                     "already recorded are skipped without counting against "
+                                     "--limit, so rerunning the same command examines the next "
+                                     "batch rather than the same one")
+    survey_command.add_argument("--pause", type=float, metavar="SECONDS",
+                                help="wait this long between Archival Groups. Reading one costs "
+                                     "the platform several Fedora requests, and the walk is "
+                                     "otherwise as fast as the API will answer; pace it when other "
+                                     "people are using the system (default: SURVEY_PAUSE_SECONDS, "
+                                     f"currently {settings.SURVEY_PAUSE_SECONDS})")
     survey_command.add_argument("--check-completeness", action="store_true",
                                 help="afterwards, cross-check the surveyed Archival Groups against "
                                      "the Activity Stream, which is the other record of the same "
@@ -105,7 +115,7 @@ def _run(arguments, ledger: Ledger) -> int:
     if arguments.command == "survey":
         survey.survey(ledger, limit=arguments.limit, rescan=arguments.rescan,
                       newest_first=arguments.newest_first, path_prefix=arguments.path_prefix,
-                      paths=arguments.paths)
+                      paths=arguments.paths, pause=arguments.pause)
         if arguments.check_completeness:
             narrowed = bool(arguments.limit or arguments.paths or arguments.path_prefix)
             survey.check_completeness(ledger, partial=narrowed)

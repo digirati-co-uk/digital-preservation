@@ -38,6 +38,12 @@ UI_BASE_URL = os.environ.get("UI_BASE_URL", "").rstrip("/")
 #: room for the people using it.
 PAUSE_SECONDS = float(os.environ.get("PAUSE_SECONDS", "1.0"))
 
+#: The same, for the survey, which is read-only and so unpaced by default. Reading one Archival
+#: Group is still several Fedora requests - a HEAD, the version list, and one per container in the
+#: tree - and the survey makes them back to back for as long as it runs. On a system nobody else is
+#: using that is fine; against production, set this (or pass --pause) so the walk leaves gaps.
+SURVEY_PAUSE_SECONDS = float(os.environ.get("SURVEY_PAUSE_SECONDS", "0"))
+
 #: How long to wait for one import job to finish before giving up on it.
 IMPORT_JOB_TIMEOUT_SECONDS = float(os.environ.get("IMPORT_JOB_TIMEOUT_SECONDS", "600"))
 IMPORT_JOB_POLL_SECONDS = float(os.environ.get("IMPORT_JOB_POLL_SECONDS", "5"))

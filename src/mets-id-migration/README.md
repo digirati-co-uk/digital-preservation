@@ -190,6 +190,31 @@ The ledger accumulates, so a narrow survey can be widened later — rerunning wi
 up everything not already recorded, and `--rescan` re-examines what is. `list`, `migrate` and their
 `--path-prefix` work the same way, so a partial survey leads naturally to a partial migration.
 
+Recorded groups are skipped *before* `--limit` counts them, so running the same command again does
+the **next** batch rather than the same one. `survey --limit 100 --newest-first` three times examines
+three hundred distinct Archival Groups, working steadily backwards.
+
+### What a survey costs the platform
+
+`survey` writes nothing, but it is not free to read. Each Archival Group is one
+`GET /repository/{path}?view=mets`, which the Preservation API answers with a HEAD to find the type
+and then a straight fetch of `mets.xml` — about four Fedora requests and one S3 read. A group whose
+METS is named something else, or lives below the root as it does in a BagIt layout, falls back to the
+older route: the whole group is read out of Fedora, one request per container in the tree, plus the
+OCFL inventory from S3, and the result is then held in the Storage API's memory for an hour. Against
+a deployment that predates this work every group takes that longer route, which is correct but costs
+roughly twice as many Fedora requests — another reason to pace a survey of an old deployment.
+
+The walk is serial, so at most one request is ever in flight — but by default there is no gap between
+groups. Against production, pace it:
+
+```bash
+python mets_id_migration.py survey --pause 0.5
+```
+
+or set `SURVEY_PAUSE_SECONDS` in `.env` so every run is paced without having to remember. Stopping
+with Ctrl-C costs nothing; the ledger is committed after each group.
+
 ```bash
 python mets_id_migration.py migrate --dry-run             # rehearse; nothing is preserved
 python mets_id_migration.py migrate --limit 1             # then one
