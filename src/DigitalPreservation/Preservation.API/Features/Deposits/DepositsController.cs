@@ -283,6 +283,19 @@ public class DepositsController(
             });
         }
 
+        // The same courtesy every other mutation extends: a deposit someone else holds the lock
+        // on is theirs to change, and normalising rewrites its METS.
+        var otherLockOwner = deposit.GetOtherLockOwner(User.GetCallerIdentity());
+        if (otherLockOwner is not null)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Conflict: Deposit is locked by another user",
+                Detail = otherLockOwner,
+                Status = 409
+            });
+        }
+
         // If-Match is optional here, unlike the item operations: the migration tool reads the
         // deposit and normalises it in one go with nothing in between. When it IS supplied it is
         // enforced, so a person doing this from the UI while someone else edits gets a 409 rather

@@ -64,8 +64,12 @@ public interface IPreservationApiClient
     /// <summary>
     /// Rewrite the deposit's METS IDs into the form the platform mints now (issue #188 step 3).
     /// A report whose Changed is false means the document already conformed and was not written.
+    /// Pass the deposit's current METS ETag as <paramref name="metsETag"/> and the API returns 409
+    /// instead of silently overwriting a version someone else has just written; null skips the
+    /// check, which is only right for a caller that read and normalises in one breath.
     /// </summary>
-    Task<Result<MetsIdNormalisationReport>> NormaliseDepositMetsIds(string depositId, CancellationToken cancellationToken);
+    Task<Result<MetsIdNormalisationReport>> NormaliseDepositMetsIds(
+        string depositId, string? metsETag, CancellationToken cancellationToken);
 
     Task<Result<string>> GetParsedDepositMets(string depositId, CancellationToken cancellationToken);
     Task<Result<string>> GetIIIF(string depositId, CancellationToken cancellationToken);

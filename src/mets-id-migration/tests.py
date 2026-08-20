@@ -198,6 +198,7 @@ def _response(status_code: int, text: str = "") -> mock.Mock:
 
 @mock.patch.object(settings, "HTTP_RETRY_PAUSE_SECONDS", 0)
 @mock.patch.object(settings, "HTTP_RETRIES", 2)
+@mock.patch.object(settings, "DISABLE_AUTH", True)
 class RequestRetryTests(unittest.TestCase):
     """
     What one failed HTTP request turns into. A survey of thousands of Archival Groups will meet a
@@ -420,6 +421,96 @@ class ResumeCursorTests(SurveyLedgerTestCase):
             survey.survey(self.ledger, newest_first=True, rescan=True)
             survey.survey(self.ledger, paths=["cc/four"])
         self.assertIsNone(self.ledger.get_meta(survey._CURSOR))
+
+
+class MigrateSafetyTests(SurveyLedgerTestCase):
+    """
+    The behaviours around a migration that does not go to plan. Each of these was a review
+    finding: the failure mode is silent, and a campaign cannot afford silence.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.ledger.record("cc/thing", CANDIDATE, invalid_id_count=1)
+        self.deposit = {"id": "https://dev.example/deposits/dep-1", "metsETag": "etag-1"}
+
+    def test_a_timeout_during_preserve_keeps_the_deposit(self):
+        # The import job may still be running - or may complete after we stop watching. Deleting
+        # the deposit could break it mid-copy, and destroys the evidence either way.
+        from app import migrate
+        with mock.patch.object(api, "create_deposit", return_value=self.deposit), \
+             mock.patch.object(api, "get_archival_group_mets",
+                               return_value=b"<mets xmlns='http://www.loc.gov/METS/'/>"), \
+             mock.patch.object(api, "normalise_mets_ids",
+                               return_value={"changed": True, "idsRewritten": 1,
+                                             "referencesRewritten": 0}), \
+             mock.patch.object(api, "get_diff_import_job", return_value={
+                 "binariesToPatch": [{"id": "https://x/mets.xml"}]}), \
+             mock.patch.object(api, "execute_import_job", return_value={"id": "https://x/r/1"}), \
+             mock.patch.object(api, "await_import_job", side_effect=TimeoutError("600s")), \
+             mock.patch.object(api, "delete_deposit") as deleted:
+            with self.assertRaises(TimeoutError):
+                migrate.migrate_one(self.ledger, "cc/thing", dry_run=False)
+        deleted.assert_not_called()
+
+    def test_a_refusal_before_preserve_still_tidies_the_deposit(self):
+        from app import migrate
+        with mock.patch.object(api, "create_deposit", return_value=self.deposit), \
+             mock.patch.object(api, "get_archival_group_mets",
+                               return_value=b"<mets xmlns='http://www.loc.gov/METS/'/>"), \
+             mock.patch.object(api, "normalise_mets_ids",
+                               return_value={"changed": True, "idsRewritten": 1,
+                                             "referencesRewritten": 0}), \
+             mock.patch.object(api, "get_diff_import_job", return_value={"binariesToPatch": []}), \
+             mock.patch.object(api, "delete_deposit") as deleted:
+            with self.assertRaises(migrate.MigrationRefused):
+                migrate.migrate_one(self.ledger, "cc/thing", dry_run=False)
+        deleted.assert_called_once()
+
+    def test_a_declined_rewrite_is_not_settled_as_no_change(self):
+        # changed=false WITH warnings means the platform declined to fix a document the survey
+        # says is invalid. Settling that as no-change is the failure that looks like success.
+        from app import migrate
+        with mock.patch.object(api, "create_deposit", return_value=self.deposit), \
+             mock.patch.object(api, "get_archival_group_mets",
+                               return_value=b"<mets xmlns='http://www.loc.gov/METS/'/>"), \
+             mock.patch.object(api, "normalise_mets_ids",
+                               return_value={"changed": False,
+                                             "warnings": ["ID 'x' was not rewritten"]}), \
+             mock.patch.object(api, "delete_deposit"):
+            with self.assertRaises(migrate.MigrationRefused) as refused:
+                migrate.migrate_one(self.ledger, "cc/thing", dry_run=False)
+        self.assertIn("declined", str(refused.exception))
+
+    def test_verify_leaves_a_done_row_alone_when_the_read_fails(self):
+        # The same rule as the survey's: a failed read is not a verdict. Overwriting DONE would
+        # permanently remove a correctly migrated group from the verify queue.
+        from app import migrate
+        from app.ledger import DONE
+        self.ledger.record("cc/migrated", DONE, from_version="v1", to_version="v2")
+        with mock.patch.object(api, "get_archival_group_mets",
+                               side_effect=api.ApiError("Could not read METS", "ReadTimeout")):
+            migrate.verify_migrated(self.ledger)
+        row = self.ledger.get("cc/migrated")
+        self.assertEqual(DONE, row["state"])
+        self.assertEqual("v2", row["to_version"], "the migration evidence survives the blip")
+
+
+@mock.patch.object(settings, "DISABLE_AUTH", True)
+class IfMatchTests(unittest.TestCase):
+    def test_normalise_sends_the_deposits_mets_etag_as_if_match(self):
+        response = mock.Mock(ok=True, status_code=200)
+        response.json.return_value = {"changed": False}
+        with mock.patch.object(requests, "request", return_value=response) as sent:
+            api.normalise_mets_ids("dep-1", "etag-abc")
+        self.assertEqual("etag-abc", sent.call_args.kwargs["headers"]["If-Match"])
+
+    def test_no_etag_sends_no_if_match(self):
+        response = mock.Mock(ok=True, status_code=200)
+        response.json.return_value = {"changed": False}
+        with mock.patch.object(requests, "request", return_value=response) as sent:
+            api.normalise_mets_ids("dep-1", None)
+        self.assertNotIn("If-Match", sent.call_args.kwargs["headers"])
 
 
 class VerifySkippedTests(SurveyLedgerTestCase):

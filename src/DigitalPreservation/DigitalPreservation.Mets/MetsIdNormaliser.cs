@@ -196,12 +196,15 @@ public static class MetsIdNormaliser
         IdRefs.Joined(id.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>
-    /// Drop any rewrite whose new ID is already taken, or that two old IDs both want. Encoding is
-    /// injective, so two rewritten IDs cannot collide with each other; the real risk is a rewritten
-    /// ID landing on one that was already valid and left alone - possible in a document that was
-    /// half migrated, or half written by someone else. Dropping the rewrite leaves that ID invalid
-    /// and the document unmigrated, which is the outcome a person should see rather than one where
-    /// two elements share an ID and every reference to either becomes ambiguous.
+    /// Drop any rewrite whose new ID is already taken, or that two old IDs both want. Both checks
+    /// are load-bearing. A rewritten ID can land on one that was already valid and left alone - a
+    /// document half migrated, or half written by someone else - and two different invalid IDs can
+    /// normalise to the same result, because the encoding is NOT injective across the prefix
+    /// boundary: 'FILE_x0020_a b' (stem branch, the literal 'x0020' unescaped because nothing in
+    /// the stem precedes it with '_') and 'FILE a b' (whole-string branch) both come out as
+    /// 'FILE_x0020_a_x0020_b'. Dropping the rewrite leaves the ID invalid and the document
+    /// unmigrated, which is the outcome a person should see rather than one where two elements
+    /// share an ID and every reference to either becomes ambiguous.
     /// </summary>
     private static void RemoveColliding(
         Dictionary<string, string> rewrites, HashSet<string> existing, MetsIdNormalisationReport report)
@@ -271,7 +274,7 @@ public static class MetsIdNormaliser
         foreach (var (attribute, value, set) in MetsGraph.SingleIdRefs(node)
                      .Concat(UntypedIdRefs(node)).ToList())
         {
-            var replacement = RewriteSingle(value, plan.ById, attribute, report);
+            var replacement = RewriteSingle(value, plan, attribute, report);
             if (replacement != value)
             {
                 set(replacement);
@@ -289,16 +292,25 @@ public static class MetsIdNormaliser
 
     private static string RewriteSingle(
         string value,
-        Dictionary<string, string> rewrites,
+        RewritePlan plan,
         string attribute,
         MetsIdNormalisationReport report)
     {
-        if (rewrites.TryGetValue(value, out var mapped))
+        if (plan.ById.TryGetValue(value, out var mapped))
         {
             return mapped;
         }
         if (MetsIds.IsValidId(value))
         {
+            return value;
+        }
+        if (plan.DeclaredIds.Contains(value))
+        {
+            // Invalid, but it names a real element whose own rewrite was declined - a collision,
+            // or an ID that could not be made legal. Normalising the reference anyway would sever
+            // it, or worse: when the rewrite was dropped because another element already holds the
+            // normalised form, it would silently retarget this reference onto THAT element.
+            // Leave the pair as they are; RemoveColliding has already said why.
             return value;
         }
         // Names nothing in this document, but has to become legal all the same.
@@ -334,12 +346,25 @@ public static class MetsIdNormaliser
             return 1;
         }
 
-        // A genuine IDREFS list names one element per token, and every one of those is either a
-        // legal ID or an ID this migration is rewriting. If a token is neither, these tokens are
-        // the pieces of a single legacy ID that names nothing - rejoining is the only reading that
-        // does not leave a fragment of a filename standing on its own as a reference.
-        if (tokens.Any(token => !MetsIds.IsValidId(token) && !rewrites.ContainsKey(token)))
+        // A genuine IDREFS list names one element per token: each is a declared legal ID, or an ID
+        // this migration is rewriting. When NO token does either and at least one is broken, these
+        // tokens are the pieces of a single legacy value - rejoining is the only reading that does
+        // not leave a fragment of a filename standing on its own as a reference. But if the joined
+        // value names a real element whose rewrite was declined, leave it exactly as it is, for
+        // the same reason RewriteSingle does; and if ANY token is usable, this is a list with a
+        // broken entry in it, and the broken entry must not take its valid siblings down with it.
+        var anyBroken = tokens.Any(token => !MetsIds.IsValidId(token)
+                                            && !rewrites.ContainsKey(token)
+                                            && !plan.DeclaredIds.Contains(token));
+        var anyUsable = tokens.Any(token => rewrites.ContainsKey(token)
+                                            || (MetsIds.IsValidId(token)
+                                                && plan.DeclaredIds.Contains(token)));
+        if (anyBroken && !anyUsable)
         {
+            if (plan.DeclaredIds.Contains(joined))
+            {
+                return 0; // one legacy value naming a declined-rewrite element; leave the pair be
+            }
             var normalised = MetsIds.Normalise(joined);
             report.Warnings.Add($"{attribute} '{joined}' names no element; normalised anyway");
             tokens.Clear();
@@ -353,6 +378,14 @@ public static class MetsIdNormaliser
             if (rewrites.TryGetValue(tokens[i], out var mapped))
             {
                 tokens[i] = mapped;
+                changed++;
+            }
+            else if (!MetsIds.IsValidId(tokens[i]) && !plan.DeclaredIds.Contains(tokens[i]))
+            {
+                // A broken entry beside usable ones: fix it alone, leaving its siblings standing.
+                report.Warnings.Add(
+                    $"{attribute} '{tokens[i]}' names no element; normalised anyway");
+                tokens[i] = MetsIds.Normalise(tokens[i]);
                 changed++;
             }
         }

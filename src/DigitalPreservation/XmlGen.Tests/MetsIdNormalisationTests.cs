@@ -691,22 +691,74 @@ public class MetsIdNormalisationTests
     }
 
     [Fact]
-    public async Task Writing_A_Document_With_Duplicate_Ids_Is_Refused_When_Migrating_On_Write()
+    public async Task Writing_A_Document_With_Duplicate_Ids_Writes_It_Unnormalised()
     {
-        // The write path must not quietly launder the same corruption on its way past.
+        // The duplicate-ID refusal happens before the in-memory document is touched, so the write
+        // path can pass the document through unchanged rather than refusing - a duplicate ID is a
+        // per-document problem (a failed-and-retried add can mint one, issue #216), and refusing
+        // here would make EVERY edit to the deposit fail until the service-wide flag was turned
+        // off for everyone. The failure that matters - the document is still invalid - is exactly
+        // as visible as it was before the write.
         var metsUri = EditedFixture("normalise-duplicate-on-write.xml", doc =>
             doc.Descendants(MetsNs + "amdSec")
                 .Single(a => a.Attribute("ID")!.Value == "ADM_objects/my great file.pdf")
                 .SetAttributeValue("ID", "ADM_objects/my file.pdf"));
 
         var fullMets = (await migratingOnWrite.GetFullMets(metsUri, null)).Value!;
-        var before = await File.ReadAllTextAsync(metsUri.LocalPath);
 
         var write = await migratingOnWrite.WriteMets(fullMets);
 
-        write.Success.Should().BeFalse();
-        write.ErrorMessage.Should().Contain("normalise");
-        (await File.ReadAllTextAsync(metsUri.LocalPath)).Should().Be(before, "nothing was written");
+        write.Success.Should().BeTrue("a broken document must not brick the whole deposit");
+        var doc2 = XDocument.Load(metsUri.LocalPath);
+        doc2.Descendants(MetsNs + "amdSec")
+            .Count(a => (string?)a.Attribute("ID") == "ADM_objects/my file.pdf")
+            .Should().Be(2, "the document was written exactly as it was, duplication intact");
+    }
+
+    [Fact]
+    public async Task A_Reference_To_A_Dropped_Rewrite_Is_Left_Pointing_At_Its_Element()
+    {
+        // X has a legacy ID whose normalised spelling Y already carries. X's rewrite is dropped
+        // (rewriting it would collide), so X keeps its old ID - and the reference to X must then
+        // keep its old spelling too. Normalising the reference anyway would silently retarget it
+        // onto Y: a fptr pointing at the wrong file in a preserved document.
+        var metsUri = EditedFixture("normalise-collision-reference.xml", doc =>
+            doc.Descendants(MetsNs + "amdSec").First().AddBeforeSelf(
+                new XElement(MetsNs + "amdSec",
+                    new XAttribute("ID", MetsIds.Adm("objects/my file.pdf")))));
+        // The fixture's file element already references ADM_objects/my file.pdf (the legacy X).
+
+        var report = await NormaliseInPlace(metsUri);
+
+        var doc2 = XDocument.Load(metsUri.LocalPath);
+        doc2.Descendants(MetsNs + "file")
+            .Select(f => (string?)f.Attribute("ADMID"))
+            .Should().Contain("ADM_objects/my file.pdf",
+                "the reference still names X, whose rewrite was declined");
+        report.Warnings.Should().Contain(w => w.Contains("already used by another element"));
+        report.Warnings.Should().NotContain(w => w.Contains("names no element"),
+            "the reference names a real element; calling it dangling would be wrong twice over");
+    }
+
+    [Fact]
+    public async Task A_Broken_Token_Does_Not_Take_Its_Valid_Siblings_With_It()
+    {
+        // An IDREFS list with one broken entry beside a declared, valid one. The broken entry is
+        // normalised alone; collapsing the whole list into one pseudo-ID would sever the div's
+        // real link to its amdSec.
+        var metsUri = EditedFixture("normalise-mixed-list.xml", doc =>
+            doc.Descendants(MetsNs + "div")
+                .Single(d => d.Attribute("ID")!.Value == "PHYS_objects/my great file.pdf")
+                .SetAttributeValue("ADMID", "bad/token ADM_objects"));
+
+        await NormaliseInPlace(metsUri);
+
+        var doc2 = XDocument.Load(metsUri.LocalPath);
+        doc2.Descendants(MetsNs + "div")
+            .Single(d => (string?)d.Attribute("ID") == MetsIds.Phys("objects/my great file.pdf"))
+            .Attribute("ADMID")!.Value
+            .Should().Be("bad_x002F_token ADM_objects",
+                "the broken token is fixed alone and the declared sibling survives");
     }
 
     /// <summary>

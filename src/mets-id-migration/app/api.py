@@ -74,11 +74,15 @@ def _request(method: str, path: str, what: str, **kwargs) -> requests.Response:
     and the deposit, not of guessing.
     """
     url = _url(path)
+    headers_extra = kwargs.pop("headers_extra", None)
     attempts = 1 + (settings.HTTP_RETRIES if method == "GET" else 0)
     for attempt in range(1, attempts + 1):
+        headers = _headers()
+        if headers_extra:
+            headers.update(headers_extra)
         try:
             response = requests.request(
-                method, url, headers=_headers(), timeout=settings.HTTP_TIMEOUT_SECONDS, **kwargs)
+                method, url, headers=headers, timeout=settings.HTTP_TIMEOUT_SECONDS, **kwargs)
         except requests.RequestException as error:
             # No response at all: a timeout, a dropped connection, DNS. Transient more often than
             # not, so say exactly what was happening and (on a GET) try again.
@@ -159,14 +163,6 @@ def activity_page(page_number: int) -> dict[str, Any]:
     return response.json()
 
 
-def get_archival_group(path_under_root: str) -> dict[str, Any]:
-    """The Archival Group resource, including its version and its binaries."""
-    response = _request(
-        "GET", f"/repository/{path_under_root.lstrip('/')}",
-        f"Could not read Archival Group {path_under_root}")
-    return response.json()
-
-
 # ---------------------------------------------------------------------------
 # Writing
 # ---------------------------------------------------------------------------
@@ -192,13 +188,19 @@ def create_deposit(archival_group_path: str) -> dict[str, Any]:
     return response.json()
 
 
-def normalise_mets_ids(deposit_id: str) -> dict[str, Any]:
+def normalise_mets_ids(deposit_id: str, mets_etag: str | None = None) -> dict[str, Any]:
     """
     Rewrite the deposit's METS IDs. Returns the report; `changed` false means it wrote nothing.
     Requires FeatureFlags:EnableMetsIdNormalisation on the Preservation API.
+
+    `mets_etag` is sent as If-Match when given: the API then answers 409 instead of overwriting a
+    METS that changed since we looked - which for this tool means since the deposit was created.
     """
+    kwargs: dict[str, Any] = {}
+    if mets_etag:
+        kwargs["headers_extra"] = {"If-Match": mets_etag}
     response = _request("POST", f"/deposits/{deposit_id}/mets/normalise",
-                        f"Could not normalise METS IDs for deposit {deposit_id}")
+                        f"Could not normalise METS IDs for deposit {deposit_id}", **kwargs)
     return response.json()
 
 

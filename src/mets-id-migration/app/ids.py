@@ -188,6 +188,7 @@ def file_digests(root) -> dict[str, str]:
             digests_by_amd_id[amd_id] = digest.text.strip()
 
     result = {}
+    declared = _declared_ids(root)
     for file_element in root.iterfind(f".//{{{METS_NS}}}fileSec//{{{METS_NS}}}file"):
         locator = file_element.find(f"{{{METS_NS}}}FLocat")
         if locator is None:
@@ -195,14 +196,18 @@ def file_digests(root) -> dict[str, str]:
         href = locator.get(f"{{{XLINK_NS}}}href")
         if not href:
             continue
-        # ADMID is compared whole first, for the same reason the platform does: a legacy ID
-        # containing spaces is one reference, not several.
+        # Resolved by the ONE tiering this module has - whole value if the document declares an ID
+        # of that spelling, else a token list - rather than a private variant of it. This dict is
+        # the verify fingerprint that proves a migration preserved file identity, so its resolution
+        # rules must be the ones every other reader of the document uses; a second spelling of the
+        # tiers here is exactly the kind of drift that would let verify pass a migration the
+        # platform would read differently.
         admid = file_element.get("ADMID") or ""
-        digest = digests_by_amd_id.get(admid)
-        if digest is None:
-            for token in admid.split():
-                if token in digests_by_amd_id:
-                    digest = digests_by_amd_id[token]
+        digest = ""
+        if admid:
+            for reference in _idrefs_values(admid, declared):
+                if reference in digests_by_amd_id:
+                    digest = digests_by_amd_id[reference]
                     break
-        result[href.strip()] = digest or ""
+        result[href.strip()] = digest
     return result

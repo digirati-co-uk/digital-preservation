@@ -49,16 +49,28 @@ def migrate_one(ledger: Ledger, path: str, dry_run: bool) -> None:
     deposit_id = api.slug(deposit["id"])
     logger.info("  deposit %s", deposit_id)
 
+    # Until an import job has been submitted, the deposit is just a staging copy and is deleted on
+    # every exit. From submission onward it is only deleted after a clean, verified success: on a
+    # timeout the job may still be running - deleting its staging area could break it mid-copy, or
+    # destroy the evidence of what happened if it completed after we stopped watching - and on any
+    # failure after submission the deposit IS the evidence.
+    disposable = True
     try:
-        report = api.normalise_mets_ids(deposit_id)
+        report = api.normalise_mets_ids(deposit_id, deposit.get("metsETag"))
         if not report.get("changed"):
-            # The survey said this document had invalid IDs and the platform says it has nothing to
-            # rewrite. Not an error - the two disagree only where the platform declined a rewrite,
-            # which it reports as a warning - but it is not a migration either, and it must not be
-            # preserved.
+            warnings = report.get("warnings", [])
+            if warnings:
+                # The survey said this document has invalid IDs and the platform DECLINED to
+                # rewrite them - a collision, or an ID it could not make legal. Settling this as
+                # no-change would report a document that still violates xs:ID as dealt with, which
+                # is the failure that looks like success. It needs a person.
+                for warning in warnings:
+                    logger.warning("  %s", warning)
+                raise MigrationRefused(
+                    f"normalise declined to rewrite: {len(warnings)} warning(s), "
+                    f"e.g. {warnings[0]}")
             logger.info("  nothing to normalise; leaving the Archival Group untouched")
             ledger.record(path, NO_CHANGE, deposit=deposit_id,
-                          warnings=report.get("warnings", []),
                           note="normalise reported no change")
             return
 
@@ -79,6 +91,7 @@ def migrate_one(ledger: Ledger, path: str, dry_run: bool) -> None:
             return
 
         import_job["suppressActivityStreamEvent"] = settings.SUPPRESS_ACTIVITY_STREAM_EVENT
+        disposable = False
         result = api.await_import_job(deposit_id, api.execute_import_job(deposit_id, import_job))
         if result["status"] != "completed":
             raise MigrationRefused(
@@ -96,8 +109,14 @@ def migrate_one(ledger: Ledger, path: str, dry_run: bool) -> None:
                       from_version=_version_of(result, "sourceVersion"),
                       to_version=_version_of(result, "newVersion"),
                       note=None)
+        disposable = True
     finally:
-        api.delete_deposit(deposit_id)
+        if disposable:
+            api.delete_deposit(deposit_id)
+        else:
+            logger.warning(
+                "  keeping deposit %s: the import job's outcome is unknown or failed, and the "
+                "deposit is the evidence. Investigate it before deleting it by hand.", deposit_id)
 
 
 def _refuse_unless_mets_only(import_job: dict) -> None:
@@ -173,10 +192,20 @@ def verify_migrated(ledger: Ledger, limit: int | None = None) -> None:
     for row in rows:
         path = row["path"]
         try:
-            invalid = ids.invalid_ids(ids.parse(api.get_archival_group_mets(path)))
-        except (api.ApiError, etree.XMLSyntaxError) as error:
-            logger.error("%s: could not re-read METS: %s", path, error)
-            ledger.record(path, FAILED, note=f"verification could not read METS: {error}")
+            mets_xml = api.get_archival_group_mets(path)
+        except api.ApiError as error:
+            # A timeout or a server blip says nothing about the migration, and overwriting DONE
+            # would permanently remove a correctly migrated group from the verify queue - the same
+            # rule as the survey's: a failed read is not a verdict. Leave the row; rerun verify.
+            logger.warning("%s: could not re-read METS, leaving it DONE for a rerun - %s",
+                           path, error)
+            continue
+        try:
+            invalid = ids.invalid_ids(ids.parse(mets_xml))
+        except etree.XMLSyntaxError as error:
+            # Unlike a failed read, a preserved METS that does not parse IS a verdict.
+            logger.error("%s: preserved METS is not well-formed XML: %s", path, error)
+            ledger.record(path, FAILED, note=f"verification: METS not well-formed: {error}")
             continue
         if invalid:
             logger.error("%s: still has %s invalid ID(s), e.g. %s", path, len(invalid), invalid[0])

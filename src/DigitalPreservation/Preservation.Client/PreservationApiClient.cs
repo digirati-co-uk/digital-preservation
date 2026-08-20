@@ -380,12 +380,19 @@ public class PreservationApiClient(
     }
 
     public async Task<Result<MetsIdNormalisationReport>> NormaliseDepositMetsIds(
-        string depositId, CancellationToken cancellationToken)
+        string depositId, string? metsETag, CancellationToken cancellationToken)
     {
         try
         {
             var uri = new Uri($"/deposits/{depositId}/mets/normalise", UriKind.Relative);
-            var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
+            var request = new HttpRequestMessage(HttpMethod.Post, uri);
+            if (metsETag.HasText())
+            {
+                // The API enforces If-Match only when it is sent, so sending it is what makes the
+                // documented 409-on-concurrent-edit real rather than dead code.
+                request.Headers.TryAddWithoutValidation("If-Match", metsETag);
+            }
+            var response = await preservationHttpClient.SendAsync(request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var report = await response.Content

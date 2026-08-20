@@ -71,13 +71,28 @@ public class MetsManager(
         if (NormaliseOnWrite)
         {
             var normalisation = NormaliseIds(fullMets);
+            if (normalisation is { Success: false, ErrorCode: ErrorCodes.Unprocessable })
+            {
+                // The duplicate-ID refusal, which happens before anything is touched - so the
+                // document in memory is exactly what the caller built, and writing it changes
+                // nothing about its (pre-existing) invalidity. Refusing here instead would make
+                // every edit to the deposit fail until the service-wide flag was turned off for
+                // everyone: a duplicate ID is a per-document problem (issue #216 can mint one on a
+                // failed-and-retried add), and it should not take a whole deployment's writes with
+                // it. So write, unnormalised, and say so loudly - the migration campaign and the
+                // logs are the nets that bring a person to it.
+                logger?.LogError(
+                    "Writing {MetsUri} WITHOUT normalising its IDs: {ErrorMessage}",
+                    fullMets.Uri, normalisation.ErrorMessage);
+                return await metsStorage.WriteMets(fullMets);
+            }
             if (normalisation is not { Success: true, Value: not null })
             {
-                // NormaliseIds only fails when the rewrite would leave the document unnavigable,
-                // which it should not be able to do: paths are not touched. If it happens, the
-                // in-memory document has already been rewritten, so writing it would persist
-                // something we have just decided we do not understand. Refuse instead - the ETag is
-                // untouched, so the caller can retry, and the flag can be turned off.
+                // Any other failure means the rewrite left the document unnavigable by path -
+                // which it should not be able to do, since paths are not touched. The in-memory
+                // document has already been rewritten, so writing it would persist something we
+                // have just decided we do not understand. Refuse instead - the ETag is untouched,
+                // so the caller can retry, and the flag can be turned off.
                 logger?.LogError(
                     "Refusing to write {MetsUri}: normalising its IDs failed - {ErrorMessage}",
                     fullMets.Uri, normalisation.ErrorMessage);
@@ -122,8 +137,10 @@ public class MetsManager(
         {
             // Already invalid, and not a thing a rewrite can mend: an ID maps to an ID, so both
             // elements would take the same new one and the duplication would stop being visible.
-            // Nothing was touched, so the caller still has the document it had.
-            return Result.FailNotNull<MetsIdNormalisationReport>(ErrorCodes.UnknownError,
+            // Nothing was touched, so the caller still has the document it had. Unprocessable,
+            // because the document is the problem, not the platform - and WriteMets relies on
+            // this exact code meaning "refused before anything was touched".
+            return Result.FailNotNull<MetsIdNormalisationReport>(ErrorCodes.Unprocessable,
                 "The METS carries the same ID on more than one element, so its IDs were not "
                 + "normalised: " + string.Join("; ", report.DuplicateIds));
         }

@@ -402,7 +402,17 @@ public class DepositModel(
             return Redirect($"/deposits/{id}");
         }
 
-        var result = await mediator.Send(new NormaliseMetsIds(id));
+        // A plain read, not BindDeposit: only the ETag is needed, and normalising reads the METS
+        // for itself. The ETag is what the user was looking at when they clicked, so an edit
+        // someone else saves in between comes back as a 409 rather than being overwritten.
+        var depositResult = await mediator.Send(new GetDeposit(id));
+        if (depositResult is not { Success: true, Value: not null })
+        {
+            TempData[TempDataError] = WebUtility.HtmlEncode(depositResult.ErrorMessage);
+            return Redirect($"/deposits/{id}");
+        }
+
+        var result = await mediator.Send(new NormaliseMetsIds(id, depositResult.Value.MetsETag));
         if (result is { Success: true, Value: not null })
         {
             var report = result.Value;
