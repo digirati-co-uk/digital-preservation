@@ -112,7 +112,8 @@ def _wait_to_retry(what: str, method: str, url: str, failure: str, attempt: int,
 # Reading
 # ---------------------------------------------------------------------------
 
-def list_deposits(page: int, page_size: int, newest_first: bool = False) -> dict[str, Any]:
+def list_deposits(page: int, page_size: int, newest_first: bool = False,
+                  created_after: str | None = None) -> dict[str, Any]:
     """
     One page of deposits.
 
@@ -121,17 +122,25 @@ def list_deposits(page: int, page_size: int, newest_first: bool = False) -> dict
     page underneath us. `newest_first` reverses that and gives up the guarantee - it is for sampling
     a live system, not for a campaign that has to see everything.
 
-    Archived deposits are included either way: an Archival Group is a candidate whether or not its
-    deposit was tidied away afterwards.
+    `created_after` narrows to deposits created at or after that moment, server-side - the survey's
+    resume cursor. The comparison is inclusive, so the boundary deposit comes back again; the caller
+    already knows its path, and paying one duplicate row beats losing one to a fencepost.
+
+    Deliberately no Archived parameter: it is a filter, not an include - Archived=true returns ONLY
+    archived deposits (this tool's original mistake, which silently hid every Archival Group whose
+    deposits had not yet been tidied away). Omitting it, with ShowAll for the active/inactive axis,
+    is what actually means "every deposit there has ever been".
     """
-    response = _request("GET", "/deposits", "Could not list deposits", params={
+    params = {
         "ShowAll": "true",
-        "Archived": "true",
         "OrderBy": "Created",
         "Ascending": "false" if newest_first else "true",
         "Page": page,
         "PageSize": page_size,
-    })
+    }
+    if created_after:
+        params["CreatedAfter"] = created_after
+    response = _request("GET", "/deposits", "Could not list deposits", params=params)
     return response.json()
 
 

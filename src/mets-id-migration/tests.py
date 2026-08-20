@@ -22,7 +22,7 @@ import requests
 from lxml import etree
 
 from app import api, ids, settings, survey
-from app.ledger import CANDIDATE, DEPLOYMENT, Ledger, WrongDeployment
+from app.ledger import CANDIDATE, DEPLOYMENT, FOREIGN, SKIPPED, Ledger, WrongDeployment
 
 SAMPLES = os.path.join(os.path.dirname(__file__), "..", "DigitalPreservation", "XmlGen.Tests", "Samples")
 
@@ -284,6 +284,131 @@ class SurveyReadFailureTests(unittest.TestCase):
         self.assertEqual(survey._UNREAD_RUN_LIMIT, read.call_count,
                          "the survey should stop at the limit, not fail through all ten")
         self.assertEqual(set(), self.ledger.known_paths())
+
+
+class DepositWalkScopeTests(unittest.TestCase):
+    def test_the_walk_asks_for_every_deposit_not_only_archived_ones(self):
+        # Archived=true is a FILTER (only archived), not an include. Passing it - as this tool
+        # originally did - silently hid every Archival Group whose deposits had not been tidied
+        # away yet. The query must name no Archived term at all.
+        with mock.patch.object(api, "_request", return_value=mock.Mock(json=lambda: {})) as sent:
+            api.list_deposits(1, 100)
+        params = sent.call_args.kwargs["params"]
+        self.assertNotIn("Archived", params)
+        self.assertEqual("true", params["ShowAll"])
+
+    def test_the_resume_cursor_is_passed_server_side(self):
+        with mock.patch.object(api, "_request", return_value=mock.Mock(json=lambda: {})) as sent:
+            api.list_deposits(1, 100, created_after="2026-02-17T10:29:12.130231Z")
+        self.assertEqual("2026-02-17T10:29:12.130231Z",
+                         sent.call_args.kwargs["params"]["CreatedAfter"])
+
+
+class SurveyLedgerTestCase(unittest.TestCase):
+    """Shared scaffolding: a real (temporary) ledger and a stubbed deposits walk."""
+
+    def setUp(self):
+        self.directory = tempfile.mkdtemp()
+        self.ledger = Ledger(os.path.join(self.directory, "ledger.sqlite"), "https://dev.example")
+
+    def tearDown(self):
+        self.ledger.close()
+        shutil.rmtree(self.directory, ignore_errors=True)
+
+    @staticmethod
+    def _recording(state=FOREIGN):
+        """A stand-in for _survey_one that records a verdict, as the real one always does."""
+        def survey_one(ledger, path):
+            ledger.record(path, state, agent="test")
+            return True
+        return survey_one
+
+
+class DepositorSkipTests(SurveyLedgerTestCase):
+    EPRINTS = "https://preservation.library.leeds.ac.uk/agents/eprints-migration-app"
+
+    def test_a_skipped_depositors_group_is_recorded_without_reading_its_mets(self):
+        rows = [("cc/eprints-thing", "2026-01-01T00:00:00Z", "eprints-migration-app")]
+        with mock.patch.object(survey, "deposit_rows", return_value=iter(rows)), \
+             mock.patch.object(api, "get_archival_group_mets") as read:
+            survey.survey(self.ledger, skip_creators=[self.EPRINTS])
+        read.assert_not_called()
+        self.assertEqual(SKIPPED, self.ledger.get("cc/eprints-thing")["state"])
+
+    def test_the_skip_matches_the_identity_however_it_is_spelt(self):
+        # The same agent's URI base differs between environments; a bare id, the dev URI and the
+        # prod URI must all mean the same thing.
+        for spelling in ("eprints-migration-app", self.EPRINTS,
+                         "https://preservation-api-dev.library.leeds.ac.uk/agents/eprints-migration-app"):
+            self.assertEqual(frozenset({"eprints-migration-app"}), survey._skip_slugs([spelling]))
+
+    def test_a_deposit_by_anyone_else_upgrades_a_skipped_group_to_a_real_verdict(self):
+        rows = [("cc/mixed", "2026-01-01T00:00:00Z", "eprints-migration-app"),
+                ("cc/mixed", "2026-01-02T00:00:00Z", "some-human")]
+        with mock.patch.object(survey, "deposit_rows", return_value=iter(rows)), \
+             mock.patch.object(survey, "_survey_one", side_effect=self._recording()) as surveyed:
+            survey.survey(self.ledger, skip_creators=["eprints-migration-app"])
+        surveyed.assert_called_once_with(self.ledger, "cc/mixed")
+        self.assertEqual(FOREIGN, self.ledger.get("cc/mixed")["state"])
+
+    def test_nothing_is_skipped_unless_asked(self):
+        rows = [("cc/eprints-thing", "2026-01-01T00:00:00Z", "eprints-migration-app")]
+        with mock.patch.object(survey, "deposit_rows", return_value=iter(rows)), \
+             mock.patch.object(survey, "_survey_one", side_effect=self._recording()) as surveyed:
+            survey.survey(self.ledger, skip_creators=[])
+        surveyed.assert_called_once()
+
+
+class ResumeCursorTests(SurveyLedgerTestCase):
+    ROWS = [("cc/one", "2026-01-01T00:00:00Z", "human"),
+            ("cc/two", "2026-01-02T00:00:00Z", "human"),
+            ("cc/three", "2026-01-03T00:00:00Z", "human")]
+
+    def test_a_full_walk_leaves_the_cursor_at_the_last_deposit_dealt_with(self):
+        with mock.patch.object(survey, "deposit_rows", return_value=iter(self.ROWS)), \
+             mock.patch.object(survey, "_survey_one", side_effect=self._recording()):
+            survey.survey(self.ledger)
+        self.assertEqual("2026-01-03T00:00:00Z", self.ledger.get_meta(survey._CURSOR))
+
+    def test_the_next_full_walk_resumes_from_the_cursor(self):
+        self.ledger.set_meta(survey._CURSOR, "2026-01-03T00:00:00Z")
+        with mock.patch.object(survey, "deposit_rows", return_value=iter([])) as walk:
+            survey.survey(self.ledger)
+        walk.assert_called_once_with(False, "2026-01-03T00:00:00Z")
+
+    def test_the_cursor_never_passes_an_unrecorded_group(self):
+        outcomes = {"cc/one": True, "cc/two": False, "cc/three": True}
+
+        def survey_one(ledger, path):
+            if outcomes[path]:
+                ledger.record(path, FOREIGN, agent="test")
+            return outcomes[path]
+
+        with mock.patch.object(survey, "deposit_rows", return_value=iter(self.ROWS)), \
+             mock.patch.object(survey, "_survey_one", side_effect=survey_one):
+            survey.survey(self.ledger)
+        self.assertEqual("2026-01-01T00:00:00Z", self.ledger.get_meta(survey._CURSOR),
+                         "cc/two was not recorded, so the cursor must stop before it")
+
+    def test_narrowed_and_unordered_runs_leave_the_cursor_alone(self):
+        with mock.patch.object(survey, "deposit_rows", return_value=iter(self.ROWS)), \
+             mock.patch.object(survey, "_survey_one", side_effect=self._recording()):
+            survey.survey(self.ledger, path_prefix="cc/")
+            survey.survey(self.ledger, newest_first=True, rescan=True)
+            survey.survey(self.ledger, paths=["cc/four"])
+        self.assertIsNone(self.ledger.get_meta(survey._CURSOR))
+
+
+class VerifySkippedTests(SurveyLedgerTestCase):
+    def test_sampled_rows_gain_their_true_verdict(self):
+        for n in range(5):
+            self.ledger.record(f"cc/skipped-{n}", SKIPPED, note="test")
+        with mock.patch.object(survey, "_survey_one", side_effect=self._recording()) as surveyed:
+            survey.verify_skipped(self.ledger, sample_size=3)
+        self.assertEqual(3, surveyed.call_count)
+        states = [row["state"] for row in self.ledger.in_state(FOREIGN)]
+        self.assertEqual(3, len(states))
+        self.assertEqual(2, len(self.ledger.in_state(SKIPPED)))
 
 
 class LedgerDeploymentTests(unittest.TestCase):

@@ -11,6 +11,7 @@ and the completeness cross-check is the Activity Stream, which records every cre
 Run `survey --check-completeness` to compare the two counts before trusting the list.
 """
 
+import random
 import time
 from typing import Iterator
 
@@ -18,36 +19,45 @@ from lxml import etree
 from logzero import logger
 
 from app import api, ids, settings
-from app.ledger import CANDIDATE, CONFORMS, FOREIGN, NO_METS, Ledger
+from app.ledger import CANDIDATE, CONFORMS, FOREIGN, NO_METS, SKIPPED, Ledger
 
 #: This many unreadable Archival Groups IN A ROW means the platform is down, not the groups.
 _UNREAD_RUN_LIMIT = 3
 
+#: Where the resume cursor lives in the ledger's meta table: the Created timestamp of the last
+#: deposit a full, oldest-first survey has completely dealt with. Everything at or before it is in
+#: the ledger, so the next run asks the deposits query to start there instead of at the beginning.
+_CURSOR = "deposits_cursor"
 
-def archival_group_paths(newest_first: bool = False) -> Iterator[str]:
+#: How often (in deposits) to persist the cursor while walking, so that a run killed mid-walk
+#: still keeps most of its progress.
+_CURSOR_EVERY = 200
+
+
+def deposit_rows(newest_first: bool = False,
+                 created_after: str | None = None) -> Iterator[tuple[str, str | None, str | None]]:
     """
-    Every distinct Archival Group path any deposit has ever pointed at.
-
-    A generator rather than a list, so that a caller which stops early stops the paging too. That is
-    what makes `--limit` cheap enough to use against development, where there are far more deposits
-    than anyone wants to walk to look at five Archival Groups.
+    Every deposit that names an Archival Group, as (path, created, creator slug) - in deposit
+    order, one tuple per deposit, duplicates and all. The caller decides what a path means; this
+    just turns pages into rows lazily, so a caller that stops early stops the paging too.
 
     Oldest first by default, because ascending order is stable under concurrent inserts: a deposit
     created during the walk sorts after everything already seen and cannot shift a later page
-    underneath us. `newest_first` gives up that guarantee, and is for sampling only - on development
-    the newest deposits are the ones the nightly Playwright run just made, which is usually exactly
-    what you want to test against.
+    underneath us. That is also what makes `created_after` sound as a resume point. `newest_first`
+    gives up both guarantees and is for sampling only - on development the newest deposits are the
+    ones the nightly Playwright run just made, which is usually exactly what you want.
     """
-    seen: set[str] = set()
     page = 1
     total = None
     while True:
-        result = api.list_deposits(page, settings.DEPOSIT_PAGE_SIZE, newest_first)
+        result = api.list_deposits(page, settings.DEPOSIT_PAGE_SIZE, newest_first, created_after)
         deposits = result.get("deposits", [])
         if total is None:
             total = result.get("total")
-            logger.info("Walking %s deposits, %s at a time, %s first",
-                        total, settings.DEPOSIT_PAGE_SIZE, "newest" if newest_first else "oldest")
+            logger.info("Walking %s deposits, %s at a time, %s first%s",
+                        total, settings.DEPOSIT_PAGE_SIZE,
+                        "newest" if newest_first else "oldest",
+                        f", resuming from {created_after}" if created_after else "")
         if not deposits:
             return
         for deposit in deposits:
@@ -55,9 +65,9 @@ def archival_group_paths(newest_first: bool = False) -> Iterator[str]:
             if not archival_group:
                 continue  # a deposit that never named an Archival Group
             path = _path_under_root(archival_group)
-            if path and path not in seen:
-                seen.add(path)
-                yield path
+            if path:
+                creator = deposit.get("createdBy")
+                yield path, deposit.get("created"), api.slug(creator) if creator else None
         page += 1
 
 
@@ -77,66 +87,176 @@ def survey(
     path_prefix: str | None = None,
     paths: list[str] | None = None,
     pause: float | None = None,
+    skip_creators: list[str] | None = None,
 ) -> None:
     """
     Decide, for each Archival Group, whether it needs migrating - and write that to the ledger.
 
-    Resumable: paths already in the ledger are skipped unless `rescan`, and skipped before the limit
-    counts them, so running the same `--limit 100` command again examines the next hundred rather
-    than the same hundred. Read-only against the platform; the only thing that changes is the ledger.
+    Resumable three ways over. Paths already in the ledger are not re-examined unless `rescan`, and
+    do not count against `limit`, so the same `--limit 100` command examines the next hundred each
+    time. A full, oldest-first survey also keeps a cursor - the Created timestamp of the last
+    deposit it has completely dealt with - so its next run asks the deposits query to start there
+    instead of re-paging the whole history; the cursor only ever advances past deposits whose
+    Archival Groups are actually in the ledger, is untouched by narrowed or newest-first runs, and
+    is ignored (not lost) by `rescan`. And the ledger commits after every group, so Ctrl-C loses
+    nothing. Read-only against the platform throughout.
 
-    Every narrowing here exists for the same reason - trying this against development without
-    walking the whole of it. `paths` skips the deposits query entirely and examines exactly what it
-    is given; `path_prefix` keeps only Archival Groups under one container; `limit` stops after that
-    many, and because the walk is lazy it stops the paging too.
+    `skip_creators` is what makes 100,000 Archival Groups walkable: depositor identities (bare id
+    or agent URI - the same agent differs only in URI base between environments) whose groups are
+    recorded as skipped-by-depositor WITHOUT reading their METS. It is a heuristic about the
+    depositor, not a verdict about the document, so `verify-skipped` exists to sample the skipped
+    rows and check the heuristic held; and a group gains a real verdict the moment any deposit by
+    anyone else turns up for it.
 
-    `pause` is the other kind of restraint: seconds to wait between Archival Groups. Reading one is
-    not free - see SURVEY_PAUSE_SECONDS - and the walk is otherwise as fast as the platform will
-    answer, which is not what you want alongside people doing their work.
+    Every narrowing exists for the same reason - trying this out without walking the whole of a
+    deployment. `paths` skips the deposits query entirely; `path_prefix` keeps one container;
+    `limit` stops after that many groups have actually been examined, and because the walk is lazy
+    it stops the paging too. `pause` (see SURVEY_PAUSE_SECONDS) spaces out the reads, for running
+    alongside people doing their work.
     """
     already_known = set() if rescan else ledger.known_paths()
     if pause is None:
         pause = settings.SURVEY_PAUSE_SECONDS
+    skip = _skip_slugs(skip_creators if skip_creators is not None else settings.SKIP_CREATED_BY)
+    # Skipped-by-depositor rows are the one kind of known row a walk still cares about: a deposit
+    # by anyone else upgrades them to a real verdict.
+    skipped_before = set() if rescan else {row["path"] for row in ledger.in_state(SKIPPED)}
+    already_known -= skipped_before
+
+    # The cursor is only sound for a full, oldest-first walk: a narrowed run leaves paths behind
+    # that a later full run must still reach, and newest-first breaks the ordering the cursor
+    # depends on. rescan re-examines from the beginning, so it reads no cursor and writes none.
+    use_cursor = paths is None and path_prefix is None and not newest_first and not rescan
+    cursor = ledger.get_meta(_CURSOR) if use_cursor else None
+    high_water: str | None = None
+    unpersisted = 0
+    frozen = False
+
+    def advance(created: str | None) -> None:
+        """The cursor may pass this deposit: its Archival Group is accounted for in the ledger."""
+        nonlocal high_water, unpersisted
+        if frozen or not use_cursor or created is None:
+            return
+        high_water = created
+        unpersisted += 1
+        if unpersisted >= _CURSOR_EVERY:
+            ledger.set_meta(_CURSOR, high_water)
+            unpersisted = 0
+
     examined = 0
+    skipped = 0
     unread = 0
     consecutive_unread = 0
+    dealt_with: set[str] = set()
 
-    candidates = iter(paths) if paths is not None else archival_group_paths(newest_first)
-    for path in candidates:
-        if path_prefix and not path.startswith(path_prefix):
-            continue
-        if path in already_known:
-            continue
-        if limit is not None and examined >= limit:
-            logger.info("Stopping at the requested limit of %s", limit)
-            break
-        if pause and examined:
-            # Between groups, not after the last one.
-            time.sleep(pause)
-        examined += 1
-        if _survey_one(ledger, path):
-            consecutive_unread = 0
-        else:
-            unread += 1
-            consecutive_unread += 1
-            if consecutive_unread >= _UNREAD_RUN_LIMIT:
-                # One unreadable group is that group's problem; several in a row is the
-                # platform's. Failing on through the rest would take a retry-and-timeout apiece
-                # and record nothing, so stop where we are - the ledger is committed after every
-                # group, and rerunning the same command carries on from here.
-                logger.error(
-                    "%s Archival Groups in a row could not be read, so the platform itself is "
-                    "probably struggling - stopping the survey here. Nothing was recorded for "
-                    "them; investigate, then rerun the same command to continue.",
-                    consecutive_unread)
+    candidates = (((path, None, None) for path in paths) if paths is not None
+                  else deposit_rows(newest_first, cursor))
+    try:
+        for path, created, creator in candidates:
+            if limit is not None and examined >= limit:
+                logger.info("Stopping at the requested limit of %s", limit)
                 break
+            if path_prefix and not path.startswith(path_prefix):
+                continue
+            if path in dealt_with or path in already_known:
+                advance(created)
+                continue
+            if creator is not None and creator in skip:
+                if path not in skipped_before:
+                    ledger.record(path, SKIPPED, agent="",
+                                  note=f"every deposit so far created by '{creator}'")
+                    logger.info("%s: SKIPPED - deposited by '%s', METS not read", path, creator)
+                    skipped_before.add(path)
+                    skipped += 1
+                advance(created)
+                continue
+            if path in skipped_before:
+                logger.info("%s: previously skipped by depositor, but this deposit is by '%s' - "
+                            "surveying it properly", path, creator or "an unknown creator")
+            if pause and examined:
+                # Between groups, not after the last one - and not for skips, which read nothing.
+                time.sleep(pause)
+            examined += 1
+            dealt_with.add(path)
+            if _survey_one(ledger, path):
+                consecutive_unread = 0
+                advance(created)
+            else:
+                unread += 1
+                consecutive_unread += 1
+                # Nothing was recorded for this path, so the cursor must never pass it: stop
+                # advancing for the rest of this run, however well the rest of it goes.
+                frozen = True
+                if consecutive_unread >= _UNREAD_RUN_LIMIT:
+                    # One unreadable group is that group's problem; several in a row is the
+                    # platform's. Failing on through the rest would take a retry-and-timeout
+                    # apiece and record nothing, so stop where we are - the ledger is committed
+                    # after every group, and rerunning the same command carries on from here.
+                    logger.error(
+                        "%s Archival Groups in a row could not be read, so the platform itself is "
+                        "probably struggling - stopping the survey here. Nothing was recorded for "
+                        "them; investigate, then rerun the same command to continue.",
+                        consecutive_unread)
+                    break
+    finally:
+        if use_cursor and high_water is not None and unpersisted:
+            ledger.set_meta(_CURSOR, high_water)
 
     logger.info("Examined %s Archival Group(s) this run", examined)
+    if skipped:
+        logger.info("Skipped %s Archival Group(s) by depositor without reading their METS; "
+                    "run `verify-skipped` to sample-check that heuristic", skipped)
     if unread:
         logger.warning("%s of them could not be read and are NOT in the ledger; "
                        "rerun the same command to try them again", unread)
     counts = ledger.counts()
     logger.info("Survey so far: %s", ", ".join(f"{state}={n}" for state, n in sorted(counts.items())))
+
+
+def _skip_slugs(values: list[str]) -> frozenset[str]:
+    """
+    The depositor identities to skip, as bare ids however they were spelt. createdBy comes back as
+    an agent URI whose base differs between environments, so matching the last segment is what lets
+    one configuration value ('eprints-migration-app', or either environment's URI for it) work
+    everywhere.
+    """
+    return frozenset(api.slug(value.strip()) for value in values if value and value.strip())
+
+
+def verify_skipped(ledger: Ledger, sample_size: int) -> None:
+    """
+    Sample the skipped-by-depositor rows and survey them properly, so the heuristic is measured
+    rather than trusted. Each sampled row gains its true verdict (overwriting SKIPPED); FOREIGN is
+    the heuristic holding, and anything else is shouted about - it means groups deposited by the
+    skipped identity can hold METS this migration is actually for, and the skip list should not be
+    used on this deployment.
+    """
+    rows = ledger.in_state(SKIPPED)
+    if not rows:
+        logger.info("Nothing in state '%s' to verify.", SKIPPED)
+        return
+    chosen = random.sample(rows, min(sample_size, len(rows)))
+    logger.info("Surveying %s of the %s skipped Archival Group(s) properly", len(chosen), len(rows))
+
+    outcomes: dict[str, int] = {}
+    for row in chosen:
+        path = row["path"]
+        state = ledger.get(path)["state"] if _survey_one(ledger, path) else "unread"
+        outcomes[state] = outcomes.get(state, 0) + 1
+
+    for state, count in sorted(outcomes.items()):
+        logger.info("  %s: %s", state, count)
+    surprises = {state: count for state, count in outcomes.items()
+                 if state not in (FOREIGN, "unread")}
+    if surprises:
+        logger.warning(
+            "The depositor heuristic mislabelled %s of %s sampled group(s) (%s) - groups deposited "
+            "by that identity are not reliably foreign, so survey WITHOUT --skip-created-by here.",
+            sum(surprises.values()), len(chosen),
+            ", ".join(f"{state}={count}" for state, count in sorted(surprises.items())))
+    else:
+        logger.info("The heuristic held for every sampled group: all foreign%s.",
+                    " (or unreadable this run)" if "unread" in outcomes else "")
 
 
 def _survey_one(ledger: Ledger, path: str) -> bool:

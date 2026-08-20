@@ -5,6 +5,8 @@ Bulk migration of preserved METS documents to legal xs:ID values (issue #188 ste
     python mets_id_migration.py survey                 # find what needs doing; changes nothing
     python mets_id_migration.py survey --limit 5 --newest-first    # or just look at a few
     python mets_id_migration.py survey --pause 0.5     # ...gently, on a system in use
+    python mets_id_migration.py survey --skip-created-by eprints-migration-app   # 100k-scale
+    python mets_id_migration.py verify-skipped --sample 100        # ...and check that heuristic
     python mets_id_migration.py report                 # what the ledger holds
     python mets_id_migration.py list                   # the actual list, for doing by hand
     python mets_id_migration.py migrate --dry-run      # rehearse: everything but the preserve
@@ -70,6 +72,21 @@ def main() -> int:
     survey_command.add_argument("--path", action="append", dest="paths", metavar="PATH",
                                 help="examine exactly this Archival Group and skip the deposits "
                                      "query entirely. Repeatable")
+    survey_command.add_argument("--skip-created-by", action="append", dest="skip_created_by",
+                                metavar="AGENT",
+                                help="record Archival Groups whose deposits were all created by "
+                                     "this identity as skipped-by-depositor WITHOUT reading their "
+                                     "METS - the lever that makes 100,000 EPrints groups walkable. "
+                                     "A bare id or its agent URI, e.g. eprints-migration-app. "
+                                     "Repeatable; default: SKIP_CREATED_BY in .env. Check the "
+                                     "heuristic afterwards with `verify-skipped`")
+
+    verify_skipped_command = commands.add_parser(
+        "verify-skipped",
+        help="sample the skipped-by-depositor rows and survey them properly, to check the "
+             "--skip-created-by heuristic held. Sampled rows gain their true verdict.")
+    verify_skipped_command.add_argument("--sample", type=int, default=100,
+                                        help="how many to sample (default: %(default)s)")
 
     commands.add_parser("report", help="summarise the ledger")
 
@@ -120,10 +137,15 @@ def _run(arguments, ledger: Ledger) -> int:
     if arguments.command == "survey":
         survey.survey(ledger, limit=arguments.limit, rescan=arguments.rescan,
                       newest_first=arguments.newest_first, path_prefix=arguments.path_prefix,
-                      paths=arguments.paths, pause=arguments.pause)
+                      paths=arguments.paths, pause=arguments.pause,
+                      skip_creators=arguments.skip_created_by)
         if arguments.check_completeness:
             narrowed = bool(arguments.limit or arguments.paths or arguments.path_prefix)
             survey.check_completeness(ledger, partial=narrowed)
+        return 0
+
+    if arguments.command == "verify-skipped":
+        survey.verify_skipped(ledger, arguments.sample)
         return 0
 
     if arguments.command == "report":

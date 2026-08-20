@@ -223,6 +223,35 @@ python mets_id_migration.py survey --pause 0.5
 or set `SURVEY_PAUSE_SECONDS` in `.env` so every run is paced without having to remember. Stopping
 with Ctrl-C costs nothing; the ledger is committed after each group.
 
+### Surveying production (~100,000 Archival Groups)
+
+At production's scale a naive survey is a multi-day campaign, because a verdict means reading each
+group's METS — even the ~95% that will turn out to be EPrints material. Three things bring that
+down to hours:
+
+```bash
+python mets_id_migration.py --ledger ledger-prod.sqlite survey \
+    --skip-created-by eprints-migration-app --pause 0.5
+python mets_id_migration.py --ledger ledger-prod.sqlite verify-skipped --sample 100
+```
+
+- **`--skip-created-by`** (or `SKIP_CREATED_BY` in `.env`) records a group as
+  `skipped-by-depositor` — without reading its METS — when its deposits were all created by that
+  identity. The value matches however the identity is spelt: a bare id or either environment's
+  agent URI. This is a heuristic about the depositor, not a verdict about the document, which is
+  why it gets its own ledger state; **`verify-skipped`** samples the skipped rows and surveys them
+  properly, and if any sampled group turns out not to be foreign it says, loudly, to survey without
+  the skip. A group also gains a real verdict automatically the moment any deposit by anyone else
+  turns up for it.
+- **The resume cursor.** A full, oldest-first survey remembers the Created timestamp of the last
+  deposit it dealt with (in the ledger's meta table) and asks the deposits query to start there
+  next time, instead of re-paging the whole history every sitting. The cursor never advances past
+  a group that failed to record, is untouched by narrowed or `--newest-first` runs, and is ignored
+  (not lost) by `--rescan`.
+- **Deploy the branch first.** The `?view=mets` fast path halves what each really-surveyed group
+  costs and keeps the Storage API from holding a copy of every walked group in memory for an hour
+  — worth having in place *before* a walk this long, not after.
+
 One caution about *when* to migrate, rather than how fast: the platform does not re-check an
 Archival Group's version between generating an import job and executing it, so an edit somebody
 makes to the same group in that window can be overwritten. That window is platform-wide — every

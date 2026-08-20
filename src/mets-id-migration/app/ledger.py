@@ -22,6 +22,11 @@ DONE = "done"                # migrated and verified
 NO_CHANGE = "no-change"      # normalise reported nothing to do, so nothing was preserved
 FAILED = "failed"            # see the note column
 
+#: Skipped on the depositor's identity alone, METS unread - a heuristic, not a verdict, which is
+#: why it gets its own state rather than borrowing FOREIGN: `verify-skipped` samples these, and a
+#: later deposit by anyone else upgrades one to a real verdict.
+SKIPPED = "skipped-by-depositor"
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,

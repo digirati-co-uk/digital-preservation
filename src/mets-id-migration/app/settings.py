@@ -46,6 +46,15 @@ PAUSE_SECONDS = float(os.environ.get("PAUSE_SECONDS", "1.0"))
 #: using that is fine; against production, set this (or pass --pause) so the walk leaves gaps.
 SURVEY_PAUSE_SECONDS = float(os.environ.get("SURVEY_PAUSE_SECONDS", "0"))
 
+#: Depositor identities (comma-separated; bare id or agent URI) whose Archival Groups the survey
+#: records as skipped-by-depositor WITHOUT reading their METS. The lever that makes a very large
+#: deployment surveyable: production's ~100,000 EPrints groups were deposited by
+#: eprints-migration-app and their METS is EPrints' own, which was never affected by #188. It is a
+#: heuristic about the depositor rather than a verdict about the document - `verify-skipped`
+#: samples the skipped rows to check it held. Empty by default: nothing is skipped unless asked.
+SKIP_CREATED_BY = [value.strip() for value in os.environ.get("SKIP_CREATED_BY", "").split(",")
+                   if value.strip()]
+
 #: How long to wait for one import job to finish before giving up on it.
 IMPORT_JOB_TIMEOUT_SECONDS = float(os.environ.get("IMPORT_JOB_TIMEOUT_SECONDS", "600"))
 IMPORT_JOB_POLL_SECONDS = float(os.environ.get("IMPORT_JOB_POLL_SECONDS", "5"))
