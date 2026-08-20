@@ -18,9 +18,10 @@ namespace Preservation.API.Features.ImportJobs;
 [ApiController]
 public class ImportJobsController(
     ILogger<ImportJobsController> logger,
-    IMediator mediator, 
-    ResourceMutator resourceMutator) : ControllerBase
-{    
+    IMediator mediator,
+    ResourceMutator resourceMutator,
+    IConfiguration configuration) : ControllerBase
+{
     [HttpGet("diff", Name = "GetDiffImportJob")]
     [ProducesResponseType<ImportJob>(200, "application/json")]
     [ProducesResponseType<ProblemDetails>(404, "application/json")]
@@ -78,6 +79,24 @@ public class ImportJobsController(
         CancellationToken cancellationToken)
     {
         logger.LogInformation("Import Jobs Controller: Executing Import Job {ImportJobSummary}", importJob.LogSummary());
+
+        if (importJob.SuppressActivityStreamEvent
+            && !configuration.GetValue<bool>("FeatureFlags:EnableMetsIdNormalisation"))
+        {
+            // Suppression keeps a preserved version out of the published Activity Stream, which
+            // means IIIF and every other consumer is never told to rebuild. That is right for a
+            // METS ID migration and wrong for almost anything else, so the flag is only honoured
+            // while the migration machinery it belongs to is switched on - and a caller asking for
+            // it anywhere else is refused loudly rather than silently published, which is also
+            // what protects a newer client against an older API that has never heard of the flag.
+            var message = "suppressActivityStreamEvent requires FeatureFlags:EnableMetsIdNormalisation "
+                          + "on this API. It exists for maintenance that changes how an object is "
+                          + "recorded rather than what it holds; ordinary changes must be announced.";
+            logger.LogWarning("{Message} (deposit {DepositId})", message, depositId);
+            return this.StatusResponseFromResult(
+                Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+        }
+
         var depositResult = await mediator.Send(new GetDeposit(depositId), cancellationToken);
         if (depositResult.Failure)
         {
