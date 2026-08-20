@@ -223,6 +223,13 @@ python mets_id_migration.py survey --pause 0.5
 or set `SURVEY_PAUSE_SECONDS` in `.env` so every run is paced without having to remember. Stopping
 with Ctrl-C costs nothing; the ledger is committed after each group.
 
+One caution about *when* to migrate, rather than how fast: the platform does not re-check an
+Archival Group's version between generating an import job and executing it, so an edit somebody
+makes to the same group in that window can be overwritten. That window is platform-wide — every
+preserve from the UI has it — and the migration holds it open for well under a second per group,
+but the polite habit is the same as for any maintenance: run `migrate` when nobody is editing the
+groups it is about to touch. `survey` and `list` are read-only and can run any time.
+
 ```bash
 python mets_id_migration.py migrate --dry-run             # rehearse; nothing is preserved
 python mets_id_migration.py migrate --limit 1             # then one

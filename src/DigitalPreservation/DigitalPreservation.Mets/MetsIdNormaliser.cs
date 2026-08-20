@@ -76,8 +76,16 @@ public static class MetsIdNormaliser
     /// all that survives of a legacy ID once the XmlSerializer has split an IDREFS attribute into
     /// tokens. Only IDs whose spelling does not survive that appear here.
     /// </param>
+    /// <param name="DeclaredIds">
+    /// Every ID the document declares, valid or not. What gates the collapsed tier: a token list in
+    /// which every token is itself a declared ID reads as a genuine IDREFS list, and the platform
+    /// resolves it as one, so this must not re-read it as a single legacy ID however much it looks
+    /// like the collapse of one.
+    /// </param>
     private sealed record RewritePlan(
-        Dictionary<string, string> ById, Dictionary<string, string> ByCollapsedId);
+        Dictionary<string, string> ById,
+        Dictionary<string, string> ByCollapsedId,
+        HashSet<string> DeclaredIds);
 
     /// <summary>
     /// Every ID that needs to change, old to new, with the collisions that would make the result
@@ -117,7 +125,8 @@ public static class MetsIdNormaliser
                 report.Warnings.Add($"ID '{id}' is used by more than one element; nothing was rewritten");
             }
             return new RewritePlan(new Dictionary<string, string>(StringComparer.Ordinal),
-                                   new Dictionary<string, string>(StringComparer.Ordinal));
+                                   new Dictionary<string, string>(StringComparer.Ordinal),
+                                   existing);
         }
 
         var rewrites = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -139,7 +148,7 @@ public static class MetsIdNormaliser
         report.Rewrites.AddRange(rewrites
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)
             .Select(pair => new MetsIdRewrite { From = pair.Key, To = pair.Value }));
-        return new RewritePlan(rewrites, IndexByCollapsedId(rewrites, report));
+        return new RewritePlan(rewrites, IndexByCollapsedId(rewrites, report), existing);
     }
 
     /// <summary>
@@ -312,9 +321,13 @@ public static class MetsIdNormaliser
         var rewrites = plan.ById;
         var joined = IdRefs.Joined(tokens);
         // Exactly as spelt first, then - only for the IDs whose spelling an IDREFS round trip
-        // destroys - by the collapsed form, which is all the attribute can still tell us.
+        // destroys - by the collapsed form, which is all the attribute can still tell us. The
+        // collapsed tier is further gated: a list in which every token is itself a declared ID is
+        // a genuine IDREFS list, and the platform resolves it as one, so it must not be re-read as
+        // a single legacy ID however much it looks like the collapse of one.
         if (rewrites.TryGetValue(joined, out var mappedWhole)
-            || plan.ByCollapsedId.TryGetValue(joined, out mappedWhole))
+            || (plan.ByCollapsedId.TryGetValue(joined, out mappedWhole)
+                && !tokens.All(plan.DeclaredIds.Contains)))
         {
             tokens.Clear();
             tokens.Add(mappedWhole);

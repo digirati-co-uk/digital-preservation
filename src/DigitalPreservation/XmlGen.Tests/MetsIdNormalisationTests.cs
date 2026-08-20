@@ -635,6 +635,38 @@ public class MetsIdNormalisationTests
     }
 
     [Fact]
+    public async Task A_Genuine_List_Is_Not_Mistaken_For_The_Collapse_Of_A_Spaced_Id()
+    {
+        // The pathological cousin of the two-space case. The document declares a legacy ID whose
+        // collapsed spelling happens to equal a genuine list of two other declared IDs. The
+        // platform's resolver reads that list per token - every token is declared - so the
+        // normaliser must not re-read it as the legacy ID, even though the collapsed lookup matches.
+        var metsUri = EditedFixture("normalise-collapse-collision.xml", doc =>
+        {
+            var mets = doc.Root!;
+            var firstAmdSec = doc.Descendants(MetsNs + "amdSec").First();
+            firstAmdSec.AddBeforeSelf(
+                new XElement(MetsNs + "amdSec", new XAttribute("ID", "ADM_ledger  notes")),
+                new XElement(MetsNs + "amdSec", new XAttribute("ID", "ADM_ledger")),
+                new XElement(MetsNs + "amdSec", new XAttribute("ID", "notes")));
+            doc.Descendants(MetsNs + "div")
+                .Single(d => d.Attribute("ID")!.Value == "PHYS_objects/my great file.pdf")
+                .SetAttributeValue("ADMID", "ADM_ledger notes");
+        });
+
+        await NormaliseInPlace(metsUri);
+
+        var doc2 = XDocument.Load(metsUri.LocalPath);
+        doc2.Descendants(MetsNs + "div")
+            .Single(d => (string?)d.Attribute("ID") == MetsIds.Phys("objects/my great file.pdf"))
+            .Attribute("ADMID")!.Value.Should().Be("ADM_ledger notes",
+                "every token is a declared ID, so this is a list and must stay one");
+        doc2.Descendants(MetsNs + "amdSec").Select(a => (string?)a.Attribute("ID"))
+            .Should().Contain(MetsIds.Normalise("ADM_ledger  notes"),
+                "the spaced ID itself is still normalised");
+    }
+
+    [Fact]
     public async Task A_Document_With_The_Same_Id_On_Two_Elements_Is_Refused()
     {
         // Already invalid, and a rewrite maps an ID rather than an element - so both would take the

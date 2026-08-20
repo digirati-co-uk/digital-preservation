@@ -429,7 +429,10 @@ public class DepositModel(
         }
         else
         {
-            TempData[TempDataError] = result.ErrorMessage;
+            // Encoded for the same reason as the warning above: the banner renders with Html.Raw,
+            // and this error can quote IDs verbatim from the document - the duplicate-ID refusal
+            // does exactly that, and an XML ID can contain markup via entity escapes.
+            TempData[TempDataError] = WebUtility.HtmlEncode(result.ErrorMessage);
         }
 
         return Redirect($"/deposits/{id}");
