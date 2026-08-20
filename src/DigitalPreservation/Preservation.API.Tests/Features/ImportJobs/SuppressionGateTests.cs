@@ -51,15 +51,65 @@ public class SuppressionGateTests
     }
 
     [Fact]
-    public async Task Suppression_Passes_The_Gate_When_The_Migration_Flag_Is_On()
+    public async Task A_Suppressed_Mets_Only_Patch_Passes_The_Gate_When_The_Flag_Is_On()
     {
         var mediator = A.Fake<IMediator>();
         var controller = Controller(mediator, migrationFlagOn: true);
 
-        await controller.ExecuteImportJob(
-            "dep-1", new ImportJob { SuppressActivityStreamEvent = true }, default);
+        await controller.ExecuteImportJob("dep-1", MetsOnlyJob(suppress: true), default);
 
         A.CallTo(() => mediator.Send(A<GetDeposit>._, A<CancellationToken>._)).MustHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Suppressed_Job_That_Changes_Content_Is_Refused_Even_With_The_Flag_On()
+    {
+        // The flag says WHEN suppression may be used; this says WHAT FOR. A suppressed content
+        // change would preserve a real new version that IIIF is never told to rebuild from - and
+        // until now the only thing preventing it was the migration tool's client-side check.
+        var mediator = A.Fake<IMediator>();
+        var controller = Controller(mediator, migrationFlagOn: true);
+        var job = MetsOnlyJob(suppress: true);
+        job.BinariesToAdd.Add(new DigitalPreservation.Common.Model.Binary
+        {
+            Id = new Uri("https://preservation.test/repository/cc/thing/objects/new.pdf")
+        });
+
+        var result = await controller.ExecuteImportJob("dep-1", job, default);
+
+        var problem = result.Should().BeOfType<ObjectResult>()
+            .Which.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(400);
+        problem.Detail.Should().Contain("adds, deletes or renames");
+        A.CallTo(() => mediator.Send(A<GetDeposit>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Suppressed_Patch_Of_A_Non_Mets_Binary_Is_Refused()
+    {
+        var mediator = A.Fake<IMediator>();
+        var controller = Controller(mediator, migrationFlagOn: true);
+        var job = new ImportJob { SuppressActivityStreamEvent = true };
+        job.BinariesToPatch.Add(new DigitalPreservation.Common.Model.Binary
+        {
+            Id = new Uri("https://preservation.test/repository/cc/thing/objects/report.pdf")
+        });
+
+        var result = await controller.ExecuteImportJob("dep-1", job, default);
+
+        result.Should().BeOfType<ObjectResult>()
+            .Which.Value.Should().BeOfType<ProblemDetails>()
+            .Which.Detail.Should().Contain("not a METS file");
+    }
+
+    private static ImportJob MetsOnlyJob(bool suppress)
+    {
+        var job = new ImportJob { SuppressActivityStreamEvent = suppress };
+        job.BinariesToPatch.Add(new DigitalPreservation.Common.Model.Binary
+        {
+            Id = new Uri("https://preservation.test/repository/cc/thing/mets.xml")
+        });
+        return job;
     }
 
     private static ImportJobsController Controller(IMediator mediator, bool migrationFlagOn)

@@ -19,6 +19,12 @@ from app import settings
 
 _confidential_client = None
 
+#: One session for the whole run, so a 100,000-group walk reuses pooled connections instead of
+#: paying TCP and TLS setup on every request. The retry loop stays hand-rolled rather than moving
+#: to urllib3's Retry: ours is GET-only by construction (a retried POST could preserve a version
+#: twice) and logs each attempt, which is most of why it exists.
+_session = requests.Session()
+
 
 #: Statuses worth another try on a GET: the request never reached the application (a gateway
 #: answered for it), or the application explicitly asked us to come back.
@@ -81,7 +87,7 @@ def _request(method: str, path: str, what: str, **kwargs) -> requests.Response:
         if headers_extra:
             headers.update(headers_extra)
         try:
-            response = requests.request(
+            response = _session.request(
                 method, url, headers=headers, timeout=settings.HTTP_TIMEOUT_SECONDS, **kwargs)
         except requests.RequestException as error:
             # No response at all: a timeout, a dropped connection, DNS. Transient more often than

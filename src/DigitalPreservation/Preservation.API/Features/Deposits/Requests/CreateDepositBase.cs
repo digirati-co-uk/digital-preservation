@@ -358,7 +358,17 @@ public class CreateDepositBase(
 
         var dirForMets = deposit.Template == TemplateType.BagIt ? dir.ToRootLayout() : dir;
 
-        await metsManager.HandleCreateFolder(deposit.Files!, dirForMets, deposit.MetsETag!);
+        var result = await metsManager.HandleCreateFolder(deposit.Files!, dirForMets, deposit.MetsETag!);
+        if (result.Failure)
+        {
+            // A write failure here used to be silently discarded, leaving a deposit that reports
+            // as created while its METS is missing the folder entries it should have. The deposit
+            // is still usable, so this stays a loud log rather than failing the creation - but it
+            // must not be invisible.
+            logger.LogError(
+                "Could not add folder {FolderName} to the METS of new deposit {DepositFiles}: {CodeAndMessage}",
+                folderName, deposit.Files, result.CodeAndMessage());
+        }
     }
 
 }

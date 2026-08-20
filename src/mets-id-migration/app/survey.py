@@ -367,15 +367,18 @@ def check_completeness(ledger: Ledger, partial: bool = False) -> None:
         page = api.activity_page(page_number)
         for activity in page.get("orderedItems", []):
             object_id = activity.get("object", {}).get("id")
-            if object_id:
-                from_stream.add(_path_under_root(object_id))
+            path = _path_under_root(object_id) if object_id else None
+            if path:
+                # Only real paths: an object id with no /repository/ segment would otherwise
+                # inflate the count this function prints, which exists to be compared.
+                from_stream.add(path)
         if not page.get("next"):
             break
         page_number += 1
 
     logger.info("Archival Groups known from deposits: %s", from_deposits)
     logger.info("Archival Groups mentioned in the activity stream: %s", len(from_stream))
-    missing = {path for path in from_stream if path} - ledger.known_paths()
+    missing = from_stream - ledger.known_paths()
     if missing:
         logger.warning("%s Archival Group(s) appear in the stream but not in the survey, e.g. %s",
                        len(missing), sorted(missing)[:5])

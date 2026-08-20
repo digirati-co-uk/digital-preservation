@@ -208,14 +208,14 @@ class RequestRetryTests(unittest.TestCase):
 
     def test_a_get_that_times_out_is_retried_and_can_then_succeed(self):
         happy = _response(200)
-        with mock.patch.object(requests, "request",
+        with mock.patch.object(api._session, "request",
                                side_effect=[requests.ReadTimeout("read timed out"), happy]) as sent:
             result = api._request("GET", "/deposits", "Could not list deposits")
         self.assertIs(happy, result)
         self.assertEqual(2, sent.call_count)
 
     def test_a_get_that_keeps_failing_reports_what_it_was_doing_and_where(self):
-        with mock.patch.object(requests, "request",
+        with mock.patch.object(api._session, "request",
                                side_effect=requests.ReadTimeout("read timed out")) as sent:
             with self.assertRaises(api.ApiError) as failed:
                 api._request("GET", "/repository/cc/thing", "Could not read METS for cc/thing")
@@ -228,7 +228,7 @@ class RequestRetryTests(unittest.TestCase):
         self.assertIsNone(failed.exception.status_code, "there was no response to have a status")
 
     def test_a_gateway_error_on_a_get_is_retried(self):
-        with mock.patch.object(requests, "request",
+        with mock.patch.object(api._session, "request",
                                side_effect=[_response(503), _response(200)]) as sent:
             api._request("GET", "/deposits", "Could not list deposits")
         self.assertEqual(2, sent.call_count)
@@ -236,14 +236,14 @@ class RequestRetryTests(unittest.TestCase):
     def test_a_post_is_never_retried(self):
         # A timed-out POST may have been processed anyway; repeating it could preserve a version
         # twice. One attempt, and a report that says everything needed to investigate first.
-        with mock.patch.object(requests, "request",
+        with mock.patch.object(api._session, "request",
                                side_effect=requests.ConnectionError("connection lost")) as sent:
             with self.assertRaises(api.ApiError):
                 api._request("POST", "/deposits", "Could not create deposit")
         self.assertEqual(1, sent.call_count)
 
     def test_a_refusal_carries_the_status_and_the_body(self):
-        with mock.patch.object(requests, "request", return_value=_response(404, "no such thing")):
+        with mock.patch.object(api._session, "request", return_value=_response(404, "no such thing")):
             with self.assertRaises(api.ApiError) as failed:
                 api._request("GET", "/repository/cc/gone", "Could not read METS for cc/gone")
         self.assertEqual(404, failed.exception.status_code)
@@ -501,14 +501,14 @@ class IfMatchTests(unittest.TestCase):
     def test_normalise_sends_the_deposits_mets_etag_as_if_match(self):
         response = mock.Mock(ok=True, status_code=200)
         response.json.return_value = {"changed": False}
-        with mock.patch.object(requests, "request", return_value=response) as sent:
+        with mock.patch.object(api._session, "request", return_value=response) as sent:
             api.normalise_mets_ids("dep-1", "etag-abc")
         self.assertEqual("etag-abc", sent.call_args.kwargs["headers"]["If-Match"])
 
     def test_no_etag_sends_no_if_match(self):
         response = mock.Mock(ok=True, status_code=200)
         response.json.return_value = {"changed": False}
-        with mock.patch.object(requests, "request", return_value=response) as sent:
+        with mock.patch.object(api._session, "request", return_value=response) as sent:
             api.normalise_mets_ids("dep-1", None)
         self.assertNotIn("If-Match", sent.call_args.kwargs["headers"])
 
