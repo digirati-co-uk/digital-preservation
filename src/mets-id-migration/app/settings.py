@@ -62,6 +62,12 @@ SUPPRESS_ACTIVITY_STREAM_EVENT = \
 #: Requests timeout, seconds. Exporting a METS can take a moment on a large Archival Group.
 HTTP_TIMEOUT_SECONDS = float(os.environ.get("HTTP_TIMEOUT_SECONDS", "120"))
 
+#: How many extra tries a GET gets when it times out or hits a gateway error (502/503/504/429),
+#: and how long to wait between tries. Only GETs are retried - they are safe to repeat, where a
+#: retried POST could create a deposit or preserve a version twice.
+HTTP_RETRIES = int(os.environ.get("HTTP_RETRIES", "2"))
+HTTP_RETRY_PAUSE_SECONDS = float(os.environ.get("HTTP_RETRY_PAUSE_SECONDS", "5"))
+
 
 def check() -> list[str]:
     """Configuration problems that would make the tool fail later and less clearly."""

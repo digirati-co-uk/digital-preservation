@@ -15,10 +15,13 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
+from unittest import mock
+
+import requests
 
 from lxml import etree
 
-from app import ids
+from app import api, ids, settings, survey
 from app.ledger import CANDIDATE, DEPLOYMENT, Ledger, WrongDeployment
 
 SAMPLES = os.path.join(os.path.dirname(__file__), "..", "DigitalPreservation", "XmlGen.Tests", "Samples")
@@ -186,6 +189,101 @@ class SampleCorpusTests(unittest.TestCase):
             offenders = set(ids.offending_characters(ids.invalid_ids(document)).split())
             self.assertTrue(offenders <= {"/", "SPACE", "(", ")", "&"},
                             f"{os.path.basename(path)} has unexpected offenders: {offenders}")
+
+
+def _response(status_code: int, text: str = "") -> mock.Mock:
+    return mock.Mock(spec=requests.Response, status_code=status_code, text=text,
+                     ok=200 <= status_code < 300)
+
+
+@mock.patch.object(settings, "HTTP_RETRY_PAUSE_SECONDS", 0)
+@mock.patch.object(settings, "HTTP_RETRIES", 2)
+class RequestRetryTests(unittest.TestCase):
+    """
+    What one failed HTTP request turns into. A survey of thousands of Archival Groups will meet a
+    timeout eventually, and what matters is that the failure says what was being attempted (so it
+    can be investigated), that a safe request is retried, and that an unsafe one never is.
+    """
+
+    def test_a_get_that_times_out_is_retried_and_can_then_succeed(self):
+        happy = _response(200)
+        with mock.patch.object(requests, "request",
+                               side_effect=[requests.ReadTimeout("read timed out"), happy]) as sent:
+            result = api._request("GET", "/deposits", "Could not list deposits")
+        self.assertIs(happy, result)
+        self.assertEqual(2, sent.call_count)
+
+    def test_a_get_that_keeps_failing_reports_what_it_was_doing_and_where(self):
+        with mock.patch.object(requests, "request",
+                               side_effect=requests.ReadTimeout("read timed out")) as sent:
+            with self.assertRaises(api.ApiError) as failed:
+                api._request("GET", "/repository/cc/thing", "Could not read METS for cc/thing")
+        self.assertEqual(3, sent.call_count, "one try plus HTTP_RETRIES")
+        message = str(failed.exception)
+        self.assertIn("Could not read METS for cc/thing", message)
+        self.assertIn("ReadTimeout", message)
+        self.assertIn("GET", message)
+        self.assertIn("/repository/cc/thing", message)
+        self.assertIsNone(failed.exception.status_code, "there was no response to have a status")
+
+    def test_a_gateway_error_on_a_get_is_retried(self):
+        with mock.patch.object(requests, "request",
+                               side_effect=[_response(503), _response(200)]) as sent:
+            api._request("GET", "/deposits", "Could not list deposits")
+        self.assertEqual(2, sent.call_count)
+
+    def test_a_post_is_never_retried(self):
+        # A timed-out POST may have been processed anyway; repeating it could preserve a version
+        # twice. One attempt, and a report that says everything needed to investigate first.
+        with mock.patch.object(requests, "request",
+                               side_effect=requests.ConnectionError("connection lost")) as sent:
+            with self.assertRaises(api.ApiError):
+                api._request("POST", "/deposits", "Could not create deposit")
+        self.assertEqual(1, sent.call_count)
+
+    def test_a_refusal_carries_the_status_and_the_body(self):
+        with mock.patch.object(requests, "request", return_value=_response(404, "no such thing")):
+            with self.assertRaises(api.ApiError) as failed:
+                api._request("GET", "/repository/cc/gone", "Could not read METS for cc/gone")
+        self.assertEqual(404, failed.exception.status_code)
+        self.assertIn("no such thing", str(failed.exception))
+
+
+class SurveyReadFailureTests(unittest.TestCase):
+    """
+    A failed read is not a verdict. The ledger skips paths it already knows, so recording a
+    timeout would make the transient permanent - and three failures in a row means the platform
+    is down, at which point carrying on is a retry-and-timeout per group for nothing.
+    """
+
+    def setUp(self):
+        self.directory = tempfile.mkdtemp()
+        self.ledger = Ledger(os.path.join(self.directory, "ledger.sqlite"), "https://dev.example")
+
+    def tearDown(self):
+        self.ledger.close()
+        shutil.rmtree(self.directory, ignore_errors=True)
+
+    def test_a_timeout_records_nothing_so_a_rerun_tries_again(self):
+        with mock.patch.object(api, "get_archival_group_mets",
+                               side_effect=api.ApiError("Could not read METS", "ReadTimeout")):
+            survey.survey(self.ledger, paths=["cc/timed-out"])
+        self.assertEqual(set(), self.ledger.known_paths())
+
+    def test_a_404_is_a_verdict_and_is_recorded(self):
+        error = api.ApiError("Could not read METS", "HTTP 404", status_code=404)
+        with mock.patch.object(api, "get_archival_group_mets", side_effect=error):
+            survey.survey(self.ledger, paths=["cc/no-mets"])
+        self.assertEqual({"cc/no-mets"}, self.ledger.known_paths())
+
+    def test_a_run_of_failures_stops_the_survey(self):
+        paths = [f"cc/down-{n}" for n in range(10)]
+        with mock.patch.object(api, "get_archival_group_mets",
+                               side_effect=api.ApiError("Could not read METS", "down")) as read:
+            survey.survey(self.ledger, paths=paths)
+        self.assertEqual(survey._UNREAD_RUN_LIMIT, read.call_count,
+                         "the survey should stop at the limit, not fail through all ten")
+        self.assertEqual(set(), self.ledger.known_paths())
 
 
 class LedgerDeploymentTests(unittest.TestCase):

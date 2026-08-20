@@ -20,13 +20,22 @@ from app import settings
 _confidential_client = None
 
 
-class ApiError(RuntimeError):
-    """A request the API refused. Carries enough to say what happened without a traceback."""
+#: Statuses worth another try on a GET: the request never reached the application (a gateway
+#: answered for it), or the application explicitly asked us to come back.
+_RETRYABLE_STATUSES = frozenset({429, 502, 503, 504})
 
-    def __init__(self, what: str, response: requests.Response):
-        detail = response.text[:500] if response.text else ""
-        super().__init__(f"{what}: HTTP {response.status_code} {detail}")
-        self.status_code = response.status_code
+
+class ApiError(RuntimeError):
+    """
+    A request that failed - refused by the API, or never completing at all. The message carries
+    what was being attempted, the method and URL, and what came back, so that one log line is
+    enough to investigate with; rerunning the command is the retry.
+    """
+
+    def __init__(self, what: str, detail: str, status_code: int | None = None):
+        super().__init__(f"{what}: {detail}")
+        #: The HTTP status, or None when there was no response at all (timeout, connection lost).
+        self.status_code = status_code
 
 
 def _headers() -> dict[str, str]:
@@ -55,11 +64,48 @@ def _url(path: str) -> str:
 
 
 def _request(method: str, path: str, what: str, **kwargs) -> requests.Response:
-    response = requests.request(
-        method, _url(path), headers=_headers(), timeout=settings.HTTP_TIMEOUT_SECONDS, **kwargs)
-    if not response.ok:
-        raise ApiError(what, response)
-    return response
+    """
+    One request, with retries where a retry is safe.
+
+    Only a GET is retried. A GET can be repeated freely; a timed-out POST may have been processed
+    despite the timeout, and repeating it could create a second deposit or execute an import job
+    twice. So a POST that fails is reported once, with everything needed to investigate before
+    anyone tries it again - which for every POST this tool makes is a matter of reading the ledger
+    and the deposit, not of guessing.
+    """
+    url = _url(path)
+    attempts = 1 + (settings.HTTP_RETRIES if method == "GET" else 0)
+    for attempt in range(1, attempts + 1):
+        try:
+            response = requests.request(
+                method, url, headers=_headers(), timeout=settings.HTTP_TIMEOUT_SECONDS, **kwargs)
+        except requests.RequestException as error:
+            # No response at all: a timeout, a dropped connection, DNS. Transient more often than
+            # not, so say exactly what was happening and (on a GET) try again.
+            failure = f"{type(error).__name__}: {error}"
+            if attempt < attempts:
+                _wait_to_retry(what, method, url, failure, attempt, attempts)
+                continue
+            raise ApiError(what, f"{failure} ({method} {url})") from error
+
+        if response.status_code in _RETRYABLE_STATUSES and attempt < attempts:
+            _wait_to_retry(what, method, url, f"HTTP {response.status_code}", attempt, attempts)
+            continue
+        if not response.ok:
+            detail = f"HTTP {response.status_code} ({method} {url})"
+            if response.text:
+                detail += f" {response.text[:500]}"
+            raise ApiError(what, detail, response.status_code)
+        return response
+
+    raise AssertionError("unreachable: the loop either returns or raises")
+
+
+def _wait_to_retry(what: str, method: str, url: str, failure: str, attempt: int, attempts: int) -> None:
+    logger.warning("%s: %s (%s %s) - attempt %s of %s failed, retrying in %ss",
+                   what, failure, method, url, attempt, attempts,
+                   settings.HTTP_RETRY_PAUSE_SECONDS)
+    time.sleep(settings.HTTP_RETRY_PAUSE_SECONDS)
 
 
 # ---------------------------------------------------------------------------

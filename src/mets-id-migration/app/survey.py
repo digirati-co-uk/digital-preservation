@@ -20,6 +20,9 @@ from logzero import logger
 from app import api, ids, settings
 from app.ledger import CANDIDATE, CONFORMS, FOREIGN, NO_METS, Ledger
 
+#: This many unreadable Archival Groups IN A ROW means the platform is down, not the groups.
+_UNREAD_RUN_LIMIT = 3
+
 
 def archival_group_paths(newest_first: bool = False) -> Iterator[str]:
     """
@@ -95,6 +98,8 @@ def survey(
     if pause is None:
         pause = settings.SURVEY_PAUSE_SECONDS
     examined = 0
+    unread = 0
+    consecutive_unread = 0
 
     candidates = iter(paths) if paths is not None else archival_group_paths(newest_first)
     for path in candidates:
@@ -109,31 +114,56 @@ def survey(
             # Between groups, not after the last one.
             time.sleep(pause)
         examined += 1
-        _survey_one(ledger, path)
+        if _survey_one(ledger, path):
+            consecutive_unread = 0
+        else:
+            unread += 1
+            consecutive_unread += 1
+            if consecutive_unread >= _UNREAD_RUN_LIMIT:
+                # One unreadable group is that group's problem; several in a row is the
+                # platform's. Failing on through the rest would take a retry-and-timeout apiece
+                # and record nothing, so stop where we are - the ledger is committed after every
+                # group, and rerunning the same command carries on from here.
+                logger.error(
+                    "%s Archival Groups in a row could not be read, so the platform itself is "
+                    "probably struggling - stopping the survey here. Nothing was recorded for "
+                    "them; investigate, then rerun the same command to continue.",
+                    consecutive_unread)
+                break
 
     logger.info("Examined %s Archival Group(s) this run", examined)
+    if unread:
+        logger.warning("%s of them could not be read and are NOT in the ledger; "
+                       "rerun the same command to try them again", unread)
     counts = ledger.counts()
     logger.info("Survey so far: %s", ", ".join(f"{state}={n}" for state, n in sorted(counts.items())))
 
 
-def _survey_one(ledger: Ledger, path: str) -> None:
+def _survey_one(ledger: Ledger, path: str) -> bool:
+    """
+    Examine one Archival Group and record the verdict. Returns False when the group could not be
+    read at all - in which case NOTHING is recorded, deliberately: the ledger holds verdicts about
+    documents, and a timeout is not one. Recording it would make a transient failure permanent,
+    because a rerun skips paths it already knows.
+    """
     try:
         mets_xml = api.get_archival_group_mets(path)
     except api.ApiError as error:
         if error.status_code == 404:
             ledger.record(path, NO_METS, note="No METS in this Archival Group")
             logger.info("%s: NO METS - the Archival Group has no METS file", path)
-            return
-        ledger.record(path, NO_METS, note=str(error))
-        logger.warning("%s: %s", path, error)
-        return
+            return True
+        logger.warning("%s: could not read its METS, so it is NOT recorded - "
+                       "rerunning the survey will try it again. %s", path, error)
+        return False
 
     try:
         root = ids.parse(mets_xml)
     except etree.XMLSyntaxError as error:
+        # Unlike a failed read, this IS a verdict about the document, so it is recorded.
         ledger.record(path, NO_METS, note=f"METS is not well-formed XML: {error}")
         logger.warning("%s: METS is not well-formed XML", path)
-        return
+        return True
 
     # Every verdict is logged, not just the interesting one. "Examined 1, foreign=1" tells you the
     # answer without telling you the reason, and the reason is the whole point of the survey.
@@ -144,19 +174,20 @@ def _survey_one(ledger: Ledger, path: str) -> None:
         ledger.record(path, FOREIGN, agent=agent or "")
         logger.info("%s: FOREIGN - METS created by %s, so not ours to migrate",
                     path, f"'{agent}'" if agent else "nobody (no CREATOR agent in the METS header)")
-        return
+        return True
 
     invalid = ids.invalid_ids(root)
     if not invalid:
         ledger.record(path, CONFORMS, agent=agent)
         logger.info("%s: CONFORMS - ours, and every ID is already a legal xs:ID", path)
-        return
+        return True
 
     offenders = ids.offending_characters(invalid)
     ledger.record(path, CANDIDATE, agent=agent, invalid_id_count=len(invalid),
                   invalid_id_sample=invalid[0], invalid_id_chars=offenders)
     logger.info("%s: CANDIDATE - %s invalid ID(s) [%s], e.g. %s",
                 path, len(invalid), offenders, invalid[0])
+    return True
 
 
 def check_completeness(ledger: Ledger, partial: bool = False) -> None:

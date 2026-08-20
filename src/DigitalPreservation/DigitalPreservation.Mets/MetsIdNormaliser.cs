@@ -289,7 +289,7 @@ public static class MetsIdNormaliser
 
     private static string RewriteSingle(
         string value,
-        IReadOnlyDictionary<string, string> rewrites,
+        Dictionary<string, string> rewrites,
         string attribute,
         MetsIdNormalisationReport report)
     {
