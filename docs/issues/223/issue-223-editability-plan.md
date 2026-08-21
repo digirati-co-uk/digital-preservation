@@ -203,19 +203,61 @@ conversation is had.
 
 ### Phase 4 — platform changes (later, gated)
 
-Gated on: #232 bedded in on dev **and** prod; all migrations run; new by-hand items healthy; Leeds
-agreement on Phase 2. Then, in the platform:
+*(Rewritten 2026-08-21, after Phases 1–3 delivered and the prerequisites they surfaced.)*
 
-- the reading tolerances (case-insensitive TYPE, untyped-as-physical, untyped-fptr-div-as-Item)
-  **together with** the deposit-relative guard — never one without the other;
-- the agent-equality gate (`MetsParser`, `FileSystemMetsStorage`, `S3MetsStorage`) replaced by the
-  judge's verdict;
-- `MetsManager` taught the on-save restructure;
-- the normalise endpoint (`POST /deposits/{id}/mets/normalise`) consults the judge — closing the
-  gap recorded on #223 that it is currently the one mutation that asks nothing at all;
-- the parked conformance-backlog findings from #223 (dangling DMDID by design, mdSec-level ADMID
-  absent from the survival index, cache-resolves-across-fileGrps vs `SetFileAndFileGroup`) resolved
-  or explicitly ruled on by the profile.
+**Gates — all must hold before any Phase 4 behaviour ships:**
+
+1. #232 bedded in on dev **and** prod; the dev (2,430) and prod (139) migration campaigns run;
+   new by-hand items demonstrably healthy.
+2. Leeds agreement on RFC 008 (the Phase 2 decision paper in the docs repo).
+
+**Prerequisite fixes** — parser/platform work the wiring depends on. These can merge earlier and
+independently; each was found by measuring the judge against the real machinery:
+
+- **#236** — `MetsParser` reads any `premis:storage` regardless of `storageMedium`, and throws on
+  two. An edited-then-exported EPrints item contains exactly two, so this crashes the parser the
+  moment editing is enabled.
+- **#237** — EPrints record identifiers (including the `id.library.leeds.ac.uk` PID) sit in the
+  METS namespace and are invisible to the parser.
+- **Audit M10** — the parser reads only the *first-resolving* dmdSec of a div's DMDID. The
+  agreed foreign-dmdSec rule (edit = append a platform dmdSec ID to the IDREFS) depends on
+  effective-metadata resolution reading every resolved section.
+- **Audit P5** — `MetsManager` overwrites a shared dmdSec in place. The judge refuses such
+  documents meanwhile (`SHARED_DMDSEC`), but the platform-side guard should exist regardless.
+- Recommended in the same tranche: the audit's degrade-don't-crash items (P6, P7, P8) — the
+  judge guards P7 and aligns with P6, but the parser hardening stands on its own.
+
+**The wiring, in order:**
+
+1. **Reading tolerances** into the editing stack's path cache (`MetsCache`): case-insensitive
+   `TYPE`, untyped-as-physical, untyped-fptr-div-as-Item — **together with** the deposit-relative
+   guard, never one without the other. Measure before/after with the #227 survey harness; the
+   measured table is the acceptance test.
+2. **The judge into the platform**: `DigitalPreservation.Mets.Conformance` consumed by the
+   Preservation API; the agent-equality gate replaced by the verdict at its three sites
+   (`MetsParser.Editable`, `FileSystemMetsStorage`, `S3MetsStorage`); and the read-only
+   "judge this document" endpoint/UI panel #223 originally asked for — nearly free once the
+   library is wired in.
+3. **The restructure-on-first-save** in `MetsManager`, implemented against the judge's own
+   mutation dry-run list (the seven steps in CONTRACT.md: type the structMap, root and item
+   divs; materialise the `objects` div and re-parent; consolidate fileGrps into OBJECTS; wrap
+   bare mdWrap payloads in `mets:xmlData` — the payload-preserved-verbatim promise needs its own
+   tests, since a naive typed round trip silently drops exactly that content; append the
+   platform agent), plus the foreign-dmdSec append rule.
+4. **The normalise endpoint** (`POST /deposits/{id}/mets/normalise`) consults the judge —
+   closing the gap that it is currently the one mutation that asks nothing at all.
+5. **Feature-flagged rollout**: dev first; replay the twelve production sample documents;
+   validate RFC 008's worked example end-to-end (apply a rights statement to an EPrints item on
+   dev and verify every survival guarantee against the before/after documents).
+
+**Phase 4's acceptance principle**, learned from the #238 review: *the judge must never be more
+tolerant than the machinery it vouches for.* Any document the judge certifies must round-trip
+parse → edit → save → parse without loss or error; agreement tests between the judge and the
+platform are part of the wiring, not an afterthought.
+
+Also to resolve or explicitly rule on: the parked conformance-backlog findings from #223
+(dangling DMDID by design, mdSec-level ADMID absent from the survival index,
+cache-resolves-across-fileGrps vs `SetFileAndFileGroup`).
 
 ### Deliberately not coupled: library extraction
 
