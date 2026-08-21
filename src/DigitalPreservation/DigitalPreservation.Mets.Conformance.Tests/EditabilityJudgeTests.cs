@@ -366,6 +366,70 @@ public class EditabilityJudgeTests
         judgement.Mutations.Should().NotContain(m => m.StartsWith("wrap the payload"));
     }
 
+    private static Judgement PlatformLike(string algorithm = "SHA256")
+    {
+        return Build(
+            header: """
+                <mets:metsHdr><mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+                <mets:name>University of Leeds Digital Library Infrastructure Project</mets:name>
+                </mets:agent></mets:metsHdr>
+                """,
+            amdSec: $"""
+                <mets:amdSec ID="ADM_objects_x002F_a.jpg">
+                <mets:techMD ID="TECH_objects_x002F_a.jpg">
+                <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
+                <premis:objectCharacteristics><premis:fixity>
+                <premis:messageDigestAlgorithm>{algorithm}</premis:messageDigestAlgorithm>
+                <premis:messageDigest>abc</premis:messageDigest>
+                </premis:fixity></premis:objectCharacteristics>
+                <premis:originalName>objects/a.jpg</premis:originalName>
+                </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>
+                """,
+            fileSec: """
+                <mets:fileSec><mets:fileGrp USE="OBJECTS">
+                <mets:file ID="FILE_objects_x002F_a.jpg" ADMID="ADM_objects_x002F_a.jpg">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/a.jpg"/>
+                </mets:file></mets:fileGrp></mets:fileSec>
+                """,
+            structMap: """
+                <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_ROOT" LABEL="__ROOT" TYPE="Directory">
+                <mets:div ID="PHYS_objects_x002F_a.jpg" LABEL="a.jpg" TYPE="Item">
+                <mets:fptr FILEID="FILE_objects_x002F_a.jpg"/></mets:div>
+                </mets:div></mets:structMap>
+                """);
+    }
+
+    [Fact]
+    public void The_Smallest_Platform_Document_Is_Editable()
+    {
+        PlatformLike().Verdict.Should().Be(Verdicts.Editable);
+    }
+
+    [Fact]
+    public void A_Platform_Document_Without_Fixity_Is_Read_Only()
+    {
+        // Every edit ends in an import job, and import jobs require SHA256 - a platform-shape
+        // document that has lost its digests cannot complete an edit-and-preserve.
+        var judgement = PlatformLike(algorithm: "MD5");
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("P_SHA256");
+    }
+
+    [Fact]
+    public void A_Logical_StructMap_Without_A_Root_Id_Demotes_To_Read_Only()
+    {
+        // Logical structMaps are edited by address: replaced, reordered, removed by root div
+        // ID. An ID-less one is present but unchangeable - which editable must not mean.
+        var judgement = EPrintsLike(extra: """
+            <mets:structMap TYPE="LOGICAL">
+            <mets:div TYPE="Item" LABEL="Unaddressable"/>
+            </mets:structMap>
+            """);
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("C_LOGICAL_ROOT_HAS_ID");
+    }
+
     [Fact]
     public void A_Foreign_Storage_Assertion_Is_Noted_Not_Read()
     {

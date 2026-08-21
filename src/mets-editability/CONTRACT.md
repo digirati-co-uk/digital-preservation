@@ -81,18 +81,27 @@ tiers additionally require the Schematron rules in `schematron/common.sch`:
 | `C_FILEID_RESOLVES` | Every `fptr/@FILEID` in **every** structMap — logical included — resolves |
 | `C_AREA_FILEID_RESOLVES` | Every `area/@FILEID` (time segment, image region) resolves |
 | `C_SMLINK_FROM_RESOLVES` / `C_SMLINK_TO_RESOLVES` | Both ends of every `smLink` resolve — to a file (the platform's arcrole style) or a div (Goobi's logical-to-physical style), by raw string |
+| `C_LOGICAL_ROOT_HAS_ID` | Every logical structMap's root div has an ID — logical maps are edited *by address* (replaced, reordered, removed by root div ID), and an ID-less one is present but unchangeable |
 
 A common-rule failure blocks both tiers: the document is at best `navigable-read-only`.
 
-Deliberately **not** a rule: DMDID resolution. A dangling DMDID is by design in the platform's own
-skeleton (dmdSecs are created lazily). Whether a *resolved* dmdSec is editable is the
-`FOREIGN_DMDSEC` note below, never a demotion.
+Deliberately **not** rules:
+
+- **DMDID resolution.** A dangling DMDID is by design in the platform's own skeleton (dmdSecs are
+  created lazily). Whether a *resolved* dmdSec is editable is the `FOREIGN_DMDSEC` note below,
+  never a demotion.
+- **`smLinkGrp` (`smLocatorLink`/`smArcLink`) resolution.** No document in the corpus uses it,
+  the platform never writes it, and edits never touch it (it is preserved as parsed);
+  `smLocatorLink/@xlink:href` can legitimately be an external URI, so a resolution rule invented
+  without real documents to validate against would be guessing. Revisit if one ever appears.
 
 ## The platform tier (`editable`)
 
 Navigable, the common rules pass, **and** the Schematron rules in
 `schematron/platform-tier.sch` all pass (`P_PHYSICAL_STRUCTMAP`, `P_AGENT`,
-`P_SINGLE_OBJECTS_GROUP`, `P_DIV_TYPED`, `P_ITEM_ONE_FPTR`, `P_DIRECTORY_ADMID`).
+`P_SINGLE_OBJECTS_GROUP`, `P_DIV_TYPED`, `P_ITEM_ONE_FPTR`, `P_DIRECTORY_ADMID`, `P_SHA256` —
+every edit ends in an import job, and import jobs require SHA256 fixity, so a platform-shape
+document that has lost its digests cannot complete an edit-and-preserve).
 
 IDs that are not legal NCNames are counted and reported as note `LEGACY_IDS`, never a demotion:
 a pre-#214 platform document is editable today and the migration, not the judge, retires its IDs.

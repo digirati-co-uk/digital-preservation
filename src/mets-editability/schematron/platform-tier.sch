@@ -58,4 +58,19 @@ resolution - that is native-check territory.
 
     <!-- FILEID resolution lives in common.sch, which covers every structMap. -->
   </sch:pattern>
+
+  <sch:pattern id="filesec">
+    <!-- SHA256 fixity per file: every edit ends in an import job, and import jobs require it.
+         The platform's ADMID points at the amdSec (ADM_...); resolution is a raw string match,
+         which is exactly how a legacy space-containing ID resolves too. translate() lowercases
+         and deletes '-' so SHA256, sha256 and SHA-256 all match. -->
+    <sch:rule context="mets:fileSec//mets:file">
+      <sch:assert id="P_SHA256"
+                  test="//mets:amdSec[@ID = current()/@ADMID]//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256']
+                        or //mets:techMD[@ID = current()/@ADMID]//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256']">
+        The file's administrative metadata carries no SHA256 fixity, which every import job -
+        and therefore every edit-and-preserve - requires.
+      </sch:assert>
+    </sch:rule>
+  </sch:pattern>
 </sch:schema>

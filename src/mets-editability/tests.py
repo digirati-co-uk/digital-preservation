@@ -257,6 +257,32 @@ class TheNativeRules(unittest.TestCase):
         self.assertEqual(codes(judgement.reasons), {"PARSE_FAILED"})
 
 
+def platform_like(algorithm="SHA256"):
+    """The smallest document that reaches the platform tier."""
+    return build(
+        header="""<mets:metsHdr><mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+            <mets:name>University of Leeds Digital Library Infrastructure Project</mets:name>
+            </mets:agent></mets:metsHdr>""",
+        amd_sec=f"""<mets:amdSec ID="ADM_objects_x002F_a.jpg">
+            <mets:techMD ID="TECH_objects_x002F_a.jpg">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
+            <premis:objectCharacteristics><premis:fixity>
+            <premis:messageDigestAlgorithm>{algorithm}</premis:messageDigestAlgorithm>
+            <premis:messageDigest>abc</premis:messageDigest>
+            </premis:fixity></premis:objectCharacteristics>
+            <premis:originalName>objects/a.jpg</premis:originalName>
+            </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>""",
+        file_sec="""<mets:fileSec><mets:fileGrp USE="OBJECTS">
+            <mets:file ID="FILE_objects_x002F_a.jpg" ADMID="ADM_objects_x002F_a.jpg">
+            <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/a.jpg"/>
+            </mets:file></mets:fileGrp></mets:fileSec>""",
+        struct_map="""<mets:structMap TYPE="PHYSICAL">
+            <mets:div ID="PHYS_ROOT" LABEL="__ROOT" TYPE="Directory">
+            <mets:div ID="PHYS_objects_x002F_a.jpg" LABEL="a.jpg" TYPE="Item">
+            <mets:fptr FILEID="FILE_objects_x002F_a.jpg"/></mets:div>
+            </mets:div></mets:structMap>""")
+
+
 class TheEditableSurface(unittest.TestCase):
     """
     Editability covers everything the platform can edit - logical structMaps (with time and
@@ -360,6 +386,25 @@ class TheEditableSurface(unittest.TestCase):
         self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
         self.assertNotIn("NO_XMLDATA_WRAPPER", codes(judgement.notes))
         self.assertFalse([m for m in judgement.mutations if m.startswith("wrap the payload")])
+
+    def test_the_smallest_platform_document_is_editable(self):
+        self.assertEqual(platform_like().verdict, judge.EDITABLE)
+
+    def test_a_platform_document_without_fixity_is_read_only(self):
+        # Every edit ends in an import job, and import jobs require SHA256 - a platform-shape
+        # document that has lost its digests cannot complete an edit-and-preserve.
+        judgement = platform_like(algorithm="MD5")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("P_SHA256", codes(judgement.reasons))
+
+    def test_a_logical_structmap_without_a_root_id_demotes_to_read_only(self):
+        # Logical structMaps are edited by address: replaced, reordered, removed by root div ID.
+        # An ID-less one is present but unchangeable - which editable must not mean.
+        judgement = eprints_like(extra="""<mets:structMap TYPE="LOGICAL">
+            <mets:div TYPE="Item" LABEL="Unaddressable"/>
+            </mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("C_LOGICAL_ROOT_HAS_ID", codes(judgement.reasons))
 
 
 class TheSharedAuthorities(unittest.TestCase):

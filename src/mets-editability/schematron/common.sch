@@ -34,6 +34,18 @@ See eprints-tier.sch for how these files are executed and why they stay XPath 1.
     </sch:rule>
   </sch:pattern>
 
+  <sch:pattern id="logical-structmaps">
+    <!-- Logical structMaps are edited by ADDRESS: replaced, reordered and removed by their root
+         div's ID. A logical map whose root div has no ID cannot be targeted by any of those
+         operations - present but unchangeable, which is exactly what editable must not mean. -->
+    <sch:rule context="mets:structMap[translate(@TYPE, 'logical', 'LOGICAL') = 'LOGICAL']">
+      <sch:assert id="C_LOGICAL_ROOT_HAS_ID" test="mets:div/@ID">
+        A logical structMap's root div has no ID, so the structMap cannot be replaced,
+        reordered or removed.
+      </sch:assert>
+    </sch:rule>
+  </sch:pattern>
+
   <sch:pattern id="struct-links">
     <!-- Both ends of every smLink resolve - to a file (the platform's own arcrole style) or to
          a div (Goobi's logical-to-physical style). Raw string match, which is exactly how a
