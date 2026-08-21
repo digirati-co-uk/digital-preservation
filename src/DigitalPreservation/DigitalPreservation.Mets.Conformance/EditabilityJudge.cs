@@ -22,6 +22,7 @@ public static class EditabilityJudge
     private static readonly XNamespace MetsNs = "http://www.loc.gov/METS/";
     private static readonly XNamespace XlinkNs = "http://www.w3.org/1999/xlink";
     private static readonly XNamespace PremisNs = "http://www.loc.gov/premis/v3";
+    private static readonly XNamespace ModsNs = "http://www.loc.gov/mods/v3";
 
     private static readonly Regex UriScheme = new("^[A-Za-z][A-Za-z0-9+.-]*:", RegexOptions.Compiled);
 
@@ -83,6 +84,7 @@ public static class EditabilityJudge
 
         var filesById = FileIndex(mets);
         var resolved = Walk(structMap, filesById, reasons, notes);
+        var unwrappedMdWraps = QuirkNotes(mets, notes);
         var navigable = resolved.FileCount > 0 && !reasons.Any(f => Blockers.Contains(f.Code));
 
         if (!navigable)
@@ -94,8 +96,12 @@ public static class EditabilityJudge
             };
         }
 
+        // The common rules guard the linkage every edit operation relies on - fptrs and areas
+        // in EVERY structMap (logical included), smLink ends - so they gate both tiers: the
+        // platform cannot safely change what it cannot resolve.
+        var commonFailures = SchematronRunner.Failures("common", mets);
         var platformFailures = SchematronRunner.Failures("platform-tier", mets);
-        if (platformFailures.Count == 0)
+        if (commonFailures.Count == 0 && platformFailures.Count == 0)
         {
             return new Judgement
             {
@@ -105,26 +111,26 @@ public static class EditabilityJudge
         }
 
         var eprintsFailures = SchematronRunner.Failures("eprints-tier", mets);
-        if (eprintsFailures.Count == 0 && legacyIds.Count == 0)
+        if (commonFailures.Count == 0 && eprintsFailures.Count == 0 && legacyIds.Count == 0)
         {
             AddEprintsAssumptions(resolved, assumptions);
-            AddEprintsQuirks(mets, notes);
             return new Judgement
             {
                 Verdict = Verdicts.EditableWithNormalisation, FileCount = resolved.FileCount,
                 Assumptions = assumptions, Notes = notes,
-                Mutations = Mutations(structMap, mets, resolved)
+                Mutations = Mutations(structMap, mets, resolved, unwrappedMdWraps)
             };
         }
 
-        if (eprintsFailures.Count == 0 && legacyIds.Count > 0)
+        if (commonFailures.Count == 0 && eprintsFailures.Count == 0 && legacyIds.Count > 0)
         {
             reasons.Add(new Finding("INVALID_IDS",
                 "the document matches the EPrints tier but declares IDs that are not legal " +
                 "NCNames; it needs the #188 normalisation, which this tier does not perform"));
         }
 
-        foreach (var (code, message) in Distinct(platformFailures).Concat(Distinct(eprintsFailures)))
+        foreach (var (code, message) in Distinct(commonFailures)
+                     .Concat(Distinct(platformFailures)).Concat(Distinct(eprintsFailures)))
         {
             reasons.Add(new Finding(code, message));
         }
@@ -371,7 +377,11 @@ public static class EditabilityJudge
             "under objects/"));
     }
 
-    private static void AddEprintsQuirks(XElement mets, List<Finding> notes)
+    /// <summary>
+    /// Corpus quirks reported for every document, whatever the verdict. Returns the count of
+    /// mdWrap elements needing the xmlData repair, which the EPrints tier turns into a mutation.
+    /// </summary>
+    private static int QuirkNotes(XElement mets, List<Finding> notes)
     {
         var foreignStorage = mets.Descendants(PremisNs + "storage")
             .Count(storage => storage.Descendants(PremisNs + "storageMedium")
@@ -390,9 +400,71 @@ public static class EditabilityJudge
                 "record identifiers are declared in the METS namespace (an EPrints quirk); " +
                 "invisible to the platform's parser until #237"));
         }
+
+        var foreignDmdSecs = ForeignDmdSecs(mets);
+        if (foreignDmdSecs > 0)
+        {
+            notes.Add(new Finding("FOREIGN_DMDSEC",
+                $"{foreignDmdSecs} referenced dmdSec(s) claim MODS but hold no mods:mods record; " +
+                "the platform never edits these - an edit on such a div creates a platform dmdSec " +
+                "and appends its ID to the div's DMDID, leaving the original untouched"));
+        }
+
+        var unwrapped = UnwrappedMdWraps(mets);
+        if (unwrapped > 0)
+        {
+            notes.Add(new Finding("NO_XMLDATA_WRAPPER",
+                $"{unwrapped} mdWrap(s) hold their payload directly, without the mets:xmlData " +
+                "element the schema requires (an EPrints quirk); a save wraps them - the payload " +
+                "itself is preserved verbatim"));
+        }
+        return unwrapped;
     }
 
-    private static List<string> Mutations(XElement structMap, XElement mets, Resolved resolved)
+    /// <summary>
+    /// Referenced dmdSecs claiming MODS (mdWrap MDTYPE="MODS") without a mods:mods record - the
+    /// EPrints root dmdSec shape. DMDID is IDREFS, so the whole value is tried first (a legacy
+    /// platform ID can contain spaces) and then each token; a DMDID resolving to nothing is
+    /// IGNORED, because dangling DMDIDs are by design in the platform's own skeleton.
+    /// </summary>
+    private static int ForeignDmdSecs(XElement mets)
+    {
+        var dmdSecs = mets.Elements(MetsNs + "dmdSec")
+            .Where(dmd => dmd.Attribute("ID") != null)
+            .ToDictionary(dmd => (string)dmd.Attribute("ID")!, dmd => dmd, StringComparer.Ordinal);
+        var foreign = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var div in mets.Descendants(MetsNs + "div"))
+        {
+            var dmdId = (string?)div.Attribute("DMDID");
+            if (string.IsNullOrEmpty(dmdId))
+            {
+                continue;
+            }
+            List<string> candidates = dmdSecs.ContainsKey(dmdId)
+                ? [dmdId]
+                : dmdId.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+                    .Where(dmdSecs.ContainsKey).ToList();
+            foreach (var candidate in candidates)
+            {
+                var mdWrap = dmdSecs[candidate].Element(MetsNs + "mdWrap");
+                if (mdWrap != null && (string?)mdWrap.Attribute("MDTYPE") == "MODS"
+                    && !mdWrap.Descendants(ModsNs + "mods").Any())
+                {
+                    foreign.Add(candidate);
+                }
+            }
+        }
+        return foreign.Count;
+    }
+
+    /// <summary>mdWraps whose payload sits directly inside them rather than in binData/xmlData.</summary>
+    private static int UnwrappedMdWraps(XElement mets) =>
+        mets.Descendants(MetsNs + "mdWrap")
+            .Count(mdWrap => mdWrap.Elements()
+                .Any(child => child.Name != MetsNs + "binData" && child.Name != MetsNs + "xmlData"));
+
+    private static List<string> Mutations(
+        XElement structMap, XElement mets, Resolved resolved, int unwrappedMdWraps)
     {
         var mutations = new List<string>();
         if ((string?)structMap.Attribute("TYPE") != "PHYSICAL")
@@ -417,6 +489,12 @@ public static class EditabilityJudge
             mutations.Add(
                 $"consolidate {resolved.ReferencedGroups.Count} fileGrp(s) into one " +
                 "USE=\"OBJECTS\" group");
+        }
+        if (unwrappedMdWraps > 0)
+        {
+            mutations.Add(
+                $"wrap the payload of {unwrappedMdWraps} mdWrap(s) in the mets:xmlData element " +
+                "the schema requires");
         }
         var agents = mets.Elements(MetsNs + "metsHdr")
             .SelectMany(header => header.Elements(MetsNs + "agent"))

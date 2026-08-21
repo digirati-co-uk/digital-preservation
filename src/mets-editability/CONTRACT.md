@@ -69,30 +69,46 @@ Navigable ⇔ at least one file resolved and no blocker occurred. Directory divs
 `ADMID` are **not** blockers (their own paths are unresolvable, but the files' are not):
 note `DIRECTORY_DIV_NO_ADMID` with a count.
 
+## The common rules — the whole editable surface
+
+Editing is not only the physical tree: the platform edits logical structMaps (whole-file
+pointers, time segments, image regions), file-to-file links, and descriptive metadata.
+**Editability means the platform understands the document and can change it** — so both editable
+tiers additionally require the Schematron rules in `schematron/common.sch`:
+
+| Code | Rule |
+|---|---|
+| `C_FILEID_RESOLVES` | Every `fptr/@FILEID` in **every** structMap — logical included — resolves |
+| `C_AREA_FILEID_RESOLVES` | Every `area/@FILEID` (time segment, image region) resolves |
+| `C_SMLINK_FROM_RESOLVES` / `C_SMLINK_TO_RESOLVES` | Both ends of every `smLink` resolve — to a file (the platform's arcrole style) or a div (Goobi's logical-to-physical style), by raw string |
+
+A common-rule failure blocks both tiers: the document is at best `navigable-read-only`.
+
+Deliberately **not** a rule: DMDID resolution. A dangling DMDID is by design in the platform's own
+skeleton (dmdSecs are created lazily). Whether a *resolved* dmdSec is editable is the
+`FOREIGN_DMDSEC` note below, never a demotion.
+
 ## The platform tier (`editable`)
 
-Navigable, **and** the Schematron rules in `schematron/platform-tier.sch` all pass
-(`P_PHYSICAL_STRUCTMAP`, `P_AGENT`, `P_SINGLE_OBJECTS_GROUP`, `P_DIV_TYPED`, `P_ITEM_ONE_FPTR`,
-`P_DIRECTORY_ADMID`, `P_FILEID_RESOLVES`).
+Navigable, the common rules pass, **and** the Schematron rules in
+`schematron/platform-tier.sch` all pass (`P_PHYSICAL_STRUCTMAP`, `P_AGENT`,
+`P_SINGLE_OBJECTS_GROUP`, `P_DIV_TYPED`, `P_ITEM_ONE_FPTR`, `P_DIRECTORY_ADMID`).
 
 IDs that are not legal NCNames are counted and reported as note `LEGACY_IDS`, never a demotion:
 a pre-#214 platform document is editable today and the migration, not the judge, retires its IDs.
 
 ## The EPrints tier (`editable-with-normalisation`)
 
-Navigable, **and** the Schematron rules in `schematron/eprints-tier.sch` all pass
-(`E_NO_PHYSICAL_CANDIDATE`, `E_NOT_FLAT`, `E_ITEM_ONE_FPTR`, `E_FILEID_RESOLVES`,
-`E_FILE_HAS_HREF`, `E_HREF_UNDER_OBJECTS`, `E_SHA256`, `E_MIXED_FILEGRP_USE`), **and** every
-declared ID is a legal NCName (an invalid ID would need the #188 normalisation this tier does not
-perform — failure is reported as `INVALID_IDS` and the tier is not met).
+Navigable, the common rules pass, **and** the Schematron rules in
+`schematron/eprints-tier.sch` all pass (`E_NO_PHYSICAL_CANDIDATE`, `E_NOT_FLAT`,
+`E_ITEM_ONE_FPTR`, `E_FILE_HAS_HREF`, `E_HREF_UNDER_OBJECTS`, `E_SHA256`,
+`E_MIXED_FILEGRP_USE`), **and** every declared ID is a legal NCName (an invalid ID would need
+the #188 normalisation this tier does not perform — failure is reported as `INVALID_IDS` and the
+tier is not met).
 
 Assumptions recorded when exercised: `UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL` /
 `CASE_INSENSITIVE_STRUCTMAP_TYPE`, `UNTYPED_DIV_ASSUMED_ITEM` (with count),
 `IMPLIED_OBJECTS_DIV`.
-
-Corpus-quirk notes recorded when present: `FOREIGN_STORAGE_LOCATION` (a `premis:storage` whose
-`storageMedium` is not the platform agent — see #236), `METS_NAMESPACE_RECORD_INFO` (EPrints
-record identifiers in the METS namespace — see #237).
 
 Mutations, in save order:
 
@@ -102,7 +118,18 @@ Mutations, in save order:
 4. `materialise the objects Directory div (amdSec/techMD with premis:originalName) and re-parent
    N file div(s) under it`
 5. `consolidate K fileGrp(s) into one USE="OBJECTS" group` (K > 1, or one group with another USE)
-6. `append the platform agent to metsHdr`
+6. `wrap the payload of N mdWrap(s) in the mets:xmlData element the schema requires` (when the
+   `NO_XMLDATA_WRAPPER` quirk is present — the payload itself is preserved verbatim)
+7. `append the platform agent to metsHdr`
+
+## Quirk notes — recorded for every document, whatever the verdict
+
+| Code | Meaning |
+|---|---|
+| `FOREIGN_STORAGE_LOCATION` | A `premis:storage` whose `storageMedium` is not the platform agent (the EPrints `file://` server paths). History, never read as the file's location — see #236 |
+| `METS_NAMESPACE_RECORD_INFO` | EPrints record identifiers declared in the METS namespace, invisible to the parser — see #237 |
+| `FOREIGN_DMDSEC` | A div's DMDID resolves to a dmdSec claiming MODS (`MDTYPE="MODS"`) with no `mods:mods` record — the EPrints root dmdSec shape. **The platform never edits such a section.** A descriptive-metadata edit on that div creates a *new* platform dmdSec and **appends** its ID to the div's `DMDID` (DMDID is IDREFS), leaving the original untouched, byte for byte |
+| `NO_XMLDATA_WRAPPER` | An `mdWrap` holds its payload directly, without the `binData`/`xmlData` child the schema requires (EPrints puts `premis:object` straight inside `mdWrap`). A save **normalises** this — mutation 6 — because any typed round-trip would otherwise silently drop the payload; the wrapped content is preserved verbatim |
 
 ## navigable-read-only / not-editable
 

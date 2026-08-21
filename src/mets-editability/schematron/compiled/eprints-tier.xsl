@@ -49,7 +49,7 @@
 
 
 	<!--RULE -->
-<axsl:template match="mets:mets" priority="1003" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:mets"/>
+<axsl:template match="mets:mets" priority="1002" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:mets"/>
 
 		<!--ASSERT -->
 <axsl:choose><axsl:when test="mets:structMap[not(@TYPE)] or mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="mets:structMap[not(@TYPE)] or mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']"><axsl:attribute name="id">E_NO_PHYSICAL_CANDIDATE</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
@@ -57,7 +57,7 @@
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M4"/></axsl:template>
 
 	<!--RULE -->
-<axsl:template match="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div" priority="1002" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div"/>
+<axsl:template match="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div" priority="1001" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div"/>
 
 		<!--ASSERT -->
 <axsl:choose><axsl:when test="not(mets:div/mets:div)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(mets:div/mets:div)"><axsl:attribute name="id">E_NOT_FLAT</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
@@ -66,19 +66,11 @@
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M4"/></axsl:template>
 
 	<!--RULE -->
-<axsl:template match="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div/mets:div" priority="1001" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div/mets:div"/>
+<axsl:template match="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div/mets:div" priority="1000" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div/mets:div"/>
 
 		<!--ASSERT -->
 <axsl:choose><axsl:when test="count(mets:fptr) = 1"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="count(mets:fptr) = 1"><axsl:attribute name="id">E_ITEM_ONE_FPTR</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
         A file div must carry exactly one fptr.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M4"/></axsl:template>
-
-	<!--RULE -->
-<axsl:template match="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']//mets:fptr[@FILEID]" priority="1000" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']//mets:fptr[@FILEID]"/>
-
-		<!--ASSERT -->
-<axsl:choose><axsl:when test="//mets:file[@ID = current()/@FILEID]"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="//mets:file[@ID = current()/@FILEID]"><axsl:attribute name="id">E_FILEID_RESOLVES</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
-        An fptr references a FILEID that no mets:file declares.
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M4"/></axsl:template><axsl:template match="text()" priority="-1" mode="M4"/><axsl:template match="@*|node()" priority="-2" mode="M4"><axsl:apply-templates select="@*|*" mode="M4"/></axsl:template>
 
 <!--PATTERN filesec-->

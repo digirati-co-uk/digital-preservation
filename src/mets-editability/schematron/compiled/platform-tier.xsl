@@ -70,7 +70,7 @@
 
 
 	<!--RULE -->
-<axsl:template match="mets:structMap[@TYPE = 'PHYSICAL']//mets:div" priority="1003" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[@TYPE = 'PHYSICAL']//mets:div"/>
+<axsl:template match="mets:structMap[@TYPE = 'PHYSICAL']//mets:div" priority="1002" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[@TYPE = 'PHYSICAL']//mets:div"/>
 
 		<!--ASSERT -->
 <axsl:choose><axsl:when test="@TYPE = 'Directory' or @TYPE = 'Item'"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="@TYPE = 'Directory' or @TYPE = 'Item'"><axsl:attribute name="id">P_DIV_TYPED</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
@@ -79,7 +79,7 @@
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*|comment()|processing-instruction()" mode="M5"/></axsl:template>
 
 	<!--RULE -->
-<axsl:template match="mets:structMap[@TYPE = 'PHYSICAL']//mets:div[@TYPE = 'Item']" priority="1002" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[@TYPE = 'PHYSICAL']//mets:div[@TYPE = 'Item']"/>
+<axsl:template match="mets:structMap[@TYPE = 'PHYSICAL']//mets:div[@TYPE = 'Item']" priority="1001" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[@TYPE = 'PHYSICAL']//mets:div[@TYPE = 'Item']"/>
 
 		<!--ASSERT -->
 <axsl:choose><axsl:when test="count(mets:fptr) = 1"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="count(mets:fptr) = 1"><axsl:attribute name="id">P_ITEM_ONE_FPTR</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
@@ -87,18 +87,10 @@
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*|comment()|processing-instruction()" mode="M5"/></axsl:template>
 
 	<!--RULE -->
-<axsl:template match="mets:structMap[@TYPE = 'PHYSICAL']/mets:div//mets:div[@TYPE = 'Directory']" priority="1001" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[@TYPE = 'PHYSICAL']/mets:div//mets:div[@TYPE = 'Directory']"/>
+<axsl:template match="mets:structMap[@TYPE = 'PHYSICAL']/mets:div//mets:div[@TYPE = 'Directory']" priority="1000" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[@TYPE = 'PHYSICAL']/mets:div//mets:div[@TYPE = 'Directory']"/>
 
 		<!--ASSERT -->
 <axsl:choose><axsl:when test="@ADMID"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="@ADMID"><axsl:attribute name="id">P_DIRECTORY_ADMID</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
         A directory div below the root has no ADMID, so its path cannot be anchored in
         premis:originalName.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*|comment()|processing-instruction()" mode="M5"/></axsl:template>
-
-	<!--RULE -->
-<axsl:template match="mets:structMap[@TYPE = 'PHYSICAL']//mets:fptr[@FILEID]" priority="1000" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[@TYPE = 'PHYSICAL']//mets:fptr[@FILEID]"/>
-
-		<!--ASSERT -->
-<axsl:choose><axsl:when test="//mets:file[@ID = current()/@FILEID]"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="//mets:file[@ID = current()/@FILEID]"><axsl:attribute name="id">P_FILEID_RESOLVES</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
-        An fptr references a FILEID that no mets:file declares.
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*|comment()|processing-instruction()" mode="M5"/></axsl:template><axsl:template match="text()" priority="-1" mode="M5"/><axsl:template match="@*|node()" priority="-2" mode="M5"><axsl:apply-templates select="@*|*|comment()|processing-instruction()" mode="M5"/></axsl:template></axsl:stylesheet>

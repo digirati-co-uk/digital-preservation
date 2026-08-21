@@ -23,6 +23,7 @@ from app import ncname, schematron
 METS_NS = "http://www.loc.gov/METS/"
 XLINK_NS = "http://www.w3.org/1999/xlink"
 PREMIS_NS = "http://www.loc.gov/premis/v3"
+MODS_NS = "http://www.loc.gov/mods/v3"
 
 PLATFORM_AGENT = "University of Leeds Digital Library Infrastructure Project"
 
@@ -100,30 +101,35 @@ def judge(root: etree._Element) -> Judgement:
 
     files_by_id = _file_index(mets)
     resolved = _walk(struct_map, files_by_id, reasons, notes)
+    unwrapped_md_wraps = _quirk_notes(mets, notes)
 
     navigable = resolved.file_count > 0 and not any(f.code in _BLOCKERS for f in reasons)
 
     if navigable:
+        # The common rules guard the linkage every edit operation relies on - fptrs and areas in
+        # EVERY structMap (logical included), smLink ends - so they gate both tiers: the platform
+        # cannot safely change what it cannot resolve.
+        common_failures = schematron.failures("common.sch", mets)
         platform_failures = schematron.failures("platform-tier.sch", mets)
-        if not platform_failures:
+        if not common_failures and not platform_failures:
             return Judgement(EDITABLE, resolved.file_count,
                              assumptions=assumptions, notes=notes)
 
         eprints_failures = schematron.failures("eprints-tier.sch", mets)
-        if not eprints_failures and not legacy_ids:
+        if not common_failures and not eprints_failures and not legacy_ids:
             _eprints_assumptions(struct_map, resolved, assumptions)
-            _eprints_quirks(mets, notes)
-            mutations = _mutations(struct_map, mets, resolved)
+            mutations = _mutations(struct_map, mets, resolved, unwrapped_md_wraps)
             return Judgement(EDITABLE_WITH_NORMALISATION, resolved.file_count,
                              assumptions=assumptions, notes=notes, mutations=mutations)
 
-        if not eprints_failures and legacy_ids:
+        if not common_failures and not eprints_failures and legacy_ids:
             reasons.append(Finding(
                 "INVALID_IDS",
                 "the document matches the EPrints tier but declares IDs that are not legal "
                 "NCNames; it needs the #188 normalisation, which this tier does not perform"))
 
-        for code, message in _distinct(platform_failures) + _distinct(eprints_failures):
+        for code, message in (_distinct(common_failures) + _distinct(platform_failures)
+                              + _distinct(eprints_failures)):
             reasons.append(Finding(code, message))
         return Judgement(NAVIGABLE_READ_ONLY, resolved.file_count,
                          reasons=reasons, assumptions=assumptions, notes=notes)
@@ -318,7 +324,11 @@ def _eprints_assumptions(struct_map, resolved, assumptions):
         "under objects/"))
 
 
-def _eprints_quirks(mets, notes):
+def _quirk_notes(mets, notes) -> int:
+    """
+    Corpus quirks reported for every document, whatever the verdict. Returns the count of
+    mdWrap elements needing the xmlData repair, which the EPrints tier turns into a mutation.
+    """
     foreign_storage = 0
     for storage in mets.iter(f"{{{PREMIS_NS}}}storage"):
         mediums = [m.text or "" for m in storage.iter(f"{{{PREMIS_NS}}}storageMedium")]
@@ -336,8 +346,58 @@ def _eprints_quirks(mets, notes):
             "record identifiers are declared in the METS namespace (an EPrints quirk); "
             "invisible to the platform's parser until #237"))
 
+    foreign_dmd_secs = _foreign_dmd_secs(mets)
+    if foreign_dmd_secs:
+        notes.append(Finding(
+            "FOREIGN_DMDSEC",
+            f"{foreign_dmd_secs} referenced dmdSec(s) claim MODS but hold no mods:mods record; "
+            "the platform never edits these - an edit on such a div creates a platform dmdSec "
+            "and appends its ID to the div's DMDID, leaving the original untouched"))
 
-def _mutations(struct_map, mets, resolved):
+    unwrapped = _unwrapped_md_wraps(mets)
+    if unwrapped:
+        notes.append(Finding(
+            "NO_XMLDATA_WRAPPER",
+            f"{unwrapped} mdWrap(s) hold their payload directly, without the mets:xmlData "
+            "element the schema requires (an EPrints quirk); a save wraps them - the payload "
+            "itself is preserved verbatim"))
+    return unwrapped
+
+
+def _foreign_dmd_secs(mets) -> int:
+    """
+    Referenced dmdSecs claiming MODS (mdWrap MDTYPE="MODS") without a mods:mods record - the
+    EPrints root dmdSec shape. DMDID is IDREFS, so the whole value is tried first (a legacy
+    platform ID can contain spaces) and then each token; a DMDID that resolves to nothing is
+    IGNORED here, because dangling DMDIDs are by design in the platform's own skeleton.
+    """
+    dmd_secs = {dmd.get("ID"): dmd for dmd in mets.findall(f"{{{METS_NS}}}dmdSec")
+                if dmd.get("ID") is not None}
+    foreign = set()
+    for div in mets.iter(f"{{{METS_NS}}}div"):
+        dmd_id = div.get("DMDID")
+        if not dmd_id:
+            continue
+        candidates = [dmd_id] if dmd_id in dmd_secs else \
+            [token for token in dmd_id.split() if token in dmd_secs]
+        for candidate in candidates:
+            dmd_sec = dmd_secs[candidate]
+            md_wrap = dmd_sec.find(f"{{{METS_NS}}}mdWrap")
+            if md_wrap is not None and md_wrap.get("MDTYPE") == "MODS" \
+                    and md_wrap.find(f".//{{{MODS_NS}}}mods") is None:
+                foreign.add(candidate)
+    return len(foreign)
+
+
+def _unwrapped_md_wraps(mets) -> int:
+    """mdWraps whose payload sits directly inside them rather than in binData/xmlData."""
+    allowed = {f"{{{METS_NS}}}binData", f"{{{METS_NS}}}xmlData"}
+    return sum(
+        1 for md_wrap in mets.iter(f"{{{METS_NS}}}mdWrap")
+        if any(isinstance(child.tag, str) and child.tag not in allowed for child in md_wrap))
+
+
+def _mutations(struct_map, mets, resolved, unwrapped_md_wraps):
     mutations = []
     if struct_map.get("TYPE") != "PHYSICAL":
         mutations.append('set TYPE="PHYSICAL" on the structMap')
@@ -353,6 +413,10 @@ def _mutations(struct_map, mets, resolved):
     if len(groups) > 1 or any(g.get("USE") != "OBJECTS" for g in groups):
         mutations.append(
             f'consolidate {len(groups)} fileGrp(s) into one USE="OBJECTS" group')
+    if unwrapped_md_wraps:
+        mutations.append(
+            f"wrap the payload of {unwrapped_md_wraps} mdWrap(s) in the mets:xmlData element "
+            "the schema requires")
     agents = mets.findall(f"{{{METS_NS}}}metsHdr/{{{METS_NS}}}agent/{{{METS_NS}}}name")
     if PLATFORM_AGENT not in [a.text for a in agents]:
         mutations.append("append the platform agent to metsHdr")

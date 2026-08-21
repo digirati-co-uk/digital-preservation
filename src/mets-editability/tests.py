@@ -62,8 +62,14 @@ class TheAcceptanceTable(unittest.TestCase):
             "materialise the objects Directory div (amdSec/techMD with premis:originalName) "
             "and re-parent 4 file div(s) under it",
             'consolidate 4 fileGrp(s) into one USE="OBJECTS" group',
+            "wrap the payload of 4 mdWrap(s) in the mets:xmlData element the schema requires",
             "append the platform agent to metsHdr",
         ])
+
+    def test_eprints_quirks_are_noted(self):
+        judgement = judge_sample("EPrints.10315.METS.xml")
+        self.assertIn("FOREIGN_DMDSEC", codes(judgement.notes))
+        self.assertIn("NO_XMLDATA_WRAPPER", codes(judgement.notes))
 
     def test_archivematica_is_navigable_read_only(self):
         judgement = judge_sample(
@@ -98,25 +104,32 @@ def build(struct_map="", file_sec="", amd_sec="", header=""):
 
 
 def eprints_like(href="objects/a.jpg", use="reference", file_id="eprint_1_1",
-                 admid='ADMID="AMD_1"', algorithm="SHA256", fptr_id=None):
-    """The smallest document that reaches the EPrints tier, with one knob per test."""
+                 admid='ADMID="AMD_1"', algorithm="SHA256", fptr_id=None,
+                 wrapped=False, root_attrs="", div_id="", extra=""):
+    """
+    The smallest document that reaches the EPrints tier, with one knob per test. `wrapped`
+    puts the premis:object inside a proper mets:xmlData (EPrints itself does not); `extra`
+    appends further sections (logical structMaps, structLinks, dmdSecs).
+    """
+    open_wrap = "<mets:xmlData>" if wrapped else ""
+    close_wrap = "</mets:xmlData>" if wrapped else ""
     return build(
         header="""<mets:metsHdr><mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
             <mets:name>EPrints 3.3.15</mets:name></mets:agent></mets:metsHdr>""",
         amd_sec=f"""<mets:amdSec ID="AMD_0"><mets:techMD ID="AMD_1">
-            <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml"><premis:object>
+            <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">{open_wrap}<premis:object>
             <premis:objectCharacteristics><premis:fixity>
             <premis:messageDigestAlgorithm>{algorithm}</premis:messageDigestAlgorithm>
             <premis:messageDigest>abc</premis:messageDigest>
             </premis:fixity></premis:objectCharacteristics>
-            </premis:object></mets:mdWrap></mets:techMD></mets:amdSec>""",
+            </premis:object>{close_wrap}</mets:mdWrap></mets:techMD></mets:amdSec>""",
         file_sec=f"""<mets:fileSec><mets:fileGrp USE="{use}">
             <mets:file ID="{file_id}" {admid}>
             <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="{href}"/>
             </mets:file></mets:fileGrp></mets:fileSec>""",
-        struct_map=f"""<mets:structMap><mets:div>
-            <mets:div><mets:fptr FILEID="{fptr_id or file_id}"/></mets:div>
-            </mets:div></mets:structMap>""")
+        struct_map=f"""<mets:structMap><mets:div {root_attrs}>
+            <mets:div {div_id}><mets:fptr FILEID="{fptr_id or file_id}"/></mets:div>
+            </mets:div></mets:structMap>{extra}""")
 
 
 class TheNativeRules(unittest.TestCase):
@@ -244,6 +257,111 @@ class TheNativeRules(unittest.TestCase):
         self.assertEqual(codes(judgement.reasons), {"PARSE_FAILED"})
 
 
+class TheEditableSurface(unittest.TestCase):
+    """
+    Editability covers everything the platform can edit - logical structMaps (with time and
+    region parts), file links, descriptive metadata - not just the physical tree. These
+    synthesised documents extend the minimal EPrints shape one feature at a time: resolvable
+    linkage keeps the tier ("I understand it and I can change it"); dangling linkage loses it.
+    """
+
+    def test_a_platform_style_file_link_with_a_role_keeps_the_tier(self):
+        judgement = eprints_like(extra="""<mets:structLink>
+            <mets:smLink xlink:from="eprint_1_1" xlink:to="eprint_1_1"
+                xlink:arcrole="http://iiif.io/api/presentation/3#transcript"/>
+            </mets:structLink>""")
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+
+    def test_a_goobi_style_div_link_that_resolves_keeps_the_tier(self):
+        judgement = eprints_like(
+            div_id='ID="PHYS_1"',
+            extra="""<mets:structMap TYPE="LOGICAL">
+                <mets:div ID="LOG_1" TYPE="Item" LABEL="The item"/>
+                </mets:structMap>
+                <mets:structLink>
+                <mets:smLink xlink:from="LOG_1" xlink:to="PHYS_1"/>
+                </mets:structLink>""")
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+
+    def test_a_dangling_link_end_demotes_to_read_only(self):
+        judgement = eprints_like(extra="""<mets:structLink>
+            <mets:smLink xlink:from="eprint_1_1" xlink:to="nothing_declares_this"
+                xlink:arcrole="http://iiif.io/api/presentation/3#transcript"/>
+            </mets:structLink>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("C_SMLINK_TO_RESOLVES", codes(judgement.reasons))
+
+    def test_a_logical_structmap_with_time_and_region_parts_keeps_the_tier(self):
+        judgement = eprints_like(extra="""<mets:structMap TYPE="LOGICAL">
+            <mets:div ID="LOG_0" TYPE="Collection" LABEL="All of it">
+              <mets:div ID="LOG_1" TYPE="Item" LABEL="Whole file">
+                <mets:fptr FILEID="eprint_1_1"/>
+              </mets:div>
+              <mets:div ID="LOG_2" TYPE="Item" LABEL="A time segment">
+                <mets:fptr><mets:area FILEID="eprint_1_1" BETYPE="TIME"
+                    BEGIN="00:00:10" END="00:01:00"/></mets:fptr>
+              </mets:div>
+              <mets:div ID="LOG_3" TYPE="Item" LABEL="An image region">
+                <mets:fptr><mets:area FILEID="eprint_1_1" SHAPE="RECT"
+                    COORDS="0,0,100,100"/></mets:fptr>
+              </mets:div>
+            </mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+
+    def test_a_logical_area_pointing_at_nothing_demotes_to_read_only(self):
+        judgement = eprints_like(extra="""<mets:structMap TYPE="LOGICAL">
+            <mets:div ID="LOG_1" TYPE="Item" LABEL="Broken segment">
+              <mets:fptr><mets:area FILEID="nothing_declares_this" BETYPE="TIME"
+                  BEGIN="00:00:10" END="00:01:00"/></mets:fptr>
+            </mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("C_AREA_FILEID_RESOLVES", codes(judgement.reasons))
+
+    def test_a_dangling_logical_fptr_demotes_to_read_only(self):
+        judgement = eprints_like(extra="""<mets:structMap TYPE="LOGICAL">
+            <mets:div ID="LOG_1" TYPE="Item" LABEL="Broken">
+              <mets:fptr FILEID="nothing_declares_this"/>
+            </mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("C_FILEID_RESOLVES", codes(judgement.reasons))
+
+    def test_a_foreign_dmdsec_is_noted_and_never_edited(self):
+        # The EPrints root dmdSec: claims MODS, holds no mods:mods. The note carries the rule -
+        # an edit appends a platform dmdSec ID to the div's DMDID, theirs stays untouched.
+        judgement = eprints_like(
+            root_attrs='DMDID="DMD_eprint_1"',
+            extra="""<mets:dmdSec ID="DMD_eprint_1"><mets:mdWrap MDTYPE="MODS">
+                <mets:xmlData><mets:recordInfo>
+                <mets:recordIdentifier source="EPrints">1</mets:recordIdentifier>
+                </mets:recordInfo></mets:xmlData>
+                </mets:mdWrap></mets:dmdSec>""")
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+        self.assertIn("FOREIGN_DMDSEC", codes(judgement.notes))
+
+    def test_a_real_mods_dmdsec_is_not_foreign(self):
+        judgement = eprints_like(
+            root_attrs='DMDID="DMD_1"',
+            extra="""<mets:dmdSec ID="DMD_1"><mets:mdWrap MDTYPE="MODS"><mets:xmlData>
+                <mods:mods xmlns:mods="http://www.loc.gov/mods/v3">
+                <mods:titleInfo><mods:title>Fine</mods:title></mods:titleInfo>
+                </mods:mods></mets:xmlData></mets:mdWrap></mets:dmdSec>""")
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+        self.assertNotIn("FOREIGN_DMDSEC", codes(judgement.notes))
+
+    def test_an_unwrapped_mdwrap_payload_is_noted_and_repaired_on_save(self):
+        judgement = eprints_like()  # the builder is faithful to EPrints: no xmlData wrapper
+        self.assertIn("NO_XMLDATA_WRAPPER", codes(judgement.notes))
+        self.assertIn(
+            "wrap the payload of 1 mdWrap(s) in the mets:xmlData element the schema requires",
+            judgement.mutations)
+
+    def test_a_wrapped_payload_needs_no_repair(self):
+        judgement = eprints_like(wrapped=True)
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+        self.assertNotIn("NO_XMLDATA_WRAPPER", codes(judgement.notes))
+        self.assertFalse([m for m in judgement.mutations if m.startswith("wrap the payload")])
+
+
 class TheSharedAuthorities(unittest.TestCase):
     """The pins that keep the copies honest."""
 
@@ -261,7 +379,7 @@ class TheSharedAuthorities(unittest.TestCase):
         # the checkout: both forms must fail the same asserts on a real document.
         document = etree.parse(
             str(SAMPLES / "archivematica-wc-METS.299eb16f-1e62-4bf6-b259-c82146153711.xml"))
-        for name in ("eprints-tier", "platform-tier"):
+        for name in ("common", "eprints-tier", "platform-tier"):
             with self.subTest(tier=name):
                 direct = {code for code, _ in schematron.failures(
                     f"{name}.sch", document.getroot())}

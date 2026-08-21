@@ -62,7 +62,16 @@ public class EditabilityJudgeTests
             "materialise the objects Directory div (amdSec/techMD with premis:originalName) " +
             "and re-parent 4 file div(s) under it",
             "consolidate 4 fileGrp(s) into one USE=\"OBJECTS\" group",
+            "wrap the payload of 4 mdWrap(s) in the mets:xmlData element the schema requires",
             "append the platform agent to metsHdr");
+    }
+
+    [Fact]
+    public void EPrints_Quirks_Are_Noted()
+    {
+        var judgement = JudgeSample("EPrints.10315.METS.xml");
+        Codes(judgement.Notes).Should().Contain("FOREIGN_DMDSEC");
+        Codes(judgement.Notes).Should().Contain("NO_XMLDATA_WRAPPER");
     }
 
     [Fact]
@@ -107,8 +116,12 @@ public class EditabilityJudgeTests
 
     private static Judgement EPrintsLike(
         string href = "objects/a.jpg", string algorithm = "SHA256",
-        string fileId = "eprint_1_1", string? fptrId = null)
+        string fileId = "eprint_1_1", string? fptrId = null,
+        bool wrapped = false, string rootAttrs = "", string divId = "", string extra = "")
     {
+        // Faithful to EPrints by default: no mets:xmlData wrapper around the premis:object.
+        var openWrap = wrapped ? "<mets:xmlData>" : "";
+        var closeWrap = wrapped ? "</mets:xmlData>" : "";
         return Build(
             header: """
                 <mets:metsHdr><mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
@@ -116,12 +129,12 @@ public class EditabilityJudgeTests
                 """,
             amdSec: $"""
                 <mets:amdSec ID="AMD_0"><mets:techMD ID="AMD_1">
-                <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml"><premis:object>
+                <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">{openWrap}<premis:object>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>{algorithm}</premis:messageDigestAlgorithm>
                 <premis:messageDigest>abc</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
-                </premis:object></mets:mdWrap></mets:techMD></mets:amdSec>
+                </premis:object>{closeWrap}</mets:mdWrap></mets:techMD></mets:amdSec>
                 """,
             fileSec: $"""
                 <mets:fileSec><mets:fileGrp USE="reference">
@@ -130,9 +143,9 @@ public class EditabilityJudgeTests
                 </mets:file></mets:fileGrp></mets:fileSec>
                 """,
             structMap: $"""
-                <mets:structMap><mets:div>
-                <mets:div><mets:fptr FILEID="{fptrId ?? fileId}"/></mets:div>
-                </mets:div></mets:structMap>
+                <mets:structMap><mets:div {rootAttrs}>
+                <mets:div {divId}><mets:fptr FILEID="{fptrId ?? fileId}"/></mets:div>
+                </mets:div></mets:structMap>{extra}
                 """);
     }
 
@@ -234,6 +247,123 @@ public class EditabilityJudgeTests
                 </mets:div></mets:structMap>
                 """);
         Codes(judgement.Reasons).Should().Contain("DUPLICATE_PATH");
+    }
+
+    // Editability covers everything the platform can edit - logical structMaps (with time and
+    // region parts), file links, descriptive metadata - not just the physical tree. Resolvable
+    // linkage keeps the tier ("I understand it and I can change it"); dangling linkage loses it.
+
+    [Fact]
+    public void A_Platform_Style_File_Link_With_A_Role_Keeps_The_Tier()
+    {
+        var judgement = EPrintsLike(extra: """
+            <mets:structLink>
+            <mets:smLink xlink:from="eprint_1_1" xlink:to="eprint_1_1"
+                xlink:arcrole="http://iiif.io/api/presentation/3#transcript"/>
+            </mets:structLink>
+            """);
+        judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
+    }
+
+    [Fact]
+    public void A_Goobi_Style_Div_Link_That_Resolves_Keeps_The_Tier()
+    {
+        var judgement = EPrintsLike(
+            divId: "ID=\"PHYS_1\"",
+            extra: """
+                <mets:structMap TYPE="LOGICAL">
+                <mets:div ID="LOG_1" TYPE="Item" LABEL="The item"/>
+                </mets:structMap>
+                <mets:structLink>
+                <mets:smLink xlink:from="LOG_1" xlink:to="PHYS_1"/>
+                </mets:structLink>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
+    }
+
+    [Fact]
+    public void A_Dangling_Link_End_Demotes_To_Read_Only()
+    {
+        var judgement = EPrintsLike(extra: """
+            <mets:structLink>
+            <mets:smLink xlink:from="eprint_1_1" xlink:to="nothing_declares_this"
+                xlink:arcrole="http://iiif.io/api/presentation/3#transcript"/>
+            </mets:structLink>
+            """);
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("C_SMLINK_TO_RESOLVES");
+    }
+
+    [Fact]
+    public void A_Logical_StructMap_With_Time_And_Region_Parts_Keeps_The_Tier()
+    {
+        var judgement = EPrintsLike(extra: """
+            <mets:structMap TYPE="LOGICAL">
+            <mets:div ID="LOG_0" TYPE="Collection" LABEL="All of it">
+              <mets:div ID="LOG_1" TYPE="Item" LABEL="Whole file">
+                <mets:fptr FILEID="eprint_1_1"/>
+              </mets:div>
+              <mets:div ID="LOG_2" TYPE="Item" LABEL="A time segment">
+                <mets:fptr><mets:area FILEID="eprint_1_1" BETYPE="TIME"
+                    BEGIN="00:00:10" END="00:01:00"/></mets:fptr>
+              </mets:div>
+              <mets:div ID="LOG_3" TYPE="Item" LABEL="An image region">
+                <mets:fptr><mets:area FILEID="eprint_1_1" SHAPE="RECT"
+                    COORDS="0,0,100,100"/></mets:fptr>
+              </mets:div>
+            </mets:div></mets:structMap>
+            """);
+        judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
+    }
+
+    [Fact]
+    public void A_Logical_Area_Pointing_At_Nothing_Demotes_To_Read_Only()
+    {
+        var judgement = EPrintsLike(extra: """
+            <mets:structMap TYPE="LOGICAL">
+            <mets:div ID="LOG_1" TYPE="Item" LABEL="Broken segment">
+              <mets:fptr><mets:area FILEID="nothing_declares_this" BETYPE="TIME"
+                  BEGIN="00:00:10" END="00:01:00"/></mets:fptr>
+            </mets:div></mets:structMap>
+            """);
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("C_AREA_FILEID_RESOLVES");
+    }
+
+    [Fact]
+    public void A_Foreign_DmdSec_Is_Noted_And_Never_Edited()
+    {
+        // The EPrints root dmdSec: claims MODS, holds no mods:mods. The note carries the rule -
+        // an edit appends a platform dmdSec ID to the div's DMDID, theirs stays untouched.
+        var judgement = EPrintsLike(
+            rootAttrs: "DMDID=\"DMD_eprint_1\"",
+            extra: """
+                <mets:dmdSec ID="DMD_eprint_1"><mets:mdWrap MDTYPE="MODS">
+                <mets:xmlData><mets:recordInfo>
+                <mets:recordIdentifier source="EPrints">1</mets:recordIdentifier>
+                </mets:recordInfo></mets:xmlData>
+                </mets:mdWrap></mets:dmdSec>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
+        Codes(judgement.Notes).Should().Contain("FOREIGN_DMDSEC");
+    }
+
+    [Fact]
+    public void An_Unwrapped_MdWrap_Payload_Is_Noted_And_Repaired_On_Save()
+    {
+        var judgement = EPrintsLike();
+        Codes(judgement.Notes).Should().Contain("NO_XMLDATA_WRAPPER");
+        judgement.Mutations.Should().Contain(
+            "wrap the payload of 1 mdWrap(s) in the mets:xmlData element the schema requires");
+    }
+
+    [Fact]
+    public void A_Wrapped_Payload_Needs_No_Repair()
+    {
+        var judgement = EPrintsLike(wrapped: true);
+        judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
+        Codes(judgement.Notes).Should().NotContain("NO_XMLDATA_WRAPPER");
+        judgement.Mutations.Should().NotContain(m => m.StartsWith("wrap the payload"));
     }
 
     [Fact]

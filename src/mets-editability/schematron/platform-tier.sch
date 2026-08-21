@@ -56,10 +56,6 @@ resolution - that is native-check territory.
       </sch:assert>
     </sch:rule>
 
-    <sch:rule context="mets:structMap[@TYPE = 'PHYSICAL']//mets:fptr[@FILEID]">
-      <sch:assert id="P_FILEID_RESOLVES" test="//mets:file[@ID = current()/@FILEID]">
-        An fptr references a FILEID that no mets:file declares.
-      </sch:assert>
-    </sch:rule>
+    <!-- FILEID resolution lives in common.sch, which covers every structMap. -->
   </sch:pattern>
 </sch:schema>
