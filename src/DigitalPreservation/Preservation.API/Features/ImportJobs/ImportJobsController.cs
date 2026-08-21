@@ -146,30 +146,9 @@ public class ImportJobsController(
             }
         }
 
-        Result<ImportJobResult>? checkDeposit;
-        if (importJob.Deposit is null)
+        if (JobDoesNotBelongToDeposit(importJob, depositId, deposit) is { } mismatch)
         {
-            var message = "Import job must declare which Deposit it is for.";
-            logger.LogWarning(message);
-            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
-            return this.StatusResponseFromResult(checkDeposit);
-        }
-        if (importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
-        {
-            var message = "Import job Deposit does not match the Deposit it was submitted to.";
-            logger.LogWarning(message);
-            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
-            return this.StatusResponseFromResult(checkDeposit);
-        }
-
-        var invalidBinary = importJob.BinariesToAdd.Union(importJob.BinariesToPatch)
-            .FirstOrDefault(binary => !deposit.Files!.IsBaseOf(binary.Origin!));
-        if (invalidBinary != null)
-        {
-            var message = $"Binary origin {invalidBinary.Origin} is not a child of deposit file location {deposit.Files}.";
-            logger.LogWarning(message);
-            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
-            return this.StatusResponseFromResult(checkDeposit);
+            return mismatch;
         }
 
         var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob, User), cancellationToken);
@@ -280,6 +259,37 @@ public class ImportJobsController(
                       + $"recorded - a single METS patch - but {problem}. "
                       + "Content changes must be announced in the Activity Stream.";
         logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
+        return this.StatusResponseFromResult(
+            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+    }
+
+    /// <summary>
+    /// The refusal to return when the posted job's content is not the deposit's own - it names a
+    /// different Deposit, no Deposit at all, or binaries from outside the deposit's file area;
+    /// null when everything belongs.
+    /// </summary>
+    private IActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
+    {
+        string? message = null;
+        if (importJob.Deposit is null)
+        {
+            message = "Import job must declare which Deposit it is for.";
+        }
+        else if (importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
+        {
+            message = "Import job Deposit does not match the Deposit it was submitted to.";
+        }
+        else if (importJob.BinariesToAdd.Union(importJob.BinariesToPatch)
+                     .FirstOrDefault(binary => !deposit.Files!.IsBaseOf(binary.Origin!)) is { } invalidBinary)
+        {
+            message = $"Binary origin {invalidBinary.Origin} is not a child of deposit file location {deposit.Files}.";
+        }
+
+        if (message is null)
+        {
+            return null;
+        }
+        logger.LogWarning("{Message}", message);
         return this.StatusResponseFromResult(
             Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
     }
