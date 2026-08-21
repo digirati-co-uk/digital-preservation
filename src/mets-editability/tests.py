@@ -91,6 +91,17 @@ class TheAcceptanceTable(unittest.TestCase):
         self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
         self.assertIn("HREF_NOT_DEPOSIT_RELATIVE", codes(judgement.reasons))
 
+    def test_no_goobi_document_in_the_corpus_is_ever_editable(self):
+        # The judge judges structure, and the living-editor policy (Goobi still edits its own
+        # documents) is the platform's overlay - but the structural verdict alone must never
+        # assert editability for any real Goobi output we hold. All seven samples, pinned.
+        goobi_samples = sorted(SAMPLES.glob("goobi*.xml"))
+        self.assertGreaterEqual(len(goobi_samples), 7)
+        for sample in goobi_samples:
+            with self.subTest(sample=sample.name):
+                verdict = judge.judge_file(sample).verdict
+                self.assertNotIn(verdict, (judge.EDITABLE, judge.EDITABLE_WITH_NORMALISATION))
+
 
 def build(struct_map="", file_sec="", amd_sec="", header=""):
     """A minimal METS document around the given sections."""

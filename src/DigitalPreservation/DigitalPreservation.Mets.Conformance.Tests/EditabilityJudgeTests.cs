@@ -101,6 +101,23 @@ public class EditabilityJudgeTests
         Codes(judgement.Reasons).Should().Contain("HREF_NOT_DEPOSIT_RELATIVE");
     }
 
+    [Fact]
+    public void No_Goobi_Document_In_The_Corpus_Is_Ever_Editable()
+    {
+        // The judge judges structure, and the living-editor policy (Goobi still edits its own
+        // documents) is the platform's overlay - but the structural verdict alone must never
+        // assert editability for any real Goobi output we hold. All seven samples, pinned.
+        var goobiSamples = Directory.GetFiles(
+            Path.Combine(AppContext.BaseDirectory, "Samples"), "goobi*.xml");
+        goobiSamples.Length.Should().BeGreaterOrEqualTo(7);
+        foreach (var sample in goobiSamples)
+        {
+            var verdict = EditabilityJudge.JudgeFile(sample).Verdict;
+            verdict.Should().NotBe(Verdicts.Editable, sample);
+            verdict.Should().NotBe(Verdicts.EditableWithNormalisation, sample);
+        }
+    }
+
     private static Judgement Build(
         string structMap = "", string fileSec = "", string amdSec = "", string header = "")
     {
