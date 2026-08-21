@@ -83,10 +83,14 @@ editable. Each is a reading rule; none changes a byte on disk until a save:
    file, no directory divs — and every `FLocat/@xlink:href` is already deposit-relative under
    `objects/`. The root container div for `objects` is synthesised on read from the common path
    prefix. Reading never writes it back.
-5. **The file group is mapped.** These documents carry `reference`/`original`/`DEFAULT` fileGrps
-   rather than our single `OBJECTS`. The fileGrp whose files the physical structMap references is
-   treated as the OBJECTS-equivalent; ambiguity (structMap referencing files across multiple
-   fileGrps) fails the editable tier and is reported by the judge.
+5. **The file groups are mapped.** These documents carry fileGrps with USE values like
+   `reference`/`original`/`DEFAULT` rather than our single `OBJECTS` — and EPrints writes **one
+   fileGrp per file**, all `USE="reference"` (verified against the real `eprint_10315` sample), so
+   referencing several groups is the *normal* shape, not an ambiguity. All the groups the physical
+   structMap references are treated together as the OBJECTS-equivalent, consolidated into one
+   `USE="OBJECTS"` group on save. What fails the tier is genuine ambiguity: referenced files in
+   groups with *different* USE values, or two referenced entries resolving to the same
+   deposit-relative path.
 6. **Every resolved path is deposit-relative** (the standing guard).
 
 Because these documents have no directory divs, nothing in them needs `premis:originalName` on
