@@ -61,6 +61,12 @@ resolution - that is native-check territory.
         A directory div below the root has no ADMID, so its path cannot be anchored in
         premis:originalName.
       </sch:assert>
+      <!-- Every directory div carries a LABEL: the platform's add-into-parent path requires
+           the parent's LABEL and crashes without it (identifier audit, finding P7). -->
+      <sch:assert id="P_DIRECTORY_LABEL" test="not(.//mets:div[@TYPE = 'Directory'][not(@LABEL)])">
+        A directory div has no LABEL; the platform requires one on every directory, and adding
+        into a LABEL-less parent fails.
+      </sch:assert>
     </sch:rule>
   </sch:pattern>
 

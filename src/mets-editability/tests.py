@@ -176,7 +176,7 @@ class TheNativeRules(unittest.TestCase):
         judgement = build(
             file_sec="""<mets:fileSec><mets:fileGrp USE="reference">
                 <mets:file ID="f1"><mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
-                <mets:file ID="f2"><mets:FLocat xlink:href="objects/./a.jpg"/></mets:file>
+                <mets:file ID="f2"><mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
                 </mets:fileGrp></mets:fileSec>""",
             struct_map="""<mets:structMap><mets:div>
                 <mets:div><mets:fptr FILEID="f1"/></mets:div>
@@ -555,6 +555,72 @@ class TheAdversarialReviewFindings(unittest.TestCase):
 
     def test_an_id_with_a_trailing_newline_is_not_legal(self):
         self.assertFalse(ncname.is_valid_id("FILE_1\n"))
+
+    def test_a_labelless_directory_div_fails_the_platform_tier(self):
+        # Audit finding P7: adding into a LABEL-less parent crashes the platform.
+        judgement = build(
+            header="""<mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
+                Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>""",
+            amd_sec="""<mets:amdSec ID="ADM_1"><mets:techMD ID="TECH_1">
+                <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
+                <premis:objectCharacteristics><premis:fixity>
+                <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>abc</premis:messageDigest>
+                </premis:fixity></premis:objectCharacteristics>
+                <premis:originalName>objects/a.jpg</premis:originalName>
+                </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>""",
+            file_sec="""<mets:fileSec><mets:fileGrp USE="OBJECTS">
+                <mets:file ID="FILE_1" ADMID="ADM_1">
+                <mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>""",
+            struct_map="""<mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_ROOT" LABEL="__ROOT" TYPE="Directory">
+                <mets:div ID="PHYS_objects" TYPE="Directory" ADMID="ADM_1">
+                <mets:div ID="PHYS_1" LABEL="a.jpg" TYPE="Item">
+                <mets:fptr FILEID="FILE_1"/></mets:div>
+                </mets:div></mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("P_DIRECTORY_LABEL", codes(judgement.reasons))
+
+    def test_an_unnormalised_href_is_a_blocker(self):
+        # Audit finding M3: the platform's path cache does not collapse empty segments, so
+        # normalising here would make the judge more tolerant than the platform.
+        for href in ("objects//a.jpg", "objects/./a.jpg", "objects/a.jpg/"):
+            with self.subTest(href=href):
+                judgement = eprints_like(href=href)
+                self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+                self.assertIn("HREF_NOT_NORMALISED", codes(judgement.reasons))
+
+    def test_a_shared_editable_dmdsec_demotes(self):
+        # Audit finding P5: editing metadata on one div rewrites the shared section in place,
+        # silently changing the other div's metadata.
+        judgement = eprints_like(
+            root_attrs='DMDID="DMD_1"', div_id='DMDID="DMD_1" ID="PHYS_1"',
+            extra="""<mets:dmdSec ID="DMD_1"><mets:mdWrap MDTYPE="MODS"><mets:xmlData>
+                <mods:mods xmlns:mods="http://www.loc.gov/mods/v3">
+                <mods:titleInfo><mods:title>Shared</mods:title></mods:titleInfo>
+                </mods:mods></mets:xmlData></mets:mdWrap></mets:dmdSec>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("SHARED_DMDSEC", codes(judgement.reasons))
+
+    def test_a_shared_foreign_dmdsec_is_fine(self):
+        # The platform never edits a foreign dmdSec (it appends alongside), so sharing one
+        # is safe - only a shared MODS-editable section demotes.
+        judgement = eprints_like(
+            root_attrs='DMDID="DMD_eprint_1"', div_id='DMDID="DMD_eprint_1" ID="PHYS_1"',
+            extra="""<mets:dmdSec ID="DMD_eprint_1"><mets:mdWrap MDTYPE="MODS">
+                <mets:xmlData><mets:recordInfo>
+                <mets:recordIdentifier source="EPrints">1</mets:recordIdentifier>
+                </mets:recordInfo></mets:xmlData></mets:mdWrap></mets:dmdSec>""")
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+        self.assertNotIn("SHARED_DMDSEC", codes(judgement.reasons))
+
+    def test_admid_on_a_filegrp_is_noted(self):
+        # Audit finding M4: the platform's deletion reasoning does not consult these.
+        judgement = eprints_like(
+            use='reference" ADMID="AMD_0')  # smuggle the attr onto the fileGrp
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+        self.assertIn("ADMID_OUTSIDE_SURVIVAL_INDEX", codes(judgement.notes))
 
     def test_the_platform_agent_string_is_pinned_to_the_platform(self):
         # PLATFORM_AGENT is a copy of Constants.MetsCreatorAgent; like ncname_ranges.json,

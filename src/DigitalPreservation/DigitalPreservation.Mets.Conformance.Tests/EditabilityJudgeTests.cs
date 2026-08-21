@@ -237,7 +237,7 @@ public class EditabilityJudgeTests
             fileSec: """
                 <mets:fileSec><mets:fileGrp USE="reference">
                 <mets:file ID="f1"><mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
-                <mets:file ID="f2"><mets:FLocat xlink:href="objects/./a.jpg"/></mets:file>
+                <mets:file ID="f2"><mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
                 </mets:fileGrp></mets:fileSec>
                 """,
             structMap: """
@@ -621,6 +621,92 @@ public class EditabilityJudgeTests
                 """);
         judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
         Codes(judgement.Reasons).Should().Contain("P_PHYSICAL_STRUCTMAP");
+    }
+
+    // Open findings from the METS Identifier Audit that belong to the judge's contract.
+
+    [Fact]
+    public void A_Labelless_Directory_Div_Fails_The_Platform_Tier()
+    {
+        // Audit finding P7: adding into a LABEL-less parent crashes the platform.
+        var judgement = Build(
+            header: """
+                <mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
+                Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>
+                """,
+            amdSec: """
+                <mets:amdSec ID="ADM_1"><mets:techMD ID="TECH_1">
+                <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
+                <premis:objectCharacteristics><premis:fixity>
+                <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>abc</premis:messageDigest>
+                </premis:fixity></premis:objectCharacteristics>
+                <premis:originalName>objects/a.jpg</premis:originalName>
+                </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>
+                """,
+            fileSec: """
+                <mets:fileSec><mets:fileGrp USE="OBJECTS">
+                <mets:file ID="FILE_1" ADMID="ADM_1">
+                <mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>
+                """,
+            structMap: """
+                <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_ROOT" LABEL="__ROOT" TYPE="Directory">
+                <mets:div ID="PHYS_objects" TYPE="Directory" ADMID="ADM_1">
+                <mets:div ID="PHYS_1" LABEL="a.jpg" TYPE="Item">
+                <mets:fptr FILEID="FILE_1"/></mets:div>
+                </mets:div></mets:div></mets:structMap>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("P_DIRECTORY_LABEL");
+    }
+
+    [Theory]
+    [InlineData("objects//a.jpg")]
+    [InlineData("objects/./a.jpg")]
+    [InlineData("objects/a.jpg/")]
+    public void An_Unnormalised_Href_Is_A_Blocker(string href)
+    {
+        // Audit finding M3: the platform's path cache does not collapse empty segments, so
+        // normalising here would make the judge more tolerant than the platform.
+        var judgement = EPrintsLike(href: href);
+        judgement.Verdict.Should().Be(Verdicts.NotEditable);
+        Codes(judgement.Reasons).Should().Contain("HREF_NOT_NORMALISED");
+    }
+
+    [Fact]
+    public void A_Shared_Editable_DmdSec_Demotes()
+    {
+        // Audit finding P5: editing metadata on one div rewrites the shared section in place,
+        // silently changing the other div's metadata.
+        var judgement = EPrintsLike(
+            rootAttrs: "DMDID=\"DMD_1\"", divId: "DMDID=\"DMD_1\" ID=\"PHYS_1\"",
+            extra: """
+                <mets:dmdSec ID="DMD_1"><mets:mdWrap MDTYPE="MODS"><mets:xmlData>
+                <mods:mods xmlns:mods="http://www.loc.gov/mods/v3">
+                <mods:titleInfo><mods:title>Shared</mods:title></mods:titleInfo>
+                </mods:mods></mets:xmlData></mets:mdWrap></mets:dmdSec>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("SHARED_DMDSEC");
+    }
+
+    [Fact]
+    public void A_Shared_Foreign_DmdSec_Is_Fine()
+    {
+        // The platform never edits a foreign dmdSec (it appends alongside), so sharing one
+        // is safe - only a shared MODS-editable section demotes.
+        var judgement = EPrintsLike(
+            rootAttrs: "DMDID=\"DMD_eprint_1\"", divId: "DMDID=\"DMD_eprint_1\" ID=\"PHYS_1\"",
+            extra: """
+                <mets:dmdSec ID="DMD_eprint_1"><mets:mdWrap MDTYPE="MODS">
+                <mets:xmlData><mets:recordInfo>
+                <mets:recordIdentifier source="EPrints">1</mets:recordIdentifier>
+                </mets:recordInfo></mets:xmlData></mets:mdWrap></mets:dmdSec>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
+        Codes(judgement.Reasons).Should().NotContain("SHARED_DMDSEC");
     }
 
     [Fact]

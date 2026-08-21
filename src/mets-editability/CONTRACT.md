@@ -65,6 +65,7 @@ through the fileSec to an `FLocat/@xlink:href`. Blockers:
 | `FILEID_UNRESOLVED` | An fptr references a FILEID no `mets:file` declares |
 | `FILE_NO_HREF` | A referenced file has no `FLocat/@xlink:href` |
 | `HREF_NOT_DEPOSIT_RELATIVE` | An href has a URI scheme, starts with `/` or `\`, or contains a `..` segment — the standing guard |
+| `HREF_NOT_NORMALISED` | An href contains an empty or `.` segment (`objects//a.jpg`, `objects/./a.jpg`, a trailing `/`). The platform's path cache does not normalise paths (identifier audit, finding M3), so such an entry is real but unreachable — and the judge must not be more tolerant than the machinery it vouches for |
 | `DUPLICATE_PATH` | Two **distinct** referenced files resolve to the same normalised path. One file referenced twice (two divs, or a whole-file fptr plus an area on the same file) is one file, counted and path-checked once — never a duplicate |
 | `DUPLICATE_ID` | Two elements declare the same `ID` |
 
@@ -91,6 +92,12 @@ tiers additionally require the Schematron rules in `schematron/common.sch`:
 
 A common-rule failure blocks both tiers: the document is at best `navigable-read-only`.
 
+One further check gates both tiers natively, because DMDID token-splitting is not safe in
+XPath 1.0: **`SHARED_DMDSEC`** — a MODS-editable dmdSec referenced from more than one div.
+Editing metadata on one such div rewrites the section in place and silently changes the other
+div's metadata too (identifier audit, finding P5, open). A shared *foreign* dmdSec is fine: the
+platform never edits those — it appends its own alongside.
+
 Deliberately **not** rules:
 
 - **DMDID resolution.** A dangling DMDID is by design in the platform's own skeleton (dmdSecs are
@@ -105,7 +112,9 @@ Deliberately **not** rules:
 
 Navigable, the common rules pass, **and** the Schematron rules in
 `schematron/platform-tier.sch` all pass (`P_PHYSICAL_STRUCTMAP`, `P_AGENT`,
-`P_SINGLE_OBJECTS_GROUP`, `P_DIV_TYPED`, `P_ITEM_ONE_FPTR`, `P_DIRECTORY_ADMID`, `P_SHA256` —
+`P_SINGLE_OBJECTS_GROUP`, `P_DIV_TYPED`, `P_ITEM_ONE_FPTR`, `P_DIRECTORY_ADMID`,
+`P_DIRECTORY_LABEL` — the platform's add-into-parent requires the parent's LABEL and crashes
+without it (identifier audit, finding P7) — and `P_SHA256` —
 every edit ends in an import job, and import jobs require SHA256 fixity **with a digest value**:
 an algorithm label with an empty digest is a record of having lost the checksum, not of having
 one). `P_PHYSICAL_STRUCTMAP` asserts that the **chosen** map is exactly `TYPE="PHYSICAL"` — a
@@ -147,7 +156,8 @@ Mutations, in save order:
 |---|---|
 | `FOREIGN_STORAGE_LOCATION` | A `premis:storage` whose `storageMedium` is not the platform agent (the EPrints `file://` server paths). History: the editing stack ignores it, and #236 tracks making the parser do the same |
 | `METS_NAMESPACE_RECORD_INFO` | EPrints record identifiers declared in the METS namespace, invisible to the parser — see #237 |
-| `FOREIGN_DMDSEC` | A div's DMDID resolves to a dmdSec claiming MODS (`MDTYPE="MODS"`) with no `mods:mods` record — the EPrints root dmdSec shape. **The platform never edits such a section.** A descriptive-metadata edit on that div creates a *new* platform dmdSec and **appends** its ID to the div's `DMDID` (DMDID is IDREFS), leaving the original untouched, byte for byte |
+| `FOREIGN_DMDSEC` | A div's DMDID resolves to a dmdSec claiming MODS (`MDTYPE="MODS"`) with no `mods:mods` record — the EPrints root dmdSec shape. **The platform never edits such a section.** A descriptive-metadata edit on that div creates a *new* platform dmdSec and **appends** its ID to the div's `DMDID` (DMDID is IDREFS), leaving the original untouched, byte for byte. The append rule presumes the parser reads *every* resolved dmdSec of a div — which it does not yet (identifier audit, finding M10: first-resolving only). M10 is therefore a Phase 4 prerequisite alongside #236 and #237 |
+| `ADMID_OUTSIDE_SURVIVAL_INDEX` | An ADMID sits on a `fileGrp`, `area` or `stream` element, which the platform's deletion reasoning does not consult (identifier audit, finding M4) — sections referenced only from there could be swept by an edit |
 | `NO_XMLDATA_WRAPPER` | An `mdWrap` holds its payload directly, without the `binData`/`xmlData` child the schema requires (EPrints puts `premis:object` straight inside `mdWrap`). A save **normalises** this — mutation 6 — because any typed round-trip would otherwise silently drop the payload; the wrapped content is preserved verbatim |
 
 ## navigable-read-only / not-editable

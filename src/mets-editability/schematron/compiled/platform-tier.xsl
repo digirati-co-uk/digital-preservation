@@ -87,6 +87,12 @@
 <axsl:choose><axsl:when test="not(mets:div//mets:div[@TYPE = 'Directory'][not(@ADMID)])"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(mets:div//mets:div[@TYPE = 'Directory'][not(@ADMID)])"><axsl:attribute name="id">P_DIRECTORY_ADMID</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
         A directory div below the root has no ADMID, so its path cannot be anchored in
         premis:originalName.
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose>
+
+		<!--ASSERT -->
+<axsl:choose><axsl:when test="not(.//mets:div[@TYPE = 'Directory'][not(@LABEL)])"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(.//mets:div[@TYPE = 'Directory'][not(@LABEL)])"><axsl:attribute name="id">P_DIRECTORY_LABEL</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+        A directory div has no LABEL; the platform requires one on every directory, and adding
+        into a LABEL-less parent fails.
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M6"/></axsl:template><axsl:template match="text()" priority="-1" mode="M6"/><axsl:template match="@*|node()" priority="-2" mode="M6"><axsl:apply-templates select="@*|*" mode="M6"/></axsl:template>
 
 <!--PATTERN filesec-->

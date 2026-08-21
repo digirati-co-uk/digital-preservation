@@ -29,7 +29,8 @@ public static class EditabilityJudge
     private static readonly HashSet<string> Blockers =
     [
         "PARSE_FAILED", "NO_PHYSICAL_STRUCTMAP", "NO_ROOT_DIV", "NO_FILES", "FILEID_UNRESOLVED",
-        "FILE_NO_HREF", "HREF_NOT_DEPOSIT_RELATIVE", "DUPLICATE_PATH", "DUPLICATE_ID"
+        "FILE_NO_HREF", "HREF_NOT_DEPOSIT_RELATIVE", "HREF_NOT_NORMALISED", "DUPLICATE_PATH",
+        "DUPLICATE_ID"
     ];
 
     public static Judgement JudgeFile(string path)
@@ -106,10 +107,19 @@ public static class EditabilityJudge
 
         // The common rules guard the linkage every edit operation relies on - fptrs and areas
         // in EVERY structMap (logical included), smLink ends - so they gate both tiers: the
-        // platform cannot safely change what it cannot resolve.
+        // platform cannot safely change what it cannot resolve. Shared editable dmdSecs gate
+        // the same way, natively (DMDID token-splitting is not safe in XPath 1.0).
+        var sharedDmdSecs = SharedEditableDmdSecs(mets);
+        if (sharedDmdSecs > 0)
+        {
+            reasons.Add(new Finding("SHARED_DMDSEC",
+                $"{sharedDmdSecs} MODS dmdSec(s) are referenced from more than one div; " +
+                "editing metadata on one div would silently rewrite the other's (identifier " +
+                "audit, finding P5)"));
+        }
         var commonFailures = SchematronRunner.Failures("common", mets);
         var platformFailures = SchematronRunner.Failures("platform-tier", mets);
-        if (commonFailures.Count == 0 && platformFailures.Count == 0)
+        if (sharedDmdSecs == 0 && commonFailures.Count == 0 && platformFailures.Count == 0)
         {
             return new Judgement
             {
@@ -119,7 +129,8 @@ public static class EditabilityJudge
         }
 
         var eprintsFailures = SchematronRunner.Failures("eprints-tier", mets);
-        if (commonFailures.Count == 0 && eprintsFailures.Count == 0 && legacyIds.Count == 0)
+        if (sharedDmdSecs == 0 && commonFailures.Count == 0 && eprintsFailures.Count == 0
+            && legacyIds.Count == 0)
         {
             AddEprintsAssumptions(resolved, assumptions);
             return new Judgement
@@ -130,7 +141,8 @@ public static class EditabilityJudge
             };
         }
 
-        if (commonFailures.Count == 0 && eprintsFailures.Count == 0 && legacyIds.Count > 0)
+        if (sharedDmdSecs == 0 && commonFailures.Count == 0 && eprintsFailures.Count == 0
+            && legacyIds.Count > 0)
         {
             reasons.Add(new Finding("INVALID_IDS",
                 "the document matches the EPrints tier but declares IDs that are not legal " +
@@ -345,11 +357,23 @@ public static class EditabilityJudge
             return;
         }
         var forward = href.Replace('\\', '/');
+        var segments = forward.Split('/');
         if (UriScheme.IsMatch(href) || href.StartsWith('/') || href.StartsWith('\\')
-            || forward.Split('/').Contains(".."))
+            || segments.Contains(".."))
         {
             AppendOnce(reasons, "HREF_NOT_DEPOSIT_RELATIVE",
                 $"file '{fileId}' href '{href}' is not a relative path within the deposit");
+            return;
+        }
+        if (segments.Contains("") || segments.Contains("."))
+        {
+            // The platform's path cache does NOT normalise (identifier audit, finding M3): an
+            // href with an empty or '.' segment is a real entry the platform can never reach,
+            // so normalising it here would make the judge more tolerant than the machinery it
+            // vouches for.
+            AppendOnce(reasons, "HREF_NOT_NORMALISED",
+                $"file '{fileId}' href '{href}' contains an empty or '.' segment, which the " +
+                "platform's path cache does not normalise - the entry would be unreachable");
             return;
         }
         var normalised = Normalise(forward);
@@ -437,21 +461,33 @@ public static class EditabilityJudge
                 "element the schema requires (an EPrints quirk); a save wraps them - the payload " +
                 "itself is preserved verbatim"));
         }
+
+        var unusualAdmids = new[] { "fileGrp", "area", "stream" }
+            .Sum(name => mets.Descendants(MetsNs + name).Count(e => e.Attribute("ADMID") != null));
+        if (unusualAdmids > 0)
+        {
+            notes.Add(new Finding("ADMID_OUTSIDE_SURVIVAL_INDEX",
+                $"{unusualAdmids} ADMID(s) sit on fileGrp/area/stream elements, which the " +
+                "platform's deletion reasoning does not consult (identifier audit, finding M4); " +
+                "sections referenced only from there could be swept by an edit"));
+        }
         return unwrapped;
     }
 
-    /// <summary>
-    /// Referenced dmdSecs claiming MODS (mdWrap MDTYPE="MODS") without a mods:mods record - the
-    /// EPrints root dmdSec shape. DMDID is IDREFS, so the whole value is tried first (a legacy
-    /// platform ID can contain spaces) and then each token; a DMDID resolving to nothing is
-    /// IGNORED, because dangling DMDIDs are by design in the platform's own skeleton.
-    /// </summary>
-    private static int ForeignDmdSecs(XElement mets)
-    {
-        var dmdSecs = mets.Elements(MetsNs + "dmdSec")
+    private static Dictionary<string, XElement> DmdSecsById(XElement mets) =>
+        mets.Elements(MetsNs + "dmdSec")
             .Where(dmd => dmd.Attribute("ID") != null)
             .ToDictionary(dmd => (string)dmd.Attribute("ID")!, dmd => dmd, StringComparer.Ordinal);
-        var foreign = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// How many divs reference each dmdSec. DMDID is IDREFS, so the whole value is tried first
+    /// (a legacy platform ID can contain spaces) and then each token; a DMDID resolving to
+    /// nothing is IGNORED, because dangling DMDIDs are by design in the platform's own skeleton.
+    /// </summary>
+    private static Dictionary<string, int> DmdReferents(XElement mets)
+    {
+        var dmdSecs = DmdSecsById(mets);
+        var referents = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var div in mets.Descendants(MetsNs + "div"))
         {
             var dmdId = (string?)div.Attribute("DMDID");
@@ -465,15 +501,38 @@ public static class EditabilityJudge
                     .Where(dmdSecs.ContainsKey).ToList();
             foreach (var candidate in candidates)
             {
-                var mdWrap = dmdSecs[candidate].Element(MetsNs + "mdWrap");
-                if (mdWrap != null && (string?)mdWrap.Attribute("MDTYPE") == "MODS"
-                    && !mdWrap.Descendants(ModsNs + "mods").Any())
-                {
-                    foreign.Add(candidate);
-                }
+                referents[candidate] = referents.GetValueOrDefault(candidate) + 1;
             }
         }
-        return foreign.Count;
+        return referents;
+    }
+
+    /// <summary>Claims MODS (mdWrap MDTYPE="MODS") but holds no mods:mods - the EPrints root
+    /// shape.</summary>
+    private static bool IsForeignDmdSec(XElement dmdSec)
+    {
+        var mdWrap = dmdSec.Element(MetsNs + "mdWrap");
+        return mdWrap != null && (string?)mdWrap.Attribute("MDTYPE") == "MODS"
+            && !mdWrap.Descendants(ModsNs + "mods").Any();
+    }
+
+    private static int ForeignDmdSecs(XElement mets)
+    {
+        var dmdSecs = DmdSecsById(mets);
+        return DmdReferents(mets).Keys.Count(id => IsForeignDmdSec(dmdSecs[id]));
+    }
+
+    /// <summary>
+    /// MODS-editable dmdSecs referenced from more than one div. Editing metadata on one such
+    /// div rewrites the section in place and silently changes the other div's metadata too
+    /// (identifier audit, finding P5). A shared FOREIGN dmdSec is fine: the platform never
+    /// edits those (it appends its own alongside).
+    /// </summary>
+    private static int SharedEditableDmdSecs(XElement mets)
+    {
+        var dmdSecs = DmdSecsById(mets);
+        return DmdReferents(mets)
+            .Count(pair => pair.Value > 1 && !IsForeignDmdSec(dmdSecs[pair.Key]));
     }
 
     /// <summary>mdWraps whose payload sits directly inside them rather than in binData/xmlData.</summary>

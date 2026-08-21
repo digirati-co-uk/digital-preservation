@@ -35,7 +35,8 @@ NOT_EDITABLE = "not-editable"
 #: Native blocker codes: any of these means the document is not navigable.
 _BLOCKERS = frozenset([
     "PARSE_FAILED", "NO_PHYSICAL_STRUCTMAP", "NO_ROOT_DIV", "NO_FILES", "FILEID_UNRESOLVED",
-    "FILE_NO_HREF", "HREF_NOT_DEPOSIT_RELATIVE", "DUPLICATE_PATH", "DUPLICATE_ID",
+    "FILE_NO_HREF", "HREF_NOT_DEPOSIT_RELATIVE", "HREF_NOT_NORMALISED", "DUPLICATE_PATH",
+    "DUPLICATE_ID",
 ])
 
 _URI_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:")
@@ -116,21 +117,29 @@ def judge(root: etree._Element) -> Judgement:
     if navigable:
         # The common rules guard the linkage every edit operation relies on - fptrs and areas in
         # EVERY structMap (logical included), smLink ends - so they gate both tiers: the platform
-        # cannot safely change what it cannot resolve.
+        # cannot safely change what it cannot resolve. Shared editable dmdSecs gate the same
+        # way, natively (DMDID token-splitting is not safe in XPath 1.0).
+        shared_dmd_secs = _shared_editable_dmd_secs(mets)
+        if shared_dmd_secs:
+            reasons.append(Finding(
+                "SHARED_DMDSEC",
+                f"{shared_dmd_secs} MODS dmdSec(s) are referenced from more than one div; "
+                "editing metadata on one div would silently rewrite the other's (identifier "
+                "audit, finding P5)"))
         common_failures = schematron.failures("common.sch", mets)
         platform_failures = schematron.failures("platform-tier.sch", mets)
-        if not common_failures and not platform_failures:
+        if not shared_dmd_secs and not common_failures and not platform_failures:
             return Judgement(EDITABLE, resolved.file_count,
                              assumptions=assumptions, notes=notes)
 
         eprints_failures = schematron.failures("eprints-tier.sch", mets)
-        if not common_failures and not eprints_failures and not legacy_ids:
+        if not shared_dmd_secs and not common_failures and not eprints_failures and not legacy_ids:
             _eprints_assumptions(struct_map, resolved, assumptions)
             mutations = _mutations(struct_map, mets, resolved, unwrapped_md_wraps)
             return Judgement(EDITABLE_WITH_NORMALISATION, resolved.file_count,
                              assumptions=assumptions, notes=notes, mutations=mutations)
 
-        if not common_failures and not eprints_failures and legacy_ids:
+        if not shared_dmd_secs and not common_failures and not eprints_failures and legacy_ids:
             reasons.append(Finding(
                 "INVALID_IDS",
                 "the document matches the EPrints tier but declares IDs that are not legal "
@@ -295,10 +304,20 @@ def _resolve_one(file_id, files_by_id, paths_seen, groups_seen, resolved, reason
         _append_once(reasons, "FILE_NO_HREF",
                      f"file {file_id!r} has no FLocat href")
         return
-    if _URI_SCHEME.match(href) or href.startswith(("/", "\\")) \
-            or ".." in href.replace("\\", "/").split("/"):
+    segments = href.replace("\\", "/").split("/")
+    if _URI_SCHEME.match(href) or href.startswith(("/", "\\")) or ".." in segments:
         _append_once(reasons, "HREF_NOT_DEPOSIT_RELATIVE",
                      f"file {file_id!r} href {href!r} is not a relative path within the deposit")
+        return
+    if "" in segments or "." in segments:
+        # The platform's path cache does NOT normalise (identifier audit, finding M3): an
+        # href with an empty or '.' segment is a real entry the platform can never reach, so
+        # normalising it here would make the judge more tolerant than the machinery it
+        # vouches for.
+        _append_once(reasons, "HREF_NOT_NORMALISED",
+                     f"file {file_id!r} href {href!r} contains an empty or '.' segment, which "
+                     "the platform's path cache does not normalise - the entry would be "
+                     "unreachable")
         return
     normalised = posixpath.normpath(href.replace("\\", "/"))
     paths_seen[normalised] = paths_seen.get(normalised, 0) + 1
@@ -377,32 +396,62 @@ def _quirk_notes(mets, notes) -> int:
             f"{unwrapped} mdWrap(s) hold their payload directly, without the mets:xmlData "
             "element the schema requires (an EPrints quirk); a save wraps them - the payload "
             "itself is preserved verbatim"))
+
+    unusual_admids = sum(
+        1 for name in ("fileGrp", "area", "stream")
+        for element in mets.iter(f"{{{METS_NS}}}{name}") if element.get("ADMID"))
+    if unusual_admids:
+        notes.append(Finding(
+            "ADMID_OUTSIDE_SURVIVAL_INDEX",
+            f"{unusual_admids} ADMID(s) sit on fileGrp/area/stream elements, which the "
+            "platform's deletion reasoning does not consult (identifier audit, finding M4); "
+            "sections referenced only from there could be swept by an edit"))
     return unwrapped
 
 
-def _foreign_dmd_secs(mets) -> int:
+def _dmd_referents(mets) -> dict[str, int]:
     """
-    Referenced dmdSecs claiming MODS (mdWrap MDTYPE="MODS") without a mods:mods record - the
-    EPrints root dmdSec shape. DMDID is IDREFS, so the whole value is tried first (a legacy
-    platform ID can contain spaces) and then each token; a DMDID that resolves to nothing is
-    IGNORED here, because dangling DMDIDs are by design in the platform's own skeleton.
+    How many divs reference each dmdSec. DMDID is IDREFS, so the whole value is tried first (a
+    legacy platform ID can contain spaces) and then each token; a DMDID that resolves to
+    nothing is IGNORED, because dangling DMDIDs are by design in the platform's own skeleton.
     """
-    dmd_secs = {dmd.get("ID"): dmd for dmd in mets.findall(f"{{{METS_NS}}}dmdSec")
-                if dmd.get("ID") is not None}
-    foreign = set()
+    dmd_ids = {dmd.get("ID") for dmd in mets.findall(f"{{{METS_NS}}}dmdSec")} - {None}
+    referents: dict[str, int] = {}
     for div in mets.iter(f"{{{METS_NS}}}div"):
         dmd_id = div.get("DMDID")
         if not dmd_id:
             continue
-        candidates = [dmd_id] if dmd_id in dmd_secs else \
-            [token for token in dmd_id.split() if token in dmd_secs]
+        candidates = [dmd_id] if dmd_id in dmd_ids else \
+            [token for token in dmd_id.split() if token in dmd_ids]
         for candidate in candidates:
-            dmd_sec = dmd_secs[candidate]
-            md_wrap = dmd_sec.find(f"{{{METS_NS}}}mdWrap")
-            if md_wrap is not None and md_wrap.get("MDTYPE") == "MODS" \
-                    and md_wrap.find(f".//{{{MODS_NS}}}mods") is None:
-                foreign.add(candidate)
-    return len(foreign)
+            referents[candidate] = referents.get(candidate, 0) + 1
+    return referents
+
+
+def _is_foreign_dmd_sec(dmd_sec) -> bool:
+    """Claims MODS (mdWrap MDTYPE="MODS") but holds no mods:mods - the EPrints root shape."""
+    md_wrap = dmd_sec.find(f"{{{METS_NS}}}mdWrap")
+    return md_wrap is not None and md_wrap.get("MDTYPE") == "MODS" \
+        and md_wrap.find(f".//{{{MODS_NS}}}mods") is None
+
+
+def _foreign_dmd_secs(mets) -> int:
+    dmd_secs = {dmd.get("ID"): dmd for dmd in mets.findall(f"{{{METS_NS}}}dmdSec")
+                if dmd.get("ID") is not None}
+    return sum(1 for dmd_id in _dmd_referents(mets) if _is_foreign_dmd_sec(dmd_secs[dmd_id]))
+
+
+def _shared_editable_dmd_secs(mets) -> int:
+    """
+    MODS-editable dmdSecs referenced from more than one div. Editing metadata on one such div
+    rewrites the section in place and silently changes the other div's metadata too
+    (identifier audit, finding P5) - so a document with one is not safely editable. A shared
+    FOREIGN dmdSec is fine: the platform never edits those (it appends its own alongside).
+    """
+    dmd_secs = {dmd.get("ID"): dmd for dmd in mets.findall(f"{{{METS_NS}}}dmdSec")
+                if dmd.get("ID") is not None}
+    return sum(1 for dmd_id, count in _dmd_referents(mets).items()
+               if count > 1 and not _is_foreign_dmd_sec(dmd_secs[dmd_id]))
 
 
 def _unwrapped_md_wraps(mets) -> int:
