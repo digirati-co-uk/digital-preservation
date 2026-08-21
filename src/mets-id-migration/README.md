@@ -380,3 +380,17 @@ tool detects that and skips the check with a warning rather than printing a frig
 ## If a migration goes wrong
 
 OCFL keeps the previous version. The fix is to preserve the old METS again, not to delete a version.
+
+## Deliberately not done
+
+Two improvements were considered during review and left out on purpose; recorded here because this
+tool will be archived once the migration is complete, and they should be archived with it:
+
+- **Cross-pinning `_is_mets_file` to the server's `MetsUtils.IsMetsFile`.** The two definitions of
+  "is this the METS file" (here and in the Preservation API's suppression gate) could in principle
+  drift. If they ever do, the server refuses the suppressed job with a 400 and the run stops —
+  loud, and nothing is preserved — so a build-time pin would only convert a safe runtime failure
+  into an earlier one.
+- **Batching the ledger's `note_preserved` commits.** The survey commits after every deposit row.
+  The cost is dwarfed by the HTTP reads, and committing per row is what makes Ctrl-C safe at any
+  moment, which matters more here than the seconds batching would save.
