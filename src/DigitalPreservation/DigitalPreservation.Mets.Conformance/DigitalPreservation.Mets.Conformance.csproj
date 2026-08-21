@@ -8,8 +8,10 @@
 
     <ItemGroup>
         <!-- The canonical Schematron rules live with the Python judge; this project executes the
-             compiled XSLT form of the same files. tools/compile_schematron.py regenerates them,
-             and tests on both sides pin behaviour to the .sch source. -->
+             compiled XSLT form of the same files. tools/compile_schematron.py regenerates them.
+             Two guards keep this embedding honest: the Python suite proves the compiled form
+             behaves identically to the .sch source, and CI (test-mets-editability in build.yml)
+             recompiles and fails on any diff, so a stale compiled/ cannot merge. -->
         <EmbeddedResource Include="..\..\mets-editability\schematron\compiled\*.xsl"
                           LinkBase="Schematron" />
     </ItemGroup>

@@ -104,7 +104,7 @@ def build(struct_map="", file_sec="", amd_sec="", header=""):
 
 
 def eprints_like(href="objects/a.jpg", use="reference", file_id="eprint_1_1",
-                 admid='ADMID="AMD_1"', algorithm="SHA256", fptr_id=None,
+                 admid='ADMID="AMD_1"', algorithm="SHA256", digest="abc", fptr_id=None,
                  wrapped=False, root_attrs="", div_id="", extra=""):
     """
     The smallest document that reaches the EPrints tier, with one knob per test. `wrapped`
@@ -120,7 +120,7 @@ def eprints_like(href="objects/a.jpg", use="reference", file_id="eprint_1_1",
             <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">{open_wrap}<premis:object>
             <premis:objectCharacteristics><premis:fixity>
             <premis:messageDigestAlgorithm>{algorithm}</premis:messageDigestAlgorithm>
-            <premis:messageDigest>abc</premis:messageDigest>
+            <premis:messageDigest>{digest}</premis:messageDigest>
             </premis:fixity></premis:objectCharacteristics>
             </premis:object>{close_wrap}</mets:mdWrap></mets:techMD></mets:amdSec>""",
         file_sec=f"""<mets:fileSec><mets:fileGrp USE="{use}">
@@ -257,7 +257,7 @@ class TheNativeRules(unittest.TestCase):
         self.assertEqual(codes(judgement.reasons), {"PARSE_FAILED"})
 
 
-def platform_like(algorithm="SHA256"):
+def platform_like(algorithm="SHA256", digest="abc"):
     """The smallest document that reaches the platform tier."""
     return build(
         header="""<mets:metsHdr><mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
@@ -268,7 +268,7 @@ def platform_like(algorithm="SHA256"):
             <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
             <premis:objectCharacteristics><premis:fixity>
             <premis:messageDigestAlgorithm>{algorithm}</premis:messageDigestAlgorithm>
-            <premis:messageDigest>abc</premis:messageDigest>
+            <premis:messageDigest>{digest}</premis:messageDigest>
             </premis:fixity></premis:objectCharacteristics>
             <premis:originalName>objects/a.jpg</premis:originalName>
             </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>""",
@@ -405,6 +405,163 @@ class TheEditableSurface(unittest.TestCase):
             </mets:structMap>""")
         self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
         self.assertIn("C_LOGICAL_ROOT_HAS_ID", codes(judgement.reasons))
+
+
+class TheAdversarialReviewFindings(unittest.TestCase):
+    """One test per fixed finding from the 2026-08-21 adversarial review of PR #238."""
+
+    def test_a_physical_fptr_without_fileid_demotes(self):
+        # The platform's physical walk calls GetRequiredFileId on every fptr; an area-only
+        # fptr (legal in a logical map, where the platform itself writes them) crashes it.
+        judgement = build(
+            file_sec="""<mets:fileSec><mets:fileGrp USE="reference">
+                <mets:file ID="f1"><mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>""",
+            struct_map="""<mets:structMap><mets:div>
+                <mets:div><mets:fptr><mets:area FILEID="f1" BETYPE="TIME"
+                    BEGIN="00:00:01" END="00:00:02"/></mets:fptr></mets:div>
+                </mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("C_PHYSICAL_FPTR_HAS_FILEID", codes(judgement.reasons))
+
+    def test_a_file_with_two_flocats_demotes(self):
+        # The platform's parser takes .Single() FLocat per file; two locations throw it.
+        judgement = build(
+            file_sec="""<mets:fileSec><mets:fileGrp USE="reference">
+                <mets:file ID="f1">
+                <mets:FLocat xlink:href="objects/a.jpg"/>
+                <mets:FLocat xlink:href="objects/mirror/a.jpg"/>
+                </mets:file></mets:fileGrp></mets:fileSec>""",
+            struct_map="""<mets:structMap><mets:div>
+                <mets:div><mets:fptr FILEID="f1"/></mets:div>
+                </mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("C_ONE_FLOCAT", codes(judgement.reasons))
+
+    def test_an_empty_digest_fails_the_fixity_rule(self):
+        # An algorithm label with no digest value is a record of having lost the checksum.
+        judgement = eprints_like(digest="")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("E_SHA256", codes(judgement.reasons))
+
+    def test_a_platform_file_with_an_empty_digest_is_read_only(self):
+        judgement = platform_like(digest="")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("P_SHA256", codes(judgement.reasons))
+
+    def test_a_useless_first_filegrp_still_counts_as_mixed(self):
+        # XPath != against a missing attribute is silently false; the second clause of
+        # E_MIXED_FILEGRP_USE catches presence-mixing.
+        judgement = build(
+            header="""<mets:metsHdr><mets:agent><mets:name>EPrints</mets:name></mets:agent>
+                </mets:metsHdr>""",
+            file_sec="""<mets:fileSec>
+                <mets:fileGrp>
+                <mets:file ID="f1"><mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp>
+                <mets:fileGrp USE="original">
+                <mets:file ID="f2"><mets:FLocat xlink:href="objects/b.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>""",
+            struct_map="""<mets:structMap><mets:div>
+                <mets:div><mets:fptr FILEID="f1"/></mets:div>
+                <mets:div><mets:fptr FILEID="f2"/></mets:div>
+                </mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("E_MIXED_FILEGRP_USE", codes(judgement.reasons))
+
+    def test_an_empty_document_gives_its_reason(self):
+        # The platform's own freshly-created deposit skeleton: structure, no files yet.
+        # A verdict must carry its reasons.
+        judgement = build(
+            header="""<mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
+                Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>""",
+            file_sec="""<mets:fileSec><mets:fileGrp USE="OBJECTS"/></mets:fileSec>""",
+            struct_map="""<mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_ROOT" LABEL="__ROOT" TYPE="Directory">
+                <mets:div ID="PHYS_objects" LABEL="objects" TYPE="Directory" ADMID="ADM_objects"/>
+                </mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+        self.assertEqual(codes(judgement.reasons), {"NO_FILES"})
+
+    def test_one_file_referenced_from_two_divs_is_not_a_duplicate_path(self):
+        judgement = eprints_like(extra="")
+        # Reference the same file from a second div via a second structMap-level div: use the
+        # builder's own structMap plus a logical map pointing at the same file, and also a
+        # physical second div sharing the file.
+        judgement = build(
+            header="""<mets:metsHdr><mets:agent><mets:name>EPrints 3.3.15</mets:name>
+                </mets:agent></mets:metsHdr>""",
+            amd_sec="""<mets:amdSec ID="AMD_0"><mets:techMD ID="AMD_1">
+                <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml"><premis:object>
+                <premis:objectCharacteristics><premis:fixity>
+                <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>abc</premis:messageDigest>
+                </premis:fixity></premis:objectCharacteristics>
+                </premis:object></mets:mdWrap></mets:techMD></mets:amdSec>""",
+            file_sec="""<mets:fileSec><mets:fileGrp USE="reference">
+                <mets:file ID="f1" ADMID="AMD_1">
+                <mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>""",
+            struct_map="""<mets:structMap><mets:div>
+                <mets:div><mets:fptr FILEID="f1"/></mets:div>
+                <mets:div><mets:fptr FILEID="f1"/></mets:div>
+                </mets:div></mets:structMap>""")
+        self.assertNotIn("DUPLICATE_PATH", codes(judgement.reasons))
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+        self.assertEqual(judgement.file_count, 1)
+
+    def test_an_unchosen_second_structmap_cannot_demote(self):
+        # CONTRACT.md: with several candidates, the first is judged. A nested sibling map is
+        # preserved as parsed, never edited - it must not fail the tier for the chosen one.
+        judgement = eprints_like(extra="""<mets:structMap>
+            <mets:div><mets:div><mets:div>
+            <mets:fptr FILEID="eprint_1_1"/>
+            </mets:div></mets:div></mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.EDITABLE_WITH_NORMALISATION)
+        self.assertIn("MULTIPLE_PHYSICAL_CANDIDATES", codes(judgement.notes))
+
+    def test_a_conformant_unchosen_map_cannot_carry_the_platform_tier(self):
+        # The walked map and the validated map must be the same map: a lowercase-typed first
+        # candidate is the chosen one, and a perfect TYPE="PHYSICAL" sibling cannot stand in.
+        judgement = build(
+            header="""<mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
+                Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>""",
+            amd_sec="""<mets:amdSec ID="ADM_objects_x002F_a.jpg">
+                <mets:techMD ID="TECH_objects_x002F_a.jpg">
+                <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
+                <premis:objectCharacteristics><premis:fixity>
+                <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>abc</premis:messageDigest>
+                </premis:fixity></premis:objectCharacteristics>
+                </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>""",
+            file_sec="""<mets:fileSec><mets:fileGrp USE="OBJECTS">
+                <mets:file ID="FILE_1" ADMID="ADM_objects_x002F_a.jpg">
+                <mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>""",
+            struct_map="""<mets:structMap TYPE="physical"><mets:div>
+                <mets:div><mets:div><mets:fptr FILEID="FILE_1"/></mets:div></mets:div>
+                </mets:div></mets:structMap>
+                <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_ROOT" TYPE="Directory">
+                <mets:div ID="PHYS_1" TYPE="Item"><mets:fptr FILEID="FILE_1"/></mets:div>
+                </mets:div></mets:structMap>""")
+        self.assertEqual(judgement.verdict, judge.NAVIGABLE_READ_ONLY)
+        self.assertIn("P_PHYSICAL_STRUCTMAP", codes(judgement.reasons))
+
+    def test_a_missing_file_is_a_judgement_not_a_crash(self):
+        judgement = judge.judge_file(pathlib.Path("does-not-exist.xml"))
+        self.assertEqual(judgement.verdict, judge.NOT_EDITABLE)
+        self.assertEqual(codes(judgement.reasons), {"PARSE_FAILED"})
+
+    def test_an_id_with_a_trailing_newline_is_not_legal(self):
+        self.assertFalse(ncname.is_valid_id("FILE_1\n"))
+
+    def test_the_platform_agent_string_is_pinned_to_the_platform(self):
+        # PLATFORM_AGENT is a copy of Constants.MetsCreatorAgent; like ncname_ranges.json,
+        # the copy must not be able to drift silently.
+        constants = (pathlib.Path(__file__).parent.parent / "DigitalPreservation"
+                     / "DigitalPreservation.Mets" / "Constants.cs").read_text(encoding="utf-8")
+        self.assertIn(f'MetsCreatorAgent = "{judge.PLATFORM_AGENT}"', constants)
 
 
 class TheSharedAuthorities(unittest.TestCase):

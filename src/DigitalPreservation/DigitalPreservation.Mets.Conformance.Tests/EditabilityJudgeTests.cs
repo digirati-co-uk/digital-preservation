@@ -115,7 +115,7 @@ public class EditabilityJudgeTests
     }
 
     private static Judgement EPrintsLike(
-        string href = "objects/a.jpg", string algorithm = "SHA256",
+        string href = "objects/a.jpg", string algorithm = "SHA256", string digest = "abc",
         string fileId = "eprint_1_1", string? fptrId = null,
         bool wrapped = false, string rootAttrs = "", string divId = "", string extra = "")
     {
@@ -132,7 +132,7 @@ public class EditabilityJudgeTests
                 <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml">{openWrap}<premis:object>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>{algorithm}</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>{digest}</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 </premis:object>{closeWrap}</mets:mdWrap></mets:techMD></mets:amdSec>
                 """,
@@ -366,7 +366,7 @@ public class EditabilityJudgeTests
         judgement.Mutations.Should().NotContain(m => m.StartsWith("wrap the payload"));
     }
 
-    private static Judgement PlatformLike(string algorithm = "SHA256")
+    private static Judgement PlatformLike(string algorithm = "SHA256", string digest = "abc")
     {
         return Build(
             header: """
@@ -380,7 +380,7 @@ public class EditabilityJudgeTests
                 <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
                 <premis:objectCharacteristics><premis:fixity>
                 <premis:messageDigestAlgorithm>{algorithm}</premis:messageDigestAlgorithm>
-                <premis:messageDigest>abc</premis:messageDigest>
+                <premis:messageDigest>{digest}</premis:messageDigest>
                 </premis:fixity></premis:objectCharacteristics>
                 <premis:originalName>objects/a.jpg</premis:originalName>
                 </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>
@@ -428,6 +428,208 @@ public class EditabilityJudgeTests
             """);
         judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
         Codes(judgement.Reasons).Should().Contain("C_LOGICAL_ROOT_HAS_ID");
+    }
+
+    // One test per fixed finding from the 2026-08-21 adversarial review of PR #238.
+
+    [Fact]
+    public void A_Physical_Fptr_Without_Fileid_Demotes()
+    {
+        // The platform's physical walk calls GetRequiredFileId on every fptr; an area-only
+        // fptr (legal in a logical map, where the platform itself writes them) crashes it.
+        var judgement = Build(
+            fileSec: """
+                <mets:fileSec><mets:fileGrp USE="reference">
+                <mets:file ID="f1"><mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>
+                """,
+            structMap: """
+                <mets:structMap><mets:div>
+                <mets:div><mets:fptr><mets:area FILEID="f1" BETYPE="TIME"
+                    BEGIN="00:00:01" END="00:00:02"/></mets:fptr></mets:div>
+                </mets:div></mets:structMap>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("C_PHYSICAL_FPTR_HAS_FILEID");
+    }
+
+    [Fact]
+    public void A_File_With_Two_FLocats_Demotes()
+    {
+        // The platform's parser takes .Single() FLocat per file; two locations throw it.
+        var judgement = Build(
+            fileSec: """
+                <mets:fileSec><mets:fileGrp USE="reference">
+                <mets:file ID="f1">
+                <mets:FLocat xlink:href="objects/a.jpg"/>
+                <mets:FLocat xlink:href="objects/mirror/a.jpg"/>
+                </mets:file></mets:fileGrp></mets:fileSec>
+                """,
+            structMap: """
+                <mets:structMap><mets:div>
+                <mets:div><mets:fptr FILEID="f1"/></mets:div>
+                </mets:div></mets:structMap>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("C_ONE_FLOCAT");
+    }
+
+    [Fact]
+    public void An_Empty_Digest_Fails_The_Fixity_Rules()
+    {
+        // An algorithm label with no digest value is a record of having lost the checksum.
+        var eprints = EPrintsLike(digest: "");
+        eprints.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(eprints.Reasons).Should().Contain("E_SHA256");
+
+        var platform = PlatformLike(digest: "");
+        platform.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(platform.Reasons).Should().Contain("P_SHA256");
+    }
+
+    [Fact]
+    public void A_Useless_First_FileGrp_Still_Counts_As_Mixed()
+    {
+        // XPath != against a missing attribute is silently false; the second clause of
+        // E_MIXED_FILEGRP_USE catches presence-mixing.
+        var judgement = Build(
+            header: """
+                <mets:metsHdr><mets:agent><mets:name>EPrints</mets:name></mets:agent>
+                </mets:metsHdr>
+                """,
+            fileSec: """
+                <mets:fileSec>
+                <mets:fileGrp>
+                <mets:file ID="f1"><mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp>
+                <mets:fileGrp USE="original">
+                <mets:file ID="f2"><mets:FLocat xlink:href="objects/b.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>
+                """,
+            structMap: """
+                <mets:structMap><mets:div>
+                <mets:div><mets:fptr FILEID="f1"/></mets:div>
+                <mets:div><mets:fptr FILEID="f2"/></mets:div>
+                </mets:div></mets:structMap>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("E_MIXED_FILEGRP_USE");
+    }
+
+    [Fact]
+    public void An_Empty_Document_Gives_Its_Reason()
+    {
+        // The platform's own freshly-created deposit skeleton: structure, no files yet.
+        var judgement = Build(
+            header: """
+                <mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
+                Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>
+                """,
+            fileSec: """<mets:fileSec><mets:fileGrp USE="OBJECTS"/></mets:fileSec>""",
+            structMap: """
+                <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_ROOT" LABEL="__ROOT" TYPE="Directory">
+                <mets:div ID="PHYS_objects" LABEL="objects" TYPE="Directory" ADMID="ADM_objects"/>
+                </mets:div></mets:structMap>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.NotEditable);
+        Codes(judgement.Reasons).Should().BeEquivalentTo("NO_FILES");
+    }
+
+    [Fact]
+    public void One_File_Referenced_From_Two_Divs_Is_Not_A_Duplicate_Path()
+    {
+        var judgement = Build(
+            header: """
+                <mets:metsHdr><mets:agent><mets:name>EPrints 3.3.15</mets:name></mets:agent>
+                </mets:metsHdr>
+                """,
+            amdSec: """
+                <mets:amdSec ID="AMD_0"><mets:techMD ID="AMD_1">
+                <mets:mdWrap MDTYPE="OTHER" MIMETYPE="text/xml"><premis:object>
+                <premis:objectCharacteristics><premis:fixity>
+                <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>abc</premis:messageDigest>
+                </premis:fixity></premis:objectCharacteristics>
+                </premis:object></mets:mdWrap></mets:techMD></mets:amdSec>
+                """,
+            fileSec: """
+                <mets:fileSec><mets:fileGrp USE="reference">
+                <mets:file ID="f1" ADMID="AMD_1">
+                <mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>
+                """,
+            structMap: """
+                <mets:structMap><mets:div>
+                <mets:div><mets:fptr FILEID="f1"/></mets:div>
+                <mets:div><mets:fptr FILEID="f1"/></mets:div>
+                </mets:div></mets:structMap>
+                """);
+        Codes(judgement.Reasons).Should().NotContain("DUPLICATE_PATH");
+        judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
+        judgement.FileCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void An_Unchosen_Second_StructMap_Cannot_Demote()
+    {
+        // CONTRACT.md: with several candidates, the first is judged. A nested sibling map is
+        // preserved as parsed, never edited - it must not fail the tier for the chosen one.
+        var judgement = EPrintsLike(extra: """
+            <mets:structMap>
+            <mets:div><mets:div><mets:div>
+            <mets:fptr FILEID="eprint_1_1"/>
+            </mets:div></mets:div></mets:div></mets:structMap>
+            """);
+        judgement.Verdict.Should().Be(Verdicts.EditableWithNormalisation);
+        Codes(judgement.Notes).Should().Contain("MULTIPLE_PHYSICAL_CANDIDATES");
+    }
+
+    [Fact]
+    public void A_Conformant_Unchosen_Map_Cannot_Carry_The_Platform_Tier()
+    {
+        // The walked map and the validated map must be the same map.
+        var judgement = Build(
+            header: """
+                <mets:metsHdr><mets:agent><mets:name>University of Leeds Digital
+                Library Infrastructure Project</mets:name></mets:agent></mets:metsHdr>
+                """,
+            amdSec: """
+                <mets:amdSec ID="ADM_objects_x002F_a.jpg">
+                <mets:techMD ID="TECH_objects_x002F_a.jpg">
+                <mets:mdWrap MDTYPE="PREMIS:OBJECT"><mets:xmlData><premis:object>
+                <premis:objectCharacteristics><premis:fixity>
+                <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                <premis:messageDigest>abc</premis:messageDigest>
+                </premis:fixity></premis:objectCharacteristics>
+                </premis:object></mets:xmlData></mets:mdWrap></mets:techMD></mets:amdSec>
+                """,
+            fileSec: """
+                <mets:fileSec><mets:fileGrp USE="OBJECTS">
+                <mets:file ID="FILE_1" ADMID="ADM_objects_x002F_a.jpg">
+                <mets:FLocat xlink:href="objects/a.jpg"/></mets:file>
+                </mets:fileGrp></mets:fileSec>
+                """,
+            structMap: """
+                <mets:structMap TYPE="physical"><mets:div>
+                <mets:div><mets:div><mets:fptr FILEID="FILE_1"/></mets:div></mets:div>
+                </mets:div></mets:structMap>
+                <mets:structMap TYPE="PHYSICAL">
+                <mets:div ID="PHYS_ROOT" TYPE="Directory">
+                <mets:div ID="PHYS_1" TYPE="Item"><mets:fptr FILEID="FILE_1"/></mets:div>
+                </mets:div></mets:structMap>
+                """);
+        judgement.Verdict.Should().Be(Verdicts.NavigableReadOnly);
+        Codes(judgement.Reasons).Should().Contain("P_PHYSICAL_STRUCTMAP");
+    }
+
+    [Fact]
+    public void A_Missing_File_Is_A_Judgement_Not_A_Crash()
+    {
+        var judgement = EditabilityJudge.JudgeFile(
+            Path.Combine(AppContext.BaseDirectory, "does-not-exist.xml"));
+        judgement.Verdict.Should().Be(Verdicts.NotEditable);
+        Codes(judgement.Reasons).Should().BeEquivalentTo("PARSE_FAILED");
     }
 
     [Fact]

@@ -23,8 +23,11 @@ def _char_class(ranges: list[list[int]]) -> str:
         for low, high in ranges)
 
 
+# \Z, not $: in Python, $ also matches just before a trailing newline, so an ID ending in a
+# newline (reachable via a character reference in the attribute) would be judged legal here
+# while XmlConvert - the authority - rejects it.
 _NCNAME = re.compile(
-    f"^[{_char_class(_RANGES['nameStart'])}][{_char_class(_RANGES['nameChar'])}]*$")
+    f"^[{_char_class(_RANGES['nameStart'])}][{_char_class(_RANGES['nameChar'])}]*\\Z")
 
 
 def is_valid_id(value: str) -> bool:

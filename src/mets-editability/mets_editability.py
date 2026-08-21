@@ -39,7 +39,19 @@ def main() -> int:
     arguments = parser.parse_args()
 
     target = pathlib.Path(arguments.target)
-    files = sorted(target.glob("*.xml")) if target.is_dir() else [target]
+    if target.is_dir():
+        # Not glob("*.xml"): that is case-sensitive on Linux, so ITEM.XML would be silently
+        # skipped there and judged on Windows. Directly-contained files only; say what was
+        # left out, so a partial run cannot pass for a complete one.
+        entries = sorted(target.iterdir())
+        files = [entry for entry in entries
+                 if entry.is_file() and entry.suffix.lower() == ".xml"]
+        skipped = len(entries) - len(files)
+        if skipped:
+            print(f"judging {len(files)} .xml file(s); skipping {skipped} other "
+                  "entr(y/ies) (subfolders are not descended)", file=sys.stderr)
+    else:
+        files = [target]
     if not files:
         print(f"nothing to judge in {target}", file=sys.stderr)
         return 2

@@ -28,7 +28,7 @@ public static class EditabilityJudge
 
     private static readonly HashSet<string> Blockers =
     [
-        "PARSE_FAILED", "NO_PHYSICAL_STRUCTMAP", "NO_ROOT_DIV", "FILEID_UNRESOLVED",
+        "PARSE_FAILED", "NO_PHYSICAL_STRUCTMAP", "NO_ROOT_DIV", "NO_FILES", "FILEID_UNRESOLVED",
         "FILE_NO_HREF", "HREF_NOT_DEPOSIT_RELATIVE", "DUPLICATE_PATH", "DUPLICATE_ID"
     ];
 
@@ -85,6 +85,14 @@ public static class EditabilityJudge
         var filesById = FileIndex(mets);
         var resolved = Walk(structMap, filesById, reasons, notes);
         var unwrappedMdWraps = QuirkNotes(mets, notes);
+
+        if (resolved.FileCount == 0 && !reasons.Any(f => Blockers.Contains(f.Code)))
+        {
+            // A verdict must carry its reasons. The platform's own freshly-created deposit
+            // skeleton is this class: structure but no files yet.
+            reasons.Add(new Finding("NO_FILES", "the physical structMap references no files"));
+        }
+
         var navigable = resolved.FileCount > 0 && !reasons.Any(f => Blockers.Contains(f.Code));
 
         if (!navigable)
@@ -146,7 +154,13 @@ public static class EditabilityJudge
         public int FileCount;
         public int UntypedFileDivs;
         public int FileDivs;
-        public readonly List<XElement> ReferencedGroups = [];
+        public readonly HashSet<XElement> ReferencedGroups = [];
+
+        /// <summary>Distinct mets:file IDs already resolved - a file referenced twice (two
+        /// divs, or a whole-file fptr plus an area on the same file) is one file, counted and
+        /// path-checked once. DUPLICATE_PATH means two FILES claiming one path, never one file
+        /// referenced twice.</summary>
+        public readonly HashSet<string> SeenFileIds = new(StringComparer.Ordinal);
     }
 
     private static XElement? ChoosePhysicalStructMap(
@@ -313,9 +327,13 @@ public static class EditabilityJudge
                 $"an fptr references FILEID '{fileId}' that no mets:file declares");
             return;
         }
+        if (!resolved.SeenFileIds.Add(fileId))
+        {
+            return;
+        }
         resolved.FileCount++;
         var group = file.Ancestors(MetsNs + "fileGrp").FirstOrDefault();
-        if (group != null && !resolved.ReferencedGroups.Contains(group))
+        if (group != null)
         {
             resolved.ReferencedGroups.Add(group);
         }
@@ -390,7 +408,8 @@ public static class EditabilityJudge
         {
             notes.Add(new Finding("FOREIGN_STORAGE_LOCATION",
                 $"{foreignStorage} premis:storage assertion(s) belong to another system (no " +
-                "platform storageMedium); kept as history, never read as the file's location (#236)"));
+                "platform storageMedium); the editing stack ignores them, and #236 tracks " +
+                "making the parser do the same"));
         }
 
         if (mets.Descendants(MetsNs + "dmdSec")

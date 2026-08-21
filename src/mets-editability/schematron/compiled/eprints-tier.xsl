@@ -10,7 +10,7 @@
 <axsl:output xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" xmlns:svrl="http://purl.oclc.org/dsdl/svrl" method="xml" omit-xml-declaration="no" standalone="yes" indent="yes"/>
 
 <!--KEYS-->
-
+<axsl:key name="md-by-id" match="mets:techMD | mets:amdSec" use="@ID"/>
 
 <!--DEFAULT RULES-->
 
@@ -40,7 +40,7 @@
 <axsl:template match="/"><svrl:schematron-output xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" title="METS editability: the EPrints tier's XML-visible rules" schemaVersion=""><axsl:comment><axsl:value-of select="$archiveDirParameter"/>   
 		 <axsl:value-of select="$archiveNameParameter"/>  
 		 <axsl:value-of select="$fileNameParameter"/>  
-		 <axsl:value-of select="$fileDirParameter"/></axsl:comment><svrl:ns-prefix-in-attribute-values uri="http://www.loc.gov/METS/" prefix="mets"/><svrl:ns-prefix-in-attribute-values uri="http://www.w3.org/1999/xlink" prefix="xlink"/><svrl:ns-prefix-in-attribute-values uri="http://www.loc.gov/premis/v3" prefix="premis"/><svrl:active-pattern><axsl:attribute name="id">structmap</axsl:attribute><axsl:attribute name="name">structmap</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M4"/><svrl:active-pattern><axsl:attribute name="id">filesec</axsl:attribute><axsl:attribute name="name">filesec</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M5"/></svrl:schematron-output></axsl:template>
+		 <axsl:value-of select="$fileDirParameter"/></axsl:comment><svrl:ns-prefix-in-attribute-values uri="http://www.loc.gov/METS/" prefix="mets"/><svrl:ns-prefix-in-attribute-values uri="http://www.w3.org/1999/xlink" prefix="xlink"/><svrl:ns-prefix-in-attribute-values uri="http://www.loc.gov/premis/v3" prefix="premis"/><svrl:active-pattern><axsl:attribute name="id">structmap</axsl:attribute><axsl:attribute name="name">structmap</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M5"/><svrl:active-pattern><axsl:attribute name="id">filesec</axsl:attribute><axsl:attribute name="name">filesec</axsl:attribute><axsl:apply-templates/></svrl:active-pattern><axsl:apply-templates select="/" mode="M6"/></svrl:schematron-output></axsl:template>
 
 <!--SCHEMATRON PATTERNS-->
 <svrl:text xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron">METS editability: the EPrints tier's XML-visible rules</svrl:text>
@@ -49,40 +49,32 @@
 
 
 	<!--RULE -->
-<axsl:template match="mets:mets" priority="1002" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:mets"/>
+<axsl:template match="mets:mets" priority="1001" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:mets"/>
 
 		<!--ASSERT -->
 <axsl:choose><axsl:when test="mets:structMap[not(@TYPE)] or mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="mets:structMap[not(@TYPE)] or mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']"><axsl:attribute name="id">E_NO_PHYSICAL_CANDIDATE</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
         The document has no structMap that is physical or can be assumed physical (untyped).
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M4"/></axsl:template>
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template>
 
 	<!--RULE -->
-<axsl:template match="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div" priority="1001" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div"/>
+<axsl:template match="mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'][not(preceding-sibling::mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])] | mets:structMap[not(@TYPE)][not(preceding-sibling::mets:structMap[not(@TYPE)])][not(../mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])]" priority="1000" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'][not(preceding-sibling::mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])] | mets:structMap[not(@TYPE)][not(preceding-sibling::mets:structMap[not(@TYPE)])][not(../mets:structMap[translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL'])]"/>
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="not(mets:div/mets:div)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(mets:div/mets:div)"><axsl:attribute name="id">E_NOT_FLAT</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+<axsl:choose><axsl:when test="not(mets:div/mets:div/mets:div)"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(mets:div/mets:div/mets:div)"><axsl:attribute name="id">E_NOT_FLAT</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
         The physical structMap nests divs more than one level below the root; the EPrints tier
         only covers a flat root-plus-file-divs shape.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M4"/></axsl:template>
-
-	<!--RULE -->
-<axsl:template match="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div/mets:div" priority="1000" mode="M4"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:structMap[not(@TYPE) or translate(@TYPE, 'physical', 'PHYSICAL') = 'PHYSICAL']/mets:div/mets:div"/>
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose>
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="count(mets:fptr) = 1"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="count(mets:fptr) = 1"><axsl:attribute name="id">E_ITEM_ONE_FPTR</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+<axsl:choose><axsl:when test="not(mets:div/mets:div[count(mets:fptr) != 1])"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(mets:div/mets:div[count(mets:fptr) != 1])"><axsl:attribute name="id">E_ITEM_ONE_FPTR</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
         A file div must carry exactly one fptr.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M4"/></axsl:template><axsl:template match="text()" priority="-1" mode="M4"/><axsl:template match="@*|node()" priority="-2" mode="M4"><axsl:apply-templates select="@*|*" mode="M4"/></axsl:template>
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template><axsl:template match="text()" priority="-1" mode="M5"/><axsl:template match="@*|node()" priority="-2" mode="M5"><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template>
 
 <!--PATTERN filesec-->
 
 
 	<!--RULE -->
-<axsl:template match="mets:fileSec/mets:fileGrp/mets:file" priority="1001" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:fileSec/mets:fileGrp/mets:file"/>
-
-		<!--ASSERT -->
-<axsl:choose><axsl:when test="mets:FLocat/@xlink:href"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="mets:FLocat/@xlink:href"><axsl:attribute name="id">E_FILE_HAS_HREF</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
-        A file has no FLocat href, so it has no location in the deposit.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose>
+<axsl:template match="mets:fileSec/mets:fileGrp/mets:file" priority="1001" mode="M6"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:fileSec/mets:fileGrp/mets:file"/>
 
 		<!--ASSERT -->
 <axsl:choose><axsl:when test="starts-with(mets:FLocat/@xlink:href, 'objects/')"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="starts-with(mets:FLocat/@xlink:href, 'objects/')"><axsl:attribute name="id">E_HREF_UNDER_OBJECTS</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
@@ -91,15 +83,16 @@
       </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose>
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="//mets:techMD[@ID = current()/@ADMID]//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256']                         or //mets:amdSec[@ID = current()/@ADMID]//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256']"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="//mets:techMD[@ID = current()/@ADMID]//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256'] or //mets:amdSec[@ID = current()/@ADMID]//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256']"><axsl:attribute name="id">E_SHA256</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
-        The file's technical metadata carries no SHA256 fixity, which every import job - and
-        therefore every edit-and-preserve - requires.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template>
+<axsl:choose><axsl:when test="key('md-by-id', @ADMID)//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256'][normalize-space(premis:messageDigest) != '']"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="key('md-by-id', @ADMID)//premis:fixity[translate(normalize-space(premis:messageDigestAlgorithm), 'SHA-', 'sha') = 'sha256'][normalize-space(premis:messageDigest) != '']"><axsl:attribute name="id">E_SHA256</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+        The file's technical metadata carries no SHA256 digest value, which every import job -
+        and therefore every edit-and-preserve - requires.
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M6"/></axsl:template>
 
 	<!--RULE -->
-<axsl:template match="mets:fileSec" priority="1000" mode="M5"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:fileSec"/>
+<axsl:template match="mets:fileSec" priority="1000" mode="M6"><svrl:fired-rule xmlns:svrl="http://purl.oclc.org/dsdl/svrl" context="mets:fileSec"/>
 
 		<!--ASSERT -->
-<axsl:choose><axsl:when test="not(mets:fileGrp[@USE != current()/mets:fileGrp[1]/@USE])"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(mets:fileGrp[@USE != current()/mets:fileGrp[1]/@USE])"><axsl:attribute name="id">E_MIXED_FILEGRP_USE</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
-        The fileSec mixes fileGrp USE values; which group holds the content is ambiguous.
-      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template><axsl:template match="text()" priority="-1" mode="M5"/><axsl:template match="@*|node()" priority="-2" mode="M5"><axsl:apply-templates select="@*|*" mode="M5"/></axsl:template></axsl:stylesheet>
+<axsl:choose><axsl:when test="not(mets:fileGrp[@USE != current()/mets:fileGrp[1]/@USE])                         and not(mets:fileGrp[@USE] and mets:fileGrp[not(@USE)])"/><axsl:otherwise><svrl:failed-assert xmlns:svrl="http://purl.oclc.org/dsdl/svrl" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:schold="http://www.ascc.net/xml/schematron" test="not(mets:fileGrp[@USE != current()/mets:fileGrp[1]/@USE]) and not(mets:fileGrp[@USE] and mets:fileGrp[not(@USE)])"><axsl:attribute name="id">E_MIXED_FILEGRP_USE</axsl:attribute><axsl:attribute name="location"><axsl:apply-templates select="." mode="schematron-get-full-path"/></axsl:attribute><svrl:text>
+        The fileSec mixes fileGrp USE values (or mixes groups with and without USE); which
+        group holds the content is ambiguous.
+      </svrl:text></svrl:failed-assert></axsl:otherwise></axsl:choose><axsl:apply-templates select="@*|*" mode="M6"/></axsl:template><axsl:template match="text()" priority="-1" mode="M6"/><axsl:template match="@*|node()" priority="-2" mode="M6"><axsl:apply-templates select="@*|*" mode="M6"/></axsl:template></axsl:stylesheet>

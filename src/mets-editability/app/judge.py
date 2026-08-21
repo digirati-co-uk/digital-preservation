@@ -34,7 +34,7 @@ NOT_EDITABLE = "not-editable"
 
 #: Native blocker codes: any of these means the document is not navigable.
 _BLOCKERS = frozenset([
-    "PARSE_FAILED", "NO_PHYSICAL_STRUCTMAP", "NO_ROOT_DIV", "FILEID_UNRESOLVED",
+    "PARSE_FAILED", "NO_PHYSICAL_STRUCTMAP", "NO_ROOT_DIV", "NO_FILES", "FILEID_UNRESOLVED",
     "FILE_NO_HREF", "HREF_NOT_DEPOSIT_RELATIVE", "DUPLICATE_PATH", "DUPLICATE_ID",
 ])
 
@@ -71,9 +71,11 @@ class Judgement:
 
 
 def judge_file(path) -> Judgement:
+    # OSError covers a missing or unreadable file: the judgement is the answer either way,
+    # matching the .NET twin (which catches IOException) rather than crashing the CLI.
     try:
         tree = etree.parse(str(path))
-    except etree.XMLSyntaxError as bad:
+    except (etree.XMLSyntaxError, OSError) as bad:
         return Judgement(NOT_EDITABLE, reasons=[Finding("PARSE_FAILED", str(bad))])
     return judge(tree.getroot())
 
@@ -102,6 +104,12 @@ def judge(root: etree._Element) -> Judgement:
     files_by_id = _file_index(mets)
     resolved = _walk(struct_map, files_by_id, reasons, notes)
     unwrapped_md_wraps = _quirk_notes(mets, notes)
+
+    if resolved.file_count == 0 and not any(f.code in _BLOCKERS for f in reasons):
+        # A verdict must carry its reasons. The platform's own freshly-created deposit
+        # skeleton is this class: structure but no files yet.
+        reasons.append(Finding(
+            "NO_FILES", "the physical structMap references no files"))
 
     navigable = resolved.file_count > 0 and not any(f.code in _BLOCKERS for f in reasons)
 
@@ -143,7 +151,11 @@ class _Resolved:
     file_count: int = 0
     untyped_file_divs: int = 0
     file_divs: int = 0
-    referenced_groups: list[etree._Element] = field(default_factory=list)
+    referenced_groups: set[etree._Element] = field(default_factory=set)
+    #: Distinct mets:file IDs already resolved - a file referenced twice (two divs, or a
+    #: whole-file fptr plus an area on the same file) is one file, counted and path-checked
+    #: once. DUPLICATE_PATH means two FILES claiming one path, never one file referenced twice.
+    seen_file_ids: set[str] = field(default_factory=set)
 
 
 def _choose_physical_struct_map(mets, assumptions, notes, reasons):
@@ -218,7 +230,7 @@ def _walk(struct_map, files_by_id, reasons, notes):
 
     directories_without_admid = 0
     paths_seen: dict[str, int] = {}
-    groups_seen: list[etree._Element] = []
+    groups_seen: set[etree._Element] = set()
 
     for div in root_div.iter(f"{{{METS_NS}}}div"):
         div_type = div.get("TYPE")
@@ -267,12 +279,15 @@ def _resolve_one(file_id, files_by_id, paths_seen, groups_seen, resolved, reason
         _append_once(reasons, "FILEID_UNRESOLVED",
                      f"an fptr references FILEID {file_id!r} that no mets:file declares")
         return
+    if file_id in resolved.seen_file_ids:
+        return
+    resolved.seen_file_ids.add(file_id)
     resolved.file_count += 1
     group = file_element.getparent()
     while group is not None and group.tag != f"{{{METS_NS}}}fileGrp":
         group = group.getparent()
-    if group is not None and group not in groups_seen:
-        groups_seen.append(group)
+    if group is not None:
+        groups_seen.add(group)
 
     href = file_element.find(f"{{{METS_NS}}}FLocat")
     href = None if href is None else href.get(f"{{{XLINK_NS}}}href")
@@ -338,7 +353,8 @@ def _quirk_notes(mets, notes) -> int:
         notes.append(Finding(
             "FOREIGN_STORAGE_LOCATION",
             f"{foreign_storage} premis:storage assertion(s) belong to another system (no "
-            "platform storageMedium); kept as history, never read as the file's location (#236)"))
+            "platform storageMedium); the editing stack ignores them, and #236 tracks making "
+            "the parser do the same"))
 
     if mets.find(f".//{{{METS_NS}}}dmdSec//{{{METS_NS}}}recordInfo") is not None:
         notes.append(Finding(

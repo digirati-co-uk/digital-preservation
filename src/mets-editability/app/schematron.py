@@ -8,6 +8,7 @@ tools/compile_schematron.py). Each failed assert surfaces as (code, message), wh
 the assert's @id - shared vocabulary with the native checks and the .NET side.
 """
 
+import copy
 import functools
 import pathlib
 
@@ -31,6 +32,11 @@ def failures(schematron_file: str, mets_element: etree._Element) -> list[tuple[s
     and can count them.
     """
     schema = _schema(schematron_file)
+    if mets_element.getroottree().getroot() is not mets_element:
+        # The rules use xsl:key, and libxslt's key machinery needs the context node to be the
+        # root of its own document - a "tree" wrapped around an inner element (a mets:mets
+        # inside a fixture wrapper) makes every key() call fail. Detach it into one.
+        mets_element = copy.deepcopy(mets_element)
     schema.validate(etree.ElementTree(mets_element))
     report = schema.validation_report
     found = []

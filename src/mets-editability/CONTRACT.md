@@ -48,7 +48,9 @@ the platform on top of the verdict, not by the judge.
 3. Otherwise `not-editable` with `NO_PHYSICAL_STRUCTMAP`.
 
 More than one candidate in the chosen category: note `MULTIPLE_PHYSICAL_CANDIDATES`; the first is
-judged.
+judged. **Only the chosen map is judged, everywhere**: the Schematron structural rules are scoped
+to it too, so an unchosen sibling map — preserved as parsed, never edited — can neither demote the
+verdict nor satisfy a tier on the walked map's behalf.
 
 ## Navigability (native, both sides)
 
@@ -57,15 +59,17 @@ through the fileSec to an `FLocat/@xlink:href`. Blockers:
 
 | Code | Condition |
 |---|---|
-| `PARSE_FAILED` | Not well-formed XML, or no `mets:mets` element |
+| `PARSE_FAILED` | Not well-formed XML, no `mets:mets` element, or the file cannot be read at all — a missing file is a judgement, never a crash |
 | `NO_ROOT_DIV` | The chosen structMap has no div |
+| `NO_FILES` | The chosen structMap references no files. (The platform's own freshly-created deposit skeleton — structure, no files yet — is this class; a verdict must carry its reason even then) |
 | `FILEID_UNRESOLVED` | An fptr references a FILEID no `mets:file` declares |
 | `FILE_NO_HREF` | A referenced file has no `FLocat/@xlink:href` |
 | `HREF_NOT_DEPOSIT_RELATIVE` | An href has a URI scheme, starts with `/` or `\`, or contains a `..` segment — the standing guard |
-| `DUPLICATE_PATH` | Two referenced files resolve to the same normalised path |
+| `DUPLICATE_PATH` | Two **distinct** referenced files resolve to the same normalised path. One file referenced twice (two divs, or a whole-file fptr plus an area on the same file) is one file, counted and path-checked once — never a duplicate |
 | `DUPLICATE_ID` | Two elements declare the same `ID` |
 
-Navigable ⇔ at least one file resolved and no blocker occurred. Directory divs without an
+Navigable ⇔ at least one file resolved and no blocker occurred. `fileCount` counts distinct
+files, not references. Directory divs without an
 `ADMID` are **not** blockers (their own paths are unresolvable, but the files' are not):
 note `DIRECTORY_DIV_NO_ADMID` with a count.
 
@@ -82,6 +86,8 @@ tiers additionally require the Schematron rules in `schematron/common.sch`:
 | `C_AREA_FILEID_RESOLVES` | Every `area/@FILEID` (time segment, image region) resolves |
 | `C_SMLINK_FROM_RESOLVES` / `C_SMLINK_TO_RESOLVES` | Both ends of every `smLink` resolve — to a file (the platform's arcrole style) or a div (Goobi's logical-to-physical style), by raw string |
 | `C_LOGICAL_ROOT_HAS_ID` | Every logical structMap's root div has an ID — logical maps are edited *by address* (replaced, reordered, removed by root div ID), and an ID-less one is present but unchangeable |
+| `C_PHYSICAL_FPTR_HAS_FILEID` | Every fptr in the **chosen physical** structMap carries `@FILEID` itself — the platform's physical walk requires it, and an area-only fptr (which the platform itself writes in *logical* maps) crashes it |
+| `C_ONE_FLOCAT` | Every `mets:file` has exactly one `FLocat`, carrying an `xlink:href` — the platform's parser reads the single FLocat of each file and fails on zero, several, or a missing href |
 
 A common-rule failure blocks both tiers: the document is at best `navigable-read-only`.
 
@@ -100,8 +106,10 @@ Deliberately **not** rules:
 Navigable, the common rules pass, **and** the Schematron rules in
 `schematron/platform-tier.sch` all pass (`P_PHYSICAL_STRUCTMAP`, `P_AGENT`,
 `P_SINGLE_OBJECTS_GROUP`, `P_DIV_TYPED`, `P_ITEM_ONE_FPTR`, `P_DIRECTORY_ADMID`, `P_SHA256` —
-every edit ends in an import job, and import jobs require SHA256 fixity, so a platform-shape
-document that has lost its digests cannot complete an edit-and-preserve).
+every edit ends in an import job, and import jobs require SHA256 fixity **with a digest value**:
+an algorithm label with an empty digest is a record of having lost the checksum, not of having
+one). `P_PHYSICAL_STRUCTMAP` asserts that the **chosen** map is exactly `TYPE="PHYSICAL"` — a
+conformant sibling map the judge never walked cannot carry the tier.
 
 IDs that are not legal NCNames are counted and reported as note `LEGACY_IDS`, never a demotion:
 a pre-#214 platform document is editable today and the migration, not the judge, retires its IDs.
@@ -110,10 +118,12 @@ a pre-#214 platform document is editable today and the migration, not the judge,
 
 Navigable, the common rules pass, **and** the Schematron rules in
 `schematron/eprints-tier.sch` all pass (`E_NO_PHYSICAL_CANDIDATE`, `E_NOT_FLAT`,
-`E_ITEM_ONE_FPTR`, `E_FILE_HAS_HREF`, `E_HREF_UNDER_OBJECTS`, `E_SHA256`,
-`E_MIXED_FILEGRP_USE`), **and** every declared ID is a legal NCName (an invalid ID would need
-the #188 normalisation this tier does not perform — failure is reported as `INVALID_IDS` and the
-tier is not met).
+`E_ITEM_ONE_FPTR`, `E_HREF_UNDER_OBJECTS`, `E_SHA256` — with a digest value, as for `P_SHA256` —
+and `E_MIXED_FILEGRP_USE`, which also fails on a *mix* of groups with and without `USE`, the
+same which-copy-is-content ambiguity), **and** every declared ID is a legal NCName (an invalid
+ID would need the #188 normalisation this tier does not perform — failure is reported as
+`INVALID_IDS` and the tier is not met). A file's presence and location are the common
+`C_ONE_FLOCAT` rule's job, not this tier's.
 
 Assumptions recorded when exercised: `UNTYPED_STRUCTMAP_ASSUMED_PHYSICAL` /
 `CASE_INSENSITIVE_STRUCTMAP_TYPE`, `UNTYPED_DIV_ASSUMED_ITEM` (with count),
@@ -135,7 +145,7 @@ Mutations, in save order:
 
 | Code | Meaning |
 |---|---|
-| `FOREIGN_STORAGE_LOCATION` | A `premis:storage` whose `storageMedium` is not the platform agent (the EPrints `file://` server paths). History, never read as the file's location — see #236 |
+| `FOREIGN_STORAGE_LOCATION` | A `premis:storage` whose `storageMedium` is not the platform agent (the EPrints `file://` server paths). History: the editing stack ignores it, and #236 tracks making the parser do the same |
 | `METS_NAMESPACE_RECORD_INFO` | EPrints record identifiers declared in the METS namespace, invisible to the parser — see #237 |
 | `FOREIGN_DMDSEC` | A div's DMDID resolves to a dmdSec claiming MODS (`MDTYPE="MODS"`) with no `mods:mods` record — the EPrints root dmdSec shape. **The platform never edits such a section.** A descriptive-metadata edit on that div creates a *new* platform dmdSec and **appends** its ID to the div's `DMDID` (DMDID is IDREFS), leaving the original untouched, byte for byte |
 | `NO_XMLDATA_WRAPPER` | An `mdWrap` holds its payload directly, without the `binData`/`xmlData` child the schema requires (EPrints puts `premis:object` straight inside `mdWrap`). A save **normalises** this — mutation 6 — because any typed round-trip would otherwise silently drop the payload; the wrapped content is preserved verbatim |
