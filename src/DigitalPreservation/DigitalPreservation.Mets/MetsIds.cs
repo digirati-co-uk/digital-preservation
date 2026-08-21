@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using System.Xml;
 using DigitalPreservation.Utils;
 
 namespace DigitalPreservation.Mets;
@@ -38,4 +40,90 @@ public static class MetsIds
     /// built from rather than taking this ID apart again.
     /// </summary>
     public static string VirusProvEvent(string identifier) => Constants.VirusProvEventPrefix + identifier;
+
+    /// <summary>
+    /// Whether a string may be used as an xs:ID. Non-throwing, because this is asked of every ID in
+    /// a document and most of them, in a document written before issue #214, are not valid.
+    /// </summary>
+    public static bool IsValidId(string? id)
+    {
+        if (string.IsNullOrEmpty(id) || !XmlConvert.IsStartNCNameChar(id[0]))
+        {
+            return false;
+        }
+        for (var i = 1; i < id.Length; i++)
+        {
+            if (!XmlConvert.IsNCNameChar(id[i]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// The prefixes above, so that <see cref="Normalise"/> can encode the stem an ID was built from
+    /// rather than the whole string, and produce exactly what the methods above would mint. None is
+    /// a prefix of another, so the order they are tried in does not matter.
+    /// </summary>
+    private static readonly string[] StemPrefixes =
+    [
+        Constants.PhysIdPrefix, Constants.FileIdPrefix, Constants.AdmIdPrefix,
+        Constants.TechIdPrefix, Constants.DmdIdPrefix
+    ];
+
+    /// <summary>
+    /// <c>digiprovMD_ClamAV_</c>, optionally followed by the occurrence counter that
+    /// <see cref="Constants.NumberedVirusProvEventId"/> puts there. What follows is another ID
+    /// (see <see cref="VirusProvEvent"/>, which concatenates rather than encoding), so it is
+    /// normalised in its own right.
+    /// </summary>
+    private static readonly Regex VirusProvEventPrefixPattern = new(
+        $"^{Regex.Escape(Constants.VirusProvEventPrefix)}(?:[0-9]+_)?",
+        RegexOptions.Compiled,
+        // The pattern is anchored and cannot backtrack, so this can never be reached; it is here
+        // because a regex run against a document we did not write should have a bound regardless.
+        TimeSpan.FromSeconds(1));
+
+    /// <summary>
+    /// The same ID, spelt the way this platform spells IDs now - for migrating a document minted
+    /// before issue #214, where the stem was concatenated raw and the result was not a legal
+    /// NCName. An ID that is already valid is returned untouched, whoever minted it and whatever
+    /// scheme it follows.
+    /// </summary>
+    /// <remarks>
+    /// This never asks what an ID means, and never derives one from a path: it re-encodes the
+    /// string it was given, which is what keeps the migration inside the rule that IDs are opaque
+    /// to code (see 02d, "Opaque to code, legible to people"). Because the encoding is applied to
+    /// the stem after a known prefix, the result is character-for-character what
+    /// <see cref="Phys"/> and its siblings would mint from the same path.
+    /// <para>
+    /// Leaving a valid ID alone is what makes this safe to run repeatedly, and what keeps it away
+    /// from IDs that are not ours to renumber - a client-supplied logical range ID, for instance,
+    /// which is already an NCName and is public through the IIIF Range URI built from it.
+    /// </para>
+    /// </remarks>
+    public static string Normalise(string id)
+    {
+        if (IsValidId(id))
+        {
+            return id;
+        }
+
+        var virusPrefix = VirusProvEventPrefixPattern.Match(id);
+        if (virusPrefix.Success)
+        {
+            return virusPrefix.Value + Normalise(id[virusPrefix.Length..]);
+        }
+
+        var stemPrefix = Array.Find(StemPrefixes, prefix => id.StartsWith(prefix, StringComparison.Ordinal));
+        if (stemPrefix is not null)
+        {
+            return stemPrefix + id[stemPrefix.Length..].ToMetsId();
+        }
+
+        // Not one of ours, or one whose prefix we no longer mint. Encoding the whole string still
+        // produces a legal, unique, reversible ID - it just isn't split at the prefix.
+        return id.ToMetsId();
+    }
 }

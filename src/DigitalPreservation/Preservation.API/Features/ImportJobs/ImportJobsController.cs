@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Web;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -18,9 +19,10 @@ namespace Preservation.API.Features.ImportJobs;
 [ApiController]
 public class ImportJobsController(
     ILogger<ImportJobsController> logger,
-    IMediator mediator, 
-    ResourceMutator resourceMutator) : ControllerBase
-{    
+    IMediator mediator,
+    ResourceMutator resourceMutator,
+    IConfiguration configuration) : ControllerBase
+{
     [HttpGet("diff", Name = "GetDiffImportJob")]
     [ProducesResponseType<ImportJob>(200, "application/json")]
     [ProducesResponseType<ProblemDetails>(404, "application/json")]
@@ -78,6 +80,34 @@ public class ImportJobsController(
         CancellationToken cancellationToken)
     {
         logger.LogInformation("Import Jobs Controller: Executing Import Job {ImportJobSummary}", importJob.LogSummary());
+
+        if (importJob.SuppressActivityStreamEvent
+            && !configuration.GetValue<bool>("FeatureFlags:EnableMetsIdNormalisation"))
+        {
+            // Suppression keeps a preserved version out of the published Activity Stream, which
+            // means IIIF and every other consumer is never told to rebuild. That is right for a
+            // METS ID migration and wrong for almost anything else, so the flag is only honoured
+            // while the migration machinery it belongs to is switched on - and a caller asking for
+            // it anywhere else is refused loudly rather than silently published, which is also
+            // what protects a newer client against an older API that has never heard of the flag.
+            var message = "suppressActivityStreamEvent requires FeatureFlags:EnableMetsIdNormalisation "
+                          + "on this API. It exists for maintenance that changes how an object is "
+                          + "recorded rather than what it holds; ordinary changes must be announced.";
+            logger.LogWarning("{Message} (deposit {DepositId})", message, depositId);
+            return this.StatusResponseFromResult(
+                Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+        }
+        if (!IsPostedDiffReference(importJob, Request.Path)
+            && SuppressedButNotMetsOnly(importJob) is { } refusal)
+        {
+            // The feature flag says WHEN suppression may be used; this says WHAT FOR. Until now
+            // that rule lived only in the migration tool's client-side gate, which left a window
+            // between generating a diff and executing it - and left the UI checkbox trusting the
+            // operator to tick it only on the right kind of job. A diff reference is checked
+            // below instead, once its content exists.
+            return refusal;
+        }
+
         var depositResult = await mediator.Send(new GetDeposit(depositId), cancellationToken);
         if (depositResult.Failure)
         {
@@ -92,11 +122,22 @@ public class ImportJobsController(
         if (IsPostedDiffReference(importJob, Request.Path))
         {
             logger.LogInformation("Submitted import job is a diff reference, creating job...");
+            // The posted body is about to be replaced by a freshly generated diff, so anything the
+            // caller asked for that the generator does not know about has to be carried across.
+            var suppressActivityStreamEvent = importJob.SuppressActivityStreamEvent;
             var diffImportJobResult = await mediator.Send(new GetDiffImportJob(deposit, User), cancellationToken);
             if (diffImportJobResult is { Success: true, Value: not null })
             {
                 importJob = diffImportJobResult.Value;
                 importJob.OriginalId = GetDiffUri(depositId);
+                importJob.SuppressActivityStreamEvent = suppressActivityStreamEvent;
+                if (SuppressedButNotMetsOnly(importJob) is { } diffRefusal)
+                {
+                    // A diff reference's content is only known now the diff has been generated -
+                    // and this is also what closes the window between a caller looking at a
+                    // METS-only diff and the deposit changing underneath them before they post it.
+                    return diffRefusal;
+                }
             }
             else
             {
@@ -105,30 +146,9 @@ public class ImportJobsController(
             }
         }
 
-        Result<ImportJobResult>? checkDeposit;
-        if (importJob.Deposit is null)
+        if (JobDoesNotBelongToDeposit(importJob, depositId, deposit) is { } mismatch)
         {
-            var message = "Import job must declare which Deposit it is for.";
-            logger.LogWarning(message);
-            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
-            return this.StatusResponseFromResult(checkDeposit);
-        }
-        if (importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
-        {
-            var message = "Import job Deposit does not match the Deposit it was submitted to.";
-            logger.LogWarning(message);
-            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
-            return this.StatusResponseFromResult(checkDeposit);
-        }
-
-        var invalidBinary = importJob.BinariesToAdd.Union(importJob.BinariesToPatch)
-            .FirstOrDefault(binary => !deposit.Files!.IsBaseOf(binary.Origin!));
-        if (invalidBinary != null)
-        {
-            var message = $"Binary origin {invalidBinary.Origin} is not a child of deposit file location {deposit.Files}.";
-            logger.LogWarning(message);
-            checkDeposit = Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message);
-            return this.StatusResponseFromResult(checkDeposit);
+            return mismatch;
         }
 
         var executeImportJobResult = await mediator.Send(new ExecuteImportJob(importJob, User), cancellationToken);
@@ -195,12 +215,93 @@ public class ImportJobsController(
         return null;
     }
     
+    /// <summary>
+    /// The refusal to return when a job asks for Activity Stream suppression but is not the one
+    /// kind of job suppression exists for; null when the job is fine.
+    /// </summary>
+    /// <remarks>
+    /// Suppression means "this version changes how the object is recorded, not what it holds" -
+    /// a METS ID migration, and nothing else. So a suppressed job must be exactly one binary
+    /// patch, of a METS file, with nothing added, deleted or renamed. This is the migration
+    /// tool's own client-side gate, enforced where it can no longer be raced or forgotten: a
+    /// suppressed content change would preserve a real new version that IIIF is never told to
+    /// rebuild from.
+    /// </remarks>
+    private ActionResult? SuppressedButNotMetsOnly(ImportJob importJob)
+    {
+        if (!importJob.SuppressActivityStreamEvent)
+        {
+            return null;
+        }
+
+        string? problem = null;
+        if (importJob.BinariesToAdd.Count > 0 || importJob.BinariesToDelete.Count > 0
+            || importJob.BinariesToRename.Count > 0 || importJob.ContainersToAdd.Count > 0
+            || importJob.ContainersToDelete.Count > 0 || importJob.ContainersToRename.Count > 0)
+        {
+            problem = "it adds, deletes or renames content";
+        }
+        else if (importJob.BinariesToPatch.Count != 1)
+        {
+            problem = $"it patches {importJob.BinariesToPatch.Count} binaries rather than exactly one";
+        }
+        else if (importJob.BinariesToPatch[0].Id?.GetSlug() is not { } slug
+                 || !MetsUtils.IsMetsFile(slug))
+        {
+            problem = $"the binary it patches ({importJob.BinariesToPatch[0].Id}) is not a METS file";
+        }
+
+        if (problem is null)
+        {
+            return null;
+        }
+        var message = "suppressActivityStreamEvent is only for changes to how an object is "
+                      + $"recorded - a single METS patch - but {problem}. "
+                      + "Content changes must be announced in the Activity Stream.";
+        logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
+        return this.StatusResponseFromResult(
+            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+    }
+
+    /// <summary>
+    /// The refusal to return when the posted job's content is not the deposit's own - it names a
+    /// different Deposit, no Deposit at all, or binaries from outside the deposit's file area;
+    /// null when everything belongs.
+    /// </summary>
+    private ActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
+    {
+        string? message = null;
+        if (importJob.Deposit is null)
+        {
+            message = "Import job must declare which Deposit it is for.";
+        }
+        else if (importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
+        {
+            message = "Import job Deposit does not match the Deposit it was submitted to.";
+        }
+        else if (importJob.BinariesToAdd.Union(importJob.BinariesToPatch)
+                     .FirstOrDefault(binary => !deposit.Files!.IsBaseOf(binary.Origin!)) is { } invalidBinary)
+        {
+            message = $"Binary origin {invalidBinary.Origin} is not a child of deposit file location {deposit.Files}.";
+        }
+
+        if (message is null)
+        {
+            return null;
+        }
+        logger.LogWarning("{Message}", message);
+        return this.StatusResponseFromResult(
+            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+    }
+
     private static bool IsPostedDiffReference(ImportJob importJob, PathString path)
     {
         // This is when the API caller posts a reference to the diff import job rather than an _actual_ job
         // means we have to build the diff now.
         // We may want to be more flexible that this, e.g., allowing the DigitalObject to be set as part of the immediate diff execution
-        if(importJob.Id!.ToString().EndsWith(path + "/diff")
+        // Null-safe: a body with no Id at all is not a diff reference, and flows on to the
+        // "must declare which Deposit" 400 rather than a NullReferenceException 500.
+        if(importJob.Id is not null && importJob.Id.ToString().EndsWith(path + "/diff")
            && importJob.ContainersToAdd.Count == 0
            && importJob.ContainersToDelete.Count == 0
            && importJob.BinariesToAdd.Count == 0

@@ -93,6 +93,7 @@ try
         .AddStorageAwsAccess(builder.Configuration)
         .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
+        .Configure<MetsManagerOptions>(builder.Configuration.GetSection("FeatureFlags"))
         .AddSingleton<IMetsManager, MetsManager>()
         .AddSingleton<MetadataManager>()
         .AddSingleton<PremisManager>()

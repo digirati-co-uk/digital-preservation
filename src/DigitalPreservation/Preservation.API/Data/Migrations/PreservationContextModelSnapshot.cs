@@ -52,6 +52,10 @@ namespace Preservation.API.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("import_job_result");
 
+                    b.Property<bool>("Suppressed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("suppressed");
+
                     b.Property<string>("ToVersion")
                         .HasColumnType("text")
                         .HasColumnName("to_version");
@@ -67,7 +71,8 @@ namespace Preservation.API.Data.Migrations
                             Id = -1,
                             ArchivalGroup = "https://example.com/archival-group",
                             Deleted = false,
-                            EventDate = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                            EventDate = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Suppressed = false
                         });
                 });
 
@@ -286,6 +291,10 @@ namespace Preservation.API.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("storage_import_job_result_id");
+
+                    b.Property<bool>("SuppressActivityStreamEvent")
+                        .HasColumnType("boolean")
+                        .HasColumnName("suppress_activity_stream_event");
 
                     b.HasKey("Id")
                         .HasName("pk_import_jobs");

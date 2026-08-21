@@ -1,20 +1,31 @@
 using System.Diagnostics;
 using System.Xml;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DigitalPreservation.Mets;
 
+/// <param name="options">
+/// Optional, and null in the tests that construct this directly - which is what keeps the default
+/// behaviour exactly what it was. Dependency injection always supplies it.
+/// </param>
 public class MetsManager(
     IMetsParser metsParser,
     IMetsStorage metsStorage,
-    MetadataManager metadataManager) : IMetsManager
+    MetadataManager metadataManager,
+    IOptions<MetsManagerOptions>? options = null,
+    ILogger<MetsManager>? logger = null) : IMetsManager
 {
+    private bool NormaliseOnWrite => options?.Value.NormaliseMetsIdsOnWrite ?? false;
+
     public async Task<Result<MetsFileWrapper>> CreateStandardMets(Uri metsLocation, string? agNameFromDeposit)
     {
         var (file, mets) = await GetStandardMets(metsLocation, agNameFromDeposit);
@@ -44,14 +55,112 @@ public class MetsManager(
     }
 
 
+    /// <summary>
+    /// Write the METS, first migrating its IDs if <see cref="MetsManagerOptions.NormaliseMetsIdsOnWrite"/>
+    /// is set.
+    /// </summary>
+    /// <remarks>
+    /// This is the single point every mutation passes through - HandleSingleChange, AddItemsToMets,
+    /// DeleteItems, SetLogicalStructMap, RemoveLogicalStructMap and SetModsInformation all end here
+    /// - which is why the migration hangs off it rather than off each of them. Building a fresh
+    /// document (CreateStandardMets, MetsFromArchivalGroup) also comes through, and normalising one
+    /// of those is a no-op, because nothing minted since issue #214 is invalid.
+    /// </remarks>
     public async Task<Result> WriteMets(FullMets fullMets)
     {
+        if (NormaliseOnWrite)
+        {
+            var normalisation = NormaliseIds(fullMets);
+            if (normalisation is { Success: false, ErrorCode: ErrorCodes.Unprocessable })
+            {
+                // The duplicate-ID refusal, which happens before anything is touched - so the
+                // document in memory is exactly what the caller built, and writing it changes
+                // nothing about its (pre-existing) invalidity. Refusing here instead would make
+                // every edit to the deposit fail until the service-wide flag was turned off for
+                // everyone: a duplicate ID is a per-document problem (issue #216 can mint one on a
+                // failed-and-retried add), and it should not take a whole deployment's writes with
+                // it. So write, unnormalised, and say so loudly - the migration campaign and the
+                // logs are the nets that bring a person to it.
+                logger?.LogError(
+                    "Writing {MetsUri} WITHOUT normalising its IDs: {ErrorMessage}",
+                    fullMets.Uri, normalisation.ErrorMessage);
+                return await metsStorage.WriteMets(fullMets);
+            }
+            if (normalisation is not { Success: true, Value: not null })
+            {
+                // Any other failure means the rewrite left the document unnavigable by path -
+                // which it should not be able to do, since paths are not touched. The in-memory
+                // document has already been rewritten, so writing it would persist something we
+                // have just decided we do not understand. Refuse instead - the ETag is untouched,
+                // so the caller can retry, and the flag can be turned off.
+                logger?.LogError(
+                    "Refusing to write {MetsUri}: normalising its IDs failed - {ErrorMessage}",
+                    fullMets.Uri, normalisation.ErrorMessage);
+                return Result.Fail(normalisation.ErrorCode ?? ErrorCodes.UnknownError,
+                    "Could not normalise the METS IDs, so the file was not written: "
+                    + normalisation.ErrorMessage);
+            }
+
+            var report = normalisation.Value;
+            if (report.Changed)
+            {
+                logger?.LogInformation(
+                    "Migrated {MetsUri} on write: {IdsRewritten} ID(s) and {ReferencesRewritten} " +
+                    "reference(s) rewritten, {WarningCount} warning(s)",
+                    fullMets.Uri, report.IdsRewritten, report.ReferencesRewritten,
+                    report.Warnings.Count);
+                foreach (var warning in report.Warnings)
+                {
+                    logger?.LogWarning("Migrating {MetsUri} on write: {Warning}", fullMets.Uri, warning);
+                }
+            }
+        }
+
         return await metsStorage.WriteMets(fullMets);
     }
 
     public async Task<Result<FullMets>> GetFullMets(Uri metsLocation, string? eTagToMatch)
     {
        return await metsStorage.GetFullMets(metsLocation, eTagToMatch);
+    }
+
+    public Result<MetsIdNormalisationReport> NormaliseIds(FullMets fullMets)
+    {
+        // What was already wrong with this document before we touched it. A document can be
+        // imperfect and still worth migrating - a directory div with no ADMID was unnavigable
+        // yesterday too - so the test is whether normalising made it worse, not whether the result
+        // is perfect.
+        var before = fullMets.PathDiagnostics.ToHashSet();
+
+        var report = MetsIdNormaliser.Normalise(fullMets.Mets);
+        if (report.DuplicateIds.Count > 0)
+        {
+            // Already invalid, and not a thing a rewrite can mend: an ID maps to an ID, so both
+            // elements would take the same new one and the duplication would stop being visible.
+            // Nothing was touched, so the caller still has the document it had. Unprocessable,
+            // because the document is the problem, not the platform - and WriteMets relies on
+            // this exact code meaning "refused before anything was touched".
+            return Result.FailNotNull<MetsIdNormalisationReport>(ErrorCodes.Unprocessable,
+                "The METS carries the same ID on more than one element, so its IDs were not "
+                + "normalised: " + string.Join("; ", report.DuplicateIds));
+        }
+        if (!report.Changed)
+        {
+            return Result.OkNotNull(report);
+        }
+
+        // Paths are not touched, so every div should still be reached by the same path. The cache
+        // holds div references keyed by path and an ID rewrite is exactly the kind of change a
+        // stale cache would hide, so rebuild it - and refuse the whole normalisation if that turns
+        // up something new. Nothing has been written yet, so the caller keeps the document it had.
+        var introduced = MetsCache.Populate(fullMets).Where(d => !before.Contains(d)).ToList();
+        if (introduced.Count > 0)
+        {
+            return Result.FailNotNull<MetsIdNormalisationReport>(ErrorCodes.UnknownError,
+                "Normalising IDs left the METS not navigable by path: " + string.Join("; ", introduced));
+        }
+
+        return Result.OkNotNull(report);
     }
 
     public async Task<Result> HandleSingleFileUpload(Uri workingRoot, WorkingFile workingFile, string depositETag)
@@ -79,8 +188,11 @@ public class MetsManager(
             var editMetsResult = EditMets(workingBase, deletePath, fullMets);
             if (editMetsResult.Success)
             {
-                await WriteMets(fullMets);
-                return Result.Ok();
+                // The write result was previously discarded and Ok returned regardless. That was
+                // survivable while WriteMets could only fail on storage, but it can now refuse a
+                // document whose IDs would not migrate, and reporting success for a file that was
+                // not written is the worst of the available outcomes.
+                return await WriteMets(fullMets);
             }
 
             return editMetsResult;

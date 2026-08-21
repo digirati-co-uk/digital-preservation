@@ -244,6 +244,83 @@ public class DepositsController(
     }
     
     
+    /// <summary>
+    /// Rewrite every xs:ID in the deposit's METS that is not a legal NCName into the form the
+    /// platform mints now, and follow every reference to it (issue #188 step 3).
+    /// </summary>
+    /// <remarks>
+    /// Idempotent, and honest about doing nothing: a document whose IDs are already legal comes
+    /// back with <c>changed: false</c> and is not rewritten, so the caller knows there is nothing
+    /// here worth preserving. Preserving an unchanged document would give the Archival Group a new
+    /// version identical to the one before it.
+    /// <para>
+    /// Behind a feature flag because this exists to be driven in bulk by the migration tool, and a
+    /// bulk rewrite of preserved documents is not something to leave switched on by default.
+    /// </para>
+    /// </remarks>
+    [RequireFeatureFlag("EnableMetsIdNormalisation")]
+    [HttpPost("{id}/mets/normalise", Name = "NormaliseDepositMetsIds")]
+    [ProducesResponseType<MetsIdNormalisationReport>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
+    [ProducesResponseType<ProblemDetails>(404, "application/json")]
+    [ProducesResponseType<ProblemDetails>(401, "application/json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/json")]
+    public async Task<IActionResult> NormaliseMetsIds([FromRoute] string id)
+    {
+        var depositResult = await mediator.Send(new GetDeposit(id));
+        if (depositResult is not { Success: true, Value: not null })
+        {
+            return this.StatusResponseFromResult(depositResult);
+        }
+
+        var deposit = depositResult.Value;
+        if (!deposit.MetsETag.HasText())
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Deposit has no METS file to normalise",
+                Status = 400
+            });
+        }
+
+        // The same courtesy every other mutation extends: a deposit someone else holds the lock
+        // on is theirs to change, and normalising rewrites its METS.
+        var otherLockOwner = deposit.GetOtherLockOwner(User.GetCallerIdentity());
+        if (otherLockOwner is not null)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Conflict: Deposit is locked by another user",
+                Detail = otherLockOwner,
+                Status = 409
+            });
+        }
+
+        // If-Match is optional here, unlike the item operations: the migration tool reads the
+        // deposit and normalises it in one go with nothing in between. When it IS supplied it is
+        // enforced, so a person doing this from the UI while someone else edits gets a 409 rather
+        // than a silent overwrite.
+        var eTag = Request.Headers.IfMatch.FirstOrDefault();
+        if (eTag.HasText() && eTag != deposit.MetsETag)
+        {
+            logger.LogWarning("Supplied eTag {ETag} does not match deposit eTag {DepositETag}", eTag, deposit.MetsETag);
+            return Conflict(new ProblemDetails
+            {
+                Title = "Conflict: ETag does not match deposit METS",
+                Detail = deposit.MetsETag,
+                Status = 409
+            });
+        }
+
+        // Uninitialised on purpose: normalising reads and parses the METS for itself, so building
+        // the combined directory first would read and parse the same document a second time - once
+        // per Archival Group, for the whole migration campaign.
+        var workspaceManager = workspaceManagerFactory.CreateUninitialised(deposit);
+        var result = await workspaceManager.NormaliseMetsIds();
+        return this.StatusResponseFromResult(result);
+    }
+
+
     [HttpPost("{id}/mets/delete", Name = "DeleteItems")]
     [ProducesResponseType<ItemsAffected>(200, "application/json")]
     [ProducesResponseType<ProblemDetails>(400, "application/json")]

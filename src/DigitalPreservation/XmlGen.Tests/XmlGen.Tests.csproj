@@ -48,6 +48,9 @@
       <None Update="Samples\mets-sample-001.xml">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+      <None Update="Samples\simple-image.mets.xml">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
       <None Update="Samples\standalone-premis-original.xml">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>

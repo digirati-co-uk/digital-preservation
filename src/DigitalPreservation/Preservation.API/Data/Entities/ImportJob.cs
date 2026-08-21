@@ -20,6 +20,14 @@ public class ImportJob
     public required Uri ArchivalGroup { get; set; }
     
     public string Status { get; set; } = ImportJobStates.Waiting;
+
+    /// <summary>
+    /// Whether the version this job creates should be kept out of the published Activity Stream
+    /// (see <see cref="DigitalPreservation.Common.Model.Import.ImportJob.SuppressActivityStreamEvent"/>).
+    /// Held here rather than read back out of <see cref="ImportJobJson"/> because
+    /// StorageImportJobsProcessor needs it for every job it processes, one row at a time.
+    /// </summary>
+    public bool SuppressActivityStreamEvent { get; set; }
     
     public required DateTime LastUpdated { get; set; }
     

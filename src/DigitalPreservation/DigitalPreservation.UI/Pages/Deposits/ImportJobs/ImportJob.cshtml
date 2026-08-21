@@ -81,6 +81,26 @@ ViewData["section"] = "deposits";
                     else
                     {
                         <form class="single-submit" method="post" asp-page-handler="ExecuteDiffDirect">
+                            @if (Model.ShowNormaliseMetsIds)
+                            {
+                                @* Only offered alongside the METS ID migration (issue #188 step 3),
+                                   under the same feature flag. Renaming identifiers inside a METS
+                                   gives the stream's readers nothing to rebuild, so announcing it as
+                                   a change would be both wasted work and a misleading history. The
+                                   event is still recorded - it just isn't published. *@
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" value="true"
+                                           name="suppressActivityStreamEvent" id="suppressActivityStreamEvent">
+                                    <label class="form-check-label" for="suppressActivityStreamEvent">
+                                        Maintenance only &mdash; keep this version out of the Activity Stream
+                                        <span class="text-secondary d-block small">
+                                            For changes that alter how the object is recorded rather than what it holds,
+                                            such as normalising METS IDs. The event is still recorded, but IIIF and other
+                                            consumers will not be told to rebuild.
+                                        </span>
+                                    </label>
+                                </div>
+                            }
                             <div class="mb-3">
                                 <button type="submit" class="btn btn-sm btn-primary me-2" id="runImport">
                                     <svg class="bi" aria-hidden="true"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run Import (Preserve)</span>

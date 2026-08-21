@@ -82,6 +82,9 @@ try
         .AddResourceMutator(builder.Configuration)
         .AddSingleton<IMetsLoader, S3MetsLoader>()
         .AddSingleton<IMetsParser, MetsParser>()
+        // Issue #188 step 3: migrate a document's IDs whenever it is written, so that editing a
+        // pre-#214 METS fixes it rather than leaving it half one generation and half the other.
+        .Configure<MetsManagerOptions>(builder.Configuration.GetSection("FeatureFlags"))
         .AddSingleton<IMetsManager, MetsManager>()
         .AddSingleton<MetsFromArchivalGroup>()
         .AddSingleton<MetadataManager>()

@@ -8,8 +8,17 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace DigitalPreservation.UI.Pages.Deposits.ImportJobs;
 
-public class ImportJobModel(IMediator mediator) : PageModel
+public class ImportJobModel(IMediator mediator, IConfiguration configuration) : PageModel
 {
+    /// <summary>
+    /// Whether to offer "keep this out of the Activity Stream" alongside Preserve. The same flag
+    /// that puts "Normalise METS IDs" on the deposit's Actions menu, because that is the change it
+    /// is for - a migration done by hand should be able to leave the same clean history the bulk
+    /// tool does.
+    /// </summary>
+    public bool ShowNormaliseMetsIds =>
+        configuration.GetValue<bool?>("FeatureFlags:ShowNormaliseMetsIds") ?? false;
+
     public async Task OnGet(string depositId, string importJobId)
     {
         ImportJobId = importJobId;
@@ -55,9 +64,13 @@ public class ImportJobModel(IMediator mediator) : PageModel
 
     public async Task<IActionResult> OnPostExecuteDiffDirect(
         [FromRoute] string depositId,
-        [FromRoute] string importJobId)
+        [FromRoute] string importJobId,
+        [FromForm] bool suppressActivityStreamEvent = false)
     {
-        var result = await mediator.Send(new SendDiffImportJob(depositId));
+        // Belt and braces: the checkbox is only rendered under the flag, but a posted form is not
+        // where the decision should be trusted from.
+        var suppress = suppressActivityStreamEvent && ShowNormaliseMetsIds;
+        var result = await mediator.Send(new SendDiffImportJob(depositId, suppress));
         if (result.Success)
         {
             var importJobResult = result.Value;
