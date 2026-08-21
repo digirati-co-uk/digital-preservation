@@ -33,6 +33,10 @@ public static class EditabilityJudge
     private static readonly Regex CountedMessage =
         new(@"^(.*) \[x(\d+)]$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
+    /// <summary>Elements whose ADMID the platform's deletion reasoning does not consult
+    /// (identifier audit, finding M4).</summary>
+    private static readonly string[] SurvivalIndexBlindSpots = ["fileGrp", "area", "stream"];
+
     private static readonly HashSet<string> Blockers =
     [
         "PARSE_FAILED", "NO_PHYSICAL_STRUCTMAP", "NO_ROOT_DIV", "NO_FILES", "FILEID_UNRESOLVED",
@@ -136,21 +140,18 @@ public static class EditabilityJudge
         }
 
         var eprintsFailures = SchematronRunner.Failures("eprints-tier", mets);
-        if (sharedDmdSecs == 0 && commonFailures.Count == 0 && eprintsFailures.Count == 0
-            && legacyIds.Count == 0)
+        if (sharedDmdSecs == 0 && commonFailures.Count == 0 && eprintsFailures.Count == 0)
         {
-            AddEprintsAssumptions(resolved, assumptions);
-            return new Judgement
+            if (legacyIds.Count == 0)
             {
-                Verdict = Verdicts.EditableWithNormalisation, FileCount = resolved.FileCount,
-                Assumptions = assumptions, Notes = notes,
-                Mutations = Mutations(structMap, mets, resolved, unwrappedMdWraps)
-            };
-        }
-
-        if (sharedDmdSecs == 0 && commonFailures.Count == 0 && eprintsFailures.Count == 0
-            && legacyIds.Count > 0)
-        {
+                AddEprintsAssumptions(resolved, assumptions);
+                return new Judgement
+                {
+                    Verdict = Verdicts.EditableWithNormalisation, FileCount = resolved.FileCount,
+                    Assumptions = assumptions, Notes = notes,
+                    Mutations = Mutations(structMap, mets, resolved, unwrappedMdWraps)
+                };
+            }
             reasons.Add(new Finding("INVALID_IDS",
                 "the document matches the EPrints tier but declares IDs that are not legal " +
                 "NCNames; it needs the #188 normalisation, which this tier does not perform"));
@@ -469,7 +470,7 @@ public static class EditabilityJudge
                 "itself is preserved verbatim"));
         }
 
-        var unusualAdmids = new[] { "fileGrp", "area", "stream" }
+        var unusualAdmids = SurvivalIndexBlindSpots
             .Sum(name => mets.Descendants(MetsNs + name).Count(e => e.Attribute("ADMID") != null));
         if (unusualAdmids > 0)
         {

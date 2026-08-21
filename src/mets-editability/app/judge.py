@@ -133,13 +133,12 @@ def judge(root: etree._Element) -> Judgement:
                              assumptions=assumptions, notes=notes)
 
         eprints_failures = schematron.failures("eprints-tier.sch", mets)
-        if not shared_dmd_secs and not common_failures and not eprints_failures and not legacy_ids:
-            _eprints_assumptions(struct_map, resolved, assumptions)
-            mutations = _mutations(struct_map, mets, resolved, unwrapped_md_wraps)
-            return Judgement(EDITABLE_WITH_NORMALISATION, resolved.file_count,
-                             assumptions=assumptions, notes=notes, mutations=mutations)
-
-        if not shared_dmd_secs and not common_failures and not eprints_failures and legacy_ids:
+        if not shared_dmd_secs and not common_failures and not eprints_failures:
+            if not legacy_ids:
+                _eprints_assumptions(struct_map, resolved, assumptions)
+                mutations = _mutations(struct_map, mets, resolved, unwrapped_md_wraps)
+                return Judgement(EDITABLE_WITH_NORMALISATION, resolved.file_count,
+                                 assumptions=assumptions, notes=notes, mutations=mutations)
             reasons.append(Finding(
                 "INVALID_IDS",
                 "the document matches the EPrints tier but declares IDs that are not legal "
