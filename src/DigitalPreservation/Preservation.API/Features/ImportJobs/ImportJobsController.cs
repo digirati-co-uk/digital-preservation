@@ -227,7 +227,7 @@ public class ImportJobsController(
     /// suppressed content change would preserve a real new version that IIIF is never told to
     /// rebuild from.
     /// </remarks>
-    private IActionResult? SuppressedButNotMetsOnly(ImportJob importJob)
+    private ActionResult? SuppressedButNotMetsOnly(ImportJob importJob)
     {
         if (!importJob.SuppressActivityStreamEvent)
         {
@@ -268,7 +268,7 @@ public class ImportJobsController(
     /// different Deposit, no Deposit at all, or binaries from outside the deposit's file area;
     /// null when everything belongs.
     /// </summary>
-    private IActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
+    private ActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
     {
         string? message = null;
         if (importJob.Deposit is null)
