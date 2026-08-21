@@ -24,7 +24,14 @@ public static class EditabilityJudge
     private static readonly XNamespace PremisNs = "http://www.loc.gov/premis/v3";
     private static readonly XNamespace ModsNs = "http://www.loc.gov/mods/v3";
 
-    private static readonly Regex UriScheme = new("^[A-Za-z][A-Za-z0-9+.-]*:", RegexOptions.Compiled);
+    // Both patterns are anchored and cannot backtrack pathologically, so the timeouts can never
+    // be reached; they are here because a regex run against documents we did not write should
+    // have a bound regardless (the same stance as MetsIds' pattern).
+    private static readonly Regex UriScheme =
+        new("^[A-Za-z][A-Za-z0-9+.-]*:", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
+    private static readonly Regex CountedMessage =
+        new(@"^(.*) \[x(\d+)]$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     private static readonly HashSet<string> Blockers =
     [
@@ -393,7 +400,7 @@ public static class EditabilityJudge
             findings.Add(new Finding(code, message));
             return;
         }
-        var match = Regex.Match(existing.Message, @"^(.*) \[x(\d+)]$");
+        var match = CountedMessage.Match(existing.Message);
         var newMessage = match.Success
             ? $"{match.Groups[1].Value} [x{int.Parse(match.Groups[2].Value) + 1}]"
             : $"{existing.Message} [x2]";
