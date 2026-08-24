@@ -21,7 +21,7 @@ Put another way: RFC-0001 is a course-correction back to ADR-005 (per-API audien
 
 The two agree completely on the *mechanics* (§4): the POC's `PostConfigure<JwtBearerOptions>` code is the code-side `TokenValidationParameters.ValidAudiences` form the RFC's Phase 0 already names, and it independently confirms the RFC's empirical findings. The POC's code changes work unmodified for **either** topology — the choice between §2 and §3 below is an Entra-administration and security-posture decision, not a code decision.
 
-**Recommendation (§7): adopt the POC's mechanics; keep the RFC's topology as the target; optionally use the POC's topology as a Goobi-first stopgap** — with one non-negotiable caveat about per-caller `Assignment required` (§5.4). Two implementation defects on the POC branch need fixing before any of its code merges (§6).
+**Recommendation (§7): adopt the POC's mechanics; keep the RFC's topology as the target.** The POC's topology is held only as a **recorded contingency** (§7.3), not a recommended stopgap — Goobi is delivered at RFC Phase 1 anyway, so the contingency pays for schedule insurance the plan does not need unless admin throughput actually collapses. Two implementation defects on the POC branch need fixing before any of its code merges (§6).
 
 > [!TIP]
 > Entra overloads several everyday words — *audience*, *scope*, *assignment*, *known client* — with meanings narrower than they sound, and both this document and the POC depend on those distinctions. The [Glossary](#appendix-glossary) at the end defines each term as used here, citing Microsoft's documentation.
@@ -197,6 +197,8 @@ Under the POC model there are **N** gates, one per caller, forever: each caller'
 
 LPII-166's write-up does not state whether the third-party registration in the Digirati mirror has this set. **This must be confirmed, and if the model is adopted anywhere it must be a mandatory onboarding step** — it is the per-caller equivalent of the single gate the RFC relies on, and it is precisely the kind of hygiene step that silently doesn't happen on the twelfth caller.
 
+The deeper problem is the *direction* of the failure. The RFC's per-caller step (a role assignment) is **fail-closed**: forget it, and the caller's very first token request is refused (`AADSTS501051`) — the omission is discovered during onboarding and cannot ship broken. The LPII-166 step is **fail-open**: forget it, and everything works perfectly while the platform is silently impersonable, with no symptom to notice. Fail-closed steps enforce themselves; fail-open steps need auditing forever (e.g. a Graph query over the caller registrations' `appRoleAssignmentRequired` — custom monitoring this model requires in order to stay safe).
+
 ### 5.5 Rollout risk
 
 | Risk | RFC-0001 as written | LPII-166 |
@@ -262,12 +264,15 @@ The mechanics and the topology are separable. Take the best of each.
 
 Single audience + per-caller app roles remains the end state, because it is the only shape that delivers G3 (least privilege, per-endpoint roles) and G4 (a portal-enforced caller list), keeps the enforcement surface in Entra rather than N config files, opens the path to Preservation/Storage audience separation, and conforms to ADR-005.
 
-### 7.3 Optionally: the POC topology as a Goobi-first stopgap
+### 7.3 The POC topology: a recorded contingency, not a recommended stopgap
 
-If Leeds Entra admin throughput makes Phase 0/1 slow, the POC shape can deliver the Goobi bucket use case **now** with zero changes to `84c62880`: give Goobi a dual-role registration with its own URI, add that URI to the APIs' `ValidAudiences` (via the guarded code), and let the existing `KnownClients`/`azp` resolution and bucket routing do the rest — they work unchanged in either model. Non-negotiable conditions:
+An earlier draft of this section offered the POC shape as an optional Goobi-first stopgap. On reflection it is **not recommended**, for three reasons:
 
-1. `Assignment required = Yes`, self-only, on the Goobi registration (§5.4) — checked, not assumed;
-2. it is explicitly a stopgap: when Phase 0/1 land, Goobi repoints to `api://84c62880…/.default` like any other caller and its own URI comes back out of `ValidAudiences`. The dual-audience code makes that transition free.
+- **It buys nothing the plan doesn't already deliver.** Goobi ships at RFC **Phase 1** — before the UI repoint, before any risky phase. The stopgap only wins if Phase 0/1's admin actions are genuinely blocked, and the working assumption is that they are not: the actions are small, scripted in the Phase 0 admin doc, and things that need to get done get done.
+- **Its per-caller gate is fail-open** (§5.4): forgetting `Assignment required` on the Goobi registration leaves the platform silently impersonable, with custom monitoring as the only detection. The RFC path's equivalent step fails closed.
+- **It plants unrecognisable, load-bearing configuration** in a tenant the team doesn't administer — a registration that "exposes an API" nobody calls is exactly what a tidy-minded admin later removes, silently breaking production.
+
+It stays recorded here as a contingency for one narrow scenario only: a hard external Goobi deadline colliding with a demonstrably blocked admin queue. If that ever happens: Goobi gets a dual-role registration with its own URI added to the APIs' `ValidAudiences` via the guarded code; `Assignment required = Yes`, self-only, on that registration is **checked, not assumed**; and the arrangement is unwound (Goobi repoints to `api://84c62880…/.default`, its URI comes out of the lists) as soon as Phase 1 lands — the dual-audience code makes that transition free.
 
 ## 8. Questions for Frank
 
