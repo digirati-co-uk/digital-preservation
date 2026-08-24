@@ -98,7 +98,7 @@ Reading the diagram:
 
 - Every caller — the UI's downstream calls included — requests the **API's** audience: `api://84c62880…/.default`. Machine callers use their own secret (client credentials); the UI uses the delegated flow, which requires the `access_as_user` delegated scope, consented (Phase 0/3).
 - Tokens carry `aud = api://84c62880…` (the Preservation API), `azp` = the actual caller (Goobi, Preservation UI, Playwright etc), and `roles = Preservation.Call` (machines) or `scp` (humans). Identity resolves via `KnownClients` off the signed `azp`; the API enforces role-or-scope (§5.3 of the RFC).
-- The enforcement lives in **Entra**: with `Assignment required = Yes` on `84c62880`, an unassigned app is refused a token outright (`AADSTS501051`), and the portal's assignment list *is* the "who may call me" list (goal G4).
+- The enforcement lives in **Entra**: with `Assignment required = Yes` on `84c62880`, an unassigned app is refused a token outright (`AADSTS501051` — Entra's token-endpoint error "application is not assigned to a role for the application"; no token is ever issued), and the portal's assignment list *is* the "who may call me" list (goal G4).
 - Storage currently shares the audience via the relayed token; a Storage-specific audience is the §8 Q1 follow-up.
 
 ## 3. The LPII-166 model
@@ -175,7 +175,7 @@ This is where LPII-166 is decisively cheaper, and given that every action on the
 |---|---|---|
 | Touch `84c62880` at all (App ID URI, app role, delegated scope) | Required (Phase 0) | **Not needed** |
 | Admin consent for cross-app permissions | Required per caller (Phase 1) | **Never** — no cross-app grant exists |
-| Repoint the UI's downstream scope (Phase 3) | Required, with prerequisites (delegated scope consented; every UI user assigned or `AADSTS50105`) | **Phase 3 disappears** — UI untouched |
+| Repoint the UI's downstream scope (Phase 3) | Required, with prerequisites (delegated scope consented; every UI user assigned or `AADSTS50105` — the same gate's *user* refusal, "the signed in user is not assigned to a role") | **Phase 3 disappears** — UI untouched |
 | Strict assign-then-repoint ordering (`AADSTS501051`) | Required per caller (Phase 2) | Not applicable |
 | Retire `api://a616cf42` as an audience (Phase 4) | The end state | Never happens — it stays as "the platform's audience" |
 | Per new caller | Create registration, assign role, admin consent | Create dual-role registration (expose API, self-authorize, **set Assignment required — §5.4**), then edit every API's `ValidAudiences` |
