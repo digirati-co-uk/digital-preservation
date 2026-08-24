@@ -27,61 +27,72 @@ For grounding, the current state (RFC §3): every caller authenticates *as* the 
 
 ```mermaid
 flowchart LR
-    subgraph callers ["Callers (all sharing one identity)"]
+    subgraph CALLERS ["Callers"]
         UI["Web UI"]
         IIIF["iiif-builder"]
-        PW["Playwright (API identity)"]
-        SVC["APIs' own TokenProvider"]
+        PW["Playwright"]
+        SVC["TokenProvider"]
     end
 
-    subgraph entra ["Entra"]
-        A616["a616cf42 — Web-UI registration<br/>client AND resource<br/>Assignment required = Yes<br/>self-assigned (the linchpin)"]
+    subgraph ENTRA ["Entra"]
+        A616["a616cf42<br/>Web-UI registration<br/>client + resource"]
     end
 
-    subgraph apis ["APIs"]
-        PRES["Preservation API<br/>validates aud = api://a616cf42"]
-        STOR["Storage API<br/>validates aud = api://a616cf42"]
+    subgraph APIS ["APIs"]
+        PRES["Preservation API"]
+        STOR["Storage API"]
     end
 
-    UI -->|"client_id = a616cf42<br/>scope api://a616cf42/.default"| A616
-    IIIF -->|"same client_id, same scope"| A616
-    PW -->|"same client_id, same scope"| A616
-    SVC -->|"same client_id, same scope"| A616
-    A616 -->|"token: azp = a616cf42 (always)"| PRES
-    A616 -.->|"relayed token"| STOR
-    callers -.->|"X-Client-Identity header<br/>(spoofable, the only discriminator)"| PRES
+    UI --> A616
+    IIIF --> A616
+    PW --> A616
+    SVC --> A616
+    A616 -->|"one shared token"| PRES
+    PRES -.->|"relayed token"| STOR
+    CALLERS -.->|"spoofable header"| PRES
 ```
+
+Reading the diagram:
+
+- Every caller authenticates with the **same** `client_id` (`a616cf42`) and requests the **same** scope, `api://a616cf42/.default` — so every token carries `azp = a616cf42` and the APIs validate that single audience.
+- `a616cf42` is both client and resource; `Assignment required = Yes` with a **self-assignment** is the linchpin that lets it mint app-only tokens for its own API (RFC §3.1).
+- The dashed `X-Client-Identity` header is the only per-caller discriminator, and it is spoofable.
 
 RFC-0001's target: the API registration becomes the single audience; each caller is its own client, gated by an app-role assignment that Entra enforces at token issue.
 
 ```mermaid
 flowchart LR
-    subgraph callers ["Callers (one registration each)"]
-        UI2["Web UI<br/>signs users in as a616cf42"]
-        IIIF2["iiif-builder registration"]
-        GOOBI2["Goobi registration"]
-        PW2["Playwright registration"]
+    subgraph CALLERS2 ["Callers, own registration each"]
+        UI2["Web UI"]
+        IIIF2["iiif-builder"]
+        GOOBI2["Goobi"]
+        PW2["Playwright"]
     end
 
-    subgraph entra ["Entra"]
-        GATE{{"84c62880 — API registration<br/>single audience api://84c62880<br/>Assignment required = Yes<br/>app role Preservation.Call per caller<br/>delegated scope access_as_user for the UI"}}
+    GATE{{"Entra gate<br/>84c62880<br/>role assignment<br/>required"}}
+
+    subgraph APIS2 ["APIs"]
+        PRES2["Preservation API<br/>one audience"]
+        STOR2["Storage API"]
     end
 
-    subgraph apis ["APIs"]
-        PRES2["Preservation API<br/>validates ONE audience<br/>identity = signed azp → KnownClients<br/>authz = roles claim (or scp for humans)"]
-        STOR2["Storage API<br/>same audience (split = §8 Q1 follow-up)"]
-    end
+    X["no token issued"]
 
-    UI2 -->|"delegated: scope api://84c62880/.default<br/>token carries scp, user claims"| GATE
-    IIIF2 -->|"client credentials, own secret<br/>scope api://84c62880/.default"| GATE
-    GOOBI2 -->|"own secret, same scope"| GATE
-    PW2 -->|"own secret, same scope"| GATE
-    GATE -->|"tokens: aud = api://84c62880<br/>azp = the actual caller<br/>roles = Preservation.Call"| PRES2
-    GATE -.->|"unassigned caller:<br/>AADSTS501051, no token"| X["❌ rejected at Entra"]
+    UI2 -->|"delegated"| GATE
+    IIIF2 --> GATE
+    GOOBI2 --> GATE
+    PW2 --> GATE
+    GATE -->|"azp = caller"| PRES2
+    GATE -.->|"unassigned app"| X
     PRES2 -.-> STOR2
 ```
 
-The enforcement lives in **Entra**: an unassigned app never gets a token at all, and the portal's assignment list *is* the "who may call me" list (goal G4).
+Reading the diagram:
+
+- Every caller — the UI's downstream calls included — requests the **API's** audience: `api://84c62880…/.default`. Machine callers use their own secret (client credentials); the UI uses the delegated flow, which requires the `access_as_user` delegated scope, consented (Phase 0/3).
+- Tokens carry `aud = api://84c62880…`, `azp` = the actual caller, and `roles = Preservation.Call` (machines) or `scp` (humans). Identity resolves via `KnownClients` off the signed `azp`; the API enforces role-or-scope (§5.3 of the RFC).
+- The enforcement lives in **Entra**: with `Assignment required = Yes` on `84c62880`, an unassigned app is refused a token outright (`AADSTS501051`), and the portal's assignment list *is* the "who may call me" list (goal G4).
+- Storage currently shares the audience via the relayed token; a Storage-specific audience is the §8 Q1 follow-up.
 
 ## 3. The LPII-166 model
 
@@ -89,27 +100,33 @@ Each third-party caller mirrors the Web-UI's dual-role setup: it exposes its **o
 
 ```mermaid
 flowchart LR
-    subgraph callers ["Callers (one DUAL-ROLE registration each)"]
-        UI3["Web-UI stack — unchanged<br/>still mints aud = its own URI<br/>(api://digirati.com/preservation.dev)"]
-        TP3["Third-party registration<br/>client AND resource<br/>exposes api://digirati.com/preservation.thirdparty<br/>pre-authorizes: Self, Storage API, Preservation API<br/>own secret"]
-        GOOBI3["Goobi registration (same shape)<br/>api://…/preservation.goobi"]
+    subgraph CALLERS3 ["Callers, dual-role registration each"]
+        UI3["Web-UI stack<br/>unchanged"]
+        TP3["Third-party<br/>own App ID URI"]
+        GOOBI3["Goobi<br/>own App ID URI"]
     end
 
-    subgraph entra ["Entra"]
-        MINT["Token issue — per caller, self-service<br/>each app requests ITS OWN URI /.default<br/>⚠ gate = Assignment required on EACH caller app<br/>(must be Yes, self only — see §5.4)"]
+    MINT["Entra<br/>self-service tokens<br/>aud = caller's own URI"]
+
+    subgraph APIS3 ["APIs"]
+        PRES3["Preservation API<br/>ValidAudiences =<br/>union of caller URIs"]
+        STOR3["Storage API<br/>same union list"]
     end
 
-    subgraph apis ["APIs"]
-        PRES3["Preservation API<br/>ValidAudiences = [ preservation.dev,<br/>preservation.thirdparty, preservation.goobi, … ]<br/>identity = aud (≡ azp)"]
-        STOR3["Storage API<br/>same union list — a caller's token<br/>is valid at BOTH APIs"]
-    end
-
-    UI3 -->|"scope = own URI /.default"| MINT
-    TP3 -->|"scope = own URI /.default"| MINT
-    GOOBI3 -->|"scope = own URI /.default"| MINT
-    MINT -->|"tokens: aud = the CALLER's URI<br/>azp = the caller<br/>no roles claim"| PRES3
+    UI3 --> MINT
+    TP3 --> MINT
+    GOOBI3 --> MINT
+    MINT --> PRES3
     MINT --> STOR3
 ```
+
+Reading the diagram:
+
+- Each caller is client **and** resource: it exposes its own Application ID URI (e.g. `api://digirati.com/preservation.thirdparty`), pre-authorizes itself, and requests `{own URI}/.default` with its own secret — a token minted *for itself*, which the APIs accept because its URI is in their `ValidAudiences` list.
+- Tokens carry `aud` = the caller's own URI and `azp` = the caller (they coincide); there is **no `roles` claim**.
+- The Web-UI stack keeps the current collapsed pattern unchanged — its own URI is simply one entry in the union.
+- The per-caller gate is `Assignment required` on **each caller's own registration** — the load-bearing hygiene step §5.4 examines.
+- The POC also pre-authorizes Storage API and Preservation API as clients of the third-party registration — purpose unclear (§8 Q3).
 
 Properties worth calling out:
 
