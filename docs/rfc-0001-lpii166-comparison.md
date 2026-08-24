@@ -24,7 +24,7 @@ The two agree completely on the *mechanics* (§4): the POC's `PostConfigure<JwtB
 **Recommendation (§7): adopt the POC's mechanics; keep the RFC's topology as the target.** The POC's topology is held only as a **recorded contingency** (§7.3), not a recommended stopgap — Goobi is delivered at RFC Phase 1 anyway, so the contingency pays for schedule insurance the plan does not need unless admin throughput actually collapses. Two implementation defects on the POC branch need fixing before any of its code merges (§6).
 
 > [!TIP]
-> Entra overloads several everyday words — *audience*, *scope*, *assignment*, *known client* — with meanings narrower than they sound, and both this document and the POC depend on those distinctions. The [Glossary](#appendix-glossary) at the end defines each term as used here, citing Microsoft's documentation.
+> Entra overloads several everyday words — *audience*, *scope*, *assignment*, *known client* — with meanings narrower than they sound, and both this document and the POC depend on those distinctions. The [Glossary](#appendix-glossary) at the end defines each term as used here, citing Microsoft's documentation. Start with the **Audience** entry: the whole comparison turns on the difference between an API's *audience* in the everyday sense (its clients) and the `aud` claim's actual meaning (the token's intended recipient) — read that entry first and the two topologies explain themselves.
 
 ## 2. Today, and the RFC-0001 target
 
