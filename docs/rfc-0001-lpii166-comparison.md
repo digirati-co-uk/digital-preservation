@@ -26,7 +26,9 @@ The two agree completely on the *mechanics* (§4): the POC's `PostConfigure<JwtB
 
 ## 2. Today, and the RFC-0001 target
 
-For grounding, the current state (RFC §3): every caller authenticates *as* the Web-UI registration and requests the Web-UI registration as the audience. The spoofable `X-Client-Identity` header is the only per-caller discriminator.
+For grounding, the current state (RFC §3): every caller authenticates *as* the Web-UI registration and requests the Web-UI registration as the audience. The only per-caller discriminator is the self-asserted `X-Client-Identity` header.
+
+To be clear about what that header is and is not: it was always known to be spoofable, and that was an **acceptable, deliberate trade-off** while it served only attribution (logs, METS authorship) among trusted, Entra-authorised internal callers — RFC §2.2 says exactly this ("this is not a security hole, because we don't Authorise based on this header"). What has changed is the arrival of a **third party**: Goobi's deposits must be routed to a Goobi-only bucket **because of who is calling**, which turns caller identity from an audit label into an authorization/data-isolation input (RFC §1.1) — a job a self-asserted header was never suitable for. That change of requirement, not a newly discovered flaw, is what both RFC-0001 and LPII-166 respond to.
 
 ```mermaid
 flowchart LR
@@ -52,14 +54,14 @@ flowchart LR
     SVC --> A616
     A616 -->|"one shared token"| PRES
     PRES -.->|"relayed token"| STOR
-    CALLERS -.->|"spoofable header"| PRES
+    CALLERS -.->|"attribution header"| PRES
 ```
 
 Reading the diagram:
 
 - Every caller authenticates with the **same** `client_id` (`a616cf42`) and requests the **same** scope, `api://a616cf42/.default` — so every token carries `azp = a616cf42` and the APIs validate that single audience.
 - `a616cf42` is both client and resource; `Assignment required = Yes` with a **self-assignment** is the linchpin that lets it mint app-only tokens for its own API (RFC §3.1).
-- The dashed `X-Client-Identity` header is the only per-caller discriminator, and it is spoofable.
+- The dashed `X-Client-Identity` header is the only per-caller discriminator — fine as the attribution label it was designed to be, unusable as an input to authorization decisions like bucket routing (see above).
 
 RFC-0001's target: the API registration becomes the single audience; each caller is its own client, gated by an app-role assignment that Entra enforces at token issue.
 
