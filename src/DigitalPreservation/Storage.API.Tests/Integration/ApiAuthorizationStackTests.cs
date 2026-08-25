@@ -287,7 +287,7 @@ public class StubAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         return Task.FromResult(AuthenticateResult.NoResult());
     }
 
-    private Task<AuthenticateResult> Authenticated(params Claim[] claims)
+    private static Task<AuthenticateResult> Authenticated(params Claim[] claims)
     {
         var ticket = new AuthenticationTicket(
             new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")),

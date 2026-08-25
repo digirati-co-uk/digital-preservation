@@ -8,7 +8,7 @@ namespace DigitalPreservation.Core.Auth;
 /// </summary>
 public sealed class ClientDirectory : IClientDirectory
 {
-    private readonly IReadOnlyDictionary<string, ClientProfile> clients;
+    private readonly Dictionary<string, ClientProfile> clients;
 
     public ClientDirectory(IDictionary<string, ClientProfile> clients)
     {

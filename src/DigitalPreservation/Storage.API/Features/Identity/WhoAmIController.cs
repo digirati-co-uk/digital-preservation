@@ -16,12 +16,8 @@ public class WhoAmIController(IClientDirectory clients, IOptions<AwsStorageOptio
 {
     [HttpGet(Name = "WhoAmI")]
     [ProducesResponseType(typeof(WhoAmIResult), 200)]
-    public IActionResult Get()
+    public IActionResult Get([FromHeader(Name = AuthFilterIdentifier.MachineHeaderName)] string? header)
     {
-        var header = Request.Headers.TryGetValue(AuthFilterIdentifier.MachineHeaderName, out var value)
-            ? value.FirstOrDefault()
-            : null;
-
         var result = CallerResolver.Resolve(User, header, clients, storageOptions.Value.DefaultWorkingBucket);
         return Ok(result);
     }

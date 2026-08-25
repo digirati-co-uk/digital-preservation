@@ -43,7 +43,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
             identityMinter);
     }
 
-    private async Task<DepositEntity> SaveDeposit(PreservationContext context, Uri? files)
+    private static async Task<DepositEntity> SaveDeposit(PreservationContext context, Uri? files)
     {
         var deposit = new DepositEntity
         {
