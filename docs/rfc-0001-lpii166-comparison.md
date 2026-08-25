@@ -283,6 +283,61 @@ It stays recorded here as a contingency for one narrow scenario only: a hard ext
 3. Why are **Storage API and Preservation API pre-authorized as clients** of the third-party registration? Neither API should ever request the third-party's audience; if it was belt-and-braces, dropping it tightens the model, and if it was load-bearing, that's important to understand.
 4. In the mirror, is `api://digirati.com/preservation.dev` the **UI stack's own URI** (the collapsed pattern, unchanged) or the **Preservation API's**? The ticket reads as the former; it decides whether the mirror contains any single-audience element at all.
 
+### 8.1 Follow-up, 2026-08-25
+
+After this document was shared, Frank raised two further points (relayed via Tom). Both are recorded here
+because they bear on the recommendation in §7.
+
+**(a) Whether `azp` can be relied on in client-credentials tokens.** The concern was that `azp` is not
+guaranteed in app-only tokens and is more reliably associated with delegated tokens, so `appid` (v1.0),
+`roles` and `aud` are the stable signals. Microsoft's
+[access token claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference)
+describes the two claims as version-dependent rather than flow-dependent: `appid` is "only present in
+v1.0 tokens" and `azp` is "only present in v2.0 tokens", "a replacement for `appid`"; both are defined
+as "the application ID of the client using the token", where "the application can act as itself or on
+behalf of a user", and both "may be used in authorization decisions". So for any given token exactly
+one of the pair is present, determined by the token version, and it is present for app-only tokens.
+The code on PR #208 reads `azp` then falls back to `appid` (`AuthFilterIdentifier`, `CallerResolver`),
+so it is correct for either version; the registrations currently issue v1.0 tokens, so `appid` is the
+claim actually read today. The reference's general caution that applications "shouldn't take a
+dependency on a claim being present" applies equally to `roles` and `aud`. Separately, `aud`
+identifies the token's intended recipient rather than its sender (see the Glossary, *Audience*), and
+`roles` carries what the caller may do rather than who it is; neither substitutes for `appid`/`azp` as
+the identity signal.
+
+**(b) A single-audience topology.** The proposal was to expose the Preservation API as the single
+audience, with the Storage API accepting the same audience, give each caller (UI included) its own
+registration and a role assignment on the Preservation API, and validate `aud`, `roles` and `appid` in
+the API. Set against §2 and RFC-0001 §5, this is the RFC's target topology: one audience
+(`api://84c62880…`), one registration per caller, the `Preservation.Call` app role assigned per caller,
+identity from the signed `appid`/`azp`. It was framed as an alternative to "multiple audiences", but the
+RFC does not propose multiple audiences as an end state — the dual-audience configuration is only the
+Phase 0–3 transition that lets callers move independently, and Phase 4 removes the old audience. The
+per-caller-audience design is the one described in §3 (LPII-166). On this reading the two positions
+now agree on the target topology, and the remaining decisions are the mechanics in §7.1.
+
+Three details in the proposal are worth aligning with the RFC's phases so that the agreement does not
+introduce new gaps:
+
+- *"Storage API as a child."* Entra has no parent/child relationship between registrations. In practice
+  this means Storage accepts the Preservation API's audience and enforces the same role — which is the
+  current arrangement and what the RFC keeps for now (RFC §8 Q1 defers a separate Storage audience).
+- *"Roles for the UI."* Application-type app roles do not appear in delegated (user) tokens. The UI's
+  path is the `access_as_user` delegated scope with admin consent plus user assignment on the API's
+  enterprise application (admin doc 1.3, RFC Phase 3). A user-type app role assigned to a group is a
+  valid form of that assignment, but it is a different object from the machine role.
+- *"The API needs no secret unless it calls downstream."* Correct as stated, and the APIs do call
+  downstream: Preservation → Storage mints an app-only token when there is no inbound user token, and
+  Pipeline → Preservation always does (RFC §3.2 #7). Today both mint as `a616cf42…` via the
+  `TokenProvider` section. Giving them their own credential and target is RFC Phase 2 — option (a) is
+  the `ResourceUri` change from the LPII-166 branch with §6's fixes, option (b) is the `84c62880…`
+  self-assignment stopgap.
+
+Consequence for §7: with the topology agreed, §7.3's recorded contingency (adopting the POC topology)
+has no remaining trigger other than the Leeds-admin one already described there, and §7.1 (adopt the
+POC's mechanics) becomes the whole of the implementation question. Question 1 in §8 above remains
+relevant only to the Digirati mirror; questions 2–4 remain open.
+
 ## Appendix: Glossary
 
 Entra reuses everyday words with precise — and sometimes counter-intuitive — meanings. These are the terms this document leans on, defined as Microsoft defines them, with the subtleties that matter for the comparison. Microsoft Learn links are cited throughout; the claim-level references are the [access token claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference) and the [optional claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference).
