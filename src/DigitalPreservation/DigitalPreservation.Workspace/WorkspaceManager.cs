@@ -45,6 +45,15 @@ public class WorkspaceManager(
         return result;
     }
 
+    /// <summary>
+    /// Rewrite the deposit's METS IDs into the form the platform mints now (issue #188 step 3).
+    /// Writes nothing, and reports no change, if every ID is already a legal xs:ID.
+    /// </summary>
+    public async Task<Result<MetsIdNormalisationReport>> NormaliseMetsIds()
+    {
+        return await mediator.Send(new NormaliseMetsIds(Deposit.Files!, Deposit.MetsETag!));
+    }
+
     public async Task<Result> SetModsInformation(string localPath,
         List<string> rootAccessRestrictions,
         Uri? rootRightsStatement,

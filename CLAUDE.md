@@ -95,6 +95,10 @@ A long-running service that polls the Preservation API activity stream for new o
 
 Tracks processed activities in its own PostgreSQL DB. Configured via `.env` file (see `src/iiif-builder/app/settings.py` for all env var names).
 
+### Python Tool (`src/mets-id-migration/`)
+
+A one-off, operator-run migration of preserved METS documents to legal `xs:ID` values (issue #188 step 3). Drives the Preservation API and never writes to S3, Fedora or OCFL directly; the rewriting itself lives in `MetsManager.NormaliseIds`, so there is no second METS writer. `survey` and `list` change nothing and size the job; `migrate` creates a METS-only deposit per Archival Group, normalises, refuses any diff that is not a single METS patch, and preserves with the Activity Stream event suppressed. See `src/mets-id-migration/README.md` and `docs/issues/188/issue-188-step3-migration.md`.
+
 ## Key Domain Concepts
 
 **Archival Group** — the unit of preservation, corresponding to one OCFL object. May represent a single digitised item or a collection of born-digital files. Has a hierarchical structure of Containers (directories) and Binaries (files).

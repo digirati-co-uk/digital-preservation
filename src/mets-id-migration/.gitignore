@@ -1,0 +1,11 @@
+# The ledger is a run's own record, not a repository artefact - it names real Archival Groups and
+# holds the identifiers a migration changed. Keep it (and any exported list) out of git.
+*.sqlite
+*.sqlite-journal
+*.csv
+*.log
+
+# The root .gitignore already covers these; repeated here so this directory stands on its own.
+.venv/
+venv/
+__pycache__/

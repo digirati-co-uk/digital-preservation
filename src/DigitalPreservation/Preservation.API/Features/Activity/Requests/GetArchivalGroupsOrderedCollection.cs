@@ -16,7 +16,8 @@ public class GetImportJobsOrderedCollectionHandler(
 {
     public async Task<Result<OrderedCollection>> Handle(GetArchivalGroupsOrderedCollection request, CancellationToken cancellationToken)
     {
-        var totalItems = await dbContext.ArchivalGroupEvents.CountAsync(cancellationToken: cancellationToken);
+        var totalItems = await dbContext.PublishedArchivalGroupEvents()
+            .CountAsync(cancellationToken: cancellationToken);
         int totalPages = totalItems / OrderedCollectionPage.DefaultPageSize;
         if (totalItems % OrderedCollectionPage.DefaultPageSize > 0)
         {

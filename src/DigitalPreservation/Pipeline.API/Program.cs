@@ -121,6 +121,7 @@ try
     builder.Services.AddStorageAwsAccess(builder.Configuration);
     builder.Services.AddSingleton<IMetsLoader, S3MetsLoader>();
     builder.Services.AddSingleton<IMetsParser, MetsParser>();
+    builder.Services.Configure<MetsManagerOptions>(builder.Configuration.GetSection("FeatureFlags"));
     builder.Services.AddSingleton<IMetsManager, MetsManager>();
     builder.Services.AddSingleton<MetadataManager>();
     builder.Services.AddSingleton<PremisManager>();

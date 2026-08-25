@@ -16,10 +16,9 @@ public class StorageImportJobsProcessor(
 {
     public async Task<Result> ReadStream(CancellationToken cancellationToken)
     {
-        // Need to see when we last updated our own activity stream, then read to that point
-        var latestEvent = dbContext.ArchivalGroupEvents
-            .OrderByDescending(e => e.EventDate)
-            .FirstOrDefault();
+        // Need to see when we last updated our own activity stream, then read to that point.
+        // This counts suppressed events too - see GetLatestArchivalGroupEvent for why.
+        var latestEvent = dbContext.GetLatestArchivalGroupEvent();
         if (latestEvent == null)
         {
             // Just check that we are reading the table correctly
@@ -73,8 +72,17 @@ public class StorageImportJobsProcessor(
                 ArchivalGroup = fullJob.ArchivalGroup,
                 ImportJobResult = activity.Object.Id,
                 FromVersion = fullJob.SourceVersion,
-                ToVersion = fullJob.NewVersion
+                ToVersion = fullJob.NewVersion,
+                // Recorded either way - see ArchivalGroupEvent.Suppressed for why the row is
+                // written even when it will not be published.
+                Suppressed = jobEntity.SuppressActivityStreamEvent
             };
+            if (agEvent.Suppressed)
+            {
+                logger.LogInformation(
+                    "Recording a suppressed event for {ArchivalGroup}: it will not appear in the Activity Stream",
+                    fullJob.ArchivalGroup);
+            }
             dbContext.ArchivalGroupEvents.Add(agEvent);
             await dbContext.SaveChangesAsync(cancellationToken);
         }

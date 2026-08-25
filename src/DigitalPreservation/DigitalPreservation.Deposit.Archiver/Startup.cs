@@ -90,6 +90,7 @@ public class Startup
         services.AddSingleton<IIdentityMinter, IdentityMinter>();
         services.AddSingleton<IMetsLoader, S3MetsLoader>();
         services.AddSingleton<IMetsParser, MetsParser>();
+        services.Configure<MetsManagerOptions>(configuration.GetSection("FeatureFlags"));
         services.AddSingleton<IMetsManager, MetsManager>();
         services.AddSingleton<MetadataManager>();
         services.AddSingleton<PremisManager>();

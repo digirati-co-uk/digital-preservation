@@ -25,11 +25,12 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
     
     public async Task<Result<OrderedCollectionPage>> Handle(GetArchivalGroupsOrderedCollectionPage request, CancellationToken cancellationToken)
     {
-        var totalItems = await dbContext.ArchivalGroupEvents.CountAsync(cancellationToken: cancellationToken);
-        
+        var totalItems = await dbContext.PublishedArchivalGroupEvents()
+            .CountAsync(cancellationToken: cancellationToken);
+
         try
         {
-            var entities = await dbContext.ArchivalGroupEvents
+            var entities = await dbContext.PublishedArchivalGroupEvents()
                 .OrderBy(e => e.EventDate)
                 .Skip((request.Page - 1) * OrderedCollectionPage.DefaultPageSize)
                 .Take(OrderedCollectionPage.DefaultPageSize)

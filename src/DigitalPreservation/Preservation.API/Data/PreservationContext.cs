@@ -21,6 +21,36 @@ public class PreservationContext : DbContext
         return ImportJobs.SingleOrDefault(j => j.StorageImportJobResultId == storageResultUri);
     }
 
+    /// <summary>
+    /// The most recent Archival Group event, which is how far we have read Storage API's own import
+    /// job activities. <b>Deliberately includes suppressed events</b>: suppression keeps an event out
+    /// of the PUBLISHED stream, not out of this reckoning.
+    /// </summary>
+    /// <remarks>
+    /// Filtering suppressed events out here would leave the watermark behind whenever the newest
+    /// event is a suppressed one, and StorageImportJobsProcessor would re-read the same window of
+    /// Storage activities on every pass, for ever. A bulk migration, where every job is suppressed,
+    /// would cause exactly that - which is why the event row is written at all rather than skipped.
+    /// </remarks>
+    public ArchivalGroupEvent? GetLatestArchivalGroupEvent()
+    {
+        return ArchivalGroupEvents.OrderByDescending(e => e.EventDate).FirstOrDefault();
+    }
+
+    /// <summary>
+    /// The Archival Group events that appear in the published Activity Stream - everything except
+    /// the ones a maintenance import job asked to be kept out of it.
+    /// </summary>
+    /// <remarks>
+    /// One definition rather than one per query. The collection's count and the page's count and
+    /// its page of rows decide the stream's page boundaries between them, so a filter applied to
+    /// some of them and not the others puts a "next" link on the last page or leaves one off. It is
+    /// the opposite of <see cref="GetLatestArchivalGroupEvent"/>, which must see suppressed events;
+    /// the two together are the whole of what suppression means.
+    /// </remarks>
+    public IQueryable<ArchivalGroupEvent> PublishedArchivalGroupEvents() =>
+        ArchivalGroupEvents.Where(e => !e.Suppressed);
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Deposit>(builder =>

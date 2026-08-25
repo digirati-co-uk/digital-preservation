@@ -45,6 +45,26 @@ public class ImportJob : Resource
     [JsonPropertyName("isUpdate")]
     [JsonPropertyOrder(525)]
     public bool IsUpdate { get; set; }
+
+    /// <summary>
+    /// Keep the new version this job creates out of the published Activity Stream. For maintenance
+    /// that changes how the object is recorded rather than what it holds - the METS ID migration of
+    /// issue #188 step 3 is the reason this exists.
+    /// </summary>
+    /// <remarks>
+    /// The stream is a IIIF Change Discovery feed: its readers, iiif-builder among them, treat an
+    /// entry as "this object changed, rebuild what you derived from it". A migration that renames
+    /// identifiers inside the METS produces nothing for them to rebuild, so an entry would be both
+    /// wasted work and a misleading account of the object's history.
+    /// <para>
+    /// It suppresses the Activity Stream ENTRY, not the record: Preservation API still stores the
+    /// event, and OCFL still holds the new version with everything that made it. Nothing about the
+    /// object's history is lost - it just isn't announced as a change.
+    /// </para>
+    /// </remarks>
+    [JsonPropertyName("suppressActivityStreamEvent")]
+    [JsonPropertyOrder(526)]
+    public bool SuppressActivityStreamEvent { get; set; }
     
     /// <summary>
     /// A filesystem or S3 path for the directory that will be compared to the archival object
