@@ -1,5 +1,42 @@
 # Caller Identity in API
 
+> [!WARNING]
+> **Working notes, June 2026 — kept for the Entra grounding, not as a statement of current state.**
+> The "Understanding Entra" section (registration vs enterprise application, resource vs client app,
+> where a caller's secret comes from) is still the best plain-English introduction we have, and
+> [RFC-0001](./rfc-0001-api-caller-identity.md) builds on it. The diagnosis in "Current conclusion" —
+> everything runs as the Web-UI registration `a616cf42…`, `84c62880…` is vestigial — is also still
+> right. But the notes are a snapshot of an investigation, and the following points have since been
+> checked or superseded. For current state read the RFC, then the glossary in
+> [`rfc-0001-lpii166-comparison.md`](./rfc-0001-lpii166-comparison.md).
+>
+> 1. **`idtyp` is an *optional* claim, absent by default** — the claims list below reads as if every
+>    app-only token carries `"idtyp": "app"`. It doesn't; that is why the code infers human-vs-machine
+>    from claim shape, and why RFC Phase 0 provisions the claim (with the caveat that it only attaches to
+>    tokens requested *for* the configured registration). See RFC §6 Phase 0 and §8 Q7.
+> 2. **Preservation→Storage does not only forward the caller's token.** `PropagateCorrelationIdHandler`
+>    relays an inbound token when there is one; with none, it *mints* an app-only token via
+>    `AccessTokenProvider` from the `TokenProvider` config section (RFC §3.2 #7). The conclusion that
+>    `84c62880…` and its secret are dormant still holds — `TokenProvider` is configured with the UI's
+>    client id — but the mechanism described below is incomplete.
+> 3. **`a616cf42…`'s assignment gate has been checked** ("which you haven't checked" below is stale):
+>    `Assignment required = Yes`, with only `a616cf42…` itself assigned — the self-assignment linchpin in
+>    RFC §3.1. Only holders of the one shared secret can mint an `a616cf42…`-audience app token.
+> 4. **"Resolve `azp` → friendly name" is no longer blocked.** PR #208 implements it in dual mode in
+>    `AuthFilterIdentifier`: prefer the signed `azp`/`appid` against the `KnownClients` allow-list, fall
+>    back to `X-Client-Identity` for callers not yet migrated. Inert until `KnownClients` is populated.
+> 5. **The existing assignments on `84c62880…`'s enterprise app are not junk.** The list below
+>    (humans plus service accounts — the exact membership is awaiting the admin's export; the later
+>    record shows humans plus `zz_libplaywrighttest`, not an iiif-builder account) will become
+>    load-bearing at RFC Phase 3, when UI users must be assigned on this audience. Do not clear it.
+>    See `rfc-0001-phase0-entra-admin.md` step 1.5.
+> 6. **`Assignment required = Yes` on `84c62880…` is a "red herring" only for today's traffic.** It is a
+>    design input for the migration: it imposes assign-*before*-repoint ordering in Phase 2 (else
+>    `AADSTS501051`) and means Phase 4 has nothing to enable. See the admin doc, Part 3.
+>
+> The `X-Client-Identity` header was a deliberate, known trade-off for internal attribution; it is
+> Goobi — a third party — that changes the requirement (RFC §1.1, comparison §2).
+
 At the moment, we ask API callers to supply a `X-Client-Identity` HTTP header to identify themselves. This is not used as a credential in any way, all clients must authenitcate via MSAL and present a valid bearer token. It just allows us to audit calls - who created what.
 
 For human users presenting credentials to the UI, their ClaimsPrincipal display name persists when calls on their behalf are delegated to the Preservation API. But direct API callers, like iiif-builder, eprints migration scripts and later Goobi, don't present a principal from which a distinct identity can be extracted.
