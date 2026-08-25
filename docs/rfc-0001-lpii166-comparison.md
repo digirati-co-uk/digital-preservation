@@ -297,7 +297,7 @@ v1.0 tokens" and `azp` is "only present in v2.0 tokens", "a replacement for `app
 as "the application ID of the client using the token", where "the application can act as itself or on
 behalf of a user", and both "may be used in authorization decisions". So for any given token exactly
 one of the pair is present, determined by the token version, and it is present for app-only tokens.
-The code on PR #208 reads `azp` then falls back to `appid` (`AuthFilterIdentifier`, `CallerResolver`),
+The code on PR #208 reads `azp` then falls back to `appid` ([`AuthFilterIdentifier.cs#L62-L63`](https://github.com/digirati-co-uk/digital-preservation/blob/148fcf7/src/DigitalPreservation/DigitalPreservation.Core/Auth/AuthFilterIdentifier.cs#L62-L63), [`CallerResolver.cs#L22`](https://github.com/digirati-co-uk/digital-preservation/blob/148fcf7/src/DigitalPreservation/DigitalPreservation.Core/Auth/CallerResolver.cs#L22) and [`#L91`](https://github.com/digirati-co-uk/digital-preservation/blob/148fcf7/src/DigitalPreservation/DigitalPreservation.Core/Auth/CallerResolver.cs#L91)),
 so it is correct for either version; the registrations currently issue v1.0 tokens, so `appid` is the
 claim actually read today. The reference's general caution that applications "shouldn't take a
 dependency on a claim being present" applies equally to `roles` and `aud`. Separately, `aud`
