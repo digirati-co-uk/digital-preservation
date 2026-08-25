@@ -255,6 +255,8 @@ The mechanics and the topology are separable. Take the best of each.
 
 ### 7.1 Adopt the POC's mechanics (either topology)
 
+> The order in which this lands relative to PR #208 — and why #208 merges first — is set out in [`rfc-0001-landing-sequence.md`](./rfc-0001-landing-sequence.md).
+
 - **The guarded `PostConfigure` rollout pattern** replaces the RFC's config-only Phase 0 shape: deploy the code everywhere (inert without config), activate per environment by adding `ValidAudiences`, keep the old `Audience` key in place as the fallback until activation. Hoist to a single shared extension in `DigitalPreservation.Core`.
 - **Config location** needs one decision: the POC's new top-level `Authentication:ValidAudiences` section vs keeping it inside `AzureAd` (e.g. `AzureAd:ValidAudiences`, read by the same guarded code). Either works; whichever is chosen, **`AudienceValidationTests` must be re-pinned to that shape** — it currently pins `AzureAd:TokenValidationParameters:ValidAudiences`, which the guarded-code approach supersedes.
 - **The `ResourceUri` decoupling** in `AccessTokenProvider`, with §6's defects fixed (v2 endpoint, null-check corrected), becomes the RFC's Phase 2 option (a) implementation — and the prerequisite for a future Storage audience split (§8 Q1) under either topology.

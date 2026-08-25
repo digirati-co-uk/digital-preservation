@@ -6,7 +6,7 @@
 | **Author** | Tom Crane (with assistance from Opus 4.8) |
 | **Date** | 2026-06-26 (last substantive revision 2026-08-25) |
 | **Affects** | `DigitalPreservation.UI`, `Preservation.API`, `Storage.API`, all direct API clients (iiif-builder, EPrints migration, Playwright tests, future Goobi) |
-| **Related** | [`api-caller-identity.md`](./api-caller-identity.md) (working notes), [`adr/0000-service-clients.md`](./adr/0000-service-clients.md), [ADR-005 Auth setup](https://github.com/digirati-co-uk/digital-preservation-docs/blob/main/adr/005-auth-setup.md), [`rfc-0001-phase0-entra-admin.md`](./rfc-0001-phase0-entra-admin.md) (admin instructions for Phase 0), [`rfc-0001-lpii166-comparison.md`](./rfc-0001-lpii166-comparison.md) (comparison with the LPII-166 POC topology; glossary) |
+| **Related** | [`api-caller-identity.md`](./api-caller-identity.md) (working notes), [`adr/0000-service-clients.md`](./adr/0000-service-clients.md), [ADR-005 Auth setup](https://github.com/digirati-co-uk/digital-preservation-docs/blob/main/adr/005-auth-setup.md), [`rfc-0001-phase0-entra-admin.md`](./rfc-0001-phase0-entra-admin.md) (admin instructions for Phase 0), [`rfc-0001-lpii166-comparison.md`](./rfc-0001-lpii166-comparison.md) (comparison with the LPII-166 POC topology; glossary), [`rfc-0001-landing-sequence.md`](./rfc-0001-landing-sequence.md) (merge/deploy order for the open branches) |
 
 > [!NOTE]
 > This RFC builds on the working notes in [`api-caller-identity.md`](./api-caller-identity.md). Those notes establish the Entra concepts (app registration vs enterprise application, API/resource app vs client app, `azp`/`oid` claims). This document assumes that grounding and focuses on **the problem we actually have** and **the change we should make**.
