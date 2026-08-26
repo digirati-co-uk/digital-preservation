@@ -9,7 +9,7 @@ and [`rfc-0001-lpii166-comparison.md`](./rfc-0001-lpii166-comparison.md) (the PO
 
 ## The two branches
 
-| | `feature/multiple-deposit-buckets` (PR #208) | `feat/LPII-165/entra-api` (Frank, LPII-166) |
+| | `feature/multiple-deposit-buckets` (PR #208) | `feat/LPII-165/entra-api` (LPII-166) |
 |---|---|---|
 | Purpose | RFC-0001 Phase 0 code half **plus the bucket-routing feature** (Goobi's isolated deposit bucket, the RFC's first consumer) | POC of the audience mechanics against Digirati's own tenant |
 | Files changed | 33 | 3: `Core/Web/Headers/AccessTokenProvider.cs`, `Preservation.API/Program.cs`, `Storage.API/Program.cs` |
@@ -26,8 +26,8 @@ them cleanly in either order; the only way to lose code is a careless manual con
 ### Step 1 — Merge PR #208 first
 
 **Why first:** the bucket code is the largest, most valuable and *least* controversial piece — it does
-not depend on any decision still open with Frank or with Leeds. Once it is on `main`, it cannot be
-lost to a later conflict, and every subsequent branch (including Frank's) rebases onto it rather than
+not depend on any decision still open on LPII-166 or with Leeds. Once it is on `main`, it cannot be
+lost to a later conflict, and every subsequent branch (including the LPII-166 branch) rebases onto it rather than
 the reverse.
 
 **Why it is safe before Phase 0's admin work:** #208 is *inert without configuration*.
@@ -52,15 +52,15 @@ code), and Goobi's registration can be created the moment Leeds do 1.2 of the ad
 
 ### Step 2 — Follow-up PR: adopt the fixed POC mechanics
 
-A small PR, **opened after #208 is on `main`**, that brings across what is worth keeping from Frank's
-branch *in corrected form*, rather than merging his branch as-is. Comparison §7.1 is the spec; in
+A small PR, **opened after #208 is on `main`**, that brings across what is worth keeping from the LPII-166
+branch *in corrected form*, rather than merging that branch as-is. Comparison §7.1 is the spec; in
 summary:
 
-1. **Guarded `PostConfigure<JwtBearerOptions>`** — hoist Frank's block out of the two `Program.cs`
+1. **Guarded `PostConfigure<JwtBearerOptions>`** — hoist the LPII-166 block out of the two `Program.cs`
    files into one `DigitalPreservation.Core` extension (e.g. `AddValidAudiencesOverride`), called from
    both APIs. It acts only when the new config section is present; the existing singular `Audience`
    remains the fallback, which is what makes deploy-then-activate possible.
-2. **Settle the config location** — `Authentication:ValidAudiences` (Frank's shape) or
+2. **Settle the config location** — `Authentication:ValidAudiences` (the LPII-166 shape) or
    `AzureAd:TokenValidationParameters:ValidAudiences` (the RFC's). Pick one, then **re-pin
    `Storage.API.Tests/Integration/AudienceValidationTests.cs`** to it in the same PR, and update both
    `appsettings.Example.json` files and RFC §6 Phase 0.
@@ -71,14 +71,14 @@ summary:
      `/oauth2/v2.0/token` endpoint with `scope = {ResourceUri}/.default` (RFC Appendix B wants this
      anyway). Add a test that asserts the outgoing form body.
 
-**Why a follow-up rather than merging Frank's branch:** his three files carry both the mechanics and
-the two defects, and his branch predates #208. Cherry-picking the ideas into a branch cut from
+**Why a follow-up rather than merging the LPII-166 branch:** its three files carry both the mechanics and
+the two defects, and that branch predates #208. Cherry-picking the ideas into a branch cut from
 post-#208 `main` avoids the conflict resolution entirely and lets the fixes land with their tests.
-If Frank would rather rebase his own branch onto `main` and fix it there, that is equally fine — the
+If the LPII-166 branch is instead rebased onto `main` and fixed there, that is equally fine — the
 point is the *order*, not the author.
 
 **What this depends on ("further developments"):** nothing that blocks step 1. It *is* shaped by
-Frank's answers to the comparison's §8 questions — in particular whether his tests really exercised
+the answers to the comparison's §8 questions — in particular whether the LPII-166 tests really exercised
 the `ResourceUri` code path — and by confirming the config-key choice with him so the two branches
 don't encode different shapes.
 
@@ -106,8 +106,8 @@ previous one:
   identity via `IClientDirectory`, and the audience-override mechanics are topology-neutral. Only the
   activation ladder differs: per-caller App ID URIs in `ValidAudiences` and `Assignment required = Yes`
   on each caller registration, instead of one audience plus role assignments. That is the reason the
-  sequence is safe to start now regardless of how the topology discussion with Frank ends.
-- **If Frank's branch is merged before #208** (not recommended): #208 must then be rebased; the
+  sequence is safe to start now regardless of how the LPII-166 topology discussion ends.
+- **If the LPII-166 branch is merged before #208** (not recommended): #208 must then be rebased; the
   `Program.cs` conflicts are still trivial, but the `AccessTokenProvider` defects would be on `main`
   — with the `nullCheck` one able to break token acquisition on any deploy that lacks the new key.
 
