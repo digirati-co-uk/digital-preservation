@@ -276,7 +276,7 @@ An earlier draft of this section offered the POC shape as an optional Goobi-firs
 
 It stays recorded here as a contingency for one narrow scenario only: a hard external Goobi deadline colliding with a demonstrably blocked admin queue. If that ever happens: Goobi gets a dual-role registration with its own URI added to the APIs' `ValidAudiences` via the guarded code; `Assignment required = Yes`, self-only, on that registration is **checked, not assumed**; and the arrangement is unwound (Goobi repoints to `api://84c62880…/.default`, its URI comes out of the lists) as soon as Phase 1 lands — the dual-audience code makes that transition free.
 
-## 8. Questions for Frank
+## 8. Open questions for the LPII-166 side
 
 1. Is **`Assignment required = Yes`** set on the third-party registration in the Digirati mirror, and is it assigned to itself only? (§5.4 — this determines whether the model has a tenant-wide impersonation hole.)
 2. Was the **`ResourceUri` token path tested end-to-end** service-to-service (Preservation → Storage via `AccessTokenProvider`), or only inbound via Postman-minted tokens? (§6.2 suggests the latter.)
@@ -285,7 +285,7 @@ It stays recorded here as a contingency for one narrow scenario only: a hard ext
 
 ### 8.1 Follow-up, 2026-08-25
 
-After this document was shared, Frank raised two further points (relayed via Tom). Both are recorded here
+After this document was shared, two further points were raised from the LPII-166 side. Both are recorded here
 because they bear on the recommendation in §7.
 
 **(a) Whether `azp` can be relied on in client-credentials tokens.** The concern was that `azp` is not
@@ -338,9 +338,9 @@ has no remaining trigger other than the Leeds-admin one already described there,
 POC's mechanics) becomes the whole of the implementation question. Question 1 in §8 above remains
 relevant only to the Digirati mirror; questions 2–4 remain open.
 
-**(c) Trial of the single-audience topology on the Digirati tenant, 2026-08-26.** Frank recorded on
-LPII-166 (comment of 2026-08-26) that a single-audience configuration "couldn't get this to work
-effectively" and was abandoned, and posted the supporting Entra screens and a sample token on Slack.
+**(c) Trial of the single-audience topology on the Digirati tenant, 2026-08-26.** A comment on
+LPII-166 (2026-08-26) records that a single-audience configuration "couldn't get this to work
+effectively" and was abandoned, with the supporting Entra screens and a sample token shared alongside it.
 The evidence is summarised here, with the reading that follows from the definitions in the Glossary, so
 that the two accounts can be compared.
 
