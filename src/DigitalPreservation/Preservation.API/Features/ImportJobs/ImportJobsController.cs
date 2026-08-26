@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
@@ -226,6 +227,16 @@ public class ImportJobsController(
     /// tool's own client-side gate, enforced where it can no longer be raced or forgotten: a
     /// suppressed content change would preserve a real new version that IIIF is never told to
     /// rebuild from.
+    /// <para>
+    /// One allowance: the platform's own empty scaffold folders, <c>metadata</c> and
+    /// <c>metadata/ad-hoc</c>. Creating a deposit against an Archival Group preserved before
+    /// LPII-9 writes those folders into its METS (CreateDepositBase / GetDepositBase), so the
+    /// migration's diff for such a group is the METS patch plus those containers - it cannot be
+    /// a pure METS patch, and refusing it would leave every pre-LPII-9 group unmigrated. They
+    /// hold nothing, no consumer derives anything from them, and they would be added on the
+    /// group's next preservation anyway: that is bookkeeping about how the object is recorded,
+    /// not a change to what it holds. Nothing else in ContainersToAdd is tolerated.
+    /// </para>
     /// </remarks>
     private ActionResult? SuppressedButNotMetsOnly(ImportJob importJob)
     {
@@ -236,10 +247,14 @@ public class ImportJobsController(
 
         string? problem = null;
         if (importJob.BinariesToAdd.Count > 0 || importJob.BinariesToDelete.Count > 0
-            || importJob.BinariesToRename.Count > 0 || importJob.ContainersToAdd.Count > 0
+            || importJob.BinariesToRename.Count > 0
             || importJob.ContainersToDelete.Count > 0 || importJob.ContainersToRename.Count > 0)
         {
             problem = "it adds, deletes or renames content";
+        }
+        else if (importJob.ContainersToAdd.Exists(c => !IsPlatformScaffoldFolder(importJob, c)))
+        {
+            problem = "it adds content";
         }
         else if (importJob.BinariesToPatch.Count != 1)
         {
@@ -256,11 +271,33 @@ public class ImportJobsController(
             return null;
         }
         var message = "suppressActivityStreamEvent is only for changes to how an object is "
-                      + $"recorded - a single METS patch - but {problem}. "
+                      + "recorded - a single METS patch, plus at most the platform's own empty "
+                      + $"metadata folders - but {problem}. "
                       + "Content changes must be announced in the Activity Stream.";
         logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
         return this.StatusResponseFromResult(
             Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+    }
+
+    /// <summary>
+    /// Whether a container to add is one of the platform's own scaffold folders (metadata,
+    /// metadata/ad-hoc), judged by its path relative to the job's Archival Group. A job that
+    /// does not say which Archival Group it is for cannot make that claim, so nothing qualifies.
+    /// </summary>
+    private static bool IsPlatformScaffoldFolder(ImportJob importJob, Container container)
+    {
+        if (importJob.ArchivalGroup is null || container.Id is null)
+        {
+            return false;
+        }
+        var agPathWithSlash = importJob.ArchivalGroup.LocalPath.TrimEnd('/') + "/";
+        if (!container.Id.LocalPath.StartsWith(agPathWithSlash))
+        {
+            return false;
+        }
+        var relativePath = container.Id.LocalPath[agPathWithSlash.Length..]
+            .TrimEnd('/').UnEscapePathElementsNoHashes();
+        return FolderNames.RemovePathPrefix(relativePath) is FolderNames.Metadata or FolderNames.MetadataAdHoc;
     }
 
     /// <summary>

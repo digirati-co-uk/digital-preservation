@@ -85,6 +85,68 @@ public class SuppressionGateTests
     }
 
     [Fact]
+    public async Task A_Suppressed_Mets_Patch_Plus_The_Platform_Scaffold_Folders_Passes_The_Gate()
+    {
+        // A deposit created against an Archival Group preserved before LPII-9 gets metadata/ and
+        // metadata/ad-hoc/ written into its METS, so the migration's diff for such a group is the
+        // METS patch plus those two empty containers. They are how the object is recorded, not
+        // what it holds - refusing them would leave every pre-LPII-9 group unmigrated.
+        var mediator = A.Fake<IMediator>();
+        var controller = Controller(mediator, migrationFlagOn: true);
+        var job = MetsOnlyJob(suppress: true);
+        job.ContainersToAdd.Add(Container("metadata"));
+        job.ContainersToAdd.Add(Container("metadata/ad-hoc"));
+
+        await controller.ExecuteImportJob("dep-1", job, default);
+
+        A.CallTo(() => mediator.Send(A<GetDeposit>._, A<CancellationToken>._)).MustHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Suppressed_Job_That_Adds_Any_Other_Container_Is_Refused()
+    {
+        var mediator = A.Fake<IMediator>();
+        var controller = Controller(mediator, migrationFlagOn: true);
+        var job = MetsOnlyJob(suppress: true);
+        job.ContainersToAdd.Add(Container("metadata/ad-hoc"));
+        job.ContainersToAdd.Add(Container("objects/new-folder"));
+
+        var result = await controller.ExecuteImportJob("dep-1", job, default);
+
+        var problem = result.Should().BeOfType<ObjectResult>()
+            .Which.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(400);
+        problem.Detail.Should().Contain("adds content");
+        A.CallTo(() => mediator.Send(A<GetDeposit>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Scaffold_Folder_Outside_The_Jobs_Archival_Group_Is_Not_Tolerated()
+    {
+        // The allowance is judged relative to the Archival Group the job names. A metadata folder
+        // under some other object - or a job that names no Archival Group at all - is just an add.
+        var mediator = A.Fake<IMediator>();
+        var controller = Controller(mediator, migrationFlagOn: true);
+        var elsewhere = MetsOnlyJob(suppress: true);
+        elsewhere.ContainersToAdd.Add(new DigitalPreservation.Common.Model.Container
+        {
+            Id = new Uri("https://preservation.test/repository/cc/other/metadata/ad-hoc")
+        });
+        var anonymous = MetsOnlyJob(suppress: true);
+        anonymous.ArchivalGroup = null;
+        anonymous.ContainersToAdd.Add(Container("metadata/ad-hoc"));
+
+        foreach (var job in new[] { elsewhere, anonymous })
+        {
+            var result = await controller.ExecuteImportJob("dep-1", job, default);
+            result.Should().BeOfType<ObjectResult>()
+                .Which.Value.Should().BeOfType<ProblemDetails>()
+                .Which.Detail.Should().Contain("adds content");
+        }
+        A.CallTo(() => mediator.Send(A<GetDeposit>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
     public async Task A_Suppressed_Patch_Of_A_Non_Mets_Binary_Is_Refused()
     {
         var mediator = A.Fake<IMediator>();
@@ -104,13 +166,20 @@ public class SuppressionGateTests
 
     private static ImportJob MetsOnlyJob(bool suppress)
     {
-        var job = new ImportJob { SuppressActivityStreamEvent = suppress };
+        var job = new ImportJob
+        {
+            SuppressActivityStreamEvent = suppress,
+            ArchivalGroup = new Uri("https://preservation.test/repository/cc/thing")
+        };
         job.BinariesToPatch.Add(new DigitalPreservation.Common.Model.Binary
         {
             Id = new Uri("https://preservation.test/repository/cc/thing/mets.xml")
         });
         return job;
     }
+
+    private static DigitalPreservation.Common.Model.Container Container(string relativePath) =>
+        new() { Id = new Uri($"https://preservation.test/repository/cc/thing/{relativePath}") };
 
     private static ImportJobsController Controller(IMediator mediator, bool migrationFlagOn)
     {

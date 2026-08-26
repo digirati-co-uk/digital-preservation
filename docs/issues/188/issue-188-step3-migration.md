@@ -65,7 +65,18 @@ already holds, and `GetDiffImportJob`'s deposit-presence check applies only to a
 not belt and braces: on a METS-only deposit, a file the Archival Group holds but the METS does not
 mention would be listed for *deletion* rather than failing the diff. That one assertion closes it.
 
-The result is one new OCFL version whose only new content is `mets.xml`.
+**The one allowance (found on the first dev trial, 2026-08-26).** Creating a deposit against an
+Archival Group preserved before LPII-9 writes the platform's `metadata/` and `metadata/ad-hoc/`
+scaffold folders into the deposit's METS (`CreateDepositBase`, and `GetDepositBase` after an
+export). The diff for such a group is therefore the METS patch *plus* `ContainersToAdd` for those
+two empty folders, and a strict gate would refuse every pre-LPII-9 group. They hold nothing, no
+consumer derives anything from them, and they would be added on the group's next preservation
+anyway — recording, not content. Both gates (`ImportJobsController.SuppressedButNotMetsOnly` and
+the tool's `_refuse_unless_mets_only`) tolerate exactly those two paths, judged relative to the
+job's Archival Group, and nothing else in `ContainersToAdd`.
+
+The result is one new OCFL version whose only new content is `mets.xml` (plus, for a pre-LPII-9
+group, the two empty scaffold containers).
 
 ## The Activity Stream
 
