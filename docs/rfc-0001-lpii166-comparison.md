@@ -338,6 +338,50 @@ has no remaining trigger other than the Leeds-admin one already described there,
 POC's mechanics) becomes the whole of the implementation question. Question 1 in §8 above remains
 relevant only to the Digirati mirror; questions 2–4 remain open.
 
+**(c) Trial of the single-audience topology on the Digirati tenant, 2026-08-26.** Frank recorded on
+LPII-166 (comment of 2026-08-26) that a single-audience configuration "couldn't get this to work
+effectively" and was abandoned, and posted the supporting Entra screens and a sample token on Slack.
+The evidence is summarised here, with the reading that follows from the definitions in the Glossary, so
+that the two accounts can be compared.
+
+- *What was configured.* The Preservation API registration defines application roles (`App.ThirdPary`,
+  `Users`), and the third-party registration holds `App.ThirdPary` on it with admin consent granted —
+  that is the Option A wiring for a machine caller. In addition, the third-party registration defines
+  its own roles (`API`, `App.ThirdPary`), grants those roles to itself, and lists the Preservation and
+  Storage API client IDs under its *Authorized client applications*; the UI registration defines an
+  `App.Users` role and grants it to itself as an application permission.
+- *The token.* The sample was minted with `client_credentials` against the v2.0 endpoint by the
+  third-party client (`appid = e09787e0…`) with `scope = api://digirati.com/preservation.thirdparty/.default`.
+  It carries `aud = api://digirati.com/preservation.thirdparty`, `roles = ["API"]`, `ver = "1.0"`, and
+  `appid` (no `azp`, consistent with (a)). `roles` is populated from the app roles defined by the
+  resource named in `scope` and assigned to the calling service principal; because the resource here is
+  the caller's own registration, the token describes the caller calling itself. Requesting
+  `scope = api://<Preservation API>/.default` from the same client, with the assignment already in place,
+  is expected to return `aud` = the API, `roles = ["App.ThirdPary"]`, and the same `appid`; that request
+  was not part of the trial as reported.
+- *Authorized client applications.* This list on a registration's *Expose an API* blade records which
+  clients the registration, acting as a **resource**, pre-authorises so that their users are not asked to
+  consent to its delegated scopes. It confers nothing on the listed clients and has no effect on
+  `client_credentials`, which is governed by role assignment and admin consent. The screenshot was
+  captioned as the third party having permissions on the two APIs; by the blade's definition it records
+  the reverse relationship, and neither reading affects the app-only token above.
+- *The UI failure.* The reported errors were 401 and `IDW10502: An MsalUiRequiredException was thrown
+  due to a challenge for the user` during backend connection checks, when the UI requested a token for
+  the Preservation API's audience. That exception is raised when Microsoft.Identity.Web has no cached
+  user token for the requested scope — typically because the resource exposes no delegated scope or the
+  scope was not requested and consented at sign-in. The configuration above exposes application roles
+  only; no delegated scope is defined on the API. This is the prerequisite the admin doc (1.3) and RFC
+  Phase 3 attach to the UI repoint, which the RFC schedules after the machine callers for that reason.
+  The machine-caller path and the UI path are independent: the former needs only the assignment already
+  in place, the latter needs the delegated scope.
+
+Read against the RFC's phases, the trial exercised Phase 3 (the UI) without its prerequisite and
+did not exercise the Phase 1 request (a machine caller asking for the API's audience). It therefore
+neither confirms nor refutes the single-audience topology for machine callers; the one-line change to
+`scope` on the existing client would settle that. A further observation from Slack — that a
+human-readable value in `aud` avoids looking up client IDs — is addressed on PR #208 by the
+`KnownClients` directory (`appid` → name), since Entra places only the client ID in `appid`/`azp`.
+
 ## Appendix: Glossary
 
 Entra reuses everyday words with precise — and sometimes counter-intuitive — meanings. These are the terms this document leans on, defined as Microsoft defines them, with the subtleties that matter for the comparison. Microsoft Learn links are cited throughout; the claim-level references are the [access token claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference) and the [optional claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference).
