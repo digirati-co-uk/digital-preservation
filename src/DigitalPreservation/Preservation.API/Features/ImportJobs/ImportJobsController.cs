@@ -290,16 +290,8 @@ public class ImportJobsController(
         {
             return false;
         }
-        var agPath = importJob.ArchivalGroup.LocalPath.TrimEnd('/');
-        var containerPath = container.Id.LocalPath.TrimEnd('/');
-        // The container must sit below the Archival Group: same prefix, then a separator, then something.
-        if (containerPath.Length <= agPath.Length + 1
-            || !containerPath.StartsWith(agPath)
-            || containerPath[agPath.Length] != '/')
-        {
-            return false;
-        }
-        var relativePath = containerPath[(agPath.Length + 1)..].UnEscapePathElementsNoHashes();
+        var relativePath = container.Id.LocalPath.GetPathBelow(importJob.ArchivalGroup.LocalPath)
+            ?.UnEscapePathElementsNoHashes();
         return FolderNames.RemovePathPrefix(relativePath) is FolderNames.Metadata or FolderNames.MetadataAdHoc;
     }
 
