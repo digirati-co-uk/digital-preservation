@@ -290,7 +290,7 @@ public class ImportJobsController(
         {
             return false;
         }
-        var agPathWithSlash = importJob.ArchivalGroup.LocalPath.TrimEnd('/') + "/";
+        var agPathWithSlash = importJob.ArchivalGroup.LocalPath.TrimEnd('/') + '/';
         if (!container.Id.LocalPath.StartsWith(agPathWithSlash))
         {
             return false;
