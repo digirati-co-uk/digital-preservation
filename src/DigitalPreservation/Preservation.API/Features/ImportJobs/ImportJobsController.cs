@@ -139,7 +139,8 @@ public class ImportJobsController(
             // been generated (which also closes the window between a caller looking at a
             // METS-only diff and the deposit changing underneath them before they post it), and
             // the scaffold-folder allowance is judged against the deposit's own Archival Group,
-            // never the one a caller-supplied job claims.
+            // never the one a caller-supplied job claims. The deliberate cost: a posted job that
+            // was always going to be refused now pays for the deposit fetch and validation first.
             return refusal;
         }
 
