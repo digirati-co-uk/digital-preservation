@@ -72,8 +72,11 @@ export). The diff for such a group is therefore the METS patch *plus* `Container
 two empty folders, and a strict gate would refuse every pre-LPII-9 group. They hold nothing, no
 consumer derives anything from them, and they would be added on the group's next preservation
 anyway — recording, not content. Both gates (`ImportJobsController.SuppressedButNotMetsOnly` and
-the tool's `_refuse_unless_mets_only`) tolerate exactly those two paths, judged relative to the
-job's Archival Group, and nothing else in `ContainersToAdd`.
+the tool's `_refuse_unless_mets_only`) tolerate exactly those two paths and nothing else in
+`ContainersToAdd`. The platform judges them relative to the *deposit's* Archival Group, which it
+knows, not the one a caller-supplied job claims — otherwise a job naming `<group>/objects` as its
+Archival Group could pass `<group>/objects/metadata` off as scaffold. The tool judges them relative
+to the `archivalGroup` in the diff the platform generated, which is the same thing.
 
 The result is one new OCFL version whose only new content is `mets.xml` (plus, for a pre-LPII-9
 group, the two empty scaffold containers).

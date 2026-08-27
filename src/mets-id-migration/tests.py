@@ -475,8 +475,11 @@ class MigrateSafetyTests(SurveyLedgerTestCase):
         ag = "https://dev.example/repository/cc/thing"
         mets_patch = {"binariesToPatch": [{"id": f"{ag}/mets.xml"}], "archivalGroup": ag}
 
-        migrate._refuse_unless_mets_only({**mets_patch, "containersToAdd": [
-            {"id": f"{ag}/metadata"}, {"id": f"{ag}/metadata/ad-hoc/"}]})
+        self.assertEqual(migrate._refuse_unless_mets_only(mets_patch), [])
+        self.assertEqual(
+            migrate._refuse_unless_mets_only({**mets_patch, "containersToAdd": [
+                {"id": f"{ag}/metadata"}, {"id": f"{ag}/metadata/ad-hoc/"}]}),
+            ["metadata", "metadata/ad-hoc"])  # reported back so a dry run can say what it saw
 
         for bad in ({"id": f"{ag}/objects/new-folder"},
                     {"id": "https://dev.example/repository/cc/other/metadata/ad-hoc"}):

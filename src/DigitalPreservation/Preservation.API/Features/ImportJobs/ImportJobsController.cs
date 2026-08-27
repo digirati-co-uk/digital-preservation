@@ -98,17 +98,6 @@ public class ImportJobsController(
             return this.StatusResponseFromResult(
                 Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
         }
-        if (!IsPostedDiffReference(importJob, Request.Path)
-            && SuppressedButNotMetsOnly(importJob) is { } refusal)
-        {
-            // The feature flag says WHEN suppression may be used; this says WHAT FOR. Until now
-            // that rule lived only in the migration tool's client-side gate, which left a window
-            // between generating a diff and executing it - and left the UI checkbox trusting the
-            // operator to tick it only on the right kind of job. A diff reference is checked
-            // below instead, once its content exists.
-            return refusal;
-        }
-
         var depositResult = await mediator.Send(new GetDeposit(depositId), cancellationToken);
         if (depositResult.Failure)
         {
@@ -132,19 +121,26 @@ public class ImportJobsController(
                 importJob = diffImportJobResult.Value;
                 importJob.OriginalId = GetDiffUri(depositId);
                 importJob.SuppressActivityStreamEvent = suppressActivityStreamEvent;
-                if (SuppressedButNotMetsOnly(importJob) is { } diffRefusal)
-                {
-                    // A diff reference's content is only known now the diff has been generated -
-                    // and this is also what closes the window between a caller looking at a
-                    // METS-only diff and the deposit changing underneath them before they post it.
-                    return diffRefusal;
-                }
             }
             else
             {
                 logger.LogError("Unable to fetch diff import job for deposit {ErrorDetail}", diffImportJobResult.CodeAndMessage());
                 return this.StatusResponseFromResult(diffImportJobResult);
             }
+        }
+
+        if (SuppressedButNotMetsOnly(importJob, deposit.ArchivalGroup!) is { } refusal)
+        {
+            // The feature flag says WHEN suppression may be used; this says WHAT FOR. Until now
+            // that rule lived only in the migration tool's client-side gate, which left a window
+            // between generating a diff and executing it - and left the UI checkbox trusting the
+            // operator to tick it only on the right kind of job. It runs here, after the deposit
+            // is known, for two reasons: a diff reference's content only exists once the diff has
+            // been generated (which also closes the window between a caller looking at a
+            // METS-only diff and the deposit changing underneath them before they post it), and
+            // the scaffold-folder allowance is judged against the deposit's own Archival Group,
+            // never the one a caller-supplied job claims.
+            return refusal;
         }
 
         if (JobDoesNotBelongToDeposit(importJob, depositId, deposit) is { } mismatch)
@@ -235,10 +231,12 @@ public class ImportJobsController(
     /// a pure METS patch, and refusing it would leave every pre-LPII-9 group unmigrated. They
     /// hold nothing, no consumer derives anything from them, and they would be added on the
     /// group's next preservation anyway: that is bookkeeping about how the object is recorded,
-    /// not a change to what it holds. Nothing else in ContainersToAdd is tolerated.
+    /// not a change to what it holds. Nothing else in ContainersToAdd is tolerated, and the
+    /// folders are judged relative to <paramref name="archivalGroup"/> - the deposit's, which
+    /// the platform knows - not to whatever Archival Group a caller-supplied job claims.
     /// </para>
     /// </remarks>
-    private ActionResult? SuppressedButNotMetsOnly(ImportJob importJob)
+    private ActionResult? SuppressedButNotMetsOnly(ImportJob importJob, Uri archivalGroup)
     {
         if (!importJob.SuppressActivityStreamEvent)
         {
@@ -252,7 +250,7 @@ public class ImportJobsController(
         {
             problem = "it adds, deletes or renames content";
         }
-        else if (importJob.ContainersToAdd.Exists(c => !IsPlatformScaffoldFolder(importJob, c)))
+        else if (importJob.ContainersToAdd.Exists(c => !IsPlatformScaffoldFolder(archivalGroup, c)))
         {
             problem = "it adds content";
         }
@@ -281,16 +279,11 @@ public class ImportJobsController(
 
     /// <summary>
     /// Whether a container to add is one of the platform's own scaffold folders (metadata,
-    /// metadata/ad-hoc), judged by its path relative to the job's Archival Group. A job that
-    /// does not say which Archival Group it is for cannot make that claim, so nothing qualifies.
+    /// metadata/ad-hoc), judged by its path relative to <paramref name="archivalGroup"/>.
     /// </summary>
-    private static bool IsPlatformScaffoldFolder(ImportJob importJob, Container container)
+    private static bool IsPlatformScaffoldFolder(Uri archivalGroup, Container container)
     {
-        if (importJob.ArchivalGroup is null || container.Id is null)
-        {
-            return false;
-        }
-        var relativePath = container.Id.LocalPath.GetPathBelow(importJob.ArchivalGroup.LocalPath)
+        var relativePath = container.Id?.LocalPath.GetPathBelow(archivalGroup.LocalPath)
             ?.UnEscapePathElementsNoHashes();
         return FolderNames.RemovePathPrefix(relativePath) is FolderNames.Metadata or FolderNames.MetadataAdHoc;
     }
