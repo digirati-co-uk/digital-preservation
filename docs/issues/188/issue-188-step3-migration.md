@@ -83,6 +83,16 @@ refusal ("requires `EnableMetsIdNormalisation`") still comes before anything is 
 what-for refusal ("only for changes to how an object is recorded") comes after, so an unknown
 deposit (404), one being exported (400) or one with an existing import job (409) reports that first.
 
+The allowance is a workaround, not the fix. The cause is upstream: `CreateDepositBase` writes the
+scaffold folders into a METS that the deposit only ever patches, so METS and Archival Group are
+made to disagree by the platform itself, and the two gates then have to special-case two
+hard-coded names in two languages. The right fix is for a METS-only deposit not to scaffold — or
+for `GetDiffImportJob` to skip a METS-only directory with no descendant file, the mirror of its
+LPII-133 tolerance for a deposit-only one. It was deferred because both touch the deposit creation
+and diff paths that LPII-133 made sensitive, and the campaign needed to run; it is tracked in #233.
+If a third scaffold folder is ever added, the hard-coded pair here, in `SCAFFOLD_FOLDERS`, and in
+both test suites will need it too — which is the argument for doing the real fix first.
+
 The result is one new OCFL version whose only new content is `mets.xml` (plus, for a pre-LPII-9
 group, the two empty scaffold containers).
 
