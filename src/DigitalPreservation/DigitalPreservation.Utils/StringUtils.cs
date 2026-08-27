@@ -130,10 +130,15 @@ public static class StringUtils
     /// "aa/bb/cc".GetPathBelow("aa/bb/cc") => null (not below, equal)
     /// "aa/bbb".GetPathBelow("aa/bb") => null (a longer sibling, not a child)
     ///
-    /// Trailing slashes on either argument are ignored; the result never has one.
+    /// Trailing slashes on either argument are ignored; the result never has one. An empty
+    /// parent is not a root, so nothing is below it; "/" is, so "/aa".GetPathBelow("/") => "aa".
     /// </summary>
     public static string? GetPathBelow(this string path, string parent)
     {
+        if (parent.Length == 0)
+        {
+            return null;
+        }
         var trimmedParent = parent.TrimEnd('/');
         var trimmedPath = path.TrimEnd('/');
         if (trimmedPath.Length <= trimmedParent.Length + 1

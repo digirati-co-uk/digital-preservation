@@ -116,18 +116,19 @@ public class SuppressionGateTests
         Executed(mediator).MustNotHaveHappened();
     }
 
-    [Fact]
-    public async Task A_Scaffold_Folder_Outside_The_Deposits_Archival_Group_Is_Not_Tolerated()
+    [Theory]
+    [InlineData("https://preservation.test/repository/cc/other/metadata/ad-hoc")] // another object
+    [InlineData("https://elsewhere.test/repository/cc/thing/metadata")]           // another host
+    [InlineData("https://preservation.test/repository/cc/thing/metadata%2Fad-hoc")] // one segment, not two
+    [InlineData("https://preservation.test/repository/cc/thing/data/metadata")]   // a real folder called data
+    public async Task A_Container_That_Merely_Resembles_A_Scaffold_Folder_Is_Not_Tolerated(string containerId)
     {
-        // The allowance is judged relative to the deposit's Archival Group. A metadata folder
-        // under some other object is just an add.
+        // The allowance is literal: the deposit's Archival Group, then exactly metadata or
+        // metadata/ad-hoc, on the same host, with nothing unescaped or stripped on the way.
         var mediator = Mediator();
         var controller = Controller(mediator, migrationFlagOn: true);
         var job = MetsOnlyJob(suppress: true);
-        job.ContainersToAdd.Add(new DigitalPreservation.Common.Model.Container
-        {
-            Id = new Uri("https://preservation.test/repository/cc/other/metadata/ad-hoc")
-        });
+        job.ContainersToAdd.Add(new DigitalPreservation.Common.Model.Container { Id = new Uri(containerId) });
 
         var result = await controller.ExecuteImportJob(DepositId, job, default);
 
@@ -151,15 +152,22 @@ public class SuppressionGateTests
 
         Refusal(result).Should().Contain("adds content");
         Executed(mediator).MustNotHaveHappened();
+    }
 
-        // And the converse: what the job claims about itself does not matter, only the deposit.
-        var anonymous = MetsOnlyJob(suppress: true);
-        anonymous.ArchivalGroup = null;
-        anonymous.ContainersToAdd.Add(Container("metadata/ad-hoc"));
+    [Fact]
+    public async Task What_The_Job_Claims_As_Its_Archival_Group_Does_Not_Matter_Only_The_Deposits()
+    {
+        // The converse: a job that names no Archival Group at all still gets the allowance,
+        // because the deposit says which object its scaffold folders belong to.
+        var mediator = Mediator();
+        var controller = Controller(mediator, migrationFlagOn: true);
+        var job = MetsOnlyJob(suppress: true);
+        job.ArchivalGroup = null;
+        job.ContainersToAdd.Add(Container("metadata/ad-hoc"));
 
-        await controller.ExecuteImportJob(DepositId, anonymous, default);
+        await controller.ExecuteImportJob(DepositId, job, default);
 
-        Executed(mediator).MustHaveHappenedOnceExactly();
+        Executed(mediator).MustHaveHappened();
     }
 
     [Fact]
@@ -226,13 +234,13 @@ public class SuppressionGateTests
         A.CallTo(() => mediator.Send(A<GetImportJobResultsForDeposit>._, A<CancellationToken>._))
             .Returns(Result.OkNotNull(new List<ImportJobResult>()));
         A.CallTo(() => mediator.Send(A<ExecuteImportJob>._, A<CancellationToken>._))
-            .ReturnsLazily(call => Task.FromResult(Result.OkNotNull(new ImportJobResult
+            .Returns(Result.OkNotNull(new ImportJobResult
             {
                 Id = new Uri(DepositUri + "/importjobs/results/job-1"),
-                ImportJob = call.GetArgument<ExecuteImportJob>(0)!.ImportJob.Id ?? DepositUri,
+                ImportJob = new Uri(DepositUri + "/importjobs/diff"),
                 ArchivalGroup = ArchivalGroup,
                 Status = ImportJobStates.Waiting
-            })));
+            }));
         return mediator;
     }
 

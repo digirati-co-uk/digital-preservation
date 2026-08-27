@@ -281,11 +281,23 @@ public class ImportJobsController(
     /// Whether a container to add is one of the platform's own scaffold folders (metadata,
     /// metadata/ad-hoc), judged by its path relative to <paramref name="archivalGroup"/>.
     /// </summary>
+    /// <remarks>
+    /// Deliberately literal: same scheme and host as the Archival Group, and the still-escaped
+    /// path below it must be exactly one of the two names. No unescaping (so a single segment
+    /// named <c>metadata%2Fad-hoc</c> is not two), and no BagIt <c>data/</c> stripping - the
+    /// repository never carries that prefix, WorkspaceManager makes the data folder the apparent
+    /// root - so this matches the migration tool's own gate exactly.
+    /// </remarks>
     private static bool IsPlatformScaffoldFolder(Uri archivalGroup, Container container)
     {
-        var relativePath = container.Id?.LocalPath.GetPathBelow(archivalGroup.LocalPath)
-            ?.UnEscapePathElementsNoHashes();
-        return FolderNames.RemovePathPrefix(relativePath) is FolderNames.Metadata or FolderNames.MetadataAdHoc;
+        if (container.Id is null
+            || Uri.Compare(archivalGroup, container.Id, UriComponents.SchemeAndServer,
+                UriFormat.UriEscaped, StringComparison.OrdinalIgnoreCase) != 0)
+        {
+            return false;
+        }
+        return container.Id.AbsolutePath.GetPathBelow(archivalGroup.AbsolutePath)
+            is FolderNames.Metadata or FolderNames.MetadataAdHoc;
     }
 
     /// <summary>

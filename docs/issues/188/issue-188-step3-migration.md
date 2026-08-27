@@ -78,6 +78,11 @@ knows, not the one a caller-supplied job claims — otherwise a job naming `<gro
 Archival Group could pass `<group>/objects/metadata` off as scaffold. The tool judges them relative
 to the `archivalGroup` in the diff the platform generated, which is the same thing.
 
+That puts the platform's gate *after* the deposit has been fetched and validated. The feature-flag
+refusal ("requires `EnableMetsIdNormalisation`") still comes before anything is looked up; the
+what-for refusal ("only for changes to how an object is recorded") comes after, so an unknown
+deposit (404), one being exported (400) or one with an existing import job (409) reports that first.
+
 The result is one new OCFL version whose only new content is `mets.xml` (plus, for a pre-LPII-9
 group, the two empty scaffold containers).
 
