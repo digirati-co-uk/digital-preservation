@@ -65,7 +65,36 @@ already holds, and `GetDiffImportJob`'s deposit-presence check applies only to a
 not belt and braces: on a METS-only deposit, a file the Archival Group holds but the METS does not
 mention would be listed for *deletion* rather than failing the diff. That one assertion closes it.
 
-The result is one new OCFL version whose only new content is `mets.xml`.
+**The one allowance (found on the first dev trial, 2026-08-26).** Creating a deposit against an
+Archival Group preserved before LPII-9 writes the platform's `metadata/` and `metadata/ad-hoc/`
+scaffold folders into the deposit's METS (`CreateDepositBase`, and `GetDepositBase` after an
+export). The diff for such a group is therefore the METS patch *plus* `ContainersToAdd` for those
+two empty folders, and a strict gate would refuse every pre-LPII-9 group. They hold nothing, no
+consumer derives anything from them, and they would be added on the group's next preservation
+anyway — recording, not content. Both gates (`ImportJobsController.SuppressedButNotMetsOnly` and
+the tool's `_refuse_unless_mets_only`) tolerate exactly those two paths and nothing else in
+`ContainersToAdd`. The platform judges them relative to the *deposit's* Archival Group, which it
+knows, not the one a caller-supplied job claims — otherwise a job naming `<group>/objects` as its
+Archival Group could pass `<group>/objects/metadata` off as scaffold. The tool judges them relative
+to the `archivalGroup` in the diff the platform generated, which is the same thing.
+
+That puts the platform's gate *after* the deposit has been fetched and validated. The feature-flag
+refusal ("requires `EnableMetsIdNormalisation`") still comes before anything is looked up; the
+what-for refusal ("only for changes to how an object is recorded") comes after, so an unknown
+deposit (404), one being exported (400) or one with an existing import job (409) reports that first.
+
+The allowance is a workaround, not the fix. The cause is upstream: `CreateDepositBase` writes the
+scaffold folders into a METS that the deposit only ever patches, so METS and Archival Group are
+made to disagree by the platform itself, and the two gates then have to special-case two
+hard-coded names in two languages. The right fix is for a METS-only deposit not to scaffold — or
+for `GetDiffImportJob` to skip a METS-only directory with no descendant file, the mirror of its
+LPII-133 tolerance for a deposit-only one. It was deferred because both touch the deposit creation
+and diff paths that LPII-133 made sensitive, and the campaign needed to run; it is tracked in #233.
+If a third scaffold folder is ever added, the hard-coded pair here, in `SCAFFOLD_FOLDERS`, and in
+both test suites will need it too — which is the argument for doing the real fix first.
+
+The result is one new OCFL version whose only new content is `mets.xml` (plus, for a pre-LPII-9
+group, the two empty scaffold containers).
 
 ## The Activity Stream
 

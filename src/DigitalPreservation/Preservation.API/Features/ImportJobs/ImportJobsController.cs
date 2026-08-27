@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
@@ -97,17 +98,6 @@ public class ImportJobsController(
             return this.StatusResponseFromResult(
                 Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
         }
-        if (!IsPostedDiffReference(importJob, Request.Path)
-            && SuppressedButNotMetsOnly(importJob) is { } refusal)
-        {
-            // The feature flag says WHEN suppression may be used; this says WHAT FOR. Until now
-            // that rule lived only in the migration tool's client-side gate, which left a window
-            // between generating a diff and executing it - and left the UI checkbox trusting the
-            // operator to tick it only on the right kind of job. A diff reference is checked
-            // below instead, once its content exists.
-            return refusal;
-        }
-
         var depositResult = await mediator.Send(new GetDeposit(depositId), cancellationToken);
         if (depositResult.Failure)
         {
@@ -131,19 +121,27 @@ public class ImportJobsController(
                 importJob = diffImportJobResult.Value;
                 importJob.OriginalId = GetDiffUri(depositId);
                 importJob.SuppressActivityStreamEvent = suppressActivityStreamEvent;
-                if (SuppressedButNotMetsOnly(importJob) is { } diffRefusal)
-                {
-                    // A diff reference's content is only known now the diff has been generated -
-                    // and this is also what closes the window between a caller looking at a
-                    // METS-only diff and the deposit changing underneath them before they post it.
-                    return diffRefusal;
-                }
             }
             else
             {
                 logger.LogError("Unable to fetch diff import job for deposit {ErrorDetail}", diffImportJobResult.CodeAndMessage());
                 return this.StatusResponseFromResult(diffImportJobResult);
             }
+        }
+
+        if (SuppressedButNotMetsOnly(importJob, deposit.ArchivalGroup!) is { } refusal)
+        {
+            // The feature flag says WHEN suppression may be used; this says WHAT FOR. Until now
+            // that rule lived only in the migration tool's client-side gate, which left a window
+            // between generating a diff and executing it - and left the UI checkbox trusting the
+            // operator to tick it only on the right kind of job. It runs here, after the deposit
+            // is known, for two reasons: a diff reference's content only exists once the diff has
+            // been generated (which also closes the window between a caller looking at a
+            // METS-only diff and the deposit changing underneath them before they post it), and
+            // the scaffold-folder allowance is judged against the deposit's own Archival Group,
+            // never the one a caller-supplied job claims. The deliberate cost: a posted job that
+            // was always going to be refused now pays for the deposit fetch and validation first.
+            return refusal;
         }
 
         if (JobDoesNotBelongToDeposit(importJob, depositId, deposit) is { } mismatch)
@@ -226,8 +224,20 @@ public class ImportJobsController(
     /// tool's own client-side gate, enforced where it can no longer be raced or forgotten: a
     /// suppressed content change would preserve a real new version that IIIF is never told to
     /// rebuild from.
+    /// <para>
+    /// One allowance: the platform's own empty scaffold folders, <c>metadata</c> and
+    /// <c>metadata/ad-hoc</c>. Creating a deposit against an Archival Group preserved before
+    /// LPII-9 writes those folders into its METS (CreateDepositBase / GetDepositBase), so the
+    /// migration's diff for such a group is the METS patch plus those containers - it cannot be
+    /// a pure METS patch, and refusing it would leave every pre-LPII-9 group unmigrated. They
+    /// hold nothing, no consumer derives anything from them, and they would be added on the
+    /// group's next preservation anyway: that is bookkeeping about how the object is recorded,
+    /// not a change to what it holds. Nothing else in ContainersToAdd is tolerated, and the
+    /// folders are judged relative to <paramref name="archivalGroup"/> - the deposit's, which
+    /// the platform knows - not to whatever Archival Group a caller-supplied job claims.
+    /// </para>
     /// </remarks>
-    private ActionResult? SuppressedButNotMetsOnly(ImportJob importJob)
+    private ActionResult? SuppressedButNotMetsOnly(ImportJob importJob, Uri archivalGroup)
     {
         if (!importJob.SuppressActivityStreamEvent)
         {
@@ -236,10 +246,14 @@ public class ImportJobsController(
 
         string? problem = null;
         if (importJob.BinariesToAdd.Count > 0 || importJob.BinariesToDelete.Count > 0
-            || importJob.BinariesToRename.Count > 0 || importJob.ContainersToAdd.Count > 0
+            || importJob.BinariesToRename.Count > 0
             || importJob.ContainersToDelete.Count > 0 || importJob.ContainersToRename.Count > 0)
         {
             problem = "it adds, deletes or renames content";
+        }
+        else if (importJob.ContainersToAdd.Exists(c => !IsPlatformScaffoldFolder(archivalGroup, c)))
+        {
+            problem = "it adds content";
         }
         else if (importJob.BinariesToPatch.Count != 1)
         {
@@ -256,11 +270,35 @@ public class ImportJobsController(
             return null;
         }
         var message = "suppressActivityStreamEvent is only for changes to how an object is "
-                      + $"recorded - a single METS patch - but {problem}. "
+                      + "recorded - a single METS patch, plus at most the platform's own empty "
+                      + $"metadata folders - but {problem}. "
                       + "Content changes must be announced in the Activity Stream.";
         logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
         return this.StatusResponseFromResult(
             Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+    }
+
+    /// <summary>
+    /// Whether a container to add is one of the platform's own scaffold folders (metadata,
+    /// metadata/ad-hoc), judged by its path relative to <paramref name="archivalGroup"/>.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately literal: same scheme and host as the Archival Group, and the still-escaped
+    /// path below it must be exactly one of the two names. No unescaping (so a single segment
+    /// named <c>metadata%2Fad-hoc</c> is not two), and no BagIt <c>data/</c> stripping - the
+    /// repository never carries that prefix, WorkspaceManager makes the data folder the apparent
+    /// root - so this matches the migration tool's own gate exactly.
+    /// </remarks>
+    private static bool IsPlatformScaffoldFolder(Uri archivalGroup, Container container)
+    {
+        if (container.Id is null
+            || Uri.Compare(archivalGroup, container.Id, UriComponents.SchemeAndServer,
+                UriFormat.UriEscaped, StringComparison.OrdinalIgnoreCase) != 0)
+        {
+            return false;
+        }
+        return container.Id.AbsolutePath.GetPathBelow(archivalGroup.AbsolutePath)
+            is FolderNames.Metadata or FolderNames.MetadataAdHoc;
     }
 
     /// <summary>

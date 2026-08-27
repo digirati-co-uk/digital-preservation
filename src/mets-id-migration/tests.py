@@ -467,6 +467,32 @@ class MigrateSafetyTests(SurveyLedgerTestCase):
                 migrate.migrate_one(self.ledger, "cc/thing", dry_run=False)
         deleted.assert_called_once()
 
+    def test_the_gate_allows_only_the_platforms_own_scaffold_folders(self):
+        # A group preserved before LPII-9 gets metadata/ and metadata/ad-hoc/ written into the
+        # deposit's METS, so its diff is the METS patch plus those two containers. Any other
+        # container - or a scaffold-looking folder under some other object - is content.
+        from app import migrate
+        ag = "https://dev.example/repository/cc/thing"
+        mets_patch = {"binariesToPatch": [{"id": f"{ag}/mets.xml"}], "archivalGroup": ag}
+
+        self.assertEqual(migrate._refuse_unless_mets_only(mets_patch), [])
+        self.assertEqual(
+            migrate._refuse_unless_mets_only({**mets_patch, "containersToAdd": [
+                {"id": f"{ag}/metadata"}, {"id": f"{ag}/metadata/ad-hoc/"}]}),
+            ["metadata", "metadata/ad-hoc"])  # reported back so a dry run can say what it saw
+
+        for bad in ({"id": f"{ag}/objects/new-folder"},
+                    {"id": "https://dev.example/repository/cc/other/metadata/ad-hoc"}):
+            with self.assertRaises(migrate.MigrationRefused) as refused:
+                migrate._refuse_unless_mets_only({**mets_patch, "containersToAdd": [bad]})
+            self.assertIn("scaffold", str(refused.exception))
+
+        with self.assertRaises(migrate.MigrationRefused):
+            migrate._refuse_unless_mets_only({
+                "binariesToPatch": [{"id": f"{ag}/mets.xml"}],
+                "containersToAdd": [{"id": f"{ag}/metadata"}]},
+            )  # no archivalGroup: nothing can be judged relative to it
+
     def test_a_declined_rewrite_is_not_settled_as_no_change(self):
         # changed=false WITH warnings means the platform declined to fix a document the survey
         # says is invalid. Settling that as no-change is the failure that looks like success.

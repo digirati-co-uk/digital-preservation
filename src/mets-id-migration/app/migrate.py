@@ -80,14 +80,16 @@ def migrate_one(ledger: Ledger, path: str, dry_run: bool) -> None:
             logger.warning("  %s", warning)
 
         import_job = api.get_diff_import_job(deposit_id)
-        _refuse_unless_mets_only(import_job)
+        scaffold = _refuse_unless_mets_only(import_job)
 
         if dry_run:
-            logger.info("  dry run: the diff is a single METS patch, as required; not preserving")
+            verified = "a single METS patch" + (
+                f" plus the empty scaffold folder(s) {', '.join(scaffold)}" if scaffold else "")
+            logger.info("  dry run: the diff is %s, as allowed; not preserving", verified)
             ledger.record(path, ledger.get(path)["state"], deposit=deposit_id,
                           ids_rewritten=report["idsRewritten"],
                           refs_rewritten=report["referencesRewritten"],
-                          note="dry run: diff verified as METS-only")
+                          note=f"dry run: diff verified as {verified}")
             return
 
         import_job["suppressActivityStreamEvent"] = settings.SUPPRESS_ACTIVITY_STREAM_EVENT
@@ -119,11 +121,23 @@ def migrate_one(ledger: Ledger, path: str, dry_run: bool) -> None:
                 "deposit is the evidence. Investigate it before deleting it by hand.", deposit_id)
 
 
-def _refuse_unless_mets_only(import_job: dict) -> None:
+# The platform's own empty scaffold folders, relative to the Archival Group. Creating a deposit
+# against a group preserved before they existed (LPII-9) writes them into its METS, so for such a
+# group the diff is the METS patch plus these two containers and can never be a pure METS patch.
+# They hold nothing and nothing is derived from them: recording, not content. The platform's own
+# gate (ImportJobsController.SuppressedButNotMetsOnly) makes the same allowance, and no other.
+SCAFFOLD_FOLDERS = frozenset({"metadata", "metadata/ad-hoc"})
+
+
+def _refuse_unless_mets_only(import_job: dict) -> list[str]:
     """
     The gate. A METS ID migration changes one file, so the import job must contain one binary to
-    patch and nothing else at all. Anything more means the deposit and the Archival Group disagree
-    about what the object holds, and this tool is not the thing that should resolve that.
+    patch and nothing else at all - bar the platform's own scaffold folders, see SCAFFOLD_FOLDERS.
+    Anything more means the deposit and the Archival Group disagree about what the object holds,
+    and this tool is not the thing that should resolve that.
+
+    Returns the scaffold folders the job adds (relative to the Archival Group), so the caller can
+    say exactly what it verified.
     """
     patches = import_job.get("binariesToPatch", [])
     if len(patches) != 1:
@@ -136,12 +150,26 @@ def _refuse_unless_mets_only(import_job: dict) -> None:
         raise MigrationRefused(f"The binary to patch is '{patched}', which is not a METS file")
 
     for key in ("binariesToAdd", "binariesToDelete", "binariesToRename",
-                "containersToAdd", "containersToDelete", "containersToRename"):
+                "containersToDelete", "containersToRename"):
         entries = import_job.get(key, [])
         if entries:
             raise MigrationRefused(
                 f"{key} is not empty ({len(entries)} entries, e.g. "
                 f"{entries[0].get('id')}); refusing to preserve")
+
+    archival_group = (import_job.get("archivalGroup") or "").rstrip("/") + "/"
+    scaffold = []
+    for container in import_job.get("containersToAdd", []):
+        container_id = container.get("id") or ""
+        relative = container_id[len(archival_group):].rstrip("/") \
+            if archival_group != "/" and container_id.startswith(archival_group) else None
+        if relative not in SCAFFOLD_FOLDERS:
+            raise MigrationRefused(
+                f"containersToAdd holds {container_id}, which is not one of the platform's own "
+                f"scaffold folders ({', '.join(sorted(SCAFFOLD_FOLDERS))}); refusing to preserve")
+        logger.info("  the diff also adds the empty scaffold folder %s; allowed", relative)
+        scaffold.append(relative)
+    return scaffold
 
 
 def _is_mets_file(slug: str) -> bool:
