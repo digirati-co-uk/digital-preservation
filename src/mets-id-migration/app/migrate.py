@@ -29,12 +29,22 @@ class MigrationRefused(RuntimeError):
     """The migration stopped on purpose, before changing anything preserved."""
 
 
+class ReadFailed(MigrationRefused):
+    """
+    The Archival Group's METS could not be read before anything was created. The same rule as
+    the survey's and verify's: a failed read is not a verdict. Recording it as FAILED would drop a
+    perfectly migratable group from the campaign because the VPN was off.
+    """
+
+
 def migrate_all(ledger: Ledger, candidates, dry_run: bool) -> None:
     for index, row in enumerate(candidates, start=1):
         path = row["path"]
         logger.info("[%s/%s] %s", index, len(candidates), path)
         try:
             migrate_one(ledger, path, dry_run)
+        except ReadFailed as error:
+            logger.warning("%s: leaving it %s for a rerun - %s", path, row["state"], error)
         except (MigrationRefused, api.ApiError, TimeoutError) as error:
             logger.error("%s: %s", path, error)
             ledger.record(path, FAILED, note=str(error))
@@ -182,9 +192,14 @@ def _is_mets_file(slug: str) -> bool:
 def _fingerprint(path: str) -> dict[str, str]:
     """Path to digest for every file the Archival Group's METS lists."""
     try:
-        return ids.file_digests(ids.parse(api.get_archival_group_mets(path)))
-    except (api.ApiError, etree.XMLSyntaxError) as error:
-        raise MigrationRefused(f"Could not read the Archival Group's METS: {error}") from error
+        mets_xml = api.get_archival_group_mets(path)
+    except api.ApiError as error:
+        raise ReadFailed(f"Could not read the Archival Group's METS: {error}") from error
+    try:
+        return ids.file_digests(ids.parse(mets_xml))
+    except etree.XMLSyntaxError as error:
+        # Unlike a failed read, a preserved METS that does not parse IS a verdict.
+        raise MigrationRefused(f"The Archival Group's METS is not well-formed XML: {error}") from error
 
 
 def _verify(before: dict[str, str], after: dict[str, str]) -> None:

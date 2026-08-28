@@ -521,6 +521,19 @@ class MigrateSafetyTests(SurveyLedgerTestCase):
         self.assertEqual(DONE, row["state"])
         self.assertEqual("v2", row["to_version"], "the migration evidence survives the blip")
 
+    def test_migrate_leaves_a_candidate_alone_when_the_first_read_fails(self):
+        # Same rule again, at the front of migrate: a connect timeout before any deposit exists
+        # says nothing about the group. Recording FAILED would drop it from the campaign.
+        from app import migrate
+        from app.ledger import CANDIDATE
+        self.ledger.record("cc/unreachable", CANDIDATE)
+        with mock.patch.object(api, "get_archival_group_mets",
+                               side_effect=api.ApiError("Could not read METS", "ConnectTimeout")), \
+             mock.patch.object(api, "create_deposit") as created:
+            migrate.migrate_all(self.ledger, self.ledger.in_state(CANDIDATE), dry_run=True)
+        created.assert_not_called()
+        self.assertEqual(CANDIDATE, self.ledger.get("cc/unreachable")["state"])
+
 
 @mock.patch.object(settings, "DISABLE_AUTH", True)
 class IfMatchTests(unittest.TestCase):
