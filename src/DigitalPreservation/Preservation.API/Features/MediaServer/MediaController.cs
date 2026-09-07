@@ -77,47 +77,7 @@ public class MediaController(
         var origin = FolderNames.GetFilesLocation(deposit.Files!, isBagIt);
 
         if (type == "imagesvc")
-        {
-            var elements = localPath.Split('/');
-
-            if (elements[^1] == "info.json")
-            {
-                var realLocalPath = localPath[..^"/info.json".Length];
-                var mediaItem = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + realLocalPath);
-                var imageBaseUrl = Request.GetDisplayUrl();
-                imageBaseUrl = imageBaseUrl[..imageBaseUrl.LastIndexOf("/info.json", StringComparison.Ordinal)];
-                Response.Headers.CacheControl = "private, max-age=600";
-                return InfoJson(imageBaseUrl, mediaItem);
-            }
-
-            // /full/{w,h}/0/default.jpg — requires at least 4 segments after the file path
-            if (elements.Length >= 4 && elements[^1] == "default.jpg" && elements[^2] == "0" && elements[^4] == "full")
-            {
-                var size = elements[^3];
-                var imageApi = $"/full/{size}/0/default.jpg";
-                var realLocalPath = localPath[..^imageApi.Length];
-                Response.Headers.CacheControl = "private, max-age=3600";
-                Response.Headers.ETag = ImageETag(realLocalPath, size);
-                return await ImageFromImageService(workspaceManager, origin, realLocalPath, size);
-            }
-
-            // Bare imagesvc URL — redirect to info.json if the file exists
-            if (elements.Length >= 4)
-            {
-                var testRealLocalPath = string.Join('/', elements[..^4]);
-                var testMediaItem = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + testRealLocalPath);
-                if (testMediaItem != null)
-                {
-                    // Relative redirect: avoids echoing the client-supplied Host header
-                    // and any query string back into the Location header (Sonar S5146).
-                    var infoJsonUrl = Request.PathBase.Add(Request.Path).Add("/info.json").Value!;
-                    if (Url.IsLocalUrl(infoJsonUrl))
-                        return Redirect(infoJsonUrl);
-                }
-            }
-
-            return NotFound();
-        }
+            return await ImageServiceRequest(workspaceManager, workingDirectory, origin, isBagIt, localPath);
 
         var item = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + localPath);
         if (item == null)
@@ -126,6 +86,57 @@ public class MediaController(
         Response.Headers.CacheControl = "private, max-age=3600";
         Response.Headers.ETag = FileETag(localPath, item.Size);
         return await ProxyFileWithByteRangeSupport(workspaceManager, origin, localPath, item, HttpContext);
+    }
+
+    // The three request shapes of the level-0 image service, most specific first:
+    // .../imagesvc/{path}/info.json, .../imagesvc/{path}/full/{w,h}/0/default.jpg, and the bare
+    // .../imagesvc/{path}, which redirects to its info.json when the file exists.
+    private async Task<IActionResult> ImageServiceRequest(
+        WorkspaceManager workspaceManager,
+        WorkingDirectory workingDirectory,
+        Uri origin,
+        bool isBagIt,
+        string localPath)
+    {
+        var elements = localPath.Split('/');
+
+        if (elements[^1] == "info.json")
+        {
+            var realLocalPath = localPath[..^"/info.json".Length];
+            var mediaItem = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + realLocalPath);
+            var imageBaseUrl = Request.GetDisplayUrl();
+            imageBaseUrl = imageBaseUrl[..imageBaseUrl.LastIndexOf("/info.json", StringComparison.Ordinal)];
+            Response.Headers.CacheControl = "private, max-age=600";
+            return InfoJson(imageBaseUrl, mediaItem);
+        }
+
+        // /full/{w,h}/0/default.jpg — requires at least 4 segments after the file path
+        if (elements.Length >= 4 && elements[^1] == "default.jpg" && elements[^2] == "0" && elements[^4] == "full")
+        {
+            var size = elements[^3];
+            var imageApi = $"/full/{size}/0/default.jpg";
+            var realLocalPath = localPath[..^imageApi.Length];
+            Response.Headers.CacheControl = "private, max-age=3600";
+            Response.Headers.ETag = ImageETag(realLocalPath, size);
+            return await ImageFromImageService(workspaceManager, origin, realLocalPath, size);
+        }
+
+        // Bare imagesvc URL — redirect to info.json if the file exists
+        if (elements.Length >= 4)
+        {
+            var testRealLocalPath = string.Join('/', elements[..^4]);
+            var testMediaItem = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + testRealLocalPath);
+            if (testMediaItem != null)
+            {
+                // Relative redirect: avoids echoing the client-supplied Host header
+                // and any query string back into the Location header (Sonar S5146).
+                var infoJsonUrl = Request.PathBase.Add(Request.Path).Add("/info.json").Value!;
+                if (Url.IsLocalUrl(infoJsonUrl))
+                    return Redirect(infoJsonUrl);
+            }
+        }
+
+        return NotFound();
     }
 
     // ValidateLocalPath guards against path traversal in the S3 key.
