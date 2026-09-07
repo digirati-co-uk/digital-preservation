@@ -534,6 +534,29 @@ class MigrateSafetyTests(SurveyLedgerTestCase):
         created.assert_not_called()
         self.assertEqual(CANDIDATE, self.ledger.get("cc/unreachable")["state"])
 
+    def test_a_failed_read_after_the_import_is_recorded_not_exempted(self):
+        # The exemption above must not extend past the import. Once the job has completed the
+        # Archival Group HAS changed; a row silently left as candidate would erase this run's
+        # evidence and send a rerun at an already-migrated group.
+        from app import migrate
+        from app.ledger import CANDIDATE, FAILED
+        reads = [b"<mets xmlns='http://www.loc.gov/METS/'/>",  # the before read
+                 api.ApiError("Could not read METS", "ReadTimeout")]  # the verification re-read
+        with mock.patch.object(api, "create_deposit", return_value=self.deposit), \
+             mock.patch.object(api, "get_archival_group_mets", side_effect=reads), \
+             mock.patch.object(api, "normalise_mets_ids",
+                               return_value={"changed": True, "idsRewritten": 1,
+                                             "referencesRewritten": 0}), \
+             mock.patch.object(api, "get_diff_import_job", return_value={
+                 "binariesToPatch": [{"id": "https://x/mets.xml"}]}), \
+             mock.patch.object(api, "execute_import_job", return_value={"id": "https://x/r/1"}), \
+             mock.patch.object(api, "await_import_job", return_value={"status": "completed"}), \
+             mock.patch.object(api, "delete_deposit") as deleted:
+            migrate.migrate_all(self.ledger, self.ledger.in_state(CANDIDATE), dry_run=False)
+        row = self.ledger.get("cc/thing")
+        self.assertEqual(FAILED, row["state"], "the group was changed; the blip must be recorded")
+        deleted.assert_not_called()
+
 
 @mock.patch.object(settings, "DISABLE_AUTH", True)
 class IfMatchTests(unittest.TestCase):

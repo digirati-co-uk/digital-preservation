@@ -29,11 +29,15 @@ class MigrationRefused(RuntimeError):
     """The migration stopped on purpose, before changing anything preserved."""
 
 
-class ReadFailed(MigrationRefused):
+class ReadFailed(RuntimeError):
     """
     The Archival Group's METS could not be read before anything was created. The same rule as
     the survey's and verify's: a failed read is not a verdict. Recording it as FAILED would drop a
     perfectly migratable group from the campaign because the VPN was off.
+
+    Only the read at the very front of migrate_one qualifies: once the import job has run, the
+    Archival Group has changed and a failed re-read must be recorded, not exempted - so this is
+    deliberately NOT a MigrationRefused, and only that first call site raises it.
     """
 
 
@@ -53,7 +57,11 @@ def migrate_all(ledger: Ledger, candidates, dry_run: bool) -> None:
 
 
 def migrate_one(ledger: Ledger, path: str, dry_run: bool) -> None:
-    before = _fingerprint(path)
+    try:
+        before = _fingerprint(path)
+    except api.ApiError as error:
+        # Nothing has been created yet, so a failed read here is not a verdict on the group.
+        raise ReadFailed(f"Could not read the Archival Group's METS: {error}") from error
 
     deposit = api.create_deposit(path)
     deposit_id = api.slug(deposit["id"])
@@ -190,11 +198,12 @@ def _is_mets_file(slug: str) -> bool:
 
 
 def _fingerprint(path: str) -> dict[str, str]:
-    """Path to digest for every file the Archival Group's METS lists."""
-    try:
-        mets_xml = api.get_archival_group_mets(path)
-    except api.ApiError as error:
-        raise ReadFailed(f"Could not read the Archival Group's METS: {error}") from error
+    """
+    Path to digest for every file the Archival Group's METS lists. A failed read raises
+    api.ApiError untouched: only the caller knows whether anything has been changed yet, so only
+    the caller can say whether that failure is exempt (ReadFailed) or evidence (FAILED).
+    """
+    mets_xml = api.get_archival_group_mets(path)
     try:
         return ids.file_digests(ids.parse(mets_xml))
     except etree.XMLSyntaxError as error:
