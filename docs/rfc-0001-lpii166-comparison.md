@@ -382,6 +382,46 @@ neither confirms nor refutes the single-audience topology for machine callers; t
 human-readable value in `aud` avoids looking up client IDs — is addressed on PR #208 by the
 `KnownClients` directory (`appid` → name), since Entra places only the client ID in `appid`/`azp`.
 
+**(d) Second trial of the single-audience topology on the Digirati tenant, 2026-09-03.** A further
+comment on LPII-166 (2026-09-03) reports the configuration working — "this works and is a bit more
+simple to setup as previously thought" — after a rebuild with four fresh registrations. The evidence
+shared alongside it (Entra screens, configuration, a sample token, and successful calls) covers the
+requests that (c) left open.
+
+- *What was configured.* The Preservation API registration (`22c7dc4b…`) is the single resource: it
+  exposes the App ID URI `api://22c7dc4b…`, defines an application role (`Preservation.Write`, member
+  type *Applications*) and a delegated scope (`API`, admins and users may consent), and validates its
+  own URI as the audience. The third-party registration (`70f151ce…`) is a plain client holding
+  `Preservation.Write` on the API as an application permission with admin consent granted — no roles
+  of its own and no self-grants. The UI registration (`439c870d…`) holds the delegated `API` scope on
+  the API (plus Graph `User.Read`), consented. This is the Option A wiring, including the delegated
+  scope that (c) identified as the missing Phase 3 prerequisite.
+- *The machine token.* Minted with `client_credentials` against the v2.0 endpoint with
+  `scope = api://22c7dc4b…/.default`, the token carries `aud = api://22c7dc4b…` (the API),
+  `roles = ["Preservation.Write"]`, `appid = 70f151ce…` and `ver = "1.0"`. This is the request (c)
+  recorded as not yet made, with the result the definitions predicted: the audience is the resource
+  named in `scope`, the role comes from the assignment on that resource, and the caller is identified
+  by `appid`. The token is shown successfully authenticating a deposits call against the API.
+- *The UI.* With the delegated scope defined and consented, and the UI requesting
+  `scope = api://22c7dc4b…/.default` for its downstream calls, the backend connection checks that
+  produced the 401/`IDW10502` errors in (c) now pass.
+- *Storage API.* The Storage API service (registration `b66b22f0…`) validates the same audience,
+  `api://22c7dc4b…`, with the Preservation API minting app-only tokens to call it — the arrangement
+  (b) describes as current and kept for now, with a separate Storage audience deferred (RFC §8 Q1).
+  Relatedly, the Preservation API's *Authorized client applications* list pre-authorises the Storage
+  API's client ID for its delegated scope; as in (c), this confers nothing on app-only tokens, and
+  nothing in the trial appears to depend on it.
+
+Read against the RFC's phases, this trial exercises Phase 1 (a machine caller requesting the API's
+audience, identity in `appid`, role from Entra assignment) and Phase 3 (the UI acquiring user tokens
+for the API's delegated scope), and both behave as RFC-0001 §5 describes. The single-audience
+topology is thereby demonstrated end-to-end on the Digirati mirror — the conclusion (c) could not
+reach. The one control the shared evidence does not show is **Assignment required** on the API's
+enterprise application (§5.4): with roles enforced in the API its absence is not fail-open the way
+§5.4 describes for the per-caller-audience shape, but setting it remains the step that gives Entra
+the caller list (G4). Questions 2–4 in §8 are superseded for the mirror by this rebuild; question 1's
+concern transfers to the new API registration as just noted.
+
 ## Appendix: Glossary
 
 Entra reuses everyday words with precise — and sometimes counter-intuitive — meanings. These are the terms this document leans on, defined as Microsoft defines them, with the subtleties that matter for the comparison. Microsoft Learn links are cited throughout; the claim-level references are the [access token claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference) and the [optional claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference).
