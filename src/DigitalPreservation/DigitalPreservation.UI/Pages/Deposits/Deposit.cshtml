@@ -854,8 +854,8 @@
                         @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <div class="input-group mt-2" id="fileLinkAddRow">
-                                <select id="fileLinkRoleSelect" class="form-select" style="max-width:12rem"></select>
-                                <select id="fileLinkTargetSelect" class="form-select"></select>
+                                <select id="fileLinkRoleSelect" class="form-select" style="max-width:12rem" aria-label="File link role"></select>
+                                <select id="fileLinkTargetSelect" class="form-select" aria-label="File link target"></select>
                                 <button type="button" id="fileLinkAddBtn" class="btn btn-outline-primary">Add</button>
                             </div>
                         }
