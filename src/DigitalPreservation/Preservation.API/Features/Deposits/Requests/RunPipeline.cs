@@ -1,4 +1,5 @@
-﻿using Amazon.SimpleNotificationService;
+﻿using Amazon.S3.Util;
+using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
@@ -13,6 +14,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalPreservation.Core.Auth;
 using Preservation.API.Data.Entities;
+using Storage.Repository.Common;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
@@ -28,6 +30,7 @@ public class RunPipelineHandler(
     PreservationContext dbContext,
     IAmazonSimpleNotificationService snsClient,
     IOptions<PipelineOptions> pipelineOptions,
+    IOptions<AwsStorageOptions> storageOptions,
     IIdentityMinter identityMinter) : IRequestHandler<RunPipeline, Result>
 {
     public async Task<Result> Handle(RunPipeline request, CancellationToken cancellationToken)
@@ -42,8 +45,19 @@ public class RunPipelineHandler(
         var callerIdentity = request.User.GetCallerIdentity();
         if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
         {
-            return Result.Fail(ErrorCodes.Conflict, 
+            return Result.Fail(ErrorCodes.Conflict,
                 $"Could not run pipeline because the deposit {request.DepositId} is locked by " + entity.LockedBy);
+        }
+
+        // Pipeline.API reaches deposit files through a filesystem mount of the default working
+        // bucket only, so a deposit routed to a per-caller bucket (RFC-0001 §8) can't be
+        // characterised - decline it here, the only place pipeline jobs are queued from.
+        if (!IsInDefaultWorkingBucket(entity.Files))
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"Could not run pipeline: deposit {request.DepositId} is not in the default " +
+                $"working bucket '{storageOptions.Value.DefaultWorkingBucket}', which is the only " +
+                "storage the pipeline can reach.");
         }
 
         var topicArn = pipelineOptions.Value.PipelineJobTopicArn;
@@ -80,6 +94,11 @@ public class RunPipelineHandler(
 
         return Result.Ok();
     }
+
+    private bool IsInDefaultWorkingBucket(Uri? depositFiles) =>
+        depositFiles != null
+        && AmazonS3Uri.TryParseAmazonS3Uri(depositFiles, out var s3Uri)
+        && s3Uri.Bucket == storageOptions.Value.DefaultWorkingBucket;
 }
 
 //TODO: put job id into the pipeline into the class

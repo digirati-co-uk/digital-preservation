@@ -214,6 +214,102 @@ public class StorageTests
     }
 
     [Fact]
+    public void GetWorkingFilesLocation_CarvesInWorkingRoot_WhenSupplied()
+    {
+        // Per-caller deposit routing (RFC-0001 §8): an explicit workingRoot (a bucket name in
+        // this implementation) overrides the default for everything created at carve-out time.
+        A.CallTo(() => options.Value).Returns(new AwsStorageOptions
+        {
+            DefaultWorkingBucket = "default-bucket"
+        });
+
+        var getRequests = new List<GetObjectRequest>();
+        A.CallTo(() => s3Client.GetObjectAsync(A<GetObjectRequest>.Ignored, CancellationToken.None))
+            .Invokes((GetObjectRequest req, CancellationToken _) => getRequests.Add(req))
+            .Throws(new AmazonS3Exception("Not found")
+            {
+                ErrorCode = "NotFound",
+                StatusCode = HttpStatusCode.NotFound
+            });
+
+        var putRequests = new List<PutObjectRequest>();
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Invokes((PutObjectRequest req, CancellationToken _) => putRequests.Add(req))
+            .Returns(Task.FromResult(new PutObjectResponse
+            {
+                HttpStatusCode = HttpStatusCode.Created,
+            }));
+
+        var result = storage.GetWorkingFilesLocation(
+            "testId", TemplateType.RootLevel, "caller-bucket").GetAwaiter().GetResult();
+
+        result.Success.Should().BeTrue();
+        result.Value!.Host.Should().Be("caller-bucket");
+        getRequests.Should().OnlyContain(r => r.BucketName == "caller-bucket"); // the exists pre-check
+        putRequests.Should().NotBeEmpty();
+        putRequests.Should().OnlyContain(r => r.BucketName == "caller-bucket");
+    }
+
+    [Fact]
+    public void GetWorkingFilesLocation_CarvesInDefaultBucket_WhenNoWorkingRoot()
+    {
+        // Storage captures options.Value at construction, so build one with real options here
+        // rather than configuring the class-level fake after the fact.
+        var defaultingStorage = new Repository.Common.Storage(
+            s3Client,
+            Options.Create(new AwsStorageOptions { DefaultWorkingBucket = "default-bucket" }),
+            logger);
+
+        A.CallTo(() => s3Client.GetObjectAsync(A<GetObjectRequest>.Ignored, CancellationToken.None))
+            .Throws(new AmazonS3Exception("Not found")
+            {
+                ErrorCode = "NotFound",
+                StatusCode = HttpStatusCode.NotFound
+            });
+
+        var putRequests = new List<PutObjectRequest>();
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Invokes((PutObjectRequest req, CancellationToken _) => putRequests.Add(req))
+            .Returns(Task.FromResult(new PutObjectResponse
+            {
+                HttpStatusCode = HttpStatusCode.Created,
+            }));
+
+        var result = defaultingStorage.GetWorkingFilesLocation(
+            "testId", TemplateType.RootLevel).GetAwaiter().GetResult();
+
+        result.Success.Should().BeTrue();
+        result.Value!.Host.Should().Be("default-bucket");
+        putRequests.Should().NotBeEmpty();
+        putRequests.Should().OnlyContain(r => r.BucketName == "default-bucket");
+    }
+
+    [Fact]
+    public async Task EmptyStorageLocation_Refuses_NonDepositsLocation()
+    {
+        var result = await storage.EmptyStorageLocation(
+            new UriBuilder("s3://some-bucket/exports/thing/").Uri, CancellationToken.None);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be("BadRequest");
+        A.CallTo(() => s3Client.ListObjectsV2Async(A<ListObjectsV2Request>.Ignored, A<CancellationToken>.Ignored))
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task EmptyStorageLocation_Allows_DepositsLocation()
+    {
+        A.CallTo(() => s3Client.ListObjectsV2Async(A<ListObjectsV2Request>.Ignored, A<CancellationToken>.Ignored))
+            .Returns(Task.FromResult(new ListObjectsV2Response { S3Objects = new List<S3Object>() }));
+
+        var result = await storage.EmptyStorageLocation(
+            new UriBuilder("s3://some-bucket/deposits/dep-1/").Uri, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Value!.ObjectsToDelete.Should().Be(0);
+    }
+
+    [Fact]
     public async Task GetListing()
     {
         A.CallTo(() => s3Client.ListObjectsV2Async(

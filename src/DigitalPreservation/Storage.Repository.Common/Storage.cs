@@ -21,18 +21,20 @@ public class Storage(
 {
     private readonly AwsStorageOptions options = options.Value;
 
-    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, TemplateType templateType, string? callerIdentity = null, bool createMetadataFolders = true)
+    public async Task<Result<Uri>> GetWorkingFilesLocation(string idPart, TemplateType templateType, string? workingRoot = null, bool createMetadataFolders = true)
     {
-        // This will be able to yield different locations in different buckets for different callers
-        // e.g., Goobi
+        // workingRoot is a bucket name here: per-caller deposit routing (RFC-0001 §8), e.g. Goobi
+        // deposits carved out in a Goobi-only bucket. The default bucket only matters at this
+        // moment of creation - everything afterwards locates the deposit from its own Files URI.
+        var bucket = workingRoot ?? options.DefaultWorkingBucket;
         var key = "deposits/" + idPart + "/";
-        if (await Exists(key))
+        if (await Exists(key, bucket))
         {
             return Result.FailNotNull<Uri>(ErrorCodes.Conflict, $"The deposit file location for {idPart} already exists.");
         }
         var pReq = new PutObjectRequest
         {
-            BucketName = options.DefaultWorkingBucket,
+            BucketName = bucket,
             Key = key
         };
         var pResp = await s3Client.PutObjectAsync(pReq);
@@ -42,28 +44,28 @@ public class Storage(
             switch (templateType)
             {
                 case TemplateType.RootLevel:
-                    await PutDirectory(FolderNames.Objects, key, root);
+                    await PutDirectory(bucket, FolderNames.Objects, key, root);
                     if (createMetadataFolders)
                     {
-                        var metadataDirRoot = await PutDirectory(FolderNames.Metadata, key, root);
-                        await PutDirectory(FolderNames.AdHoc, key + metadataDirRoot.Name + "/", metadataDirRoot);
+                        var metadataDirRoot = await PutDirectory(bucket, FolderNames.Metadata, key, root);
+                        await PutDirectory(bucket, FolderNames.AdHoc, key + metadataDirRoot.Name + "/", metadataDirRoot);
                     }
                     break;
                 case TemplateType.BagIt:
                 {
-                    var dataDir = await PutDirectory(FolderNames.BagItData, key, root);
+                    var dataDir = await PutDirectory(bucket, FolderNames.BagItData, key, root);
                     var dataKey = $"{key}{FolderNames.BagItData}/";
-                    await PutDirectory(FolderNames.Objects, dataKey, dataDir);
+                    await PutDirectory(bucket, FolderNames.Objects, dataKey, dataDir);
                     if (createMetadataFolders)
                     {
-                        var metadataDir = await PutDirectory(FolderNames.Metadata, dataKey, dataDir);
-                        await PutDirectory(FolderNames.AdHoc, dataKey + metadataDir.Name + "/", metadataDir);
+                        var metadataDir = await PutDirectory(bucket, FolderNames.Metadata, dataKey, dataDir);
+                        await PutDirectory(bucket, FolderNames.AdHoc, dataKey + metadataDir.Name + "/", metadataDir);
                     }
                     break;
                 }
             }
             var depositFileSystemKey = key + IStorage.DepositFileSystem;
-            var writeDepositFileSystemResult = await WriteDepositFileSystem(options.DefaultWorkingBucket, depositFileSystemKey, root);
+            var writeDepositFileSystemResult = await WriteDepositFileSystem(bucket, depositFileSystemKey, root);
             if (writeDepositFileSystemResult.Failure)
             {
                 return Result.Generify<Uri>(writeDepositFileSystemResult);
@@ -74,11 +76,11 @@ public class Storage(
         return Result.Generify<Uri>(failResult);
     }
 
-    private async Task<WorkingDirectory> PutDirectory(string name, string parentKey, WorkingDirectory parentWorkingDirectory)
+    private async Task<WorkingDirectory> PutDirectory(string bucket, string name, string parentKey, WorkingDirectory parentWorkingDirectory)
     {
         var por = new PutObjectRequest
         {
-            BucketName = options.DefaultWorkingBucket,
+            BucketName = bucket,
             Key = $"{parentKey}{name}/"
         };
         por.Metadata.Add(S3Helpers.OriginalNameMetadataKey, name);
@@ -499,9 +501,15 @@ public class Storage(
     public async Task<Result<BulkDeleteResult>> EmptyStorageLocation(Uri storageLocation, CancellationToken cancellationToken)
     {
         logger.LogInformation("About to delete contents of {StorageLocation}", storageLocation);
-        // TODO: MUST Validate bucket and key of root here -
-        //  only a permitted bucket, and only a deposits/ path.
         var s3Uri = new AmazonS3Uri(storageLocation);
+        // Only a deposit working area may be emptied wholesale, whichever bucket it was carved
+        // in. (TODO: also validate the bucket against a permitted set - the API layer knows the
+        // default and per-caller buckets; this class doesn't.)
+        if (!s3Uri.GetKeyFromLocalPath(storageLocation).StartsWith("deposits/"))
+        {
+            return Result.FailNotNull<BulkDeleteResult>(ErrorCodes.BadRequest,
+                $"Will only empty a deposits/ working area, not {storageLocation}");
+        }
         var allObjects = await ListAllS3Objects(s3Uri, cancellationToken);
 
         logger.LogInformation("{LocationCount} objects in location {StorageLocation}", allObjects.Count, storageLocation);

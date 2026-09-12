@@ -6,7 +6,20 @@ namespace Storage.Repository.Common;
 
 public interface IStorage
 {
-    Task<Result<Uri>> GetWorkingFilesLocation(string idPart, TemplateType templateType, string? callerIdentity = null, bool createMetadataFolders = true);
+    /// <summary>
+    /// Carve out the working files area for a new deposit and return its location. From then on
+    /// the deposit's own Files URI is authoritative - every other member of this interface takes
+    /// a location, not a root.
+    /// </summary>
+    /// <param name="idPart">The deposit's minted id.</param>
+    /// <param name="templateType">Deposit layout to scaffold.</param>
+    /// <param name="workingRoot">
+    /// The storage root to carve the area from, or null for the implementation's configured
+    /// default. What a root is depends on the implementation: a bucket name for S3, a root
+    /// directory for a filesystem implementation.
+    /// </param>
+    /// <param name="createMetadataFolders">Whether to scaffold the metadata folders.</param>
+    Task<Result<Uri>> GetWorkingFilesLocation(string idPart, TemplateType templateType, string? workingRoot = null, bool createMetadataFolders = true);
     Task<ConnectivityCheckResult> CanSeeStorage(string source);
     
     /// <summary>
