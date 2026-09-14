@@ -334,12 +334,6 @@ public class ImportJobsController(
         }
         else if (!SameArchivalGroup(importJob.ArchivalGroup, deposit.ArchivalGroup))
         {
-            // The job's ArchivalGroup is meant to be redundant with the deposit's (see the model),
-            // but until now nothing checked it: a hand-written job could name any group in the
-            // repository and the platform would make a new version of it - with content from this
-            // deposit's workspace, and a result reporting success. Today every caller may write
-            // everywhere, so that is a footgun; once authorisation is per-caller it is the check
-            // that stops one caller's deposit landing in another's object. (Issue #267.)
             message = $"Import job Archival Group {importJob.ArchivalGroup} does not match the Deposit's Archival Group {deposit.ArchivalGroup}.";
         }
         else if (importJob.BinariesToAdd.Union(importJob.BinariesToPatch)
