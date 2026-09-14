@@ -20,8 +20,8 @@ namespace Preservation.API.Tests.Features.ImportJobs;
 /// An Import Job's archivalGroup is meant to be redundant with the deposit's, but a hand-written
 /// job could name any group in the repository and the platform would make a new version of it,
 /// with content from this deposit's workspace, and report success. These pin the check that
-/// stops that (issue #267): the two must name the same repository path, compared by path so that
-/// host and escaping differences are not treated as mismatches.
+/// stops that (issue #267): the two must name the same repository path, compared by path so that a
+/// host difference is not a mismatch, and compared as escaped because that is what Storage resolves.
 /// </summary>
 public class ArchivalGroupMatchTests
 {
@@ -71,7 +71,7 @@ public class ArchivalGroupMatchTests
     public async Task The_Same_Archival_Group_On_The_Storage_Host_Is_Accepted()
     {
         // The comparison is by repository path: a job that names the group on the Storage API
-        // host, or with different escaping, is the same group and must not be refused for it.
+        // host, or with a trailing slash, is the same group and must not be refused for it.
         var mediator = Mediator();
         var controller = Controller(mediator);
         var job = Job(new Uri("https://storage.test/repository/cc/thing/"));
@@ -79,6 +79,23 @@ public class ArchivalGroupMatchTests
         await controller.ExecuteImportJob(DepositId, job, default);
 
         Executed(mediator).MustHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Job_Whose_Group_Only_Matches_Once_Percent_Decoded_Is_Refused()
+    {
+        // '%' is a legal slug character, so a group whose one segment is foo%2Fbar is a different
+        // object from the two-segment foo/bar. Storage resolves the job's path in Fedora exactly as
+        // posted, so the comparison must not decode first - if it did, a job for the two-segment
+        // object would be accepted against a deposit for the one-segment one.
+        var mediator = Mediator(new Uri("https://preservation.test/repository/cc/foo%2Fbar"));
+        var controller = Controller(mediator);
+        var job = Job(new Uri("https://preservation.test/repository/cc/foo/bar"));
+
+        var result = await controller.ExecuteImportJob(DepositId, job, default);
+
+        Refusal(result).Should().Contain("does not match the Deposit's Archival Group");
+        Executed(mediator).MustNotHaveHappened();
     }
 
     private static ImportJob Job(Uri? archivalGroup)
@@ -107,14 +124,14 @@ public class ArchivalGroupMatchTests
     /// A mediator that knows one deposit, dep-1, for Archival Group cc/thing, with no import
     /// jobs yet - enough for the controller to get past its deposit checks to the one under test.
     /// </summary>
-    private static IMediator Mediator()
+    private static IMediator Mediator(Uri? depositArchivalGroup = null)
     {
         var mediator = A.Fake<IMediator>();
         A.CallTo(() => mediator.Send(A<GetDeposit>._, A<CancellationToken>._))
             .Returns(Result.OkNotNull<Deposit?>(new Deposit
             {
                 Id = DepositUri,
-                ArchivalGroup = ArchivalGroup,
+                ArchivalGroup = depositArchivalGroup ?? ArchivalGroup,
                 Files = DepositFiles
             }));
         A.CallTo(() => mediator.Send(A<GetImportJobResultsForDeposit>._, A<CancellationToken>._))
