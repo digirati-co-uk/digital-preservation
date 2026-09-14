@@ -306,6 +306,17 @@ public class ImportJobsController(
     /// different Deposit, no Deposit at all, or binaries from outside the deposit's file area;
     /// null when everything belongs.
     /// </summary>
+    /// <summary>
+    /// Compared by repository path rather than by URI, so that a job which names the group on the
+    /// Storage API host, or with different escaping, is not refused for a difference that is not one.
+    /// </summary>
+    private static bool SameArchivalGroup(Uri jobArchivalGroup, Uri? depositArchivalGroup) =>
+        depositArchivalGroup is not null &&
+        string.Equals(
+            jobArchivalGroup.GetPathUnderRoot(decode: true)?.TrimEnd('/'),
+            depositArchivalGroup.GetPathUnderRoot(decode: true)?.TrimEnd('/'),
+            StringComparison.Ordinal);
+
     private ActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
     {
         string? message = null;
@@ -316,6 +327,20 @@ public class ImportJobsController(
         else if (importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
         {
             message = "Import job Deposit does not match the Deposit it was submitted to.";
+        }
+        else if (importJob.ArchivalGroup is null)
+        {
+            message = "Import job must declare which Archival Group it is for.";
+        }
+        else if (!SameArchivalGroup(importJob.ArchivalGroup, deposit.ArchivalGroup))
+        {
+            // The job's ArchivalGroup is meant to be redundant with the deposit's (see the model),
+            // but until now nothing checked it: a hand-written job could name any group in the
+            // repository and the platform would make a new version of it - with content from this
+            // deposit's workspace, and a result reporting success. Today every caller may write
+            // everywhere, so that is a footgun; once authorisation is per-caller it is the check
+            // that stops one caller's deposit landing in another's object. (Issue #267.)
+            message = $"Import job Archival Group {importJob.ArchivalGroup} does not match the Deposit's Archival Group {deposit.ArchivalGroup}.";
         }
         else if (importJob.BinariesToAdd.Union(importJob.BinariesToPatch)
                      .FirstOrDefault(binary => !deposit.Files!.IsBaseOf(binary.Origin!)) is { } invalidBinary)
