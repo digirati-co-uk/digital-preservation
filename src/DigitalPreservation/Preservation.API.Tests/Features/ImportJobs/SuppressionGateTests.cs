@@ -1,4 +1,4 @@
-using DigitalPreservation.Common.Model.Import;
+﻿using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using FakeItEasy;
@@ -155,14 +155,17 @@ public class SuppressionGateTests
     }
 
     [Fact]
-    public async Task What_The_Job_Claims_As_Its_Archival_Group_Does_Not_Matter_Only_The_Deposits()
+    public async Task The_Allowance_Is_Judged_Against_The_Deposits_Archival_Group_Not_The_Jobs_Spelling_Of_It()
     {
-        // The converse: a job that names no Archival Group at all still gets the allowance,
-        // because the deposit says which object its scaffold folders belong to.
+        // The converse: the gate takes the object from the deposit, not from whatever URI the job
+        // carries. A job that names the same group differently - here on the Storage API host,
+        // with a trailing slash - still gets the allowance. (This used to be shown with a job that
+        // named no Archival Group at all; that is now refused as malformed before execution,
+        // see issue #267, so the point is made with a differently-spelt one instead.)
         var mediator = Mediator();
         var controller = Controller(mediator, migrationFlagOn: true);
         var job = MetsOnlyJob(suppress: true);
-        job.ArchivalGroup = null;
+        job.ArchivalGroup = new Uri("https://storage.test/repository/cc/thing/");
         job.ContainersToAdd.Add(Container("metadata/ad-hoc"));
 
         await controller.ExecuteImportJob(DepositId, job, default);

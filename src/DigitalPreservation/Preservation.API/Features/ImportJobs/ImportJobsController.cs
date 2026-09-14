@@ -302,9 +302,27 @@ public class ImportJobsController(
     }
 
     /// <summary>
+    /// Compared by repository path rather than by URI, so that a job which names the group on the
+    /// Storage API host is not refused for a difference that is not one.
+    /// </summary>
+    /// <remarks>
+    /// The path is compared exactly as escaped, like <see cref="IsPlatformScaffoldFolder"/>, because
+    /// that is the form the Storage API resolves in Fedora (<c>GetPathUnderRoot()</c> with no
+    /// decoding, in ExecuteImportJob and QueueImportJob). <c>%</c> is a legal slug character, so
+    /// a one-segment group <c>foo%2Fbar</c> and a two-segment <c>foo/bar</c> are different objects;
+    /// decoding before comparing would let a job for one through against a deposit for the other.
+    /// </remarks>
+    private static bool SameArchivalGroup(Uri jobArchivalGroup, Uri? depositArchivalGroup) =>
+        depositArchivalGroup is not null &&
+        string.Equals(
+            jobArchivalGroup.GetPathUnderRoot()?.TrimEnd('/'),
+            depositArchivalGroup.GetPathUnderRoot()?.TrimEnd('/'),
+            StringComparison.Ordinal);
+
+    /// <summary>
     /// The refusal to return when the posted job's content is not the deposit's own - it names a
-    /// different Deposit, no Deposit at all, or binaries from outside the deposit's file area;
-    /// null when everything belongs.
+    /// different Deposit, no Deposit at all, a different Archival Group, or binaries from outside
+    /// the deposit's file area; null when everything belongs.
     /// </summary>
     private ActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
     {
@@ -316,6 +334,14 @@ public class ImportJobsController(
         else if (importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
         {
             message = "Import job Deposit does not match the Deposit it was submitted to.";
+        }
+        else if (importJob.ArchivalGroup is null)
+        {
+            message = "Import job must declare which Archival Group it is for.";
+        }
+        else if (!SameArchivalGroup(importJob.ArchivalGroup, deposit.ArchivalGroup))
+        {
+            message = $"Import job Archival Group {importJob.ArchivalGroup} does not match the Deposit's Archival Group {deposit.ArchivalGroup}.";
         }
         else if (importJob.BinariesToAdd.Union(importJob.BinariesToPatch)
                      .FirstOrDefault(binary => !deposit.Files!.IsBaseOf(binary.Origin!)) is { } invalidBinary)
