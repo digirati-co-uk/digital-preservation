@@ -450,7 +450,9 @@ public class ProcessPipelineJobHandler(
         {
             if (workspaceManager.IsBagItLayout)
             {
-                var success = await BagAndCheckObjectFileDigests(workspaceManager, request.DepositId, metadataPathForProcessFilesAndDirectories, depositPath, cancellationToken);
+                // The resolved deposit's own slug, not the raw request.DepositId - see the comment in
+                // Handle's finally block on why the two can differ.
+                var success = await BagAndCheckObjectFileDigests(workspaceManager, workspaceManager.DepositSlug, metadataPathForProcessFilesAndDirectories, depositPath, cancellationToken);
                 if (success)
                 {
                     logger.LogInformation("Successfully bagged and validated objects files digests for {DepositId}", request.DepositId);
@@ -1301,7 +1303,7 @@ public class ProcessPipelineJobHandler(
 
     private async Task<bool> BagAndCheckObjectFileDigests(
         WorkspaceManager workspaceManager,
-        string depositId,
+        string? depositId,
         string metadataPathForProcessFilesAndDirectories,
         string depositPath,
         CancellationToken cancellationToken)
