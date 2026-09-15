@@ -76,32 +76,19 @@ granted permission to it, no consent has been given, and nothing requests this a
 Same registration → **Token configuration** → **Add optional claim** → Token type: **Access** → tick
 **`idtyp`** → **Add**.
 
-Then one small manifest edit the portal UI cannot do: registration → **Manifest**, find the
-`optionalClaims.accessToken` entry just created for `idtyp`, and add the `include_user_token`
-additional property so the finished entry reads:
+That is the whole step — portal only, no manifest edit.
 
-```json
-"optionalClaims": {
-    "accessToken": [
-        {
-            "name": "idtyp",
-            "essential": false,
-            "additionalProperties": [ "include_user_token" ]
-        }
-    ]
-}
-```
-
-(If the manifest already has other `optionalClaims` entries, add this one alongside them rather than
-replacing the block.)
-
-**Why this is needed:** `idtyp` makes every access token minted *for this API* declare positively
-whether it is an app-only token (`"idtyp": "app"`) or an on-behalf-of-a-user token (`"idtyp": "user"` —
-that's what `include_user_token` adds; without it the claim appears on app tokens only). Microsoft
-describes it as "the most accurate way for an API to determine if a token is an app token or an
-app+user token" ([optional claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference)).
+**Why this is needed:** `idtyp` makes every **app-only** access token minted *for this API* carry
+`"idtyp": "app"`. Microsoft describes it as "the most accurate way for an API to determine if a token
+is an app token or an app+user token" ([optional claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference)).
 The API code currently infers human-vs-machine from the *shape* of the claims present; this claim
-replaces that inference with an authoritative statement.
+gives the machine case an authoritative marker instead.
+
+*(Deliberately omitted:* an `include_user_token` additional property would also mark **user** tokens
+with `"idtyp": "user"`, but setting it requires editing the registration's manifest, which we avoid as
+a general rule. User tokens remain identified by their user claims, as today. If the positive user
+marker is ever wanted, the property is purely additive and can be applied later via Microsoft Graph
+with no caller impact.)*
 
 **Why this is safe (no caller impact):** optional claims only attach to tokens requested *for* this
 registration — and nothing requests this audience yet, so the setting is completely dormant. Even once
@@ -185,6 +172,7 @@ On `84c62880`'s registration → **Manifest**, confirm:
   `"isEnabled": true`
 - a delegated-scope entry with `"value": "access_as_user"`, enabled (`api.oauth2PermissionScopes` in the
   new manifest format, `oauth2Permissions` in the classic one).
-- an `optionalClaims.accessToken` entry with `"name": "idtyp"` and `"additionalProperties": [ "include_user_token" ]`.
+- an `optionalClaims.accessToken` entry with `"name": "idtyp"` (reading the manifest to confirm is
+  fine — no edit to it is asked for anywhere in this doc).
 
 Then let us know, and send the 1.5 assignment list. That completes the admin side of Phase 0.
