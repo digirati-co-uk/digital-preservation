@@ -13,17 +13,22 @@ namespace DigitalPreservation.Utils;
 public static class UriPathX
 {
     /// <summary>
-    /// True if the segment, as given or after one more percent-decoding, is a dot segment, contains a
-    /// path separator of either kind, or contains a NUL. Route values reach controllers decoded once,
-    /// so <c>%2e%2e</c> is what a doubly-encoded <c>..</c> looks like here, and <see cref="Uri"/> will
-    /// canonicalise it as <c>..</c> when a URI is built from it.
+    /// True if the segment, as given or after one more percent-decoding, is a dot segment; contains a
+    /// path separator of either kind or a NUL; or contains a character that would end or redirect the
+    /// path once a URI is built from it (<c>#</c> starts a fragment, <c>?</c> a query, <c>:</c> a scheme
+    /// or a Fedora-reserved <c>fcr:</c> name). Route values reach controllers decoded once, so
+    /// <c>%2e%2e</c> is what a doubly-encoded <c>..</c> looks like here, and <see cref="Uri"/> will
+    /// canonicalise it as <c>..</c> when a URI is built from it. None of these characters is a legal
+    /// slug character, so nothing that exists is refused.
     /// </summary>
     public static bool IsTraversalSegment(string segment)
     {
         if (segment is "." or "..") return true;
-        if (segment.Contains('\\') || segment.Contains('\0')) return true;
+        if (segment.IndexOfAny(Redirecting) >= 0) return true;
         var decoded = Uri.UnescapeDataString(segment);
         return decoded is "." or ".."
-               || decoded.Contains('/') || decoded.Contains('\\') || decoded.Contains('\0');
+               || decoded.Contains('/') || decoded.IndexOfAny(Redirecting) >= 0;
     }
+
+    private static readonly char[] Redirecting = ['\\', '\0', '#', '?', ':'];
 }

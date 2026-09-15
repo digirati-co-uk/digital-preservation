@@ -43,6 +43,9 @@ public class RepositoryPathTests
     [InlineData("cc/a%2Fb", "after decoding")]          // would be two segments to Fedora
     [InlineData("cc/a%5Cb", "after decoding")]
     [InlineData("cc/%00thing", "after decoding")]
+    [InlineData("cc/thing/fcr:acl", "after decoding")]    // Fedora-reserved names live deeper than segment 0
+    [InlineData("cc/thing%23x", "after decoding")]        // '#' would start a fragment: request goes to a prefix
+    [InlineData("cc/thing%3Fx", "after decoding")]        // '?' likewise, a query
     public void Paths_That_Would_Leave_The_Root_Are_Refused(string path, string expectedReason)
     {
         SafeRepositoryPath.IsRepositoryPath(path, out var reason).Should().BeFalse();

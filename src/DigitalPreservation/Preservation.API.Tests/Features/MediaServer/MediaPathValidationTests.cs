@@ -34,6 +34,8 @@ public class MediaPathValidationTests
     [InlineData("objects/a%2Fb.jpg")]
     [InlineData("objects/a%5Cb.jpg")]
     [InlineData("objects\\x.jpg")]
+    [InlineData("objects/x.jpg%23y")]
+    [InlineData("objects/x.jpg%3Fy")]
     public void Paths_That_Could_Leave_The_Deposit_Are_Refused(string path)
     {
         MediaController.ValidateLocalPath(path).Should().BeFalse();
