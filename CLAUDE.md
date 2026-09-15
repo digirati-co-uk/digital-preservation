@@ -31,7 +31,9 @@ Docker:
 # Start local dependencies (Postgres databases)
 docker compose -f docker-compose.local.yml up
 
-# Build and run all services
+# Build and run the three .NET services together (rarely used: it has no storage database,
+# no Pipeline API, no importer, and the storage service gets no environment). The usual
+# local story is docker-compose.local.yml plus `dotnet run` (or the IDE) for each service.
 docker compose build && docker compose up
 ```
 
@@ -78,7 +80,8 @@ The data flow for a typical preservation operation:
 | `DigitalPreservation.Core` | Cross-cutting: Azure AD auth helpers, `CorrelationIdMiddleware`, forwarded headers config, `AuthFilterIdentifier` |
 | `DigitalPreservation.CommonApiClient` | Base HTTP client infrastructure, `TokenScope` |
 | `DigitalPreservation.Workspace` | `WorkspaceManager` — the key class that merges the S3 file tree with the METS structure into a `CombinedDirectory` used by both Preservation API (for diff) and Pipeline API (for characterization) |
-| `Storage.Repository.Common` | S3 access (`IStorage`), METS parsing/writing (`MetsParser`, `MetsManager`, `PremisManager`), OCFL helpers, shared by Storage and Pipeline |
+| `DigitalPreservation.Mets` | METS parsing/writing (`MetsParser`, `MetsManager`, `PremisManager`), METS IDs and normalisation (`MetsIds`, `MetsIdNormaliser`), `MetsCache` |
+| `Storage.Repository.Common` | S3 access (`IStorage`), the S3-backed METS loader and storage (`Mets/StorageImpl`), OCFL helpers, shared by Storage and Pipeline |
 | `Storage.Client` / `Preservation.Client` | HTTP clients for consuming Storage and Preservation APIs (follow ADR-0000 pattern below) |
 | `LeedsDlipServices` | Leeds Identity Service client (mints PIDs/manifest URIs), MVP Catalogue API client |
 | `DigitalPreservation.Utils` | Checksum, URI, string helpers |
@@ -105,7 +108,7 @@ A one-off, operator-run migration of preserved METS documents to legal `xs:ID` v
 
 **Deposit** — a working staging area in S3, used to assemble content before preservation. States: `new`, `exporting`, `preserved`, `error`. Three template types: `None` (no managed METS), `RootLevel` (our standard layout), `BagIt` (BagIt-structured layout with `data/` prefix). Files must go in or below an `objects/` subfolder.
 
-**METS** — XML metadata file that accompanies a deposit. The `MetsParser` (`Storage.Repository.Common/Mets/`) handles METS from Archivematica, EPrints, and Goobi, all of which have different structMap/fileSec layouts. The parser finds SHA256 digests and PRONOM format information from `premis:object` elements inside `mets:techMD`. When a Deposit has a managed METS (template != None), the API reads and writes it automatically.
+**METS** — XML metadata file that accompanies a deposit. The `MetsParser` (`DigitalPreservation.Mets/`) handles METS from Archivematica, EPrints, and Goobi, all of which have different structMap/fileSec layouts. The parser finds SHA256 digests and PRONOM format information from `premis:object` elements inside `mets:techMD`. When a Deposit has a managed METS (template != None), the API reads and writes it automatically.
 
 **MetsParser vs MetsManager — deliberate dual approach**: `MetsParser` reads METS using `XDocument`/LINQ (`XNames` constants, no XmlGen dependency) because it must handle METS from third-party providers with unpredictable structure; flexibility and minimal coupling are the priority. `MetsManager` writes METS using the generated `DigitalPreservation.XmlGen` classes because we only ever write METS files we have created ourselves, so strong typing and schema correctness matter. The long-term goal is to make `MetsParser` a fully standalone library with no XmlGen dependency at all. Do not introduce XmlGen types into `MetsParser`, and do not suggest unifying the two approaches.
 
@@ -128,7 +131,7 @@ A one-off, operator-run migration of preserved METS documents to legal `xs:ID` v
 - Machine-to-machine (.NET services calling each other): `X-Client-Identity` header, validated by `AuthFilterIdentifier`
 - Pipeline API: `X-API-KEY` header (`ApiKeyMiddleware`)
 - iiif-builder: OAuth2 Client Credentials (MSAL) to call Preservation API
-- Feature flag `FeatureFlags:DisableAuth=true` disables all auth for local development
+- Feature flag `FeatureFlags:DisableAuth=true` disables auth for local development in Preservation API, Storage API and the Importer. Pipeline API does not read it (its settings files set it anyway); `X-API-KEY` is always required there
 
 **Correlation IDs**: Propagated via `x-correlation-id` header by `CorrelationIdMiddleware`. Serilog enriches all log lines. New services should call `.AddCorrelationIdHeaderPropagation()`.
 
@@ -142,7 +145,7 @@ A one-off, operator-run migration of preserved METS documents to legal `xs:ID` v
 
 ## CI/CD
 
-GitHub Actions builds and tests the .NET solution, then pushes five Docker images to AWS ECR: `dlip-pres-storage-api`, `dlip-pres-storage-api-importer`, `dlip-pres-preservation-api`, `dlip-pres-preservation-ui`, `dlip-pres-pipeline-api`. The iiif-builder (`dlip-pres-iiif-builder`) has a separate workflow. Deployment retagged images with the environment name and restarts ECS services. Pipeline API uses an EC2 cluster (`EC2_CLUSTER_NAME`); all others use Fargate (`CLUSTER_NAME`). PRs with the `deploy` label are deployed to `development`; pushes to `main` deploy to `development` automatically.
+GitHub Actions builds and tests the .NET solution, then pushes six Docker images to AWS ECR: `dlip-pres-storage-api`, `dlip-pres-storage-api-importer`, `dlip-pres-preservation-api`, `dlip-pres-preservation-ui`, `dlip-pres-pipeline-api`, `dlip-pres-deposit-archiver`. The iiif-builder (`dlip-pres-iiif-builder`) has a separate workflow. Deployment retags images with the environment name and restarts ECS services. Pipeline API uses an EC2 cluster (`EC2_CLUSTER_NAME`); all others use Fargate (`CLUSTER_NAME`). PRs with the `deploy` label are deployed to `development`; pushes to `main` deploy to `development` automatically.
 
 ## Documentation
 
