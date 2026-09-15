@@ -99,6 +99,17 @@ previous one:
    `AADSTS501051`), repoint the UI (delegated scope consent + user assignments first, or `AADSTS50105`),
    retire the transitional audience, switch the human/machine predicate to `idtyp`, remove the header.
 
+**Standing rule for the whole transition window:** every build keeps supporting **both** models until
+production has completed the ladder. An environment's position on the ladder is expressed in its
+configuration (`ValidAudiences`, `KnownClients`) and its tenant's Entra state — never in the build —
+so dev runs the ladder to completion first, and production repeats it later on whatever the current
+build is, with nothing to wind back in between. Of rung 4's tidy items, only retiring the
+transitional audience is per-environment (config); the code removals — the `X-Client-Identity`
+fallback and the switch of the human/machine predicate to `idtyp` — happen once, after the **last**
+environment (production) finishes. Dev "completing" the ladder means config-complete, not
+code-complete; a PR that deletes the fallback while any environment still depends on it should not
+pass review.
+
 ## What would change the sequence
 
 - **If the POC topology were adopted instead of the RFC's** (comparison §7.3 — a recorded contingency,
