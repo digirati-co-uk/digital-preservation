@@ -145,9 +145,26 @@ public class Converters
         return new Uri(contentUri);
     }
 
+    /// <summary>
+    /// The Storage API's own URI for a path under the repository root. Same rule and same
+    /// post-construction check as <see cref="GetFedoraUri"/>: a path that could leave the root is
+    /// refused before a URI is built from it, and the result must still be under the root.
+    /// </summary>
     public Uri RepositoryUriFromPathUnderRoot(string pathUnderRoot)
     {
-        return new Uri(repositoryRoot + pathUnderRoot);
+        if (!SafeRepositoryPath.IsRepositoryPath(pathUnderRoot, out var reason))
+        {
+            throw new ArgumentException(
+                $"'{pathUnderRoot}' is not a path under the repository root: {reason}.", nameof(pathUnderRoot));
+        }
+        var root = new Uri(repositoryRoot);
+        var uri = new Uri(root, pathUnderRoot);
+        if (!root.IsBaseOf(uri))
+        {
+            throw new ArgumentException(
+                $"'{pathUnderRoot}' resolved to {uri}, which is not under the repository root.", nameof(pathUnderRoot));
+        }
+        return uri;
     }
 
     public Uri GetAgentUri(string identitySlug)
@@ -181,7 +198,7 @@ public class Converters
     /// </summary>
     internal Uri GetFedoraUri(string? pathUnderFedoraRoot)
     {
-        if (!SafeRepositoryPath.IsUnderRoot(pathUnderFedoraRoot, out var reason))
+        if (!SafeRepositoryPath.IsRepositoryPath(pathUnderFedoraRoot, out var reason))
         {
             throw new ArgumentException(
                 $"'{pathUnderFedoraRoot}' is not a path under the repository root: {reason}.", nameof(pathUnderFedoraRoot));

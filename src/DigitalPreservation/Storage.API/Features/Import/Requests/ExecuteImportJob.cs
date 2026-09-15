@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Storage.API.Fedora.Model;
+using System.Diagnostics;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
@@ -299,14 +300,32 @@ public class ExecuteImportJobHandler(
         }
     }
 
-    private static Result PreProcessValidateImportJob(ImportJob importJob)
+    /// <summary>
+    /// Everything about a job that can be judged without touching Fedora, judged before anything is
+    /// touched. Called by the queue handler, so a caller gets a 400 rather than a queued job that
+    /// completes with errors, and again here, because a job can also arrive from the queue directly.
+    /// In particular every repository path in the job - the Archival Group and each resource id - must
+    /// be a path under the root (<see cref="SafeRepositoryPath"/>): <see cref="Converters.GetFedoraUri"/>
+    /// throws for one that is not, and here that would happen with a Fedora transaction open and
+    /// outside any catch, which would take the whole import host down with it.
+    /// </summary>
+    internal static Result PreProcessValidateImportJob(ImportJob importJob)
     {
+        if (importJob.ArchivalGroup == null)
+        {
+            return Result.Fail(ErrorCodes.BadRequest, "Import job has no Archival Group");
+        }
+        if (!SafeRepositoryPath.IsRepositoryPath(importJob.ArchivalGroup.GetPathUnderRoot(), out var agReason))
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"Archival Group {importJob.ArchivalGroup} is not a path under the repository root: {agReason}");
+        }
+
         var allBinaries =
             importJob.BinariesToAdd
             .Union(importJob.BinariesToPatch)
             .Union(importJob.BinariesToRename)
             .Union(importJob.BinariesToDelete);
-        // Can add more to this later...
         foreach (var binaryId in allBinaries.Select(binary => binary.Id))
         {
             if (binaryId == null)
@@ -316,6 +335,26 @@ public class ExecuteImportJobHandler(
             if (binaryId.LocalPath.Contains('#'))
             {
                 return Result.Fail(ErrorCodes.BadRequest, $"Binary ID contains a fragment identifier (#): {binaryId}");
+            }
+            if (!SafeRepositoryPath.IsRepositoryPath(binaryId.GetPathUnderRoot(), out var reason))
+            {
+                return Result.Fail(ErrorCodes.BadRequest, $"Binary ID {binaryId} is not a path under the repository root: {reason}");
+            }
+        }
+
+        var allContainers =
+            importJob.ContainersToAdd
+            .Union(importJob.ContainersToRename)
+            .Union(importJob.ContainersToDelete);
+        foreach (var containerId in allContainers.Select(container => container.Id))
+        {
+            if (containerId == null)
+            {
+                return Result.Fail(ErrorCodes.BadRequest, "Container ID is null");
+            }
+            if (!SafeRepositoryPath.IsRepositoryPath(containerId.GetPathUnderRoot(), out var reason))
+            {
+                return Result.Fail(ErrorCodes.BadRequest, $"Container ID {containerId} is not a path under the repository root: {reason}");
             }
         }
         return Result.Ok();

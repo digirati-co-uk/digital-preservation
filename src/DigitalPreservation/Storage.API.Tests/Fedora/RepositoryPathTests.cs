@@ -18,13 +18,12 @@ public class RepositoryPathTests
     [InlineData("cc/thing")]
     [InlineData("cc/thing/")]
     [InlineData("cc/thing/objects/page-001.tif")]
-    [InlineData("cc/a%2Fb")]                 // '%' is a legal slug character; one segment, stays one
     [InlineData("cc/a%252e%252e")]           // decodes once to a%2e%2e, which Uri leaves alone
     [InlineData("cc/.hidden")]
     [InlineData("cc/...")]
     public void Paths_Under_The_Root_Are_Accepted(string? path)
     {
-        SafeRepositoryPath.IsUnderRoot(path, out var reason).Should().BeTrue(reason);
+        SafeRepositoryPath.IsRepositoryPath(path, out var reason).Should().BeTrue(reason);
     }
 
     [Theory]
@@ -40,10 +39,13 @@ public class RepositoryPathTests
     [InlineData("cc/%2e", "dot segment")]
     [InlineData("http://evil.com/x", "scheme")]
     [InlineData("http:evil", "scheme")]
-    [InlineData("cc\\thing", "backslash")]
+    [InlineData("cc\\thing", "after decoding")]
+    [InlineData("cc/a%2Fb", "after decoding")]          // would be two segments to Fedora
+    [InlineData("cc/a%5Cb", "after decoding")]
+    [InlineData("cc/%00thing", "after decoding")]
     public void Paths_That_Would_Leave_The_Root_Are_Refused(string path, string expectedReason)
     {
-        SafeRepositoryPath.IsUnderRoot(path, out var reason).Should().BeFalse();
+        SafeRepositoryPath.IsRepositoryPath(path, out var reason).Should().BeFalse();
         reason.Should().Contain(expectedReason);
     }
 
@@ -55,7 +57,7 @@ public class RepositoryPathTests
 
     [Theory]
     [InlineData("cc/thing", "http://fedora:8080/fcrepo/rest/cc/thing")]
-    [InlineData("cc/a%2Fb", "http://fedora:8080/fcrepo/rest/cc/a%2Fb")]
+    [InlineData("cc/a%20b", "http://fedora:8080/fcrepo/rest/cc/a%20b")]
     [InlineData("", "http://fedora:8080/fcrepo/rest/")]
     public void GetFedoraUri_Resolves_Paths_Under_The_Root(string path, string expected)
     {

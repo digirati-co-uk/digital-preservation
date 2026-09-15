@@ -1,3 +1,5 @@
+using DigitalPreservation.Utils;
+
 namespace Storage.API.Fedora.Model;
 
 /// <summary>
@@ -11,25 +13,24 @@ namespace Storage.API.Fedora.Model;
 /// <c>../x</c> the parent, and <c>%2e%2e/x</c> is canonicalised to the same as <c>../x</c>. The Fedora
 /// client sends the admin credential on every request, so any of those is a request to the wrong
 /// place carrying the wrong secret. This is the single rule for what a path may look like: non-empty
-/// segments separated by single slashes, none of which is a dot segment before or after percent-decoding,
-/// nothing that could be read as a scheme, and no backslashes or NULs. A single trailing slash is
-/// tolerated because existing callers produce one. Segments are otherwise left alone: <c>%</c> is a legal
-/// slug character, so <c>a%2Fb</c> is one segment and must stay one.
+/// segments separated by single slashes, none of which is a traversal segment
+/// (<see cref="UriPathX.IsTraversalSegment"/>: a dot segment, separator or NUL, before or after one
+/// more percent-decoding), and nothing that could be read as a scheme. A single trailing slash is
+/// tolerated because existing callers produce one.
+///
+/// Applied twice: by <see cref="Web.RepositoryPathFilter"/> to route values, for a 400; and by the
+/// import and export queue handlers to the paths inside a posted job, for the same. Body-bound paths
+/// never pass through the filter, so both are needed. Distinct from
+/// <see cref="PathX.IsUnderRoot"/>, which is for resolved local filesystem paths.
 /// </remarks>
 public static class SafeRepositoryPath
 {
-    public static bool IsUnderRoot(string? pathUnderRoot, out string? reason)
+    public static bool IsRepositoryPath(string? pathUnderRoot, out string? reason)
     {
         reason = null;
         if (string.IsNullOrEmpty(pathUnderRoot))
         {
             return true; // the root itself
-        }
-
-        if (pathUnderRoot.Contains('\\') || pathUnderRoot.Contains('\0'))
-        {
-            reason = "contains a backslash or NUL";
-            return false;
         }
 
         var segments = pathUnderRoot.Split('/');
@@ -52,10 +53,9 @@ public static class SafeRepositoryPath
                 return false;
             }
 
-            var decoded = Uri.UnescapeDataString(segment);
-            if (segment is "." or ".." || decoded is "." or "..")
+            if (UriPathX.IsTraversalSegment(segment))
             {
-                reason = "contains a dot segment";
+                reason = "contains a dot segment, a separator or a NUL, before or after decoding";
                 return false;
             }
         }

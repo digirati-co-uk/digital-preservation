@@ -21,6 +21,15 @@ public class QueueExportHandler(
 {
     public async Task<Result<ExportResource>> Handle(QueueExport request, CancellationToken cancellationToken)
     {
+        if (request.Export.ArchivalGroup == null)
+        {
+            return Result.FailNotNull<ExportResource>(ErrorCodes.BadRequest, "Export has no Archival Group");
+        }
+        if (!SafeRepositoryPath.IsRepositoryPath(request.Export.ArchivalGroup.GetPathUnderRoot(), out var pathReason))
+        {
+            return Result.FailNotNull<ExportResource>(ErrorCodes.BadRequest,
+                $"Export Archival Group {request.Export.ArchivalGroup} is not a path under the repository root: {pathReason}");
+        }
         var runningExports = await exportResultStore
             .GetUnfinishedExportsForArchivalGroup(request.Export.ArchivalGroup, cancellationToken);
         if (runningExports.Success && runningExports.Value!.Count > 0)

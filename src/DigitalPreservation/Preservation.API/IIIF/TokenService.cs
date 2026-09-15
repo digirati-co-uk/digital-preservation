@@ -20,10 +20,11 @@ public class TokenService(IMemoryCache memoryCache) : ITokenService
         token = NewToken();
         // Sliding expiry alone meant a link in steady use never expired. The absolute limit caps a
         // token's life however often it is used; a client that outlives it asks for a new one.
-        var keyOpts   = new MemoryCacheEntryOptions().SetSlidingExpiration(SlidingLifetime).SetAbsoluteExpiration(AbsoluteLifetime);
-        var tokenOpts = new MemoryCacheEntryOptions().SetSlidingExpiration(SlidingLifetime).SetAbsoluteExpiration(AbsoluteLifetime);
-        memoryCache.Set(key, token, keyOpts);
-        memoryCache.Set(token, key, tokenOpts);
+        var lifetime = new MemoryCacheEntryOptions()
+            .SetSlidingExpiration(SlidingLifetime)
+            .SetAbsoluteExpiration(AbsoluteLifetime);
+        memoryCache.Set(key, token, lifetime);
+        memoryCache.Set(token, key, lifetime);
         return token;
     }
 
