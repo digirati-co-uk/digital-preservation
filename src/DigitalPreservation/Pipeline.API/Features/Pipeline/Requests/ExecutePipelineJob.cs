@@ -216,10 +216,15 @@ public class ProcessPipelineJobHandler(
         }
         finally
         {
-            CleanupProcessFolder(request.DepositId);
+            // The resolved deposit's own slug, not the raw request.DepositId: Preservation.Client's
+            // GetDeposit lookup ignores anything after a '#' (HttpClient never sends a URI fragment),
+            // so a request.DepositId such as "<real id>#/../.." resolves the real deposit yet still
+            // carries its literal, unvalidated text into the path below - workspace.DepositSlug is
+            // instead read back off the resolved Deposit's own Id.
+            CleanupProcessFolder(workspace.DepositSlug);
             if (workspace.IsBagItLayout)
             {
-                CleanupBagitProcessFolder(request.DepositId);
+                CleanupBagitProcessFolder(workspace.DepositSlug);
             }
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
 
@@ -252,11 +257,25 @@ public class ProcessPipelineJobHandler(
         }
     }
 
-    private void CleanupProcessFolder(string depositName)
+    private void CleanupProcessFolder(string? depositName)
     {
         var processFolder = pipelineToolOptions.Value.ProcessFolder;
+        if (string.IsNullOrEmpty(processFolder) || string.IsNullOrEmpty(depositName))
+            return;
+
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
+
+        // Defence in depth: depositName is expected to already be the resolved deposit's own slug
+        // (see the callers), but this refuses to delete anything outside processFolder regardless of
+        // how depositName was constructed.
+        if (!PathX.IsUnderRoot(processFolder, metadataPathForProcessDelete))
+        {
+            logger.LogError(
+                "Refusing to clean up process folder for deposit {DepositName}: {Path} is not under {ProcessFolder}",
+                depositName, metadataPathForProcessDelete, processFolder);
+            return;
+        }
 
         var dir = new DirectoryInfo(metadataPathForProcessDelete);
 
@@ -266,11 +285,23 @@ public class ProcessPipelineJobHandler(
             Directory.Delete(metadataPathForProcessDelete, true);
     }
 
-    private void CleanupBagitProcessFolder(string depositName)
+    private void CleanupBagitProcessFolder(string? depositName)
     {
         var processFolderBagit = pipelineToolOptions.Value.ProcessFolderBagit;
+        if (string.IsNullOrEmpty(processFolderBagit) || string.IsNullOrEmpty(depositName))
+            return;
+
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForBagitProcessDelete = $"{processFolderBagit}{separator}{depositName}";
+
+        // Defence in depth: see the comment in CleanupProcessFolder.
+        if (!PathX.IsUnderRoot(processFolderBagit, metadataPathForBagitProcessDelete))
+        {
+            logger.LogError(
+                "Refusing to clean up BagIt process folder for deposit {DepositName}: {Path} is not under {ProcessFolderBagit}",
+                depositName, metadataPathForBagitProcessDelete, processFolderBagit);
+            return;
+        }
 
         var dir = new DirectoryInfo(metadataPathForBagitProcessDelete);
 
@@ -338,9 +369,11 @@ public class ProcessPipelineJobHandler(
         // Computed early - this only depends on IsBagItLayout (known before Brunnhilde runs), not on
         // anything Brunnhilde produces. Doing this now (rather than after Brunnhilde completes) lets us
         // kick off Exif in parallel with Brunnhilde/ClamAV instead of waiting for it to finish first.
+        // The resolved deposit's own slug, not the raw request.DepositId - see the comment in Handle's
+        // finally block on why the two can differ.
         var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
-            ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
-            : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
+            ? $"{processFolder}{separator}{workspaceManager.DepositSlug}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
+            : $"{processFolder}{separator}{workspaceManager.DepositSlug}{separator}metadata";
 
         logger.LogInformation("metadataPathForProcessFilesAndDirectories {MetadataPathForProcessFilesAndDirectories}",
             metadataPathForProcessFilesAndDirectories);
@@ -1559,7 +1592,9 @@ public class ProcessPipelineJobHandler(
         ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
         var separator = pipelineToolOptions.Value.DirectorySeparator;
-        var processFolderBagitDeposit = $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{request.DepositId}";
+        // The resolved deposit's own slug, not the raw request.DepositId - see the comment in Handle's
+        // finally block on why the two can differ.
+        var processFolderBagitDeposit = $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{deposit.Id?.GetSlug()}";
 
         try
         {
