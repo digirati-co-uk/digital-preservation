@@ -116,6 +116,10 @@ public class MediaController(
             var size = elements[^3];
             var imageApi = $"/full/{size}/0/default.jpg";
             var realLocalPath = localPath[..^imageApi.Length];
+            // The same gate the plain-file and info.json branches use: the path must name a file in
+            // this deposit's tree, exactly, before anything is fetched from S3 or decoded.
+            if (workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + realLocalPath) == null)
+                return NotFound();
             Response.Headers.CacheControl = "private, max-age=3600";
             Response.Headers.ETag = ImageETag(realLocalPath, size);
             return await ImageFromImageService(workspaceManager, origin, realLocalPath, size);
@@ -141,12 +145,20 @@ public class MediaController(
 
     // ValidateLocalPath guards against path traversal in the S3 key.
     // FindFile() is the authoritative gate (exact-match against deposit tree), so this is defence-in-depth.
-    private static bool ValidateLocalPath(string localPath)
+    // Routing decodes the route value once, so a doubly-encoded dot segment arrives here as "%2e%2e" -
+    // which System.Uri then canonicalises as ".." when the S3 URI is built. Hence each segment is also
+    // judged after one more decode, and a decoded slash or backslash is refused too.
+    internal static bool ValidateLocalPath(string localPath)
     {
         if (string.IsNullOrEmpty(localPath)) return false;
         return !localPath.Split('/').Any(segment =>
-            string.IsNullOrEmpty(segment) || segment == ".." || segment == "."
-            || segment.Contains('\\') || segment.Contains('\0'));
+        {
+            if (string.IsNullOrEmpty(segment) || segment is ".." or "."
+                || segment.Contains('\\') || segment.Contains('\0'))
+                return true;
+            var decoded = Uri.UnescapeDataString(segment);
+            return decoded is ".." or "." || decoded.Contains('/') || decoded.Contains('\\');
+        });
     }
 
     private static string FileETag(string localPath, long? size) =>
