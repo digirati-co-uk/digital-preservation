@@ -88,6 +88,13 @@ public abstract class PreservedResource : Resource
 
         if (valid)
         {
+            if (slug is "." or "..")
+            {
+                // Every character is legal, but as a whole the slug is a dot segment: resolved against
+                // a parent URI it names the parent, not a child.
+                reason = "'.' and '..' are not allowed as slugs.";
+                return false;
+            }
             return slug != BasePathElement && valid;
         }
         
@@ -136,6 +143,8 @@ public abstract class PreservedResource : Resource
         {
             sb.Append(ValidSlugChar(c) ? c : '-'); // Do we want to use '-'? Or just omit?
         }
-        return sb.ToString();
+        var slug = sb.ToString();
+        // See IsValidSlug: a name that is only a dot segment would resolve to the parent.
+        return slug is "." or ".." ? slug.Replace('.', '-') : slug;
     }
 }

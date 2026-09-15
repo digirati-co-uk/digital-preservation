@@ -1,0 +1,901 @@
+﻿<mets:mets xmlns:mods="http://www.loc.gov/mods/v3" xmlns:premis="http://www.loc.gov/premis/v3" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:mets="http://www.loc.gov/METS/">
+    <mets:metsHdr CREATEDATE="2026-01-21T10:17:24.7444199+00:00">
+        <mets:agent ROLE="CREATOR" TYPE="OTHER" OTHERTYPE="SOFTWARE">
+            <mets:name>University of Leeds Digital Library Infrastructure Project</mets:name>
+        </mets:agent>
+    </mets:metsHdr>
+    <mets:dmdSec ID="DMD_PHYS_ROOT">
+        <mets:mdWrap MDTYPE="MODS">
+            <mets:xmlData>
+                <mods:mods>
+                    <mods:titleInfo>
+                        <mods:title>[Untitled]</mods:title>
+                    </mods:titleInfo>
+                </mods:mods>
+            </mets:xmlData>
+        </mets:mdWrap>
+    </mets:dmdSec>
+    <mets:amdSec ID="ADM_objects">
+        <mets:techMD ID="TECH_objects">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics />
+                        <premis:originalName>objects</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata">
+        <mets:techMD ID="TECH_metadata">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics />
+                        <premis:originalName>metadata</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_objects/new-test-folder-inside-objects">
+        <mets:techMD ID="TECH_objects/new-test-folder-inside-objects">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics />
+                        <premis:originalName>objects/new-test-folder-inside-objects</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_objects/new-test-folder-inside-objects/test_image().jpg">
+        <mets:techMD ID="TECH_objects/new-test-folder-inside-objects/test_image().jpg">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:significantProperties>
+                            <premis:significantPropertiesType>ImageWidth</premis:significantPropertiesType>
+                            <premis:significantPropertiesValue>1280</premis:significantPropertiesValue>
+                        </premis:significantProperties>
+                        <premis:significantProperties>
+                            <premis:significantPropertiesType>ImageHeight</premis:significantPropertiesType>
+                            <premis:significantPropertiesValue>853</premis:significantPropertiesValue>
+                        </premis:significantProperties>
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>62db932f4c8b13da0bb441b21a5b90fa47758a29afa519cb03fcae9606912e82</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>46051</premis:size>
+                            <premis:format>
+                                <premis:formatDesignation>
+                                    <premis:formatName xsi:type="premis:formatName">JPEG File Interchange Format</premis:formatName>
+                                </premis:formatDesignation>
+                                <premis:formatRegistry>
+                                    <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                                    <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/43</premis:formatRegistryKey>
+                                </premis:formatRegistry>
+                            </premis:format>
+                            <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                                <ExifMetadata>
+                                    <ExifToolVersionNumber>12.57</ExifToolVersionNumber>
+                                    <FileName>test_image().jpg</FileName>
+                                    <Directory>/usr/deposit/deposits/k45nkcbwgyym/objects/new-test-folder-inside-objects</Directory>
+                                    <FileSize>46 kB</FileSize>
+                                    <FileModificationDateTime>2026:01:21 10:17:30+00:00</FileModificationDateTime>
+                                    <FileAccessDateTime>2026:01:21 10:17:30+00:00</FileAccessDateTime>
+                                    <FileInodeChangeDateTime>2026:01:21 10:17:30+00:00</FileInodeChangeDateTime>
+                                    <FilePermissions>-rw-r--r--</FilePermissions>
+                                    <FileType>JPEG</FileType>
+                                    <FileTypeExtension>jpg</FileTypeExtension>
+                                    <MIMEType>image/jpeg</MIMEType>
+                                    <JFIFVersion>1.01</JFIFVersion>
+                                    <ResolutionUnit>None</ResolutionUnit>
+                                    <XResolution>1</XResolution>
+                                    <YResolution>1</YResolution>
+                                    <ImageWidth>1280</ImageWidth>
+                                    <ImageHeight>853</ImageHeight>
+                                    <EncodingProcess>Baseline DCT, Huffman coding</EncodingProcess>
+                                    <BitsPerSample>8</BitsPerSample>
+                                    <ColorComponents>3</ColorComponents>
+                                    <YCbCrSubSampling>YCbCr4:2:0 (2 2)</YCbCrSubSampling>
+                                    <ImageSize>1280x853</ImageSize>
+                                    <Megapixels>1.1</Megapixels>
+                                </ExifMetadata>
+                            </premis:objectCharacteristicsExtension>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>objects/new-test-folder-inside-objects/test_image().jpg</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/new-test-folder-inside-objects/test_image().jpg">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_objects/new-test-folder-inside-objects/test_word_document.docx">
+        <mets:techMD ID="TECH_objects/new-test-folder-inside-objects/test_word_document.docx">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>132d77469b1653818753e0c9c6a7e6387f29042cdffcd4887387a004d9e30dff</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>13212</premis:size>
+                            <premis:format>
+                                <premis:formatDesignation>
+                                    <premis:formatName xsi:type="premis:formatName">Microsoft Word for Windows</premis:formatName>
+                                </premis:formatDesignation>
+                                <premis:formatRegistry>
+                                    <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                                    <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/412</premis:formatRegistryKey>
+                                </premis:formatRegistry>
+                            </premis:format>
+                            <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                                <ExifMetadata>
+                                    <ExifToolVersionNumber>12.57</ExifToolVersionNumber>
+                                    <FileName>test_word_document.docx</FileName>
+                                    <Directory>/usr/deposit/deposits/k45nkcbwgyym/objects/new-test-folder-inside-objects</Directory>
+                                    <FileSize>13 kB</FileSize>
+                                    <FileModificationDateTime>2026:01:21 10:17:32+00:00</FileModificationDateTime>
+                                    <FileAccessDateTime>2026:01:21 10:17:32+00:00</FileAccessDateTime>
+                                    <FileInodeChangeDateTime>2026:01:21 10:17:32+00:00</FileInodeChangeDateTime>
+                                    <FilePermissions>-rw-r--r--</FilePermissions>
+                                    <FileType>DOCX</FileType>
+                                    <FileTypeExtension>docx</FileTypeExtension>
+                                    <MIMEType>application/vnd.openxmlformats-officedocument.wordprocessingml.document</MIMEType>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0x6cd2a4df</ZipCRC>
+                                    <ZipCompressedSize>346</ZipCompressedSize>
+                                    <ZipUncompressedSize>1312</ZipUncompressedSize>
+                                    <ZipFileName>[Content_Types].xml</ZipFileName>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0xb71a911e</ZipCRC>
+                                    <ZipCompressedSize>239</ZipCompressedSize>
+                                    <ZipUncompressedSize>590</ZipUncompressedSize>
+                                    <ZipFileName>_rels/.rels</ZipFileName>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0x81e1e33a</ZipCRC>
+                                    <ZipCompressedSize>772</ZipCompressedSize>
+                                    <ZipUncompressedSize>2946</ZipUncompressedSize>
+                                    <ZipFileName>word/document.xml</ZipFileName>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0x51b364d6</ZipCRC>
+                                    <ZipCompressedSize>244</ZipCompressedSize>
+                                    <ZipUncompressedSize>817</ZipUncompressedSize>
+                                    <ZipFileName>word/_rels/document.xml.rels</ZipFileName>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0xb4fc8067</ZipCRC>
+                                    <ZipCompressedSize>1742</ZipCompressedSize>
+                                    <ZipUncompressedSize>8397</ZipUncompressedSize>
+                                    <ZipFileName>word/theme/theme1.xml</ZipFileName>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0x70709093</ZipCRC>
+                                    <ZipCompressedSize>1099</ZipCompressedSize>
+                                    <ZipUncompressedSize>3211</ZipUncompressedSize>
+                                    <ZipFileName>word/settings.xml</ZipFileName>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0x1e1a4fc9</ZipCRC>
+                                    <ZipCompressedSize>4095</ZipCompressedSize>
+                                    <ZipUncompressedSize>42667</ZipUncompressedSize>
+                                    <ZipFileName>word/styles.xml</ZipFileName>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0x62767ebe</ZipCRC>
+                                    <ZipCompressedSize>350</ZipCompressedSize>
+                                    <ZipUncompressedSize>976</ZipUncompressedSize>
+                                    <ZipFileName>word/webSettings.xml</ZipFileName>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0x12f84602</ZipCRC>
+                                    <ZipCompressedSize>499</ZipCompressedSize>
+                                    <ZipUncompressedSize>1656</ZipUncompressedSize>
+                                    <ZipFileName>word/fontTable.xml</ZipFileName>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0x35e8e435</ZipCRC>
+                                    <ZipCompressedSize>372</ZipCompressedSize>
+                                    <ZipUncompressedSize>765</ZipUncompressedSize>
+                                    <ZipFileName>docProps/core.xml</ZipFileName>
+                                    <Title></Title>
+                                    <Subject></Subject>
+                                    <Creator>Christine MacDonald</Creator>
+                                    <Keywords></Keywords>
+                                    <Description></Description>
+                                    <LastModifiedBy>Christine MacDonald</LastModifiedBy>
+                                    <RevisionNumber>1</RevisionNumber>
+                                    <CreateDate>2024:10:21 14:40:00Z</CreateDate>
+                                    <ModifyDate>2024:10:21 14:41:00Z</ModifyDate>
+                                    <ZipRequiredVersion>20</ZipRequiredVersion>
+                                    <ZipBitFlag>0x0006</ZipBitFlag>
+                                    <ZipCompression>Deflated</ZipCompression>
+                                    <ZipModifyDate>1980:01:01 00:00:00</ZipModifyDate>
+                                    <ZipCRC>0x632e4e72</ZipCRC>
+                                    <ZipCompressedSize>366</ZipCompressedSize>
+                                    <ZipUncompressedSize>706</ZipUncompressedSize>
+                                    <ZipFileName>docProps/app.xml</ZipFileName>
+                                    <Template>Normal</Template>
+                                    <TotalEditTime>1 minute</TotalEditTime>
+                                    <Pages>1</Pages>
+                                    <Words>4</Words>
+                                    <Characters>25</Characters>
+                                    <Application>Microsoft Office Word</Application>
+                                    <DocSecurity>None</DocSecurity>
+                                    <Lines>1</Lines>
+                                    <Paragraphs>1</Paragraphs>
+                                    <ScaleCrop>No</ScaleCrop>
+                                    <Company></Company>
+                                    <LinksUpToDate>No</LinksUpToDate>
+                                    <CharactersWithSpaces>28</CharactersWithSpaces>
+                                    <SharedDoc>No</SharedDoc>
+                                    <HyperlinksChanged>No</HyperlinksChanged>
+                                    <AppVersion>16.0000</AppVersion>
+                                </ExifMetadata>
+                            </premis:objectCharacteristicsExtension>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>objects/new-test-folder-inside-objects/test_word_document.docx</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/new-test-folder-inside-objects/test_word_document.docx">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde">
+        <mets:techMD ID="TECH_metadata/brunnhilde">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics />
+                        <premis:originalName>metadata/brunnhilde</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/virus-definition">
+        <mets:techMD ID="TECH_metadata/virus-definition">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics />
+                        <premis:originalName>metadata/virus-definition</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/exif">
+        <mets:techMD ID="TECH_metadata/exif">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics />
+                        <premis:originalName>metadata/exif</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports">
+        <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics />
+                        <premis:originalName>metadata/brunnhilde/csv_reports</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde/logs">
+        <mets:techMD ID="TECH_metadata/brunnhilde/logs">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics />
+                        <premis:originalName>metadata/brunnhilde/logs</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde/report.html">
+        <mets:techMD ID="TECH_metadata/brunnhilde/report.html">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>4d8583aed490c4d562567a6ee02a4e29e96af5d1ebf02ad05659408f86a3e447</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>6007</premis:size>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>metadata/brunnhilde/report.html</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_metadata/brunnhilde/report.html">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde/siegfried.csv">
+        <mets:techMD ID="TECH_metadata/brunnhilde/siegfried.csv">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>0ee89b2e9aabb4c1a17d00509e16e7f71da4a46923038ed74bb9ef8ea37b600d</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>1181</premis:size>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>metadata/brunnhilde/siegfried.csv</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_metadata/brunnhilde/siegfried.csv">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/virus-definition/virus-definition.txt">
+        <mets:techMD ID="TECH_metadata/virus-definition/virus-definition.txt">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>d1fc437b3a417704f19ec95cc676c4418b8907ac30ec050a59b4fadad5213c06</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>44</premis:size>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>metadata/virus-definition/virus-definition.txt</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_metadata/virus-definition/virus-definition.txt">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/exif/exif_output.txt">
+        <mets:techMD ID="TECH_metadata/exif/exif_output.txt">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>eafc453f4d35d66a0de60f71c53bc30662ee98ae4354c74b9d0e7c336b0aa5fd</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>8561</premis:size>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>metadata/exif/exif_output.txt</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_metadata/exif/exif_output.txt">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports/formats.csv">
+        <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports/formats.csv">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>03147ad548b8d73a4b68badca2f0fb552f798e26118f641a7711573f62f466e8</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>148</premis:size>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>metadata/brunnhilde/csv_reports/formats.csv</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_metadata/brunnhilde/csv_reports/formats.csv">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports/formatversions.csv">
+        <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports/formatversions.csv">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>0db954ff8be21e7448e42508f36b1c8d34671aa7ea22bd8baf3ab80573f5aff9</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>178</premis:size>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>metadata/brunnhilde/csv_reports/formatversions.csv</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_metadata/brunnhilde/csv_reports/formatversions.csv">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports/mimetypes.csv">
+        <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports/mimetypes.csv">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>423ccf3236be9546825afde024fa4bcdd4caf9c4292c255ef5ab18da5918a9c9</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>125</premis:size>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>metadata/brunnhilde/csv_reports/mimetypes.csv</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_metadata/brunnhilde/csv_reports/mimetypes.csv">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde/csv_reports/years.csv">
+        <mets:techMD ID="TECH_metadata/brunnhilde/csv_reports/years.csv">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>6b2f9916df8dad9b37dac154fa9661d39379bf88e6ef25187d44658d57a18360</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>34</premis:size>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>metadata/brunnhilde/csv_reports/years.csv</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_metadata/brunnhilde/csv_reports/years.csv">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_metadata/brunnhilde/logs/viruscheck-log.txt">
+        <mets:techMD ID="TECH_metadata/brunnhilde/logs/viruscheck-log.txt">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>7f58f56a8220d826dd4e836a057c1c5145b93b2aae5a7ff7013ad510a807154f</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>329</premis:size>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>metadata/brunnhilde/logs/viruscheck-log.txt</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_metadata/brunnhilde/logs/viruscheck-log.txt">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:amdSec ID="ADM_objects/new-test-folder-inside-objects/test_pdf_document.pdf">
+        <mets:techMD ID="TECH_objects/new-test-folder-inside-objects/test_pdf_document.pdf">
+            <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                <mets:xmlData>
+                    <premis:object xsi:type="premis:file">
+                        <premis:objectCharacteristics>
+                            <premis:fixity>
+                                <premis:messageDigestAlgorithm xsi:type="premis:messageDigestAlgorithm">SHA256</premis:messageDigestAlgorithm>
+                                <premis:messageDigest>b07b3df4509ddd400f18b0c078f1a40d2241eb716d0ee3b1ec7a97df18ac5305</premis:messageDigest>
+                            </premis:fixity>
+                            <premis:size>16091</premis:size>
+                            <premis:format>
+                                <premis:formatDesignation>
+                                    <premis:formatName xsi:type="premis:formatName">Acrobat PDF 1.7 - Portable Document Format</premis:formatName>
+                                </premis:formatDesignation>
+                                <premis:formatRegistry>
+                                    <premis:formatRegistryName xsi:type="premis:formatRegistryName">PRONOM</premis:formatRegistryName>
+                                    <premis:formatRegistryKey xsi:type="premis:formatRegistryKey">fmt/276</premis:formatRegistryKey>
+                                </premis:formatRegistry>
+                            </premis:format>
+                            <premis:objectCharacteristicsExtension xsi:type="premis:objectCharacteristicsExtension">
+                                <ExifMetadata>
+                                    <ExifToolVersionNumber>12.57</ExifToolVersionNumber>
+                                    <FileName>test_pdf_document.pdf</FileName>
+                                    <Directory>/usr/deposit/deposits/k45nkcbwgyym/objects/new-test-folder-inside-objects</Directory>
+                                    <FileSize>16 kB</FileSize>
+                                    <FileModificationDateTime>2026:01:21 10:17:34+00:00</FileModificationDateTime>
+                                    <FileAccessDateTime>2026:01:21 10:17:34+00:00</FileAccessDateTime>
+                                    <FileInodeChangeDateTime>2026:01:21 10:17:34+00:00</FileInodeChangeDateTime>
+                                    <FilePermissions>-rw-r--r--</FilePermissions>
+                                    <FileType>PDF</FileType>
+                                    <FileTypeExtension>pdf</FileTypeExtension>
+                                    <MIMEType>application/pdf</MIMEType>
+                                    <PDFVersion>1.7</PDFVersion>
+                                    <Linearized>No</Linearized>
+                                    <PageCount>1</PageCount>
+                                    <Language>en</Language>
+                                    <TaggedPDF>Yes</TaggedPDF>
+                                    <XMPToolkit>3.1-701</XMPToolkit>
+                                    <Producer>Microsoft® Word for Microsoft 365</Producer>
+                                    <Creator>Christine MacDonald</Creator>
+                                    <CreatorTool>Microsoft® Word for Microsoft 365</CreatorTool>
+                                    <CreateDate>2024:10:21 15:47:42+01:00</CreateDate>
+                                    <ModifyDate>2024:10:21 15:47:42+01:00</ModifyDate>
+                                    <DocumentID>uuid:C6D89083-A270-4A80-B15A-25B2787B93EB</DocumentID>
+                                    <InstanceID>uuid:C6D89083-A270-4A80-B15A-25B2787B93EB</InstanceID>
+                                    <Author>Christine MacDonald</Author>
+                                    <Creator>Microsoft® Word for Microsoft 365</Creator>
+                                    <CreateDate>2024:10:21 15:47:42+01:00</CreateDate>
+                                    <ModifyDate>2024:10:21 15:47:42+01:00</ModifyDate>
+                                    <Producer>Microsoft® Word for Microsoft 365</Producer>
+                                </ExifMetadata>
+                            </premis:objectCharacteristicsExtension>
+                        </premis:objectCharacteristics>
+                        <premis:originalName>objects/new-test-folder-inside-objects/test_pdf_document.pdf</premis:originalName>
+                    </premis:object>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:techMD>
+        <mets:digiprovMD ID="digiprovMD_ClamAV_ADM_objects/new-test-folder-inside-objects/test_pdf_document.pdf">
+            <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                <mets:xmlData>
+                    <premis:event xmlns:version="3.0">
+                        <premis:eventType>virus check</premis:eventType>
+                        <premis:eventDateTime>Wednesday, 21 January 2026</premis:eventDateTime>
+                        <premis:eventDetailInformation>
+                            <premis:eventDetail>
+                                ClamAV 1.4.3/27886/Tue Jan 20 07:24:12 2026
+                            </premis:eventDetail>
+                        </premis:eventDetailInformation>
+                        <premis:eventOutcomeInformation>
+                            <premis:eventOutcome>Pass</premis:eventOutcome>
+                            <premis:eventOutcomeDetail>
+                                <premis:eventOutcomeDetailNote />
+                            </premis:eventOutcomeDetail>
+                        </premis:eventOutcomeInformation>
+                    </premis:event>
+                </mets:xmlData>
+            </mets:mdWrap>
+        </mets:digiprovMD>
+    </mets:amdSec>
+    <mets:fileSec>
+        <mets:fileGrp USE="OBJECTS">
+            <mets:file ID="FILE_objects/new-test-folder-inside-objects/test_image().jpg" MIMETYPE="application/pdf" ADMID="ADM_objects/new-test-folder-inside-objects/test_image().jpg">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/new-test-folder-inside-objects/test_image().jpg" />
+            </mets:file>
+            <mets:file ID="FILE_objects/new-test-folder-inside-objects/test_word_document.docx" MIMETYPE="application/vnd.openxmlformats-officedocument.wordprocessingml.document" ADMID="ADM_objects/new-test-folder-inside-objects/test_word_document.docx">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/new-test-folder-inside-objects/test_word_document.docx" />
+            </mets:file>
+            <mets:file ID="FILE_metadata/brunnhilde/report.html" MIMETYPE="text/html" ADMID="ADM_metadata/brunnhilde/report.html">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/report.html" />
+            </mets:file>
+            <mets:file ID="FILE_metadata/brunnhilde/siegfried.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/siegfried.csv">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/siegfried.csv" />
+            </mets:file>
+            <mets:file ID="FILE_metadata/virus-definition/virus-definition.txt" MIMETYPE="text/plain" ADMID="ADM_metadata/virus-definition/virus-definition.txt">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/virus-definition/virus-definition.txt" />
+            </mets:file>
+            <mets:file ID="FILE_metadata/exif/exif_output.txt" MIMETYPE="text/plain" ADMID="ADM_metadata/exif/exif_output.txt">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/exif/exif_output.txt" />
+            </mets:file>
+            <mets:file ID="FILE_metadata/brunnhilde/csv_reports/formats.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/csv_reports/formats.csv">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/csv_reports/formats.csv" />
+            </mets:file>
+            <mets:file ID="FILE_metadata/brunnhilde/csv_reports/formatversions.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/csv_reports/formatversions.csv">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/csv_reports/formatversions.csv" />
+            </mets:file>
+            <mets:file ID="FILE_metadata/brunnhilde/csv_reports/mimetypes.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/csv_reports/mimetypes.csv">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/csv_reports/mimetypes.csv" />
+            </mets:file>
+            <mets:file ID="FILE_metadata/brunnhilde/csv_reports/years.csv" MIMETYPE="text/csv" ADMID="ADM_metadata/brunnhilde/csv_reports/years.csv">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/csv_reports/years.csv" />
+            </mets:file>
+            <mets:file ID="FILE_metadata/brunnhilde/logs/viruscheck-log.txt" MIMETYPE="text/plain" ADMID="ADM_metadata/brunnhilde/logs/viruscheck-log.txt">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="metadata/brunnhilde/logs/viruscheck-log.txt" />
+            </mets:file>
+            <mets:file ID="FILE_objects/new-test-folder-inside-objects/test_pdf_document.pdf" MIMETYPE="application/pdf" ADMID="ADM_objects/new-test-folder-inside-objects/test_pdf_document.pdf">
+                <mets:FLocat LOCTYPE="URL" xlink:type="simple" xlink:href="objects/new-test-folder-inside-objects/test_pdf_document.pdf" />
+            </mets:file>
+        </mets:fileGrp>
+    </mets:fileSec>
+    <mets:structMap TYPE="PHYSICAL">
+        <mets:div ID="PHYS_ROOT" LABEL="__ROOT" DMDID="DMD_PHYS_ROOT" TYPE="Directory">
+            <mets:div ID="PHYS_metadata" LABEL="metadata" DMDID="DMD_metadata" ADMID="ADM_metadata" TYPE="Directory">
+                <mets:div ID="PHYS_metadata/brunnhilde" LABEL="brunnhilde" ADMID="ADM_metadata/brunnhilde" TYPE="Directory">
+                    <mets:div ID="PHYS_metadata/brunnhilde/csv_reports" LABEL="csv_reports" ADMID="ADM_metadata/brunnhilde/csv_reports" TYPE="Directory">
+                        <mets:div ID="PHYS_metadata/brunnhilde/csv_reports/formats.csv" LABEL="formats.csv" TYPE="Item">
+                            <mets:fptr FILEID="FILE_metadata/brunnhilde/csv_reports/formats.csv" />
+                        </mets:div>
+                        <mets:div ID="PHYS_metadata/brunnhilde/csv_reports/formatversions.csv" LABEL="formatVersions.csv" TYPE="Item">
+                            <mets:fptr FILEID="FILE_metadata/brunnhilde/csv_reports/formatversions.csv" />
+                        </mets:div>
+                        <mets:div ID="PHYS_metadata/brunnhilde/csv_reports/mimetypes.csv" LABEL="mimetypes.csv" TYPE="Item">
+                            <mets:fptr FILEID="FILE_metadata/brunnhilde/csv_reports/mimetypes.csv" />
+                        </mets:div>
+                        <mets:div ID="PHYS_metadata/brunnhilde/csv_reports/years.csv" LABEL="years.csv" TYPE="Item">
+                            <mets:fptr FILEID="FILE_metadata/brunnhilde/csv_reports/years.csv" />
+                        </mets:div>
+                    </mets:div>
+                    <mets:div ID="PHYS_metadata/brunnhilde/logs" LABEL="logs" ADMID="ADM_metadata/brunnhilde/logs" TYPE="Directory">
+                        <mets:div ID="PHYS_metadata/brunnhilde/logs/viruscheck-log.txt" LABEL="viruscheck-log.txt" TYPE="Item">
+                            <mets:fptr FILEID="FILE_metadata/brunnhilde/logs/viruscheck-log.txt" />
+                        </mets:div>
+                    </mets:div>
+                    <mets:div ID="PHYS_metadata/brunnhilde/report.html" LABEL="report.html" TYPE="Item">
+                        <mets:fptr FILEID="FILE_metadata/brunnhilde/report.html" />
+                    </mets:div>
+                    <mets:div ID="PHYS_metadata/brunnhilde/siegfried.csv" LABEL="siegfried.csv" TYPE="Item">
+                        <mets:fptr FILEID="FILE_metadata/brunnhilde/siegfried.csv" />
+                    </mets:div>
+                </mets:div>
+                <mets:div ID="PHYS_metadata/exif" LABEL="exif" ADMID="ADM_metadata/exif" TYPE="Directory">
+                    <mets:div ID="PHYS_metadata/exif/exif_output.txt" LABEL="exif_output.txt" TYPE="Item">
+                        <mets:fptr FILEID="FILE_metadata/exif/exif_output.txt" />
+                    </mets:div>
+                </mets:div>
+                <mets:div ID="PHYS_metadata/virus-definition" LABEL="virus-definition" ADMID="ADM_metadata/virus-definition" TYPE="Directory">
+                    <mets:div ID="PHYS_metadata/virus-definition/virus-definition.txt" LABEL="virus-definition.txt" TYPE="Item">
+                        <mets:fptr FILEID="FILE_metadata/virus-definition/virus-definition.txt" />
+                    </mets:div>
+                </mets:div>
+            </mets:div>
+            <mets:div ID="PHYS_objects" LABEL="objects" DMDID="DMD_objects" ADMID="ADM_objects" TYPE="Directory">
+                <mets:div ID="PHYS_objects/new-test-folder-inside-objects" LABEL="New test folder inside objects" ADMID="ADM_objects/new-test-folder-inside-objects" TYPE="Directory">
+                    <mets:div ID="PHYS_objects/new-test-folder-inside-objects/test_image().jpg" LABEL="test_image().jpg" TYPE="Item">
+                        <mets:fptr FILEID="FILE_objects/new-test-folder-inside-objects/test_image().jpg" />
+                    </mets:div>
+                    <mets:div ID="PHYS_objects/new-test-folder-inside-objects/test_pdf_document.pdf" LABEL="test_pdf_document.pdf" TYPE="Item">
+                        <mets:fptr FILEID="FILE_objects/new-test-folder-inside-objects/test_pdf_document.pdf" />
+                    </mets:div>
+                    <mets:div ID="PHYS_objects/new-test-folder-inside-objects/test_word_document.docx" LABEL="test_word_document.docx" TYPE="Item">
+                        <mets:fptr FILEID="FILE_objects/new-test-folder-inside-objects/test_word_document.docx" />
+                    </mets:div>
+                </mets:div>
+            </mets:div>
+        </mets:div>
+    </mets:structMap>
+</mets:mets>
