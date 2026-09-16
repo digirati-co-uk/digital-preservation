@@ -342,6 +342,14 @@ public class ExecuteImportJobHandler(
                 $"Archival Group {importJob.ArchivalGroup} is not a path under the repository root: {agReason}");
         }
 
+        // Every resource the job names must lie strictly below its Archival Group - by repository
+        // path, so the host does not matter. This is the Storage API's own copy of the check the
+        // Preservation API makes on a posted job: a job that declares the right group but names a
+        // resource in another would otherwise write there. Strictly below, so the group itself
+        // cannot be named as a binary or container.
+        var groupPath = importJob.ArchivalGroup.GetPathUnderRoot()!.TrimEnd('/') + "/";
+        bool WithinGroup(Uri id) => id.GetPathUnderRoot()?.StartsWith(groupPath, StringComparison.Ordinal) == true;
+
         var allBinaries =
             importJob.BinariesToAdd
             .Union(importJob.BinariesToPatch)
@@ -361,6 +369,10 @@ public class ExecuteImportJobHandler(
             {
                 return Result.Fail(ErrorCodes.BadRequest, $"Binary ID {binaryId} is not a path under the repository root: {reason}");
             }
+            if (!WithinGroup(binaryId))
+            {
+                return Result.Fail(ErrorCodes.BadRequest, $"Binary ID {binaryId} is not within the job's Archival Group {importJob.ArchivalGroup}");
+            }
         }
 
         var allContainers =
@@ -376,6 +388,10 @@ public class ExecuteImportJobHandler(
             if (!SafeRepositoryPath.IsRepositoryPath(containerId.GetPathUnderRoot(), out var reason))
             {
                 return Result.Fail(ErrorCodes.BadRequest, $"Container ID {containerId} is not a path under the repository root: {reason}");
+            }
+            if (!WithinGroup(containerId))
+            {
+                return Result.Fail(ErrorCodes.BadRequest, $"Container ID {containerId} is not within the job's Archival Group {importJob.ArchivalGroup}");
             }
         }
         return Result.Ok();
