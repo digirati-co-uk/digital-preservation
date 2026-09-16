@@ -37,4 +37,8 @@
       </None>
     </ItemGroup>
 
+    <ItemGroup>
+        <None Update="Samples/**/*.xml" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>
