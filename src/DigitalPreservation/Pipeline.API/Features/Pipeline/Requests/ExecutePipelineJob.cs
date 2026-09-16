@@ -168,20 +168,46 @@ public class ProcessPipelineJobHandler(
         {
             workspaceResult = await GetWorkspaceManager(request, true, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Shutdown, not failure: the job was interrupted, not processed, and must not be recorded
+            // as completedWithErrors - nor is another remote call during shutdown a good idea.
+            throw;
+        }
         catch (Exception e)
         {
             // Resolving the workspace reads and parses the deposit's METS; a METS the parser refuses
             // (a path that climbs out of the deposit, say) must fail the job, not escape the handler.
+            // The full exception goes to the log; the recorded message stays generic, because an
+            // exception from a storage, filesystem, XML or HTTP layer can carry internal detail.
             logger.LogError(e, "Could not resolve the workspace for pipeline job {JobIdentifier}, deposit {DepositId}",
                 request.JobIdentifier, request.DepositId);
-            workspaceResult = Result.FailNotNull<WorkspaceManager>(ErrorCodes.UnknownError, e.Message);
+            workspaceResult = Result.FailNotNull<WorkspaceManager>(ErrorCodes.UnknownError,
+                $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: "
+                + "the deposit workspace could not be resolved (see the Pipeline API log)");
         }
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)
         {
-            var message = $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: "
-                          + (workspaceResult.ErrorMessage ?? "could not find the deposit");
+            var message = workspaceResult.ErrorMessage
+                          ?? $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: could not find the deposit";
             // The job was claimed as Running above. Record the failure, or it stays Running for ever.
-            await UpdateJobStatus(request, PipelineJobStates.CompletedWithErrors, message, cancellationToken);
+            // Best effort: if the Preservation API cannot be reached to record it, the job does stay
+            // Running - there is no queue message left to retry from - so say so, loudly, and still
+            // return the original failure rather than the recording failure.
+            try
+            {
+                var recorded = await UpdateJobStatus(request, PipelineJobStates.CompletedWithErrors, message, cancellationToken);
+                if (recorded.Failure)
+                {
+                    logger.LogCritical("Pipeline job {JobIdentifier} for deposit {DepositId} failed and its failure could NOT be recorded; it will show as Running: {Error}",
+                        request.JobIdentifier, request.DepositId, recorded.ErrorMessage);
+                }
+            }
+            catch (Exception recordingException) when (recordingException is not OperationCanceledException)
+            {
+                logger.LogCritical(recordingException, "Pipeline job {JobIdentifier} for deposit {DepositId} failed and its failure could NOT be recorded; it will show as Running",
+                    request.JobIdentifier, request.DepositId);
+            }
             return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError, message);
         }
 

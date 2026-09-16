@@ -15,8 +15,10 @@ public class ApiKeyMiddleware(IOptions<ApiKeyOptions> apiKeyOptions) : IMiddlewa
     {
         bool apiKeyValid;
 
-        // An empty configured key is as good as none: with it, an absent header would compare equal.
-        if (string.IsNullOrEmpty(headerName) || string.IsNullOrEmpty(apiKey))
+        // An empty or whitespace configured key is as good as none: with it, an absent or blank
+        // header would compare equal. A real key with deliberate surrounding spaces is not a case
+        // worth supporting.
+        if (string.IsNullOrEmpty(headerName) || string.IsNullOrWhiteSpace(apiKey))
         {
             apiKeyValid = false;
         }
