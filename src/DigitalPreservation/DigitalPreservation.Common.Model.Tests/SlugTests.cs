@@ -22,6 +22,8 @@ public class SlugTests
     [Theory]
     [InlineData(".")]
     [InlineData("..")]
+    [InlineData("%2e%2e")]
+    [InlineData("%2E")]
     public void A_Dot_Segment_Is_Not_A_Valid_Slug(string slug)
     {
         PreservedResource.ValidSlug(slug, out var reason).Should().BeFalse();
@@ -31,6 +33,7 @@ public class SlugTests
     [Theory]
     [InlineData(".", "-")]
     [InlineData("..", "--")]
+    [InlineData("%2e%2e", "-2e-2e")]
     [InlineData("...", "...")]
     [InlineData("My File.TIF", "my-file.tif")]
     public void MakeValidSlug_Never_Produces_A_Dot_Segment(string name, string expected)

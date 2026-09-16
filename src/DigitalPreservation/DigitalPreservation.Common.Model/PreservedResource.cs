@@ -88,7 +88,7 @@ public abstract class PreservedResource : Resource
 
         if (valid)
         {
-            if (slug is "." or "..")
+            if (UriPathX.IsDotSegment(slug))
             {
                 // Every character is legal, but as a whole the slug is a dot segment: resolved against
                 // a parent URI it names the parent, not a child.
@@ -145,6 +145,6 @@ public abstract class PreservedResource : Resource
         }
         var slug = sb.ToString();
         // See IsValidSlug: a name that is only a dot segment would resolve to the parent.
-        return slug is "." or ".." ? slug.Replace('.', '-') : slug;
+        return UriPathX.IsDotSegment(slug) ? slug.Replace('.', '-').Replace('%', '-') : slug;
     }
 }

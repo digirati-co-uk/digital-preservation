@@ -23,12 +23,19 @@ public static class UriPathX
     /// </summary>
     public static bool IsTraversalSegment(string segment)
     {
-        if (segment is "." or "..") return true;
+        if (IsDotSegment(segment)) return true;
         if (segment.IndexOfAny(Redirecting) >= 0) return true;
         var decoded = Uri.UnescapeDataString(segment);
-        return decoded is "." or ".."
-               || decoded.Contains('/') || decoded.IndexOfAny(Redirecting) >= 0;
+        return decoded.Contains('/') || decoded.IndexOfAny(Redirecting) >= 0;
     }
+
+    /// <summary>
+    /// True if the segment is <c>.</c> or <c>..</c>, as given or after one percent-decoding. The one
+    /// definition of a dot segment, used wherever a name becomes part of a path: URI paths here,
+    /// METS paths in the parser, and slugs.
+    /// </summary>
+    public static bool IsDotSegment(string segment) =>
+        segment is "." or ".." || Uri.UnescapeDataString(segment) is "." or "..";
 
     private static readonly char[] Redirecting = ['\\', '\0', '#', '?', ':'];
 }

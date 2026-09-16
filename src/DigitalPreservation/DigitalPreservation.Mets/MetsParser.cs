@@ -41,8 +41,7 @@ public class MetsParser(
     /// </summary>
     private static void RejectDotSegments(string path, string what)
     {
-        if (path.Contains('\\') || path.Split('/').Any(segment =>
-                segment is "." or ".." || Uri.UnescapeDataString(segment) is "." or ".."))
+        if (path.Contains('\\') || path.Split('/').Any(UriPathX.IsDotSegment))
         {
             throw new NotSupportedException(
                 $"{what} '{path}' contains a dot segment or backslash; METS paths must be relative to the deposit root and may not climb out of it");

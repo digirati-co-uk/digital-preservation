@@ -348,6 +348,7 @@ public class ImportJobsController(
     private ActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
     {
         string? message = null;
+        var resourceIds = ResourceIds(importJob).ToList();
         if (importJob.Deposit is null)
         {
             message = "Import job must declare which Deposit it is for.";
@@ -369,11 +370,11 @@ public class ImportJobsController(
         {
             message = $"Binary origin {invalidBinary.Origin} is not a child of deposit file location {deposit.Files}.";
         }
-        else if (ResourceIds(importJob).Any(id => id is null))
+        else if (resourceIds.Any(id => id is null))
         {
             message = "Every binary and container in an Import Job must have an id.";
         }
-        else if (ResourceIds(importJob).FirstOrDefault(id => !IsWithinArchivalGroup(id!, importJob.ArchivalGroup)) is { } strayId)
+        else if (resourceIds.FirstOrDefault(id => !IsWithinArchivalGroup(id!, importJob.ArchivalGroup)) is { } strayId)
         {
             message = $"Import job names {strayId}, which is not within its Archival Group {importJob.ArchivalGroup}.";
         }
