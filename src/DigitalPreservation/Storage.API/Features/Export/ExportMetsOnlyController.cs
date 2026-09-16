@@ -1,4 +1,6 @@
-﻿using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model.Results;
+using Storage.API.Fedora.Model;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +23,16 @@ public class ExportMetsOnlyController(
         [FromBody] ExportResource export,
         CancellationToken cancellationToken = default)
     {
+        // Body-bound path: the route filter never sees it, so the same rule the queue handler applies.
+        if (export.ArchivalGroup == null)
+        {
+            return ControllerX.GetProblemObjectResult(Result.Fail(ErrorCodes.BadRequest, "Export has no Archival Group"));
+        }
+        if (!SafeRepositoryPath.IsRepositoryPath(export.ArchivalGroup.GetPathUnderRoot(), out var pathReason))
+        {
+            return ControllerX.GetProblemObjectResult(Result.Fail(ErrorCodes.BadRequest,
+                $"Export Archival Group {export.ArchivalGroup} is not a path under the repository root: {pathReason}"));
+        }
         logger.LogInformation("Synchronously exporting METS export for {Path}", export.ArchivalGroup.GetPathUnderRoot());
         var metsExportResult = await mediator.Send(new ExecuteExport(null, export, true), cancellationToken);
         return this.StatusResponseFromResult(metsExportResult);

@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
 
@@ -145,9 +145,32 @@ public class Converters
         return new Uri(contentUri);
     }
 
-    public Uri RepositoryUriFromPathUnderRoot(string pathUnderRoot)
+    /// <summary>
+    /// The Storage API's own URI for a path under the repository root. Same rule and same
+    /// post-construction check as <see cref="GetFedoraUri"/>: a path that could leave the root is
+    /// refused before a URI is built from it, and the result must still be under the root.
+    /// </summary>
+    public Uri RepositoryUriFromPathUnderRoot(string pathUnderRoot) =>
+        UnderRoot(new Uri(repositoryRoot), pathUnderRoot, nameof(pathUnderRoot));
+
+    /// <summary>
+    /// The one way a caller-supplied path becomes a URI under a root: refuse anything that could
+    /// leave the root before building, then check that what was built is still under it.
+    /// </summary>
+    private static Uri UnderRoot(Uri root, string? pathUnderRoot, string paramName)
     {
-        return new Uri(repositoryRoot + pathUnderRoot);
+        if (!SafeRepositoryPath.IsRepositoryPath(pathUnderRoot, out var reason))
+        {
+            throw new ArgumentException(
+                $"'{pathUnderRoot}' is not a path under the repository root: {reason}.", paramName);
+        }
+        var uri = new Uri(root, pathUnderRoot);
+        if (!root.IsBaseOf(uri))
+        {
+            throw new ArgumentException(
+                $"'{pathUnderRoot}' resolved to {uri}, which is not under the repository root.", paramName);
+        }
+        return uri;
     }
 
     public Uri GetAgentUri(string identitySlug)
@@ -172,10 +195,15 @@ public class Converters
         return new Uri(agentUri);
     }
 
-    internal Uri GetFedoraUri(string? pathUnderFedoraRoot)
-    {
-        return new Uri(fedoraOptions.Root, pathUnderFedoraRoot);
-    }
+    /// <summary>
+    /// The Fedora URI for a path under the repository root. Relative-reference resolution against the
+    /// root would follow <c>//host</c>, <c>/path</c> and <c>..</c> out of the repository - and the client
+    /// sends the admin credential wherever it goes - so the path is checked first, and the result is
+    /// checked to still be under the root. Controllers refuse bad paths with a 400 before reaching here
+    /// (see <see cref="Web.RepositoryPathFilter"/>); this is the last line of defence for every other route in.
+    /// </summary>
+    internal Uri GetFedoraUri(string? pathUnderFedoraRoot) =>
+        UnderRoot(fedoraOptions.Root, pathUnderFedoraRoot, nameof(pathUnderFedoraRoot));
 
     public string GetFedoraDbId(string? pathUnderFedoraRoot)
     {
