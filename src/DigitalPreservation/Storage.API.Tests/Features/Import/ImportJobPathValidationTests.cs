@@ -68,6 +68,52 @@ public class ImportJobPathValidationTests
     }
 
     [Fact]
+    public void A_Binary_In_Another_Archival_Group_Is_Refused()
+    {
+        var job = Job("https://storage.test/repository/cc/thing");
+        job.BinariesToDelete.Add(new Binary { Id = new Uri("https://storage.test/repository/cc/someone-elses-thing/objects/x.tif") });
+
+        var result = ExecuteImportJobHandler.PreProcessValidateImportJob(job);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorMessage.Should().Contain("not within the job's Archival Group");
+    }
+
+    [Fact]
+    public void A_Container_In_A_Sibling_Group_Sharing_A_Name_Prefix_Is_Refused()
+    {
+        var job = Job("https://storage.test/repository/cc/thing");
+        job.ContainersToAdd.Add(new Container { Id = new Uri("https://storage.test/repository/cc/thing2/objects") });
+
+        var result = ExecuteImportJobHandler.PreProcessValidateImportJob(job);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorMessage.Should().Contain("not within the job's Archival Group");
+    }
+
+    [Fact]
+    public void The_Archival_Group_Itself_Is_Not_A_Valid_Resource_Id()
+    {
+        var job = Job("https://storage.test/repository/cc/thing");
+        job.BinariesToAdd.Add(new Binary { Id = new Uri("https://storage.test/repository/cc/thing") });
+
+        var result = ExecuteImportJobHandler.PreProcessValidateImportJob(job);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorMessage.Should().Contain("not within the job's Archival Group");
+    }
+
+    [Fact]
+    public void A_Resource_On_The_Preservation_Host_Under_The_Same_Group_Passes()
+    {
+        // Compared by repository path, so a job whose ids carry a different host is not refused for it.
+        var job = Job("https://storage.test/repository/cc/thing");
+        job.BinariesToAdd.Add(new Binary { Id = new Uri("https://preservation.test/repository/cc/thing/objects/x.tif") });
+
+        ExecuteImportJobHandler.PreProcessValidateImportJob(job).Success.Should().BeTrue();
+    }
+
+    [Fact]
     public void A_Job_With_No_Archival_Group_Is_Refused()
     {
         var result = ExecuteImportJobHandler.PreProcessValidateImportJob(new ImportJob());
