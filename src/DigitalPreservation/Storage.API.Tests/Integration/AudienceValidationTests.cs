@@ -78,6 +78,18 @@ public class AudienceValidationTests
         ["AzureAd:Audiences:1"] = OwnAudience,
     };
 
+    /// <summary>
+    /// Both keys at once — the state a config flip passes through if the singular key is not
+    /// removed in the same change. The singular value is deliberately NOT in the list, so the
+    /// test can tell which source wins.
+    /// </summary>
+    private static Dictionary<string, string?> BothKeysShape => new(BaseAzureAd)
+    {
+        ["AzureAd:Audience"] = ForeignAudience,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:0"] = TransitionalAudience,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:1"] = OwnAudience,
+    };
+
     private static TestServer BuildServer(Dictionary<string, string?> azureAdSettings)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(azureAdSettings).Build();
@@ -192,6 +204,23 @@ public class AudienceValidationTests
 
         (await Probe(server, TransitionalAudience)).Should().Be(HttpStatusCode.OK);
         (await Probe(server, OwnAudience)).Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task BothKeysPresent_AcceptanceIsTheUnion()
+    {
+        // Characterises the mid-flip state: with both keys present, acceptance is the UNION —
+        // the ValidAudiences list is honoured AND the singular Audience value stays accepted.
+        // Operational consequence for the RFC-0001 activation flip: adding the list does not
+        // silence the singular key, so the flip should replace it, not accumulate alongside it.
+        // (In the real flip the singular value — the transitional audience — is in the list
+        // anyway, so even a forgotten removal changes nothing; this pin is what proves that.)
+        using var server = BuildServer(BothKeysShape);
+
+        (await Probe(server, TransitionalAudience)).Should().Be(HttpStatusCode.OK);
+        (await Probe(server, OwnAudience)).Should().Be(HttpStatusCode.OK);
+        (await Probe(server, ForeignAudience)).Should().Be(HttpStatusCode.OK,
+            "the singular Audience key (deliberately set to the foreign value here) is still live");
     }
 
     [Fact]

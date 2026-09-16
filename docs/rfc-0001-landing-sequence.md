@@ -56,20 +56,25 @@ A small PR, **opened after #208 is on `main`**, that brings across what is worth
 branch *in corrected form*, rather than merging that branch as-is. Comparison §7.1 is the spec; in
 summary:
 
-1. **Guarded `PostConfigure<JwtBearerOptions>`** — hoist the LPII-166 block out of the two `Program.cs`
-   files into one `DigitalPreservation.Core` extension (e.g. `AddValidAudiencesOverride`), called from
-   both APIs. It acts only when the new config section is present; the existing singular `Audience`
-   remains the fallback, which is what makes deploy-then-activate possible.
-2. **Settle the config location** — `Authentication:ValidAudiences` (the LPII-166 shape) or
-   `AzureAd:TokenValidationParameters:ValidAudiences` (the RFC's). Pick one, then **re-pin
-   `Storage.API.Tests/Integration/AudienceValidationTests.cs`** to it in the same PR, and update both
-   `appsettings.Example.json` files and RFC §6 Phase 0.
-3. **`ResourceUri` on `AccessTokenProvider`** (RFC Phase 2 option (a)) with both defects fixed:
-   - exempt `ResourceUri` (or all optional properties) from the reflection `nullCheck`, so deploying
-     without the new key does not kill token acquisition;
-   - send the *target* resource, not the caller's own `ClientId` — preferably by moving to the v2
+1. ~~**Guarded `PostConfigure<JwtBearerOptions>`**~~ — **not needed** (established 2026-09-16):
+   `AudienceValidationTests` proves `AzureAd:TokenValidationParameters:ValidAudiences` binds through
+   the stock `AddMicrosoftIdentityWebApi(GetSection("AzureAd"))` path both APIs already use — both
+   audiences accepted, foreign rejected — so the dual-audience mechanism ships on #208 as pure
+   config with no code of its own. The LPII-166 `PostConfigure` block has nothing left to do.
+2. ~~**Settle the config location**~~ — **already settled** on
+   `AzureAd:TokenValidationParameters:ValidAudiences`: the tests are pinned to it, both
+   `appsettings.Example.json` files document it, and RFC §6 Phase 0 prescribes it (with the
+   top-level-`Audiences`-binds-to-nothing caution).
+3. **`ResourceUri` on `AccessTokenProvider`** (RFC Phase 2 option (a)) with both defects fixed —
+   *the whole of the follow-up PR*:
+   - only the credential triplet (`TenantId`/`ClientId`/`ClientSecret`) gates acquisition; the
+     optional `ResourceUri` must not, so deploying without the new key changes nothing (the
+     LPII-166 reflection `nullCheck` defect, pinned by a regression test);
+   - when `ResourceUri` is set, request the *target* resource from the v2
      `/oauth2/v2.0/token` endpoint with `scope = {ResourceUri}/.default` (RFC Appendix B wants this
-     anyway). Add a test that asserts the outgoing form body.
+     anyway); when unset, the legacy v1 self-token path is byte-for-byte unchanged. Tests assert
+     the outgoing form body on both paths (note: the v2 endpoint returns `expires_in` as a JSON
+     number, which the old `Dictionary<string, string>` deserialization would have rejected).
 
 **Why a follow-up rather than merging the LPII-166 branch:** its three files carry both the mechanics and
 the two defects, and that branch predates #208. Cherry-picking the ideas into a branch cut from
@@ -89,9 +94,13 @@ previous one:
 
 1. **Leeds admin does Phase 0** (admin doc Part 1: role, delegated scope, `idtyp` claim). Independent of
    code — can be requested now, in parallel with steps 1–2.
-2. **Config flip: accept both audiences** (the `ValidAudiences` section from step 2, listing
-   `api://a616cf42…` *and* `api://84c62880…`). Deploy-then-activate: the code from step 2 is already
-   live and idle; adding the section activates it. Verify with `/whoami` and the audience tests' shapes.
+2. **Config flip: accept both audiences** — *replace* the singular `AzureAd:Audience` key with
+   `AzureAd:TokenValidationParameters:ValidAudiences` listing `api://a616cf42…` *and*
+   `api://84c62880…`. This is pure config against the stock binding already on `main` from #208 —
+   no code waits on it. With both keys present acceptance is the *union* (pinned by
+   `AudienceValidationTests`), so a forgotten removal of the singular key is harmless here (its
+   value is in the list) but replace-not-accumulate is the rule. Verify with `/whoami` and the
+   audience tests' shapes.
 3. **Phase 1 — Goobi's registration + role assignment**, its `KnownClients` profile with `depositBucket`.
    This is the point where Goobi is delivered; nothing user-visible waits on the later phases (which is
    exactly why RFC §6's completion commitment exists — name an owner and date for Phases 2–4 here).
