@@ -108,6 +108,34 @@ previous one:
    `AADSTS501051`), repoint the UI (delegated scope consent + user assignments first, or `AADSTS50105`),
    retire the transitional audience, switch the human/machine predicate to `idtyp`, remove the header.
 
+**How the rungs are spelled in deployed config.** The deployed environments configure the APIs
+through env vars in the ops repo's terraform (ECS task definitions; `__` maps to `:`, lists need
+indexed keys), so each rung's "config flip" is literally an edit to those maps:
+
+- *Rung 2 (per API)* — replace the `AzureAd__Audience` entry with the list:
+
+  ```
+  AzureAd__TokenValidationParameters__ValidAudiences__0 = api://a616cf42…   (transitional)
+  AzureAd__TokenValidationParameters__ValidAudiences__1 = api://84c62880…   (the API's own)
+  ```
+
+  The audience values are not secrets; they can live in the task definition's plain `environment`
+  map rather than the secrets map.
+- *Rung 3 (per caller, on both APIs)* — `KnownClients` entries are plain env vars too (GUID
+  hyphens are fine in ECS env var names):
+
+  ```
+  KnownClients__<caller-app-id>__Name          = goobi
+  KnownClients__<caller-app-id>__DepositBucket = <goobi bucket>
+  ```
+
+- *Rung 4, Phase 2* — one line alongside the existing `TokenProvider__*` trio:
+  `TokenProvider__ResourceUri = api://84c62880…`, and repoint that trio's source from the UI
+  registration's credentials to the API's own (today Preservation API and Pipeline API both mint
+  as the UI registration — the "mint as `a616cf42…`" arrangement Phase 2 exists to replace).
+- *Rung 4, retirement* — delete the `…ValidAudiences__0` (transitional) line, leaving only the
+  API's own audience.
+
 **Standing rule for the whole transition window:** every build keeps supporting **both** models until
 production has completed the ladder. An environment's position on the ladder is expressed in its
 configuration (`ValidAudiences`, `KnownClients`) and its tenant's Entra state — never in the build —
