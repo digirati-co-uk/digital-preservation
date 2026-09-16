@@ -22,6 +22,12 @@ public class QueueImportJobHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(QueueImportJob request, CancellationToken cancellationToken)
     {
+        var preCheck = ExecuteImportJobHandler.PreProcessValidateImportJob(request.ImportJob);
+        if (preCheck.Failure)
+        {
+            return Result.FailNotNull<ImportJobResult>(preCheck.ErrorCode ?? ErrorCodes.BadRequest,
+                preCheck.ErrorMessage ?? "Import job is not valid");
+        }
         if (request.ImportJob.LastModifiedBy == null)
         {
             logger.LogError("Import Job {ImportJobId} does not have a LastModifiedBy", request.ImportJob.Id?.GetSlug());

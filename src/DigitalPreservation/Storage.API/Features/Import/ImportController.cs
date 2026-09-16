@@ -1,4 +1,4 @@
-﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Core.Web;
 using MediatR;
@@ -27,8 +27,9 @@ public class ImportController(
         [FromRoute] string archivalGroupPathUnderRoot,
         CancellationToken cancellationToken = default
     )
-    { 
-        archivalGroupPathUnderRoot = Uri.UnescapeDataString(archivalGroupPathUnderRoot);
+    {
+        // Routing has already decoded the route value once. A second decode turned "%252e%252e" into
+        // "..", and "%2F%2Fevil.com" into "//evil.com", which relative-reference resolution then follows.
         var archivalGroupResult = await mediator.Send(new GetValidatedArchivalGroupForImportJob(archivalGroupPathUnderRoot), cancellationToken);
         if (archivalGroupResult.Failure)
         {
