@@ -342,41 +342,49 @@ public class ExecuteImportJobHandler(
                 $"Archival Group {importJob.ArchivalGroup} is not a path under the repository root: {agReason}");
         }
 
-        var allBinaries =
-            importJob.BinariesToAdd
+        var binaryIds = importJob.BinariesToAdd
             .Union(importJob.BinariesToPatch)
             .Union(importJob.BinariesToRename)
-            .Union(importJob.BinariesToDelete);
-        foreach (var binaryId in allBinaries.Select(binary => binary.Id))
-        {
-            if (binaryId == null)
-            {
-                return Result.Fail(ErrorCodes.BadRequest, "Binary ID is null");
-            }
-            if (binaryId.LocalPath.Contains('#'))
-            {
-                return Result.Fail(ErrorCodes.BadRequest, $"Binary ID contains a fragment identifier (#): {binaryId}");
-            }
-            if (!SafeRepositoryPath.IsRepositoryPath(binaryId.GetPathUnderRoot(), out var reason))
-            {
-                return Result.Fail(ErrorCodes.BadRequest, $"Binary ID {binaryId} is not a path under the repository root: {reason}");
-            }
-        }
-
-        var allContainers =
-            importJob.ContainersToAdd
+            .Union(importJob.BinariesToDelete)
+            .Select(binary => binary.Id);
+        var containerIds = importJob.ContainersToAdd
             .Union(importJob.ContainersToRename)
-            .Union(importJob.ContainersToDelete);
-        foreach (var containerId in allContainers.Select(container => container.Id))
+            .Union(importJob.ContainersToDelete)
+            .Select(container => container.Id);
+
+        return binaryIds.Select(id => ValidateResourceId(id, "Binary", importJob.ArchivalGroup))
+            .Concat(containerIds.Select(id => ValidateResourceId(id, "Container", importJob.ArchivalGroup)))
+            .FirstOrDefault(result => result.Failure) ?? Result.Ok();
+    }
+
+    /// <summary>
+    /// The checks every binary and container id in a job must pass before anything is touched: it
+    /// exists, carries no fragment, is a path under the repository root
+    /// (<see cref="SafeRepositoryPath"/>), and lies strictly below the job's Archival Group. The
+    /// last is the Storage API's own copy of the check the Preservation API makes on a posted job -
+    /// a job that declares the right group but names a resource in another would otherwise write
+    /// there - compared by repository path so the host does not matter, and strictly below so the
+    /// group itself cannot be named as a resource.
+    /// </summary>
+    private static Result ValidateResourceId(Uri? id, string kind, Uri archivalGroup)
+    {
+        if (id == null)
         {
-            if (containerId == null)
-            {
-                return Result.Fail(ErrorCodes.BadRequest, "Container ID is null");
-            }
-            if (!SafeRepositoryPath.IsRepositoryPath(containerId.GetPathUnderRoot(), out var reason))
-            {
-                return Result.Fail(ErrorCodes.BadRequest, $"Container ID {containerId} is not a path under the repository root: {reason}");
-            }
+            return Result.Fail(ErrorCodes.BadRequest, $"{kind} ID is null");
+        }
+        if (id.LocalPath.Contains('#'))
+        {
+            return Result.Fail(ErrorCodes.BadRequest, $"{kind} ID contains a fragment identifier (#): {id}");
+        }
+        var pathUnderRoot = id.GetPathUnderRoot();
+        if (!SafeRepositoryPath.IsRepositoryPath(pathUnderRoot, out var reason))
+        {
+            return Result.Fail(ErrorCodes.BadRequest, $"{kind} ID {id} is not a path under the repository root: {reason}");
+        }
+        var groupPath = archivalGroup.GetPathUnderRoot()!.TrimEnd('/') + '/';
+        if (pathUnderRoot?.StartsWith(groupPath, StringComparison.Ordinal) != true)
+        {
+            return Result.Fail(ErrorCodes.BadRequest, $"{kind} ID {id} is not within the job's Archival Group {archivalGroup}");
         }
         return Result.Ok();
     }

@@ -324,9 +324,31 @@ public class ImportJobsController(
     /// different Deposit, no Deposit at all, a different Archival Group, or binaries from outside
     /// the deposit's file area; null when everything belongs.
     /// </summary>
+    private static IEnumerable<Uri?> ResourceIds(ImportJob importJob) =>
+        importJob.BinariesToAdd.Select(b => b.Id)
+            .Concat(importJob.BinariesToPatch.Select(b => b.Id))
+            .Concat(importJob.BinariesToDelete.Select(b => b.Id))
+            .Concat(importJob.BinariesToRename.Select(b => b.Id))
+            .Concat(importJob.ContainersToAdd.Select(c => c.Id))
+            .Concat(importJob.ContainersToDelete.Select(c => c.Id))
+            .Concat(importJob.ContainersToRename.Select(c => c.Id));
+
+    /// <summary>
+    /// Whether a resource id lies strictly below the Archival Group - compared by repository path, as
+    /// <see cref="SameArchivalGroup"/> does, so the host does not matter. Strictly below: a job may not
+    /// name the group itself as a binary or container, which is what a file uploaded under the name
+    /// ".." would otherwise produce.
+    /// </summary>
+    private static bool IsWithinArchivalGroup(Uri resourceId, Uri archivalGroup)
+    {
+        var groupPath = archivalGroup.GetPathUnderRoot()?.TrimEnd('/') + "/";
+        return resourceId.GetPathUnderRoot()?.StartsWith(groupPath, StringComparison.Ordinal) == true;
+    }
+
     private ActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
     {
         string? message = null;
+        var resourceIds = ResourceIds(importJob).ToList();
         if (importJob.Deposit is null)
         {
             message = "Import job must declare which Deposit it is for.";
@@ -347,6 +369,14 @@ public class ImportJobsController(
                      .FirstOrDefault(binary => !deposit.Files!.IsBaseOf(binary.Origin!)) is { } invalidBinary)
         {
             message = $"Binary origin {invalidBinary.Origin} is not a child of deposit file location {deposit.Files}.";
+        }
+        else if (resourceIds.Any(id => id is null))
+        {
+            message = "Every binary and container in an Import Job must have an id.";
+        }
+        else if (resourceIds.FirstOrDefault(id => !IsWithinArchivalGroup(id!, importJob.ArchivalGroup)) is { } strayId)
+        {
+            message = $"Import job names {strayId}, which is not within its Archival Group {importJob.ArchivalGroup}.";
         }
 
         if (message is null)

@@ -88,6 +88,20 @@ public abstract class PreservedResource : Resource
 
         if (valid)
         {
+            if (UriPathX.IsDotSegment(slug))
+            {
+                // Every character is legal, but as a whole the slug is a dot segment: resolved against
+                // a parent URI it names the parent, not a child.
+                reason = "'.' and '..' are not allowed as slugs.";
+                return false;
+            }
+            if (UriPathX.ContainsEncodedSeparator(slug))
+            {
+                // '%' is legal, but a slug that decodes to contain a separator would be two segments to
+                // anything that decodes it, and the Storage API refuses it for that reason.
+                reason = "A slug may not contain an encoded path separator (%2f or %5c).";
+                return false;
+            }
             return slug != BasePathElement && valid;
         }
         
@@ -136,6 +150,10 @@ public abstract class PreservedResource : Resource
         {
             sb.Append(ValidSlugChar(c) ? c : '-'); // Do we want to use '-'? Or just omit?
         }
-        return sb.ToString();
+        var slug = sb.ToString();
+        // See IsValidSlug: a name that is only a dot segment would resolve to the parent.
+        return UriPathX.IsDotSegment(slug) || UriPathX.ContainsEncodedSeparator(slug)
+            ? slug.Replace('.', '-').Replace('%', '-')
+            : slug;
     }
 }
