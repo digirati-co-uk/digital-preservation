@@ -15,7 +15,8 @@ public class ApiKeyMiddleware(IOptions<ApiKeyOptions> apiKeyOptions) : IMiddlewa
     {
         bool apiKeyValid;
 
-        if (string.IsNullOrEmpty(headerName) || apiKey is null)
+        // An empty configured key is as good as none: with it, an absent header would compare equal.
+        if (string.IsNullOrEmpty(headerName) || string.IsNullOrEmpty(apiKey))
         {
             apiKeyValid = false;
         }

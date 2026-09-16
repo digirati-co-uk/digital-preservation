@@ -37,6 +37,15 @@ public class ApiKeyMiddlewareTests
     }
 
     [Fact]
+    public async Task An_Empty_Configured_Key_Is_Invalid_Whatever_Is_Supplied()
+    {
+        // With an empty key configured, an absent header would otherwise compare equal to it.
+        (await Invoke(Middleware(configuredKey: ""), null)).Should().Be(false);
+        (await Invoke(Middleware(configuredKey: ""), "")).Should().Be(false);
+        (await Invoke(Middleware(configuredKey: ""), RealKey)).Should().Be(false);
+    }
+
+    [Fact]
     public async Task The_Correct_Key_Is_Valid()
     {
         var result = await Invoke(Middleware(), RealKey);

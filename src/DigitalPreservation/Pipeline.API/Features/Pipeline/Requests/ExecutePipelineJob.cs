@@ -163,11 +163,26 @@ public class ProcessPipelineJobHandler(
                 $"Pipeline job {request.JobIdentifier} for deposit {request.DepositId} has already been started.");
         }
 
-        var workspaceResult = await GetWorkspaceManager(request, true, cancellationToken);
+        Result<WorkspaceManager> workspaceResult;
+        try
+        {
+            workspaceResult = await GetWorkspaceManager(request, true, cancellationToken);
+        }
+        catch (Exception e)
+        {
+            // Resolving the workspace reads and parses the deposit's METS; a METS the parser refuses
+            // (a path that climbs out of the deposit, say) must fail the job, not escape the handler.
+            logger.LogError(e, "Could not resolve the workspace for pipeline job {JobIdentifier}, deposit {DepositId}",
+                request.JobIdentifier, request.DepositId);
+            workspaceResult = Result.FailNotNull<WorkspaceManager>(ErrorCodes.UnknownError, e.Message);
+        }
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)
         {
-            return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError,
-                $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId} as could not find the deposit.");
+            var message = $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: "
+                          + (workspaceResult.ErrorMessage ?? "could not find the deposit");
+            // The job was claimed as Running above. Record the failure, or it stays Running for ever.
+            await UpdateJobStatus(request, PipelineJobStates.CompletedWithErrors, message, cancellationToken);
+            return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError, message);
         }
 
         var workspace = workspaceResult.Value;
@@ -374,6 +389,21 @@ public class ProcessPipelineJobHandler(
         var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
             ? $"{processFolder}{separator}{workspaceManager.DepositSlug}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
             : $"{processFolder}{separator}{workspaceManager.DepositSlug}{separator}metadata";
+
+        // Same guard the clean-up paths have: the slug is server-minted, but nothing written to disk
+        // should depend on that being true for ever.
+        if (string.IsNullOrEmpty(workspaceManager.DepositSlug)
+            || !PathX.IsUnderRoot(processFolder, metadataPathForProcessFilesAndDirectories))
+        {
+            logger.LogError("Refusing to run tools for deposit {DepositId}: {Path} is not a per-deposit folder under {ProcessFolder}",
+                request.DepositId, metadataPathForProcessFilesAndDirectories, processFolder);
+            await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+            return new ProcessPipelineResult
+            {
+                Status = PipelineJobStates.CompletedWithErrors,
+                Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier}: tool output path is not under the process folder" }]
+            };
+        }
 
         logger.LogInformation("metadataPathForProcessFilesAndDirectories {MetadataPathForProcessFilesAndDirectories}",
             metadataPathForProcessFilesAndDirectories);
@@ -1313,6 +1343,15 @@ public class ProcessPipelineJobHandler(
             var separator = pipelineToolOptions.Value.DirectorySeparator;
             var processFolderBagitDeposit =
                 $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{depositId}";
+            if (string.IsNullOrEmpty(depositId)
+                || !PathX.IsUnderRoot(pipelineToolOptions.Value.ProcessFolderBagit, processFolderBagitDeposit))
+            {
+                // Without a slug the path would be the shared BagIt root itself, and concurrent jobs
+                // would bag over each other. Fail this job instead.
+                logger.LogError("Refusing to bag deposit {DepositId}: {Path} is not a per-deposit folder under {Root}",
+                    depositId, processFolderBagitDeposit, pipelineToolOptions.Value.ProcessFolderBagit);
+                return false;
+            }
 
             logger.LogInformation("metadataPathForProcessFilesAndDirectories {MetadataPathForProcessFilesAndDirectories}", metadataPathForProcessFilesAndDirectories);
             logger.LogInformation("depositPath {DepositPath}", depositPath);
