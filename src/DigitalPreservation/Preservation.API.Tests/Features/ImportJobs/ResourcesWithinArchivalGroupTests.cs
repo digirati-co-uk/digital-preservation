@@ -93,6 +93,7 @@ public class ResourcesWithinArchivalGroupTests
         var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
 
         Refusal(result).Should().Contain("not within its Archival Group");
+        Executed(mediator).MustNotHaveHappened();
     }
 
     [Fact]
@@ -105,6 +106,27 @@ public class ResourcesWithinArchivalGroupTests
         var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
 
         Refusal(result).Should().Contain("must have an id");
+        Executed(mediator).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task The_Same_Group_On_Another_Host_Is_Accepted_Because_Only_The_Path_Is_The_Identity()
+    {
+        // Deliberate, and worth pinning: the check is by repository path, as #271's is, because ids
+        // may carry the Storage API host or the Preservation API host for the same resource. The
+        // Storage API resolves an id by its path alone, so a different host changes nothing about
+        // where the resource is written.
+        var mediator = Mediator();
+        var job = Job();
+        job.BinariesToAdd.Add(new Binary
+        {
+            Id = new Uri("https://storage.test/repository/cc/thing/objects/page-002.tif"),
+            Origin = new Uri(DepositFiles, "objects/page-002.tif")
+        });
+
+        await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+
+        Executed(mediator).MustHaveHappened();
     }
 
     private static ImportJob Job()

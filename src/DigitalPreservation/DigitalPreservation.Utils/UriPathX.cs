@@ -37,5 +37,18 @@ public static class UriPathX
     public static bool IsDotSegment(string segment) =>
         segment is "." or ".." || Uri.UnescapeDataString(segment) is "." or "..";
 
+    /// <summary>
+    /// True if the segment, after one percent-decoding, contains a path separator of either kind:
+    /// <c>%2f</c> or <c>%5c</c> spelled into a single segment. Nothing here decodes a path twice,
+    /// so such a segment cannot traverse - but a boundary check should refuse an alternate spelling
+    /// of a separator rather than reason about what would happen to it.
+    /// <see cref="Uri.UnescapeDataString"/> leaves a malformed sequence as it is and does not throw.
+    /// </summary>
+    public static bool ContainsEncodedSeparator(string segment)
+    {
+        var decoded = Uri.UnescapeDataString(segment);
+        return decoded.Contains('/') || decoded.Contains('\\');
+    }
+
     private static readonly char[] Redirecting = ['\\', '\0', '#', '?', ':'];
 }

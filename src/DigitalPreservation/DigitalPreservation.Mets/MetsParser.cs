@@ -28,26 +28,28 @@ public class MetsParser(
     );
     
     /// <summary>
-    /// Builds lookup dictionaries for efficient O(1) access to METS elements by ID.
-    /// This is equivalent to the Python version's amd_map, file_map, and tech_map.
-    /// </summary>
-    /// <summary>
     /// A path taken from a METS document becomes a WorkingFile or WorkingDirectory LocalPath, and from
     /// there a key in the deposit's storage - including, for a METS-only entry, a key to delete when
-    /// tool output is refreshed. Paths in a METS are relative to the deposit root, so a dot segment
-    /// has no legitimate meaning and is refused rather than allowed to name something outside the
-    /// deposit. Nothing else about the value is judged here: third-party METS carry absolute
-    /// <c>https:</c> references and other shapes that the rest of the parser already handles.
+    /// tool output is refreshed. Paths in a METS are relative to the deposit root, so a dot segment,
+    /// a backslash, or a separator spelled as <c>%2f</c>/<c>%5c</c> inside a segment has no legitimate
+    /// meaning and is refused rather than allowed to name something outside the deposit. Nothing else
+    /// about the value is judged here: third-party METS carry absolute <c>https:</c> references and
+    /// other shapes that the rest of the parser already handles.
     /// </summary>
     private static void RejectDotSegments(string path, string what)
     {
-        if (path.Contains('\\') || path.Split('/').Any(UriPathX.IsDotSegment))
+        if (path.Contains('\\') || path.Split('/').Any(segment =>
+                UriPathX.IsDotSegment(segment) || UriPathX.ContainsEncodedSeparator(segment)))
         {
             throw new NotSupportedException(
-                $"{what} '{path}' contains a dot segment or backslash; METS paths must be relative to the deposit root and may not climb out of it");
+                $"{what} '{path}' contains a dot segment, backslash or encoded separator; METS paths must be relative to the deposit root and may not climb out of it");
         }
     }
 
+    /// <summary>
+    /// Builds lookup dictionaries for efficient O(1) access to METS elements by ID.
+    /// This is equivalent to the Python version's amd_map, file_map, and tech_map.
+    /// </summary>
     private static MetsLookupMaps BuildLookupMaps(XDocument xMets, XElement physicalStructMap)
     {
         // Build amdSec map: ID -> XElement

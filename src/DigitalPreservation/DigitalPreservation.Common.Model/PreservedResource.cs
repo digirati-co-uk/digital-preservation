@@ -95,6 +95,13 @@ public abstract class PreservedResource : Resource
                 reason = "'.' and '..' are not allowed as slugs.";
                 return false;
             }
+            if (UriPathX.ContainsEncodedSeparator(slug))
+            {
+                // '%' is legal, but a slug that decodes to contain a separator would be two segments to
+                // anything that decodes it, and the Storage API refuses it for that reason.
+                reason = "A slug may not contain an encoded path separator (%2f or %5c).";
+                return false;
+            }
             return slug != BasePathElement && valid;
         }
         
@@ -145,6 +152,8 @@ public abstract class PreservedResource : Resource
         }
         var slug = sb.ToString();
         // See IsValidSlug: a name that is only a dot segment would resolve to the parent.
-        return UriPathX.IsDotSegment(slug) ? slug.Replace('.', '-').Replace('%', '-') : slug;
+        return UriPathX.IsDotSegment(slug) || UriPathX.ContainsEncodedSeparator(slug)
+            ? slug.Replace('.', '-').Replace('%', '-')
+            : slug;
     }
 }

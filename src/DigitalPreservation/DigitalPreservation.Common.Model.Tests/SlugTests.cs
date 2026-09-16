@@ -31,9 +31,21 @@ public class SlugTests
     }
 
     [Theory]
+    [InlineData("a%2fb")]
+    [InlineData("a%2Fb")]
+    [InlineData("a%5cb")]
+    [InlineData("..%2fx")]
+    public void An_Encoded_Separator_Is_Not_A_Valid_Slug(string slug)
+    {
+        PreservedResource.ValidSlug(slug, out var reason).Should().BeFalse();
+        reason.Should().Contain("encoded path separator");
+    }
+
+    [Theory]
     [InlineData(".", "-")]
     [InlineData("..", "--")]
     [InlineData("%2e%2e", "-2e-2e")]
+    [InlineData("a%2Fb", "a-2fb")]
     [InlineData("...", "...")]
     [InlineData("My File.TIF", "my-file.tif")]
     public void MakeValidSlug_Never_Produces_A_Dot_Segment(string name, string expected)

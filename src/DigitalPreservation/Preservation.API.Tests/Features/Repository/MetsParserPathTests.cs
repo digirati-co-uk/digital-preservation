@@ -47,6 +47,43 @@ public class MetsParserPathTests
         act.Should().Throw<NotSupportedException>().WithMessage("*may not climb out of it*");
     }
 
+    [Theory]
+    [InlineData("objects/%2e%2e%2fother-deposit/x.jpg")]
+    [InlineData("objects/%2E%2E%2Fother-deposit/x.jpg")]
+    [InlineData("objects%2f..%2fx.jpg")]
+    [InlineData("objects/%2e%2e%5cother-deposit/x.jpg")]
+    [InlineData("objects%5c..%5cx.jpg")]
+    public void An_Encoded_Separator_In_An_FLocat_Is_Refused(string href)
+    {
+        // Nothing downstream decodes a METS path, so these cannot traverse today; a boundary check
+        // refuses the alternate spelling rather than depending on that staying true.
+        var doc = Sample();
+        var flocat = doc.Descendants(Mets + "FLocat").First();
+        flocat.SetAttributeValue(XLink + "href", href);
+
+        var act = () => Parser().GetMetsFileWrapperFromXDocument(MetsUri, doc);
+
+        act.Should().Throw<NotSupportedException>().WithMessage("*may not climb out of it*");
+    }
+
+    [Theory]
+    [InlineData("../outside")]
+    [InlineData("objects/../../outside")]
+    [InlineData("objects/%2e%2e/outside")]
+    [InlineData("objects\\outside")]
+    [InlineData("objects%2f..%2foutside")]
+    public void An_OriginalName_That_Could_Leave_The_Deposit_Is_Refused(string name)
+    {
+        // premis:originalName is the other path the parser reads, and a directory entry's feeds FindDirectory.
+        var doc = Sample();
+        var originalName = doc.Descendants().First(e => e.Name.LocalName == "originalName" && e.Value.Contains('/'));
+        originalName.Value = name;
+
+        var act = () => Parser().GetMetsFileWrapperFromXDocument(MetsUri, doc);
+
+        act.Should().Throw<NotSupportedException>().WithMessage("*premis:originalName*");
+    }
+
     [Fact]
     public void An_Ordinary_FLocat_Is_Still_Accepted()
     {
