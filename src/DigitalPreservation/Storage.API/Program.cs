@@ -1,10 +1,11 @@
-﻿using DigitalPreservation.Common.Model.Identity;
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
+using Storage.API.Web;
 using Microsoft.OpenApi.Models;
 using Serilog;
 using Storage.API.Data;
@@ -77,6 +78,7 @@ try
         .AddStorageContext(builder.Configuration)
         .AddControllers(config =>
         {
+            config.Filters.Add<RepositoryPathFilter>();
             if (useAuthFeatureFlag)
             {
                 config.Filters.Add(new AuthorizeFilter());

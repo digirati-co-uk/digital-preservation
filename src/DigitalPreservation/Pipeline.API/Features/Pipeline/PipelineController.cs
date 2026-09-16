@@ -1,12 +1,13 @@
-﻿using DigitalPreservation.Common.Model.Identity;
+﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Web;
+using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Pipeline.API.Features.Pipeline.Models;
 using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
-using System.Diagnostics;
 using DigitalPreservation.Common.Model.Results;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
@@ -32,6 +33,9 @@ public class PipelineController(
     {
         if(pipelineJob.DepositName == null)
            return BadRequest("Deposit name is required in the request.");
+
+        if (!PreservedResource.ValidSlug(pipelineJob.DepositName, out var invalidDepositNameReason))
+            return BadRequest($"Deposit name is not valid: {invalidDepositNameReason}");
 
         var jobIdentifier = identityMinter.MintIdentity(nameof(PipelineJob));
 
@@ -70,6 +74,12 @@ public class PipelineController(
                 return await Task.FromResult(model);
             }
 
+            if (!PreservedResource.ValidSlug(depositFilesModel.DepositId, out var invalidDepositIdReason))
+            {
+                model.Errors.Add($"DepositId is not valid: {invalidDepositIdReason}");
+                return await Task.FromResult(model);
+            }
+
             if (storageOptions.Value.FileMountPath == null)
             {
                 model.Errors.Add("File Mount path option setting is null");
@@ -80,6 +90,19 @@ public class PipelineController(
 
             var depositPath = Path.GetFullPath(Path.Combine(baseDirectory, depositFilesModel.DepositId));
 
+            // Path.Combine discards baseDirectory outright when DepositId is itself rooted (e.g.
+            // "/etc"), and GetFullPath resolves ".." lexically with no regard to where it ends up -
+            // ValidSlug above narrows the character set but does not rule out "..", so this is the
+            // check that actually keeps depositPath inside the mount.
+            if (!PathX.IsUnderRoot(baseDirectory, depositPath))
+            {
+                logger.LogWarning(
+                    "Refusing to check deposit folder for DepositId {DepositId}: {DepositPath} is not under {BaseDirectory}",
+                    depositFilesModel.DepositId, depositPath, baseDirectory);
+                model.Errors.Add("DepositId does not resolve to a path under the file mount.");
+                return await Task.FromResult(model);
+            }
+
             var allDirectories = Directory.GetDirectories(depositPath, "*", SearchOption.AllDirectories);
 
             ProcessDirectory(depositPath);
@@ -87,7 +110,7 @@ public class PipelineController(
             model.WorkingDirectory = baseDirectory;
             model.FilesInTarget = files;
             model.Directories = allDirectories;
-            model.DiskSpace = GetDf(depositPath);
+            model.DiskSpace = GetDiskSpace(depositPath);
 
             logger.LogInformation("Returned from CheckDepositFolderExists");
         }
@@ -121,36 +144,10 @@ public class PipelineController(
 
     }
 
-    private string GetDf(string? targetDirectory)
+    private static string GetDiskSpace(string targetDirectory)
     {
-        return Bash(GetDiskSpace(), targetDirectory);
-    }
-
-    private static string GetDiskSpace()
-    {
-        return string.Join(" ", "df");
-    }
-
-    private string Bash(string cmd, string? targetDirectory)
-    {
-        var escapedArgs = cmd.Replace("\"", "\\\"");
-
-        var process = new Process()
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "bash",
-                Arguments = $"-c \"{escapedArgs}\"",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WorkingDirectory = targetDirectory
-            }
-        };
-        process.Start();
-        string result = process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
-        return result;
+        var drive = new DriveInfo(targetDirectory);
+        return $"{drive.Name}: {drive.AvailableFreeSpace} bytes free of {drive.TotalSize} bytes";
     }
 
 }

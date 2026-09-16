@@ -38,4 +38,8 @@
       <Folder Include="Handlers\" />
     </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Storage.API.Tests" />
+  </ItemGroup>
+
 </Project>

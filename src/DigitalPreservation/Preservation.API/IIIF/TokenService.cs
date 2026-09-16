@@ -6,6 +6,12 @@ namespace Preservation.API.IIIF;
 
 public class TokenService(IMemoryCache memoryCache) : ITokenService
 {
+    // Sliding: a link nobody has used for 8 hours is dead. Absolute: however busy, a link dies after
+    // a week - long enough for a deposit to be worked on over a weekend, since a viewer holding only
+    // the tokenised URL has no way to mint a new one, but not forever.
+    private static readonly TimeSpan SlidingLifetime = TimeSpan.FromHours(8);
+    private static readonly TimeSpan AbsoluteLifetime = TimeSpan.FromDays(7);
+
     private static string NewToken() =>
         Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
 
@@ -15,10 +21,13 @@ public class TokenService(IMemoryCache memoryCache) : ITokenService
             return token;
 
         token = NewToken();
-        var keyOpts   = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromHours(8));
-        var tokenOpts = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromHours(8));
-        memoryCache.Set(key, token, keyOpts);
-        memoryCache.Set(token, key, tokenOpts);
+        // Sliding expiry alone meant a link in steady use never expired. The absolute limit caps a
+        // token's life however often it is used; a client that outlives it asks for a new one.
+        var lifetime = new MemoryCacheEntryOptions()
+            .SetSlidingExpiration(SlidingLifetime)
+            .SetAbsoluteExpiration(AbsoluteLifetime);
+        memoryCache.Set(key, token, lifetime);
+        memoryCache.Set(token, key, lifetime);
         return token;
     }
 

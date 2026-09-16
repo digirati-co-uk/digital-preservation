@@ -45,10 +45,10 @@ public class ObjectVersion
 
     public override int GetHashCode()
     {
-        if(OcflVersion == null)
-        {
-            throw new InvalidOperationException("Can't call GetHashCode until OcflVersion is set");
-        }
-        return OcflVersion.GetHashCode();
+        // MementoTimestamp is the one member that is always set, and it keeps the contract with
+        // Equals: a version identified only by memento equals one that also carries the OCFL
+        // version for the same memento, so the hash cannot come from OcflVersion. (Two objects
+        // sharing an OcflVersion always share a memento timestamp - a version has exactly one.)
+        return MementoTimestamp.GetHashCode();
     }
 }

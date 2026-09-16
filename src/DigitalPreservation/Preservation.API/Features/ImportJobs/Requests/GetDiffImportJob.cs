@@ -114,16 +114,12 @@ public class GetDiffImportJobHandler(
         var removed = sourceBinaries.RemoveAll(b => b.Id.GetPathUnderRoot(true) == notForImport);
         logger.LogInformation("Removed {Removed} file matching {NotForImport}", removed, notForImport);
  
-        var agLocalPathWithSlash = request.Deposit.ArchivalGroup.LocalPath;
-        if (!agLocalPathWithSlash.EndsWith('/'))
-        {
-            agLocalPathWithSlash += "/";
-        }
-        
+        var agLocalPath = request.Deposit.ArchivalGroup.LocalPath;
+
         var combinedFilesByBinaryId = new Dictionary<Uri, CombinedFile>();
         foreach (var binary in sourceBinaries)
         {
-            var relativeLocalPath = binary.Id!.LocalPath.RemoveStart(agLocalPathWithSlash)!.UnEscapePathElementsNoHashes();
+            var relativeLocalPath = binary.Id!.LocalPath.GetPathBelow(agLocalPath)!.UnEscapePathElementsNoHashes();
             var combinedFile = combined.FindFile(relativeLocalPath)!; // because it came from a URI not a file path
             combinedFilesByBinaryId[binary.Id] = combinedFile;
             
@@ -171,7 +167,7 @@ public class GetDiffImportJobHandler(
         
         foreach (var container in sourceContainers)
         {
-            var relativeLocalPath = container.Id!.LocalPath.RemoveStart(agLocalPathWithSlash)!.UnEscapePathElementsNoHashes();
+            var relativeLocalPath = container.Id!.LocalPath.GetPathBelow(agLocalPath)!.UnEscapePathElementsNoHashes();
             var combinedDirectory = combined.FindDirectory(relativeLocalPath);
             var metsDirectory = combinedDirectory?.DirectoryInMets;
 
@@ -279,18 +275,14 @@ public class GetDiffImportJobHandler(
     {
         var (allExistingContainers, allExistingBinaries) = archivalGroup.Flatten();
         
-        var agLocalPathWithSlash =  archivalGroup.Id!.LocalPath;
-        if (!agLocalPathWithSlash.EndsWith('/'))
-        {
-            agLocalPathWithSlash += "/";
-        }
-        
+        var agLocalPath = archivalGroup.Id!.LocalPath;
+
         importJob.BinariesToAdd.AddRange(sourceBinaries.Where(
             sourceBinary => !allExistingBinaries.Exists(b => b.Id.UnescapedEquals(sourceBinary.Id))));
 
         foreach (var binary in allExistingBinaries)
         {
-            var path = binary.Id!.LocalPath.RemoveStart(agLocalPathWithSlash)!;
+            var path = binary.Id!.LocalPath.GetPathBelow(agLocalPath)!;
             var sourceFile = combined.FindFile(path);
             if (sourceFile is null)
             {

@@ -44,6 +44,58 @@ public class ProcessPipelineJobHandler(
     private Guid monitorForceCompleteId = Guid.Parse("97BD55BA-B039-460F-BDC9-34DAD57920C5");
     private readonly Dictionary<Guid, CancellationTokenSource> tokensCatalog = new();
     /// <summary>
+    /// <see cref="GetWorkspaceManager"/>, with the two things that can go wrong turned into what the
+    /// caller needs: a cancelled request is rethrown (the job was interrupted, not processed, and
+    /// another remote call during shutdown is not wanted); any other exception - resolving the
+    /// workspace reads and parses the deposit's METS, and a METS the parser refuses throws - becomes a
+    /// failed result. The full exception goes to the log; the result's message stays generic, because
+    /// an exception from a storage, filesystem, XML or HTTP layer can carry internal detail.
+    /// </summary>
+    private async Task<Result<WorkspaceManager>> ResolveWorkspace(ExecutePipelineJob request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await GetWorkspaceManager(request, true, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not resolve the workspace for pipeline job {JobIdentifier}, deposit {DepositId}",
+                request.JobIdentifier, request.DepositId);
+            return Result.FailNotNull<WorkspaceManager>(ErrorCodes.UnknownError,
+                $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: "
+                + "the deposit workspace could not be resolved (see the Pipeline API log)");
+        }
+    }
+
+    /// <summary>
+    /// Records a job that was claimed as Running as completedWithErrors. Best effort: if the
+    /// Preservation API cannot be reached to record it, the job does stay Running - there is no queue
+    /// message left to retry from - so say so, loudly, and let the caller return the original failure
+    /// rather than the recording failure.
+    /// </summary>
+    private async Task RecordFailureBestEffort(ExecutePipelineJob request, string message, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var recorded = await UpdateJobStatus(request, PipelineJobStates.CompletedWithErrors, message, cancellationToken);
+            if (recorded.Failure)
+            {
+                logger.LogCritical("Pipeline job {JobIdentifier} for deposit {DepositId} failed and its failure could NOT be recorded; it will show as Running: {Error}",
+                    request.JobIdentifier, request.DepositId, recorded.ErrorMessage);
+            }
+        }
+        catch (Exception recordingException) when (recordingException is not OperationCanceledException)
+        {
+            logger.LogCritical(recordingException, "Pipeline job {JobIdentifier} for deposit {DepositId} failed and its failure could NOT be recorded; it will show as Running",
+                request.JobIdentifier, request.DepositId);
+        }
+    }
+
+    /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
     /// (e.g., GetCombinedDirectory(true))
     /// </summary>
@@ -163,11 +215,14 @@ public class ProcessPipelineJobHandler(
                 $"Pipeline job {request.JobIdentifier} for deposit {request.DepositId} has already been started.");
         }
 
-        var workspaceResult = await GetWorkspaceManager(request, true, cancellationToken);
+        var workspaceResult = await ResolveWorkspace(request, cancellationToken);
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)
         {
-            return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError,
-                $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId} as could not find the deposit.");
+            var message = workspaceResult.ErrorMessage
+                          ?? $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: could not find the deposit";
+            // The job was claimed as Running above. Record the failure, or it stays Running for ever.
+            await RecordFailureBestEffort(request, message, cancellationToken);
+            return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError, message);
         }
 
         var workspace = workspaceResult.Value;
@@ -216,10 +271,15 @@ public class ProcessPipelineJobHandler(
         }
         finally
         {
-            CleanupProcessFolder(request.DepositId);
+            // The resolved deposit's own slug, not the raw request.DepositId: Preservation.Client's
+            // GetDeposit lookup ignores anything after a '#' (HttpClient never sends a URI fragment),
+            // so a request.DepositId such as "<real id>#/../.." resolves the real deposit yet still
+            // carries its literal, unvalidated text into the path below - workspace.DepositSlug is
+            // instead read back off the resolved Deposit's own Id.
+            CleanupProcessFolder(workspace.DepositSlug);
             if (workspace.IsBagItLayout)
             {
-                CleanupBagitProcessFolder(request.DepositId);
+                CleanupBagitProcessFolder(workspace.DepositSlug);
             }
             await tokensCatalog[monitorForceCompleteId].CancelAsync();
 
@@ -252,11 +312,25 @@ public class ProcessPipelineJobHandler(
         }
     }
 
-    private void CleanupProcessFolder(string depositName)
+    private void CleanupProcessFolder(string? depositName)
     {
         var processFolder = pipelineToolOptions.Value.ProcessFolder;
+        if (string.IsNullOrEmpty(processFolder) || string.IsNullOrEmpty(depositName))
+            return;
+
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForProcessDelete = $"{processFolder}{separator}{depositName}";
+
+        // Defence in depth: depositName is expected to already be the resolved deposit's own slug
+        // (see the callers), but this refuses to delete anything outside processFolder regardless of
+        // how depositName was constructed.
+        if (!PathX.IsUnderRoot(processFolder, metadataPathForProcessDelete))
+        {
+            logger.LogError(
+                "Refusing to clean up process folder for deposit {DepositName}: {Path} is not under {ProcessFolder}",
+                depositName, metadataPathForProcessDelete, processFolder);
+            return;
+        }
 
         var dir = new DirectoryInfo(metadataPathForProcessDelete);
 
@@ -266,11 +340,23 @@ public class ProcessPipelineJobHandler(
             Directory.Delete(metadataPathForProcessDelete, true);
     }
 
-    private void CleanupBagitProcessFolder(string depositName)
+    private void CleanupBagitProcessFolder(string? depositName)
     {
         var processFolderBagit = pipelineToolOptions.Value.ProcessFolderBagit;
+        if (string.IsNullOrEmpty(processFolderBagit) || string.IsNullOrEmpty(depositName))
+            return;
+
         var separator = pipelineToolOptions.Value.DirectorySeparator;
         var metadataPathForBagitProcessDelete = $"{processFolderBagit}{separator}{depositName}";
+
+        // Defence in depth: see the comment in CleanupProcessFolder.
+        if (!PathX.IsUnderRoot(processFolderBagit, metadataPathForBagitProcessDelete))
+        {
+            logger.LogError(
+                "Refusing to clean up BagIt process folder for deposit {DepositName}: {Path} is not under {ProcessFolderBagit}",
+                depositName, metadataPathForBagitProcessDelete, processFolderBagit);
+            return;
+        }
 
         var dir = new DirectoryInfo(metadataPathForBagitProcessDelete);
 
@@ -338,9 +424,27 @@ public class ProcessPipelineJobHandler(
         // Computed early - this only depends on IsBagItLayout (known before Brunnhilde runs), not on
         // anything Brunnhilde produces. Doing this now (rather than after Brunnhilde completes) lets us
         // kick off Exif in parallel with Brunnhilde/ClamAV instead of waiting for it to finish first.
+        // The resolved deposit's own slug, not the raw request.DepositId - see the comment in Handle's
+        // finally block on why the two can differ.
         var metadataPathForProcessFilesAndDirectories = workspaceManager.IsBagItLayout
-            ? $"{processFolder}{separator}{request.DepositId}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
-            : $"{processFolder}{separator}{request.DepositId}{separator}metadata";
+            ? $"{processFolder}{separator}{workspaceManager.DepositSlug}{separator}data{separator}metadata" //{separator}{BrunnhildeFolderName}
+            : $"{processFolder}{separator}{workspaceManager.DepositSlug}{separator}metadata";
+
+        // Same guard the clean-up paths have: the slug is server-minted, but nothing written to disk
+        // should depend on that being true for ever.
+        if (string.IsNullOrEmpty(processFolder)
+            || string.IsNullOrEmpty(workspaceManager.DepositSlug)
+            || !PathX.IsUnderRoot(processFolder, metadataPathForProcessFilesAndDirectories))
+        {
+            logger.LogError("Refusing to run tools for deposit {DepositId}: {Path} is not a per-deposit folder under {ProcessFolder}",
+                request.DepositId, metadataPathForProcessFilesAndDirectories, processFolder);
+            await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
+            return new ProcessPipelineResult
+            {
+                Status = PipelineJobStates.CompletedWithErrors,
+                Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier}: tool output path is not under the process folder" }]
+            };
+        }
 
         logger.LogInformation("metadataPathForProcessFilesAndDirectories {MetadataPathForProcessFilesAndDirectories}",
             metadataPathForProcessFilesAndDirectories);
@@ -417,7 +521,9 @@ public class ProcessPipelineJobHandler(
         {
             if (workspaceManager.IsBagItLayout)
             {
-                var success = await BagAndCheckObjectFileDigests(workspaceManager, request.DepositId, metadataPathForProcessFilesAndDirectories, depositPath, cancellationToken);
+                // The resolved deposit's own slug, not the raw request.DepositId - see the comment in
+                // Handle's finally block on why the two can differ.
+                var success = await BagAndCheckObjectFileDigests(workspaceManager, workspaceManager.DepositSlug, metadataPathForProcessFilesAndDirectories, depositPath, cancellationToken);
                 if (success)
                 {
                     logger.LogInformation("Successfully bagged and validated objects files digests for {DepositId}", request.DepositId);
@@ -1268,7 +1374,7 @@ public class ProcessPipelineJobHandler(
 
     private async Task<bool> BagAndCheckObjectFileDigests(
         WorkspaceManager workspaceManager,
-        string depositId,
+        string? depositId,
         string metadataPathForProcessFilesAndDirectories,
         string depositPath,
         CancellationToken cancellationToken)
@@ -1276,8 +1382,18 @@ public class ProcessPipelineJobHandler(
         try
         {
             var separator = pipelineToolOptions.Value.DirectorySeparator;
-            var processFolderBagitDeposit =
-                $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{depositId}";
+            var bagitRoot = pipelineToolOptions.Value.ProcessFolderBagit;
+            var processFolderBagitDeposit = $"{bagitRoot}{separator}{depositId}";
+            if (string.IsNullOrEmpty(bagitRoot)
+                || string.IsNullOrEmpty(depositId)
+                || !PathX.IsUnderRoot(bagitRoot, processFolderBagitDeposit))
+            {
+                // Without a slug the path would be the shared BagIt root itself, and concurrent jobs
+                // would bag over each other. Fail this job instead.
+                logger.LogError("Refusing to bag deposit {DepositId}: {Path} is not a per-deposit folder under {Root}",
+                    depositId, processFolderBagitDeposit, pipelineToolOptions.Value.ProcessFolderBagit);
+                return false;
+            }
 
             logger.LogInformation("metadataPathForProcessFilesAndDirectories {MetadataPathForProcessFilesAndDirectories}", metadataPathForProcessFilesAndDirectories);
             logger.LogInformation("depositPath {DepositPath}", depositPath);
@@ -1559,7 +1675,9 @@ public class ProcessPipelineJobHandler(
         ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
         var separator = pipelineToolOptions.Value.DirectorySeparator;
-        var processFolderBagitDeposit = $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{request.DepositId}";
+        // The resolved deposit's own slug, not the raw request.DepositId - see the comment in Handle's
+        // finally block on why the two can differ.
+        var processFolderBagitDeposit = $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{deposit.Id?.GetSlug()}";
 
         try
         {

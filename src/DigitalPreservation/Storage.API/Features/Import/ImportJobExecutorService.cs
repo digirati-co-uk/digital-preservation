@@ -18,7 +18,20 @@ public class ImportJobExecutorService(
             {
                 using var scope = serviceScopeFactory.CreateScope();
                 var processor = scope.ServiceProvider.GetRequiredService<ImportJobRunner>();
-                await processor.Execute(transaction, stoppingToken);
+                try
+                {
+                    await processor.Execute(transaction, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    // A BackgroundService that lets an exception escape stops the whole host by
+                    // default; one job that throws must not take the import service down with it.
+                    logger.LogError(e, "Import job {JobIdentifier} threw; continuing with the next job", transaction);
+                }
             }
         }
     }

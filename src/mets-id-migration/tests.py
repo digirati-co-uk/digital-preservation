@@ -467,6 +467,32 @@ class MigrateSafetyTests(SurveyLedgerTestCase):
                 migrate.migrate_one(self.ledger, "cc/thing", dry_run=False)
         deleted.assert_called_once()
 
+    def test_the_gate_allows_only_the_platforms_own_scaffold_folders(self):
+        # A group preserved before LPII-9 gets metadata/ and metadata/ad-hoc/ written into the
+        # deposit's METS, so its diff is the METS patch plus those two containers. Any other
+        # container - or a scaffold-looking folder under some other object - is content.
+        from app import migrate
+        ag = "https://dev.example/repository/cc/thing"
+        mets_patch = {"binariesToPatch": [{"id": f"{ag}/mets.xml"}], "archivalGroup": ag}
+
+        self.assertEqual(migrate._refuse_unless_mets_only(mets_patch), [])
+        self.assertEqual(
+            migrate._refuse_unless_mets_only({**mets_patch, "containersToAdd": [
+                {"id": f"{ag}/metadata"}, {"id": f"{ag}/metadata/ad-hoc/"}]}),
+            ["metadata", "metadata/ad-hoc"])  # reported back so a dry run can say what it saw
+
+        for bad in ({"id": f"{ag}/objects/new-folder"},
+                    {"id": "https://dev.example/repository/cc/other/metadata/ad-hoc"}):
+            with self.assertRaises(migrate.MigrationRefused) as refused:
+                migrate._refuse_unless_mets_only({**mets_patch, "containersToAdd": [bad]})
+            self.assertIn("scaffold", str(refused.exception))
+
+        with self.assertRaises(migrate.MigrationRefused):
+            migrate._refuse_unless_mets_only({
+                "binariesToPatch": [{"id": f"{ag}/mets.xml"}],
+                "containersToAdd": [{"id": f"{ag}/metadata"}]},
+            )  # no archivalGroup: nothing can be judged relative to it
+
     def test_a_declined_rewrite_is_not_settled_as_no_change(self):
         # changed=false WITH warnings means the platform declined to fix a document the survey
         # says is invalid. Settling that as no-change is the failure that looks like success.
@@ -494,6 +520,42 @@ class MigrateSafetyTests(SurveyLedgerTestCase):
         row = self.ledger.get("cc/migrated")
         self.assertEqual(DONE, row["state"])
         self.assertEqual("v2", row["to_version"], "the migration evidence survives the blip")
+
+    def test_migrate_leaves_a_candidate_alone_when_the_first_read_fails(self):
+        # Same rule again, at the front of migrate: a connect timeout before any deposit exists
+        # says nothing about the group. Recording FAILED would drop it from the campaign.
+        from app import migrate
+        from app.ledger import CANDIDATE
+        self.ledger.record("cc/unreachable", CANDIDATE)
+        with mock.patch.object(api, "get_archival_group_mets",
+                               side_effect=api.ApiError("Could not read METS", "ConnectTimeout")), \
+             mock.patch.object(api, "create_deposit") as created:
+            migrate.migrate_all(self.ledger, self.ledger.in_state(CANDIDATE), dry_run=True)
+        created.assert_not_called()
+        self.assertEqual(CANDIDATE, self.ledger.get("cc/unreachable")["state"])
+
+    def test_a_failed_read_after_the_import_is_recorded_not_exempted(self):
+        # The exemption above must not extend past the import. Once the job has completed the
+        # Archival Group HAS changed; a row silently left as candidate would erase this run's
+        # evidence and send a rerun at an already-migrated group.
+        from app import migrate
+        from app.ledger import CANDIDATE, FAILED
+        reads = [b"<mets xmlns='http://www.loc.gov/METS/'/>",  # the before read
+                 api.ApiError("Could not read METS", "ReadTimeout")]  # the verification re-read
+        with mock.patch.object(api, "create_deposit", return_value=self.deposit), \
+             mock.patch.object(api, "get_archival_group_mets", side_effect=reads), \
+             mock.patch.object(api, "normalise_mets_ids",
+                               return_value={"changed": True, "idsRewritten": 1,
+                                             "referencesRewritten": 0}), \
+             mock.patch.object(api, "get_diff_import_job", return_value={
+                 "binariesToPatch": [{"id": "https://x/mets.xml"}]}), \
+             mock.patch.object(api, "execute_import_job", return_value={"id": "https://x/r/1"}), \
+             mock.patch.object(api, "await_import_job", return_value={"status": "completed"}), \
+             mock.patch.object(api, "delete_deposit") as deleted:
+            migrate.migrate_all(self.ledger, self.ledger.in_state(CANDIDATE), dry_run=False)
+        row = self.ledger.get("cc/thing")
+        self.assertEqual(FAILED, row["state"], "the group was changed; the blip must be recorded")
+        deleted.assert_not_called()
 
 
 @mock.patch.object(settings, "DISABLE_AUTH", True)
