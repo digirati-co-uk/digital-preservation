@@ -6,8 +6,11 @@ namespace Preservation.API.IIIF;
 
 public class TokenService(IMemoryCache memoryCache) : ITokenService
 {
+    // Sliding: a link nobody has used for 8 hours is dead. Absolute: however busy, a link dies after
+    // a week - long enough for a deposit to be worked on over a weekend, since a viewer holding only
+    // the tokenised URL has no way to mint a new one, but not forever.
     private static readonly TimeSpan SlidingLifetime = TimeSpan.FromHours(8);
-    private static readonly TimeSpan AbsoluteLifetime = TimeSpan.FromHours(24);
+    private static readonly TimeSpan AbsoluteLifetime = TimeSpan.FromDays(7);
 
     private static string NewToken() =>
         Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();

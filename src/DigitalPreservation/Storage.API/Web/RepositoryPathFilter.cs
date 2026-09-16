@@ -7,29 +7,35 @@ using Storage.API.Fedora.Model;
 namespace Storage.API.Web;
 
 /// <summary>
-/// Refuses, with a 400, any request whose repository-path <em>route value</em> (<c>path</c> or
-/// <c>archivalGroupPathUnderRoot</c>) is not a path under the repository root (see
-/// <see cref="SafeRepositoryPath"/>), before the action runs. Registered globally, so the repository,
-/// content, import and OCFL controllers are covered without each having to remember - but only for
-/// those two route-value names. Paths that arrive in a request body (an Import Job's or Export's
-/// Archival Group and resource ids) never pass through here; the import and export queue handlers
-/// validate those themselves. <see cref="Converters.GetFedoraUri"/> applies the rule once more as the
+/// Refuses, with a 400, any request carrying a <em>route value</em> that is not a path under the
+/// repository root (see <see cref="SafeRepositoryPath"/>), before the action runs. Registered
+/// globally and applied to every route value regardless of name, so a controller cannot opt out by
+/// naming its parameter differently. Paths that arrive in a request body (an Import Job's or
+/// Export's Archival Group and resource ids) never pass through here; the import and export
+/// handlers validate those themselves. <see cref="Converters.GetFedoraUri"/> applies the rule once more as the
 /// last line of defence, where it can only throw.
 /// </summary>
 public class RepositoryPathFilter : IActionFilter
 {
-    private static readonly string[] PathRouteValues = ["path", "archivalGroupPathUnderRoot"];
+    // Routing's own values, never caller data.
+    private static readonly HashSet<string> RoutingValues =
+        new(StringComparer.OrdinalIgnoreCase) { "controller", "action", "area", "page", "handler" };
 
     public void OnActionExecuting(ActionExecutingContext context)
     {
-        foreach (var name in PathRouteValues)
+        // Every route value, whatever its name: a future {*resourcePath} is covered the day it is
+        // written. Nothing legitimate is lost - every other route value is a minted identifier or a
+        // slug, which the rule accepts.
+        foreach (var (name, value) in context.RouteData.Values)
         {
-            if (context.RouteData.Values.TryGetValue(name, out var value)
-                && value is string path
-                && !SafeRepositoryPath.IsRepositoryPath(path, out var reason))
+            if (RoutingValues.Contains(name) || value is not string candidate)
+            {
+                continue;
+            }
+            if (!SafeRepositoryPath.IsRepositoryPath(candidate, out var reason))
             {
                 context.Result = ControllerX.GetProblemObjectResult(
-                    Result.Fail(ErrorCodes.BadRequest, $"'{path}' is not a path under the repository root: {reason}."));
+                    Result.Fail(ErrorCodes.BadRequest, $"'{candidate}' is not a path under the repository root: {reason}."));
                 return;
             }
         }

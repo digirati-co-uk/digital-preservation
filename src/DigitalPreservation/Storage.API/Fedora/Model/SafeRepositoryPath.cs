@@ -33,16 +33,19 @@ public static class SafeRepositoryPath
             return true; // the root itself
         }
 
+        // A single trailing slash is tolerated because existing callers produce one. A lone "/" is
+        // not: it is a leading slash, and would resolve to the host's root.
+        if (pathUnderRoot.Length > 1 && pathUnderRoot.EndsWith('/'))
+        {
+            pathUnderRoot = pathUnderRoot[..^1];
+        }
+
         var segments = pathUnderRoot.Split('/');
         for (var i = 0; i < segments.Length; i++)
         {
             var segment = segments[i];
             if (segment.Length == 0)
             {
-                if (i == segments.Length - 1 && i > 0)
-                {
-                    continue; // a single trailing slash
-                }
                 reason = "has an empty segment (a leading, doubled or lone '/')";
                 return false;
             }

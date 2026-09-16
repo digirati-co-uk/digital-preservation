@@ -102,6 +102,9 @@ public class MediaController(
 
         if (elements[^1] == "info.json")
         {
+            // "info.json" with no file path in front of it is not a request for anything.
+            if (localPath.Length <= "/info.json".Length)
+                return NotFound();
             var realLocalPath = localPath[..^"/info.json".Length];
             var mediaItem = ResolveDepositFile(workingDirectory, isBagIt, origin, realLocalPath)?.Item;
             var imageBaseUrl = Request.GetDisplayUrl();
@@ -115,13 +118,16 @@ public class MediaController(
         {
             var size = elements[^3];
             var imageApi = $"/full/{size}/0/default.jpg";
+            // The image API suffix with no file path in front of it is not a request for anything.
+            if (localPath.Length <= imageApi.Length)
+                return NotFound();
             var realLocalPath = localPath[..^imageApi.Length];
             var file = ResolveDepositFile(workingDirectory, isBagIt, origin, realLocalPath);
             if (file == null)
                 return NotFound();
             Response.Headers.CacheControl = "private, max-age=3600";
             Response.Headers.ETag = ImageETag(realLocalPath, size);
-            return await ImageFromImageService(workspaceManager, file.Value.FileUri, size);
+            return await ImageFromImageService(workspaceManager, file.Value, size);
         }
 
         // Bare imagesvc URL — redirect to info.json if the file exists
@@ -222,9 +228,12 @@ public class MediaController(
         return new FileContentResult(bytes, "image/png");
     }
 
+    // Takes a resolved DepositFile, not a Uri, so that there is no way to reach S3 from this
+    // controller except through ResolveDepositFile. Same for ProxyFileWithByteRangeSupport.
     private static async Task<IActionResult> ImageFromImageService(
-        WorkspaceManager workspaceManager, Uri fileUri, string size)
+        WorkspaceManager workspaceManager, DepositFile file, string size)
     {
+        var fileUri = file.FileUri;
         var streamResult = await workspaceManager.GetStream(fileUri);
         if (streamResult is not { Success: true, Value.Item1: not null })
             return new NotFoundResult();

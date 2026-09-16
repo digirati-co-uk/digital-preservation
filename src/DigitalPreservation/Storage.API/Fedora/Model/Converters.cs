@@ -150,19 +150,25 @@ public class Converters
     /// post-construction check as <see cref="GetFedoraUri"/>: a path that could leave the root is
     /// refused before a URI is built from it, and the result must still be under the root.
     /// </summary>
-    public Uri RepositoryUriFromPathUnderRoot(string pathUnderRoot)
+    public Uri RepositoryUriFromPathUnderRoot(string pathUnderRoot) =>
+        UnderRoot(new Uri(repositoryRoot), pathUnderRoot, nameof(pathUnderRoot));
+
+    /// <summary>
+    /// The one way a caller-supplied path becomes a URI under a root: refuse anything that could
+    /// leave the root before building, then check that what was built is still under it.
+    /// </summary>
+    private static Uri UnderRoot(Uri root, string? pathUnderRoot, string paramName)
     {
         if (!SafeRepositoryPath.IsRepositoryPath(pathUnderRoot, out var reason))
         {
             throw new ArgumentException(
-                $"'{pathUnderRoot}' is not a path under the repository root: {reason}.", nameof(pathUnderRoot));
+                $"'{pathUnderRoot}' is not a path under the repository root: {reason}.", paramName);
         }
-        var root = new Uri(repositoryRoot);
         var uri = new Uri(root, pathUnderRoot);
         if (!root.IsBaseOf(uri))
         {
             throw new ArgumentException(
-                $"'{pathUnderRoot}' resolved to {uri}, which is not under the repository root.", nameof(pathUnderRoot));
+                $"'{pathUnderRoot}' resolved to {uri}, which is not under the repository root.", paramName);
         }
         return uri;
     }
@@ -196,21 +202,8 @@ public class Converters
     /// checked to still be under the root. Controllers refuse bad paths with a 400 before reaching here
     /// (see <see cref="Web.RepositoryPathFilter"/>); this is the last line of defence for every other route in.
     /// </summary>
-    internal Uri GetFedoraUri(string? pathUnderFedoraRoot)
-    {
-        if (!SafeRepositoryPath.IsRepositoryPath(pathUnderFedoraRoot, out var reason))
-        {
-            throw new ArgumentException(
-                $"'{pathUnderFedoraRoot}' is not a path under the repository root: {reason}.", nameof(pathUnderFedoraRoot));
-        }
-        var uri = new Uri(fedoraOptions.Root, pathUnderFedoraRoot);
-        if (!fedoraOptions.Root.IsBaseOf(uri))
-        {
-            throw new ArgumentException(
-                $"'{pathUnderFedoraRoot}' resolved to {uri}, which is not under the repository root.", nameof(pathUnderFedoraRoot));
-        }
-        return uri;
-    }
+    internal Uri GetFedoraUri(string? pathUnderFedoraRoot) =>
+        UnderRoot(fedoraOptions.Root, pathUnderFedoraRoot, nameof(pathUnderFedoraRoot));
 
     public string GetFedoraDbId(string? pathUnderFedoraRoot)
     {

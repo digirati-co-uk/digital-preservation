@@ -252,12 +252,11 @@ public class ExecuteImportJobHandler(
             }
             catch(Exception ex)
             {
+                // FailEarly disposes the keep-alive timer, attempts the rollback (guarded, so a rollback
+                // that cannot reach Fedora neither escapes nor replaces this exception as the recorded
+                // cause) and records ex.Message - the same as every other failing exit from this method.
                 logger.LogError(ex, "(TX) Caught error in importJob, rolling back transaction");
-                await fedoraClient.RollbackTransaction(transaction);
-                importJobResult.DateFinished = DateTime.UtcNow;
-                importJobResult.Status = ImportJobStates.CompletedWithErrors;
-                importJobResult.Errors = [new Error { Message = ex.Message }];
-                return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
+                return await FailEarly(ex.Message);
             }
 
             logger.LogInformation("(TX) Committing Fedora transaction {TransactionLocation}", transaction.Location);
