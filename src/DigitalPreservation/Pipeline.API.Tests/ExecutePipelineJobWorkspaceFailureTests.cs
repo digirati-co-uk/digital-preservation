@@ -39,7 +39,7 @@ public class ExecutePipelineJobWorkspaceFailureTests
     private void StatusUpdatesSucceed() =>
         A.CallTo(() => preservationApiClient.LogPipelineRunStatus(A<PipelineDeposit>._, A<CancellationToken>._))
             .ReturnsLazily((PipelineDeposit d, CancellationToken _) =>
-                Result.OkNotNull(new LogPipelineStatusResult { Status = d.Status }));
+                Result.OkNotNull(new LogPipelineStatusResult { Status = d.Status ?? PipelineJobStates.Running }));
 
     private static ExecutePipelineJob Request() => new(JobId, DepositId, "tester");
 

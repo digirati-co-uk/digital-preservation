@@ -432,7 +432,8 @@ public class ProcessPipelineJobHandler(
 
         // Same guard the clean-up paths have: the slug is server-minted, but nothing written to disk
         // should depend on that being true for ever.
-        if (string.IsNullOrEmpty(workspaceManager.DepositSlug)
+        if (string.IsNullOrEmpty(processFolder)
+            || string.IsNullOrEmpty(workspaceManager.DepositSlug)
             || !PathX.IsUnderRoot(processFolder, metadataPathForProcessFilesAndDirectories))
         {
             logger.LogError("Refusing to run tools for deposit {DepositId}: {Path} is not a per-deposit folder under {ProcessFolder}",
@@ -1381,10 +1382,11 @@ public class ProcessPipelineJobHandler(
         try
         {
             var separator = pipelineToolOptions.Value.DirectorySeparator;
-            var processFolderBagitDeposit =
-                $"{pipelineToolOptions.Value.ProcessFolderBagit}{separator}{depositId}";
-            if (string.IsNullOrEmpty(depositId)
-                || !PathX.IsUnderRoot(pipelineToolOptions.Value.ProcessFolderBagit, processFolderBagitDeposit))
+            var bagitRoot = pipelineToolOptions.Value.ProcessFolderBagit;
+            var processFolderBagitDeposit = $"{bagitRoot}{separator}{depositId}";
+            if (string.IsNullOrEmpty(bagitRoot)
+                || string.IsNullOrEmpty(depositId)
+                || !PathX.IsUnderRoot(bagitRoot, processFolderBagitDeposit))
             {
                 // Without a slug the path would be the shared BagIt root itself, and concurrent jobs
                 // would bag over each other. Fail this job instead.
