@@ -19,8 +19,10 @@ namespace Pipeline.API.Tests;
 /// <summary>
 /// The handler claims the job as Running before it resolves the deposit's workspace. If that
 /// resolution then fails - the deposit is not found, or its METS is one the parser refuses - the
-/// job must be recorded as completedWithErrors, not left Running for ever with nothing against it.
-/// The queue message is already gone by then, so nothing else will come back to finish it.
+/// job must be recorded as completedWithErrors, not left Running for ever with nothing against it,
+/// and the deposit's lock (taken when the run was requested) must be released whenever the deposit
+/// itself is still reachable. The queue message is already gone by then, so nothing else will come
+/// back to finish it.
 /// </summary>
 public class ExecutePipelineJobWorkspaceFailureTests
 {
@@ -29,11 +31,11 @@ public class ExecutePipelineJobWorkspaceFailureTests
 
     private readonly IPreservationApiClient preservationApiClient = A.Fake<IPreservationApiClient>();
 
-    private ProcessPipelineJobHandler CreateHandler() =>
+    private ProcessPipelineJobHandler CreateHandler(IMediator? workspaceMediator = null) =>
         new(NullLogger<ProcessPipelineJobHandler>.Instance,
             Options.Create(new StorageOptions()),
             Options.Create(new PipelineToolOptions()),
-            new WorkspaceManagerFactory(A.Fake<IMediator>(), A.Fake<IMetsParser>()),
+            new WorkspaceManagerFactory(workspaceMediator ?? A.Fake<IMediator>(), A.Fake<IMetsParser>()),
             preservationApiClient);
 
     private void StatusUpdatesSucceed() =>
@@ -63,6 +65,35 @@ public class ExecutePipelineJobWorkspaceFailureTests
                 .MustHaveHappenedOnceExactly());
         A.CallTo(() => preservationApiClient.LogPipelineRunStatus(A<PipelineDeposit>._, A<CancellationToken>._))
             .MustHaveHappenedTwiceExactly();
+        // A deposit that cannot be fetched cannot be unlocked from here - and there is nothing to unlock.
+        A.CallTo(() => preservationApiClient.ReleaseDepositLock(A<Deposit>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Resolution_Failure_After_The_Deposit_Was_Fetched_Still_Releases_The_Lock()
+    {
+        // The METS-refusal shape: the deposit exists and is locked (RunPipeline locked it before
+        // this handler ran), but its workspace cannot be built. The failure is recorded AND the
+        // deposit is unlocked, because no later exit path will ever run for this job - without
+        // this, the deposit stays locked until someone notices and releases it by hand.
+        StatusUpdatesSucceed();
+        var deposit = new Deposit { Id = new Uri("https://preservation.test/deposits/" + DepositId) };
+        A.CallTo(() => preservationApiClient.GetDeposit(DepositId, A<CancellationToken>._))
+            .Returns(Result.OkNotNull<Deposit?>(deposit));
+        A.CallTo(() => preservationApiClient.ReleaseDepositLock(A<Deposit>._, A<CancellationToken>._))
+            .Returns(Result.Ok());
+        var workspaceMediator = A.Fake<IMediator>();
+        A.CallTo(workspaceMediator).Throws(new NotSupportedException("METS the parser refuses"));
+
+        var result = await CreateHandler(workspaceMediator).Handle(Request(), CancellationToken.None);
+
+        result.Failure.Should().BeTrue();
+        A.CallTo(() => preservationApiClient.LogPipelineRunStatus(
+                A<PipelineDeposit>.That.Matches(d => d.Status == PipelineJobStates.CompletedWithErrors), A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => preservationApiClient.ReleaseDepositLock(deposit, A<CancellationToken>._))
+            .MustHaveHappened();
     }
 
     [Fact]

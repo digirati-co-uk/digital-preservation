@@ -96,6 +96,31 @@ public class ProcessPipelineJobHandler(
     }
 
     /// <summary>
+    /// The deposit was locked when the pipeline run was requested, and every exit from a resolved
+    /// workspace releases that lock - but the workspace-resolution-failure path has no workspace to
+    /// take the deposit from, so fetch it again just to unlock it. Best effort: a deposit that
+    /// cannot be fetched cannot be unlocked from here (and in the not-found case there is nothing
+    /// to unlock); the failure already recorded is the primary signal either way.
+    /// </summary>
+    private async Task ReleaseLockBestEffort(ExecutePipelineJob request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var depositResult = await preservationApiClient.GetDeposit(request.DepositId, cancellationToken);
+            if (depositResult is { Success: true, Value: not null })
+            {
+                await TryReleaseLock(request, depositResult.Value, cancellationToken);
+            }
+        }
+        catch (Exception releaseException) when (releaseException is not OperationCanceledException)
+        {
+            logger.LogError(releaseException,
+                "Pipeline job {JobIdentifier} for deposit {DepositId} failed before its workspace existed and the deposit lock could not be released",
+                request.JobIdentifier, request.DepositId);
+        }
+    }
+
+    /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
     /// (e.g., GetCombinedDirectory(true))
     /// </summary>
@@ -222,6 +247,9 @@ public class ProcessPipelineJobHandler(
                           ?? $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: could not find the deposit";
             // The job was claimed as Running above. Record the failure, or it stays Running for ever.
             await RecordFailureBestEffort(request, message, cancellationToken);
+            // The deposit was locked when the run was requested, and no later exit path will ever
+            // run for this job to release that lock.
+            await ReleaseLockBestEffort(request, cancellationToken);
             return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError, message);
         }
 
