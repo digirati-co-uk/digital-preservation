@@ -120,16 +120,35 @@ already the setting we want for later phases.
 
 ## Part 2 — Please do NOT do yet
 
-None of the following are part of Phase 0. Doing them early could break current callers:
+None of the following are part of Phase 0. To be straight about why — they fall into two groups.
+
+**These would cause real damage if done now:**
+
+- ❌ Do **not** change **Assignment required** on `84c62880` (it stays **Yes**) or on the Web-UI
+  registration `a616cf42…`. *Why:* on `84c62880` it is the gate that will enforce the caller list
+  in every later phase; switched off, any application in the tenant can acquire tokens for this API
+  unnoticed.
+- ❌ Do **not** remove or edit the existing enterprise-app assignments (see 1.5). *Why:* they are
+  the beginning of the user list the UI needs at Phase 3; a user removed now is a user locked out
+  (`AADSTS50105`) the day the UI is repointed.
+- ❌ Do **not** touch the Web-UI registration `a616cf42…` at all. *Why:* it is the live sign-in
+  configuration for the production UI, and today it is also the audience every current caller's
+  token carries.
+
+**These would not break anything today — but please still wait:**
 
 - ❌ Do **not** assign the new `Preservation.Call` role to any application or user.
 - ❌ Do **not** grant any client permission to the new `access_as_user` scope (creating the scope in
   1.3 is Phase 0; granting and consenting it is Phase 3).
-- ❌ Do **not** change **Assignment required** on `84c62880` (it stays **Yes**) or on the Web-UI
-  registration `a616cf42…`.
-- ❌ Do **not** remove or edit the existing enterprise-app assignments (see 1.5).
-- ❌ Do **not** touch the Web-UI registration `a616cf42…` at all.
 - ❌ Do **not** grant admin consent for anything new.
+
+*Why wait, if they're harmless?* Because a grant made early cannot be verified: nothing requests
+this API's audience until we change caller configuration in Phases 2–3, so an early grant just sits
+there — dormant, untestable, and unexplained. Each of these grants is instead scheduled in the exact
+step (Part 3) where it is used and immediately tested, so we can confirm it worked and undo it on
+its own if it didn't. Dormant, purpose-unclear entries are also precisely the kind of configuration
+that later gets "tidied up" or second-guessed — the failure mode this whole plan is designed to
+avoid.
 
 ---
 
