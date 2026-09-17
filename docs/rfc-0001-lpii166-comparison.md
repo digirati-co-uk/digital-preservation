@@ -410,7 +410,11 @@ requests that (c) left open.
   (b) describes as current and kept for now, with a separate Storage audience deferred (RFC §8 Q1).
   Relatedly, the Preservation API's *Authorized client applications* list pre-authorises the Storage
   API's client ID for its delegated scope; as in (c), this confers nothing on app-only tokens, and
-  nothing in the trial appears to depend on it.
+  nothing in the trial appears to depend on it. Subsequently verified empirically on the mirror
+  (2026-09-17): removing the entry changed nothing for either the delegated user flow or the
+  app-token callers, while removing the audience configuration failed immediately — the entry is a
+  consent/pre-authorisation aid, not required for runtime authentication; the audience configuration
+  is the load-bearing part.
 
 Read against the RFC's phases, this trial exercises Phase 1 (a machine caller requesting the API's
 audience, identity in `appid`, role from Entra assignment) and Phase 3 (the UI acquiring user tokens
