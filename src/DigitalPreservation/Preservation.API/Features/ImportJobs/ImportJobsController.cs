@@ -349,11 +349,15 @@ public class ImportJobsController(
     {
         string? message = null;
         var resourceIds = ResourceIds(importJob).ToList();
+        // The IsAbsoluteUri guards below are load-bearing, not tidiness: a bare string in the JSON
+        // ("invalid-id") deserialises as a RELATIVE Uri, and AbsolutePath / GetPathUnderRoot /
+        // IsBaseOf all throw on a relative Uri — turning a job that must be refused with 400 into
+        // an unhandled 500.
         if (importJob.Deposit is null)
         {
             message = "Import job must declare which Deposit it is for.";
         }
-        else if (importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
+        else if (!importJob.Deposit.IsAbsoluteUri || importJob.Deposit.AbsolutePath != "/deposits/" + depositId)
         {
             message = "Import job Deposit does not match the Deposit it was submitted to.";
         }
@@ -361,18 +365,19 @@ public class ImportJobsController(
         {
             message = "Import job must declare which Archival Group it is for.";
         }
-        else if (!SameArchivalGroup(importJob.ArchivalGroup, deposit.ArchivalGroup))
+        else if (!importJob.ArchivalGroup.IsAbsoluteUri || !SameArchivalGroup(importJob.ArchivalGroup, deposit.ArchivalGroup))
         {
             message = $"Import job Archival Group {importJob.ArchivalGroup} does not match the Deposit's Archival Group {deposit.ArchivalGroup}.";
         }
         else if (importJob.BinariesToAdd.Union(importJob.BinariesToPatch)
-                     .FirstOrDefault(binary => !deposit.Files!.IsBaseOf(binary.Origin!)) is { } invalidBinary)
+                     .FirstOrDefault(binary => binary.Origin is not { IsAbsoluteUri: true } origin
+                                               || !deposit.Files!.IsBaseOf(origin)) is { } invalidBinary)
         {
             message = $"Binary origin {invalidBinary.Origin} is not a child of deposit file location {deposit.Files}.";
         }
-        else if (resourceIds.Any(id => id is null))
+        else if (resourceIds.Any(id => id is not { IsAbsoluteUri: true }))
         {
-            message = "Every binary and container in an Import Job must have an id.";
+            message = "Every binary and container in an Import Job must have an id, as an absolute URI.";
         }
         else if (resourceIds.FirstOrDefault(id => !IsWithinArchivalGroup(id!, importJob.ArchivalGroup)) is { } strayId)
         {
