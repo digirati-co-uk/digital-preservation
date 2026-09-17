@@ -27,7 +27,8 @@ public class CreateDepositBase(
     IMetsManager metsManager,
     MetsFromArchivalGroup metsFromArchivalGroup,
     WorkspaceManagerFactory workspaceManagerFactory,
-    IMetsParser metsParser)
+    IMetsParser metsParser,
+    IClientDirectory clientDirectory)
 {
     protected async Task<Result<Deposit?>> HandleBase(CreateDeposit request, CancellationToken cancellationToken)
     {        
@@ -92,8 +93,13 @@ public class CreateDepositBase(
             // the real METS is available (see the wasExportingAndNowFinished branch there).
             var createMetadataFolders = archivalGroupExists is not true;
 
+            // Carve the deposit's working files area in the caller's own bucket when their
+            // (token-resolved) profile has one; null means the storage default (RFC-0001 §8).
+            // This is the only place the choice is made - from here on, deposit.Files carries
+            // the full location and nothing downstream consults the default.
+            var workingRoot = CallerResolver.ResolveDepositBucket(request.Principal, clientDirectory);
             var filesLocation = await storage.GetWorkingFilesLocation(
-                mintedId, request.Deposit.Template, callerIdentity, createMetadataFolders);
+                mintedId, request.Deposit.Template, workingRoot, createMetadataFolders);
             if (filesLocation.Failure)
             {
                 logger.LogError("Unable to create GetWorkingFilesLocation for deposit {MintedId}; {CodeAndMessage}", mintedId, filesLocation.CodeAndMessage());

@@ -54,6 +54,10 @@ try
             .AddInMemoryTokenCaches();
     }
 
+    // Allow-list of known machine callers, keyed by signed azp/appid (RFC-0001 Phase 0).
+    // Registered unconditionally so AuthFilterIdentifier can resolve it even with auth disabled.
+    builder.Services.AddClientDirectory(builder.Configuration);
+
     builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
 
 
