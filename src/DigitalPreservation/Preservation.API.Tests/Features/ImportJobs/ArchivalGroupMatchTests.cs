@@ -98,6 +98,40 @@ public class ArchivalGroupMatchTests
         Executed(mediator).MustNotHaveHappened();
     }
 
+    [Fact]
+    public async Task A_Job_With_A_Relative_Archival_Group_Is_Refused_Rather_Than_Crashing()
+    {
+        // A bare string in the JSON deserialises as a relative Uri, which the path comparison
+        // cannot address (AbsolutePath throws) - it must land as this 400, never a 500.
+        var mediator = Mediator();
+        var controller = Controller(mediator);
+        var job = new ImportJob { Deposit = DepositUri, ArchivalGroup = new Uri("invalid-group", UriKind.Relative) };
+        job.BinariesToAdd.Add(new DigitalPreservation.Common.Model.Binary
+        {
+            Id = new Uri($"{ArchivalGroup}/objects/page-001.tif"),
+            Origin = new Uri(DepositFiles, "objects/page-001.tif")
+        });
+
+        var result = await controller.ExecuteImportJob(DepositId, job, default);
+
+        Refusal(result).Should().Contain("does not match the Deposit's Archival Group");
+        Executed(mediator).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Job_With_A_Relative_Deposit_Is_Refused_Rather_Than_Crashing()
+    {
+        var mediator = Mediator();
+        var controller = Controller(mediator);
+        var job = Job(ArchivalGroup);
+        job.Deposit = new Uri(DepositId, UriKind.Relative);
+
+        var result = await controller.ExecuteImportJob(DepositId, job, default);
+
+        Refusal(result).Should().Contain("does not match the Deposit it was submitted to");
+        Executed(mediator).MustNotHaveHappened();
+    }
+
     private static ImportJob Job(Uri? archivalGroup)
     {
         var job = new ImportJob { Deposit = DepositUri, ArchivalGroup = archivalGroup };
