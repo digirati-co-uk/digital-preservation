@@ -44,18 +44,36 @@ public class ProcessPipelineJobHandler(
     private Guid monitorForceCompleteId = Guid.Parse("97BD55BA-B039-460F-BDC9-34DAD57920C5");
     private readonly Dictionary<Guid, CancellationTokenSource> tokensCatalog = new();
     /// <summary>
-    /// <see cref="GetWorkspaceManager"/>, with the two things that can go wrong turned into what the
-    /// caller needs: a cancelled request is rethrown (the job was interrupted, not processed, and
-    /// another remote call during shutdown is not wanted); any other exception - resolving the
-    /// workspace reads and parses the deposit's METS, and a METS the parser refuses throws - becomes a
-    /// failed result. The full exception goes to the log; the result's message stays generic, because
-    /// an exception from a storage, filesystem, XML or HTTP layer can carry internal detail.
+    /// Workspace resolution with the two things that can go wrong turned into what the caller
+    /// needs: a cancelled request is rethrown (the job was interrupted, not processed, and another
+    /// remote call during shutdown is not wanted); any other exception - resolving the workspace
+    /// reads and parses the deposit's METS, and a METS the parser refuses throws - becomes a failed
+    /// result. The full exception goes to the log; the result's message stays generic, because an
+    /// exception from a storage, filesystem, XML or HTTP layer can carry internal detail.
+    /// The deposit is carried out alongside the result even on failure, so the caller can release
+    /// its lock without a second fetch that could itself fail; it is null exactly when the deposit
+    /// could not be fetched at all - the case where there is nothing to unlock.
     /// </summary>
-    private async Task<Result<WorkspaceManager>> ResolveWorkspace(ExecutePipelineJob request, CancellationToken cancellationToken)
+    private async Task<(Result<WorkspaceManager> Result, Deposit? Deposit)> ResolveWorkspace(
+        ExecutePipelineJob request, CancellationToken cancellationToken)
     {
+        Deposit? deposit = null;
         try
         {
-            return await GetWorkspaceManager(request, true, cancellationToken);
+            var response = await preservationApiClient.GetDeposit(request.DepositId, cancellationToken);
+            if (response.Failure || response.Value == null)
+            {
+                return (Result.FailNotNull<WorkspaceManager>(response.ErrorCode ?? ErrorCodes.UnknownError,
+                    $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId} as could not find the deposit."), null);
+            }
+
+            deposit = response.Value;
+            var workspaceManager = await workspaceManagerFactory.CreateAsync(deposit, true);
+            foreach (var warning in workspaceManager.Warnings)
+            {
+                logger.LogWarning(warning);
+            }
+            return (Result.OkNotNull(workspaceManager), deposit);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -65,9 +83,9 @@ public class ProcessPipelineJobHandler(
         {
             logger.LogError(e, "Could not resolve the workspace for pipeline job {JobIdentifier}, deposit {DepositId}",
                 request.JobIdentifier, request.DepositId);
-            return Result.FailNotNull<WorkspaceManager>(ErrorCodes.UnknownError,
+            return (Result.FailNotNull<WorkspaceManager>(ErrorCodes.UnknownError,
                 $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: "
-                + "the deposit workspace could not be resolved (see the Pipeline API log)");
+                + "the deposit workspace could not be resolved (see the Pipeline API log)"), deposit);
         }
     }
 
@@ -96,21 +114,16 @@ public class ProcessPipelineJobHandler(
     }
 
     /// <summary>
-    /// The deposit was locked when the pipeline run was requested, and every exit from a resolved
-    /// workspace releases that lock - but the workspace-resolution-failure path has no workspace to
-    /// take the deposit from, so fetch it again just to unlock it. Best effort: a deposit that
-    /// cannot be fetched cannot be unlocked from here (and in the not-found case there is nothing
-    /// to unlock); the failure already recorded is the primary signal either way.
+    /// The workspace-resolution-failure path's lock release, on the deposit that resolution already
+    /// fetched. Best effort, mirroring <see cref="RecordFailureBestEffort"/>: cancellation
+    /// propagates; any other failure is logged and swallowed so the caller can still record the
+    /// failure and return it.
     /// </summary>
-    private async Task ReleaseLockBestEffort(ExecutePipelineJob request, CancellationToken cancellationToken)
+    private async Task ReleaseLockBestEffort(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
     {
         try
         {
-            var depositResult = await preservationApiClient.GetDeposit(request.DepositId, cancellationToken);
-            if (depositResult is { Success: true, Value: not null })
-            {
-                await TryReleaseLock(request, depositResult.Value, cancellationToken);
-            }
+            await TryReleaseLock(request, deposit, cancellationToken);
         }
         catch (Exception releaseException) when (releaseException is not OperationCanceledException)
         {
@@ -240,16 +253,23 @@ public class ProcessPipelineJobHandler(
                 $"Pipeline job {request.JobIdentifier} for deposit {request.DepositId} has already been started.");
         }
 
-        var workspaceResult = await ResolveWorkspace(request, cancellationToken);
+        var (workspaceResult, lockedDeposit) = await ResolveWorkspace(request, cancellationToken);
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)
         {
             var message = workspaceResult.ErrorMessage
                           ?? $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: could not find the deposit";
+            // The deposit was locked when the run was requested, and no later exit path will ever
+            // run for this job to release that lock. Release BEFORE recording the failure: the
+            // moment completedWithErrors is visible a caller may retry the run (RunPipeline allows
+            // it while LockedBy is the same caller), and a release landing after that retry would
+            // strip the lock from under the new job. Null means the deposit could not be fetched
+            // at all - nothing to unlock.
+            if (lockedDeposit != null)
+            {
+                await ReleaseLockBestEffort(request, lockedDeposit, cancellationToken);
+            }
             // The job was claimed as Running above. Record the failure, or it stays Running for ever.
             await RecordFailureBestEffort(request, message, cancellationToken);
-            // The deposit was locked when the run was requested, and no later exit path will ever
-            // run for this job to release that lock.
-            await ReleaseLockBestEffort(request, cancellationToken);
             return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError, message);
         }
 
