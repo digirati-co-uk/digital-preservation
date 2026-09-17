@@ -110,6 +110,52 @@ public class ResourcesWithinArchivalGroupTests
     }
 
     [Fact]
+    public async Task A_Relative_Resource_Id_Is_Refused_Rather_Than_Crashing()
+    {
+        // The e2e regression (2026-09-17): a bare string in the JSON ("invalid-id") deserialises
+        // as a RELATIVE Uri, and the containment check's path helpers throw on those - the job
+        // must be refused with this 400, never a 500.
+        var mediator = Mediator();
+        var job = Job();
+        job.ContainersToAdd.Add(new Container { Id = new Uri("invalid-id", UriKind.Relative) });
+
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+
+        Refusal(result).Should().Contain("absolute URI");
+        Executed(mediator).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Relative_Binary_Origin_Is_Refused_Rather_Than_Crashing()
+    {
+        var mediator = Mediator();
+        var job = Job();
+        job.BinariesToAdd.Add(new Binary
+        {
+            Id = new Uri(ArchivalGroup + "/objects/page-002.tif"),
+            Origin = new Uri("objects/page-002.tif", UriKind.Relative)
+        });
+
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+
+        Refusal(result).Should().Contain("not a child of deposit file location");
+        Executed(mediator).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Binary_With_No_Origin_Is_Refused_Rather_Than_Crashing()
+    {
+        var mediator = Mediator();
+        var job = Job();
+        job.BinariesToPatch.Add(new Binary { Id = new Uri(ArchivalGroup + "/objects/page-002.tif") });
+
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+
+        Refusal(result).Should().Contain("not a child of deposit file location");
+        Executed(mediator).MustNotHaveHappened();
+    }
+
+    [Fact]
     public async Task The_Same_Group_On_Another_Host_Is_Accepted_Because_Only_The_Path_Is_The_Identity()
     {
         // Deliberate, and worth pinning: the check is by repository path, as #271's is, because ids
