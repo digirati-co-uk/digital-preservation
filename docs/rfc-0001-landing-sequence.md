@@ -112,15 +112,45 @@ previous one:
 through env vars in the ops repo's terraform (ECS task definitions; `__` maps to `:`, lists need
 indexed keys), so each rung's "config flip" is literally an edit to those maps:
 
-- *Rung 2 (per API)* — replace the `AzureAd__Audience` entry with the list:
+- *Rung 2 (per API)* — **done on dev 2026-09-21; production repeats these exact steps with the
+  production registrations' values (recompute them — never copy dev's).** In BOTH
+  `ecs-preservation-api.tf` and `ecs-storage-api.tf`, replace the `AzureAd__Audience` entry with
+  a four-entry list — each audience in both its `api://` and bare-GUID forms (the bare forms
+  survive a future `accessTokenAcceptedVersion: 2` flip, whose v2.0 tokens carry the bare GUID
+  as `aud`; an explicit list drops Microsoft.Identity.Web's default both-forms tolerance). The
+  values live as purpose-named keys **added to the Preservation API's existing `oauth_azure`
+  secret**, and both services pull from that one secret — one source of truth for a list the two
+  APIs must never let drift; the cross-path IAM read is granted automatically because the
+  secrets-grant module derives from the same map:
+
+  | Secret key (added alongside the existing ones) | Value |
+  |---|---|
+  | `ApiAudience` | `api://` + the API's `ClientId` — the permanent audience |
+  | `ApiAudienceGuid` | the API's bare `ClientId` |
+  | `TransitionalAudience` | the existing `Audience` value (`api://<UI client id>`) |
+  | `TransitionalAudienceGuid` | its bare GUID |
 
   ```
-  AzureAd__TokenValidationParameters__ValidAudiences__0 = api://a616cf42…   (transitional)
-  AzureAd__TokenValidationParameters__ValidAudiences__1 = api://84c62880…   (the API's own)
+  AzureAd__TokenValidationParameters__ValidAudiences__0 = …preservation-api/oauth_azure:ApiAudience
+  AzureAd__TokenValidationParameters__ValidAudiences__1 = …preservation-api/oauth_azure:ApiAudienceGuid
+  AzureAd__TokenValidationParameters__ValidAudiences__2 = …preservation-api/oauth_azure:TransitionalAudience
+  AzureAd__TokenValidationParameters__ValidAudiences__3 = …preservation-api/oauth_azure:TransitionalAudienceGuid
   ```
 
-  The audience values are not secrets; they can live in the task definition's plain `environment`
-  map rather than the secrets map.
+  Permanent pair first, deliberately: retirement (below) deletes the `__2`/`__3` lines and the
+  indices stay contiguous, which .NET's env-var list binding requires. A wrong character in the
+  secret values deploys cleanly and only fails when tokens arrive, so verify the four
+  relationships before applying, without printing a value:
+
+  ```bash
+  aws secretsmanager get-secret-value --secret-id <.../oauth_azure> --query SecretString --output text \
+    | jq -r '"\(.ApiAudience == "api://" + .ClientId) \(.ApiAudienceGuid == .ClientId) \(.TransitionalAudience == .Audience) \("api://" + .TransitionalAudienceGuid == .Audience)"'
+  ```
+
+  (Expect four `true`s.) Two companions to keep in step: `appsettings.Example.json` in both APIs
+  documents the same four-entry shape, and each API's untracked `appsettings.Development.json`
+  needs the same list for local work. One CLI caution: the console's Key/value editor adds a
+  secret key in place, but `put-secret-value` replaces the WHOLE JSON — get, edit, put.
 - *Rung 3 (per caller, on both APIs)* — `KnownClients` entries are plain env vars too (GUID
   hyphens are fine in ECS env var names):
 
@@ -133,8 +163,10 @@ indexed keys), so each rung's "config flip" is literally an edit to those maps:
   `TokenProvider__ResourceUri = api://84c62880…`, and repoint that trio's source from the UI
   registration's credentials to the API's own (today Preservation API and Pipeline API both mint
   as the UI registration — the "mint as `a616cf42…`" arrangement Phase 2 exists to replace).
-- *Rung 4, retirement* — delete the `…ValidAudiences__0` (transitional) line, leaving only the
-  API's own audience.
+- *Rung 4, retirement* — delete the `…ValidAudiences__2`/`__3` (transitional) lines from both
+  files, leaving the permanent pair at `__0`/`__1`. The `Transitional*` keys — and the old
+  `Audience` key, by then referenced by nothing — can be removed from the secret at the same
+  time.
 
 **Standing rule for the whole transition window:** every build keeps supporting **both** models until
 production has completed the ladder. An environment's position on the ladder is expressed in its

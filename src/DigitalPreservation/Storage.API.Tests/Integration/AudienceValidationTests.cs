@@ -44,7 +44,8 @@ public class AudienceValidationTests
 {
     // Deliberately fake GUIDs, shaped like the real registrations in RFC-0001 §3.
     private const string ApiClientId = "84c62880-0000-0000-0000-000000000002";
-    private const string TransitionalAudience = "api://a616cf42-0000-0000-0000-000000000001"; // the shared UI registration
+    private const string TransitionalClientId = "a616cf42-0000-0000-0000-000000000001";       // the shared UI registration
+    private const string TransitionalAudience = $"api://{TransitionalClientId}";
     private const string OwnAudience = $"api://{ApiClientId}";                                // the API's own App ID URI
     private const string ForeignAudience = "api://ffffffff-0000-0000-0000-00000000000f";
 
@@ -58,11 +59,26 @@ public class AudienceValidationTests
         ["AzureAd:ClientId"] = ApiClientId,
     };
 
-    /// <summary>The RFC-0001 Phase 0 transition shape (mirrors appsettings.Example.json).</summary>
+    /// <summary>The RFC-0001 Phase 0 transition shape.</summary>
     private static Dictionary<string, string?> PhaseZeroShape => new(BaseAzureAd)
     {
         ["AzureAd:TokenValidationParameters:ValidAudiences:0"] = TransitionalAudience,
         ["AzureAd:TokenValidationParameters:ValidAudiences:1"] = OwnAudience,
+    };
+
+    /// <summary>
+    /// The hardened four-entry shape actually deployed at rung 2 and documented in both
+    /// appsettings.Example.json files: each audience in api:// AND bare-GUID form. The bare forms
+    /// exist because an explicit ValidAudiences list drops Microsoft.Identity.Web's default
+    /// both-forms tolerance, and a future accessTokenAcceptedVersion: 2 flip mints tokens whose
+    /// aud is the bare GUID.
+    /// </summary>
+    private static Dictionary<string, string?> FourEntryShape => new(BaseAzureAd)
+    {
+        ["AzureAd:TokenValidationParameters:ValidAudiences:0"] = OwnAudience,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:1"] = ApiClientId,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:2"] = TransitionalAudience,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:3"] = TransitionalClientId,
     };
 
     /// <summary>Today's production shape: the singular Audience key.</summary>
@@ -183,6 +199,30 @@ public class AudienceValidationTests
         var status = await Probe(server, audience);
 
         status.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Theory]
+    [InlineData(OwnAudience)]
+    [InlineData(ApiClientId)]            // what a v2.0 token would carry as aud
+    [InlineData(TransitionalAudience)]
+    [InlineData(TransitionalClientId)]
+    public async Task FourEntryShape_AcceptsBothFormsOfBothAudiences(string audience)
+    {
+        using var server = BuildServer(FourEntryShape);
+
+        var status = await Probe(server, audience);
+
+        status.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task FourEntryShape_RejectsForeignAudience()
+    {
+        using var server = BuildServer(FourEntryShape);
+
+        var status = await Probe(server, ForeignAudience);
+
+        status.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
