@@ -26,6 +26,11 @@ CLIENT_IDENTITY = os.environ.get("CLIENT_IDENTITY", "mets-id-migration")
 #: the deposits endpoint.
 SUBMISSION_TEXT = os.environ.get("SUBMISSION_TEXT", "METS ID normalisation (issue #188 step 3)")
 
+#: Optional, only for `validation-survey`: a read-only connection string for Fedora's own
+#: PostgreSQL database, e.g. postgresql://reader:...@host:5432/fcrepo. When unset, the slug
+#: check is skipped and the tool prints how to run it by hand (--fedora-sql).
+FEDORA_DB_DSN = os.environ.get("FEDORA_DB_DSN", "")
+
 #: Where the ledger lives. One file, safe to copy, and the record of what was done. One per
 #: deployment: it is bound to the PRESERVATION_API it was first opened against and refuses any
 #: other, because its rows are keyed on Archival Group paths, which dev and prod have in common.

@@ -345,7 +345,7 @@ class DepositorSkipTests(SurveyLedgerTestCase):
         # prod URI must all mean the same thing.
         for spelling in ("eprints-migration-app", self.EPRINTS,
                          "https://preservation-api-dev.library.leeds.ac.uk/agents/eprints-migration-app"):
-            self.assertEqual(frozenset({"eprints-migration-app"}), survey._skip_slugs([spelling]))
+            self.assertEqual(frozenset({"eprints-migration-app"}), survey.skip_slugs([spelling]))
 
     def test_a_deposit_by_anyone_else_upgrades_a_skipped_group_to_a_real_verdict(self):
         rows = [("cc/mixed", "2026-01-01T00:00:00Z", "eprints-migration-app", "2026-01-01T01:00:00Z"),
@@ -651,6 +651,189 @@ class LedgerDeploymentTests(unittest.TestCase):
             connection.commit()
         with self._open(self.PROD) as ledger:
             self.assertEqual(self.PROD, ledger.get_meta(DEPLOYMENT))
+
+
+
+
+class TestValidationRefusalRule(unittest.TestCase):
+    """
+    validation_survey.refusal must mirror MetsParser.RejectDotSegments exactly - same cases as
+    the .NET tests (UriPathXTests, MetsParserPathTests). If the C# rule changes, these change.
+    """
+
+    ACCEPTED = [
+        "objects/page-001.tif",
+        "objects/sub/page-001.tif",
+        "objects/.hidden",
+        "objects/...",
+        "thing.",
+        "objects/a%20b.jpg",
+        "100%/file.tif",                       # a lone % is a legal slug character
+        "https://rosdok.uni-rostock.de/depot/x/alto/y.xml",   # third-party absolute references pass
+        "objects/%GG/x.jpg",                   # malformed sequences are left as-is, never an error
+        "objects/%2",
+        "objects/%252e%252e/x",                # double-encoded: ONE decode, like Uri.UnescapeDataString
+        "",                                    # C#: RejectDotSegments("") passes - one empty segment
+        " ../x",                               # raw semantics: " .." is not a dot segment, no trim
+    ]
+
+    REFUSED = [
+        "../x",
+        "objects/../../outside/x",
+        "objects/./x",
+        "objects/%2e/x",
+        "%2e%2e/x",
+        "objects/%2E%2E/x",
+        "objects\\x",                          # backslash anywhere
+        "objects/%2e%2e%2fother/x",            # encoded separator inside a segment
+        "objects%2f..%2fx",
+        "objects/a%5Cb.mp3",
+        "objects%5c..%5cx",
+        "objects/%2F/x",                       # upper-case encoded separator
+        "objects/%5C/x",
+    ]
+
+    def test_accepted(self):
+        from app import validation_survey
+        for path in self.ACCEPTED:
+            self.assertIsNone(validation_survey.refusal(path), path)
+
+    def test_refused(self):
+        from app import validation_survey
+        for path in self.REFUSED:
+            self.assertIsNotNone(validation_survey.refusal(path), path)
+
+    def test_mets_paths_finds_flocat_and_original_name(self):
+        from app import validation_survey
+        document = (
+            '<mets:mets xmlns:mets="http://www.loc.gov/METS/" '
+            '           xmlns:xlink="http://www.w3.org/1999/xlink" '
+            '           xmlns:premis="http://www.loc.gov/premis/v3">'
+            '  <premis:originalName>objects/folder</premis:originalName>'
+            '  <mets:FLocat xlink:href="objects/page-001.tif" LOCTYPE="URL"/>'
+            '</mets:mets>'
+        ).encode()
+        found = set(validation_survey._mets_paths(document))
+        self.assertEqual(found, {
+            ("premis:originalName", "objects/folder"),
+            ("FLocat/@href", "objects/page-001.tif"),
+        })
+
+
+class TestValidationSurveyReviewFindings(unittest.TestCase):
+    """
+    The two review findings on PR #294: a 404 (an Archival Group with no METS - a normal state)
+    must be a benign outcome rather than a release-blocking finding, and --skip-created-by values
+    must be slugified before matching, since deposit_rows yields creator slugs and the setting is
+    documented as accepting bare id or agent URI.
+    """
+
+    def test_404_no_mets_is_not_a_finding(self):
+        from app import validation_survey
+        findings, problems = [], []
+        with mock.patch.object(validation_survey.api, "get_archival_group_mets",
+                               side_effect=validation_survey.api.ApiError("mets", "none", 404)):
+            outcome = validation_survey._check_group("a/b", findings, problems)
+        self.assertEqual(outcome, "no_mets")
+        self.assertEqual(findings, [])
+        self.assertEqual(problems, [])
+
+    def test_other_api_errors_are_problems_not_findings(self):
+        from app import validation_survey
+        findings, problems = [], []
+        with mock.patch.object(validation_survey.api, "get_archival_group_mets",
+                               side_effect=validation_survey.api.ApiError("mets", "boom", 502)):
+            outcome = validation_survey._check_group("a/b", findings, problems)
+        self.assertEqual(outcome, "unreadable")
+        self.assertEqual(findings, [])
+        self.assertEqual(len(problems), 1)
+        self.assertEqual(problems[0]["kind"], "unreadable")
+
+    def _run_arguments(self, **overrides):
+        from argparse import Namespace
+        values = dict(fedora_sql=False, paths=None, newest_first=False, created_after=None,
+                      path_prefix=None, sample_skipped=0, limit=None, pause=0, csv=None,
+                      skip_created_by=[])
+        values.update(overrides)
+        return Namespace(**values)
+
+    def test_unreadable_groups_mean_incomplete_exit_2_not_findings_exit_1(self):
+        from app import validation_survey
+        with mock.patch.object(validation_survey.settings, "FEDORA_DB_DSN", None),              mock.patch.object(validation_survey, "_collect_groups",
+                               return_value={"x/one": set()}),              mock.patch.object(validation_survey.api, "get_archival_group_mets",
+                               side_effect=validation_survey.api.ApiError("mets", "boom", 502)):
+            exit_code = validation_survey.run(self._run_arguments())
+        self.assertEqual(exit_code, 2)
+
+    def test_circuit_breaker_stops_after_three_consecutive_unreadable(self):
+        from app import validation_survey
+        reader = mock.Mock(side_effect=validation_survey.api.ApiError("mets", "down", 502))
+        groups = {f"x/{n}": set() for n in range(8)}
+        with mock.patch.object(validation_survey.settings, "FEDORA_DB_DSN", None),              mock.patch.object(validation_survey, "_collect_groups", return_value=groups),              mock.patch.object(validation_survey.api, "get_archival_group_mets", reader):
+            exit_code = validation_survey.run(self._run_arguments())
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(reader.call_count, validation_survey._UNREAD_RUN_LIMIT)
+
+    def test_a_doctype_with_an_external_entity_is_not_resolved(self):
+        # Preserved METS is third-party content; the hardened parser must neither fetch the
+        # external entity nor fail the walk over its presence.
+        from app import validation_survey
+        document = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE mets [<!ENTITY xxe SYSTEM "file:///should/never/be/read">]>'
+            '<mets:mets xmlns:mets="http://www.loc.gov/METS/" '
+            '           xmlns:xlink="http://www.w3.org/1999/xlink">'
+            '<mets:FLocat xlink:href="objects/page-001.tif" LOCTYPE="URL"/>'
+            '</mets:mets>'
+        ).encode()
+        found = set(validation_survey._mets_paths(document))
+        self.assertEqual(found, {("FLocat/@href", "objects/page-001.tif")})
+
+    def test_findings_plus_a_tripped_breaker_still_exit_incomplete(self):
+        # Exit 1 promises a verdict over the WHOLE population: a run that found content AND
+        # then stopped early must exit 2, or automation treats a partial answer as complete.
+        from app import validation_survey
+        hit_mets = (
+            '<mets:mets xmlns:mets="http://www.loc.gov/METS/" '
+            '           xmlns:xlink="http://www.w3.org/1999/xlink">'
+            '<mets:FLocat xlink:href="objects/../escape.tif" LOCTYPE="URL"/>'
+            '</mets:mets>'
+        ).encode()
+        down = validation_survey.api.ApiError("mets", "down", 502)
+        reader = mock.Mock(side_effect=[hit_mets, down, down, down])
+        groups = {f"x/{n}": set() for n in range(4)}
+        with mock.patch.object(validation_survey.settings, "FEDORA_DB_DSN", None),              mock.patch.object(validation_survey, "_collect_groups", return_value=groups),              mock.patch.object(validation_survey.api, "get_archival_group_mets", reader):
+            exit_code = validation_survey.run(self._run_arguments())
+        self.assertEqual(exit_code, 2)
+
+    def test_mets_with_comments_and_pis_is_walked_not_crashed(self):
+        from app import validation_survey
+        document = (
+            '<?xml version="1.0"?>'
+            '<mets:mets xmlns:mets="http://www.loc.gov/METS/" '
+            '           xmlns:xlink="http://www.w3.org/1999/xlink">'
+            '<!-- generated by tool v1.2 -->'
+            '<?processing instruction?>'
+            '<mets:FLocat xlink:href="objects/page-001.tif" LOCTYPE="URL"/>'
+            '</mets:mets>'
+        ).encode()
+        found = set(validation_survey._mets_paths(document))
+        self.assertEqual(found, {("FLocat/@href", "objects/page-001.tif")})
+
+    def test_skip_created_by_matches_agent_uris(self):
+        from argparse import Namespace
+        from app import validation_survey
+        arguments = Namespace(fedora_sql=False, paths=None, newest_first=False, created_after=None,
+                              path_prefix=None, sample_skipped=0, limit=None, pause=0, csv=None,
+                              skip_created_by=["https://dev.example/agents/eprints-migration-app"])
+        check = mock.Mock()
+        with mock.patch.object(validation_survey.settings, "FEDORA_DB_DSN", None), \
+             mock.patch.object(validation_survey, "_collect_groups",
+                               return_value={"x/y": {"eprints-migration-app"}}), \
+             mock.patch.object(validation_survey, "_check_group", check):
+            exit_code = validation_survey.run(arguments)
+        self.assertEqual(exit_code, 0)
+        check.assert_not_called()
 
 
 if __name__ == "__main__":
