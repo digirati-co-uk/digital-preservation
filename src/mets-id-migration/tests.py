@@ -655,3 +655,63 @@ class LedgerDeploymentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestValidationRefusalRule(unittest.TestCase):
+    """
+    validation_survey.refusal must mirror MetsParser.RejectDotSegments exactly - same cases as
+    the .NET tests (UriPathXTests, MetsParserPathTests). If the C# rule changes, these change.
+    """
+
+    ACCEPTED = [
+        "objects/page-001.tif",
+        "objects/sub/page-001.tif",
+        "objects/.hidden",
+        "objects/...",
+        "thing.",
+        "objects/a%20b.jpg",
+        "100%/file.tif",                       # a lone % is a legal slug character
+        "https://rosdok.uni-rostock.de/depot/x/alto/y.xml",   # third-party absolute references pass
+        "objects/%GG/x.jpg",                   # malformed sequences are left as-is, never an error
+        "objects/%2",
+    ]
+
+    REFUSED = [
+        "../x",
+        "objects/../../outside/x",
+        "objects/./x",
+        "objects/%2e/x",
+        "%2e%2e/x",
+        "objects/%2E%2E/x",
+        "objects\\x",                          # backslash anywhere
+        "objects/%2e%2e%2fother/x",            # encoded separator inside a segment
+        "objects%2f..%2fx",
+        "objects/a%5Cb.mp3",
+        "objects%5c..%5cx",
+    ]
+
+    def test_accepted(self):
+        from app import validation_survey
+        for path in self.ACCEPTED:
+            self.assertIsNone(validation_survey.refusal(path), path)
+
+    def test_refused(self):
+        from app import validation_survey
+        for path in self.REFUSED:
+            self.assertIsNotNone(validation_survey.refusal(path), path)
+
+    def test_mets_paths_finds_flocat_and_original_name(self):
+        from app import validation_survey
+        document = (
+            '<mets:mets xmlns:mets="http://www.loc.gov/METS/" '
+            '           xmlns:xlink="http://www.w3.org/1999/xlink" '
+            '           xmlns:premis="http://www.loc.gov/premis/v3">'
+            '  <premis:originalName>objects/folder</premis:originalName>'
+            '  <mets:FLocat xlink:href="objects/page-001.tif" LOCTYPE="URL"/>'
+            '</mets:mets>'
+        ).encode()
+        found = set(validation_survey._mets_paths(document))
+        self.assertEqual(found, {
+            ("premis:originalName", "objects/folder"),
+            ("FLocat/@href", "objects/page-001.tif"),
+        })

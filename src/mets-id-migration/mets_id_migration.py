@@ -12,6 +12,8 @@ Bulk migration of preserved METS documents to legal xs:ID values (issue #188 ste
     python mets_id_migration.py migrate --dry-run      # rehearse: everything but the preserve
     python mets_id_migration.py migrate --limit 1      # do one
     python mets_id_migration.py verify                 # re-check what was migrated
+    python mets_id_migration.py validation-survey      # pre-release check: would the current
+                                                       # validation rules refuse anything preserved?
 
 `survey` and `list` change nothing anywhere - they answer "how big is this?", which is the question
 that decides whether the bulk migration is needed at all. If the list is short, the same job can be
@@ -28,7 +30,7 @@ import sys
 import logzero
 from logzero import logger
 
-from app import api, migrate, settings, survey
+from app import api, migrate, settings, survey, validation_survey
 from app.ledger import CANDIDATE, Ledger, WrongDeployment
 
 
@@ -111,6 +113,36 @@ def main() -> int:
         "verify", help="re-read migrated Archival Groups and check they conform. Read-only.")
     verify_command.add_argument("--limit", type=int)
 
+    validation_command = commands.add_parser(
+        "validation-survey",
+        help="pre-release check, read-only and ledger-free: find preserved METS paths (and, via "
+             "Fedora's database, slugs) that the current validation rules would refuse. See the "
+             "README and docs/rfc-0001-landing-sequence.md ('Cutting a production release').")
+    validation_command.add_argument("--fedora-sql", action="store_true",
+                                    help="print the two read-only SQL checks for Fedora's database "
+                                         "and exit; or set FEDORA_DB_DSN to have them run for you")
+    validation_command.add_argument("--limit", type=int, help="check at most this many groups")
+    validation_command.add_argument("--pause", type=float, metavar="SECONDS",
+                                    help="wait between Archival Groups (default: "
+                                         "SURVEY_PAUSE_SECONDS); pace it on a system in use")
+    validation_command.add_argument("--newest-first", action="store_true",
+                                    help="sample the newest deposits first; see survey --newest-first")
+    validation_command.add_argument("--created-after", metavar="TIMESTAMP",
+                                    help="only walk deposits created after this (a crude resume)")
+    validation_command.add_argument("--path", action="append", dest="paths", metavar="PATH",
+                                    help="check exactly this Archival Group; repeatable")
+    validation_command.add_argument("--path-prefix",
+                                    help="only Archival Groups whose path starts with this")
+    validation_command.add_argument("--skip-created-by", action="append", dest="skip_created_by",
+                                    metavar="AGENT",
+                                    help="skip groups all of whose deposits were created by this "
+                                         "identity, without reading their METS - the same lever as "
+                                         "survey. Default: SKIP_CREATED_BY in .env")
+    validation_command.add_argument("--sample-skipped", type=int, default=0, metavar="N",
+                                    help="also check N randomly chosen skipped groups, to test the "
+                                         "skip heuristic (like verify-skipped)")
+    validation_command.add_argument("--csv", help="write findings here as CSV")
+
     arguments = parser.parse_args()
     if arguments.log_file:
         logzero.logfile(arguments.log_file)
@@ -120,6 +152,11 @@ def main() -> int:
         for problem in problems:
             logger.error(problem)
         return 2
+
+    if arguments.command == "validation-survey":
+        # Deliberately ledger-free: it changes nothing and records nothing but its CSV, so it can
+        # be pointed at any deployment without the one-ledger-per-deployment ceremony.
+        return validation_survey.run(arguments)
 
     try:
         ledger = Ledger(arguments.ledger, settings.PRESERVATION_API)
