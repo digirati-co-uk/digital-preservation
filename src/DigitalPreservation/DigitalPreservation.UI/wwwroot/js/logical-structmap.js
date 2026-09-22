@@ -14,6 +14,7 @@ let editRangeModalShown = false;
 // Used when modsModal is opened for a logical range
 let modsTargetStructmapId = null;
 let modsTargetRangeId = null;
+let modsModalShown = false;
 
 let dragState = null; // { structmapId, rangeId, localPath }
 
@@ -550,6 +551,9 @@ function wireModsModalIntercept() {
     const modsForm = modsModal.querySelector('form');
     if (!modsForm) return;
 
+    modsModal.addEventListener('shown.bs.modal', () => { modsModalShown = true; });
+    modsModal.addEventListener('hidden.bs.modal', () => { modsModalShown = false; });
+
     // Capture phase: fires before site.js single-submit listener
     modsForm.addEventListener('submit', function (e) {
         const ctx = document.getElementById('modsContext')?.value ?? '';
@@ -559,15 +563,30 @@ function wireModsModalIntercept() {
         e.stopImmediatePropagation();
 
         const smId = modsTargetStructmapId ?? findStructmapIdForRange(ctx);
-        if (!smId) { bootstrap.Modal.getInstance(modsModal)?.hide(); return; }
+        if (!smId) { hideModsModal(modsModal); return; }
 
         const accessRestrictions = readAccessRestrictionsFromForm();
         const rightsStatementUri = readRightsStatementUriFromForm();
         const recordIdentifiers = readRecordIdentifiersFromForm();
 
         setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers);
-        bootstrap.Modal.getInstance(modsModal)?.hide();
+        hideModsModal(modsModal);
     }, { capture: true });
+}
+
+function hideModsModal(modsModal) {
+    const instance = bootstrap.Modal.getOrCreateInstance(modsModal);
+    // Bootstrap's Modal.hide() is a documented no-op while the modal is still mid-way through its
+    // own show transition (it checks an internal _isTransitioning flag and just returns). The
+    // ~300ms fade-in from .show() can still be running when Save is clicked - a real user clicking
+    // fast, or Playwright filling the form and clicking, can both beat it - so hide() silently does
+    // nothing and the modal never closes. Deferring to shown.bs.modal guarantees the transition has
+    // genuinely finished before we ask Bootstrap to hide it. See editRangeModal for the same fix.
+    if (modsModalShown) {
+        instance.hide();
+    } else {
+        modsModal.addEventListener('shown.bs.modal', () => instance.hide(), { once: true });
+    }
 }
 
 function openModsModalForRange(structmapId, rangeId) {
