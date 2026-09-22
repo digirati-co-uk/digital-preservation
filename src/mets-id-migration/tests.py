@@ -715,3 +715,46 @@ class TestValidationRefusalRule(unittest.TestCase):
             ("premis:originalName", "objects/folder"),
             ("FLocat/@href", "objects/page-001.tif"),
         })
+
+
+class TestValidationSurveyReviewFindings(unittest.TestCase):
+    """
+    The two review findings on PR #294: a 404 (an Archival Group with no METS - a normal state)
+    must be a benign outcome rather than a release-blocking finding, and --skip-created-by values
+    must be slugified before matching, since deposit_rows yields creator slugs and the setting is
+    documented as accepting bare id or agent URI.
+    """
+
+    def test_404_no_mets_is_not_a_finding(self):
+        from app import validation_survey
+        findings = []
+        with mock.patch.object(validation_survey.api, "get_archival_group_mets",
+                               side_effect=validation_survey.api.ApiError("mets", "none", 404)):
+            outcome = validation_survey._check_group("a/b", findings)
+        self.assertEqual(outcome, "no_mets")
+        self.assertEqual(findings, [])
+
+    def test_other_api_errors_are_still_findings(self):
+        from app import validation_survey
+        findings = []
+        with mock.patch.object(validation_survey.api, "get_archival_group_mets",
+                               side_effect=validation_survey.api.ApiError("mets", "boom", 502)):
+            outcome = validation_survey._check_group("a/b", findings)
+        self.assertEqual(outcome, "unreadable")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["kind"], "unreadable")
+
+    def test_skip_created_by_matches_agent_uris(self):
+        from argparse import Namespace
+        from app import validation_survey
+        arguments = Namespace(fedora_sql=False, paths=None, newest_first=False, created_after=None,
+                              path_prefix=None, sample_skipped=0, limit=None, pause=0, csv=None,
+                              skip_created_by=["https://dev.example/agents/eprints-migration-app"])
+        check = mock.Mock()
+        with mock.patch.object(validation_survey.settings, "FEDORA_DB_DSN", None), \
+             mock.patch.object(validation_survey, "_collect_groups",
+                               return_value={"x/y": {"eprints-migration-app"}}), \
+             mock.patch.object(validation_survey, "_check_group", check):
+            exit_code = validation_survey.run(arguments)
+        self.assertEqual(exit_code, 0)
+        check.assert_not_called()

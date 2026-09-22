@@ -118,6 +118,10 @@ def _check_group(path: str, findings: list[dict[str, str]]) -> str:
     try:
         document = api.get_archival_group_mets(path)
     except api.ApiError as error:
+        if error.status_code == 404:
+            # A normal state, not a finding: an Archival Group can simply have no METS
+            # (survey.py records the same 404 as NO_METS). Nothing for the rule to check.
+            return "no_mets"
         logger.warning("%s: could not read METS (%s)", path, error)
         findings.append({"path": path, "kind": "unreadable", "value": "", "reason": str(error)})
         return "unreadable"
@@ -142,7 +146,7 @@ def run(arguments) -> int:
         return 0
 
     findings: list[dict[str, str]] = []
-    counts = {"clean": 0, "hit": 0, "unreadable": 0, "unparseable": 0}
+    counts = {"clean": 0, "hit": 0, "no_mets": 0, "unreadable": 0, "unparseable": 0}
 
     # --- slugs, via Fedora's database, when a DSN is provided ---
     dsn = settings.FEDORA_DB_DSN
@@ -153,7 +157,10 @@ def run(arguments) -> int:
                     "SQL from --fedora-sql (read-only credentials suffice).")
 
     # --- METS paths, via the Preservation API ---
-    skip_creators = set(arguments.skip_created_by or settings.SKIP_CREATED_BY)
+    # survey._skip_slugs, not a raw set: deposit_rows yields creator SLUGS, so the configured
+    # values (documented as bare id or agent URI, and environment-specific in URI form) must be
+    # slugified the same way or the skip lever silently matches nothing.
+    skip_creators = survey._skip_slugs(arguments.skip_created_by or settings.SKIP_CREATED_BY)
     if arguments.paths:
         to_check = list(dict.fromkeys(arguments.paths))
         skipped: list[str] = []
@@ -194,10 +201,10 @@ def run(arguments) -> int:
             writer.writerows(findings)
         logger.info("findings written to %s", arguments.csv)
 
-    logger.info("METS survey: %s clean, %s with refusable paths, %s unreadable, %s unparseable"
-                "%s skipped by depositor",
-                counts["clean"], counts["hit"], counts["unreadable"], counts["unparseable"],
-                f", {len(skipped)}" if not arguments.paths else ", 0")
+    logger.info("METS survey: %s clean, %s with refusable paths, %s with no METS, %s unreadable, "
+                "%s unparseable%s skipped by depositor",
+                counts["clean"], counts["hit"], counts["no_mets"], counts["unreadable"],
+                counts["unparseable"], f", {len(skipped)}" if not arguments.paths else ", 0")
     if findings:
         logger.error("%s finding(s): this deployment holds content the current validation rules "
                      "would refuse. Resolve (or consciously accept) before cutting a release.",
