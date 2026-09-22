@@ -79,10 +79,10 @@ public class Startup
         {
             ClientId = authProvider.ClientId,
             ClientSecret = authProvider.ClientSecret,
-            TenantId = authProvider.TenantId
+            TenantId = authProvider.TenantId,
+            ResourceUri = authProvider.ResourceUri
         };
-        services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
-        services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+        services.AddAccessTokenProvider(accessTokenProviderOptions);
 
         services.AddAWSService<IAmazonS3>(); //AMAzon.s3
 

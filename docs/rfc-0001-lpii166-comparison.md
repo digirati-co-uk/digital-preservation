@@ -207,7 +207,10 @@ The deeper problem is the *direction* of the failure. The RFC's per-caller step 
 | Deploy/activate coupling | Config change is the activation | Code deploys everywhere first (inert), config activates per environment |
 | `TokenProvider` migration | Explicitly flagged as not-config-only; two options offered | Implemented (option (a)) — but currently defective (§6) |
 
-The guarded-rollout point is a genuine improvement the RFC should adopt regardless of topology (§7.1).
+The guarded-rollout *property* survived; the POC's *code* for it did not: §7.1 records (2026-09-16)
+that the stock `AddMicrosoftIdentityWebApi` binding already delivers it — activation is the
+`ValidAudiences` key's presence in per-environment config — so the guarded `PostConfigure` pattern
+was resolved as unnecessary, not adopted.
 
 ## 6. Defects on the POC branch
 
@@ -246,7 +249,7 @@ The POC's end-to-end test minted the third-party token **manually in Postman**, 
 
 ### 6.3 Minor (not blocking)
 
-- The `PostConfigure` block is duplicated verbatim in both `Program.cs` files and reads the config section twice; it should be hoisted into one extension method in `DigitalPreservation.Core` (where `AudienceValidationTests` can pin it — see §7.1).
+- ~~The `PostConfigure` block is duplicated verbatim in both `Program.cs` files and reads the config section twice; it should be hoisted into one extension method~~ *(resolved 2026-09-16 with §7.1: the pattern was not adopted at all — the stock binding delivers the same rollout property, and the guarded code, its duplication, and its `Authentication:ValidAudiences` section all went away together.)*
 - The `AddAuthentication(options => { DefaultAuthenticateScheme/DefaultChallengeScheme … })` change is behaviourally equivalent to the previous `AddAuthentication(JwtBearerDefaults.AuthenticationScheme)`; fine either way.
 
 ## 7. Recommended synthesis
@@ -257,8 +260,8 @@ The mechanics and the topology are separable. Take the best of each.
 
 > The order in which this lands relative to PR #208 — and why #208 merges first — is set out in [`rfc-0001-landing-sequence.md`](./rfc-0001-landing-sequence.md).
 
-- **The guarded `PostConfigure` rollout pattern** replaces the RFC's config-only Phase 0 shape: deploy the code everywhere (inert without config), activate per environment by adding `ValidAudiences`, keep the old `Audience` key in place as the fallback until activation. Hoist to a single shared extension in `DigitalPreservation.Core`.
-- **Config location** needs one decision: the POC's new top-level `Authentication:ValidAudiences` section vs keeping it inside `AzureAd` (e.g. `AzureAd:ValidAudiences`, read by the same guarded code). Either works; whichever is chosen, **`AudienceValidationTests` must be re-pinned to that shape** — it currently pins `AzureAd:TokenValidationParameters:ValidAudiences`, which the guarded-code approach supersedes.
+- ~~**The guarded `PostConfigure` rollout pattern**~~ *(resolved 2026-09-16: not adopted — unnecessary.)* The rollout property the POC's guarded code was after (deploy everywhere inert, activate per environment by config) turns out to be delivered by the stock `AddMicrosoftIdentityWebApi` binding alone: `AudienceValidationTests` proves `AzureAd:TokenValidationParameters:ValidAudiences` binds through the registration path both APIs already use, so activation is the key's presence in per-environment config and no shared extension is needed.
+- ~~**Config location**~~ *(resolved the same way:)* `AzureAd:TokenValidationParameters:ValidAudiences` — the shape the tests already pin and both `appsettings.Example.json` files document. The POC's `Authentication:ValidAudiences` section is superseded along with the guarded code that read it.
 - **The `ResourceUri` decoupling** in `AccessTokenProvider`, with §6's defects fixed (v2 endpoint, null-check corrected), becomes the RFC's Phase 2 option (a) implementation — and the prerequisite for a future Storage audience split (§8 Q1) under either topology.
 - **Human-readable Application ID URIs** for anything newly exposed.
 

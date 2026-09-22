@@ -56,20 +56,25 @@ A small PR, **opened after #208 is on `main`**, that brings across what is worth
 branch *in corrected form*, rather than merging that branch as-is. Comparison §7.1 is the spec; in
 summary:
 
-1. **Guarded `PostConfigure<JwtBearerOptions>`** — hoist the LPII-166 block out of the two `Program.cs`
-   files into one `DigitalPreservation.Core` extension (e.g. `AddValidAudiencesOverride`), called from
-   both APIs. It acts only when the new config section is present; the existing singular `Audience`
-   remains the fallback, which is what makes deploy-then-activate possible.
-2. **Settle the config location** — `Authentication:ValidAudiences` (the LPII-166 shape) or
-   `AzureAd:TokenValidationParameters:ValidAudiences` (the RFC's). Pick one, then **re-pin
-   `Storage.API.Tests/Integration/AudienceValidationTests.cs`** to it in the same PR, and update both
-   `appsettings.Example.json` files and RFC §6 Phase 0.
-3. **`ResourceUri` on `AccessTokenProvider`** (RFC Phase 2 option (a)) with both defects fixed:
-   - exempt `ResourceUri` (or all optional properties) from the reflection `nullCheck`, so deploying
-     without the new key does not kill token acquisition;
-   - send the *target* resource, not the caller's own `ClientId` — preferably by moving to the v2
+1. ~~**Guarded `PostConfigure<JwtBearerOptions>`**~~ — **not needed** (established 2026-09-16):
+   `AudienceValidationTests` proves `AzureAd:TokenValidationParameters:ValidAudiences` binds through
+   the stock `AddMicrosoftIdentityWebApi(GetSection("AzureAd"))` path both APIs already use — both
+   audiences accepted, foreign rejected — so the dual-audience mechanism ships on #208 as pure
+   config with no code of its own. The LPII-166 `PostConfigure` block has nothing left to do.
+2. ~~**Settle the config location**~~ — **already settled** on
+   `AzureAd:TokenValidationParameters:ValidAudiences`: the tests are pinned to it, both
+   `appsettings.Example.json` files document it, and RFC §6 Phase 0 prescribes it (with the
+   top-level-`Audiences`-binds-to-nothing caution).
+3. **`ResourceUri` on `AccessTokenProvider`** (RFC Phase 2 option (a)) with both defects fixed —
+   *the whole of the follow-up PR*:
+   - only the credential triplet (`TenantId`/`ClientId`/`ClientSecret`) gates acquisition; the
+     optional `ResourceUri` must not, so deploying without the new key changes nothing (the
+     LPII-166 reflection `nullCheck` defect, pinned by a regression test);
+   - when `ResourceUri` is set, request the *target* resource from the v2
      `/oauth2/v2.0/token` endpoint with `scope = {ResourceUri}/.default` (RFC Appendix B wants this
-     anyway). Add a test that asserts the outgoing form body.
+     anyway); when unset, the legacy v1 self-token path is byte-for-byte unchanged. Tests assert
+     the outgoing form body on both paths (note: the v2 endpoint returns `expires_in` as a JSON
+     number, which the old `Dictionary<string, string>` deserialization would have rejected).
 
 **Why a follow-up rather than merging the LPII-166 branch:** its three files carry both the mechanics and
 the two defects, and that branch predates #208. Cherry-picking the ideas into a branch cut from
@@ -89,15 +94,84 @@ previous one:
 
 1. **Leeds admin does Phase 0** (admin doc Part 1: role, delegated scope, `idtyp` claim). Independent of
    code — can be requested now, in parallel with steps 1–2.
-2. **Config flip: accept both audiences** (the `ValidAudiences` section from step 2, listing
-   `api://a616cf42…` *and* `api://84c62880…`). Deploy-then-activate: the code from step 2 is already
-   live and idle; adding the section activates it. Verify with `/whoami` and the audience tests' shapes.
+2. **Config flip: accept both audiences** — *replace* the singular `AzureAd:Audience` key with
+   `AzureAd:TokenValidationParameters:ValidAudiences` listing both audiences — **four entries, not
+   two**: each audience in its `api://` and bare-GUID forms, permanent pair first (the full shape,
+   the reason for the bare-GUID forms, and the entry order are in "How the rungs are spelled in
+   deployed config" below). This is pure config against the stock binding already on `main` from #208 —
+   no code waits on it. With both keys present acceptance is the *union* (pinned by
+   `AudienceValidationTests`), so a forgotten removal of the singular key is harmless here (its
+   value is in the list) but replace-not-accumulate is the rule. Verify with `/whoami` and the
+   audience tests' shapes.
 3. **Phase 1 — Goobi's registration + role assignment**, its `KnownClients` profile with `depositBucket`.
    This is the point where Goobi is delivered; nothing user-visible waits on the later phases (which is
    exactly why RFC §6's completion commitment exists — name an owner and date for Phases 2–4 here).
 4. **Phase 2–4** as RFC §6: repoint callers one at a time (assignment *before* repoint, or
    `AADSTS501051`), repoint the UI (delegated scope consent + user assignments first, or `AADSTS50105`),
    retire the transitional audience, switch the human/machine predicate to `idtyp`, remove the header.
+
+**How the rungs are spelled in deployed config.** The deployed environments configure the APIs
+through env vars in the ops repo's terraform (ECS task definitions; `__` maps to `:`, lists need
+indexed keys), so each rung's "config flip" is literally an edit to those maps:
+
+- *Rung 2 (per API)* — **done on dev 2026-09-21; production repeats these exact steps with the
+  production registrations' values (recompute them — never copy dev's).** In BOTH
+  `ecs-preservation-api.tf` and `ecs-storage-api.tf`, replace the `AzureAd__Audience` entry with
+  a four-entry list — each audience in both its `api://` and bare-GUID forms (the bare forms
+  survive a future `accessTokenAcceptedVersion: 2` flip, whose v2.0 tokens carry the bare GUID
+  as `aud`; an explicit list drops Microsoft.Identity.Web's default both-forms tolerance). The
+  values live as purpose-named keys **added to the Preservation API's existing `oauth_azure`
+  secret**, and both services pull from that one secret — one source of truth for a list the two
+  APIs must never let drift; the cross-path IAM read is granted automatically because the
+  secrets-grant module derives from the same map:
+
+  | Secret key (added alongside the existing ones) | Value |
+  |---|---|
+  | `ApiAudience` | `api://` + the API's `ClientId` — the permanent audience |
+  | `ApiAudienceGuid` | the API's bare `ClientId` |
+  | `TransitionalAudience` | the existing `Audience` value (`api://<UI client id>`) |
+  | `TransitionalAudienceGuid` | its bare GUID |
+
+  ```
+  AzureAd__TokenValidationParameters__ValidAudiences__0 = …preservation-api/oauth_azure:ApiAudience
+  AzureAd__TokenValidationParameters__ValidAudiences__1 = …preservation-api/oauth_azure:ApiAudienceGuid
+  AzureAd__TokenValidationParameters__ValidAudiences__2 = …preservation-api/oauth_azure:TransitionalAudience
+  AzureAd__TokenValidationParameters__ValidAudiences__3 = …preservation-api/oauth_azure:TransitionalAudienceGuid
+  ```
+
+  Permanent pair first, deliberately: retirement (below) deletes the `__2`/`__3` lines and the
+  indices stay contiguous, which .NET's env-var list binding requires. A wrong character in the
+  secret values deploys cleanly and only fails when tokens arrive, so verify the four
+  relationships before applying, without printing a value:
+
+  ```bash
+  aws secretsmanager get-secret-value --secret-id <.../oauth_azure> --query SecretString --output text \
+    | jq -r '"\(.ApiAudience == "api://" + .ClientId) \(.ApiAudienceGuid == .ClientId) \(.TransitionalAudience == .Audience) \("api://" + .TransitionalAudienceGuid == .Audience)"'
+  ```
+
+  (Expect four `true`s.) Two companions to keep in step: `appsettings.Example.json` in both APIs
+  documents the same four-entry shape, and each API's untracked `appsettings.Development.json`
+  needs the same list for local work. One CLI caution: the console's Key/value editor adds a
+  secret key in place, but `put-secret-value` replaces the WHOLE JSON — get, edit, put.
+- *Rung 3 (per caller, on both APIs)* — `KnownClients` entries are plain env vars too (GUID
+  hyphens are fine in ECS env var names):
+
+  ```
+  KnownClients__<caller-app-id>__Name          = goobi
+  KnownClients__<caller-app-id>__DepositBucket = <goobi bucket>
+  ```
+
+- *Rung 4, Phase 2* — one line alongside the existing `TokenProvider__*` trio:
+  `TokenProvider__ResourceUri = api://84c62880…`, and repoint that trio's source from the UI
+  registration's credentials to the API's own (today Preservation API, Pipeline API **and the
+  Deposit Archiver** all mint as the UI registration — the Archiver's `OAUTH_AZURE_SECRET`
+  defaults to the UI secret path (`/preservation/<env>/ui/oauth_azure`) in every environment, so
+  it must be repointed here too, not just the two APIs — the "mint as `a616cf42…`" arrangement
+  Phase 2 exists to replace).
+- *Rung 4, retirement* — delete the `…ValidAudiences__2`/`__3` (transitional) lines from both
+  files, leaving the permanent pair at `__0`/`__1`. The `Transitional*` keys — and the old
+  `Audience` key, by then referenced by nothing — can be removed from the secret at the same
+  time.
 
 **Standing rule for the whole transition window:** every build keeps supporting **both** models until
 production has completed the ladder. An environment's position on the ladder is expressed in its
@@ -109,6 +183,44 @@ fallback and the switch of the human/machine predicate to `idtyp` — happen onc
 environment (production) finishes. Dev "completing" the ladder means config-complete, not
 code-complete; a PR that deletes the fallback while any environment still depends on it should not
 pass review.
+
+## Cutting a production release
+
+Production releases are infrequent, named and tagged, which makes the interaction between the
+release schedule and the activation ladder worth stating explicitly.
+
+**The natural cut is the merge of this PR.** At that point `main` is the *complete dual-mode
+platform*: every line of ladder code through Phase 3 is in the build, and all of it is inert under
+an environment's existing configuration (empty `KnownClients`, header fallback, old audience). A
+production deployment of that release behaves exactly as before, and production then climbs
+rungs 0-3 — Entra, appsettings, the Goobi bucket and its infrastructure — entirely between
+releases, at its own pace. At the time of writing, the last tag (`v1.2.1`, 2026-06-22) is 374
+commits behind `main`; the gap includes the September 2026 security fixes and the #188 migration
+machinery, so the same release also unblocks the production METS-ID campaign.
+
+**Phase 4 never traps a release.** Its two behavioural steps — refusing an unknown `azp`, and
+enforcing `Preservation.Call`-role-or-delegated-scope — are to be built as **configuration flags,
+off by default** ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293); the
+flag-gated code is not in this build — it can be written any time after step 2 merges, and is
+needed only before the first environment enforces). That is the
+standing rule above applied to Phase 4 itself: the same tagged build serves an environment with the
+flags on and one that has not started the ladder, so no future release can strand production behind
+the Entra schedule. Only the header-path deletion is one-way, and that goes in a release cut after
+the **last** environment is enforcing (see the standing rule).
+
+**Pre-cut check.** This release validates more strictly than `v1.2.1` (slugs, METS paths,
+repository paths). Before tagging, run the read-only validation survey against production —
+`mets_id_migration.py validation-survey` for METS paths the parser now refuses, plus its Fedora-DB
+query for slugs containing `%` (which also answers
+[#287](https://github.com/digirati-co-uk/digital-preservation/issues/287)) — so anything the new
+rules would refuse is found before the release, not after it. The `validation-survey` subcommand
+ships in [PR #294](https://github.com/digirati-co-uk/digital-preservation/pull/294), which must be
+merged before this gate can run — it is an operator tool, not application code, so it has no
+bearing on what the release tag contains.
+
+The sequence in full: merge #294 (the survey tool) → survey production → merge this PR → tag →
+deploy → production ladder by configuration → enforcement flags on (#293) → header-path deletion
+in the release after that.
 
 ## What would change the sequence
 

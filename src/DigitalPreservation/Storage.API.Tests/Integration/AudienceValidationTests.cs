@@ -44,7 +44,8 @@ public class AudienceValidationTests
 {
     // Deliberately fake GUIDs, shaped like the real registrations in RFC-0001 §3.
     private const string ApiClientId = "84c62880-0000-0000-0000-000000000002";
-    private const string TransitionalAudience = "api://a616cf42-0000-0000-0000-000000000001"; // the shared UI registration
+    private const string TransitionalClientId = "a616cf42-0000-0000-0000-000000000001";       // the shared UI registration
+    private const string TransitionalAudience = $"api://{TransitionalClientId}";
     private const string OwnAudience = $"api://{ApiClientId}";                                // the API's own App ID URI
     private const string ForeignAudience = "api://ffffffff-0000-0000-0000-00000000000f";
 
@@ -58,11 +59,26 @@ public class AudienceValidationTests
         ["AzureAd:ClientId"] = ApiClientId,
     };
 
-    /// <summary>The RFC-0001 Phase 0 transition shape (mirrors appsettings.Example.json).</summary>
+    /// <summary>The RFC-0001 Phase 0 transition shape.</summary>
     private static Dictionary<string, string?> PhaseZeroShape => new(BaseAzureAd)
     {
         ["AzureAd:TokenValidationParameters:ValidAudiences:0"] = TransitionalAudience,
         ["AzureAd:TokenValidationParameters:ValidAudiences:1"] = OwnAudience,
+    };
+
+    /// <summary>
+    /// The hardened four-entry shape actually deployed at rung 2 and documented in both
+    /// appsettings.Example.json files: each audience in api:// AND bare-GUID form. The bare forms
+    /// exist because an explicit ValidAudiences list drops Microsoft.Identity.Web's default
+    /// both-forms tolerance, and a future accessTokenAcceptedVersion: 2 flip mints tokens whose
+    /// aud is the bare GUID.
+    /// </summary>
+    private static Dictionary<string, string?> FourEntryShape => new(BaseAzureAd)
+    {
+        ["AzureAd:TokenValidationParameters:ValidAudiences:0"] = OwnAudience,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:1"] = ApiClientId,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:2"] = TransitionalAudience,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:3"] = TransitionalClientId,
     };
 
     /// <summary>Today's production shape: the singular Audience key.</summary>
@@ -76,6 +92,18 @@ public class AudienceValidationTests
     {
         ["AzureAd:Audiences:0"] = TransitionalAudience,
         ["AzureAd:Audiences:1"] = OwnAudience,
+    };
+
+    /// <summary>
+    /// Both keys at once — the state a config flip passes through if the singular key is not
+    /// removed in the same change. The singular value is deliberately NOT in the list, so the
+    /// test can tell which source wins.
+    /// </summary>
+    private static Dictionary<string, string?> BothKeysShape => new(BaseAzureAd)
+    {
+        ["AzureAd:Audience"] = ForeignAudience,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:0"] = TransitionalAudience,
+        ["AzureAd:TokenValidationParameters:ValidAudiences:1"] = OwnAudience,
     };
 
     private static TestServer BuildServer(Dictionary<string, string?> azureAdSettings)
@@ -173,6 +201,30 @@ public class AudienceValidationTests
         status.Should().Be(HttpStatusCode.OK);
     }
 
+    [Theory]
+    [InlineData(OwnAudience)]
+    [InlineData(ApiClientId)]            // what a v2.0 token would carry as aud
+    [InlineData(TransitionalAudience)]
+    [InlineData(TransitionalClientId)]
+    public async Task FourEntryShape_AcceptsBothFormsOfBothAudiences(string audience)
+    {
+        using var server = BuildServer(FourEntryShape);
+
+        var status = await Probe(server, audience);
+
+        status.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task FourEntryShape_RejectsForeignAudience()
+    {
+        using var server = BuildServer(FourEntryShape);
+
+        var status = await Probe(server, ForeignAudience);
+
+        status.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     [Fact]
     public async Task PhaseZeroShape_RejectsForeignAudience()
     {
@@ -192,6 +244,23 @@ public class AudienceValidationTests
 
         (await Probe(server, TransitionalAudience)).Should().Be(HttpStatusCode.OK);
         (await Probe(server, OwnAudience)).Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task BothKeysPresent_AcceptanceIsTheUnion()
+    {
+        // Characterises the mid-flip state: with both keys present, acceptance is the UNION —
+        // the ValidAudiences list is honoured AND the singular Audience value stays accepted.
+        // Operational consequence for the RFC-0001 activation flip: adding the list does not
+        // silence the singular key, so the flip should replace it, not accumulate alongside it.
+        // (In the real flip the singular value — the transitional audience — is in the list
+        // anyway, so even a forgotten removal changes nothing; this pin is what proves that.)
+        using var server = BuildServer(BothKeysShape);
+
+        (await Probe(server, TransitionalAudience)).Should().Be(HttpStatusCode.OK);
+        (await Probe(server, OwnAudience)).Should().Be(HttpStatusCode.OK);
+        (await Probe(server, ForeignAudience)).Should().Be(HttpStatusCode.OK,
+            "the singular Audience key (deliberately set to the foreign value here) is still live");
     }
 
     [Fact]

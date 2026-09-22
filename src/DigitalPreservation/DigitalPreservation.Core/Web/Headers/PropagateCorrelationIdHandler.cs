@@ -18,18 +18,33 @@ public static class ApplicationBuilderX
 }
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="contextAccessor"></param>
-/// <param name="tokenProvider">Only added when required via DI in startup</param>
-internal class HeaderPropagationMessageHandlerBuilderFilter(IHttpContextAccessor contextAccessor, IAccessTokenProvider? tokenProvider = null)
+/// <param name="serviceProvider">IAccessTokenProvider is resolved from this lazily, per handler
+/// chain, NOT constructor-injected: AccessTokenProvider depends on IHttpClientFactory, and the
+/// factory's own constructor consumes every registered IHttpMessageHandlerBuilderFilter, so
+/// constructor injection here closes that triangle into a circular resolution — undetectable to
+/// DI's creation-time cycle check (the factory is registered via a lambda) and therefore an
+/// unbounded runtime recursion that hangs the process at the first client build. By the time a
+/// handler chain is built the factory singleton exists, so resolving here is cycle-free; where no
+/// provider is registered (Storage API, the UI) it still resolves to null as before.</param>
+internal class HeaderPropagationMessageHandlerBuilderFilter(IHttpContextAccessor contextAccessor, IServiceProvider serviceProvider)
     : IHttpMessageHandlerBuilderFilter
 {
     public Action<HttpMessageHandlerBuilder> Configure(Action<HttpMessageHandlerBuilder> next)
     {
         return builder =>
         {
-            builder.AdditionalHandlers.Add(new PropagateCorrelationIdHandler(contextAccessor, tokenProvider));
+            // Never attach to the client AccessTokenProvider mints tokens through. This handler
+            // would call GetAccessToken to decorate the token request itself; mid-mint the cache
+            // cannot be populated yet, so that inner call mints again, synchronously, until the
+            // stack overflows. Platform auth headers have no business on a request to Entra anyway.
+            if (builder.Name != AccessTokenProvider.HttpClientName)
+            {
+                var tokenProvider = serviceProvider.GetService<IAccessTokenProvider>();
+                builder.AdditionalHandlers.Add(new PropagateCorrelationIdHandler(contextAccessor, tokenProvider));
+            }
             next(builder);
         };
     }
