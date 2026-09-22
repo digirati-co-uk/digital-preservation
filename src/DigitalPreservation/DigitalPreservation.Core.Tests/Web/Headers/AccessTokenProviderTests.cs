@@ -28,7 +28,13 @@ public class AccessTokenProviderTests
 
     private static AccessTokenProvider BuildProvider(IAccessTokenProviderOptions? options,
         CapturingHandler handler) =>
-        new(NullLogger<AccessTokenProvider>.Instance, options, handler);
+        new(NullLogger<AccessTokenProvider>.Instance, options, new StubHttpClientFactory(handler));
+
+    /// <summary>The IHttpClientFactory seam the production registrations use, over the test handler.</summary>
+    private class StubHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+    }
 
     [Fact]
     public async Task WithoutResourceUri_MintsSelfTokenAgainstV1Endpoint()
@@ -128,6 +134,47 @@ public class AccessTokenProviderTests
         handler.CallCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task ATokenlessSuccessResponse_Throws_AndIsNotCached()
+    {
+        // A 2xx with no access_token must fail loudly on THIS call and leave nothing behind: a
+        // cached null would strip the Authorization header from every machine call for ~56 minutes
+        // (MachineAuthTokenInjector skips the header when the provider returns null).
+        var handler = new CapturingHandler
+            { ResponseBody = "{\"token_type\":\"Bearer\",\"expires_in\":3599}" };
+        var sut = BuildProvider(ValidOptions(TargetResource), handler);
+
+        var act = () => sut.GetAccessToken();
+
+        (await act.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage("*without an access_token*");
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        handler.CallCount.Should().Be(2, "a failure must not be cached - every call retries the endpoint");
+    }
+
+    [Fact]
+    public async Task AnEmptyToken_Throws()
+    {
+        var handler = new CapturingHandler
+            { ResponseBody = "{\"token_type\":\"Bearer\",\"expires_in\":3599,\"access_token\":\"\"}" };
+        var sut = BuildProvider(ValidOptions(TargetResource), handler);
+
+        await ((Func<Task>)(() => sut.GetAccessToken())).Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task AnErrorStatus_Throws_AndIsNotCached()
+    {
+        var handler = new CapturingHandler { StatusCode = HttpStatusCode.BadRequest };
+        var sut = BuildProvider(ValidOptions(TargetResource), handler);
+
+        var act = () => sut.GetAccessToken();
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+        await act.Should().ThrowAsync<HttpRequestException>();
+        handler.CallCount.Should().Be(2);
+    }
+
     /// <summary>
     /// Captures the outgoing token request and answers with a v2.0-shaped body — expires_in as a
     /// JSON number, which Dictionary&lt;string, string&gt; deserialization would reject.
@@ -137,6 +184,9 @@ public class AccessTokenProviderTests
         public HttpRequestMessage? Request { get; private set; }
         public string? FormBody { get; private set; }
         public int CallCount { get; private set; }
+        public HttpStatusCode StatusCode { get; init; } = HttpStatusCode.OK;
+        public string ResponseBody { get; init; } =
+            "{\"token_type\":\"Bearer\",\"expires_in\":3599,\"access_token\":\"test-token\"}";
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
             CancellationToken cancellationToken)
@@ -146,11 +196,9 @@ public class AccessTokenProviderTests
             FormBody = request.Content == null
                 ? null
                 : await request.Content.ReadAsStringAsync(cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK)
+            return new HttpResponseMessage(StatusCode)
             {
-                Content = new StringContent(
-                    "{\"token_type\":\"Bearer\",\"expires_in\":3599,\"access_token\":\"test-token\"}",
-                    Encoding.UTF8, "application/json")
+                Content = new StringContent(ResponseBody, Encoding.UTF8, "application/json")
             };
         }
 

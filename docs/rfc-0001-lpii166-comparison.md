@@ -207,7 +207,10 @@ The deeper problem is the *direction* of the failure. The RFC's per-caller step 
 | Deploy/activate coupling | Config change is the activation | Code deploys everywhere first (inert), config activates per environment |
 | `TokenProvider` migration | Explicitly flagged as not-config-only; two options offered | Implemented (option (a)) — but currently defective (§6) |
 
-The guarded-rollout point is a genuine improvement the RFC should adopt regardless of topology (§7.1).
+The guarded-rollout *property* survived; the POC's *code* for it did not: §7.1 records (2026-09-16)
+that the stock `AddMicrosoftIdentityWebApi` binding already delivers it — activation is the
+`ValidAudiences` key's presence in per-environment config — so the guarded `PostConfigure` pattern
+was resolved as unnecessary, not adopted.
 
 ## 6. Defects on the POC branch
 
@@ -246,7 +249,7 @@ The POC's end-to-end test minted the third-party token **manually in Postman**, 
 
 ### 6.3 Minor (not blocking)
 
-- The `PostConfigure` block is duplicated verbatim in both `Program.cs` files and reads the config section twice; it should be hoisted into one extension method in `DigitalPreservation.Core` (where `AudienceValidationTests` can pin it — see §7.1).
+- ~~The `PostConfigure` block is duplicated verbatim in both `Program.cs` files and reads the config section twice; it should be hoisted into one extension method~~ *(resolved 2026-09-16 with §7.1: the pattern was not adopted at all — the stock binding delivers the same rollout property, and the guarded code, its duplication, and its `Authentication:ValidAudiences` section all went away together.)*
 - The `AddAuthentication(options => { DefaultAuthenticateScheme/DefaultChallengeScheme … })` change is behaviourally equivalent to the previous `AddAuthentication(JwtBearerDefaults.AuthenticationScheme)`; fine either way.
 
 ## 7. Recommended synthesis
