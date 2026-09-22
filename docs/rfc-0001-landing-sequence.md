@@ -95,8 +95,10 @@ previous one:
 1. **Leeds admin does Phase 0** (admin doc Part 1: role, delegated scope, `idtyp` claim). Independent of
    code — can be requested now, in parallel with steps 1–2.
 2. **Config flip: accept both audiences** — *replace* the singular `AzureAd:Audience` key with
-   `AzureAd:TokenValidationParameters:ValidAudiences` listing `api://a616cf42…` *and*
-   `api://84c62880…`. This is pure config against the stock binding already on `main` from #208 —
+   `AzureAd:TokenValidationParameters:ValidAudiences` listing both audiences — **four entries, not
+   two**: each audience in its `api://` and bare-GUID forms, permanent pair first (the full shape,
+   the reason for the bare-GUID forms, and the entry order are in "How the rungs are spelled in
+   deployed config" below). This is pure config against the stock binding already on `main` from #208 —
    no code waits on it. With both keys present acceptance is the *union* (pinned by
    `AudienceValidationTests`), so a forgotten removal of the singular key is harmless here (its
    value is in the list) but replace-not-accumulate is the rule. Verify with `/whoami` and the
@@ -161,8 +163,11 @@ indexed keys), so each rung's "config flip" is literally an edit to those maps:
 
 - *Rung 4, Phase 2* — one line alongside the existing `TokenProvider__*` trio:
   `TokenProvider__ResourceUri = api://84c62880…`, and repoint that trio's source from the UI
-  registration's credentials to the API's own (today Preservation API and Pipeline API both mint
-  as the UI registration — the "mint as `a616cf42…`" arrangement Phase 2 exists to replace).
+  registration's credentials to the API's own (today Preservation API, Pipeline API **and the
+  Deposit Archiver** all mint as the UI registration — the Archiver's `OAUTH_AZURE_SECRET`
+  defaults to the UI secret path (`/preservation/<env>/ui/oauth_azure`) in every environment, so
+  it must be repointed here too, not just the two APIs — the "mint as `a616cf42…`" arrangement
+  Phase 2 exists to replace).
 - *Rung 4, retirement* — delete the `…ValidAudiences__2`/`__3` (transitional) lines from both
   files, leaving the permanent pair at `__0`/`__1`. The `Transitional*` keys — and the old
   `Audience` key, by then referenced by nothing — can be removed from the secret at the same
@@ -194,8 +199,10 @@ commits behind `main`; the gap includes the September 2026 security fixes and th
 machinery, so the same release also unblocks the production METS-ID campaign.
 
 **Phase 4 never traps a release.** Its two behavioural steps — refusing an unknown `azp`, and
-enforcing `Preservation.Call`-role-or-delegated-scope — are built as **configuration flags, off by
-default** ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293)). That is the
+enforcing `Preservation.Call`-role-or-delegated-scope — are to be built as **configuration flags,
+off by default** ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293); the
+flag-gated code is not in this build — it can be written any time after step 2 merges, and is
+needed only before the first environment enforces). That is the
 standing rule above applied to Phase 4 itself: the same tagged build serves an environment with the
 flags on and one that has not started the ladder, so no future release can strand production behind
 the Entra schedule. Only the header-path deletion is one-way, and that goes in a release cut after
@@ -206,10 +213,14 @@ repository paths). Before tagging, run the read-only validation survey against p
 `mets_id_migration.py validation-survey` for METS paths the parser now refuses, plus its Fedora-DB
 query for slugs containing `%` (which also answers
 [#287](https://github.com/digirati-co-uk/digital-preservation/issues/287)) — so anything the new
-rules would refuse is found before the release, not after it.
+rules would refuse is found before the release, not after it. The `validation-survey` subcommand
+ships in [PR #294](https://github.com/digirati-co-uk/digital-preservation/pull/294), which must be
+merged before this gate can run — it is an operator tool, not application code, so it has no
+bearing on what the release tag contains.
 
-The sequence in full: survey production → merge this PR → tag → deploy → production ladder by
-configuration → enforcement flags on (#293) → header-path deletion in the release after that.
+The sequence in full: merge #294 (the survey tool) → survey production → merge this PR → tag →
+deploy → production ladder by configuration → enforcement flags on (#293) → header-path deletion
+in the release after that.
 
 ## What would change the sequence
 
