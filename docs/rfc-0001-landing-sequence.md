@@ -195,8 +195,13 @@ an environment's existing configuration (empty `KnownClients`, header fallback, 
 production deployment of that release behaves exactly as before, and production then climbs
 rungs 0-3 — Entra, appsettings, the Goobi bucket and its infrastructure — entirely between
 releases, at its own pace. At the time of writing, the last tag (`v1.2.1`, 2026-06-22) is 374
-commits behind `main`; the gap includes the September 2026 security fixes and the #188 migration
-machinery, so the same release also unblocks the production METS-ID campaign.
+commits behind `main` — and **production actually runs `V1.0.1` (deployed 2025-10-24)**, so the
+production delta is eleven months, not three: the gap includes the September 2026 security fixes,
+the #188 migration machinery (so the same release also unblocks the production METS-ID campaign),
+and the Deposit Archiver. Practical consequences for the production deploy: EF migrations for both
+databases apply on startup (snapshot first), and the deploy-order-safety claims below were verified
+against `V1.0.1`'s binding as well as `v1.2.1`'s (both pin Microsoft.Identity.Web 3.8.3 with the
+identical `AddMicrosoftIdentityWebApi` call).
 
 **Phase 4 never traps a release.** Its two behavioural steps — refusing an unknown `azp`, and
 enforcing `Preservation.Call`-role-or-delegated-scope — are to be built as **configuration flags,
