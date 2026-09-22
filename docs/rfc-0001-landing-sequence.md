@@ -179,6 +179,38 @@ environment (production) finishes. Dev "completing" the ladder means config-comp
 code-complete; a PR that deletes the fallback while any environment still depends on it should not
 pass review.
 
+## Cutting a production release
+
+Production releases are infrequent, named and tagged, which makes the interaction between the
+release schedule and the activation ladder worth stating explicitly.
+
+**The natural cut is the merge of this PR.** At that point `main` is the *complete dual-mode
+platform*: every line of ladder code through Phase 3 is in the build, and all of it is inert under
+an environment's existing configuration (empty `KnownClients`, header fallback, old audience). A
+production deployment of that release behaves exactly as before, and production then climbs
+rungs 0-3 — Entra, appsettings, the Goobi bucket and its infrastructure — entirely between
+releases, at its own pace. At the time of writing, the last tag (`v1.2.1`, 2026-06-22) is 374
+commits behind `main`; the gap includes the September 2026 security fixes and the #188 migration
+machinery, so the same release also unblocks the production METS-ID campaign.
+
+**Phase 4 never traps a release.** Its two behavioural steps — refusing an unknown `azp`, and
+enforcing `Preservation.Call`-role-or-delegated-scope — are built as **configuration flags, off by
+default** ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293)). That is the
+standing rule above applied to Phase 4 itself: the same tagged build serves an environment with the
+flags on and one that has not started the ladder, so no future release can strand production behind
+the Entra schedule. Only the header-path deletion is one-way, and that goes in a release cut after
+the **last** environment is enforcing (see the standing rule).
+
+**Pre-cut check.** This release validates more strictly than `v1.2.1` (slugs, METS paths,
+repository paths). Before tagging, run the read-only validation survey against production —
+`mets_id_migration.py validation-survey` for METS paths the parser now refuses, plus its Fedora-DB
+query for slugs containing `%` (which also answers
+[#287](https://github.com/digirati-co-uk/digital-preservation/issues/287)) — so anything the new
+rules would refuse is found before the release, not after it.
+
+The sequence in full: survey production → merge this PR → tag → deploy → production ladder by
+configuration → enforcement flags on (#293) → header-path deletion in the release after that.
+
 ## What would change the sequence
 
 - **If the POC topology were adopted instead of the RFC's** (comparison §7.3 — a recorded contingency,

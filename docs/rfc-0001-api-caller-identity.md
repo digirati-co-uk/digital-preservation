@@ -306,7 +306,7 @@ The key enabler for a non-breaking migration is that the API can be configured t
 - Switch `GetCallerIdentity` out of dual mode: unknown `azp` ⇒ rejected; `X-Client-Identity` no longer consulted for identity.
 - Remove or down-grade `X-Client-Identity` to a purely cosmetic, ignored-on-mismatch hint.
 
-Each phase is independently reversible until Phase 4.
+Each phase is independently reversible until Phase 4 — and Phase 4's two behavioural steps (unknown-`azp` refusal; role-or-scope enforcement) are themselves built as configuration flags, off by default ([#293](https://github.com/digirati-co-uk/digital-preservation/issues/293)), so reversibility extends through them in practice and a tagged release is deployable to any environment at any rung. Only the final header-path deletion is one-way; per the [landing sequence](./rfc-0001-landing-sequence.md), it is a separate PR landed after the **last** environment (production) is enforcing.
 
 > [!IMPORTANT]
 > **Completion is a commitment, not an assumption.** The phases most at risk of stalling are exactly the ones with the weakest feature pull: Goobi — the funded driver — is delivered at Phase 1, after which nothing user-visible waits on Phases 2–4. If they stall, the platform lives indefinitely in dual mode: both audiences accepted, header fallback still active, no role enforcement — maximum transitional complexity with none of the end-state enforcement. Mitigation is managerial, not technical: **when Phase 1 lands, give Phases 2–4 a named owner and a target date** — or consciously record dual mode as the accepted end state and amend this RFC to say so. What must not happen is drifting into the latter while the document claims the former; that is how the ADR-005 gap opened.
