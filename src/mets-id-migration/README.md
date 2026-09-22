@@ -300,9 +300,12 @@ python mets_id_migration.py validation-survey     --skip-created-by eprints-migr
 
 It fetches each Archival Group's METS and applies **exactly** the parser's refusal rule
 (`MetsParser.RejectDotSegments`; the mirror is pinned by `tests.py` against the same cases as
-the .NET tests). Exit code 1 and a CSV row per finding; nothing found means the release's
-stricter validation refuses nothing this deployment holds. It writes nothing anywhere - no
-deposits, no ledger, only the CSV you ask for - so it is safe to point at production.
+the .NET tests). Exit codes: **0** clean, **1** findings (a CSV row per finding - content
+the rules would refuse, including a METS that is not well-formed XML), **2** incomplete
+(groups unreadable after retries, the circuit breaker stopping a struggling platform, or
+the slug check failing to run) - rerun before treating the gate as passed; an incomplete
+survey is not a verdict either way. It writes nothing anywhere - no deposits, no ledger,
+only the CSV you ask for - so it is safe to point at production.
 
 ## Doing it by hand
 

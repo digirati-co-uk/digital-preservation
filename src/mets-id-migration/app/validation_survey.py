@@ -93,6 +93,10 @@ def _mets_paths(document: bytes) -> Iterator[tuple[str, str]]:
     matched by local name so the PREMIS version and namespace prefixes do not matter."""
     root = etree.fromstring(document)
     for element in root.iter():
+        if not isinstance(element.tag, str):
+            # Comments and processing instructions: iter() yields those too, and their .tag is a
+            # factory function that etree.QName() refuses with a ValueError.
+            continue
         local = etree.QName(element).localname
         if local == "FLocat":
             for name, value in element.attrib.items():
@@ -113,8 +117,19 @@ def _collect_groups(newest_first: bool, created_after: str | None) -> dict[str, 
     return groups
 
 
-def _check_group(path: str, findings: list[dict[str, str]]) -> str:
-    """Fetch one Archival Group's METS and apply the rule. Returns a one-word outcome."""
+#: survey.py stops after this many consecutive unreadable groups, and so does this survey:
+#: the platform, not the data, is the problem by then.
+_UNREAD_RUN_LIMIT = 3
+
+
+def _check_group(path: str, findings: list[dict[str, str]],
+                 problems: list[dict[str, str]]) -> str:
+    """Fetch one Archival Group's METS and apply the rule. Returns a one-word outcome.
+
+    ``findings`` is reproducible properties of the stored content (a refusable path, a METS that
+    is not well-formed XML); ``problems`` is groups the survey could not check (transient reads).
+    The distinction is the exit code's: content fails the gate, an incomplete check does not
+    pretend to."""
     try:
         document = api.get_archival_group_mets(path)
     except api.ApiError as error:
@@ -123,7 +138,7 @@ def _check_group(path: str, findings: list[dict[str, str]]) -> str:
             # (survey.py records the same 404 as NO_METS). Nothing for the rule to check.
             return "no_mets"
         logger.warning("%s: could not read METS (%s)", path, error)
-        findings.append({"path": path, "kind": "unreadable", "value": "", "reason": str(error)})
+        problems.append({"path": path, "kind": "unreadable", "value": "", "reason": str(error)})
         return "unreadable"
     try:
         hits = [(kind, value, refusal(value)) for kind, value in _mets_paths(document)]
@@ -146,21 +161,24 @@ def run(arguments) -> int:
         return 0
 
     findings: list[dict[str, str]] = []
+    problems: list[dict[str, str]] = []
+    slug_check_failed = False
+    incomplete = False
     counts = {"clean": 0, "hit": 0, "no_mets": 0, "unreadable": 0, "unparseable": 0}
 
     # --- slugs, via Fedora's database, when a DSN is provided ---
     dsn = settings.FEDORA_DB_DSN
     if dsn:
-        _run_fedora_check(dsn, findings)
+        slug_check_failed = not _run_fedora_check(dsn, findings)
     else:
         logger.info("FEDORA_DB_DSN not set: skipping the slug check. Run it separately with the "
                     "SQL from --fedora-sql (read-only credentials suffice).")
 
     # --- METS paths, via the Preservation API ---
-    # survey._skip_slugs, not a raw set: deposit_rows yields creator SLUGS, so the configured
+    # survey.skip_slugs, not a raw set: deposit_rows yields creator SLUGS, so the configured
     # values (documented as bare id or agent URI, and environment-specific in URI form) must be
     # slugified the same way or the skip lever silently matches nothing.
-    skip_creators = survey._skip_slugs(arguments.skip_created_by or settings.SKIP_CREATED_BY)
+    skip_creators = survey.skip_slugs(arguments.skip_created_by or settings.SKIP_CREATED_BY)
     if arguments.paths:
         to_check = list(dict.fromkeys(arguments.paths))
         skipped: list[str] = []
@@ -186,11 +204,24 @@ def run(arguments) -> int:
     pause = arguments.pause if arguments.pause is not None else settings.SURVEY_PAUSE_SECONDS
     logger.info("checking the METS of %s Archival Group(s) against %s",
                 len(to_check), settings.PRESERVATION_API)
+    consecutive_unread = 0
     for index, path in enumerate(to_check, start=1):
-        counts[_check_group(path, findings)] += 1
+        outcome = _check_group(path, findings, problems)
+        counts[outcome] += 1
+        consecutive_unread = consecutive_unread + 1 if outcome == "unreadable" else 0
+        if consecutive_unread >= _UNREAD_RUN_LIMIT:
+            # survey.py's circuit breaker, for the same reason: one unreadable group is that
+            # group's problem, several in a row is the platform's. Failing on through the other
+            # ~100k would take a full retry budget apiece and prove nothing about the content.
+            logger.error("%s Archival Groups in a row could not be read, so the platform itself "
+                         "is probably struggling - stopping the survey at %s of %s. Investigate, "
+                         "then rerun.", consecutive_unread, index, len(to_check))
+            incomplete = True
+            break
         if index % 500 == 0:
             logger.info("...%s/%s (%s finding(s) so far)", index, len(to_check), len(findings))
-        if pause:
+        if pause and index < len(to_check):
+            # Between groups, not after the last one - as survey.py paces.
             time.sleep(pause)
 
     # --- report ---
@@ -198,7 +229,7 @@ def run(arguments) -> int:
         with open(arguments.csv, "w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=["path", "kind", "value", "reason"])
             writer.writeheader()
-            writer.writerows(findings)
+            writer.writerows(findings + problems)
         logger.info("findings written to %s", arguments.csv)
 
     logger.info("METS survey: %s clean, %s with refusable paths, %s with no METS, %s unreadable, "
@@ -210,18 +241,36 @@ def run(arguments) -> int:
                      "would refuse. Resolve (or consciously accept) before cutting a release.",
                      len(findings))
         return 1
+    if problems or incomplete or slug_check_failed:
+        # Not a content verdict either way: the gate did not finish. A transient outage must not
+        # read as "this deployment holds refusable content" - nor as a clean pass.
+        logger.error("The survey is INCOMPLETE (%s group(s) unreadable%s%s). No refusable content "
+                     "was found in what WAS checked; rerun before treating the gate as passed.",
+                     len(problems),
+                     "; stopped early" if incomplete else "",
+                     "; the slug check did not run" if slug_check_failed else "")
+        return 2
     logger.info("Nothing found: the current validation rules refuse nothing this deployment holds.")
     return 0
 
 
-def _run_fedora_check(dsn: str, findings: list[dict[str, str]]) -> None:
+def _run_fedora_check(dsn: str, findings: list[dict[str, str]]) -> bool:
+    """True only when the check RAN to completion; the caller reports an incomplete gate
+    otherwise. What the check found is a separate question, answered through ``findings``."""
     try:
         import psycopg2  # optional; not in requirements.txt because only this check wants it
     except ImportError:
         logger.error("FEDORA_DB_DSN is set but psycopg2 is not installed. Either "
                      "`pip install psycopg2-binary`, or run the --fedora-sql queries yourself.")
-        return
-    connection = psycopg2.connect(dsn)
+        return False
+    try:
+        connection = psycopg2.connect(dsn)
+    except psycopg2.Error as error:
+        # A wrong password, unreachable host or missing grant must not take the METS survey -
+        # the other half of the gate - down with it.
+        logger.error("The Fedora slug check FAILED to run (%s). The METS survey continues; run "
+                     "the slug check separately - --fedora-sql prints the SQL.", error)
+        return False
     try:
         connection.set_session(readonly=True)
         with connection.cursor() as cursor:
@@ -232,6 +281,12 @@ def _run_fedora_check(dsn: str, findings: list[dict[str, str]]) -> None:
                                  fedora_id, _decode(fedora_id))
                     findings.append({"path": fedora_id, "kind": "fedora_id",
                                      "value": _decode(fedora_id), "reason": "slug check"})
+    except psycopg2.Error as error:
+        # e.g. a role without SELECT on simple_search: same treatment as a failed connect.
+        logger.error("The Fedora slug check FAILED mid-run (%s). The METS survey continues; run "
+                     "the slug check separately - --fedora-sql prints the SQL.", error)
+        return False
     finally:
         connection.close()
     logger.info("Fedora database slug check complete.")
+    return True
