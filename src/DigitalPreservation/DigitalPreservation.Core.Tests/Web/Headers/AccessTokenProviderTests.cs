@@ -178,6 +178,36 @@ public class AccessTokenProviderTests
     }
 
     [Fact]
+    public async Task WhitespaceCredentials_ReturnNull_WithoutCallingEntra()
+    {
+        // " " passes IsNullOrEmpty and would be SENT to Entra; the whitespace gate fails it
+        // here instead, as ordinary misconfiguration (null, injector warns, no header).
+        var handler = new CapturingHandler();
+        var options = ValidOptions();
+        options.ClientSecret = "   ";
+        var sut = BuildProvider(options, handler);
+
+        var token = await sut.GetAccessToken();
+
+        token.Should().BeNull();
+        handler.CallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AWhitespaceResourceUri_IsUnset_AndTakesTheV1Path()
+    {
+        // "   " would otherwise build the invalid scope " /.default" on the v2.0 endpoint.
+        var handler = new CapturingHandler();
+        var sut = BuildProvider(ValidOptions("   "), handler);
+
+        await sut.GetAccessToken();
+
+        handler.Request!.RequestUri!.AbsoluteUri.Should().NotContain("/v2.0/");
+        var form = HttpUtility.ParseQueryString(handler.FormBody!);
+        form["resource"].Should().Be($"api://{ClientId}");
+    }
+
+    [Fact]
     public async Task AnErrorStatus_Throws_AndIsNotCached()
     {
         var handler = new CapturingHandler { StatusCode = HttpStatusCode.BadRequest };

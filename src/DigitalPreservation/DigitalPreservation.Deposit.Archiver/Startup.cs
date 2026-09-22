@@ -79,7 +79,8 @@ public class Startup
         {
             ClientId = authProvider.ClientId,
             ClientSecret = authProvider.ClientSecret,
-            TenantId = authProvider.TenantId
+            TenantId = authProvider.TenantId,
+            ResourceUri = authProvider.ResourceUri
         };
         services.AddAccessTokenProvider(accessTokenProviderOptions);
 

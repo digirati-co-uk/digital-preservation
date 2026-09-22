@@ -42,22 +42,29 @@ public class AccessTokenProvider : IAccessTokenProvider
 
         // Only the credential triplet is required. ResourceUri is optional and must NOT gate
         // acquisition: a reflection-based all-properties null check here would turn a deploy
-        // without the new key into a token-acquisition outage.
-        if (string.IsNullOrEmpty(options.TenantId)
-            || string.IsNullOrEmpty(options.ClientId)
-            || string.IsNullOrEmpty(options.ClientSecret))
+        // without the new key into a token-acquisition outage. Whitespace counts as absent -
+        // a " " credential would otherwise be sent to Entra instead of failing here.
+        if (string.IsNullOrWhiteSpace(options.TenantId)
+            || string.IsNullOrWhiteSpace(options.ClientId)
+            || string.IsNullOrWhiteSpace(options.ClientSecret))
         {
             logger.LogWarning("AccessTokenProvider options are not configured correctly");
             return null;
         }
 
+        // A whitespace-only ResourceUri is unset (it would build the invalid scope " /.default"),
+        // and stray whitespace around a real one is config noise, not part of the resource.
+        var resourceUri = string.IsNullOrWhiteSpace(options.ResourceUri)
+            ? null
+            : options.ResourceUri.Trim();
+
         // Keyed by the resource the token is FOR, now that ResourceUri makes this class
         // resource-generic. The cache is per-instance, so this is legibility, not collision
         // safety. TrimEnd matches the scope construction in GetBearerToken: with-slash and
         // without-slash spellings of the same resource are the same token.
-        var key = "accessToken:" + (string.IsNullOrEmpty(options.ResourceUri)
+        var key = "accessToken:" + (resourceUri is null
             ? $"api://{options.ClientId}"
-            : options.ResourceUri.TrimEnd('/'));
+            : resourceUri.TrimEnd('/'));
         if (memoryCache.TryGetValue(key, out string? token))
         {
             return token;
@@ -65,7 +72,7 @@ public class AccessTokenProvider : IAccessTokenProvider
         // A failed mint THROWS to the caller and is never cached: a cached null would send
         // machine-to-machine calls out unauthenticated, silently, for the best part of an hour.
         token = await GetBearerToken(options.TenantId, options.ClientId, options.ClientSecret,
-            options.ResourceUri);
+            resourceUri);
         var cacheEntryOptions = new MemoryCacheEntryOptions()
             .SetAbsoluteExpiration(TimeSpan.FromMinutes(56)) // assume token is valid for 1 hour
             .SetSlidingExpiration(TimeSpan.FromMinutes(55));
@@ -86,24 +93,22 @@ public class AccessTokenProvider : IAccessTokenProvider
             new("client_secret", clientSecret)
         };
 
-        HttpRequestMessage request;
+        string endpoint;
         if (!string.IsNullOrEmpty(resourceUri))
         {
-            request = new HttpRequestMessage(HttpMethod.Post,
-                $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token");
+            endpoint = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token";
             collection.Add(new("scope", $"{resourceUri.TrimEnd('/')}/.default"));
         }
         else
         {
-            request = new HttpRequestMessage(HttpMethod.Post,
-                $"https://login.microsoftonline.com/{tenantId}/oauth2/token");
+            endpoint = $"https://login.microsoftonline.com/{tenantId}/oauth2/token";
             collection.Add(new("scope", $"api://{clientId}/.default"));
             collection.Add(new("resource", $"api://{clientId}"));
         }
 
-        var content = new FormUrlEncodedContent(collection);
-        request.Content = content;
-        var response = await client.SendAsync(request);
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        request.Content = new FormUrlEncodedContent(collection);
+        using var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
 
         var json = await response.Content.ReadAsStringAsync();

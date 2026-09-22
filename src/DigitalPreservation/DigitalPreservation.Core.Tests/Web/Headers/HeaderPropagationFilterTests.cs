@@ -13,9 +13,10 @@ namespace DigitalPreservation.Core.Tests.Web.Headers;
 /// stubbed factory structurally cannot see (the stub bypasses IHttpMessageHandlerBuilderFilter).
 /// Pins the guard in HeaderPropagationMessageHandlerBuilderFilter: the global filter must not
 /// decorate the token-endpoint client, because injecting a machine token into the token request
-/// means minting a token to mint a token — unbounded synchronous recursion, a StackOverflowException,
-/// and a dead process. If the guard regresses, the first test dies by stack overflow rather than a
-/// failed assert; that is deliberate — so does the API, within a minute of startup.
+/// means minting a token to mint a token — unbounded synchronous recursion and a dead process.
+/// A regression fails BOUNDED here: the chain-shape test asserts the handler's absence outright,
+/// and the mint tests run through a reentrancy-detecting provider that throws a clear message
+/// instead of letting the stack overflow take the test host down.
 /// </summary>
 public class HeaderPropagationFilterTests
 {
@@ -38,12 +39,33 @@ public class HeaderPropagationFilterTests
             ClientId = "a616cf42-0000-0000-0000-000000000001",
             ClientSecret = "test-secret"
         });
-        services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+        // The real provider, wrapped: everything (the tests AND the filter, which resolves
+        // IAccessTokenProvider lazily) mints through the reentrancy detector, so a regressed
+        // guard fails as an assertable exception, not a StackOverflowException.
+        services.AddSingleton<AccessTokenProvider>();
+        services.AddSingleton<IAccessTokenProvider>(provider =>
+            new ReentrancyDetectingProvider(provider.GetRequiredService<AccessTokenProvider>()));
         services.AddHttpClient(AccessTokenProvider.HttpClientName)
             .ConfigurePrimaryHttpMessageHandler(() => entra);
         services.AddHttpClient("downstream")
             .ConfigurePrimaryHttpMessageHandler(() => downstream);
         return services.BuildServiceProvider();
+    }
+
+    [Fact]
+    public async Task TheTokenEndpointClientChain_DoesNotContainTheFilterHandler()
+    {
+        await using var services = BuildPreservationApiShapedServices(
+            new RecordingHandler(TokenResponse), new RecordingHandler("{}"));
+        var factory = services.GetRequiredService<IHttpMessageHandlerFactory>();
+
+        var entraChain = Chain(factory.CreateHandler(AccessTokenProvider.HttpClientName));
+        var downstreamChain = Chain(factory.CreateHandler("downstream"));
+
+        entraChain.Should().NotContain(handler => handler is PropagateCorrelationIdHandler,
+            "the token request must never try to decorate itself with a minted token");
+        downstreamChain.Should().Contain(handler => handler is PropagateCorrelationIdHandler,
+            "every other client still gets correlation and machine-token propagation");
     }
 
     [Fact]
@@ -77,6 +99,45 @@ public class HeaderPropagationFilterTests
         var request = downstream.Requests.Should().ContainSingle().Subject;
         request.Authorization.Should().Be("Bearer test-token");
         request.HasMachineHeader.Should().BeTrue();
+    }
+
+    private static List<HttpMessageHandler> Chain(HttpMessageHandler outermost)
+    {
+        var chain = new List<HttpMessageHandler>();
+        for (var handler = outermost; handler != null; handler = (handler as DelegatingHandler)?.InnerHandler)
+        {
+            chain.Add(handler);
+        }
+        return chain;
+    }
+
+    /// <summary>
+    /// Delegates to the real provider but fails FAST and legibly if a mint is requested while one
+    /// is already in flight on this async context — which is exactly what happens when the filter
+    /// guard regresses and the token request tries to mint a token for itself.
+    /// </summary>
+    private class ReentrancyDetectingProvider(IAccessTokenProvider inner) : IAccessTokenProvider
+    {
+        private static readonly AsyncLocal<bool> MintInFlight = new();
+
+        public async Task<string?> GetAccessToken()
+        {
+            if (MintInFlight.Value)
+            {
+                throw new InvalidOperationException(
+                    "Recursive mint: the token endpoint request itself asked for a token - the "
+                    + "HeaderPropagationMessageHandlerBuilderFilter name guard has regressed.");
+            }
+            MintInFlight.Value = true;
+            try
+            {
+                return await inner.GetAccessToken();
+            }
+            finally
+            {
+                MintInFlight.Value = false;
+            }
+        }
     }
 
     /// <summary>Snapshots each request's auth-relevant headers at send time.</summary>
