@@ -88,10 +88,16 @@ def refusal(path: str) -> str | None:
     return None
 
 
+#: Explicit, not lxml defaults: preserved METS is third-party content, and this tool may run on
+#: an operator machine against production. Element and attribute values are all the survey needs -
+#: never entity expansion, DTD retrieval, or the network.
+_XML_PARSER = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
+
+
 def _mets_paths(document: bytes) -> Iterator[tuple[str, str]]:
     """Every (kind, value) the parser applies the rule to: FLocat hrefs and premis originalNames,
     matched by local name so the PREMIS version and namespace prefixes do not matter."""
-    root = etree.fromstring(document)
+    root = etree.fromstring(document, parser=_XML_PARSER)
     for element in root.iter():
         if not isinstance(element.tag, str):
             # Comments and processing instructions: iter() yields those too, and their .tag is a
@@ -102,8 +108,10 @@ def _mets_paths(document: bytes) -> Iterator[tuple[str, str]]:
             for name, value in element.attrib.items():
                 if etree.QName(name).localname == "href" and value:
                     yield "FLocat/@href", value
-        elif local == "originalName" and element.text:
-            yield "premis:originalName", element.text.strip()
+        elif local == "originalName" and element.text is not None:
+            # RAW, no strip: the C# side passes XElement.Value untrimmed to RejectDotSegments,
+            # and the mirror must apply the rule to exactly the same input.
+            yield "premis:originalName", element.text
 
 
 def _collect_groups(newest_first: bool, created_after: str | None) -> dict[str, set[str]]:
@@ -190,7 +198,8 @@ def run(arguments) -> int:
             paths = [p for p in paths if p.startswith(arguments.path_prefix)]
         skipped = [p for p in paths
                    if skip_creators and groups[p] and groups[p] <= skip_creators]
-        to_check = [p for p in paths if p not in set(skipped)]
+        skipped_set = set(skipped)
+        to_check = [p for p in paths if p not in skipped_set]
         if skipped:
             logger.info("%s skipped by depositor (%s); --sample-skipped spot-checks them",
                         len(skipped), ", ".join(sorted(skip_creators)))
@@ -236,20 +245,32 @@ def run(arguments) -> int:
                 "%s unparseable%s skipped by depositor",
                 counts["clean"], counts["hit"], counts["no_mets"], counts["unreadable"],
                 counts["unparseable"], f", {len(skipped)}" if not arguments.paths else ", 0")
+    if problems or incomplete or slug_check_failed:
+        # Incomplete beats findings: exit 1 promises a verdict over the WHOLE population, and an
+        # operator (or automation) must not resolve the found items and call the gate passed
+        # while an unknown remainder went unchecked. The findings are still reported and in the
+        # CSV; rerunning when the platform is healthy converts this into a 0 or a true 1.
+        logger.error("The survey is INCOMPLETE (%s group(s) unreadable%s%s). %s finding(s) in "
+                     "what WAS checked; rerun before treating the gate as answered.",
+                     len(problems),
+                     "; stopped early" if incomplete else "",
+                     "; the slug check did not run" if slug_check_failed else "",
+                     len(findings))
+        return 2
     if findings:
         logger.error("%s finding(s): this deployment holds content the current validation rules "
                      "would refuse. Resolve (or consciously accept) before cutting a release.",
                      len(findings))
         return 1
-    if problems or incomplete or slug_check_failed:
-        # Not a content verdict either way: the gate did not finish. A transient outage must not
-        # read as "this deployment holds refusable content" - nor as a clean pass.
-        logger.error("The survey is INCOMPLETE (%s group(s) unreadable%s%s). No refusable content "
-                     "was found in what WAS checked; rerun before treating the gate as passed.",
-                     len(problems),
-                     "; stopped early" if incomplete else "",
-                     "; the slug check did not run" if slug_check_failed else "")
-        return 2
+    if not dsn:
+        # The METS walk is clean, but this run never looked at the slug population, and the
+        # clean message must not overclaim. Deliberately still exit 0: running the SQL
+        # separately (a DBA with --fedora-sql's queries) is a supported split, and this run's
+        # own remit completed clean. The release gate needs BOTH answers - see the README.
+        logger.info("METS survey clean. Repository slugs were NOT checked by this run "
+                    "(no FEDORA_DB_DSN): the release gate also needs the --fedora-sql queries "
+                    "run against Fedora's database.")
+        return 0
     logger.info("Nothing found: the current validation rules refuse nothing this deployment holds.")
     return 0
 

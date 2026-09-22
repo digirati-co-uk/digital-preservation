@@ -130,7 +130,10 @@ def main() -> int:
     validation_command.add_argument("--created-after", metavar="TIMESTAMP",
                                     help="only walk deposits created after this (a crude resume)")
     validation_command.add_argument("--path", action="append", dest="paths", metavar="PATH",
-                                    help="check exactly this Archival Group; repeatable")
+                                    help="check exactly this Archival Group (repeatable); the "
+                                         "population options (--path-prefix, --skip-created-by, "
+                                         "--sample-skipped, --newest-first, --created-after) "
+                                         "are ignored when --path is given")
     validation_command.add_argument("--path-prefix",
                                     help="only Archival Groups whose path starts with this")
     validation_command.add_argument("--skip-created-by", action="append", dest="skip_created_by",

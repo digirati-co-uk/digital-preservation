@@ -303,9 +303,13 @@ It fetches each Archival Group's METS and applies **exactly** the parser's refus
 the .NET tests). Exit codes: **0** clean, **1** findings (a CSV row per finding - content
 the rules would refuse, including a METS that is not well-formed XML), **2** incomplete
 (groups unreadable after retries, the circuit breaker stopping a struggling platform, or
-the slug check failing to run) - rerun before treating the gate as passed; an incomplete
-survey is not a verdict either way. It writes nothing anywhere - no deposits, no ledger,
-only the CSV you ask for - so it is safe to point at production.
+the slug check failing to run) - rerun before treating the gate as passed. Incomplete wins
+over findings: a run that stopped early exits 2 even when it already found content, because
+exit 1 promises a verdict over the whole population. Without `FEDORA_DB_DSN` a clean METS
+walk still exits 0, but only the METS population was checked - the release gate then also
+needs the `--fedora-sql` queries run against Fedora's database, and the final log line says
+so. It writes nothing anywhere - no deposits, no ledger, only the CSV you ask for - so it
+is safe to point at production.
 
 ## Doing it by hand
 

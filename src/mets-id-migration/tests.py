@@ -653,8 +653,6 @@ class LedgerDeploymentTests(unittest.TestCase):
             self.assertEqual(self.PROD, ledger.get_meta(DEPLOYMENT))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestValidationRefusalRule(unittest.TestCase):
@@ -674,6 +672,9 @@ class TestValidationRefusalRule(unittest.TestCase):
         "https://rosdok.uni-rostock.de/depot/x/alto/y.xml",   # third-party absolute references pass
         "objects/%GG/x.jpg",                   # malformed sequences are left as-is, never an error
         "objects/%2",
+        "objects/%252e%252e/x",                # double-encoded: ONE decode, like Uri.UnescapeDataString
+        "",                                    # C#: RejectDotSegments("") passes - one empty segment
+        " ../x",                               # raw semantics: " .." is not a dot segment, no trim
     ]
 
     REFUSED = [
@@ -688,6 +689,8 @@ class TestValidationRefusalRule(unittest.TestCase):
         "objects%2f..%2fx",
         "objects/a%5Cb.mp3",
         "objects%5c..%5cx",
+        "objects/%2F/x",                       # upper-case encoded separator
+        "objects/%5C/x",
     ]
 
     def test_accepted(self):
@@ -771,6 +774,38 @@ class TestValidationSurveyReviewFindings(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertEqual(reader.call_count, validation_survey._UNREAD_RUN_LIMIT)
 
+    def test_a_doctype_with_an_external_entity_is_not_resolved(self):
+        # Preserved METS is third-party content; the hardened parser must neither fetch the
+        # external entity nor fail the walk over its presence.
+        from app import validation_survey
+        document = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE mets [<!ENTITY xxe SYSTEM "file:///should/never/be/read">]>'
+            '<mets:mets xmlns:mets="http://www.loc.gov/METS/" '
+            '           xmlns:xlink="http://www.w3.org/1999/xlink">'
+            '<mets:FLocat xlink:href="objects/page-001.tif" LOCTYPE="URL"/>'
+            '</mets:mets>'
+        ).encode()
+        found = set(validation_survey._mets_paths(document))
+        self.assertEqual(found, {("FLocat/@href", "objects/page-001.tif")})
+
+    def test_findings_plus_a_tripped_breaker_still_exit_incomplete(self):
+        # Exit 1 promises a verdict over the WHOLE population: a run that found content AND
+        # then stopped early must exit 2, or automation treats a partial answer as complete.
+        from app import validation_survey
+        hit_mets = (
+            '<mets:mets xmlns:mets="http://www.loc.gov/METS/" '
+            '           xmlns:xlink="http://www.w3.org/1999/xlink">'
+            '<mets:FLocat xlink:href="objects/../escape.tif" LOCTYPE="URL"/>'
+            '</mets:mets>'
+        ).encode()
+        down = validation_survey.api.ApiError("mets", "down", 502)
+        reader = mock.Mock(side_effect=[hit_mets, down, down, down])
+        groups = {f"x/{n}": set() for n in range(4)}
+        with mock.patch.object(validation_survey.settings, "FEDORA_DB_DSN", None),              mock.patch.object(validation_survey, "_collect_groups", return_value=groups),              mock.patch.object(validation_survey.api, "get_archival_group_mets", reader):
+            exit_code = validation_survey.run(self._run_arguments())
+        self.assertEqual(exit_code, 2)
+
     def test_mets_with_comments_and_pis_is_walked_not_crashed(self):
         from app import validation_survey
         document = (
@@ -799,3 +834,7 @@ class TestValidationSurveyReviewFindings(unittest.TestCase):
             exit_code = validation_survey.run(arguments)
         self.assertEqual(exit_code, 0)
         check.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
