@@ -163,6 +163,21 @@ public class AccessTokenProviderTests
     }
 
     [Fact]
+    public async Task ANonStringToken_Throws_TheControlledDiagnostic()
+    {
+        // {"access_token": 12345}: without the ValueKind check, GetString() throws .NET's generic
+        // InvalidOperationException before the controlled path - no log, no property names.
+        var handler = new CapturingHandler
+            { ResponseBody = "{\"token_type\":\"Bearer\",\"access_token\":12345}" };
+        var sut = BuildProvider(ValidOptions(TargetResource), handler);
+
+        var act = () => sut.GetAccessToken();
+
+        (await act.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage("*without an access_token*");
+    }
+
+    [Fact]
     public async Task AnErrorStatus_Throws_AndIsNotCached()
     {
         var handler = new CapturingHandler { StatusCode = HttpStatusCode.BadRequest };

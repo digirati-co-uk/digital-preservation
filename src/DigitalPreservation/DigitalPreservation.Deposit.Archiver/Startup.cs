@@ -81,9 +81,7 @@ public class Startup
             ClientSecret = authProvider.ClientSecret,
             TenantId = authProvider.TenantId
         };
-        services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
-        services.AddHttpClient(); // AccessTokenProvider mints tokens through IHttpClientFactory
-        services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+        services.AddAccessTokenProvider(accessTokenProviderOptions);
 
         services.AddAWSService<IAmazonS3>(); //AMAzon.s3
 

@@ -106,9 +106,7 @@ try
 
     var accessTokenProviderOptions = new AccessTokenProviderOptions();
     builder.Configuration.GetSection("TokenProvider").Bind(accessTokenProviderOptions);
-    builder.Services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
-    builder.Services.AddHttpClient(); // AccessTokenProvider mints tokens through IHttpClientFactory
-    builder.Services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+    builder.Services.AddAccessTokenProvider(accessTokenProviderOptions);
 
     builder.Services
         .AddHostedService<PipelineJobExecutorService>()

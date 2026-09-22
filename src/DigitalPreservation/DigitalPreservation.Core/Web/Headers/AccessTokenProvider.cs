@@ -52,10 +52,12 @@ public class AccessTokenProvider : IAccessTokenProvider
         }
 
         // Keyed by the resource the token is FOR, now that ResourceUri makes this class
-        // resource-generic. The cache is per-instance, so this is legibility, not collision safety.
+        // resource-generic. The cache is per-instance, so this is legibility, not collision
+        // safety. TrimEnd matches the scope construction in GetBearerToken: with-slash and
+        // without-slash spellings of the same resource are the same token.
         var key = "accessToken:" + (string.IsNullOrEmpty(options.ResourceUri)
             ? $"api://{options.ClientId}"
-            : options.ResourceUri);
+            : options.ResourceUri.TrimEnd('/'));
         if (memoryCache.TryGetValue(key, out string? token))
         {
             return token;
@@ -107,7 +109,11 @@ public class AccessTokenProvider : IAccessTokenProvider
         var json = await response.Content.ReadAsStringAsync();
         // Not Dictionary<string, string>: the v2.0 endpoint returns expires_in as a JSON number.
         using var doc = JsonDocument.Parse(json);
+        // The ValueKind check keeps a non-string access_token (a malformed body like
+        // {"access_token": 12345}) on THIS controlled path: GetString() on a number would throw
+        // .NET's generic InvalidOperationException before the diagnostic below is reached.
         if (!doc.RootElement.TryGetProperty("access_token", out var accessToken)
+            || accessToken.ValueKind != JsonValueKind.String
             || accessToken.GetString() is not { Length: > 0 } token)
         {
             // Loud, immediate, and uncached - the old Dictionary indexer threw here too. Property
@@ -127,6 +133,24 @@ public class AccessTokenProvider : IAccessTokenProvider
 public interface IAccessTokenProvider
 {
     public Task<string?> GetAccessToken();
+}
+
+public static class AccessTokenProviderX
+{
+    /// <summary>
+    /// The one way to register <see cref="AccessTokenProvider"/>: the prepared options (each host
+    /// builds its own - config section or secrets provider), the IHttpClientFactory it mints
+    /// through, and the singleton itself. Hoisted so a change to this wiring cannot drift across
+    /// the composition roots that need it.
+    /// </summary>
+    public static IServiceCollection AddAccessTokenProvider(this IServiceCollection services,
+        IAccessTokenProviderOptions options)
+    {
+        services.AddSingleton(options);
+        services.AddHttpClient(); // AccessTokenProvider mints tokens through IHttpClientFactory
+        services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+        return services;
+    }
 }
 
 
