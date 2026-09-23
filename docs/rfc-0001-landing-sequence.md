@@ -7,6 +7,37 @@ and [`rfc-0001-lpii166-comparison.md`](./rfc-0001-lpii166-comparison.md) (the PO
 
 *Written 2026-08-25. Branch facts below were verified against `origin` on that date.*
 
+## Ladder status
+
+**As of 2026-09-22 (the v1.3.0 cut).** The configuration *is* the authority — this table is a
+reader's index to it, not a substitute: verify with the secret `jq` check and `terraform plan`
+before acting, and **update this table as rungs are climbed**. "Committed" means merged to
+`preservation-ops` `main`; "applied" means `terraform apply` has actually run against the
+environment (there is no apply pipeline — it is a manual, local step).
+
+| | dev | test | production |
+|---|---|---|---|
+| Phase 0 Entra admin (role, scope, `idtyp`) | **done 2026-09-23** (steps 1.1-1.5 completed by the Leeds administrator; `Assignment required` was already `Yes` and was deliberately left untouched per the admin doc; the §1.5 existing-assignments list was reported - four named human users plus the iiif-builder-dev and Playwright service accounts - and stays in place as the start of the Phase 3 user list) | **not yet requested** | **not yet requested** |
+| Rung 1: four audience keys in the `preservation-api` `oauth_azure` secret | in place, verified 2026-09-21 | in place, verified 2026-09-22 | in place, verified 2026-09-22 |
+| Rung 2: four-entry `ValidAudiences` terraform | committed (ops PR #72) **and applied** 2026-09-21 | committed (ops PR #75); **not yet applied** | committed (ops PR #76); **not yet applied** |
+| Rung 3: `KnownClients` (Goobi, Phase 1) | not started | not started | not started |
+| Rung 4: `TokenProvider__ResourceUri` repoints | not started | not started | not started |
+| Deployed build | `main` (auto-deploys) | `v1.2.1` | `V1.0.1` (2025-10-24); `v1.3.0` is the cut for the next deploy |
+
+Three facts a newcomer cannot otherwise infer. First: **audit enterprise-app assignment lists
+by UPN, never by display name** - the portal's Users-and-groups blade shows display names, its
+search box matches display names, and this tenant's test and service accounts wear real-person
+display names over cryptic UPNs, so "who is assigned?" answered from the visible list is reliably
+wrong in both directions. Second and third: all three environments live in the **same Entra
+tenant**, as separate per-environment registration pairs — so Phase 0's admin actions are
+per-registration, and dev's completion does **not** cover test or production. The admin document
+([`rfc-0001-phase0-entra-admin.md`](./rfc-0001-phase0-entra-admin.md)) is written against the dev
+registrations; hand it to the administrator again for each environment with that environment's
+registration names substituted. The user-side counterpart — one security group per environment,
+assigned to both the UI and API enterprise apps so Phase 3's every-UI-user-assigned precondition
+holds by construction — is do-ahead work specified in
+[`rfc-0001-group-based-access.md`](./rfc-0001-group-based-access.md).
+
 ## The two branches
 
 | | `feature/multiple-deposit-buckets` (PR #208) | `feat/LPII-165/entra-api` (LPII-166) |
@@ -133,6 +164,9 @@ indexed keys), so each rung's "config flip" is literally an edit to those maps:
   | `TransitionalAudienceGuid` | its bare GUID |
 
   ```
+  (These edits are already WRITTEN and merged to preservation-ops main — dev PR #72, test #75,
+  prod #76 — so for test and production the remaining step is applying, not authoring.)
+
   AzureAd__TokenValidationParameters__ValidAudiences__0 = …preservation-api/oauth_azure:ApiAudience
   AzureAd__TokenValidationParameters__ValidAudiences__1 = …preservation-api/oauth_azure:ApiAudienceGuid
   AzureAd__TokenValidationParameters__ValidAudiences__2 = …preservation-api/oauth_azure:TransitionalAudience
@@ -167,7 +201,11 @@ indexed keys), so each rung's "config flip" is literally an edit to those maps:
   Deposit Archiver** all mint as the UI registration — the Archiver's `OAUTH_AZURE_SECRET`
   defaults to the UI secret path (`/preservation/<env>/ui/oauth_azure`) in every environment, so
   it must be repointed here too, not just the two APIs — the "mint as `a616cf42…`" arrangement
-  Phase 2 exists to replace).
+  Phase 2 exists to replace). `ResourceUri` is deliberately a NEW key, not a reuse of the
+  existing `ScopeUri`: `ScopeUri` belongs to the delegated (signed-in-user) flow and is populated
+  in every environment today, while `ResourceUri`'s *absence* is what keeps the machine mint on
+  the legacy path — reusing an always-present key would flip behaviour on deploy day instead of
+  when this rung is deliberately taken.
 - *Rung 4, retirement* — delete the `…ValidAudiences__2`/`__3` (transitional) lines from both
   files, leaving the permanent pair at `__0`/`__1`. The `Transitional*` keys — and the old
   `Audience` key, by then referenced by nothing — can be removed from the secret at the same
@@ -195,8 +233,13 @@ an environment's existing configuration (empty `KnownClients`, header fallback, 
 production deployment of that release behaves exactly as before, and production then climbs
 rungs 0-3 — Entra, appsettings, the Goobi bucket and its infrastructure — entirely between
 releases, at its own pace. At the time of writing, the last tag (`v1.2.1`, 2026-06-22) is 374
-commits behind `main`; the gap includes the September 2026 security fixes and the #188 migration
-machinery, so the same release also unblocks the production METS-ID campaign.
+commits behind `main` — and **production actually runs `V1.0.1` (deployed 2025-10-24)**, so the
+production delta is eleven months, not three: the gap includes the September 2026 security fixes,
+the #188 migration machinery (so the same release also unblocks the production METS-ID campaign),
+and the Deposit Archiver. Practical consequences for the production deploy: EF migrations for both
+databases apply on startup (snapshot first), and the deploy-order-safety claims below were verified
+against `V1.0.1`'s binding as well as `v1.2.1`'s (both pin Microsoft.Identity.Web 3.8.3 with the
+identical `AddMicrosoftIdentityWebApi` call).
 
 **Phase 4 never traps a release.** Its two behavioural steps — refusing an unknown `azp`, and
 enforcing `Preservation.Call`-role-or-delegated-scope — are to be built as **configuration flags,
@@ -217,6 +260,15 @@ rules would refuse is found before the release, not after it. The `validation-su
 ships in [PR #294](https://github.com/digirati-co-uk/digital-preservation/pull/294), which must be
 merged before this gate can run — it is an operator tool, not application code, so it has no
 bearing on what the release tag contains.
+
+**This gate RAN CLEAN for v1.3.0, against production, on 2026-09-22**: repository slugs — 0 of
+804,434 `simple_search` ids contain `%` (evidence and method on
+[#287](https://github.com/digirati-co-uk/digital-preservation/issues/287)); METS paths — all 220
+surveyed Archival Groups clean (two ~1,600-resource groups needed a `HTTP_TIMEOUT_SECONDS=900`
+retry against a cold AG cache — sizing evidence on
+[#244](https://github.com/digirati-co-uk/digital-preservation/issues/244)). The survey is a
+snapshot of that date's content: re-run it (about six minutes) only if significant new content
+reaches production before the deploy.
 
 The sequence in full: merge #294 (the survey tool) → survey production → merge this PR → tag →
 deploy → production ladder by configuration → enforcement flags on (#293) → header-path deletion
