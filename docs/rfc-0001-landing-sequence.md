@@ -17,7 +17,7 @@ environment (there is no apply pipeline — it is a manual, local step).
 
 | | dev | test | production |
 |---|---|---|---|
-| Phase 0 Entra admin (role, scope, `idtyp`) | requested from Leeds 2026-09-21 | **not yet requested** | **not yet requested** |
+| Phase 0 Entra admin (role, scope, `idtyp`) | **done 2026-09-23** (steps 1.1-1.5 completed by the Leeds administrator; `Assignment required` was already `Yes` and was deliberately left untouched per the admin doc; the §1.5 existing-assignments list was reported - four named human users plus the iiif-builder-dev and Playwright service accounts - and stays in place as the start of the Phase 3 user list) | **not yet requested** | **not yet requested** |
 | Rung 1: four audience keys in the `preservation-api` `oauth_azure` secret | in place, verified 2026-09-21 | in place, verified 2026-09-22 | in place, verified 2026-09-22 |
 | Rung 2: four-entry `ValidAudiences` terraform | committed (ops PR #72) **and applied** 2026-09-21 | committed (ops PR #75); **not yet applied** | committed (ops PR #76); **not yet applied** |
 | Rung 3: `KnownClients` (Goobi, Phase 1) | not started | not started | not started |
