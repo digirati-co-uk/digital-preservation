@@ -283,7 +283,7 @@ The key enabler for a non-breaking migration is that the API can be configured t
 **Phase 3 — Repoint the UI.**
 - **Prerequisites — without both, the delegated flow fails at token acquisition:**
   - The API registration must expose a **delegated scope** (created in Phase 0), the UI registration must be granted that permission, and **admin consent** given. A delegated `/.default` request resolves to the client's statically consented delegated permissions; with none configured, the request fails outright. App roles do not substitute — delegated tokens carry `scp`, never `roles`.
-  - Because `84c62880` already has **Assignment required = Yes**, every UI *user* must be assigned on its enterprise application *before* the UI is repointed, or Entra rejects them with `AADSTS50105`. The human users already assigned there (Phase 0 admin doc) are the **start of this required list, not leftovers to remove** — extend it to all UI users (ideally via a group), including the Playwright browser-login account.
+  - Because `84c62880` already has **Assignment required = Yes**, every UI *user* must be assigned on its enterprise application *before* the UI is repointed, or Entra rejects them with `AADSTS50105`. The human users already assigned there (Phase 0 admin doc) are the **start of this required list, not leftovers to remove** — extend it to all UI users (ideally via a group), including the Playwright browser-login account. The group approach — safe to set up entirely ahead of time — is specified in [`rfc-0001-group-based-access.md`](./rfc-0001-group-based-access.md).
 - Change the UI's downstream `ScopeUri` to `api://84c62880…/.default`. The UI continues to sign users in with `a616cf42`; only the API-call audience changes.
 
 **Phase 4 — Tighten.**

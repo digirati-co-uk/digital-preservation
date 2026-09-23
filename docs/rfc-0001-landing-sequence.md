@@ -33,7 +33,10 @@ tenant**, as separate per-environment registration pairs — so Phase 0's admin 
 per-registration, and dev's completion does **not** cover test or production. The admin document
 ([`rfc-0001-phase0-entra-admin.md`](./rfc-0001-phase0-entra-admin.md)) is written against the dev
 registrations; hand it to the administrator again for each environment with that environment's
-registration names substituted.
+registration names substituted. The user-side counterpart — one security group per environment,
+assigned to both the UI and API enterprise apps so Phase 3's every-UI-user-assigned precondition
+holds by construction — is do-ahead work specified in
+[`rfc-0001-group-based-access.md`](./rfc-0001-group-based-access.md).
 
 ## The two branches
 
