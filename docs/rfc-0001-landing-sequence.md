@@ -24,7 +24,11 @@ environment (there is no apply pipeline — it is a manual, local step).
 | Rung 4: `TokenProvider__ResourceUri` repoints | not started | not started | not started |
 | Deployed build | `main` (auto-deploys) | `v1.2.1` | `V1.0.1` (2025-10-24); `v1.3.0` is the cut for the next deploy |
 
-Two facts a newcomer cannot otherwise infer: all three environments live in the **same Entra
+Three facts a newcomer cannot otherwise infer. First: **audit enterprise-app assignment lists
+by UPN, never by display name** - the portal's Users-and-groups blade shows display names, its
+search box matches display names, and this tenant's test and service accounts wear real-person
+display names over cryptic UPNs, so "who is assigned?" answered from the visible list is reliably
+wrong in both directions. Second and third: all three environments live in the **same Entra
 tenant**, as separate per-environment registration pairs — so Phase 0's admin actions are
 per-registration, and dev's completion does **not** cover test or production. The admin document
 ([`rfc-0001-phase0-entra-admin.md`](./rfc-0001-phase0-entra-admin.md)) is written against the dev
