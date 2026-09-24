@@ -494,12 +494,14 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
-            var result = await mediator.Send(new LockDeposit(Deposit!));
-            var result1 = await mediator.Send(new RunPipeline(Deposit!));
+            // Preservation API takes the deposit's lock itself when it queues the run - transferring
+            // it from the caller's own lock if they already held one - and releases it when the run
+            // ends, whichever way that happens (issue #299). No separate LockDeposit call needed.
+            var result = await mediator.Send(new RunPipeline(Deposit!));
 
-            if (result.Success && result1.Success)
+            if (result.Success)
             {
-                TempData["Valid"] = "Deposit locked and pipeline run message sent.";
+                TempData["Valid"] = "Pipeline run started; the deposit is locked until it finishes.";
                 TempData.Remove("MisMatchCount"); //will be recalculated as METS is refreshed with pipeline run
             }
             else
@@ -520,11 +522,12 @@ public class DepositModel(
     {
         if (await BindDeposit(id) && RunningPipelineJob?.JobId != null)
         {
-            var result = await mediator.Send(new ReleaseLock(Deposit!));
+            // Posting completedWithErrors below is itself what releases the lock now, when the run's
+            // own user still holds it (issue #299) - no separate ReleaseLock call needed.
             var result1 = await mediator.Send(new ForceCompletePipeline(RunningPipelineJob.JobId, id, User));
-            if (result.Success && result1.Success)
+            if (result1.Success)
             {
-                TempData["Valid"] = "Force complete of pipeline succeeded and lock released.";
+                TempData["Valid"] = "Force complete of pipeline succeeded.";
             }
             else
             {
@@ -743,12 +746,9 @@ public class DepositModel(
                 Errors = "Cleaned up as previous processing did not complete"
             };
 
-            var result = await mediator.Send(new ReleaseLock(Deposit!));
-            if (result.Success && Deposit != null)
-            {
-                Deposit.LockDate = null;
-                Deposit.LockedBy = null;
-            }
+            // Posting completedWithErrors below is itself what releases the lock now, when the run's
+            // own user still holds it (issue #299) - no separate ReleaseLock call, and no local
+            // Deposit.LockedBy/LockDate bookkeeping to keep in sync with it.
             await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
         }
 
@@ -756,6 +756,14 @@ public class DepositModel(
         {
             //refresh as all jobs have been sent
             allJobs = GetPipelineJobResults().Result;
+
+            // Re-read rather than patch LockedBy/LockDate off locally: the status posts above may
+            // have released the lock server-side, and this is the one place that needs to know.
+            var refreshedDeposit = await mediator.Send(new GetDeposit(Id!));
+            if (refreshedDeposit.Success)
+            {
+                Deposit = refreshedDeposit.Value!;
+            }
         }
 
         var latestJob = allJobs
