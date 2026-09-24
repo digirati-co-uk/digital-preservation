@@ -1,5 +1,6 @@
 using System.Text;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Workspace;
 using FakeItEasy;
@@ -95,6 +96,48 @@ public class DepositsControllerTests
         var objectResult = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status404NotFound, objectResult.StatusCode);
         Assert.IsType<ProblemDetails>(objectResult.Value);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task ListDeposits_Returns400_WhenPageIsLessThanOne(int page)
+    {
+        var result = await controller.ListDeposits(new DepositQuery { Page = page });
+
+        var objectResult = Assert.IsType<BadRequestObjectResult>(result);
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+        problem.Title.Should().Be("Invalid paging parameters");
+        A.CallTo(() => mediator.Send(A<GetDeposits>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(501)]
+    public async Task ListDeposits_Returns400_WhenPageSizeIsOutOfRange(int pageSize)
+    {
+        var result = await controller.ListDeposits(new DepositQuery { PageSize = pageSize });
+
+        var objectResult = Assert.IsType<BadRequestObjectResult>(result);
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+        problem.Title.Should().Be("Invalid paging parameters");
+        A.CallTo(() => mediator.Send(A<GetDeposits>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task ListDeposits_Returns200_WhenNoPagingParametersSupplied()
+    {
+        var page = new DepositQueryPage { Deposits = [], Page = 1, PageSize = 100, Total = 0 };
+        A.CallTo(() => mediator.Send(A<GetDeposits>._, A<CancellationToken>._))
+            .Returns(Task.FromResult(Result.OkNotNull(page)));
+
+        var result = await controller.ListDeposits(null);
+
+        var objectResult = Assert.IsType<OkObjectResult>(result);
+        var body = Assert.IsType<DepositQueryPage>(objectResult.Value);
+        body.Page.Should().Be(1);
+        body.PageSize.Should().Be(100);
     }
 }
 
