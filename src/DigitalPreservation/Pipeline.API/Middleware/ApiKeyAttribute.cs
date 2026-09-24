@@ -10,11 +10,6 @@ public class ApiKeyAttribute : Attribute, IAuthorizationFilter
 
     public void OnAuthorization(AuthorizationFilterContext context)
     {
-        //If item does not exist then middleware is not running.
-        //This can be removed once feature flag is removed
-        if (!context.HttpContext.Items.ContainsKey(ApiContextObjectName))
-            return;
-
         context.HttpContext.Items.TryGetValue(ApiContextObjectName, out var hasValidApiKey);
 
         if (!Convert.ToBoolean(hasValidApiKey))
