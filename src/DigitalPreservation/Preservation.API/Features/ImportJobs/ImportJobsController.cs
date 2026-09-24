@@ -400,7 +400,7 @@ public class ImportJobsController(
         // We may want to be more flexible that this, e.g., allowing the DigitalObject to be set as part of the immediate diff execution
         // Null-safe: a body with no Id at all is not a diff reference, and flows on to the
         // "must declare which Deposit" 400 rather than a NullReferenceException 500.
-        if(importJob.Id is not null && importJob.Id.ToString().EndsWith(path + "/diff")
+        if(importJob.Id is not null && importJob.Id.ToString().EndsWith(path + "/diff", StringComparison.OrdinalIgnoreCase)
            && importJob.ContainersToAdd.Count == 0
            && importJob.ContainersToDelete.Count == 0
            && importJob.BinariesToAdd.Count == 0
