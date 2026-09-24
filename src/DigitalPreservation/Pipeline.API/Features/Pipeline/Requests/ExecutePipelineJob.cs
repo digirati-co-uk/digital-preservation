@@ -114,26 +114,6 @@ public class ProcessPipelineJobHandler(
     }
 
     /// <summary>
-    /// The workspace-resolution-failure path's lock release, on the deposit that resolution already
-    /// fetched. Best effort, mirroring <see cref="RecordFailureBestEffort"/>: cancellation
-    /// propagates; any other failure is logged and swallowed so the caller can still record the
-    /// failure and return it.
-    /// </summary>
-    private async Task ReleaseLockBestEffort(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await TryReleaseLock(request, deposit, cancellationToken);
-        }
-        catch (Exception releaseException) when (releaseException is not OperationCanceledException)
-        {
-            logger.LogError(releaseException,
-                "Pipeline job {JobIdentifier} for deposit {DepositId} failed before its workspace existed and the deposit lock could not be released",
-                request.JobIdentifier, request.DepositId);
-        }
-    }
-
-    /// <summary>
     /// Reacquiring a new WorkspaceManager is not expensive, but refreshing the file system is
     /// (e.g., GetCombinedDirectory(true))
     /// </summary>
@@ -253,22 +233,16 @@ public class ProcessPipelineJobHandler(
                 $"Pipeline job {request.JobIdentifier} for deposit {request.DepositId} has already been started.");
         }
 
-        var (workspaceResult, lockedDeposit) = await ResolveWorkspace(request, cancellationToken);
+        var (workspaceResult, _) = await ResolveWorkspace(request, cancellationToken);
         if (workspaceResult.Failure || workspaceResult.Value?.Deposit == null)
         {
             var message = workspaceResult.ErrorMessage
                           ?? $"Could not process pipeline job for job id {request.JobIdentifier} and deposit {request.DepositId}: could not find the deposit";
             // The deposit was locked when the run was requested, and no later exit path will ever
-            // run for this job to release that lock. Release BEFORE recording the failure: the
-            // moment completedWithErrors is visible a caller may retry the run (RunPipeline allows
-            // it while LockedBy is the same caller), and a release landing after that retry would
-            // strip the lock from under the new job. Null means the deposit could not be fetched
-            // at all - nothing to unlock.
-            if (lockedDeposit != null)
-            {
-                await ReleaseLockBestEffort(request, lockedDeposit, cancellationToken);
-            }
-            // The job was claimed as Running above. Record the failure, or it stays Running for ever.
+            // run for this job. Recording the failure below (a terminal status) is what releases
+            // the lock now - Preservation API does it, atomically with the status write, when the
+            // status moves into completedWithErrors (issue #299). The job was claimed as Running
+            // above, so record the failure, or it stays Running for ever.
             await RecordFailureBestEffort(request, message, cancellationToken);
             return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError, message);
         }
@@ -303,8 +277,6 @@ public class ProcessPipelineJobHandler(
             logger.LogError(ex,
                 "Caught error in PipelineJob handler for job id {JobIdentifier} and deposit {DepositId}",
                 request.JobIdentifier, request.DepositId);
-
-            await TryReleaseLock(request, workspace.Deposit, cancellationToken);
 
             var pipelineJobsResult = await UpdateJobStatus(
                 request, PipelineJobStates.CompletedWithErrors, ex.Message, cancellationToken);
@@ -432,7 +404,6 @@ public class ProcessPipelineJobHandler(
         if (!Directory.Exists(mountPath))
         {
             logger.LogError("S3 mount path could not be found at {MountPath}", mountPath);
-            await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
@@ -446,11 +417,6 @@ public class ProcessPipelineJobHandler(
             var errorMessage = $"Could not find object folder for deposit {request.DepositId}";
             logger.LogError("Deposit {DepositId} folder and contents could not be found at {ObjectPath}",
                 request.DepositId, objectPath);
-            var releaseLockResult1 = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-            if (releaseLockResult1.Failure)
-            {
-                errorMessage += " and could not unlock";
-            }
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
@@ -486,7 +452,6 @@ public class ProcessPipelineJobHandler(
         {
             logger.LogError("Refusing to run tools for deposit {DepositId}: {Path} is not a per-deposit folder under {ProcessFolder}",
                 request.DepositId, metadataPathForProcessFilesAndDirectories, processFolder);
-            await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
             return new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
@@ -528,8 +493,6 @@ public class ProcessPipelineJobHandler(
 
             logger.LogError("Caught error in PipelineJob handler for job id {JobIdentifier} and deposit {DepositId}",
                 request.JobIdentifier, request.DepositId);
-
-            await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
 
             var (forceCompleteProcessStart, cleanupProcessJobProcessStart) = await CheckIfForceComplete(request, workspaceManager.Deposit, cancellationToken);
             if (forceCompleteProcessStart)
@@ -578,8 +541,6 @@ public class ProcessPipelineJobHandler(
                 }
                 else
                 {
-                    await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-
                     return new ProcessPipelineResult
                     {
                         Status = PipelineJobStates.CompletedWithErrors,
@@ -642,8 +603,6 @@ public class ProcessPipelineJobHandler(
 
             if (!createFolderResultList.Any() && !uploadFilesResultList.Any())
             {
-                await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-
                 return new ProcessPipelineResult
                 {
                     Status = PipelineJobStates.CompletedWithErrors,
@@ -681,8 +640,6 @@ public class ProcessPipelineJobHandler(
 
                 if (uploadBagitFilesResultList.Count == 0)
                 {
-                    await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-
                     return new ProcessPipelineResult
                     {
                         Status = PipelineJobStates.CompletedWithErrors,
@@ -727,56 +684,9 @@ public class ProcessPipelineJobHandler(
             if (metsResult.Failure)
                 logger.LogInformation("Issue adding objects to METS in pipeline run: {Error}", metsResult.ErrorMessage);
 
-            var start = DateTime.Now;
-            var lockReleased = false;
-
-            while (true)
-            {
-                var releaseLockResult = await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
-
-                if (releaseLockResult.Success)
-                {
-                    lockReleased = true;
-                    logger.LogInformation("Successfully released the lock for job {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, workspaceManager.Deposit.Id);
-
-                    var response = await preservationApiClient.GetDeposit(request.DepositId, cancellationToken);
-                    if (response is { Success: true })
-                    {
-                        var deposit = response.Value;
-                        logger.LogInformation("In Pipeline Job Lock date: {LockDate}, Locked by: {LockedBy} ", deposit?.LockDate, deposit?.LockedBy);
-                    }
-                    break;
-                }
-
-                // .Seconds is the seconds *component* of the elapsed TimeSpan (0-59), not the total
-                // elapsed seconds - comparing that against ReleaseLockAttemptTime looked like a
-                // timeout check but would under-count (and never trip) once elapsed time passed a
-                // minute boundary. TotalSeconds is the actual elapsed duration.
-                if ((DateTime.Now - start).TotalSeconds <= pipelineToolOptions.Value.ReleaseLockAttemptTime)
-                {
-                    // A tight retry loop with no delay just hammers Preservation API's lock endpoint
-                    // as fast as the network round-trip allows, which doesn't give a transient DB
-                    // blip on that end any time to clear.
-                    await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
-                    continue;
-                }
-
-                logger.LogError("Failure to release the lock for job {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, workspaceManager.Deposit.Id);
-                break;
-            }
-
-            if (!lockReleased)
-            {
-                // Previously this always returned Completed even when every release attempt failed,
-                // silently leaving the deposit locked with nothing in the job's own status to show it -
-                // the deposit would stay locked indefinitely with no indication anything was wrong.
-                return new ProcessPipelineResult
-                {
-                    Status = PipelineJobStates.CompletedWithErrors,
-                    Errors = [new Error { Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} completed but could not release the deposit lock" }]
-                };
-            }
-
+            // Reporting this status below is what releases the deposit's lock now: Preservation API
+            // does it atomically with the status write when the run's own user still holds it
+            // (issue #299). There is nothing left for Pipeline API to retry or fail on here.
             logger.LogInformation("Returning a completed status for job {JobIdentifier} for deposit {DepositId}.", request.JobIdentifier, workspaceManager.Deposit.Id);
             return new ProcessPipelineResult
             {
@@ -796,8 +706,6 @@ public class ProcessPipelineJobHandler(
         {
             return await ForceCompleteReturn(cleanupProcessJobOnFailure, request, workspaceManager.Deposit, cancellationToken);
         }
-
-        await TryReleaseLock(request, workspaceManager.Deposit, cancellationToken);
 
         return new ProcessPipelineResult
         {
@@ -926,7 +834,6 @@ public class ProcessPipelineJobHandler(
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
             if (forceCompleteBeforeUpload || cleanupProcessBeforeUpload)
             {
-                await TryReleaseLock(request, deposit, cancellationToken);
                 logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                 return (createSubFolderResult: [], uploadFileResult: [], forceCompleteBeforeUpload, cleanupProcessBeforeUpload);
             }
@@ -948,7 +855,6 @@ public class ProcessPipelineJobHandler(
                 // At this point we have not modified the METS file, the ETag for this workspace is still valid
                 if (forceCompleteDirectoryUpload || cleanupProcessDirectoryUpload)
                 {
-                    await TryReleaseLock(request, deposit, cancellationToken);
                     logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                     return (createSubFolderResult: [], uploadFileResult: [], forceCompleteDirectoryUpload, cleanupProcessDirectoryUpload);
                 }
@@ -969,7 +875,6 @@ public class ProcessPipelineJobHandler(
                 // At this point we have not modified the METS file, the ETag for this workspace is still valid
                 if (forceCompleteFileUpload || cleanupProcessFileUpload)
                 {
-                    await TryReleaseLock(request, deposit, cancellationToken);
                     logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                     return (createSubFolderResult: [], uploadFileResult: [], forceCompleteFileUpload, cleanupProcessFileUpload);
                 }
@@ -977,7 +882,6 @@ public class ProcessPipelineJobHandler(
                 var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, sourcePathForFilesAndDirectories, deposit, cancellationToken);
                 if (uploadFileToS3Result != null && (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess || !uploadFileToS3Result.Success))
                 {
-                    await TryReleaseLock(request, deposit, cancellationToken);
                     logger.LogInformation("Exited UploadFilesToMetadataRecursively() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                     return (createSubFolderResult: [], uploadFileResult: [], uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess);
                 }
@@ -1005,7 +909,6 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception ex)
         {
-            await TryReleaseLock(request, deposit, cancellationToken);
             logger.LogError(ex, " Caught error in copy files recursively from {SourcePathForFilesAndDirectories} to {DepositPath}", sourcePathForFilesAndDirectories, depositPath);
             return (createSubFolderResult: [], uploadFileResult: [], false, false);
         }
@@ -1061,7 +964,6 @@ public class ProcessPipelineJobHandler(
         if (forceCompleteUploadS3 || cleanupProcessUploadS3)
         {
             logger.LogInformation("Exited UploadFileToDepositOnS3() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
-            await TryReleaseLock(request, deposit, cancellationToken);
             return (null, forceCompleteUploadS3, cleanupProcessUploadS3);
         }
 
@@ -1223,25 +1125,11 @@ public class ProcessPipelineJobHandler(
         var cleanupProcessJob = job is { Errors: not null } &&
                                 job.Errors.Any(x => x.Message.Contains("Cleaned up as previous processing did not complete"));
 
-        if (forceComplete)
-        {
-            await TryReleaseLock(request, deposit, cancellationToken);
-        }
-
+        // No lock release here: a job only reaches completedWithErrors, which is what forceComplete
+        // detects, by way of a terminal status report - and Preservation API releases the lock
+        // itself, atomically with that status write, the moment it lands (issue #299). By the time
+        // this method observes forceComplete == true, the lock is already gone.
         return (forceComplete, cleanupProcessJob);
-    }
-    
-    private async Task<Result> TryReleaseLock(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
-    {
-        var releaseLockResult =
-            await preservationApiClient.ReleaseDepositLock(deposit, cancellationToken);
-        logger.LogInformation("releaseLockResult: {Success}", releaseLockResult.Success);
-        if (releaseLockResult is { Failure: true })
-        {
-            logger.LogError("Could not release lock for Job {JobIdentifier}", request.JobIdentifier);
-        }
-
-        return releaseLockResult;
     }
 
     private async void CheckIfProcessRunning(ExecutePipelineJob request, Deposit deposit, CancellationToken cancellationToken)
@@ -1292,16 +1180,19 @@ public class ProcessPipelineJobHandler(
         }
     }
 
-    private async Task<ProcessPipelineResult> ForceCompleteReturn(bool cleanupProcessJob, ExecutePipelineJob request,
+    // No longer async: it no longer awaits anything (see the comment below), but stays Task-returning
+    // so every "return await ForceCompleteReturn(...)" call site is unaffected.
+    private Task<ProcessPipelineResult> ForceCompleteReturn(bool cleanupProcessJob, ExecutePipelineJob request,
         Deposit deposit, CancellationToken cancellationToken)
     {
-        await TryReleaseLock(request, deposit, cancellationToken);
+        // No lock release here either, for the same reason as CheckIfForceComplete above: the lock
+        // is already gone by the time this is called.
         if (!cleanupProcessJob)
         {
             logger.LogInformation(
                 "Exited as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId} has been force completed.",
                 request.JobIdentifier, request.DepositId);
-            return new ProcessPipelineResult
+            return Task.FromResult(new ProcessPipelineResult
             {
                 Status = PipelineJobStates.CompletedWithErrors,
                 Errors =
@@ -1311,19 +1202,19 @@ public class ProcessPipelineJobHandler(
                         Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} was force completed"
                     }
                 ]
-            };
+            });
         }
 
         logger.LogInformation(
             "Exited as the pipeline job run has been cleaned up as previous processing did not complete {JobIdentifier} for deposit {DepositId}.",
             request.JobIdentifier, request.DepositId);
 
-        return new ProcessPipelineResult
+        return Task.FromResult(new ProcessPipelineResult
         {
             Status = PipelineJobStates.CompletedWithErrors,
             Errors = [new Error { Message = "Cleaned up as previous processing did not complete" }],
             CleanupProcessJob = true
-        };
+        });
     }
 
     private async Task<string> GetVirusDefinition()
@@ -1733,7 +1624,6 @@ public class ProcessPipelineJobHandler(
             // At this point we have not modified the METS file, the ETag for this workspace is still valid
             if (forceCompleteBeforeUpload || cleanupProcessBeforeUpload)
             {
-                await TryReleaseLock(request, deposit, cancellationToken);
                 logger.LogInformation("Exited UploadBagitFilesToRoot() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                 return (uploadFileResult: [], forceCompleteBeforeUpload, cleanupProcessBeforeUpload);
             }
@@ -1750,7 +1640,6 @@ public class ProcessPipelineJobHandler(
                 // At this point we have not modified the METS file, the ETag for this workspace is still valid
                 if (forceCompleteFileUpload || cleanupProcessFileUpload)
                 {
-                    await TryReleaseLock(request, deposit, cancellationToken);
                     logger.LogInformation("Exited UploadBagitFilesToRoot() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                     return (uploadFileResult: [], forceCompleteFileUpload, cleanupProcessFileUpload);
                 }
@@ -1758,7 +1647,6 @@ public class ProcessPipelineJobHandler(
                 var (uploadFileToS3Result, uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess) = await UploadFileToDepositOnS3(request, filePath, processFolderBagitDeposit, deposit, cancellationToken, true);
                 if (uploadFileToS3Result != null && (uploadFileToS3ForcedComplete || uploadFileToS3CleanupProcess || !uploadFileToS3Result.Success))
                 {
-                    await TryReleaseLock(request, deposit, cancellationToken);
                     logger.LogInformation("Exited UploadBagitFilesToRoot() method as the pipeline job run has been forced complete {JobIdentifier} for deposit {DepositId}", request.JobIdentifier, request.DepositId);
                     return (uploadFileResult: [], uploadFileToS3ForcedComplete, uploadFileToS3CleanupProcess);
                 }
@@ -1777,7 +1665,6 @@ public class ProcessPipelineJobHandler(
         }
         catch (Exception ex)
         {
-            await TryReleaseLock(request, deposit, cancellationToken);
             logger.LogError(ex, "Caught error in copying files recursively from {ProcessFolderBagitDeposit} to {DepositId}", processFolderBagitDeposit, deposit.Id);
             return (uploadFileResult: [], false, false);
         }
