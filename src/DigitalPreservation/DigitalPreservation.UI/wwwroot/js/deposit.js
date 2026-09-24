@@ -573,19 +573,37 @@ const fileSelector = document.getElementById('depositFile');
 const checksum = document.getElementById('checksum');
 const fileSize = document.getElementById('fileSize');
 const fileSizeWarning = document.getElementById('fileSizeWarning');
+const hashFailedWarning = document.getElementById('hashFailedWarning');
+const uploadFileSubmit = document.getElementById('uploadFileSubmit');
 const fileName = document.getElementById('depositFileName');
 const fileContentType = document.getElementById('depositFileContentType');
 
-const LARGE_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+// Server-configured (Uploads:MaxUploadBytes, default 2 GB) and mirrored by Program.cs's
+// Kestrel/FormOptions limits, so a file that slips past this check is still refused server-side.
+const MAX_UPLOAD_BYTES = Number(fileSelector.dataset.maxUploadBytes);
 
 fileSelector.addEventListener('change', () => {
     const file = fileSelector.files[0];
-    hashFile();
+
+    // Disabled from the moment a file is chosen until hashing finishes (or is skipped because the
+    // file is over the limit): submitting before the checksum is ready produces a server-side
+    // "No checksum supplied in form" error instead of this message.
+    checksum.value = '';
+    uploadFileSubmit.disabled = true;
+    fileSizeWarning.classList.add('d-none');
+    hashFailedWarning.classList.add('d-none');
+
     fileName.value = file.name;
     fileContentType.value = file.type;
     fileSize.textContent = formatFileSize(file.size);
     fileSize.classList.remove('d-none');
-    fileSizeWarning.classList.toggle('d-none', file.size <= LARGE_FILE_BYTES);
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+        fileSizeWarning.classList.remove('d-none');
+        return;
+    }
+
+    hashFile();
 });
 
 function formatFileSize(bytes) {
@@ -604,6 +622,12 @@ function hashFile() {
         .then(function (result) {
             result = new Uint8Array(result);
             checksum.value = Uint8ArrayToHexString(result);
+            uploadFileSubmit.disabled = false;
+        })
+        .catch(function () {
+            // Typically the browser running out of memory hashing a large file. The Checksum box
+            // stays empty and the button stays disabled rather than letting the form post anyway.
+            hashFailedWarning.classList.remove('d-none');
         });
 }
 

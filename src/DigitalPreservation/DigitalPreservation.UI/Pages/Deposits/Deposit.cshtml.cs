@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.UI.Features.Preservation;
+using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
@@ -44,6 +45,14 @@ public class DepositModel(
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
 
     public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
+
+    /// <summary>
+    /// The largest file the browser upload form will accept, mirrored server-side by
+    /// Program.cs's Kestrel/FormOptions limits so an oversized request is refused rather than
+    /// streamed to S3 (issue #276 item 1). Chunked/resumable upload is out of scope; the
+    /// deposit's storage location is the supported route for files over this limit.
+    /// </summary>
+    public long MaxUploadBytes => UploadOptions.GetMaxUploadBytes(configuration);
 
     /// <summary>
     /// Whether to offer the METS ID migration (issue #188 step 3) from the Actions menu. Off by
