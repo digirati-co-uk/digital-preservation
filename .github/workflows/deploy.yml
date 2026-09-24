@@ -179,3 +179,12 @@ jobs:
           source-tag: ${{ inputs.image_tag }}
           target-tag: ${{ inputs.target_env }}
           iam-role: ${{ secrets.PUBLISH_IAM_ROLE }}
+      # The archiver is a Lambda, not an ECS service: retagging in ECR alone does not update it,
+      # because Lambda resolves an image tag to a digest only at CreateFunction/UpdateFunctionCode
+      # time, not on every invoke. This step forces that re-resolution. See issue #277.
+      - uses: ./.github/actions/lambda-update-code
+        name: update Lambda code
+        with:
+          function-name: ${{ vars.LAMBDA_ARCHIVER_NAME }}
+          image-uri: ${{ vars.ECR_PREFIX }}/dlip-pres-deposit-archiver:${{ inputs.target_env }}
+          role-arn: ${{ secrets.DEPLOY_IAM_ROLE }}

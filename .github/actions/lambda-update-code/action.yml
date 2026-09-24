@@ -1,0 +1,42 @@
+name: Lambda Update Code
+description: Force a container-image Lambda function to re-resolve its ECR tag to the image just pushed under it
+
+permissions:
+  id-token: write  # required for OIDC / AWS
+  contents: read   # This is required for actions/checkout
+
+inputs:
+  function-name:
+    description: "Name of the Lambda function to update"
+    required: true
+  image-uri:
+    description: "ECR image URI (repo:tag) the function's code should be updated to - the same tag reference Terraform configures, repeated here to force Lambda to re-resolve it to the digest just pushed"
+    required: true
+  role-arn:
+    description: "AWS role arn to assume"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - id: checkout
+      uses: actions/checkout@v4
+
+    - id: configure-aws-creds
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.role-arn }}
+        aws-region: eu-west-1
+
+    - id: update-function-code
+      shell: bash
+      run: |
+        aws lambda update-function-code \
+          --function-name ${{ inputs.function-name }} \
+          --image-uri ${{ inputs.image-uri }} \
+          --publish
+
+    - id: wait-for-update
+      shell: bash
+      run: |
+        aws lambda wait function-updated --function-name ${{ inputs.function-name }}
