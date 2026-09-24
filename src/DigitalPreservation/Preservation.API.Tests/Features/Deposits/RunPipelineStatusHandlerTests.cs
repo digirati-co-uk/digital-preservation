@@ -94,6 +94,86 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         job.Errors.Should().Be("it broke");
     }
 
+    [Theory]
+    [InlineData(PipelineJobStates.Completed)]
+    [InlineData(PipelineJobStates.CompletedWithErrors)]
+    public async Task A_Terminal_Status_From_Running_Releases_A_Lock_Held_By_The_Runs_User(string terminalStatus)
+    {
+        // This is the one place every way a run ends releases the lock: success, failure, force
+        // complete from the UI, and the UI's stale-job tidy-up all post a terminal status here.
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, runUser: "tester",
+            depositLockedBy: "tester");
+
+        var result = await Handle(context, depositId, jobId, terminalStatus, terminalStatus == PipelineJobStates.CompletedWithErrors ? "it broke" : null);
+
+        result.Success.Should().BeTrue();
+        var deposit = await ReloadDeposit(depositId);
+        deposit.LockedBy.Should().BeNull("the run that held the lock has just ended");
+        deposit.LockDate.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_Repeated_Terminal_Report_Does_Not_Release_A_Lock_Someone_Else_Has_Since_Taken()
+    {
+        // A run can report a terminal status twice: force complete posts CompletedWithErrors, then
+        // the running job reports again when it notices. Between those two reports the same user may
+        // already have started a new run and holds the lock again - the second report must not strip it.
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.CompletedWithErrors, runUser: "tester",
+            depositLockedBy: "tester");
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.CompletedWithErrors, "it broke again");
+
+        result.Success.Should().BeTrue();
+        var deposit = await ReloadDeposit(depositId);
+        deposit.LockedBy.Should().Be("tester", "the job was already terminal, so this report must not touch the lock");
+    }
+
+    [Fact]
+    public async Task A_Terminal_Status_Does_Not_Release_A_Lock_Held_By_A_Different_Identity()
+    {
+        // Someone else may have force-taken the lock mid-run (POST /lock?force=true). Releasing
+        // theirs on behalf of a run that is not theirs would be wrong.
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, runUser: "tester",
+            depositLockedBy: "someone-else");
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.Completed);
+
+        result.Success.Should().BeTrue();
+        var deposit = await ReloadDeposit(depositId);
+        deposit.LockedBy.Should().Be("someone-else");
+    }
+
+    [Fact]
+    public async Task Claiming_A_Job_As_Running_Does_Not_Touch_The_Lock()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Waiting, runUser: "tester",
+            depositLockedBy: "tester");
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.Running);
+
+        result.Success.Should().BeTrue();
+        var deposit = await ReloadDeposit(depositId);
+        deposit.LockedBy.Should().Be("tester");
+    }
+
+    [Fact]
+    public async Task Reporting_MetadataCreated_Does_Not_Touch_The_Lock()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, runUser: "tester",
+            depositLockedBy: "tester");
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.MetadataCreated);
+
+        result.Success.Should().BeTrue();
+        var deposit = await ReloadDeposit(depositId);
+        deposit.LockedBy.Should().Be("tester");
+    }
+
     private static Task<DigitalPreservation.Common.Model.Results.Result> Handle(
         Preservation.API.Data.PreservationContext context,
         string depositId, string jobId, string status, string? errors = null)
@@ -111,7 +191,8 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
     }
 
     private static async Task<(string DepositId, string JobId)> SeedJob(
-        Preservation.API.Data.PreservationContext context, string status)
+        Preservation.API.Data.PreservationContext context, string status,
+        string runUser = "tester", string? depositLockedBy = null)
     {
         var depositId = $"dep-{Guid.NewGuid()}";
         var jobId = $"job-{Guid.NewGuid()}";
@@ -124,7 +205,9 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
             Created = DateTime.UtcNow,
             CreatedBy = "tester",
             LastModified = DateTime.UtcNow,
-            LastModifiedBy = "tester"
+            LastModifiedBy = "tester",
+            LockedBy = depositLockedBy,
+            LockDate = depositLockedBy != null ? DateTime.UtcNow : null
         });
         context.PipelineRunJobs.Add(new PipelineRunJob
         {
@@ -135,7 +218,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
             DateSubmitted = DateTime.UtcNow,
             LastUpdated = DateTime.UtcNow,
             PipelineJobJson = "{}",
-            RunUser = "tester"
+            RunUser = runUser
         });
         await context.SaveChangesAsync();
 
@@ -148,5 +231,11 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         // is deliberately invisible to any change tracker that loaded the row beforehand.
         await using var context = fixture.CreateNewAuthServiceContext();
         return await context.PipelineRunJobs.AsNoTracking().SingleAsync(job => job.Id == jobId);
+    }
+
+    private async Task<DepositEntity> ReloadDeposit(string depositId)
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        return await context.Deposits.AsNoTracking().SingleAsync(d => d.MintedId == depositId);
     }
 }
