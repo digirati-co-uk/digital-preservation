@@ -104,6 +104,7 @@ public class DepositsController(
     /// </summary>
     /// <param name="id"></param>
     /// <returns></returns>
+    [RequireFeatureFlag("EnableIiifMediaEndpoints")]
     [HttpGet("{id}/iiif", Name = "GetDepositAsIIIFManifest")]
     public IActionResult GetDepositAsIIIF([FromRoute] string id)
     {
