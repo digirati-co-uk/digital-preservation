@@ -1,4 +1,5 @@
-﻿using DigitalPreservation.Common.Model.DepositArchiver;
+﻿using System.Net;
+using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -33,10 +34,33 @@ public class DepositsController(
 {
     [HttpGet(Name = "ListDeposits")]
     [ProducesResponseType<DepositQueryPage>(200, "application/json")]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
     [ProducesResponseType<ProblemDetails>(404, "application/json")]
     [ProducesResponseType<ProblemDetails>(401, "application/json")]
-    public async Task<IActionResult> ListDeposits([FromQuery] DepositQuery? query) // 
+    public async Task<IActionResult> ListDeposits([FromQuery] DepositQuery? query) //
     {
+        if (query?.Page is < 1)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = (int)HttpStatusCode.BadRequest,
+                Title = "Invalid paging parameters",
+                Detail = "page must be 1 or greater."
+            });
+        }
+
+        // Same 500 upper bound as the Storage API's FedoraSearch (#272) - nothing in the platform
+        // asks for more than 100 today.
+        if (query?.PageSize is < 1 or > 500)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = (int)HttpStatusCode.BadRequest,
+                Title = "Invalid paging parameters",
+                Detail = "pageSize must be between 1 and 500."
+            });
+        }
+
         var result = await mediator.Send(new GetDeposits(query));
         return this.StatusResponseFromResult(result);
     }
