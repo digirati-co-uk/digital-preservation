@@ -36,6 +36,8 @@ public class SearchRequestHandler(
         returnValue.FedoraSearch = fedoraResult;
         returnValue.DepositSearch = depositSearch;
         returnValue.Identifier = identifier;
+        returnValue.text = request.Text;
+        returnValue.SearchType = request.Type;
 
         return Result.Ok(returnValue);
     }
