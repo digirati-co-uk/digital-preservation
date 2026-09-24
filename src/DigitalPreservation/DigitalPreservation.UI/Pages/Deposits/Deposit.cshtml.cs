@@ -55,6 +55,7 @@ public class DepositModel(
     public bool ShowNormaliseMetsIds =>
         configuration.GetValue<bool?>("FeatureFlags:ShowNormaliseMetsIds") ?? false;
 
+    public int MisMatchCount { get; private set; }
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
     public List<string> FilesWithViruses { get; set; } = [];
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
@@ -186,12 +187,7 @@ public class DepositModel(
                     if (WorkspaceManager.Editable)
                     {
                         var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
-                        TempData.Remove("MisMatchCount");
-
-                        if (mismatches.Count != 0)
-                        {
-                            TempData["MisMatchCount"] = mismatches.Count;
-                        }
+                        MisMatchCount = mismatches.Count;
 
                         FileMisMatches = detailedMismatches;
                         FilesWithViruses = RootCombinedDirectory.GetFilesWithVirus();
@@ -500,7 +496,6 @@ public class DepositModel(
             if (result.Success && result1.Success)
             {
                 TempData["Valid"] = "Deposit locked and pipeline run message sent.";
-                TempData.Remove("MisMatchCount"); //will be recalculated as METS is refreshed with pipeline run
             }
             else
             {
