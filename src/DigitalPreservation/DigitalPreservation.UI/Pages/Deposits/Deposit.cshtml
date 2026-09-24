@@ -567,7 +567,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="depositFile" class="form-label">Choose a file to upload</label>
-                        <input type="file" class="form-control" id="depositFile" name="depositFile" aria-describedby="fileHelp">
+                        <input type="file" class="form-control" id="depositFile" name="depositFile" aria-describedby="fileHelp" data-max-upload-bytes="@Model.MaxUploadBytes">
                         <div id="fileHelp" class="form-text">Checksum will be calculated locally and after upload.</div>
                     </div>
                     <div class="mb-3">
@@ -590,10 +590,16 @@
                     <input type="hidden" id="newFileContextIsFile" name="contextIsFile">
                     <span id="fileSize" class="text-body-secondary small me-auto d-none"></span>
                     <div id="fileSizeWarning" class="alert alert-warning py-1 px-2 mb-0 d-none" role="alert">
-                        File is larger than 2 GB — upload may be slow or unreliable on poor connections.
+                        File is too large to upload here. Put it in the deposit's storage location instead
+                        (<strong>Open Deposit location</strong>) and use <strong>Refresh storage</strong>.
+                    </div>
+                    <div id="hashFailedWarning" class="alert alert-warning py-1 px-2 mb-0 d-none" role="alert">
+                        The checksum could not be calculated in the browser. For large files, put the file in
+                        the deposit's storage location instead (<strong>Open Deposit location</strong>) and use
+                        <strong>Refresh storage</strong>.
                     </div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary"><svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></button>
+                    <button type="submit" class="btn btn-primary" id="uploadFileSubmit" disabled><svg class="bi" aria-hidden="true"><use xlink:href="#file-earmark-arrow-up"/></svg><span class="ms-2">Upload file</span></button>
                 </div>
             </form>
             
