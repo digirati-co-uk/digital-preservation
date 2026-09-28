@@ -169,7 +169,7 @@ public class WorkspaceManager(
         var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
-            return Result.FailNotNull<CreateFolderResult>(ErrorCodes.Unauthorized,
+            return Result.FailNotNull<CreateFolderResult>(ErrorCodes.Conflict,
                 "Deposit is locked by another user: " + otherLockOwner);
         }
         if (contextIsFile && newFolderContext.HasText())
@@ -219,7 +219,7 @@ public class WorkspaceManager(
         var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
-            return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
+            return Result.FailNotNull<ItemsAffected>(ErrorCodes.Conflict,
                 "Deposit is locked by another user: " + otherLockOwner);
         }
         if (deleteSelection is { DeleteFromMets: false, DeleteFromDepositFiles: false })
@@ -254,7 +254,7 @@ public class WorkspaceManager(
         var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
-            return Result.FailNotNull<ItemsAffected>(ErrorCodes.Unauthorized,
+            return Result.FailNotNull<ItemsAffected>(ErrorCodes.Conflict,
                 "Deposit is locked by another user: " + otherLockOwner);
         }
         if (items.Count == 0)
@@ -274,7 +274,7 @@ public class WorkspaceManager(
         var otherLockOwner = Deposit.GetOtherLockOwner(callerIdentity);
         if (otherLockOwner.HasText())
         {
-            return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.Unauthorized,
+            return Result.FailNotNull<SingleFileUploadResult>(ErrorCodes.Conflict,
                 "Deposit is locked by another user: " + otherLockOwner);
         }
         var combinedResult = await GetCombinedDirectory();
