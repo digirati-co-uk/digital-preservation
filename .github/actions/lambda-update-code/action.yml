@@ -33,10 +33,13 @@ runs:
       run: |
         aws lambda update-function-code \
           --function-name ${{ inputs.function-name }} \
-          --image-uri ${{ inputs.image-uri }} \
-          --publish
+          --image-uri ${{ inputs.image-uri }}
 
     - id: wait-for-update
       shell: bash
       run: |
-        aws lambda wait function-updated --function-name ${{ inputs.function-name }}
+        # function-updated-v2 polls GetFunction, which preservation-ops#77 grants.
+        # function-updated (v1) polls GetFunctionConfiguration, a separate IAM action
+        # not granted there - the code update would succeed but this wait would fail
+        # with AccessDenied on every deploy.
+        aws lambda wait function-updated-v2 --function-name ${{ inputs.function-name }}
