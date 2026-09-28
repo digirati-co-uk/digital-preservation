@@ -76,7 +76,8 @@ public class GetDepositsHandler(
 
                 if (q.CreatedBy != null)
                 {
-                    predicate = predicate.And(x => x.CreatedBy == q.CreatedBy);
+                    var createdBy = ResolveAgentFilterValue(q.CreatedBy);
+                    predicate = predicate.And(x => x.CreatedBy == createdBy);
                 }
 
                 if (q.LastModifiedAfter.HasValue)
@@ -91,7 +92,8 @@ public class GetDepositsHandler(
 
                 if (q.LastModifiedBy != null)
                 {
-                    predicate = predicate.And(x => x.LastModifiedBy == q.LastModifiedBy);
+                    var lastModifiedBy = ResolveAgentFilterValue(q.LastModifiedBy);
+                    predicate = predicate.And(x => x.LastModifiedBy == lastModifiedBy);
                 }
 
                 if (q.PreservedAfter.HasValue)
@@ -106,7 +108,8 @@ public class GetDepositsHandler(
 
                 if (q.PreservedBy != null)
                 {
-                    predicate = predicate.And(x => x.PreservedBy == q.PreservedBy);
+                    var preservedBy = ResolveAgentFilterValue(q.PreservedBy);
+                    predicate = predicate.And(x => x.PreservedBy == preservedBy);
                 }
 
                 if (q.ExportedAfter.HasValue)
@@ -121,7 +124,8 @@ public class GetDepositsHandler(
 
                 if (q.ExportedBy != null)
                 {
-                    predicate = predicate.And(x => x.ExportedBy == q.ExportedBy);
+                    var exportedBy = ResolveAgentFilterValue(q.ExportedBy);
+                    predicate = predicate.And(x => x.ExportedBy == exportedBy);
                 }
 
                 if (q.ShowAll is true)
@@ -129,17 +133,26 @@ public class GetDepositsHandler(
                     // We need at least one predicate so...
                     predicate = predicate.And(x => x.Active || !x.Active);
                 }
+                else if (q.Active is true)
+                {
+                    predicate = predicate.And(x => x.Active);
+                }
+                else if (q.Active is false)
+                {
+                    predicate = predicate.And(x => !x.Active);
+                }
+                else if (q.Archived is true)
+                {
+                    // archived=true switches off the implicit active-only default, the same way
+                    // showAll=true does, when the caller didn't also send active explicitly
+                    // (issue #263): archived deposits are always inactive, so without this an
+                    // active-only default would silently turn "give me archived deposits" into
+                    // "give me none".
+                    predicate = predicate.And(x => x.Active || !x.Active);
+                }
                 else
                 {
-                    if (q.Active.HasValue && q.Active is false)
-                    {
-                        predicate = predicate.And(x => !x.Active);
-                    }
-                    else
-                    {
-                        predicate = predicate.And(x => x.Active);
-                    }
-
+                    predicate = predicate.And(x => x.Active);
                 }
 
                 if (q.Status.HasText())
@@ -234,5 +247,20 @@ public class GetDepositsHandler(
             logger.LogError(e, e.Message);
             return Result.FailNotNull<DepositQueryPage>(ErrorCodes.UnknownError, e.Message);
         }
+    }
+
+    /// <summary>
+    /// The createdBy/lastModifiedBy/preservedBy/exportedBy filters compare exactly against the
+    /// bare caller name stored on the deposit, but GET /agents returns full Agent URIs
+    /// (ResourceMutator.GetAgentUri) - the obvious thing to do with that list. If the filter
+    /// value parses as an absolute URI, resolve it to its last path segment, unescaped the same
+    /// way GetImportJobResult stores PreservedBy; otherwise use the value as given (issue #263).
+    /// Matching stays exact - this does not turn the filter into a prefix search.
+    /// </summary>
+    private static string ResolveAgentFilterValue(string value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            ? uri.GetSlug()!.UnEscapeFromUri()
+            : value;
     }
 }
