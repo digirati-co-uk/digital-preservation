@@ -306,7 +306,10 @@ public class CreateDepositBase(
                 // Otherwise what would it mean to add METS to an older version?
                 if (storageMap.Version.OcflVersion != storageMap.HeadVersion.OcflVersion)
                 {
-                    return Result.Fail(ErrorCodes.UnknownError,
+                    // BadRequest (issue #266): this depends only on what the request asked for (a
+                    // version plus a template), not on a state that could change, so it's the
+                    // caller's mistake, not ours - not UnknownError/500.
+                    return Result.Fail(ErrorCodes.BadRequest,
                         "If exporting an Archival Group that doesn't have a METS, you can only export the HEAD version.");
                 }
 
