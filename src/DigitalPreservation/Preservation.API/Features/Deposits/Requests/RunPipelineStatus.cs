@@ -81,9 +81,12 @@ public class RunPipelineStatusHandler(
         if (PipelineJobStates.IsComplete(entity.Status) && !wasAlreadyTerminal
             && deposit.LockedBy != null && deposit.LockedBy == entity.RunUser)
         {
+            // deposit is already tracked (loaded above with SingleOrDefaultAsync, no AsNoTracking),
+            // so setting these two properties is enough - EF's change tracker writes just them.
+            // Update() marks every column modified, silently overwriting any other change made to
+            // the deposit since it was read (a user's PATCH, for instance).
             deposit.LockedBy = null;
             deposit.LockDate = null;
-            dbContext.Deposits.Update(deposit);
         }
 
         try
