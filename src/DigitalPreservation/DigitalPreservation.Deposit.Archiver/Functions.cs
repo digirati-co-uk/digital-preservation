@@ -61,7 +61,14 @@ public class Functions
                 deposits.ErrorCode,
                 deposits.ErrorMessage);
 
-            return HttpResults.InternalServerError(deposits.ErrorMessage ?? "Failed to query deposits to archive");
+            // This function is invoked only by an EventBridge schedule, with no API Gateway in
+            // front of it, so returning a result - even a 500 one - is a successful invocation as
+            // far as Lambda is concerned: the Errors metric, and any alarm on it, never see it.
+            // Throwing is what makes the failure visible; EventBridge's asynchronous invocation
+            // retries a failed invocation up to twice, which is harmless here since a failed query
+            // has done no work.
+            throw new InvalidOperationException(
+                $"Failed to query deposits to archive: {deposits.ErrorCode} {deposits.ErrorMessage}");
         }
 
         if (!HasDeposits(deposits))
