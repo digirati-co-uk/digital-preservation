@@ -110,15 +110,15 @@ public class ProcessPipelineJobHandler(
 
     /// <summary>
     /// Records a job that was claimed as Running as completedWithErrors. Best effort: if the
-    /// Preservation API cannot be reached to record it, the job does stay Running - there is no queue
-    /// message left to retry from - so say so, loudly, and let the caller return the original failure
-    /// rather than the recording failure.
+    /// Preservation API cannot be reached to record it even after retrying, the job does stay
+    /// Running - there is no queue message left to retry from - so say so, loudly, and let the
+    /// caller return the original failure rather than the recording failure.
     /// </summary>
-    private async Task RecordFailureBestEffort(ExecutePipelineJob request, string message, CancellationToken cancellationToken)
+    private async Task RecordFailureBestEffort(ExecutePipelineJob request, string message)
     {
         try
         {
-            var recorded = await UpdateJobStatus(request, PipelineJobStates.CompletedWithErrors, message, cancellationToken);
+            var recorded = await UpdateTerminalJobStatusWithRetry(request, PipelineJobStates.CompletedWithErrors, message);
             if (recorded.Failure)
             {
                 logger.LogCritical("Pipeline job {JobIdentifier} for deposit {DepositId} failed and its failure could NOT be recorded; it will show as Running: {Error}",
@@ -229,6 +229,66 @@ public class ProcessPipelineJobHandler(
         return updateResult;
     }
 
+    /// <summary>
+    /// Posts a terminal status (Completed/CompletedWithErrors) with retries for a bounded time
+    /// (issue #309 adversarial review, a follow-up finding on #299). After #299, this one POST is
+    /// the only thing that releases the deposit lock. Before #299, a failed release left the job
+    /// Running with the deposit safely unlocked; now a single failed post leaves the deposit
+    /// locked, with no queue message left to retry from - Brunnhilde already finished and the
+    /// METS is already written, so the run itself is not repeatable either. Retrying is safe even
+    /// if an earlier attempt actually landed: the repeat sees wasAlreadyTerminal on the
+    /// Preservation API side and releases nothing a second time.
+    ///
+    /// Always runs on CancellationToken.None, the same as the MetadataCreated post elsewhere in
+    /// this handler: a Pipeline API shutdown mid-job (every ECS deploy) can then still post the
+    /// terminal status within the stop timeout, rather than failing immediately on an
+    /// already-cancelled token.
+    ///
+    /// Reuses PipelineToolOptions.ReleaseLockAttemptTime (seconds) and the same 1-second delay the
+    /// pre-#299 release-retry loop used. A null/unset budget means no retry - one attempt only,
+    /// matching today's un-retried behaviour.
+    /// </summary>
+    private async Task<Result<LogPipelineStatusResult>> UpdateTerminalJobStatusWithRetry(
+        ExecutePipelineJob request, string status, string? errors)
+    {
+        var start = DateTime.Now;
+        while (true)
+        {
+            var result = await UpdateJobStatus(request, status, errors, CancellationToken.None);
+            if (result.Success)
+            {
+                return result;
+            }
+
+            if ((DateTime.Now - start).TotalSeconds <= pipelineToolOptions.Value.ReleaseLockAttemptTime)
+            {
+                // A tight retry loop with no delay just hammers Preservation API's status endpoint
+                // as fast as the network round-trip allows, which doesn't give a transient DB blip
+                // on that end any time to clear.
+                await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
+                continue;
+            }
+
+            logger.LogCritical(
+                "Could not post terminal status {Status} for pipeline job {JobIdentifier} for deposit {DepositId} " +
+                "after retrying for {Seconds}s; the deposit may still be locked. {Error}",
+                status, request.JobIdentifier, request.DepositId, pipelineToolOptions.Value.ReleaseLockAttemptTime,
+                result.CodeAndMessage());
+            return result;
+        }
+    }
+
+    private Task<Result<LogPipelineStatusResult>> UpdateTerminalJobStatusWithRetry(
+        ExecutePipelineJob request, string status, Error[]? errors)
+    {
+        string? error = null;
+        if (errors is { Length: > 0 })
+        {
+            error = string.Join(Environment.NewLine, errors.Select(e => e.Message));
+        }
+        return UpdateTerminalJobStatusWithRetry(request, status, error);
+    }
+
     public async Task<Result> Handle(ExecutePipelineJob request, CancellationToken cancellationToken)
     {
         // Claiming the job IS the start: Preservation API moves it out of "waiting" only once, and a
@@ -262,7 +322,7 @@ public class ProcessPipelineJobHandler(
             // the lock now - Preservation API does it, atomically with the status write, when the
             // status moves into completedWithErrors (issue #299). The job was claimed as Running
             // above, so record the failure, or it stays Running for ever.
-            await RecordFailureBestEffort(request, message, cancellationToken);
+            await RecordFailureBestEffort(request, message);
             return Result.Fail(workspaceResult.ErrorCode ?? ErrorCodes.UnknownError, message);
         }
 
@@ -283,7 +343,7 @@ public class ProcessPipelineJobHandler(
             var result = await ExecuteBrunnhilde(request, workspace, cancellationToken);
 
             if (!result.CleanupProcessJob)
-                await UpdateJobStatus(request, result.Status, result.Errors, cancellationToken);
+                await UpdateTerminalJobStatusWithRetry(request, result.Status, result.Errors);
 
             logger.LogInformation("Execute Brunnhilde result test {Status} {Errors} ", result.Status, result.Errors);
             return result.Status == PipelineJobStates.Completed
@@ -297,8 +357,8 @@ public class ProcessPipelineJobHandler(
                 "Caught error in PipelineJob handler for job id {JobIdentifier} and deposit {DepositId}",
                 request.JobIdentifier, request.DepositId);
 
-            var pipelineJobsResult = await UpdateJobStatus(
-                request, PipelineJobStates.CompletedWithErrors, ex.Message, cancellationToken);
+            var pipelineJobsResult = await UpdateTerminalJobStatusWithRetry(
+                request, PipelineJobStates.CompletedWithErrors, ex.Message);
 
             if (pipelineJobsResult.Value?.Errors is { Length: 0 })
                 logger.LogInformation("Job {JobIdentifier} Running status CompletedWithErrors logged",

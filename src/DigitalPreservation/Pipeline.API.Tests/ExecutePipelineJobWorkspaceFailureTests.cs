@@ -31,10 +31,11 @@ public class ExecutePipelineJobWorkspaceFailureTests
 
     private readonly IPreservationApiClient preservationApiClient = A.Fake<IPreservationApiClient>();
 
-    private ProcessPipelineJobHandler CreateHandler(IMediator? workspaceMediator = null) =>
+    private ProcessPipelineJobHandler CreateHandler(
+        IMediator? workspaceMediator = null, PipelineToolOptions? pipelineToolOptions = null) =>
         new(NullLogger<ProcessPipelineJobHandler>.Instance,
             Options.Create(new StorageOptions()),
-            Options.Create(new PipelineToolOptions()),
+            Options.Create(pipelineToolOptions ?? new PipelineToolOptions()),
             new WorkspaceManagerFactory(workspaceMediator ?? A.Fake<IMediator>(), A.Fake<IMetsParser>()),
             preservationApiClient);
 
@@ -98,6 +99,41 @@ public class ExecutePipelineJobWorkspaceFailureTests
             .MustHaveHappenedOnceExactly();
         A.CallTo(() => preservationApiClient.GetDeposit(DepositId, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task A_Terminal_Status_Post_That_Fails_Once_Is_Retried_Rather_Than_Given_Up_On()
+    {
+        // Issue #309 adversarial review: after #299, the terminal status post is the only thing
+        // that releases the deposit lock, and it used to be attempted once with the result
+        // unchecked. A transient failure that clears on retry must not be left locked.
+        A.CallTo(() => preservationApiClient.LogPipelineRunStatus(
+                A<PipelineDeposit>.That.Matches(d => d.Status == PipelineJobStates.Running), A<CancellationToken>._))
+            .ReturnsLazily((PipelineDeposit d, CancellationToken _) =>
+                Result.OkNotNull(new LogPipelineStatusResult { Status = d.Status ?? PipelineJobStates.Running }));
+
+        var attempts = 0;
+        A.CallTo(() => preservationApiClient.LogPipelineRunStatus(
+                A<PipelineDeposit>.That.Matches(d => d.Status == PipelineJobStates.CompletedWithErrors), A<CancellationToken>._))
+            .ReturnsLazily(() =>
+            {
+                attempts++;
+                return attempts == 1
+                    ? Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, "preservation api briefly away")
+                    : Result.OkNotNull(new LogPipelineStatusResult { Status = PipelineJobStates.CompletedWithErrors });
+            });
+        A.CallTo(() => preservationApiClient.GetDeposit(DepositId, A<CancellationToken>._))
+            .Returns(Result.FailNotNull<Deposit?>(ErrorCodes.NotFound, "No deposit found"));
+
+        var handler = CreateHandler(pipelineToolOptions: new PipelineToolOptions { ReleaseLockAttemptTime = 5 });
+        var result = await handler.Handle(Request(), CancellationToken.None);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be(ErrorCodes.NotFound);
+        attempts.Should().Be(2, "the first post failed and the retry succeeded");
+        A.CallTo(() => preservationApiClient.LogPipelineRunStatus(
+                A<PipelineDeposit>.That.Matches(d => d.Status == PipelineJobStates.CompletedWithErrors), A<CancellationToken>._))
+            .MustHaveHappenedTwiceExactly();
     }
 
     [Fact]
