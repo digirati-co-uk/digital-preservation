@@ -37,6 +37,25 @@ public class ProcessPipelineJobHandler(
     private const string BrunnhildeFolderName = "brunnhilde";
     private readonly string[] filesToIgnore = ["tree.txt"];
 
+    /// <summary>
+    /// True when filePath sits under one of the managed pipeline tool-output folders (issue #275
+    /// item 1). Public static, rather than internal, because Pipeline.API has no InternalsVisibleTo
+    /// for its test project.
+    /// </summary>
+    public static bool IsPipelineOutput(string filePath, string sourcePath, IEnumerable<string> pipelineFolders)
+    {
+        // Normalise before GetRelativePath as well as after: on Linux, '\' isn't a separator, so
+        // passing Windows-style paths straight through means GetRelativePath doesn't see them as
+        // nested and returns filePath unchanged - normalising only the input fixes that. But
+        // GetRelativePath's own output uses Path.DirectorySeparatorChar, which is '\' on Windows,
+        // so the input-only fix would then fail on Windows for the Unix-style paths these tests
+        // use. Forward slashes are valid separators on Windows too, so normalising both ends makes
+        // the helper behave the same on every platform, not just the one CI happens to run on.
+        var relativePath = "metadata/" + Path.GetRelativePath(
+            sourcePath.Replace('\\', '/'), filePath.Replace('\\', '/')).Replace('\\', '/');
+        return pipelineFolders.Any(folder => relativePath.StartsWith(folder + "/", StringComparison.Ordinal));
+    }
+
     private int processId;
     private readonly System.Timers.Timer processTimer = new(10000);
 
@@ -906,7 +925,7 @@ public class ProcessPipelineJobHandler(
             }
         }
 
-        deleteSelection.ContinueIfFail = pipelineToolOptions.Value.PipelineMetadataFolders?.Split(",");
+        deleteSelection.ContinueIfFail = pipelineToolOptions.Value.PipelineMetadataFoldersList;
         var resultDelete = await workspaceManager.DeleteItems(deleteSelection, request.GetUserName());
         return resultDelete;
     }
@@ -1065,7 +1084,8 @@ public class ProcessPipelineJobHandler(
             return (null, forceCompleteUploadS3, cleanupProcessUploadS3);
         }
 
-        if (!filePath.Contains(BrunnhildeFolderName) && !string.IsNullOrWhiteSpace(sourcePath))
+        if (!string.IsNullOrWhiteSpace(sourcePath) &&
+            !IsPipelineOutput(filePath, sourcePath, pipelineToolOptions.Value.PipelineMetadataFoldersList))
         {
             if(!bagitFile)
                 return (null, false, false);
