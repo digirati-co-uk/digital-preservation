@@ -282,11 +282,13 @@ public class DeleteItemsHandler(
             {
                 if (terminalFailure != null)
                 {
-                    var deletedPaths = string.Join(", ", goodResult.Items.Select(i => i.RelativePath));
+                    var partialFailureMessage = FormatPartialFailureMessage(
+                        goodResult.Items.Count,
+                        goodResult.Items.Select(i => i.RelativePath),
+                        terminalFailure.ErrorMessage);
                     return Result.FailNotNull<ItemsAffected>(
                         terminalFailure.ErrorCode!,
-                        $"Delete failed after {goodResult.Items.Count} items ({deletedPaths}). {terminalFailure.ErrorMessage}. " +
-                        $"Additionally, the METS file could not be written ({writeMetsResult.ErrorMessage}), " +
+                        $"{partialFailureMessage} Additionally, the METS file could not be written ({writeMetsResult.ErrorMessage}), " +
                         "so it may still list files already deleted from S3.");
                 }
 
@@ -299,12 +301,32 @@ public class DeleteItemsHandler(
 
         if (terminalFailure != null)
         {
-            var deletedPaths = string.Join(", ", goodResult.Items.Select(i => i.RelativePath));
-            return Result.FailNotNull<ItemsAffected>(
-                terminalFailure.ErrorCode!,
-                $"Delete failed after {goodResult.Items.Count} items ({deletedPaths}). {terminalFailure.ErrorMessage}.");
+            var partialFailureMessage = FormatPartialFailureMessage(
+                goodResult.Items.Count,
+                goodResult.Items.Select(i => i.RelativePath),
+                terminalFailure.ErrorMessage);
+            return Result.FailNotNull<ItemsAffected>(terminalFailure.ErrorCode!, partialFailureMessage);
         }
 
         return Result.OkNotNull(goodResult);
+    }
+
+    // Items.Count is 0 when the very first item attempted is the one that fails, so the "(...)"
+    // detail has nothing to list; and errorMessage already carries its own trailing full stop, so
+    // appending another unconditionally doubles it up (see #303 e2e report).
+    private static string FormatPartialFailureMessage(int succeededCount, IEnumerable<string> deletedPaths, string? errorMessage)
+    {
+        var paths = string.Join(", ", deletedPaths);
+        var itemsPart = paths.Length == 0
+            ? $"Delete failed after {succeededCount} items."
+            : $"Delete failed after {succeededCount} items ({paths}).";
+
+        if (string.IsNullOrEmpty(errorMessage))
+        {
+            return itemsPart;
+        }
+
+        var trimmedError = errorMessage.TrimEnd();
+        return trimmedError.EndsWith('.') ? $"{itemsPart} {trimmedError}" : $"{itemsPart} {trimmedError}.";
     }
 }

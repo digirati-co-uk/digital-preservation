@@ -119,6 +119,53 @@ public class DeleteItemsHandlerTests
     }
 
     [Fact]
+    public async Task Handle_OmitsEmptyParenthetical_WhenNoItemSucceededBeforeFailure()
+    {
+        var (combinedRoot, mets) = BuildFixture("a.txt");
+        SetUpS3Delete("a.txt", succeeds: false);
+        SetUpMetsManager(mets);
+
+        var request = new DeleteItems(
+            isBagItLayout: false,
+            depositFiles: DepositFiles,
+            deleteSelection: SelectionFor("a.txt"),
+            combinedRootDirectory: combinedRoot,
+            depositETag: DepositETag);
+
+        var result = await handler.Handle(request, CancellationToken.None);
+
+        result.Failure.Should().BeTrue();
+        // No item succeeded before the failure, so there is nothing to list - the message must not
+        // carry an empty "()" - and the underlying error text already ends with a full stop, so the
+        // message must not double it up.
+        result.ErrorMessage.Should().NotContain("(").And.NotContain("..");
+        result.ErrorMessage.Should().StartWith("Delete failed after 0 items.");
+    }
+
+    [Fact]
+    public async Task Handle_ListsDeletedPaths_WhenSomeItemsSucceededBeforeFailure()
+    {
+        var (combinedRoot, mets) = BuildFixture("a.txt", "b.txt");
+        SetUpS3Delete("a.txt", succeeds: true);
+        SetUpS3Delete("b.txt", succeeds: false);
+        SetUpMetsManager(mets);
+        A.CallTo(() => metsManager.WriteMets(A<FullMets>._)).Returns(Result.Ok());
+
+        var request = new DeleteItems(
+            isBagItLayout: false,
+            depositFiles: DepositFiles,
+            deleteSelection: SelectionFor("a.txt", "b.txt"),
+            combinedRootDirectory: combinedRoot,
+            depositETag: DepositETag);
+
+        var result = await handler.Handle(request, CancellationToken.None);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorMessage.Should().StartWith("Delete failed after 1 items (objects/a.txt).");
+        result.ErrorMessage.Should().NotContain("..");
+    }
+
+    [Fact]
     public async Task Handle_WritesMetsOnce_WhenAllDeletesSucceed()
     {
         var (combinedRoot, mets) = BuildFixture("a.txt", "b.txt");
