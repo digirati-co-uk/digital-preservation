@@ -142,12 +142,14 @@ public class ImportJob : Resource
     /// <summary>
     /// This cannot change the slug (path) but can change the name - i.e., the dc:title
     /// </summary>
+    [JsonPropertyName("containersToRename")]
     [JsonPropertyOrder(750)]
     public List<Container> ContainersToRename { get; set; } = [];
-    
+
     /// <summary>
     /// This cannot change the slug (path) but can change the name - i.e., the dc:title
     /// </summary>
+    [JsonPropertyName("binariesToRename")]
     [JsonPropertyOrder(760)]
     public List<Binary> BinariesToRename { get; set; } = [];
     
