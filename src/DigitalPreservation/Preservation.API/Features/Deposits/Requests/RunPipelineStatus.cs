@@ -46,6 +46,12 @@ public class RunPipelineStatusHandler(
         var entity = await dbContext.PipelineRunJobs.SingleAsync(
             d => d.Deposit == request.PipelineDeposit.DepositId && d.Id == request.PipelineDeposit.Id, cancellationToken);
 
+        // Captured before the switch below changes entity.Status: a run can report a terminal
+        // status twice (force complete posts CompletedWithErrors, then the running job reports
+        // again when it notices), and the second report must not release a lock that the same
+        // user may already have retaken for a new run (issue #299).
+        var wasAlreadyTerminal = PipelineJobStates.IsComplete(entity.Status);
+
         switch (request.PipelineDeposit.Status)
         {
             case PipelineJobStates.Waiting:
@@ -66,6 +72,22 @@ public class RunPipelineStatusHandler(
             entity.Status = request.PipelineDeposit.Status;
         }
         dbContext.PipelineRunJobs.Update(entity);
+
+        // The one place every way a run ends goes through: success, failure, force complete from
+        // the UI, and the UI's stale-job tidy-up all post a terminal status here. Release only on
+        // the transition into terminal (not a repeat report, see above), and only if the deposit
+        // is still locked by the run's own user - someone else may have force-taken the lock
+        // mid-run (POST /lock?force=true), and releasing theirs would be wrong.
+        if (PipelineJobStates.IsComplete(entity.Status) && !wasAlreadyTerminal
+            && deposit.LockedBy != null && deposit.LockedBy == entity.RunUser)
+        {
+            // deposit is already tracked (loaded above with SingleOrDefaultAsync, no AsNoTracking),
+            // so setting these two properties is enough - EF's change tracker writes just them.
+            // Update() marks every column modified, silently overwriting any other change made to
+            // the deposit since it was read (a user's PATCH, for instance).
+            deposit.LockedBy = null;
+            deposit.LockDate = null;
+        }
 
         try
         {
