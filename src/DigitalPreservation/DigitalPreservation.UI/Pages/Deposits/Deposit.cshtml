@@ -12,12 +12,7 @@
     ViewData["Title"] = Model.GetDisplayTitle();
     ViewData["section"] = "deposits";
 
-    var jobRunningOrArchived = false;
-    if (Model.RunningPipelineJob != null || Model.Deposit?.Archived != null)
-    {
-        TempData.Remove("MisMatchCount");
-        jobRunningOrArchived = true;
-    }
+    var jobRunningOrArchived = Model.RunningPipelineJob != null || Model.Deposit?.Archived != null;
 }
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -228,10 +223,10 @@
         </div>
     }
 
-    @if (!jobRunningOrArchived && TempData["MisMatchCount"] != null)
+    @if (!jobRunningOrArchived && Model.MisMatchCount > 0)
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <p>@Html.Raw(TempData["MisMatchCount"]) files have metadata not present in METS.</p>
+            <p>@Model.MisMatchCount files have metadata not present in METS.</p>
             
             @foreach (var item in Model.MismatchDisplayItems)
             {
@@ -389,8 +384,7 @@
                         <button
                             type="button"
                             class="btn btn-sm btn-primary me-2"
-                            @(jobRunningOrArchived || (TempData["MisMatchCount"] != null &&
-                                                       Convert.ToInt32(TempData["MisMatchCount"]!.ToString()) > 0)
+                            @(jobRunningOrArchived || Model.MisMatchCount > 0
                                 ? "disabled"
                                 : "")
                             onclick="location.href='/deposits/@Model.Id/importjobs/diff'">

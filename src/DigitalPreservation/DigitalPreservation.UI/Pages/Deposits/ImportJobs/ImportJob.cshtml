@@ -11,11 +11,6 @@ ViewData["section"] = "deposits";
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">@ViewData["Title"]</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <button type="button" class="btn btn-sm btn-outline-primary me-2">
-            <svg class="bi" aria-hidden="true"><use xlink:href="#trash"/></svg><span class="ms-2">Something</span>
-        </button>
-    </div>
 </div>
 
 <div>
@@ -110,20 +105,11 @@ ViewData["section"] = "deposits";
                     }
                 
                     <hr/>
-                
-                    <p>You can modify the diff manually</p>
-                    <p>UI to follow</p>
-                    <form>
-                        <div class="form-floating mb-3">
-                            <textarea class="form-control" id="importJobJson" name="importJobJson">@JsonSerializer.Serialize(Model.ImportJob, new JsonSerializerOptions{WriteIndented = true})</textarea>
-                            <label for="importJobJson">Raw Import Job</label>
-                        </div>
-                        <div class="mb-3">
-                            <button type="submit" asp-page-handler="ExecuteModifiedDiff" class="btn btn-sm btn-primary me-2" disabled>
-                                <svg class="bi" aria-hidden="true"><use xlink:href="#file-arrow-up"/></svg><span class="ms-2">Run modified import</span>
-                            </button>
-                        </div>
-                    </form>
+
+                    <div class="form-floating mb-3">
+                        <textarea class="form-control" id="importJobJson" readonly>@JsonSerializer.Serialize(Model.ImportJob, new JsonSerializerOptions{WriteIndented = true})</textarea>
+                        <label for="importJobJson">Import job (JSON)</label>
+                    </div>
                 }
             }
             else if (Model.ImportJobId == "custom")
