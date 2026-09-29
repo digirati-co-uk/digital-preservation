@@ -81,6 +81,7 @@ public class DeleteItemsHandler(
         
         var deepestFirst = request.DeleteSelection.Items.Where(x => x.RelativePath.Contains("/"))
             .OrderByDescending(item => item.RelativePath.Count(c => c == '/'));
+        Result<ItemsAffected>? terminalFailure = null;
         foreach (var item in deepestFirst)
         {
             Result<ItemsAffected>? failedDeleteResult = null;
@@ -264,9 +265,12 @@ public class DeleteItemsHandler(
             }
             else
             {
-                return Result.FailNotNull<ItemsAffected>(
-                    failedDeleteResult.ErrorCode!,
-                    $"Delete failed after {goodResult.Items.Count} items. {failedDeleteResult.ErrorMessage}.");
+                // Don't return here: items before this one in the deepest-first order may already be
+                // deleted from S3 and removed from the in-memory METS. Break instead, so the METS
+                // write below still runs and catches those changes up - S3 has no transaction to roll
+                // back, so the METS catching up to what's actually there is the right repair.
+                terminalFailure = failedDeleteResult;
+                break;
             }
 
         }
@@ -276,12 +280,31 @@ public class DeleteItemsHandler(
             var writeMetsResult = await metsManager.WriteMets(mets);
             if (writeMetsResult.Failure)
             {
+                if (terminalFailure != null)
+                {
+                    var deletedPaths = string.Join(", ", goodResult.Items.Select(i => i.RelativePath));
+                    return Result.FailNotNull<ItemsAffected>(
+                        terminalFailure.ErrorCode!,
+                        $"Delete failed after {goodResult.Items.Count} items ({deletedPaths}). {terminalFailure.ErrorMessage}. " +
+                        $"Additionally, the METS file could not be written ({writeMetsResult.ErrorMessage}), " +
+                        "so it may still list files already deleted from S3.");
+                }
+
                 return Result.FailNotNull<ItemsAffected>(
                     writeMetsResult.ErrorCode!,
                     $"Delete failed after {goodResult.Items.Count} items. Unable to write METS file.");
-                
+
             }
         }
+
+        if (terminalFailure != null)
+        {
+            var deletedPaths = string.Join(", ", goodResult.Items.Select(i => i.RelativePath));
+            return Result.FailNotNull<ItemsAffected>(
+                terminalFailure.ErrorCode!,
+                $"Delete failed after {goodResult.Items.Count} items ({deletedPaths}). {terminalFailure.ErrorMessage}.");
+        }
+
         return Result.OkNotNull(goodResult);
     }
 }
