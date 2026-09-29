@@ -42,9 +42,12 @@
                 }
                 else
                 {
-                    <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled>
+                    <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled
+                            title="No IIIF manifest address is known for objects in this location."
+                            aria-describedby="iiifDisabledReason">
                         <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
                     </button>
+                    <span id="iiifDisabledReason" class="visually-hidden">No IIIF manifest address is known for objects in this location.</span>
                 }
             }
             
