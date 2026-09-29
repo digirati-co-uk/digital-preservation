@@ -59,6 +59,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalPreservation.Deposit
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pipeline.API.Tests", "Pipeline.API.Tests\Pipeline.API.Tests.csproj", "{743F5882-1919-4341-9928-F1CBC990C667}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalPreservation.Deposit.Archiver.Tests", "DigitalPreservation.Deposit.Archiver.Tests\DigitalPreservation.Deposit.Archiver.Tests.csproj", "{AEBF4A18-71CC-4677-A481-C5414D5E46F9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -393,6 +395,18 @@ Global
 		{743F5882-1919-4341-9928-F1CBC990C667}.Release|x64.Build.0 = Release|Any CPU
 		{743F5882-1919-4341-9928-F1CBC990C667}.Release|x86.ActiveCfg = Release|Any CPU
 		{743F5882-1919-4341-9928-F1CBC990C667}.Release|x86.Build.0 = Release|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Debug|x64.Build.0 = Debug|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Debug|x86.Build.0 = Debug|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Release|x64.ActiveCfg = Release|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Release|x64.Build.0 = Release|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Release|x86.ActiveCfg = Release|Any CPU
+		{AEBF4A18-71CC-4677-A481-C5414D5E46F9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

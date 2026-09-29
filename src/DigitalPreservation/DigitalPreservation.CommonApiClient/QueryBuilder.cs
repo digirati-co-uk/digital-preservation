@@ -111,11 +111,11 @@ public static class QueryBuilder
         {
             queryString.Add(nameof(queryBase.Ascending), "true");
         }
-        if (queryBase.Page is > 1)
+        if (queryBase.Page.HasValue && queryBase.Page != 1)
         {
             queryString.Add(nameof(queryBase.Page), queryBase.Page.ToString());
         }
-        if (queryBase.PageSize is > 1)
+        if (queryBase.PageSize is >= 1)
         {
             queryString.Add(nameof(queryBase.PageSize), queryBase.PageSize.ToString());
         }
