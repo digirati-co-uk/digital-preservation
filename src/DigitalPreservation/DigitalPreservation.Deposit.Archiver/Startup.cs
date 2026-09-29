@@ -61,6 +61,7 @@ public class Startup
 
         services.ConfigureForwardedHeaders()
             .AddHttpContextAccessor()
+            .AddMemoryCache()
             .AddMediatR(cfg =>
             {
                 cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
