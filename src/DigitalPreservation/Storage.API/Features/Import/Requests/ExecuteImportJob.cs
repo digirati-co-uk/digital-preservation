@@ -48,7 +48,10 @@ public class ExecuteImportJobHandler(
         stopwatch.Start();
         
         var transaction = await fedoraClient.BeginTransaction();
-        var transactionMonitor = new FedoraTransactionMonitor(logger, fedoraClient, transaction, stopwatch);
+        // Disposed on every path out of this method, including every FailEarly return - and always
+        // after the explicit timer.DisposeAsync() calls below, since a callback parked at one of its
+        // awaits keeps running after the timer is disposed and would otherwise race Dispose() here.
+        using var transactionMonitor = new FedoraTransactionMonitor(logger, fedoraClient, transaction, stopwatch);
         var timer = new Timer(transactionMonitor.MaintainTransactionState, transaction, 60 * 1000, 60 * 1000);
 
         // From here to the commit, nothing may let an exception escape: the keep-alive timer would go
@@ -273,11 +276,14 @@ public class ExecuteImportJobHandler(
                 const int halfAnHour = 30 * 60 * 1000;
                 timer.Change(halfAnHour, halfAnHour);
                 await transactionMonitor.CommitTransaction();
-                await timer.DisposeAsync(); // does this stop the timer?
+                // Stops future ticks. A callback already parked at one of its awaits keeps running
+                // and can resume after this - the transaction monitor's own disposed-guard is what
+                // stops that from crashing the process (see FedoraTransactionMonitor).
+                await timer.DisposeAsync();
             }
             catch (Exception e)
             {
-                await timer.DisposeAsync(); // does this stop the timer?
+                await timer.DisposeAsync(); // stops future ticks; see the comment on the success path above.
                 var errorTime = DateTime.UtcNow - startCommitTime;
                 var message = $"(TX) Unable to commit Fedora transaction: duration {errorTime.TotalSeconds} seconds: {e.Message}";
                 logger.LogError(e, message);
