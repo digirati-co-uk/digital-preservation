@@ -4,16 +4,18 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Core;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using LeedsDlipServices.Identity;
+using Microsoft.Extensions.Options;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
 using Storage.Client;
 using Storage.Repository.Common;
 using Storage.Repository.Common.Mets;
-using DepositEntity = Preservation.API.Data.Entities.Deposit; 
+using DepositEntity = Preservation.API.Data.Entities.Deposit;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
@@ -28,7 +30,8 @@ public class CreateDepositBase(
     MetsFromArchivalGroup metsFromArchivalGroup,
     WorkspaceManagerFactory workspaceManagerFactory,
     IMetsParser metsParser,
-    IClientDirectory clientDirectory)
+    IClientDirectory clientDirectory,
+    IOptions<AwsStorageOptions> storageOptions)
 {
     protected async Task<Result<Deposit?>> HandleBase(CreateDeposit request, CancellationToken cancellationToken)
     {        
@@ -106,9 +109,22 @@ public class CreateDepositBase(
                 return Result.Fail<Deposit?>(filesLocation.ErrorCode!, filesLocation.ErrorMessage);
             }
 
+            // Every export destination this handler passes to the Storage API must land in the
+            // caller's own resolved bucket - explicit here so a later change can't silently send an
+            // export somewhere else. Can only fail through a programming error (filesLocation is
+            // built from workingRoot two lines above), never through caller input, hence 500 (#288).
+            var permittedBucket = workingRoot ?? storageOptions.Value.DefaultWorkingBucket;
+
             Uri? exportResultUri = null;
             if (request.Export)
             {
+                if (!ExportDestination.IsInBucket(filesLocation.Value!, [permittedBucket], out var exportDestinationReason))
+                {
+                    logger.LogError(
+                        "Export destination {FilesLocation} for deposit {MintedId} is not in the resolved deposit bucket {PermittedBucket}: {Reason}",
+                        filesLocation.Value, mintedId, permittedBucket, exportDestinationReason);
+                    return Result.Fail<Deposit?>(ErrorCodes.UnknownError, exportDestinationReason);
+                }
                 logger.LogInformation("CreateDeposit request asked for Export, " +
                                       "calling storage::ExportArchivalGroup to export {AgUri}, version: {Version}",
                     request.Deposit.ArchivalGroup, storageMapForExport!.Version.OcflVersion!);
@@ -127,10 +143,11 @@ public class CreateDepositBase(
             }
 
             var agNameFromDeposit = request.Deposit.ArchivalGroupName ?? nameOfArchivalGroupAtVersion;
-            
+
             var metsResult = await EnsureMets(
                 request.Deposit.Template,
-                filesLocation.Value!, 
+                filesLocation.Value!,
+                permittedBucket,
                 request.Deposit.ArchivalGroup,
                 archivalGroupExists is true, 
                 storageMapForExport,
@@ -223,6 +240,7 @@ public class CreateDepositBase(
     private async Task<Result> EnsureMets(
         TemplateType templateType,
         Uri filesLocation,
+        string permittedBucket,
         Uri? archivalGroupUri,
         bool archivalGroupExists,
         StorageMap? storageMapForExport,
@@ -336,6 +354,16 @@ public class CreateDepositBase(
             {
                 logger.LogInformation(
                     "There is a METS file, but this isn't an export, so we need to copy it into the Deposit.");
+                // Same rule, and same reasoning for 500 over 400, as the full-export destination
+                // check in HandleBase (#288): filesLocation is built from the resolved bucket, not
+                // from anything the caller supplied.
+                if (!ExportDestination.IsInBucket(filesLocation, [permittedBucket], out var metsDestinationReason))
+                {
+                    logger.LogError(
+                        "METS-only export destination {FilesLocation} is not in the resolved deposit bucket {PermittedBucket}: {Reason}",
+                        filesLocation, permittedBucket, metsDestinationReason);
+                    return Result.Fail(ErrorCodes.UnknownError, metsDestinationReason);
+                }
                 var storageArchivalGroupUri = resourceMutator.MutatePreservationApiUri(archivalGroupUri);
                 // For now this will always export to the root
                 var exportMetsResult = await storageApiClient.ExportArchivalGroupMetsOnly(storageArchivalGroupUri!,
