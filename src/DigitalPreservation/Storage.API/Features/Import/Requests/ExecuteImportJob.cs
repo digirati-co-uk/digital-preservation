@@ -328,7 +328,10 @@ public class ExecuteImportJobHandler(
     /// In particular every repository path in the job - the Archival Group and each resource id - must
     /// be a path under the root (<see cref="SafeRepositoryPath"/>): <see cref="Converters.GetFedoraUri"/>
     /// throws for one that is not, and here that would happen with a Fedora transaction open and
-    /// outside any catch, which would take the whole import host down with it.
+    /// outside any catch, which would take the whole import host down with it. Also refuses a job
+    /// that asks for a rename, which this executor never performs (issue #260) - the Preservation
+    /// API refuses one first for a job posted there, but a job reaching this API directly (POST
+    /// /import) or arriving from the queue is judged here too.
     /// </summary>
     internal static Result PreProcessValidateImportJob(ImportJob importJob)
     {
@@ -340,6 +343,10 @@ public class ExecuteImportJobHandler(
         {
             return Result.Fail(ErrorCodes.BadRequest,
                 $"Archival Group {importJob.ArchivalGroup} is not a path under the repository root: {agReason}");
+        }
+        if (importJob.RenameRefusalMessage() is { } renameMessage)
+        {
+            return Result.Fail(ErrorCodes.BadRequest, renameMessage);
         }
 
         var binaryIds = importJob.BinariesToAdd
