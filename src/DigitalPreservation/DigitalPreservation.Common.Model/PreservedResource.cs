@@ -88,6 +88,14 @@ public abstract class PreservedResource : Resource
 
         if (valid)
         {
+            if (HasMalformedPercentEscape(slug))
+            {
+                // '%' is legal only as the start of a percent-encoded escape (%20 etc.) - that's how
+                // every deposit file name reaches a slug (EscapeForUriNoHashes). A bare '%' can only
+                // come from a caller building ids directly, and doesn't decode to a sensible name.
+                reason = "A '%' in a slug must begin a percent-encoded escape such as %20.";
+                return false;
+            }
             if (UriPathX.IsDotSegment(slug))
             {
                 // Every character is legal, but as a whole the slug is a dot segment: resolved against
@@ -97,8 +105,8 @@ public abstract class PreservedResource : Resource
             }
             if (UriPathX.ContainsEncodedSeparator(slug))
             {
-                // '%' is legal, but a slug that decodes to contain a separator would be two segments to
-                // anything that decodes it, and the Storage API refuses it for that reason.
+                // A well-formed escape is still refused if it decodes to a separator - that would be
+                // two segments to anything that decodes it, and the Storage API refuses it too.
                 reason = "A slug may not contain an encoded path separator (%2f or %5c).";
                 return false;
             }
@@ -128,8 +136,32 @@ public abstract class PreservedResource : Resource
                             || slugChar == ')'
                             || slugChar == '.'
                             || slugChar == '_'
-                            || slugChar == '-';
+                            || slugChar == '-'
+                            // RFC 3986 unreserved, left unescaped by EscapeForUriNoHashes - safe in a
+                            // path segment. Needed for DOS 8.3 short names (REPORT~1.DOC) and Office
+                            // lock files (~$budget.xlsx), both common in born-digital accessions.
+                            || slugChar == '~';
         return valid;
+    }
+
+    /// <summary>
+    /// Whether the slug contains a '%' that isn't the start of a well-formed percent-encoded escape
+    /// (%, then two hex digits).
+    /// </summary>
+    private static bool HasMalformedPercentEscape(string slug)
+    {
+        for (var i = 0; i < slug.Length; i++)
+        {
+            if (slug[i] != '%')
+            {
+                continue;
+            }
+            if (i + 2 >= slug.Length || !Uri.IsHexDigit(slug[i + 1]) || !Uri.IsHexDigit(slug[i + 2]))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
 
@@ -150,10 +182,31 @@ public abstract class PreservedResource : Resource
         {
             sb.Append(ValidSlugChar(c) ? c : '-'); // Do we want to use '-'? Or just omit?
         }
-        var slug = sb.ToString();
+        var slug = ReplaceMalformedPercentEscapes(sb.ToString());
         // See IsValidSlug: a name that is only a dot segment would resolve to the parent.
         return UriPathX.IsDotSegment(slug) || UriPathX.ContainsEncodedSeparator(slug)
             ? slug.Replace('.', '-').Replace('%', '-')
             : slug;
+    }
+
+    /// <summary>
+    /// Maps a stray '%' - one that doesn't begin a well-formed percent-encoded escape - to '-'.
+    /// A well-formed escape is left as-is.
+    /// </summary>
+    private static string ReplaceMalformedPercentEscapes(string slug)
+    {
+        var chars = slug.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] != '%')
+            {
+                continue;
+            }
+            if (i + 2 >= chars.Length || !Uri.IsHexDigit(chars[i + 1]) || !Uri.IsHexDigit(chars[i + 2]))
+            {
+                chars[i] = '-';
+            }
+        }
+        return new string(chars);
     }
 }
