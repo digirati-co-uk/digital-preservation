@@ -45,7 +45,7 @@ public interface IFedoraClient
    Task<Result<PreservedResource>> Delete(PreservedResource resource, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default);
    Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, bool purge, CancellationToken cancellationToken);
    Task<Result> UpdateContainerMetadata(string pathUnderFedoraRoot, string? name, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default);
-   Task<Result<SearchCollectiveFedora?>> GetBasicSearchResults(string text, int? page, int? pageSize, CancellationToken cancellationToken = default);
+   Task<Result<SearchCollectiveFedora?>> GetBasicSearchResults(string text, int page, int pageSize, CancellationToken cancellationToken = default);
 
     // Transactions
     Task<Transaction> BeginTransaction();
