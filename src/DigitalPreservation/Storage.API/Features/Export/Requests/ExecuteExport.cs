@@ -92,7 +92,10 @@ public class ExecuteExportHandler(
                 request.Identifier, request.Export.ArchivalGroup, request.MetsOnly);
             errors.Add(new Error
             {
-                Id = new Uri(export.Id + "#error"),
+                // export.Id is null for /exportMetsOnly (ExecuteExport is called with no minted
+                // identifier there), and new Uri("#error") throws - which escaped this catch as a
+                // 500 instead of the errors array every other export failure is reported in.
+                Id = export.Id is null ? null : new Uri(export.Id + "#error"),
                 Message = ex.Message
             });
         }

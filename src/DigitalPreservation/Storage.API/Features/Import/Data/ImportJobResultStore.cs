@@ -53,16 +53,29 @@ public class ImportJobResultStore(
         }
     }
 
-    private static Activity MakeActivity(API.Data.Entities.ImportJob importJob)
+    internal static Activity MakeActivity(API.Data.Entities.ImportJob importJob)
     {
-        // For import jobs this is always an Update
+        // A job that created the Archival Group leaves SourceVersion null (ExecuteImportJob only
+        // ever sets it for an update) and NewVersion set on success - the same distinction
+        // Preservation API's own stream makes. A failed job (NewVersion null too) and a row with no
+        // stored result both fall through to Update, since there is nothing to show was created.
+        var activityType = ActivityTypes.Update;
+        if (importJob.ImportJobResultJson != null)
+        {
+            var importJobResult = JsonSerializer.Deserialize<ImportJobResult>(importJob.ImportJobResultJson);
+            if (importJobResult is { SourceVersion: null, NewVersion: not null })
+            {
+                activityType = ActivityTypes.Create;
+            }
+        }
+
         return new Activity
         {
-            Type = ActivityTypes.Update,
+            Type = activityType,
             Object = new ActivityObject
             {
                 Id = importJob.ImportJobResultUri!,
-                Type = nameof(ImportJob),
+                Type = nameof(ImportJobResult),
                 SeeAlso =
                 [
                     new ActivityObject
