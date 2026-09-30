@@ -57,4 +57,29 @@ public class ClientDirectoryTests
         empty.TryResolve("11111111-1111-1111-1111-111111111111", out var profile).Should().BeFalse();
         profile.Should().BeNull();
     }
+
+    /// <summary>
+    /// DepositBuckets is the platform's whole set of deposit buckets besides the default working
+    /// bucket - the set an export destination is validated against when the Storage API can't yet
+    /// identify the end caller (issue #288).
+    /// </summary>
+    [Fact]
+    public void DepositBuckets_Contains_Distinct_Values_Only()
+    {
+        var directory = new ClientDirectory(new Dictionary<string, ClientProfile>
+        {
+            ["a"] = new() { Name = "a", DepositBucket = "shared-bucket" },
+            ["b"] = new() { Name = "b", DepositBucket = "shared-bucket" },
+            ["c"] = new() { Name = "c", DepositBucket = "other-bucket" }
+        });
+
+        directory.DepositBuckets.Should().BeEquivalentTo(["shared-bucket", "other-bucket"]);
+    }
+
+    [Fact]
+    public void DepositBuckets_Skips_Profiles_With_No_Bucket()
+    {
+        // iiif-builder has no DepositBucket in the shared fixture; only goobi's should appear.
+        Build().DepositBuckets.Should().BeEquivalentTo(["leeds-goobi-deposits"]);
+    }
 }
