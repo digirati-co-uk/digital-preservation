@@ -3,6 +3,7 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Auth;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,8 @@ public class PatchDepositHandler(
     ILogger<PatchDepositHandler> logger,
     PreservationContext dbContext,
     IStorageApiClient storageApiClient,
-    ResourceMutator resourceMutator) : IRequestHandler<PatchDeposit, Result<Deposit>>
+    ResourceMutator resourceMutator,
+    IMetsParser metsParser) : IRequestHandler<PatchDeposit, Result<Deposit>>
 {
     public async Task<Result<Deposit>> Handle(PatchDeposit request, CancellationToken cancellationToken)
     {
@@ -92,6 +94,11 @@ public class PatchDepositHandler(
             {
                 patchedDeposit.ArchivalGroupExists = true;
             }
+
+            // Best effort, same as CreateDepositBase: this patch has already succeeded, so a failed
+            // ETag read must not fail the response (issue #264).
+            await metsParser.SetMetsETagBestEffort(patchedDeposit, logger);
+
             return Result.OkNotNull(patchedDeposit);
         }
         catch (Exception e)
