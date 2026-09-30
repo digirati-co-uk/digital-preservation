@@ -60,13 +60,17 @@ public class PreservationContext : DbContext
                 .HasDefaultValueSql("now()");
         });
 
-        // We need a row in this table to provide a "last checked" date for activity streams
+        // A row in this table provides GetLatestArchivalGroupEvent's "last checked" watermark for
+        // the Storage-stream reader on an otherwise-empty table. Suppressed so it never appears in
+        // the published stream itself (issue #269) - PublishedArchivalGroupEvents excludes it, but
+        // GetLatestArchivalGroupEvent deliberately still sees it.
         modelBuilder.Entity<ArchivalGroupEvent>().HasData(
             new ArchivalGroupEvent
             {
                 Id = -1,
                 EventDate = new DateTime(2024, 1, 1).ToUniversalTime(),
-                ArchivalGroup = new Uri("https://example.com/archival-group") 
+                ArchivalGroup = new Uri("https://example.com/archival-group"),
+                Suppressed = true
             });
     }
 }
