@@ -1,22 +1,9 @@
-﻿using Amazon;
-using Amazon.Lambda.Annotations;
-using Amazon.S3;
-using Amazon.SecretsManager;
-using Amazon.SecretsManager.Model;
-using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.CommonApiClient;
-using DigitalPreservation.Core.Configuration;
-using DigitalPreservation.Core.Web.Headers;
+﻿using Amazon.Lambda.Annotations;
 using DigitalPreservation.Deposit.Archiver.Helpers;
-using DigitalPreservation.Mets;
-using DigitalPreservation.Workspace;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Preservation.Client;
 using Serilog;
 using Serilog.Formatting.Json;
-using Storage.Repository.Common.Mets.StorageImpl;
-using Storage.Repository.Common.S3;
 
 namespace DigitalPreservation.Deposit.Archiver;
 
@@ -24,7 +11,7 @@ namespace DigitalPreservation.Deposit.Archiver;
 public class Startup
 {
     /// <summary>
-    /// Services for Lambda functions can be registered in the services dependency injection container in this method. 
+    /// Services for Lambda functions can be registered in the services dependency injection container in this method.
     ///
     /// The services can be injected into the Lambda function through the containing type's constructor or as a
     /// parameter in the Lambda function using the FromService attribute. Services injected for the constructor have
@@ -35,11 +22,13 @@ public class Startup
         Justification = "AWS Lambda annotations source generator requires an instance method.")]
     public void ConfigureServices(IServiceCollection services)
     {
-        var fromServerlessTemplateoauthAzureSecret = Environment.GetEnvironmentVariable("OAUTH_AZURE_SECRET");
+        var oauthAzureSecret = Environment.GetEnvironmentVariable("OAUTH_AZURE_SECRET")!;
         var clientBaseAddress = Environment.GetEnvironmentVariable("CLIENT_BASE_ADDRESS");
-        var secretJsonString = GetSecretValue(fromServerlessTemplateoauthAzureSecret!, "eu-west-1");
 
-        var secretModel = System.Text.Json.JsonSerializer.Deserialize<AuthProviderModel>(secretJsonString);
+        // NOT blocking request threads. Fetched once - ScopeUri and the client credentials/
+        // ResourceUri used to come from two separate calls (one synchronous GetSecretValue, one
+        // via this cache) for the same secret.
+        var authProvider = SecretsCache.GetAsync(oauthAzureSecret, "eu-west-1").GetAwaiter().GetResult();
 
         //// Example of creating the IConfiguration object and
         //// adding it to the dependency injection container.
@@ -55,64 +44,14 @@ public class Startup
             //.WriteTo.File("log-.txt", rollingInterval: RollingInterval.Day) locally for testing
             .CreateLogger();
 
-        services.AddSingleton<IConfiguration>(configuration);
+        var settings = new ArchiverStartupSettings(
+            authProvider.ScopeUri,
+            authProvider.ClientId,
+            authProvider.ClientSecret,
+            authProvider.TenantId,
+            authProvider.ResourceUri,
+            clientBaseAddress);
 
-        services.AddSingleton<ITokenScope>(x => new TokenScope(secretModel?.ScopeUri));
-
-        services.ConfigureForwardedHeaders()
-            .AddHttpContextAccessor()
-            .AddMemoryCache()
-            .AddMediatR(cfg =>
-            {
-                cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
-            })
-            .AddMachinePreservationClient(configuration, "ArchiverLambda", clientBaseAddress);
-
-        // NOT blocking request threads
-        var authProvider = SecretsCache
-            .GetAsync(
-                Environment.GetEnvironmentVariable("OAUTH_AZURE_SECRET")!,
-                "eu-west-1")
-            .GetAwaiter()
-            .GetResult();
-        
-        var accessTokenProviderOptions = new AccessTokenProviderOptions
-        {
-            ClientId = authProvider.ClientId,
-            ClientSecret = authProvider.ClientSecret,
-            TenantId = authProvider.TenantId,
-            ResourceUri = authProvider.ResourceUri
-        };
-        services.AddAccessTokenProvider(accessTokenProviderOptions);
-
-        services.AddAWSService<IAmazonS3>(); //AMAzon.s3
-
-        services.AddStorageAwsAccess(configuration);
-        services.AddSingleton<IIdentityMinter, IdentityMinter>();
-        services.AddSingleton<IMetsLoader, S3MetsLoader>();
-        services.AddSingleton<IMetsParser, MetsParser>();
-        services.Configure<MetsManagerOptions>(configuration.GetSection("FeatureFlags"));
-        services.AddSingleton<IMetsManager, MetsManager>();
-        services.AddSingleton<MetadataManager>();
-        services.AddSingleton<PremisManager>();
-        services.AddSingleton<PremisManagerExif>();
-        services.AddSingleton<PremisEventManagerVirus>();
-        services.AddSingleton<IMetsStorage, S3MetsStorage>();
-        services.AddSingleton<WorkspaceManagerFactory>();
+        services.AddArchiverServices(configuration, settings);
     }
-
-    private static string GetSecretValue(string secretName, string region)
-    {
-        var client = new AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(region));
-
-        var request = new GetSecretValueRequest()
-        {
-            SecretId = secretName,
-            VersionStage = "AWSCURRENT"
-        };
-
-        var response = client.GetSecretValueAsync(request).GetAwaiter().GetResult();
-        return response.SecretString;
-    }
-
 }
