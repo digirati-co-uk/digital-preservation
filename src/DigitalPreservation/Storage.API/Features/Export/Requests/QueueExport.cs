@@ -1,8 +1,12 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core;
+using DigitalPreservation.Core.Auth;
 using MediatR;
+using Microsoft.Extensions.Options;
 using Storage.API.Fedora.Model;
+using Storage.Repository.Common;
 using ExportResource = DigitalPreservation.Common.Model.Export.Export;
 
 namespace Storage.API.Features.Export.Requests;
@@ -17,7 +21,9 @@ public class QueueExportHandler(
     IIdentityMinter identityMinter,
     IExportResultStore exportResultStore,
     Converters converters,
-    IExportQueue exportQueue) : IRequestHandler<QueueExport, Result<ExportResource>>
+    IExportQueue exportQueue,
+    IClientDirectory clientDirectory,
+    IOptions<AwsStorageOptions> storageOptions) : IRequestHandler<QueueExport, Result<ExportResource>>
 {
     public async Task<Result<ExportResource>> Handle(QueueExport request, CancellationToken cancellationToken)
     {
@@ -43,11 +49,17 @@ public class QueueExportHandler(
                 $"Could not check for running exports for Archival Group {request.Export.ArchivalGroup}");
         }
         
-        // TODO: Validate Export Request
-        // request.Export.ArchivalGroup is a real ArchivalGroup
-        // request.Export.Destination is an accessible location
-        // Any access control concerns, and whitelisting of S3 locations/buckets that can be exported to
-        
+        // request.Export.ArchivalGroup is a real ArchivalGroup: TODO, out of scope for issue #288
+        // request.Export.Destination is an accessible location: TODO, out of scope for issue #288
+        var permittedBuckets = PermittedBuckets();
+        if (!ExportDestination.IsInBucket(request.Export.Destination, permittedBuckets, out var reason))
+        {
+            logger.LogWarning(
+                "Refusing export destination {Destination}: {Reason}. Permitted buckets: {PermittedBuckets}",
+                request.Export.Destination, reason, permittedBuckets);
+            return Result.FailNotNull<ExportResource>(ErrorCodes.BadRequest, reason);
+        }
+
         var identifier = identityMinter.MintIdentity(nameof(ExportResource));
         request.Export.Id = converters.GetExportResultId(identifier);
         var createResult = await exportResultStore.CreateExportResult(identifier, request.Export, cancellationToken);
@@ -65,4 +77,13 @@ public class QueueExportHandler(
         }
         return Result.FailNotNull<ExportResource>(ErrorCodes.UnknownError, "Unable to create and queue export.");
     }
+
+    /// <summary>
+    /// The platform's deposit buckets: the default working bucket, plus any KnownClients profile's
+    /// own DepositBucket. There is no separate allow-list, and the Storage API's caller is usually
+    /// the Preservation API rather than the end caller, so this is deliberately every configured
+    /// deposit bucket, not just the caller's own (issue #288) - tightening that waits for #293.
+    /// </summary>
+    private IReadOnlyCollection<string> PermittedBuckets() =>
+        new[] { storageOptions.Value.DefaultWorkingBucket }.Concat(clientDirectory.DepositBuckets).ToList();
 }
