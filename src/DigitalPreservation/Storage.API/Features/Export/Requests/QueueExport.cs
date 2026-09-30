@@ -7,9 +7,10 @@ using ExportResource = DigitalPreservation.Common.Model.Export.Export;
 
 namespace Storage.API.Features.Export.Requests;
 
-public class QueueExport(ExportResource export) : IRequest<Result<ExportResource>>
+public class QueueExport(ExportResource export, string callerIdentity) : IRequest<Result<ExportResource>>
 {
     public ExportResource Export { get; } = export;
+    public string CallerIdentity { get; } = callerIdentity;
 }
 
 public class QueueExportHandler(
@@ -47,7 +48,16 @@ public class QueueExportHandler(
         // request.Export.ArchivalGroup is a real ArchivalGroup
         // request.Export.Destination is an accessible location
         // Any access control concerns, and whitelisting of S3 locations/buckets that can be exported to
-        
+
+        // Stamped server-side, the same as every other resource in the platform - unlike the rest of
+        // the record, nothing here trusted the caller's own values before. A supplied createdBy is
+        // still trusted, the same way an import job's lastModifiedBy is trusted (issue #273).
+        var now = DateTime.UtcNow;
+        request.Export.Created = now;
+        request.Export.LastModified = now;
+        request.Export.CreatedBy ??= converters.GetAgentUri(request.CallerIdentity);
+        request.Export.LastModifiedBy = request.Export.CreatedBy;
+
         var identifier = identityMinter.MintIdentity(nameof(ExportResource));
         request.Export.Id = converters.GetExportResultId(identifier);
         var createResult = await exportResultStore.CreateExportResult(identifier, request.Export, cancellationToken);
