@@ -155,17 +155,20 @@ public class ImportJob : Resource
     
     // (metadata to change?) more general. NOT for Oct demo.
 
+    /// <summary>
+    /// Checks only the Add lists (plus Rename, which is refused outright regardless - issue #260).
+    /// Patch and Delete name resources that already exist in Fedora: if the slug alphabet tightens,
+    /// an existing resource with a now-invalid slug must still be patchable or deletable through the
+    /// UI, so those lists are deliberately not checked here (issue #298).
+    /// </summary>
     public (List<PreservedResource>, string?) ItemsWithInvalidSlugs()
     {
         var itemsWithInvalidSlugs = new List<PreservedResource>();
         var invalidSlugMessages = new List<string>();
         AppendInvalidSlugMessage(ContainersToAdd, itemsWithInvalidSlugs, invalidSlugMessages);
         AppendInvalidSlugMessage(ContainersToRename, itemsWithInvalidSlugs, invalidSlugMessages);
-        AppendInvalidSlugMessage(ContainersToDelete, itemsWithInvalidSlugs, invalidSlugMessages);
         AppendInvalidSlugMessage(BinariesToAdd, itemsWithInvalidSlugs, invalidSlugMessages);
-        AppendInvalidSlugMessage(BinariesToPatch, itemsWithInvalidSlugs, invalidSlugMessages);
         AppendInvalidSlugMessage(BinariesToRename, itemsWithInvalidSlugs, invalidSlugMessages);
-        AppendInvalidSlugMessage(BinariesToDelete, itemsWithInvalidSlugs, invalidSlugMessages);
         string? msg = null;
         if (invalidSlugMessages.Count > 0)
         {
@@ -178,10 +181,19 @@ public class ImportJob : Resource
     {
         foreach (var item in itemsToTest)
         {
+            // PreservedResource.GetSlug() throws for a relative Uri (Id.Segments requires an
+            // absolute one) - a hand-built job can supply one (issue #267's "invalid-id" case), and
+            // this check must produce the same "invalid" verdict as a bad slug, never a crash.
+            if (item.Id is not { IsAbsoluteUri: true })
+            {
+                itemsWithInvalidSlugs.Add(item);
+                invalidSlugMessages.Add("Item has no id, or the id is not an absolute URI.");
+                continue;
+            }
             if (!PreservedResource.ValidSlug(item.GetSlug(), out var msg))
             {
                 itemsWithInvalidSlugs.Add(item);
-                invalidSlugMessages.Add(msg!);   
+                invalidSlugMessages.Add(msg!);
             }
         }
     }
