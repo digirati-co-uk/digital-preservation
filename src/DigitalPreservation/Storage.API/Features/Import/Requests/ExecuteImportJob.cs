@@ -25,6 +25,9 @@ public class ExecuteImportJobHandler(
     {
         var importJob = request.ImportJob;
         var callerIdentity = importJob.CreatedBy!.GetSlug()!.UnEscapeFromUri();
+        // Every write below is made as this same caller - bound once here (issue #20) rather than
+        // passed to each of the calls below individually.
+        var scopedFedoraClient = fedoraClient.WithIdentity(callerIdentity);
         var archivalGroupPathUnderRoot = importJob.ArchivalGroup.GetPathUnderRoot()!;
         logger.LogInformation("Executing Import Job");
         
@@ -82,9 +85,8 @@ public class ExecuteImportJobHandler(
 
                 try
                 {
-                    archivalGroupResult = await fedoraClient.CreateArchivalGroup(
+                    archivalGroupResult = await scopedFedoraClient.CreateArchivalGroup(
                         archivalGroupPathUnderRoot,
-                        callerIdentity,
                         importJob.ArchivalGroupName,
                         transaction,
                         cancellationToken);
@@ -130,9 +132,8 @@ public class ExecuteImportJobHandler(
                 foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id!.ToString()))
                 {
                     logger.LogInformation("(TX) Creating container {Id}", container.Id);
-                    var fedoraContainerResult = await fedoraClient.CreateContainerWithinArchivalGroup(
+                    var fedoraContainerResult = await scopedFedoraClient.CreateContainerWithinArchivalGroup(
                         container.Id.GetPathUnderRoot()!,
-                        callerIdentity,
                         container.Name, transaction, cancellationToken: cancellationToken);
                     if (fedoraContainerResult.Success)
                     {
@@ -152,9 +153,8 @@ public class ExecuteImportJobHandler(
                 foreach (var binary in importJob.BinariesToAdd)
                 {
                     logger.LogInformation("(TX) Adding binary {Id}, size: {Size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
-                    var fedoraPutBinaryResult = await fedoraClient.PutBinary(
+                    var fedoraPutBinaryResult = await scopedFedoraClient.PutBinary(
                         binary,
-                        callerIdentity,
                         transaction, cancellationToken);
                     if (fedoraPutBinaryResult.Success)
                     {
@@ -175,9 +175,8 @@ public class ExecuteImportJobHandler(
                 foreach (var binary in importJob.BinariesToPatch)
                 {
                     logger.LogInformation("(TX) Patching file {Id}, size: {Size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
-                    var fedoraPatchBinaryResult = await fedoraClient.PutBinary(
+                    var fedoraPatchBinaryResult = await scopedFedoraClient.PutBinary(
                         binary,
-                        callerIdentity,
                         transaction,
                         cancellationToken);
                     if (fedoraPatchBinaryResult.Success)
@@ -196,9 +195,8 @@ public class ExecuteImportJobHandler(
                 foreach (var binary in importJob.BinariesToDelete)
                 {
                     logger.LogInformation("(TX) Deleting file {Id}", binary.Id);
-                    var fedoraDeleteResult = await fedoraClient.Delete(
+                    var fedoraDeleteResult = await scopedFedoraClient.Delete(
                         binary,
-                        callerIdentity,
                         transaction,
                         cancellationToken);
                     if (fedoraDeleteResult.Success)
@@ -221,9 +219,8 @@ public class ExecuteImportJobHandler(
                 foreach (var container in importJob.ContainersToDelete.OrderByDescending(c => c.Id!.ToString()))
                 {
                     logger.LogInformation("(TX) Deleting container {Id}", container.Id);
-                    var fedoraDeleteResult = await fedoraClient.Delete(
+                    var fedoraDeleteResult = await scopedFedoraClient.Delete(
                         container,
-                        callerIdentity,
                         transaction,
                         cancellationToken);
                     if (fedoraDeleteResult.Success)
@@ -238,10 +235,9 @@ public class ExecuteImportJobHandler(
                 }
                 if (importJob.IsUpdate)
                 {
-                    var result = await fedoraClient.UpdateContainerMetadata(
+                    var result = await scopedFedoraClient.UpdateContainerMetadata(
                         archivalGroupPathUnderRoot,
                         importJob.ArchivalGroupName,
-                        callerIdentity,
                         transaction,
                         cancellationToken);
                     if (result.Failure)
