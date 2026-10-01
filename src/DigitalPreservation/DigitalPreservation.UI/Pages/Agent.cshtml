@@ -1,0 +1,22 @@
+@page "/agents/{slug}"
+@model DigitalPreservation.UI.Pages.AgentModel
+@{
+    ViewData["Title"] = $"🧑 {Model.Name}";
+}
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">🧑 @Model.Name</h1>
+</div>
+
+<dl>
+    <dt>Agent URI</dt>
+    <dd aria-label="agent-uri"><code>@Model.AgentUri</code></dd>
+</dl>
+
+<h2>Deposits</h2>
+<ul class="list-unstyled">
+    <li><a aria-label="agent-created-deposits" href="@Model.CreatedByDepositsUrl">Deposits created by @Model.Name</a></li>
+    <li><a aria-label="agent-last-modified-deposits" href="@Model.LastModifiedByDepositsUrl">Deposits last modified by @Model.Name</a></li>
+    <li><a aria-label="agent-preserved-deposits" href="@Model.PreservedByDepositsUrl">Deposits preserved by @Model.Name</a></li>
+    <li><a aria-label="agent-exported-deposits" href="@Model.ExportedByDepositsUrl">Deposits exported by @Model.Name</a></li>
+</ul>
