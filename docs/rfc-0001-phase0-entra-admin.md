@@ -158,6 +158,7 @@ So you can see where this is heading and why ordering matters. We will come back
 
 - **Phase 1 — per-caller registrations.** We create one registration per caller (starting with Goobi),
   and ask you to **assign `Preservation.Call`** to each on `84c62880` **with admin consent**.
+  *Now live for Goobi:* [`rfc-0001-phase1-entra-admin.md`](./rfc-0001-phase1-entra-admin.md).
 - **Phase 2 — repoint callers.** Dev-side config change. **Strict ordering:** a caller must already hold
   its `Preservation.Call` assignment (Phase 1) **before** we repoint it, because `Assignment required =
   Yes` is already live on `84c62880` — otherwise Entra rejects the token with `AADSTS501051`. (If the
