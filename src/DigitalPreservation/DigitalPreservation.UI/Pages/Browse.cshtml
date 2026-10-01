@@ -5,6 +5,7 @@
 @using DigitalPreservation.UI.Pages.Shared
 @using DigitalPreservation.Utils
 @model BrowseModel
+@inject ILogger<BrowseModel> ModsLogger
 @{
     ViewData["section"] = "browse";
 }
@@ -379,7 +380,7 @@
                                         if (localPath != null)
                                         {
                                             var metsContainer = Model.MetsWorkingDirectory?.FindDirectory(localPath);
-                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsContainer);
+                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsContainer, ModsLogger);
                                             for (var i = 0; i < items.Count; i++)
                                             {
                                                 if (i > 0) { <br/> }
@@ -434,7 +435,7 @@
                                     <td aria-label="td-format" title="@fileFormatMetadata?.FormatName">@fileFormatMetadata?.PronomKey</td>
                                     <td aria-label="td-access">
                                         @{
-                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsBinary);
+                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsBinary, ModsLogger);
                                             for (var i = 0; i < items.Count; i++)
                                             {
                                                 if (i > 0) { <br/> }

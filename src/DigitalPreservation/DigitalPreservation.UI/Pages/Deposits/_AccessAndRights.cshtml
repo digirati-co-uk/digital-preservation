@@ -3,6 +3,7 @@
 @using DigitalPreservation.Common.Model.Transit.Combined
 @using DigitalPreservation.UI.Pages.Shared
 @model (CombinedBase, string)
+@inject ILogger<DepositModel> ModsLogger
 
 @{
     var combinedBase = Model.Item1;
@@ -27,7 +28,7 @@
     data-links="@fileLinksJson">@display</button>
 
 @{
-    var items = ModsMetadataDisplayBuilder.GetDisplayItems(combinedBase);
+    var items = ModsMetadataDisplayBuilder.GetDisplayItems(combinedBase, ModsLogger);
     foreach (var item in items)
     {
         var iconId = item.Label switch { "Access" => "lock", "Rights" => "file-earmark-text", _ => "database-check" };

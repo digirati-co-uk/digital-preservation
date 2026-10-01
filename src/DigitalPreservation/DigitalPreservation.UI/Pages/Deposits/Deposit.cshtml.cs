@@ -724,7 +724,7 @@ public class DepositModel(
 
     public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetCleanedPipelineJobsRunning()
     {
-        var allJobs = GetPipelineJobResults().Result;
+        var allJobs = await GetPipelineJobResults();
         var cutoffDate = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
         var longRunningUnfinishedJobs = allJobs
             .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < cutoffDate && x.Deposit == Id)
@@ -759,7 +759,7 @@ public class DepositModel(
         if (longRunningUnfinishedJobs.Any())
         {
             //refresh as all jobs have been sent
-            allJobs = GetPipelineJobResults().Result;
+            allJobs = await GetPipelineJobResults();
 
             // Re-read rather than patch LockedBy/LockDate off locally: the status posts above may
             // have released the lock server-side, and this is the one place that needs to know.
