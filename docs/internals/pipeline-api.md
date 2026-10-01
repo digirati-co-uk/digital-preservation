@@ -32,7 +32,7 @@ It runs on an **EC2-backed ECS cluster**, not Fargate, because of the mount and 
 6. It reports `completed` or `completedWithErrors` back to Preservation API, and releases the deposit lock.
 
 
-Pipeline API also has its own entry point, `POST /pipeline`, which takes a `PipelineJob` body with a `depositName`, mints a job identifier, registers it with Preservation API as `waiting`, and publishes to the same SNS topic. It is a way in for something that cannot call Preservation API, and it is not how the UI or the API do it.
+Pipeline API also has its own entry point, `POST /pipeline`, which takes a `PipelineJob` body with a `depositName`. It is a way in for something that cannot call Preservation API, and it is not how the UI or the API do it. Since issue #231, it is a thin proxy: it forwards to `POST /deposits/{id}/pipeline` on the Preservation API and returns that result, rather than queuing a job itself. Every check `RunPipelineHandler` makes - the default-bucket guard, the lock, and the `PipelineRunJob` row - applies automatically, and there is exactly one place pipeline jobs are queued from. The body's optional `runUser` is not honoured: the run is attributed to whatever identity Pipeline API calls Preservation API with.
 
 ### The claim, and why it is a conditional UPDATE
 
@@ -157,11 +157,11 @@ Both are guarded by `ApiKeyMiddleware`, which compares the value of the header n
 
 | Endpoint | What it does |
 |---|---|
-| `POST /pipeline` | Queue a run. Body is a `PipelineJob` with `depositName` and optionally `runUser`. Returns `204`. |
+| `POST /pipeline` | A thin proxy: fetches the deposit named by `depositName` and forwards to Preservation API's `POST /deposits/{id}/pipeline`, returning its result (`204`, or its status and message on failure). `404` if the deposit does not exist. The body's optional `runUser` is not honoured. |
 | `GET /pipeline?depositId=…` | Diagnostics: lists the files and directories under the mounted deposit path, plus `df` output. |
 | `GET /health` | Liveness for the load balancer. |
 
-Outbound, Pipeline API calls Preservation API as a machine client (`AddMachinePreservationClient(..., "PipelineAPI")`) for four things: fetching the deposit, reading the job list (used both by `CheckIfForceComplete` and to spot an already-force-completed job at dequeue time), releasing the lock, and reporting status.
+Outbound, Pipeline API calls Preservation API as a machine client (`AddMachinePreservationClient(..., "PipelineAPI")`) for: fetching the deposit (both to run the pipeline on it from `POST /pipeline` above, and as part of the dequeue loop below), reading the job list (used both by `CheckIfForceComplete` and to spot an already-force-completed job at dequeue time), queuing a run, releasing the lock, and reporting status.
 
 Status reporting is `POST /deposits/pipeline-status`, hidden from the OpenAPI description because it is not for general use. The body is a `PipelineDeposit`:
 

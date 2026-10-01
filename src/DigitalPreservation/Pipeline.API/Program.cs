@@ -110,9 +110,20 @@ try
 
     builder.Services
         .AddHostedService<PipelineJobExecutorService>()
-        .AddScoped<PipelineJobRunner>()
-        .AddSingleton<IPipelineQueue, InProcessPipelineQueue>()
-        .AddSingleton<IPipelineQueue, SqsPipelineQueue>();
+        .AddScoped<PipelineJobRunner>();
+
+    // FeatureFlags:UseLocalHostedServiceForPipeline was read by no code before issue #231 - the two
+    // unconditional registrations below meant the last one (Sqs) always won, so this flag never did
+    // anything. Mirrors Storage.API/Program.cs's UseLocalHostedServiceForImport switch.
+    var useLocalHostedServiceForPipeline = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForPipeline");
+    if (useLocalHostedServiceForPipeline)
+    {
+        builder.Services.AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
+    }
+    else
+    {
+        builder.Services.AddSingleton<IPipelineQueue, SqsPipelineQueue>();
+    }
 
     builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
     builder.Services.AddAWSService<IAmazonS3>();
