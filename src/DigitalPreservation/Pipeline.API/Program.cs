@@ -136,14 +136,15 @@ try
         .UseRouting()
         .UseForwardedHeaders();
 
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
+    if (app.Environment.IsDevelopment())
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Pipeline API");
-    });
+        app.UseSwagger();
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "Pipeline API");
+        });
+    }
 
-    // TODO - remove this, only used for initial setup
-    app.MapGet("/", () => "Pipeline API: Hello World!");
     app.MapControllers();
     app.UseHealthChecks("/health");
     await app.RunAsync();
