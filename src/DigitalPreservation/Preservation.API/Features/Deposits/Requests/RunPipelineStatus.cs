@@ -43,51 +43,24 @@ public class RunPipelineStatusHandler(
             return await ClaimJob(request, deposit.MintedId, cancellationToken);
         }
 
+        if (request.PipelineDeposit.Status.HasText() && PipelineJobStates.IsComplete(request.PipelineDeposit.Status))
+        {
+            // The one place every way a run ends goes through: success, failure, force complete
+            // from the UI, the UI's stale-job tidy-up, and now the Preservation API's own sweep
+            // (issue #301) all post a terminal status here.
+            return await CompleteJob(request, cancellationToken);
+        }
+
+        // Waiting/MetadataCreated reports have no lock implications and nothing to race on a
+        // repeat delivery, so this is unchanged from before issue #316.
         var entity = await dbContext.PipelineRunJobs.SingleAsync(
             d => d.Deposit == request.PipelineDeposit.DepositId && d.Id == request.PipelineDeposit.Id, cancellationToken);
 
-        // Captured before the switch below changes entity.Status: a run can report a terminal
-        // status twice (force complete posts CompletedWithErrors, then the running job reports
-        // again when it notices), and the second report must not release a lock that the same
-        // user may already have retaken for a new run (issue #299).
-        var wasAlreadyTerminal = PipelineJobStates.IsComplete(entity.Status);
-
-        switch (request.PipelineDeposit.Status)
-        {
-            case PipelineJobStates.Waiting:
-                // The PipelineRunJob must already exist
-                break;
-            case PipelineJobStates.MetadataCreated:
-                break;
-            case PipelineJobStates.Completed:
-                entity.DateFinished = DateTime.UtcNow;
-                break;
-            case PipelineJobStates.CompletedWithErrors:
-                entity.DateFinished = DateTime.UtcNow;
-                entity.Errors = request.PipelineDeposit.Errors;
-                break;
-        }
         if (request.PipelineDeposit.Status.HasText())
         {
             entity.Status = request.PipelineDeposit.Status;
         }
         dbContext.PipelineRunJobs.Update(entity);
-
-        // The one place every way a run ends goes through: success, failure, force complete from
-        // the UI, and the UI's stale-job tidy-up all post a terminal status here. Release only on
-        // the transition into terminal (not a repeat report, see above), and only if the deposit
-        // is still locked by the run's own user - someone else may have force-taken the lock
-        // mid-run (POST /lock?force=true), and releasing theirs would be wrong.
-        if (PipelineJobStates.IsComplete(entity.Status) && !wasAlreadyTerminal
-            && deposit.LockedBy != null && deposit.LockedBy == entity.RunUser)
-        {
-            // deposit is already tracked (loaded above with SingleOrDefaultAsync, no AsNoTracking),
-            // so setting these two properties is enough - EF's change tracker writes just them.
-            // Update() marks every column modified, silently overwriting any other change made to
-            // the deposit since it was read (a user's PATCH, for instance).
-            deposit.LockedBy = null;
-            deposit.LockDate = null;
-        }
 
         try
         {
@@ -102,6 +75,67 @@ public class RunPipelineStatusHandler(
 
         var callerIdentity = request.User.GetCallerIdentity();
         logger.LogInformation("Pipeline job {EntityId} was updated by {CallerIdentity}", entity.Id, callerIdentity);
+        return Result.Ok();
+    }
+
+    /// <summary>
+    /// Moves a job into a terminal status and, only if that move actually happened, releases the
+    /// deposit's lock - both decided by the database rather than a value this handler read earlier
+    /// (issue #316, hardening #299's release path against three races: a force-lock taken by someone
+    /// else between read and save; two terminal reports for the same job landing together; and a
+    /// late report overwriting a status someone already force-completed). Preservation API runs as
+    /// more than one ECS task, so "earlier" and "later" can be two different processes.
+    /// </summary>
+    private async Task<Result> CompleteJob(RunPipelineStatus request, CancellationToken cancellationToken)
+    {
+        var depositId = request.PipelineDeposit.DepositId;
+        var jobId = request.PipelineDeposit.Id;
+        var newStatus = request.PipelineDeposit.Status!;
+        var now = DateTime.UtcNow;
+
+        // RunUser is set once, at job creation, and never changes - reading it ahead of the
+        // conditional move below (rather than from whatever row it affected) is safe either way,
+        // and means the move and the release each need only the one query the issue specifies.
+        var runUser = await dbContext.PipelineRunJobs
+            .Where(j => j.Deposit == depositId && j.Id == jobId)
+            .Select(j => j.RunUser)
+            .SingleAsync(cancellationToken);
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Only a job not already terminal may move. A repeat report (force complete, then the
+        // running job itself reporting afterwards) matches no row here and is treated as success,
+        // not an error - decided by the database instead of a wasAlreadyTerminal value read earlier,
+        // which is what let two concurrent reports both see "not yet terminal" and both release.
+        var notYetTerminal = dbContext.PipelineRunJobs.Where(j => j.Deposit == depositId && j.Id == jobId
+            && j.Status != PipelineJobStates.Completed && j.Status != PipelineJobStates.CompletedWithErrors);
+        var moved = newStatus == PipelineJobStates.CompletedWithErrors
+            ? await notYetTerminal.ExecuteUpdateAsync(s => s
+                .SetProperty(j => j.Status, newStatus)
+                .SetProperty(j => j.DateFinished, now)
+                .SetProperty(j => j.Errors, request.PipelineDeposit.Errors), cancellationToken)
+            : await notYetTerminal.ExecuteUpdateAsync(s => s
+                .SetProperty(j => j.Status, newStatus)
+                .SetProperty(j => j.DateFinished, now), cancellationToken);
+
+        if (moved > 0)
+        {
+            // Only if the move above actually happened, and only if the deposit is still locked by
+            // this job's own RunUser - someone else may have force-taken the lock mid-run
+            // (POST /lock?force=true), and releasing theirs would be wrong.
+            await dbContext.Deposits
+                .Where(d => d.MintedId == depositId && d.LockedBy == runUser)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(d => d.LockedBy, (string?)null)
+                    .SetProperty(d => d.LockDate, (DateTime?)null), cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+
+        var callerIdentity = request.User.GetCallerIdentity();
+        logger.LogInformation(
+            "Pipeline job {JobId} for deposit {DepositId} reported {Status} by {CallerIdentity}; moved={Moved}",
+            jobId, depositId, newStatus, callerIdentity, moved > 0);
         return Result.Ok();
     }
 

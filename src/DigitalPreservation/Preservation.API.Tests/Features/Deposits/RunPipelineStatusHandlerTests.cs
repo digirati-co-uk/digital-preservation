@@ -146,6 +146,106 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         deposit.LockedBy.Should().Be("someone-else");
     }
 
+    /// <summary>
+    /// Before issue #316, the lock release was conditional on wasAlreadyTerminal, but the status
+    /// write itself was not: a late report with a *different* terminal status than the one already
+    /// recorded would still overwrite it. Force-completing a job (completedWithErrors) and then
+    /// having the running job itself report (completed) when it eventually notices must not flip the
+    /// status back.
+    /// </summary>
+    [Fact]
+    public async Task A_Late_Completed_Report_Does_Not_Overwrite_An_Already_CompletedWithErrors_Status()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.CompletedWithErrors,
+            runUser: "tester", depositLockedBy: "tester");
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.Completed);
+
+        result.Success.Should().BeTrue("a late report that changes nothing is still a success, not an error");
+        var job = await ReloadJob(jobId);
+        job.Status.Should().Be(PipelineJobStates.CompletedWithErrors,
+            "a late Completed report must not overwrite a job that was already force-completed with errors");
+    }
+
+    /// <summary>
+    /// The release decision (issue #316) comes from a WHERE clause the database evaluates at update
+    /// time, not from a value read earlier in the handler - so a lock force-taken by someone else
+    /// after this job started, but before the release runs, survives. Deliberately starts locked by
+    /// the run's own user (matching RunUser), then changes it via a second context, so this is a
+    /// genuinely different scenario from "locked by someone else from the start".
+    /// </summary>
+    [Fact]
+    public async Task A_Lock_Force_Taken_By_Someone_Else_Before_The_Release_Runs_Survives_It()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running,
+            runUser: "tester", depositLockedBy: "tester");
+
+        await using (var forceContext = fixture.CreateNewAuthServiceContext())
+        {
+            var deposit = await forceContext.Deposits.SingleAsync(d => d.MintedId == depositId);
+            deposit.LockedBy = "someone-else";
+            deposit.LockDate = DateTime.UtcNow;
+            await forceContext.SaveChangesAsync();
+        }
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.CompletedWithErrors, "it broke");
+
+        result.Success.Should().BeTrue();
+        var deposit2 = await ReloadDeposit(depositId);
+        deposit2.LockedBy.Should().Be("someone-else",
+            "the release checks who holds the lock right now, not who held it when this job started");
+    }
+
+    /// <summary>
+    /// Two terminal reports for the same job (e.g. force complete from the UI, and the running job
+    /// itself reporting when it eventually notices) is only harmful if the same user has retaken the
+    /// lock in between (issue #316's framing exactly): the first report lands and releases the lock;
+    /// a new run by the same user takes it again; the second, stale report must not re-release it or
+    /// overwrite the first report's status. The second report's handler invocation already read the
+    /// job as "not yet terminal" before the first report landed - simulated deterministically via EF's
+    /// identity resolution (a tracking query never overwrites an already-tracked entity's in-memory
+    /// values) rather than by racing real concurrent timing, which reproduces the same bug the old
+    /// wasAlreadyTerminal-read-then-write approach had without being flaky.
+    /// </summary>
+    [Fact]
+    public async Task A_Stale_Second_Report_Does_Not_Release_A_Lock_The_Same_User_Has_Retaken_For_A_New_Run()
+    {
+        await using var lateContext = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(lateContext, PipelineJobStates.Running,
+            runUser: "tester", depositLockedBy: "tester");
+
+        // The late report's own handler invocation already has this job tracked as "processing" -
+        // stale the moment the first report (below) moves it.
+        await lateContext.PipelineRunJobs.SingleAsync(j => j.Id == jobId);
+
+        await using (var firstContext = fixture.CreateNewAuthServiceContext())
+        {
+            var firstResult = await Handle(firstContext, depositId, jobId, PipelineJobStates.CompletedWithErrors, "it broke");
+            firstResult.Success.Should().BeTrue();
+        }
+
+        // The same user starts a new run and takes the lock again before the stale report arrives.
+        await using (var relockContext = fixture.CreateNewAuthServiceContext())
+        {
+            var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId);
+            deposit.LockedBy = "tester";
+            deposit.LockDate = DateTime.UtcNow;
+            await relockContext.SaveChangesAsync();
+        }
+
+        var lateResult = await Handle(lateContext, depositId, jobId, PipelineJobStates.Completed);
+
+        lateResult.Success.Should().BeTrue("a stale report that changes nothing is still a success, not an error");
+        var job = await ReloadJob(jobId);
+        job.Status.Should().Be(PipelineJobStates.CompletedWithErrors,
+            "the first report's move already landed; the stale second report must not overwrite it");
+        var deposit2 = await ReloadDeposit(depositId);
+        deposit2.LockedBy.Should().Be("tester",
+            "the lock belongs to the new run now, not the stale report that already lost the race");
+    }
+
     [Fact]
     public async Task Claiming_A_Job_As_Running_Does_Not_Touch_The_Lock()
     {
