@@ -22,6 +22,16 @@ on:
           - test
           - production
 
+env:
+  # AWS SDK v4 resolves credentials eagerly as soon as an AWS client (e.g. IAmazonS3) is
+  # constructed via DI, rather than lazily on first real call (SDK v3's behaviour). Several
+  # integration tests build a controller through that DI graph without ever calling AWS, and
+  # this runner has no profile/role to resolve - these fake values satisfy the environment-
+  # variable credential provider (the first one checked) so construction succeeds; nothing here
+  # ever signs a real request.
+  AWS_ACCESS_KEY_ID: "test-key-id"
+  AWS_SECRET_ACCESS_KEY: "test-secret-key"
+
 jobs:
   sonar-cloud-analysis:
     name: SonarCloud Analysis
@@ -73,7 +83,7 @@ jobs:
       - id: setup-dotnet
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "10.0.x"
       - id: restore-dotnet-dependencies
         run: dotnet restore $SOLUTION
       - id: build-dotnet
