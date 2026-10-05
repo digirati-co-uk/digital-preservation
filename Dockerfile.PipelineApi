@@ -64,7 +64,9 @@ RUN sf -update
 USER root
 #brunnhilde
 RUN apt-get install python3-full python3-pip -y
-RUN rm /usr/lib/python3.11/EXTERNALLY-MANAGED
+# Path has moved before with the base image's Debian/Python version (3.11 -> 3.12) - glob it so a
+# future bump doesn't silently reintroduce this same failure.
+RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 RUN pip3 install --upgrade brunnhilde
 RUN brunnhilde.py -V
 
