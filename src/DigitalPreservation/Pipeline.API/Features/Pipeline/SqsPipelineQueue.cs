@@ -65,7 +65,9 @@ public class SqsPipelineQueue(
                 MaxNumberOfMessages = 1
             }, linkedToken);
 
-            foreach (var message in response.Messages!)
+            // SDK v4: Messages is null (not an empty list) rather than empty when the long-poll
+            // times out with nothing to return - the normal state of an idle queue, not an error.
+            foreach (var message in response.Messages ?? [])
             {
                 if (cancellationToken.IsCancellationRequested) return messageModel;
                 logger.LogDebug("Received SQS message {MessageBody}", message.Body);

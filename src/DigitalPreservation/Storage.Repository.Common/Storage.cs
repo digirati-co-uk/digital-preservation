@@ -419,12 +419,14 @@ public class Storage(
         };
         List<S3Object> s3Objects = [];
         var resp = await s3Client.ListObjectsV2Async(listReq, cancellationToken);
-        s3Objects.AddRange(resp.S3Objects);
+        // SDK v4: unlike v3, S3Objects is null (not an empty list) when the response has no
+        // contents - e.g. listing a prefix with nothing in it yet. AddRange(null) would throw.
+        if (resp.S3Objects != null) s3Objects.AddRange(resp.S3Objects);
         while (resp.IsTruncated ?? false)
         {
             listReq.ContinuationToken = resp.NextContinuationToken;
             resp = await s3Client.ListObjectsV2Async(listReq, cancellationToken);
-            s3Objects.AddRange(resp.S3Objects);
+            if (resp.S3Objects != null) s3Objects.AddRange(resp.S3Objects);
         }
 
         return s3Objects;
