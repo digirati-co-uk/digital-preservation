@@ -205,4 +205,27 @@ public class ImportJob : Resource
         binaries.AddRange(BinariesToPatch.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
         return binaries;
     }
+
+    /// <summary>
+    /// The message to refuse this job with, or null when it asks for no renames. Renaming (changing
+    /// only a Container or Binary's display name / dc:title, never its slug or path) is not
+    /// implemented yet (issue #260); both the Preservation and Storage APIs refuse a job that asks
+    /// for one, using this same wording.
+    /// </summary>
+    public string? RenameRefusalMessage()
+    {
+        var renamedItems = ContainersToRename.Concat<PreservedResource>(BinariesToRename).ToList();
+        if (renamedItems.Count == 0)
+        {
+            return null;
+        }
+
+        var ids = renamedItems.Select(item => item.Id?.ToString() ?? "(no id)").ToList();
+        var idsText = ids.Count <= 3 ? string.Join(", ", ids) : string.Join(", ", ids.Take(3)) + ", …";
+
+        return $"Renaming is not supported yet: this import job asks to rename {renamedItems.Count} item(s) " +
+               $"({idsText}). A rename changes only the display name (dc:title) of an existing Container or " +
+               "Binary. To proceed, make the name in the METS match the name the Archival Group already has, " +
+               "or remove the rename entries from the job.";
+    }
 }
