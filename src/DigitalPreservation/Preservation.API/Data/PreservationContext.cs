@@ -7,6 +7,12 @@ namespace Preservation.API.Data;
 
 public class PreservationContext : DbContext
 {
+    /// <summary>
+    /// Not a real Archival Group: the ArchivalGroup of the seeded watermark row, which is
+    /// suppressed so it never appears in the published stream (issue #269).
+    /// </summary>
+    private const string SeedWatermarkArchivalGroup = "https://example.com/archival-group";
+
     public DbSet<Deposit> Deposits { get; set; }
     public DbSet<ImportJob> ImportJobs { get; set; }
     public DbSet<ArchivalGroupEvent> ArchivalGroupEvents { get; set; }
@@ -69,7 +75,7 @@ public class PreservationContext : DbContext
             {
                 Id = -1,
                 EventDate = new DateTime(2024, 1, 1).ToUniversalTime(),
-                ArchivalGroup = new Uri("https://example.com/archival-group"),
+                ArchivalGroup = new Uri(SeedWatermarkArchivalGroup),
                 Suppressed = true
             });
     }
