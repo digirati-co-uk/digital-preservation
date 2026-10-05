@@ -559,8 +559,8 @@ public class StorageTests
             {
                 S3Objects = new List<S3Object>
                 {
-                    new S3Object { Key = "testId/file1.txt" },
-                    new S3Object { Key = "testId/file2.txt" }
+                    new S3Object { Key = "testId/file1.txt", LastModified = DateTime.UtcNow },
+                    new S3Object { Key = "testId/file2.txt", LastModified = DateTime.UtcNow }
                 }
             }));
 

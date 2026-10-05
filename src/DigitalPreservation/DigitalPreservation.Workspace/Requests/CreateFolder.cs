@@ -74,7 +74,7 @@ public class CreateFolderHandler(
             {
                 LocalPath = fullKey.RemoveStart(s3Uri.Key)!.TrimEnd('/'),
                 Name = request.Name,
-                Modified = headResponse.LastModified.ToUniversalTime()
+                Modified = headResponse.LastModified!.Value.ToUniversalTime()
             };
             var newRootResult = await storage.AddToDepositFileSystem(request.RootUri, dir, cancellationToken);
             var dirForMets = request.IsBagItLayout ? dir.ToRootLayout() : dir;

@@ -19,7 +19,7 @@ using LeedsDlipServices;
 using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Preservation.API.IIIF;
 using Storage.Repository.Common.Mets.StorageImpl;
 
@@ -137,23 +137,9 @@ try
                 Description = "Bearer token add:   'Bearer <your token>'  "
             });
 
-            c.AddSecurityRequirement(new OpenApiSecurityRequirement()
+            c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
             {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        },
-                        Scheme = "oauth2",
-                        Name = "Bearer",
-                        In = ParameterLocation.Header,
-
-                    },
-                    new List<string>()
-                }
+                [new OpenApiSecuritySchemeReference("Bearer", document)] = []
             });
         }
 
@@ -165,19 +151,9 @@ try
             Description = "client identity header for machine to machine calls"
         });
 
-        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
         {
-            {
-                new OpenApiSecurityScheme
-                {
-                    Reference = new OpenApiReference
-                    {
-                        Type = ReferenceType.SecurityScheme,
-                        Id = "X-Client-Identity"
-                    }
-                },
-                []
-            }
+            [new OpenApiSecuritySchemeReference("X-Client-Identity", document)] = []
         });
     });
 

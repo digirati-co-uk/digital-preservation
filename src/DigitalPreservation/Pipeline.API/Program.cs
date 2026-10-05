@@ -4,7 +4,7 @@ using Amazon.SQS;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Pipeline.API.Config;
 using Pipeline.API.Features.Pipeline;
 using Pipeline.API.Middleware;
@@ -91,15 +91,9 @@ try
             Description = "Key auth scheme"
         });
 
-        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
         {
-            {
-                new OpenApiSecurityScheme
-                {
-                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "ApiKeyAuth" }
-                },
-                []
-            }
+            [new OpenApiSecuritySchemeReference("ApiKeyAuth", document)] = []
         });
     });
 

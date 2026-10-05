@@ -360,7 +360,7 @@ public class Storage(
                 if (path.EndsWith('/'))
                 {
                     var dir = top.FindDirectory(path, true);
-                    dir!.Modified = s3Object.LastModified.ToUniversalTime(); // will have been created
+                    dir!.Modified = s3Object.LastModified!.Value.ToUniversalTime(); // will have been created
                     if (metadata == null) continue;
                     if (metadata.Keys.Contains(S3Helpers.OriginalNameMetadataResponseKey))
                     {
@@ -377,7 +377,7 @@ public class Storage(
                         LocalPath = path,
                         ContentType = "?",
                         Size = s3Object.Size,
-                        Modified = s3Object.LastModified.ToUniversalTime()
+                        Modified = s3Object.LastModified!.Value.ToUniversalTime()
                     };
                     // need to get these from METS-like
                     wf.ContentType = metadataResponse.Headers.ContentType;
@@ -420,7 +420,7 @@ public class Storage(
         List<S3Object> s3Objects = [];
         var resp = await s3Client.ListObjectsV2Async(listReq, cancellationToken);
         s3Objects.AddRange(resp.S3Objects);
-        while (resp.IsTruncated)
+        while (resp.IsTruncated ?? false)
         {
             listReq.ContinuationToken = resp.NextContinuationToken;
             resp = await s3Client.ListObjectsV2Async(listReq, cancellationToken);
@@ -591,7 +591,7 @@ public class Storage(
                 // MetadataReader is the only consumer of this value and both of its uses want a UTC
                 // instant: one is compared against DateTime.UtcNow, the other becomes a PREMIS
                 // eventDateTime (#221).
-                return Result.Ok<(Stream?, DateTime)>((s3Resp.ResponseStream, s3Resp.LastModified.ToUniversalTime()));
+                return Result.Ok<(Stream?, DateTime)>((s3Resp.ResponseStream, s3Resp.LastModified!.Value.ToUniversalTime()));
             }
             return Result.Fail<(Stream?, DateTime)>(ErrorCodes.GetErrorCode((int)s3Resp.HttpStatusCode), "Could not get stream for " + binaryOrigin);
         }
