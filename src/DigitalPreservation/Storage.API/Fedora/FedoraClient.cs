@@ -1194,9 +1194,9 @@ internal class FedoraClient(
 
 
     public async Task<Result<SearchCollectiveFedora?>> GetBasicSearchResults(
-        string text, 
-        int? page, 
-        int? pageSize,
+        string text,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default)
     {
 
