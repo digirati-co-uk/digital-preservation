@@ -5,7 +5,7 @@ using Storage.API.Fedora.Model;
 
 namespace Storage.API.Features.Import.Requests;
 
-public class FedoraTransactionMonitor(
+public sealed class FedoraTransactionMonitor(
     ILogger logger,
     IFedoraClient fedoraClient,
     Transaction tx,
@@ -130,9 +130,9 @@ public class FedoraTransactionMonitor(
                             {
                                 await cancellationTokenSource.CancelAsync();
                             }
-                            catch (ObjectDisposedException)
+                            catch (ObjectDisposedException ex)
                             {
-                                logger.LogDebug("(TX) (M) Transaction monitor for {TransactionId} was disposed while cancelling; nothing left to cancel.", transactionId);
+                                logger.LogDebug(ex, "(TX) (M) Transaction monitor for {TransactionId} was disposed while cancelling; nothing left to cancel.", transactionId);
                             }
                         }
                     }
