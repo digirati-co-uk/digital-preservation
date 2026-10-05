@@ -46,9 +46,14 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
                 .Select(e => e.ImportJobResult!)
                 .Distinct()
                 .ToList();
-            var importJobsByResult = await dbContext.ImportJobs
-                .Where(j => importJobResultUris.Contains(j.StorageImportJobResultId))
-                .ToDictionaryAsync(j => j.StorageImportJobResultId, cancellationToken);
+            // Grouped rather than ToDictionaryAsync: nothing in the schema makes
+            // StorageImportJobResultId unique, and a duplicate must not 500 a whole page of the
+            // stream that iiif-builder polls unattended.
+            var importJobsByResult = (await dbContext.ImportJobs
+                    .Where(j => importJobResultUris.Contains(j.StorageImportJobResultId))
+                    .ToListAsync(cancellationToken))
+                .GroupBy(j => j.StorageImportJobResultId)
+                .ToDictionary(g => g.Key, g => g.First());
 
             var activities = entities
                 .Select(e => MakeActivity(e, importJobsByResult))
@@ -90,7 +95,7 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
         }
     }
 
-    private Activity MakeActivity(ArchivalGroupEvent entity, IReadOnlyDictionary<Uri, ImportJobEntity> importJobsByResult)
+    private Activity MakeActivity(ArchivalGroupEvent entity, Dictionary<Uri, ImportJobEntity> importJobsByResult)
     {
         // TODO deletions
         var activity = new Activity
