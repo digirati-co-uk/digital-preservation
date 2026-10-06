@@ -86,6 +86,23 @@ public class PipelineControllerTests : IDisposable
         result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(expectedStatus);
     }
 
+    [Theory]
+    [InlineData(ErrorCodes.UnknownError, 500)]
+    [InlineData(ErrorCodes.Unauthorized, 401)]
+    public async Task A_Failure_Fetching_The_Deposit_That_Is_Not_NotFound_Keeps_Its_Status(
+        string errorCode, int expectedStatus)
+    {
+        // A Preservation API outage or auth problem must not be misreported as a missing deposit.
+        A.CallTo(() => preservationApiClient.GetDeposit("deposit-1", A<CancellationToken>._))
+            .Returns(Result.Fail<Deposit>(errorCode, "the Preservation API could not be reached"));
+        var controller = Controller();
+
+        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "deposit-1" });
+
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(expectedStatus);
+        A.CallTo(() => preservationApiClient.RunPipeline(A<Deposit>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
     [Fact]
     public async Task An_Unknown_Deposit_Returns_404_And_RunPipeline_Is_Never_Called()
     {

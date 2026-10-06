@@ -118,6 +118,12 @@ try
     var useLocalHostedServiceForPipeline = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForPipeline");
     if (useLocalHostedServiceForPipeline)
     {
+        // Nothing can feed the in-process queue yet: the Preservation API is the only producer of
+        // pipeline jobs and it publishes to SNS. Local delivery over HTTP is issue #352; until then,
+        // this flag means jobs are never picked up.
+        Log.Warning("FeatureFlags:UseLocalHostedServiceForPipeline is true, but nothing can feed the " +
+                    "in-process pipeline queue until local delivery exists (issue #352): pipeline jobs " +
+                    "published to SNS will NOT be picked up by this instance.");
         builder.Services.AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
     }
     else

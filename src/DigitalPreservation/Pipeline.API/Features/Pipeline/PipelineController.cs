@@ -18,7 +18,7 @@ namespace Pipeline.API.Features.Pipeline;
 public class PipelineController(
     ILogger<PipelineController> logger,
     IOptions<StorageOptions> storageOptions,
-    IPreservationApiClient preservationApiClient) : Controller
+    IPreservationApiClient preservationApiClient) : ControllerBase
 {
     private readonly List<string>? files = [];
 
@@ -45,6 +45,14 @@ public class PipelineController(
             return BadRequest($"Deposit name is not valid: {invalidDepositNameReason}");
 
         var depositResult = await preservationApiClient.GetDeposit(pipelineJob.DepositName, cancellationToken);
+        if (depositResult.Failure && depositResult.ErrorCode != ErrorCodes.NotFound)
+        {
+            // Not a "not found": the Preservation API refused us (401/403), failed, or couldn't be
+            // reached. Pass that through rather than misreporting it as a missing deposit.
+            logger.LogWarning("ExecutePipelineJob: could not fetch deposit {DepositName}: {Error}",
+                pipelineJob.DepositName, depositResult.CodeAndMessage());
+            return this.StatusResponseFromResult(depositResult);
+        }
         if (depositResult.Failure || depositResult.Value is null)
         {
             logger.LogWarning("ExecutePipelineJob: deposit {DepositName} not found", pipelineJob.DepositName);

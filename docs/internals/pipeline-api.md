@@ -144,9 +144,9 @@ Two environment variables in the image exist because of how .NET behaves in a co
 | `ApiKeyOptions` | `ApiKey`, `ApiHeaderName` | Inbound authentication. |
 | `TokenProvider`, `AzureAd` | | Outbound: the machine credentials used to call Preservation API. |
 
-> **Two things in the config that do nothing**
+> **Two config settings to know about**
 >
-> `FeatureFlags:UseLocalHostedServiceForPipeline` is present in every `appsettings` file and is read by nothing. `Program.cs` registers `InProcessPipelineQueue` and then `SqsPipelineQueue` as `IPipelineQueue`, so the last registration always wins and the service always goes through SNS/SQS — including locally. `InProcessPipelineQueue` is unreachable.
+> `FeatureFlags:UseLocalHostedServiceForPipeline` selects the queue (`InProcessPipelineQueue` when `true`, `SqsPipelineQueue` when `false`), but **leave it `false`**. The Preservation API is the only producer of pipeline jobs and it publishes to SNS, so nothing can write to the in-process queue: with the flag `true`, jobs are never picked up, and the service logs a warning at startup. Delivering jobs over HTTP in local mode, the way imports run locally, is issue #352.
 >
 > `FeatureFlags:DisableAuth` is also present and also read by nothing here. Pipeline API's only gate is the API key, unconditionally. (Preservation API, Storage API and the Importer do honour that flag.)
 
