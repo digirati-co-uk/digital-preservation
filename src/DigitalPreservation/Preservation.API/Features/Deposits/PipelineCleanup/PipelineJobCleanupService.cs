@@ -1,4 +1,4 @@
-namespace Preservation.API.Features.Deposits.PipelineCleanup;
+﻿namespace Preservation.API.Features.Deposits.PipelineCleanup;
 
 /// <summary>
 /// Periodic sweep that closes out stalled pipeline runs, moved here from the Deposit page's GET in
@@ -14,7 +14,9 @@ public class PipelineJobCleanupService(
     {
         logger.LogInformation($"Starting {nameof(PipelineJobCleanupService)}");
 
-        using PeriodicTimer timer = new(TimeSpan.FromMinutes(1));
+        // A job is only overdue after PipelineJobsCleanupMinutes (a day by default), so sweeping
+        // more often than this buys nothing.
+        using PeriodicTimer timer = new(TimeSpan.FromMinutes(15));
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
