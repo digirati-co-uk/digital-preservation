@@ -18,6 +18,7 @@ namespace Storage.API.Features.Export;
 [ApiController]
 public class ExportMetsOnlyController(
     IMediator mediator,
+    Converters converters,
     IClientDirectory clientDirectory,
     IOptions<AwsStorageOptions> storageOptions,
     ILogger<ExportMetsOnlyController> logger) : ControllerBase
@@ -42,8 +43,7 @@ public class ExportMetsOnlyController(
         // This route calls ExecuteExport directly rather than going through QueueExportHandler, so
         // it must apply the same destination check itself - not relying on ExecuteExport, which the
         // queued path only runs later, after 201 has already been returned (issue #288).
-        var permittedBuckets = new[] { storageOptions.Value.DefaultWorkingBucket }
-            .Concat(clientDirectory.DepositBuckets).ToList();
+        var permittedBuckets = PermittedExportBuckets.All(storageOptions.Value, clientDirectory);
         if (!ExportDestination.IsInBucket(export.Destination, permittedBuckets, out var reason))
         {
             logger.LogWarning(
@@ -51,6 +51,14 @@ public class ExportMetsOnlyController(
                 export.Destination, reason, permittedBuckets);
             return ControllerX.GetProblemObjectResult(Result.Fail(ErrorCodes.BadRequest, reason));
         }
+        // Not stored (there is no QueueExportHandler step for this synchronous route), so the
+        // response is the only place these fields can be set (issue #273).
+        var now = DateTime.UtcNow;
+        export.Created = now;
+        export.LastModified = now;
+        export.CreatedBy ??= converters.GetAgentUri(User.GetCallerIdentity());
+        export.LastModifiedBy = export.CreatedBy;
+
         logger.LogInformation("Synchronously exporting METS export for {Path}", export.ArchivalGroup.GetPathUnderRoot());
         var metsExportResult = await mediator.Send(new ExecuteExport(null, export, true), cancellationToken);
         return this.StatusResponseFromResult(metsExportResult);

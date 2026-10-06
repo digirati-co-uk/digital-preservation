@@ -7,6 +7,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Storage.API.Features.Export;
 using Storage.API.Features.Export.Requests;
+using Storage.API.Fedora;
+using Storage.API.Fedora.Model;
 using Storage.Repository.Common;
 using ExportResource = DigitalPreservation.Common.Model.Export.Export;
 
@@ -66,6 +68,17 @@ public class ExportMetsOnlyControllerTests
         A.CallTo(() => clientDirectory.DepositBuckets).Returns([]);
         var storageOptions = Options.Create(new AwsStorageOptions { DefaultWorkingBucket = DefaultBucket });
         return new ExportMetsOnlyController(
-            mediator, clientDirectory, storageOptions, NullLogger<ExportMetsOnlyController>.Instance);
+            mediator, MakeConverters(), clientDirectory, storageOptions, NullLogger<ExportMetsOnlyController>.Instance);
     }
+
+    private static Converters MakeConverters() => new(
+        Options.Create(new FedoraOptions
+        {
+            Root = new Uri("https://fedora.test/fcrepo/rest/"),
+            AdminUser = "admin",
+            AdminPassword = "admin",
+            Bucket = "fedora-bucket",
+            OcflS3Prefix = ""
+        }),
+        Options.Create(new ConverterOptions { StorageRoot = new Uri("https://storage.test/") }));
 }

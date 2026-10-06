@@ -72,7 +72,7 @@ namespace Preservation.API.Data.Migrations
                             ArchivalGroup = "https://example.com/archival-group",
                             Deleted = false,
                             EventDate = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Suppressed = false
+                            Suppressed = true
                         });
                 });
 

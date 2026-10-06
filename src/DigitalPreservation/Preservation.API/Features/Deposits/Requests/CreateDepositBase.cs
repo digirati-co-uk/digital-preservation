@@ -227,6 +227,13 @@ public class CreateDepositBase(
                 await workspaceManagerFactory.CreateAsync(createdDeposit, true);
             }
 
+            // Read after the metadata folder writes above, not the wrapperResult already fetched at
+            // this point - those writes changed the METS file's own S3 ETag, and the whole point is
+            // to hand the caller one that matches what's there now (issue #264). Best effort: this
+            // creation has already succeeded, so a failed ETag read must not fail the response -
+            // just leave metsETag null, same as it always has been until now.
+            await metsParser.SetMetsETagBestEffort(createdDeposit, logger);
+
             return Result.Ok(createdDeposit);
         }
         catch (Exception e)

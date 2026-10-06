@@ -11,9 +11,10 @@ using ExportResource = DigitalPreservation.Common.Model.Export.Export;
 
 namespace Storage.API.Features.Export.Requests;
 
-public class QueueExport(ExportResource export) : IRequest<Result<ExportResource>>
+public class QueueExport(ExportResource export, string callerIdentity) : IRequest<Result<ExportResource>>
 {
     public ExportResource Export { get; } = export;
+    public string CallerIdentity { get; } = callerIdentity;
 }
 
 public class QueueExportHandler(
@@ -40,18 +41,19 @@ public class QueueExportHandler(
             .GetUnfinishedExportsForArchivalGroup(request.Export.ArchivalGroup, cancellationToken);
         if (runningExports.Success && runningExports.Value!.Count > 0)
         {
-            return Result.FailNotNull<ExportResource>(ErrorCodes.Conflict, 
+            return Result.FailNotNull<ExportResource>(ErrorCodes.Conflict,
                 $"There is an unfinished export ({runningExports.Value[0]}) for Archival Group {request.Export.ArchivalGroup.GetPathUnderRoot()}");
         }
         if (runningExports.Failure)
         {
-            return Result.FailNotNull<ExportResource>(ErrorCodes.UnknownError, 
+            return Result.FailNotNull<ExportResource>(ErrorCodes.UnknownError,
                 $"Could not check for running exports for Archival Group {request.Export.ArchivalGroup}");
         }
-        
-        // request.Export.ArchivalGroup is a real ArchivalGroup: TODO, out of scope for issue #288
-        // request.Export.Destination is an accessible location: TODO, out of scope for issue #288
-        var permittedBuckets = PermittedBuckets();
+
+        // Not checked here (out of scope for #288): that the Archival Group really exists, and that
+        // the destination is reachable. The destination must be one of the deposit buckets, refused
+        // before anything is stamped, persisted or queued.
+        var permittedBuckets = PermittedExportBuckets.All(storageOptions.Value, clientDirectory);
         if (!ExportDestination.IsInBucket(request.Export.Destination, permittedBuckets, out var reason))
         {
             logger.LogWarning(
@@ -59,6 +61,15 @@ public class QueueExportHandler(
                 request.Export.Destination, reason, permittedBuckets);
             return Result.FailNotNull<ExportResource>(ErrorCodes.BadRequest, reason);
         }
+
+        // Stamped server-side, the same as every other resource in the platform - unlike the rest of
+        // the record, nothing here trusted the caller's own values before. A supplied createdBy is
+        // still trusted, the same way an import job's lastModifiedBy is trusted (issue #273).
+        var now = DateTime.UtcNow;
+        request.Export.Created = now;
+        request.Export.LastModified = now;
+        request.Export.CreatedBy ??= converters.GetAgentUri(request.CallerIdentity);
+        request.Export.LastModifiedBy = request.Export.CreatedBy;
 
         var identifier = identityMinter.MintIdentity(nameof(ExportResource));
         request.Export.Id = converters.GetExportResultId(identifier);
@@ -77,13 +88,4 @@ public class QueueExportHandler(
         }
         return Result.FailNotNull<ExportResource>(ErrorCodes.UnknownError, "Unable to create and queue export.");
     }
-
-    /// <summary>
-    /// The platform's deposit buckets: the default working bucket, plus any KnownClients profile's
-    /// own DepositBucket. There is no separate allow-list, and the Storage API's caller is usually
-    /// the Preservation API rather than the end caller, so this is deliberately every configured
-    /// deposit bucket, not just the caller's own (issue #288) - tightening that waits for #293.
-    /// </summary>
-    private IReadOnlyCollection<string> PermittedBuckets() =>
-        new[] { storageOptions.Value.DefaultWorkingBucket }.Concat(clientDirectory.DepositBuckets).ToList();
 }
