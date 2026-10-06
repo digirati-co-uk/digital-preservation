@@ -1,5 +1,7 @@
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core.Auth;
 using FakeItEasy;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -7,29 +9,87 @@ using Storage.API.Fedora;
 using Storage.API.Fedora.Model;
 using Storage.API.Features.Export;
 using Storage.API.Features.Export.Requests;
+using Storage.Repository.Common;
 using ExportResource = DigitalPreservation.Common.Model.Export.Export;
 
 namespace Storage.API.Tests.Features.Export;
 
 /// <summary>
-/// Export inherits Created/CreatedBy/LastModified/LastModifiedBy from Resource, same as every other
-/// resource in the platform, but QueueExportHandler never set them - only Id. Nothing recorded who
-/// asked for an export unless they chose to say (issue #273 item 3).
+/// QueueExportHandler, before it persists and queues an export:
+/// <list type="bullet">
+/// <item>refuses a destination outside the platform's deposit buckets. POST /export used to accept
+/// any S3 destination and copy an Archival Group's files there. The permitted set is the default
+/// working bucket plus every KnownClients profile's DepositBucket, with no separate allow-list
+/// (issue #288).</item>
+/// <item>stamps Created/CreatedBy/LastModified/LastModifiedBy. Export inherits them from Resource,
+/// the same as every other resource in the platform, but the handler only ever set Id, so nothing
+/// recorded who asked for an export unless they chose to say (issue #273 item 3).</item>
+/// </list>
 /// </summary>
 public class QueueExportHandlerTests
 {
     private static readonly Uri ArchivalGroup = new("https://storage.test/repository/cc/thing");
     private const string CallerIdentity = "caller";
+    private const string DefaultBucket = "default-working-bucket";
+    private const string ProfileBucket = "goobi-deposits";
+    private static readonly Uri PermittedDestination = new($"s3://{DefaultBucket}/export-of-my-ag");
+
+    [Fact]
+    public async Task A_Destination_Outside_Every_Deposit_Bucket_Is_Refused_Without_Persisting_Or_Queuing()
+    {
+        var (handler, store, queue) = MakeHandler();
+        var export = new ExportResource
+        {
+            ArchivalGroup = ArchivalGroup,
+            Destination = new Uri("s3://someone-elses-bucket/export-of-my-ag")
+        };
+
+        var result = await handler.Handle(new QueueExport(export, CallerIdentity), CancellationToken.None);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        A.CallTo(() => store.CreateExportResult(A<string>._, A<ExportResource>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+        A.CallTo(() => queue.QueueRequest(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Destination_In_The_Default_Working_Bucket_Is_Queued()
+    {
+        var (handler, store, queue) = MakeHandler();
+        var export = new ExportResource { ArchivalGroup = ArchivalGroup, Destination = PermittedDestination };
+
+        var result = await handler.Handle(new QueueExport(export, CallerIdentity), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        A.CallTo(() => store.CreateExportResult(A<string>._, A<ExportResource>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => queue.QueueRequest(A<string>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task A_Destination_In_A_Known_Clients_Profile_Bucket_Is_Queued()
+    {
+        var (handler, store, queue) = MakeHandler();
+        var export = new ExportResource
+        {
+            ArchivalGroup = ArchivalGroup,
+            Destination = new Uri($"s3://{ProfileBucket}/export-of-my-ag")
+        };
+
+        var result = await handler.Handle(new QueueExport(export, CallerIdentity), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        A.CallTo(() => store.CreateExportResult(A<string>._, A<ExportResource>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => queue.QueueRequest(A<string>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+    }
 
     [Fact]
     public async Task Created_And_LastModified_Are_Stamped_And_CreatedBy_Defaults_To_The_Caller()
     {
-        var (handler, store) = MakeHandler();
-        var export = new ExportResource
-        {
-            ArchivalGroup = ArchivalGroup,
-            Destination = new Uri("s3://export-bucket/somewhere/")
-        };
+        var (handler, store, _) = MakeHandler();
+        var export = new ExportResource { ArchivalGroup = ArchivalGroup, Destination = PermittedDestination };
         var before = DateTime.UtcNow;
 
         var result = await handler.Handle(new QueueExport(export, CallerIdentity), CancellationToken.None);
@@ -49,12 +109,12 @@ public class QueueExportHandlerTests
     [Fact]
     public async Task A_Supplied_CreatedBy_Is_Trusted_Rather_Than_Overwritten()
     {
-        var (handler, _) = MakeHandler();
+        var (handler, _, _) = MakeHandler();
         var suppliedCreatedBy = new Uri("https://storage.test/agents/someone-else");
         var export = new ExportResource
         {
             ArchivalGroup = ArchivalGroup,
-            Destination = new Uri("s3://export-bucket/somewhere/"),
+            Destination = PermittedDestination,
             CreatedBy = suppliedCreatedBy
         };
 
@@ -65,7 +125,7 @@ public class QueueExportHandlerTests
         export.LastModifiedBy.Should().Be(suppliedCreatedBy);
     }
 
-    private static (QueueExportHandler handler, IExportResultStore store) MakeHandler()
+    private static (QueueExportHandler handler, IExportResultStore store, IExportQueue queue) MakeHandler()
     {
         var store = A.Fake<IExportResultStore>();
         A.CallTo(() => store.GetUnfinishedExportsForArchivalGroup(ArchivalGroup, A<CancellationToken>._))
@@ -73,17 +133,21 @@ public class QueueExportHandlerTests
         A.CallTo(() => store.CreateExportResult(A<string>._, A<ExportResource>._, A<CancellationToken>._))
             .Returns(Result.Ok());
         A.CallTo(() => store.GetExportResult(A<string>._, A<CancellationToken>._))
-            .ReturnsLazily((string id, CancellationToken _) => Task.FromResult(Result.OkNotNull<ExportResource?>(new ExportResource
+            .ReturnsLazily((string _, CancellationToken _) => Task.FromResult(Result.OkNotNull<ExportResource?>(new ExportResource
             {
                 ArchivalGroup = ArchivalGroup,
-                Destination = new Uri("s3://export-bucket/somewhere/")
+                Destination = PermittedDestination
             })));
+        var queue = A.Fake<IExportQueue>();
         var identityMinter = A.Fake<IIdentityMinter>();
         A.CallTo(() => identityMinter.MintIdentity(A<string>._, A<Uri>._)).Returns("export-1");
+        var clientDirectory = A.Fake<IClientDirectory>();
+        A.CallTo(() => clientDirectory.DepositBuckets).Returns([ProfileBucket]);
+        var storageOptions = Options.Create(new AwsStorageOptions { DefaultWorkingBucket = DefaultBucket });
         var handler = new QueueExportHandler(
-            NullLogger<QueueExportHandler>.Instance, identityMinter, store,
-            MakeConverters(), A.Fake<IExportQueue>());
-        return (handler, store);
+            NullLogger<QueueExportHandler>.Instance, identityMinter, store, MakeConverters(), queue,
+            clientDirectory, storageOptions);
+        return (handler, store, queue);
     }
 
     private static Converters MakeConverters() => new(

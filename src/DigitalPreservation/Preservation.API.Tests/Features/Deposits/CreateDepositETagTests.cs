@@ -92,7 +92,10 @@ public class CreateDepositETagTests
             A.Fake<MetsFromArchivalGroup>(),
             A.Fake<WorkspaceManagerFactory>(),
             metsParser,
-            A.Fake<IClientDirectory>());
+            A.Fake<IClientDirectory>(),
+            // Matches the bucket of the fake working location above (s3://deposits/...); the #288
+            // export-destination assertion compares against it whenever an export is involved.
+            Options.Create(new AwsStorageOptions { DefaultWorkingBucket = "deposits" }));
 
         // No ArchivalGroup: the simplest "brand-new deposit" shape, so ArchivalGroupRequestValidator
         // short-circuits to archivalGroupExists=false without needing a working storageApiClient.

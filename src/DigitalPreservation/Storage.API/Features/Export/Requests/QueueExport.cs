@@ -1,8 +1,12 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core;
+using DigitalPreservation.Core.Auth;
 using MediatR;
+using Microsoft.Extensions.Options;
 using Storage.API.Fedora.Model;
+using Storage.Repository.Common;
 using ExportResource = DigitalPreservation.Common.Model.Export.Export;
 
 namespace Storage.API.Features.Export.Requests;
@@ -18,7 +22,9 @@ public class QueueExportHandler(
     IIdentityMinter identityMinter,
     IExportResultStore exportResultStore,
     Converters converters,
-    IExportQueue exportQueue) : IRequestHandler<QueueExport, Result<ExportResource>>
+    IExportQueue exportQueue,
+    IClientDirectory clientDirectory,
+    IOptions<AwsStorageOptions> storageOptions) : IRequestHandler<QueueExport, Result<ExportResource>>
 {
     public async Task<Result<ExportResource>> Handle(QueueExport request, CancellationToken cancellationToken)
     {
@@ -35,19 +41,26 @@ public class QueueExportHandler(
             .GetUnfinishedExportsForArchivalGroup(request.Export.ArchivalGroup, cancellationToken);
         if (runningExports.Success && runningExports.Value!.Count > 0)
         {
-            return Result.FailNotNull<ExportResource>(ErrorCodes.Conflict, 
+            return Result.FailNotNull<ExportResource>(ErrorCodes.Conflict,
                 $"There is an unfinished export ({runningExports.Value[0]}) for Archival Group {request.Export.ArchivalGroup.GetPathUnderRoot()}");
         }
         if (runningExports.Failure)
         {
-            return Result.FailNotNull<ExportResource>(ErrorCodes.UnknownError, 
+            return Result.FailNotNull<ExportResource>(ErrorCodes.UnknownError,
                 $"Could not check for running exports for Archival Group {request.Export.ArchivalGroup}");
         }
-        
-        // TODO: Validate Export Request
-        // request.Export.ArchivalGroup is a real ArchivalGroup
-        // request.Export.Destination is an accessible location
-        // Any access control concerns, and whitelisting of S3 locations/buckets that can be exported to
+
+        // Not checked here (out of scope for #288): that the Archival Group really exists, and that
+        // the destination is reachable. The destination must be one of the deposit buckets, refused
+        // before anything is stamped, persisted or queued.
+        var permittedBuckets = PermittedExportBuckets.All(storageOptions.Value, clientDirectory);
+        if (!ExportDestination.IsInBucket(request.Export.Destination, permittedBuckets, out var reason))
+        {
+            logger.LogWarning(
+                "Refusing export destination {Destination}: {Reason}. Permitted buckets: {PermittedBuckets}",
+                request.Export.Destination, reason, permittedBuckets);
+            return Result.FailNotNull<ExportResource>(ErrorCodes.BadRequest, reason);
+        }
 
         // Stamped server-side, the same as every other resource in the platform - unlike the rest of
         // the record, nothing here trusted the caller's own values before. A supplied createdBy is
