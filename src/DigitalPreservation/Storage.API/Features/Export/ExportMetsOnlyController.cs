@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model.Results;
 using Storage.API.Fedora.Model;
 using DigitalPreservation.Common.Model;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,7 @@ namespace Storage.API.Features.Export;
 [ApiController]
 public class ExportMetsOnlyController(
     IMediator mediator,
+    Converters converters,
     ILogger<ExportMetsOnlyController> logger) : ControllerBase
 {
     [HttpPost(Name = "Export mets Synchronously")]
@@ -33,6 +35,14 @@ public class ExportMetsOnlyController(
             return ControllerX.GetProblemObjectResult(Result.Fail(ErrorCodes.BadRequest,
                 $"Export Archival Group {export.ArchivalGroup} is not a path under the repository root: {pathReason}"));
         }
+        // Not stored (there is no QueueExportHandler step for this synchronous route), so the
+        // response is the only place these fields can be set (issue #273).
+        var now = DateTime.UtcNow;
+        export.Created = now;
+        export.LastModified = now;
+        export.CreatedBy ??= converters.GetAgentUri(User.GetCallerIdentity());
+        export.LastModifiedBy = export.CreatedBy;
+
         logger.LogInformation("Synchronously exporting METS export for {Path}", export.ArchivalGroup.GetPathUnderRoot());
         var metsExportResult = await mediator.Send(new ExecuteExport(null, export, true), cancellationToken);
         return this.StatusResponseFromResult(metsExportResult);
