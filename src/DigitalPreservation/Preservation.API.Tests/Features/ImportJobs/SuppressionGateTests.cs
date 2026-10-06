@@ -119,7 +119,6 @@ public class SuppressionGateTests
     [Theory]
     [InlineData("https://preservation.test/repository/cc/other/metadata/ad-hoc")] // another object
     [InlineData("https://elsewhere.test/repository/cc/thing/metadata")]           // another host
-    [InlineData("https://preservation.test/repository/cc/thing/metadata%2Fad-hoc")] // one segment, not two
     [InlineData("https://preservation.test/repository/cc/thing/data/metadata")]   // a real folder called data
     public async Task A_Container_That_Merely_Resembles_A_Scaffold_Folder_Is_Not_Tolerated(string containerId)
     {
@@ -133,6 +132,26 @@ public class SuppressionGateTests
         var result = await controller.ExecuteImportJob(DepositId, job, default);
 
         Refusal(result).Should().Contain("adds content");
+        Executed(mediator).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Scaffold_Look_Alike_With_An_Encoded_Separator_Is_Refused_As_An_Invalid_Slug_Not_As_Suppression()
+    {
+        // "metadata%2Fad-hoc" is one segment, not two - it would also fail the scaffold-folder
+        // literal match - but issue #298's server-side slug check now runs before
+        // SuppressedButNotMetsOnly, so an encoded separator is caught there first.
+        var mediator = Mediator();
+        var controller = Controller(mediator, migrationFlagOn: true);
+        var job = MetsOnlyJob(suppress: true);
+        job.ContainersToAdd.Add(new DigitalPreservation.Common.Model.Container
+        {
+            Id = new Uri("https://preservation.test/repository/cc/thing/metadata%2Fad-hoc")
+        });
+
+        var result = await controller.ExecuteImportJob(DepositId, job, default);
+
+        Refusal(result).Should().Contain("encoded path separator");
         Executed(mediator).MustNotHaveHappened();
     }
 

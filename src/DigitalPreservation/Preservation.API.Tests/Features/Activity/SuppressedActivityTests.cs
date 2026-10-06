@@ -43,6 +43,30 @@ public class SuppressedActivityTests(DatabaseFixture fixture)
     }
 
     [Fact]
+    public async Task The_Seed_Watermark_Row_Is_Suppressed()
+    {
+        // The row PreservationContext.OnModelCreating seeds so GetLatestArchivalGroupEvent has a
+        // watermark on an otherwise-empty table - it must never itself be published (issue #269).
+        await using var context = fixture.CreateNewAuthServiceContext();
+
+        var seed = await context.ArchivalGroupEvents.SingleAsync(e => e.Id == -1);
+
+        seed.Suppressed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task The_Seed_Watermark_Row_Never_Appears_In_The_Published_Stream()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+
+        context.PublishedArchivalGroupEvents().Should().NotContain(e => e.Id == -1);
+
+        var activities = await PublishedActivities(context);
+        activities.Should().NotContain(a => a.Object.Id == new Uri("https://example.com/archival-group"),
+            "no consumer can resolve example.com, and every real activity names a real Archival Group");
+    }
+
+    [Fact]
     public async Task The_Collection_Count_And_The_Pages_Agree_About_Suppressed_Events()
     {
         // The collection's total and the page handler's total between them decide where the pages

@@ -27,7 +27,6 @@ public class DepositModel(
     IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
-    IOptions<PipelineOptions> pipelineOptions,
     IOptions<PreservationOptions> preservationOptions,
     IConfiguration configuration,
     ILogger<DepositModel> logger) : PageModel
@@ -184,7 +183,7 @@ public class DepositModel(
             }
 
             ImportJobResults = await GetImportJobResults();
-            (PipelineJobResults, RunningPipelineJob) = await GetCleanedPipelineJobsRunning();
+            (PipelineJobResults, RunningPipelineJob) = await GetRunningPipelineJob();
             LogicalStructMaps = WorkspaceManager.LogicalStructures;
 
             if (Deposit.Status != DepositStates.Exporting)
@@ -722,61 +721,24 @@ public class DepositModel(
     }
 
 
-    public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetCleanedPipelineJobsRunning()
+    /// <summary>
+    /// Finds this deposit's currently-running (or waiting) pipeline job, if any, for display. Used
+    /// to tidy up stalled jobs itself as a side effect of this GET - that cleanup is now a
+    /// Preservation API background sweep (issue #301), run on a timer regardless of whether anyone
+    /// opens this page, so a deposit can't be unstuck twice by two people opening it at once, and it
+    /// no longer released a lock this page view had no business touching.
+    /// </summary>
+    public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetRunningPipelineJob()
     {
         var allJobs = await GetPipelineJobResults();
-        var cutoffDate = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
-        var longRunningUnfinishedJobs = allJobs
-            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < cutoffDate && x.Deposit == Id)
-            .Where(x => PipelineJobStates.IsNotComplete(x.Status))
-            .ToList();
-
-        var longRunningUnfinishedWaitingJobs = allJobs
-            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value < cutoffDate && x.Deposit == Id)
-            .Where(x => PipelineJobStates.IsNotComplete(x.Status))
-            .ToList();
-
-
-        longRunningUnfinishedJobs.AddRange(longRunningUnfinishedWaitingJobs);
-
-        foreach (var job in longRunningUnfinishedJobs)
-        {
-            var pipelineDeposit = new PipelineDeposit
-            {
-                Id = job.JobId!,
-                Status = PipelineJobStates.CompletedWithErrors,
-                DepositId = job.Deposit,
-                RunUser = job.RunUser,
-                Errors = "Cleaned up as previous processing did not complete"
-            };
-
-            // Posting completedWithErrors below is itself what releases the lock now, when the run's
-            // own user still holds it (issue #299) - no separate ReleaseLock call, and no local
-            // Deposit.LockedBy/LockDate bookkeeping to keep in sync with it.
-            await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
-        }
-
-        if (longRunningUnfinishedJobs.Any())
-        {
-            //refresh as all jobs have been sent
-            allJobs = await GetPipelineJobResults();
-
-            // Re-read rather than patch LockedBy/LockDate off locally: the status posts above may
-            // have released the lock server-side, and this is the one place that needs to know.
-            var refreshedDeposit = await mediator.Send(new GetDeposit(Id!));
-            if (refreshedDeposit.Success)
-            {
-                Deposit = refreshedDeposit.Value!;
-            }
-        }
 
         var latestJob = allJobs
-            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= cutoffDate && x.Deposit == Id)
+            .Where(x => x.DateBegun.HasValue && x.Deposit == Id)
             .OrderByDescending(x => x.DateBegun)
             .FirstOrDefault();
 
         var latestWaitingJob = allJobs
-            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value >= cutoffDate && x.Deposit == Id)
+            .Where(x => x is { Created: not null, DateBegun: null } && x.Deposit == Id)
             .OrderByDescending(x => x.Created)
             .FirstOrDefault();
 
@@ -788,7 +750,7 @@ public class DepositModel(
         ProcessPipelineResult? runningJob = null;
         if (latestJob != null && PipelineJobStates.IsNotComplete(latestJob.Status))
         {
-            runningJob = latestJob; 
+            runningJob = latestJob;
         }
 
         if (runningJob == null && latestWaitingJob != null && PipelineJobStates.IsNotComplete(latestWaitingJob.Status))

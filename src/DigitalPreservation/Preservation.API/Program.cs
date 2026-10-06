@@ -7,6 +7,7 @@ using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Preservation.API.Data;
 using Preservation.API.Features.Activity.Readers;
+using Preservation.API.Features.Deposits.PipelineCleanup;
 using Preservation.API.Infrastructure;
 using Preservation.API.Mutation;
 using Serilog;
@@ -185,7 +186,12 @@ try
     builder.Services
         .AddHostedService<StorageImportJobsService>()
         .AddScoped<StorageImportJobsProcessor>();
-    
+
+    builder.Services
+        .AddHostedService<PipelineJobCleanupService>()
+        .AddScoped<PipelineJobCleanupProcessor>();
+
+
     var app = builder.Build();
     app
         .UseMiddleware<CorrelationIdMiddleware>()

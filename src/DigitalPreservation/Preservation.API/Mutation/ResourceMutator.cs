@@ -190,6 +190,31 @@ public class ResourceMutator(
         return new Uri($"{preservationHost}/{Deposit.BasePathElement}/{depositId}");
     }
 
+    /// <summary>
+    /// The Preservation API URI for an import job's result, i.e. the id ImportJobsController's own
+    /// GetImportJobResult route resolves. The one place that mints this URI shape, so that the
+    /// Activity Stream's seeAlso (<see cref="Features.Activity.Requests.GetArchivalGroupsOrderedCollectionPageHandler"/>)
+    /// and the result itself (<see cref="MutateStorageImportJobResult(ImportJobResult, Uri, string)"/>)
+    /// can never drift apart (issue #265).
+    /// </summary>
+    public Uri GetImportJobResultUri(string depositId, string importJobId) =>
+        GetImportJobResultUri(GetDepositUri(depositId), importJobId);
+
+    private static Uri GetImportJobResultUri(Uri deposit, string importJobId) =>
+        new($"{deposit}/importjobs/results/{importJobId}");
+
+    /// <summary>
+    /// Rewrites the Storage API host out of an ImportJobResult read back from storage (the
+    /// LatestPreservationApiResultJson column, or an already-mutated in-memory result), without
+    /// touching the stored JSON itself. Safe to call unconditionally: a result whose ImportJob is
+    /// already a Preservation API URI - because it was stored after this fix, or has already been
+    /// repaired - is returned unchanged (issue #265).
+    /// </summary>
+    public void RepairStoredImportJobResult(ImportJobResult storedResult)
+    {
+        storedResult.ImportJob = MutateStorageApiUri(storedResult.ImportJob)!;
+    }
+
     public List<Deposit> MutateDeposits(IEnumerable<DepositEntity> deposits)
     {
         return deposits.Select(MutateDeposit).ToList();
@@ -278,9 +303,12 @@ public class ResourceMutator(
     public void MutateStorageImportJobResult(ImportJobResult storageImportJobResult, Uri deposit, string resultId)
     {
         MutateStorageBaseUris(storageImportJobResult);
-        storageImportJobResult.Id = new Uri($"{deposit}/importjobs/results/{resultId}");
+        storageImportJobResult.Id = GetImportJobResultUri(deposit, resultId);
         storageImportJobResult.Deposit = deposit;
         storageImportJobResult.ArchivalGroup = MutateStorageApiUri(storageImportJobResult.ArchivalGroup)!;
+        // The job's own id is minted by Storage API, same as every other Storage-host URI on this
+        // result - without this it leaks straight into Preservation API responses (issue #265).
+        storageImportJobResult.ImportJob = MutateStorageApiUri(storageImportJobResult.ImportJob)!;
         foreach (var container in storageImportJobResult.ContainersAdded)
         {
             MutateStorageResource(container);

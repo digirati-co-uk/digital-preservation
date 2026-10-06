@@ -120,7 +120,7 @@ public class HeaderPropagationFilterTests
     {
         private static readonly AsyncLocal<bool> MintInFlight = new();
 
-        public async Task<string?> GetAccessToken()
+        public async Task<string?> GetAccessToken(CancellationToken cancellationToken = default)
         {
             if (MintInFlight.Value)
             {
@@ -131,7 +131,7 @@ public class HeaderPropagationFilterTests
             MintInFlight.Value = true;
             try
             {
-                return await inner.GetAccessToken();
+                return await inner.GetAccessToken(cancellationToken);
             }
             finally
             {
