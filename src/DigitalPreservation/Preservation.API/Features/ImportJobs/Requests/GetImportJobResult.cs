@@ -44,6 +44,9 @@ public class GetImportJobResultHandler(
                 var jobResult = JsonSerializer.Deserialize<ImportJobResult>(entity.LatestPreservationApiResultJson);
                 if (jobResult != null)
                 {
+                    // A result stored before issue #265 was fixed still has a Storage API host baked
+                    // into ImportJob; repair it on read rather than migrating the stored JSON.
+                    resourceMutator.RepairStoredImportJobResult(jobResult);
                     logger.LogDebug("returning DB stored LatestPreservationApiResultJson: {JobResultSummary}", jobResult.LogSummary());
                     return Result.OkNotNull(jobResult);
                 }
