@@ -51,21 +51,39 @@ public class RunPipelineStatusHandler(
             return await CompleteJob(request, cancellationToken);
         }
 
-        // Waiting/MetadataCreated reports have no lock implications and nothing to race on a
-        // repeat delivery, so this is unchanged from before issue #316.
-        var entity = await dbContext.PipelineRunJobs.SingleAsync(
-            d => d.Deposit == request.PipelineDeposit.DepositId && d.Id == request.PipelineDeposit.Id, cancellationToken);
+        return await RecordIntermediateStatus(request, deposit.MintedId, cancellationToken);
+    }
 
-        if (request.PipelineDeposit.Status.HasText())
+    /// <summary>
+    /// Records a non-terminal report (MetadataCreated, Waiting), but only on a job that is not
+    /// already terminal. The pipeline posts MetadataCreated after its last force-complete check, so
+    /// it can land on a job that was force-completed, or closed by the stalled-run sweep (#301), a
+    /// moment earlier. An unconditional write would move that job back to non-terminal, and the
+    /// run's own later Completed report would then move it a second time - overwriting the status
+    /// and releasing a lock the same user may have retaken - which is the race CompleteJob closes
+    /// (issue #316). So, like CompleteJob, the database decides: a report on a finished job matches
+    /// no row and is ignored as late, not treated as an error.
+    /// </summary>
+    private async Task<Result> RecordIntermediateStatus(RunPipelineStatus request, string depositId, CancellationToken cancellationToken)
+    {
+        var jobId = request.PipelineDeposit.Id;
+        var newStatus = request.PipelineDeposit.Status;
+        if (!newStatus.HasText())
         {
-            entity.Status = request.PipelineDeposit.Status;
+            // Nothing to record. Before #316 this saved the job unchanged.
+            return Result.Ok();
         }
-        dbContext.PipelineRunJobs.Update(entity);
 
+        int updated;
         try
         {
-            logger.LogInformation("Saving Pipeline Job entity {EntityId} to DB for deposit {MintedId}", entity.Id, deposit.MintedId);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Saving Pipeline Job entity {EntityId} to DB for deposit {MintedId}", jobId, depositId);
+            updated = await dbContext.PipelineRunJobs
+                .Where(j => j.Deposit == depositId && j.Id == jobId
+                            && j.Status != PipelineJobStates.Completed && j.Status != PipelineJobStates.CompletedWithErrors)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(j => j.Status, newStatus)
+                    .SetProperty(j => j.LastUpdated, DateTime.UtcNow), cancellationToken);
         }
         catch (Exception e)
         {
@@ -73,8 +91,23 @@ public class RunPipelineStatusHandler(
             return Result.Fail(ErrorCodes.UnknownError, e.Message);
         }
 
+        if (updated == 0)
+        {
+            var exists = await dbContext.PipelineRunJobs.AnyAsync(
+                j => j.Deposit == depositId && j.Id == jobId, cancellationToken);
+            if (!exists)
+            {
+                return Result.Fail(ErrorCodes.NotFound, $"No pipeline job {jobId} for deposit {depositId}");
+            }
+
+            logger.LogWarning(
+                "Pipeline job {JobId} for deposit {DepositId} reported {Status} after it had already finished; " +
+                "ignoring the late report", jobId, depositId, newStatus);
+            return Result.Ok();
+        }
+
         var callerIdentity = request.User.GetCallerIdentity();
-        logger.LogInformation("Pipeline job {EntityId} was updated by {CallerIdentity}", entity.Id, callerIdentity);
+        logger.LogInformation("Pipeline job {EntityId} was updated by {CallerIdentity}", jobId, callerIdentity);
         return Result.Ok();
     }
 

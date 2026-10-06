@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
@@ -272,6 +272,60 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         result.Success.Should().BeTrue();
         var deposit = await ReloadDeposit(depositId);
         deposit.LockedBy.Should().Be("tester");
+        var job = await ReloadJob(jobId);
+        job.Status.Should().Be(PipelineJobStates.MetadataCreated);
+    }
+
+    /// <summary>
+    /// The pipeline posts MetadataCreated after its last force-complete check, so the report can
+    /// land on a job that was force-completed (or closed by the stalled-run sweep) a moment earlier.
+    /// It must not move that job back to non-terminal: if it did, the run's own later Completed
+    /// report would move it again, overwriting the status and releasing the lock the same user has
+    /// since retaken for a new run (issue #316).
+    /// </summary>
+    [Fact]
+    public async Task A_Late_MetadataCreated_Report_Does_Not_Reopen_A_Finished_Job()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.CompletedWithErrors,
+            runUser: "tester", depositLockedBy: null);
+
+        var lateIntermediate = await Handle(context, depositId, jobId, PipelineJobStates.MetadataCreated);
+
+        lateIntermediate.Success.Should().BeTrue("a late report that changes nothing is still a success, not an error");
+        (await ReloadJob(jobId)).Status.Should().Be(PipelineJobStates.CompletedWithErrors,
+            "a late MetadataCreated must not move a finished job back to non-terminal");
+
+        // The same user starts a new run and takes the lock again, then the old run's own
+        // Completed report arrives.
+        await using (var relockContext = fixture.CreateNewAuthServiceContext())
+        {
+            var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId);
+            deposit.LockedBy = "tester";
+            deposit.LockDate = DateTime.UtcNow;
+            await relockContext.SaveChangesAsync();
+        }
+
+        await using var lateContext = fixture.CreateNewAuthServiceContext();
+        var lateCompleted = await Handle(lateContext, depositId, jobId, PipelineJobStates.Completed);
+
+        lateCompleted.Success.Should().BeTrue();
+        (await ReloadJob(jobId)).Status.Should().Be(PipelineJobStates.CompletedWithErrors,
+            "the job was never reopened, so the late Completed has nothing to move");
+        (await ReloadDeposit(depositId)).LockedBy.Should().Be("tester",
+            "the lock belongs to the new run, and the old run's late report must not release it");
+    }
+
+    [Fact]
+    public async Task An_Intermediate_Report_For_A_Job_That_Does_Not_Exist_Is_NotFound()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, _) = await SeedJob(context, PipelineJobStates.Running);
+
+        var result = await Handle(context, depositId, $"job-{Guid.NewGuid()}", PipelineJobStates.MetadataCreated);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.NotFound);
     }
 
     private static Task<DigitalPreservation.Common.Model.Results.Result> Handle(
