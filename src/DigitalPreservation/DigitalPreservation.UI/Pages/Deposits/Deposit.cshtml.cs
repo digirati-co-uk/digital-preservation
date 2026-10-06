@@ -730,7 +730,7 @@ public class DepositModel(
     /// </summary>
     public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetRunningPipelineJob()
     {
-        var allJobs = GetPipelineJobResults().Result;
+        var allJobs = await GetPipelineJobResults();
 
         var latestJob = allJobs
             .Where(x => x.DateBegun.HasValue && x.Deposit == Id)
