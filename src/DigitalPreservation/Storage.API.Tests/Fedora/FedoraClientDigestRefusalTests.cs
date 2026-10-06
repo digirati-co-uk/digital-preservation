@@ -22,7 +22,7 @@ public class FedoraClientDigestRefusalTests
 {
     private static readonly Uri FedoraRoot = new("http://fedora.test/fcrepo/rest/");
 
-    private static IFedoraClient BuildClient(HttpMessageHandler handler, Stream content)
+    private static FedoraClient BuildClient(HttpMessageHandler handler, Stream content)
     {
         var httpClient = new HttpClient(handler, disposeHandler: false);
         var storage = A.Fake<IStorage>();
@@ -52,25 +52,67 @@ public class FedoraClientDigestRefusalTests
             fedoraDB);
     }
 
+    // Deliberately in a sub-folder: a bare file name like page-001.jpg is ambiguous in any deposit
+    // with more than one volume, so the message must carry the binary's whole path.
+    private static Binary MakeBinary() => new()
+    {
+        Id = new Uri("https://storage.test/repository/cc/thing/objects/vol2/page-001.jpg"),
+        Digest = "abc123",
+        ContentType = "image/jpeg",
+        Origin = new Uri("s3://bucket/deposits/dep-1/objects/vol2/page-001.jpg")
+    };
+
+    private static readonly Transaction Transaction = new() { Location = new Uri(FedoraRoot, "tx:abc") };
+
     [Fact]
     public async Task A_Digest_Refusal_From_Fedora_Names_The_Binary_In_The_Failure_Message()
     {
         var handler = new FixedResponseHandler(HttpStatusCode.Conflict, "Checksum Mismatch");
         var client = BuildClient(handler, new MemoryStream([1, 2, 3]));
-        var binary = new Binary
-        {
-            Id = new Uri("https://storage.test/repository/cc/thing/objects/page-001.jpg"),
-            Digest = "abc123",
-            ContentType = "image/jpeg",
-            Origin = new Uri("s3://bucket/deposits/dep-1/objects/page-001.jpg")
-        };
-        var transaction = new Transaction { Location = new Uri(FedoraRoot, "tx:abc") };
 
-        var result = await client.PutBinary(binary, "tester", transaction, CancellationToken.None);
+        var result = await client.PutBinary(MakeBinary(), "tester", Transaction, CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("page-001.jpg",
+        result.ErrorMessage.Should().Contain("cc/thing/objects/vol2/page-001.jpg",
             "the import job result reports this message verbatim, so it must say which file was wrong");
+    }
+
+    [Fact]
+    public async Task A_Fedora_Computed_Checksum_That_Differs_From_Ours_Names_The_Binary_And_Both_Digests()
+    {
+        // Fedora accepts the PUT, but the digest it computed and reports in the binary's metadata
+        // isn't ours: PutBinary's own post-PUT comparison is the second way wrong bytes are caught.
+        var metadata = $$"""
+            {
+              "@id": "{{FedoraRoot}}cc/thing/objects/vol2/page-001.jpg",
+              "@type": ["fedora:Binary"],
+              "title": "page-001.jpg",
+              "hasMessageDigest": "urn:sha-256:fff999",
+              "hasSize": "3",
+              "hasMimeType": "image/jpeg"
+            }
+            """;
+        var handler = new PutThenMetadataHandler(metadata);
+        var client = BuildClient(handler, new MemoryStream([1, 2, 3]));
+
+        var result = await client.PutBinary(MakeBinary(), "tester", Transaction, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("cc/thing/objects/vol2/page-001.jpg")
+            .And.Contain("abc123").And.Contain("fff999");
+    }
+
+    /// <summary>Answers the binary PUT with 201 and every GET with the given fcr:metadata JSON-LD.</summary>
+    private class PutThenMetadataHandler(string metadataJsonLd) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(request.Method == HttpMethod.Put
+                ? new HttpResponseMessage(HttpStatusCode.Created)
+                : new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(metadataJsonLd, Encoding.UTF8, "application/ld+json")
+                });
     }
 
     private class FixedResponseHandler(HttpStatusCode statusCode, string body) : HttpMessageHandler

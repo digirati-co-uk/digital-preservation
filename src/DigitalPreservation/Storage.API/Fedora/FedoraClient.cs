@@ -586,7 +586,9 @@ internal class FedoraClient(
             logger.LogError("Response from Fedora was {Status}", response.StatusCode);
             var message = await response.Content.ReadAsStringAsync(cancellationToken);
             var code = ErrorCodes.GetErrorCode((int?)response.StatusCode);
-            return Result.Fail<Binary>(code, $"PUT {binary.GetSlug()} failed; response from Fedora was {response.StatusCode}: {message}");
+            // binary.Id, not its slug: ExecuteImportJob reports this message verbatim as the import job's
+            // failure, and a slug alone (page-001.jpg) is ambiguous across folders (#292).
+            return Result.Fail<Binary>(code, $"PUT {binary.Id} failed; response from Fedora was {response.StatusCode}: {message}");
         }
         var metadataUri = req.RequestUri!.MetadataUri();
         
@@ -615,7 +617,8 @@ internal class FedoraClient(
         var madeBinary = converters.MakeBinary(binaryResponse!);
         if (madeBinary.Digest != binary.Digest)
         {
-            return Result.Fail<Binary?>(ErrorCodes.UnknownError, "Fedora-generated checksum doesn't match ours.");
+            return Result.Fail<Binary?>(ErrorCodes.UnknownError,
+                $"Fedora-generated checksum for {binary.Id} doesn't match ours (expected {binary.Digest}, Fedora computed {madeBinary.Digest})");
         }
         return Result.Ok(madeBinary);
     }
