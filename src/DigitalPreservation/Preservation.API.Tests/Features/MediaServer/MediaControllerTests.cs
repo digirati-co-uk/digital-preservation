@@ -132,6 +132,38 @@ public class MediaControllerTests
         AssertNoStreamCalls();
     }
 
+    [Theory]
+    [InlineData("objects/page-001.jpg/full/100,/0/default.png")]
+    [InlineData("objects/page-001.jpg/full/100,/90/default.jpg")]
+    [InlineData("objects/page-001.jpg/full/100,/0/gray.jpg")]
+    public async Task An_Unsupported_Image_Request_For_A_File_In_The_Tree_Is_404_Not_A_Redirect(string localPath)
+    {
+        // Level 0: only info.json, full/{w,h}/0/default.jpg and the bare base URI are answered. These
+        // once fell into the bare branch, which stripped four segments and redirected to an
+        // info.json URL that itself 404'd.
+        var controller = CreateController(localPath, "imagesvc");
+
+        var result = await controller.GetMedia(Token, "deposit", SourceId, "imagesvc", localPath);
+
+        result.Should().BeOfType<NotFoundResult>();
+        AssertNoStreamCalls();
+    }
+
+    [Fact]
+    public async Task The_Bare_Redirect_Points_At_The_Files_Own_Info_Json_Which_Answers()
+    {
+        var controller = CreateController("objects/page-001.jpg", "imagesvc");
+
+        var result = await controller.GetMedia(Token, "deposit", SourceId, "imagesvc", "objects/page-001.jpg");
+
+        var redirect = result.Should().BeOfType<RedirectResult>().Subject;
+        redirect.Url.Should().Be($"/media/{Token}/deposit/{SourceId}/imagesvc/objects/page-001.jpg/info.json");
+
+        var followed = CreateController("objects/page-001.jpg/info.json", "imagesvc");
+        var infoJson = await followed.GetMedia(Token, "deposit", SourceId, "imagesvc", "objects/page-001.jpg/info.json");
+        infoJson.Should().BeOfType<ContentResult>();
+    }
+
     [Fact]
     public async Task PlainFile_Branch_Uses_A_Ranged_Stream_For_A_Range_Request()
     {
@@ -193,9 +225,8 @@ public class MediaControllerTests
         MediaBranch.PlainFile => ("file", resolvedPath),
         MediaBranch.InfoJson => ("imagesvc", $"{resolvedPath}/info.json"),
         MediaBranch.DefaultJpg => ("imagesvc", $"{resolvedPath}/full/100,/0/default.jpg"),
-        // Same shape as default.jpg but a different last segment, so it misses the specific
-        // full/{w,h}/0/default.jpg pattern and falls through to the bare-redirect branch.
-        MediaBranch.BareRedirect => ("imagesvc", $"{resolvedPath}/full/100,/0/default.png"),
+        // The image service's base URI: just the file's path, which redirects to its info.json.
+        MediaBranch.BareRedirect => ("imagesvc", resolvedPath),
         _ => throw new ArgumentOutOfRangeException(nameof(branch))
     };
 
