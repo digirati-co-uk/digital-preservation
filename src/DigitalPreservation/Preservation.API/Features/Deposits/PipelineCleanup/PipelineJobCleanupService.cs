@@ -1,4 +1,4 @@
-﻿namespace Preservation.API.Features.Deposits.PipelineCleanup;
+namespace Preservation.API.Features.Deposits.PipelineCleanup;
 
 /// <summary>
 /// Periodic sweep that closes out stalled pipeline runs, moved here from the Deposit page's GET in
