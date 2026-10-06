@@ -5,11 +5,11 @@ using Storage.API.Fedora;
 
 namespace Storage.API.Features.Repository.Requests;
 
-public class SearchFromFedoraSimple(string text, int? page, int? pageSize) : IRequest<Result<SearchCollectiveFedora?>>
+public class SearchFromFedoraSimple(string text, int page, int pageSize) : IRequest<Result<SearchCollectiveFedora?>>
 {
     public string Text { get; } = text;
-    public int? Page { get; } = page;
-    public int? PageSize { get; } = pageSize;
+    public int Page { get; } = page;
+    public int PageSize { get; } = pageSize;
 }
 
 
