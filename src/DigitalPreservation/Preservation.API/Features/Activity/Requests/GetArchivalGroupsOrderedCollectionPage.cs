@@ -11,6 +11,7 @@ using Preservation.API.Mutation;
 namespace Preservation.API.Features.Activity.Requests;
 
 using Activity = DigitalPreservation.Common.Model.ChangeDiscovery.Activity;
+using ImportJobEntity = Preservation.API.Data.Entities.ImportJob;
 
 public class GetArchivalGroupsOrderedCollectionPage(int page) : IRequest<Result<OrderedCollectionPage>>
 {
@@ -36,8 +37,26 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
                 .Take(OrderedCollectionPage.DefaultPageSize)
                 .ToListAsync(cancellationToken);
 
+            // entity.ImportJobResult is the raw Storage API result URI (StorageImportJobsProcessor
+            // stores it verbatim); the seeAlso link Preservation API hands out has to resolve on
+            // Preservation API instead (issue #265), which needs the deposit/import-job id pair that
+            // only the ImportJobs table - not the event itself - knows.
+            var importJobResultUris = entities
+                .Where(e => e.ImportJobResult is not null)
+                .Select(e => e.ImportJobResult!)
+                .Distinct()
+                .ToList();
+            // Grouped rather than ToDictionaryAsync: nothing in the schema makes
+            // StorageImportJobResultId unique, and a duplicate must not 500 a whole page of the
+            // stream that iiif-builder polls unattended.
+            var importJobsByResult = (await dbContext.ImportJobs
+                    .Where(j => importJobResultUris.Contains(j.StorageImportJobResultId))
+                    .ToListAsync(cancellationToken))
+                .GroupBy(j => j.StorageImportJobResultId)
+                .ToDictionary(g => g.Key, g => g.First());
+
             var activities = entities
-                .Select(MakeActivity)
+                .Select(e => MakeActivity(e, importJobsByResult))
                 .ToList();
             
             int startIndex = (request.Page - 1) * OrderedCollectionPage.DefaultPageSize;
@@ -76,7 +95,7 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
         }
     }
 
-    private static Activity MakeActivity(ArchivalGroupEvent entity)
+    private Activity MakeActivity(ArchivalGroupEvent entity, Dictionary<Uri, ImportJobEntity> importJobsByResult)
     {
         // TODO deletions
         var activity = new Activity
@@ -89,18 +108,22 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
             },
             EndTime = entity.EventDate
         };
-        if (entity.ImportJobResult is not null)
+        // Only set seeAlso when the import job that produced this event is still on record - never
+        // fall back to the raw Storage API URI (issue #265), since nothing outside Storage API can
+        // resolve it.
+        if (entity.ImportJobResult is not null &&
+            importJobsByResult.TryGetValue(entity.ImportJobResult, out var importJob))
         {
             activity.Object.SeeAlso =
             [
                 new ActivityObject
                 {
-                    Id = entity.ImportJobResult,
+                    Id = resourceMutator.GetImportJobResultUri(importJob.Deposit, importJob.Id),
                     Type = nameof(ImportJobResult)
                 }
             ];
         }
-        
+
         return activity;
     }
 }

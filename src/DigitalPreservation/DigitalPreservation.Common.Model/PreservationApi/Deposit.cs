@@ -69,8 +69,13 @@ public class Deposit : Resource
     
     
     /// <summary>
-    /// At the time the deposit is requested
-    /// As the METS is part of the deposit, some clients may update this without requesting the deposit again.
+    /// The value to send as If-Match on the next METS write. Populated on every single-deposit
+    /// response - get, create (POST /deposits, /from-identifier, /export) and patch - as of the
+    /// moment that response was built. Never populated in GET /deposits listings: reading every
+    /// row's METS ETag would cost an S3 read per deposit per page (up to 100 per request), and an
+    /// archived deposit has no workspace to read from. Also null immediately after creating a
+    /// deposit with Export=true, since the METS arrives asynchronously with the export - fetch the
+    /// deposit again once its status is no longer "exporting".
     /// </summary>
     [JsonPropertyOrder(600)]
     [JsonPropertyName("metsETag")]

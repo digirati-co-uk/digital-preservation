@@ -1,6 +1,4 @@
-﻿using Amazon.SimpleNotificationService;
-using Amazon.SimpleNotificationService.Model;
-using Amazon.SQS;
+﻿using Amazon.SQS;
 using Amazon.SQS.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
@@ -8,35 +6,18 @@ using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
 using Storage.Repository.Common.Aws;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Pipeline.API.Features.Pipeline;
 
 public class SqsPipelineQueue(
     ILogger<SqsPipelineQueue> logger,
-    IAmazonSimpleNotificationService snsClient,
     IAmazonSQS sqsClient,
     IOptions<PipelineOptions> options,
     IIdentityMinter identityMinter,
     IPreservationApiClient preservationApiClient) : IPipelineQueue
 {
-    private string? topicArn;
-
-    public async ValueTask QueueRequest(string jobIdentifier, string depositName, string? runUser, CancellationToken cancellationToken)
-    {
-        topicArn = options.Value.PipelineJobTopicArn;
-
-        logger.LogInformation("Message queued for deposit {Deposit} and job id {JobId}", depositName, jobIdentifier);
-        var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage { JobIdentifier = jobIdentifier, DepositName = depositName, RunUser = runUser});
-        var request = new PublishRequest(topicArn, pipelineJobMessage);
-        var response = await snsClient.PublishAsync(request, cancellationToken);
-        logger.LogDebug(
-            "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
-            response.HttpStatusCode, depositName, response.MessageId);
-    }
-
-    public async ValueTask<PipelineJobMessage?> DequeueRequest(CancellationToken cancellationToken) 
+    public async ValueTask<PipelineJobMessage?> DequeueRequest(CancellationToken cancellationToken)
     {
         PipelineJobMessage? messageModel = null;
 

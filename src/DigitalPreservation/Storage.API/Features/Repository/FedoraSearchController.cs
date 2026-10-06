@@ -36,19 +36,25 @@ public class FedoraSearchController(IMediator mediator) : ControllerBase
             return BadRequest(problem);
         }
 
-        if (page< 0 || pageSize <= 0 || pageSize > 500)
+        // Defaults are applied here, before validation, so nothing downstream ever sees an absent
+        // page or pageSize - an unvalidated null previously reached the SQL as LIMIT NULL, which
+        // Postgres treats as no limit at all (#272).
+        var effectivePage = page ?? 0;
+        var effectivePageSize = pageSize ?? 50;
+
+        if (effectivePage < 0 || effectivePageSize <= 0 || effectivePageSize > 500)
         {
             var problem = new ProblemDetails
             {
                 Status = (int)HttpStatusCode.BadRequest,
                 Title = "Invalid paging parameters",
-                Detail = "Page number and page size must be positive, and page size must be below 500."
+                Detail = "Page number must be zero or more, and page size must be between 1 and 500."
             };
             return BadRequest(problem);
         }
 
 
-        var result = await mediator.Send(new SearchFromFedoraSimple(text, page, pageSize));
+        var result = await mediator.Send(new SearchFromFedoraSimple(text, effectivePage, effectivePageSize));
         return this.StatusResponseFromResult(result);
 
     }

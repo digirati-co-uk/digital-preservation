@@ -1,16 +1,14 @@
 ﻿using DigitalPreservation.Common.Model;
-using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
-using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Pipeline.API.Features.Pipeline.Models;
-using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
 using DigitalPreservation.Common.Model.Results;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
+using Preservation.Client;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -18,13 +16,22 @@ namespace Pipeline.API.Features.Pipeline;
 [Route("[controller]")]
 [ApiController]
 public class PipelineController(
-    IMediator mediator,
     ILogger<PipelineController> logger,
     IOptions<StorageOptions> storageOptions,
-    IIdentityMinter identityMinter) : Controller
+    IPreservationApiClient preservationApiClient) : ControllerBase
 {
     private readonly List<string>? files = [];
 
+    /// <summary>
+    /// A thin proxy over POST /deposits/{id}/pipeline on the Preservation API (issue #231): this is
+    /// the way in for a caller that cannot reach the Preservation API directly, not a second producer
+    /// of pipeline jobs. Forwarding here means the lock check, the default-bucket guard, and every
+    /// other check RunPipelineHandler makes all apply automatically, and every job gets a
+    /// PipelineRunJob row - there is exactly one place pipeline jobs are queued from. The body's
+    /// optional runUser is no longer honoured: the run is attributed to whatever identity this
+    /// service calls the Preservation API with. Nothing in the platform sets runUser on this
+    /// endpoint today.
+    /// </summary>
     [HttpPost(Name = "ExecutePipelineProcess")]
     [Produces<Result>]
     [Produces("application/json")]
@@ -37,22 +44,25 @@ public class PipelineController(
         if (!PreservedResource.ValidSlug(pipelineJob.DepositName, out var invalidDepositNameReason))
             return BadRequest($"Deposit name is not valid: {invalidDepositNameReason}");
 
-        var jobIdentifier = identityMinter.MintIdentity(nameof(PipelineJob));
-
-        var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(pipelineJob.DepositName, jobIdentifier, PipelineJobStates.Waiting,
-            pipelineJob.RunUser ?? "PipelineApi"), cancellationToken);
-
-        if(pipelineJobsResult?.Value?.Errors is { Length: 0 })
-            logger.LogInformation("Job {JobIdentifier} status Waiting logged", jobIdentifier);
-
-        pipelineJob.JobIdentifier = jobIdentifier;
+        var depositResult = await preservationApiClient.GetDeposit(pipelineJob.DepositName, cancellationToken);
+        if (depositResult.Failure && depositResult.ErrorCode != ErrorCodes.NotFound)
+        {
+            // Not a "not found": the Preservation API refused us (401/403), failed, or couldn't be
+            // reached. Pass that through rather than misreporting it as a missing deposit.
+            logger.LogWarning("ExecutePipelineJob: could not fetch deposit {DepositName}: {Error}",
+                pipelineJob.DepositName, depositResult.CodeAndMessage());
+            return this.StatusResponseFromResult(depositResult);
+        }
+        if (depositResult.Failure || depositResult.Value is null)
+        {
+            logger.LogWarning("ExecutePipelineJob: deposit {DepositName} not found", pipelineJob.DepositName);
+            return NotFound($"Deposit {pipelineJob.DepositName} not found.");
+        }
 
         logger.LogInformation(
-            "ExecutePipelineJob:Executing pipeline process for job id {JobIdentifier} and deposit {DepositName}", jobIdentifier, pipelineJob.DepositName);
-        var pipelineProcessJobResult = await mediator.Send(new ProcessPipelineJob(pipelineJob), cancellationToken);
-        logger.LogInformation(
-            "Returned from ProcessPipelineJob for job id {JobIdentifier} and deposit {DepositName}", jobIdentifier, pipelineJob.DepositName);
-        return this.StatusResponseFromResult(pipelineProcessJobResult, 204);
+            "ExecutePipelineJob: forwarding pipeline run for deposit {DepositName} to the Preservation API", pipelineJob.DepositName);
+        var runResult = await preservationApiClient.RunPipeline(depositResult.Value, cancellationToken);
+        return this.StatusResponseFromResult(runResult, 204);
     }
 
     [HttpGet(Name = "CheckDepositFolderExists")]
