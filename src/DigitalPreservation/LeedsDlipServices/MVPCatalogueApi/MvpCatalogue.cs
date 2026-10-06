@@ -14,7 +14,7 @@ public class MvpCatalogue(HttpClient httpClient, IOptions<CatalogueOptions> cata
     {
         try
         {
-            var uri = new Uri($"{template}{pid}", UriKind.Relative);
+            var uri = new Uri($"{template}{Uri.EscapeDataString(pid)}", UriKind.Relative);
             var response = await httpClient.GetAsync(uri, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
