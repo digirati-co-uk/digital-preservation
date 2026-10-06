@@ -50,13 +50,14 @@ public class MachineAuthTokenInjectorTests
 
     private class ThrowingProvider : IAccessTokenProvider
     {
-        public Task<string?> GetAccessToken() =>
+        public Task<string?> GetAccessToken(CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Token endpoint answered 200 without an access_token");
     }
 
     private class FixedProvider(string token) : IAccessTokenProvider
     {
-        public Task<string?> GetAccessToken() => Task.FromResult<string?>(token);
+        public Task<string?> GetAccessToken(CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(token);
     }
 
     private class CountingHandler : HttpMessageHandler
