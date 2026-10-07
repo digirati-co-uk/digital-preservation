@@ -21,6 +21,7 @@ namespace Storage.API.Tests.Fedora;
 public class FedoraClientDigestRefusalTests
 {
     private static readonly Uri FedoraRoot = new("http://fedora.test/fcrepo/rest/");
+    private const string StorageHost = "storage.test";
 
     private static FedoraClient BuildClient(HttpMessageHandler handler, Stream content)
     {
@@ -37,7 +38,7 @@ public class FedoraClientDigestRefusalTests
             Bucket = "fedora-bucket",
             OcflS3Prefix = string.Empty
         });
-        var converterOptions = Options.Create(new ConverterOptions { StorageRoot = new Uri("https://storage.test/") });
+        var converterOptions = Options.Create(new ConverterOptions { StorageRoot = new Uri($"https://{StorageHost}/") });
         var converters = new Converters(fedoraOptions, converterOptions);
         var fedoraDB = new FedoraDB(converters, null, NullLogger<FedoraDB>.Instance);
 
@@ -54,10 +55,10 @@ public class FedoraClientDigestRefusalTests
 
     // Deliberately in a sub-folder: a bare file name like page-001.jpg is ambiguous in any deposit
     // with more than one volume, so the message must carry the binary's whole path.
-    private static Binary MakeBinary() => new()
+    private static Binary MakeBinary(string? digest = "abc123") => new()
     {
-        Id = new Uri("https://storage.test/repository/cc/thing/objects/vol2/page-001.jpg"),
-        Digest = "abc123",
+        Id = new Uri($"https://{StorageHost}/repository/cc/thing/objects/vol2/page-001.jpg"),
+        Digest = digest,
         ContentType = "image/jpeg",
         Origin = new Uri("s3://bucket/deposits/dep-1/objects/vol2/page-001.jpg")
     };
@@ -75,6 +76,8 @@ public class FedoraClientDigestRefusalTests
         result.Success.Should().BeFalse();
         result.ErrorMessage.Should().Contain("cc/thing/objects/vol2/page-001.jpg",
             "the import job result reports this message verbatim, so it must say which file was wrong");
+        result.ErrorMessage.Should().NotContain(StorageHost,
+            "the Storage API host must not reach Preservation API callers through error text (#360)");
     }
 
     [Fact]
@@ -99,7 +102,22 @@ public class FedoraClientDigestRefusalTests
 
         result.Success.Should().BeFalse();
         result.ErrorMessage.Should().Contain("cc/thing/objects/vol2/page-001.jpg")
-            .And.Contain("abc123").And.Contain("fff999");
+            .And.Contain("abc123").And.Contain("fff999")
+            .And.NotContain(StorageHost);
+    }
+
+    [Fact]
+    public async Task A_Binary_With_No_Obtainable_Checksum_Is_Named_By_Path_Without_The_Storage_Host()
+    {
+        // RequireDigestOnBinary defaults to true, so a binary arriving with no digest fails before
+        // anything is sent to Fedora - the third PutBinary failure the import job reports verbatim.
+        var handler = new FixedResponseHandler(HttpStatusCode.Created, string.Empty);
+        var client = BuildClient(handler, new MemoryStream([1, 2, 3]));
+
+        var result = await client.PutBinary(MakeBinary(digest: null), "tester", Transaction, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("cc/thing/objects/vol2/page-001.jpg").And.NotContain(StorageHost);
     }
 
     /// <summary>Answers the binary PUT with 201 and every GET with the given fcr:metadata JSON-LD.</summary>
