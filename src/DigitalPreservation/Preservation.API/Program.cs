@@ -20,7 +20,7 @@ using LeedsDlipServices;
 using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
-using Microsoft.OpenApi;
+using DigitalPreservation.Core.Web;
 using Preservation.API.IIIF;
 using Storage.Repository.Common.Mets.StorageImpl;
 
@@ -122,41 +122,7 @@ try
     }
 
 
-    builder.Services.AddSwaggerGen(c =>
-    {
-        c.SwaggerDoc("v1", new OpenApiInfo { Title = "Preservation API", Version = "v1" });
-
-        if (useAuthFeatureFlag)
-        {
-
-            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer",
-                Description = "Bearer token add:   'Bearer <your token>'  "
-            });
-
-            c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-            {
-                [new OpenApiSecuritySchemeReference("Bearer", document)] = []
-            });
-        }
-
-        c.AddSecurityDefinition("X-Client-Identity", new OpenApiSecurityScheme
-        {
-            Type = SecuritySchemeType.ApiKey,
-            In = ParameterLocation.Header,
-            Name = "X-Client-Identity",
-            Description = "client identity header for machine to machine calls"
-        });
-
-        c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-        {
-            [new OpenApiSecuritySchemeReference("X-Client-Identity", document)] = []
-        });
-    });
+    builder.Services.AddApiSwaggerGen("Preservation API", useAuthFeatureFlag);
 
 
     builder.Services
@@ -201,7 +167,7 @@ try
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Storage API");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Preservation API");
     });
 
 

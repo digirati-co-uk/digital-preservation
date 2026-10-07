@@ -1,12 +1,12 @@
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
+using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
 using Storage.API.Web;
-using Microsoft.OpenApi;
 using Serilog;
 using Storage.API.Data;
 using Storage.API.Features.Export;
@@ -87,41 +87,7 @@ try
         });
 
 
-    builder.Services.AddSwaggerGen(c =>
-    {
-        c.SwaggerDoc("v1", new OpenApiInfo { Title = "Storage API", Version = "v1" });
-
-        if (useAuthFeatureFlag)
-        {
-
-            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer",
-                Description = "Bearer token add:   'Bearer <your token>'  "
-            });
-            
-            c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-            {
-                [new OpenApiSecuritySchemeReference("Bearer", document)] = []
-            });
-        }
-
-        c.AddSecurityDefinition("X-Client-Identity", new OpenApiSecurityScheme
-        {
-            Type = SecuritySchemeType.ApiKey,
-            In = ParameterLocation.Header,
-            Name = "X-Client-Identity",
-            Description = "client identity header for machine to machine calls"
-        });
-
-        c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-        {
-            [new OpenApiSecuritySchemeReference("X-Client-Identity", document)] = []
-        });
-    });
+    builder.Services.AddApiSwaggerGen("Storage API", useAuthFeatureFlag);
 
 
     if (useLocalHostedServiceForImport)
