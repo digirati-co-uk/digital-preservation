@@ -14,6 +14,12 @@ public class ImportJobResultStore(
     StorageContext dbContext,
     ILogger<ImportJobResultStore> logger) : IImportJobResultStore
 {
+    // A job whose processor crashed or was killed mid-run (e.g. an ECS task restart) never calls
+    // SaveImportJobResult to flip Active back to false, which would otherwise wedge its Archival
+    // Group's imports behind a 409 Conflict forever. Treat anything older than this as abandoned.
+    private static readonly TimeSpan StaleActiveJobThreshold = TimeSpan.FromMinutes(30);
+
+
     public async Task<Result<int>> GetTotalImportJobs(CancellationToken cancellationToken)
     {
         try
@@ -94,10 +100,30 @@ public class ImportJobResultStore(
     {
         try
         {
-            var jobIds = await dbContext.ImportJobs
+            var staleCutoff = DateTime.UtcNow - StaleActiveJobThreshold;
+            var activeJobs = await dbContext.ImportJobs
                 .Where(ij => ij.ArchivalGroup == archivalGroup && ij.Active)
-                .Select(ij => ij.Id)
                 .ToListAsync(cancellationToken);
+
+            var jobIds = new List<string>();
+            var reapedAny = false;
+            foreach (var job in activeJobs)
+            {
+                if (job.Received != null && job.Received < staleCutoff)
+                {
+                    logger.LogWarning(
+                        "Reaping stale active import job {JobId} for Archival Group {ArchivalGroup}, received {Received}",
+                        job.Id, archivalGroup, job.Received);
+                    job.Active = false;
+                    reapedAny = true;
+                    continue;
+                }
+                jobIds.Add(job.Id);
+            }
+            if (reapedAny)
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
             return Result.OkNotNull(jobIds);
         }
         catch (Exception e)
