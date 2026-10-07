@@ -71,6 +71,7 @@ public class IdentityService(
         try
         {
             var uri = new Uri($"{ApiPrefix}ids/{Uri.EscapeDataString(pid)}", UriKind.Relative);
+            logger.LogInformation("Calling identity Service for {Uri}", uri);
             var response = await httpClient.GetAsync(uri, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
@@ -81,15 +82,18 @@ public class IdentityService(
                 }
                 var mutated = Mutate(identityRecord);
                 return Result.OkNotNull(mutated);
-                
+
             }
 
+            var message =
+                $"Identity Service returned {response.StatusCode} for id={pid}, {response.ReasonPhrase ?? "(no reason given)"}";
+            logger.LogError(message);
             var errorCode = ErrorCodes.GetErrorCode((int?)response.StatusCode);
-            return Result.FailNotNull<IdentityRecord>(errorCode, 
-                $"Identity Service returned {response.StatusCode} for id={pid}, {response.ReasonPhrase ?? "(no reason given)"}");
+            return Result.FailNotNull<IdentityRecord>(errorCode, message);
         }
         catch (Exception e)
         {
+            logger.LogError(e, "Error calling Identity Service directly for id={Pid}", pid);
             return Result.FailNotNull<IdentityRecord>(ErrorCodes.UnknownError, e.Message);
         }
     }
