@@ -20,7 +20,7 @@ using LeedsDlipServices;
 using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
-using Microsoft.OpenApi.Models;
+using DigitalPreservation.Core.Web;
 using Preservation.API.IIIF;
 using Storage.Repository.Common.Mets.StorageImpl;
 
@@ -122,65 +122,7 @@ try
     }
 
 
-    builder.Services.AddSwaggerGen(c =>
-    {
-        c.SwaggerDoc("v1", new OpenApiInfo { Title = "Preservation API", Version = "v1" });
-
-        if (useAuthFeatureFlag)
-        {
-
-            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer",
-                Description = "Bearer token add:   'Bearer <your token>'  "
-            });
-
-            c.AddSecurityRequirement(new OpenApiSecurityRequirement()
-            {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        },
-                        Scheme = "oauth2",
-                        Name = "Bearer",
-                        In = ParameterLocation.Header,
-
-                    },
-                    new List<string>()
-                }
-            });
-        }
-
-        c.AddSecurityDefinition("X-Client-Identity", new OpenApiSecurityScheme
-        {
-            Type = SecuritySchemeType.ApiKey,
-            In = ParameterLocation.Header,
-            Name = "X-Client-Identity",
-            Description = "client identity header for machine to machine calls"
-        });
-
-        c.AddSecurityRequirement(new OpenApiSecurityRequirement
-        {
-            {
-                new OpenApiSecurityScheme
-                {
-                    Reference = new OpenApiReference
-                    {
-                        Type = ReferenceType.SecurityScheme,
-                        Id = "X-Client-Identity"
-                    }
-                },
-                []
-            }
-        });
-    });
+    builder.Services.AddApiSwaggerGen("Preservation API", useAuthFeatureFlag);
 
 
     builder.Services
@@ -225,7 +167,7 @@ try
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Storage API");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Preservation API");
     });
 
 

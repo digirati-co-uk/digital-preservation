@@ -95,7 +95,7 @@ public class UploadFileToDepositHandler(
                     Digest = request.Checksum.ToLowerInvariant(),
                     Size = request.Size,
                     Name = request.DepositFileName,
-                    Modified = headResponse.LastModified.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
+                    Modified = headResponse.LastModified!.Value.ToUniversalTime() // keep an eye on https://github.com/aws/aws-sdk-net/issues/1885
                 };
                 var saveResult = await storage.AddToDepositFileSystem(request.RootUri, file, cancellationToken);
                 if (saveResult.Success && request.UpdateMets && !request.BagitFile)

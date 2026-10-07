@@ -29,7 +29,9 @@ public class S3MetsLoader(IAmazonS3 s3Client) : IMetsLoader
             Delimiter = "/" // first "children" only ... does that return "data/" no?                       
         };
         var resp = await s3Client.ListObjectsV2Async(listObjectsReq);
-        var files = resp.S3Objects.Where(s => !s.Key.EndsWith('/')).ToList();
+        // SDK v4: S3Objects is null (not an empty list) rather than empty when the prefix matches
+        // nothing - a real case here, since the root-level prefix is tried before the BagIt one.
+        var files = (resp.S3Objects ?? []).Where(s => !s.Key.EndsWith('/')).ToList();
         var firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), true));
         if (firstXmlKey == null)
         {
@@ -45,7 +47,7 @@ public class S3MetsLoader(IAmazonS3 s3Client) : IMetsLoader
                 Delimiter = "/"                       
             };
             resp = await s3Client.ListObjectsV2Async(listObjectsReq);
-            files = resp.S3Objects.Where(s => !s.Key.EndsWith('/')).ToList();
+            files = (resp.S3Objects ?? []).Where(s => !s.Key.EndsWith('/')).ToList();
             firstXmlKey = files.FirstOrDefault(s => MetsUtils.IsMetsFile(s.Key.GetSlug(), true));
             if (firstXmlKey == null)
             {

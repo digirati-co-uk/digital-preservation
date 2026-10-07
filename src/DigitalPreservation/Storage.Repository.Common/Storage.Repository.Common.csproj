@@ -1,19 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
-      <PackageReference Include="AWSSDK.S3" Version="3.7.413.1" />
-      <PackageReference Include="AWSSDK.SQS" Version="3.7.400.129" />
-      <PackageReference Include="AWSSDK.SSO" Version="3.7.400.21" />
-      <PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.400.21" />
-      <PackageReference Include="MediatR" Version="12.4.1" />
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+      <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.102.1" />
+      <PackageReference Include="AWSSDK.S3" Version="4.0.104.1" />
+      <PackageReference Include="AWSSDK.SQS" Version="4.0.100.15" />
+      <PackageReference Include="AWSSDK.SSO" Version="4.0.100.17" />
+      <PackageReference Include="AWSSDK.SSOOIDC" Version="4.0.100.16" />
+      <PackageReference Include="MediatR" Version="12.5.0" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <PackageReference Include="MimeTypes" Version="2.5.2">
           <PrivateAssets>all</PrivateAssets>

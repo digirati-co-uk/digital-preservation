@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
 WORKDIR /src
 COPY ["src/DigitalPreservation/Pipeline.API/Pipeline.API.csproj", "Pipeline.API/"]
@@ -13,7 +13,7 @@ RUN dotnet build "Pipeline.API.csproj" -c Release -o /app/build
 FROM build AS publish
 RUN dotnet publish "Pipeline.API.csproj" -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 
 # This container has no hard memory limit set in its ECS task definition (only a 1536 MiB soft
 # memory_reservation) - deliberately, so two tasks (old + new) can overlap on this single-instance
@@ -64,7 +64,9 @@ RUN sf -update
 USER root
 #brunnhilde
 RUN apt-get install python3-full python3-pip -y
-RUN rm /usr/lib/python3.11/EXTERNALLY-MANAGED
+# Path has moved before with the base image's Debian/Python version (3.11 -> 3.12) - glob it so a
+# future bump doesn't silently reintroduce this same failure.
+RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 RUN pip3 install --upgrade brunnhilde
 RUN brunnhilde.py -V
 

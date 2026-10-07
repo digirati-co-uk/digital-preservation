@@ -2,13 +2,14 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="iiif-net" Version="0.4.1" />
+      <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
+      <PackageReference Include="iiif-net" Version="0.4.6" />
     </ItemGroup>
 
 </Project>
