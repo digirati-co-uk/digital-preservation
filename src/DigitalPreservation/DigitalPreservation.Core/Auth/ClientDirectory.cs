@@ -10,9 +10,16 @@ public sealed class ClientDirectory : IClientDirectory
 {
     private readonly Dictionary<string, ClientProfile> clients;
 
+    public IReadOnlyCollection<string> DepositBuckets { get; }
+
     public ClientDirectory(IDictionary<string, ClientProfile> clients)
     {
         this.clients = new Dictionary<string, ClientProfile>(clients, StringComparer.OrdinalIgnoreCase);
+        DepositBuckets = this.clients.Values
+            .Select(p => p.DepositBucket)
+            .Where(bucket => !string.IsNullOrEmpty(bucket))
+            .Distinct(StringComparer.Ordinal)
+            .ToList()!;
     }
 
     public bool TryResolve(string? appId, [NotNullWhen(true)] out ClientProfile? profile)

@@ -1,7 +1,10 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Web;
 using DigitalPreservation.Core.Web.Headers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Internal;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DigitalPreservation.Core.Tests.Web.Headers;
@@ -27,8 +30,8 @@ public class AccessTokenProviderTests
     };
 
     private static AccessTokenProvider BuildProvider(IAccessTokenProviderOptions? options,
-        CapturingHandler handler) =>
-        new(NullLogger<AccessTokenProvider>.Instance, options, new StubHttpClientFactory(handler));
+        HttpMessageHandler handler, ISystemClock? clock = null) =>
+        new(NullLogger<AccessTokenProvider>.Instance, options, new StubHttpClientFactory(handler), clock);
 
     /// <summary>The IHttpClientFactory seam the production registrations use, over the test handler.</summary>
     private class StubHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
@@ -218,6 +221,217 @@ public class AccessTokenProviderTests
         await act.Should().ThrowAsync<HttpRequestException>();
         await act.Should().ThrowAsync<HttpRequestException>();
         handler.CallCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task NumericExpiresIn_IsCachedUntilExpiresInMinusTheMargin()
+    {
+        var clock = new FakeClock();
+        var handler = new CapturingHandler
+            { ResponseBody = "{\"token_type\":\"Bearer\",\"expires_in\":3600,\"access_token\":\"test-token\"}" };
+        var sut = BuildProvider(ValidOptions(TargetResource), handler, clock);
+
+        await sut.GetAccessToken();
+        handler.CallCount.Should().Be(1);
+
+        // Still inside the cached lifetime (3600s - 5 minute margin = 3300s = 55 minutes).
+        clock.UtcNow += TimeSpan.FromMinutes(54);
+        await sut.GetAccessToken();
+        handler.CallCount.Should().Be(1, "a second call inside the cached lifetime must not mint again");
+
+        // Past it: the cache entry has expired, so this call mints a fresh token.
+        clock.UtcNow += TimeSpan.FromMinutes(2);
+        await sut.GetAccessToken();
+        handler.CallCount.Should().Be(2, "a call past expires_in minus the margin must mint again");
+    }
+
+    [Fact]
+    public async Task StringExpiresIn_FromTheV1Endpoint_IsTreatedTheSameAsNumeric()
+    {
+        var handler = new CapturingHandler
+            { ResponseBody = "{\"token_type\":\"Bearer\",\"expires_in\":\"3600\",\"access_token\":\"test-token\"}" };
+        var sut = BuildProvider(ValidOptions(), handler);
+
+        var first = await sut.GetAccessToken();
+        var second = await sut.GetAccessToken();
+
+        first.Should().Be("test-token");
+        second.Should().Be(first);
+        handler.CallCount.Should().Be(1, "a string expires_in must be parsed and cached, not treated as malformed");
+    }
+
+    [Fact]
+    public async Task MissingExpiresIn_IsStillReturned_ButOnlyCachedBriefly()
+    {
+        var clock = new FakeClock();
+        var handler = new CapturingHandler { ResponseBody = "{\"token_type\":\"Bearer\",\"access_token\":\"test-token\"}" };
+        var sut = BuildProvider(ValidOptions(TargetResource), handler, clock);
+
+        var token = await sut.GetAccessToken();
+        token.Should().Be("test-token", "the token is still usable even though its lifetime is unknown");
+        handler.CallCount.Should().Be(1);
+
+        clock.UtcNow += TimeSpan.FromMinutes(4);
+        await sut.GetAccessToken();
+        handler.CallCount.Should().Be(1, "within the conservative 5-minute lifetime, still served from cache");
+
+        clock.UtcNow += TimeSpan.FromMinutes(2);
+        await sut.GetAccessToken();
+        handler.CallCount.Should().Be(2, "past the conservative lifetime, a token of unknown age must not be reused");
+    }
+
+    [Fact]
+    public async Task MalformedExpiresIn_IsStillReturned_AndTreatedAsConservative()
+    {
+        var handler = new CapturingHandler
+        {
+            ResponseBody = "{\"token_type\":\"Bearer\",\"expires_in\":\"not-a-number\",\"access_token\":\"test-token\"}"
+        };
+        var sut = BuildProvider(ValidOptions(TargetResource), handler);
+
+        var token = await sut.GetAccessToken();
+
+        token.Should().Be("test-token");
+    }
+
+    [Fact]
+    public async Task ASmallExpiresIn_IsNotServedFromCache_AfterTheShortLifetime()
+    {
+        // 60s is inside the 5-minute margin, so this takes the same conservative-lifetime path as
+        // a missing expires_in - the margin, not the raw value, decides whether it is trustworthy.
+        var clock = new FakeClock();
+        var handler = new CapturingHandler
+            { ResponseBody = "{\"token_type\":\"Bearer\",\"expires_in\":60,\"access_token\":\"test-token\"}" };
+        var sut = BuildProvider(ValidOptions(TargetResource), handler, clock);
+
+        await sut.GetAccessToken();
+        handler.CallCount.Should().Be(1);
+
+        clock.UtcNow += TimeSpan.FromMinutes(6);
+        await sut.GetAccessToken();
+        handler.CallCount.Should().Be(2, "a 60-second expires_in must not be cached past the conservative margin");
+    }
+
+    [Fact]
+    public async Task TwentyConcurrentMisses_ShareOneInFlightMint_AndAllReceiveTheToken()
+    {
+        var handler = new GatedHandler();
+        var sut = BuildProvider(ValidOptions(TargetResource), handler);
+
+        var calls = Enumerable.Range(0, 20).Select(_ => sut.GetAccessToken()).ToArray();
+        await WaitForCall(handler);
+        handler.Release();
+
+        var tokens = await Task.WhenAll(calls);
+
+        tokens.Should().AllSatisfy(token => token.Should().Be("test-token"));
+        handler.CallCount.Should().Be(1, "all 20 concurrent misses must share one in-flight mint");
+    }
+
+    [Fact]
+    public async Task ASharedMintThatFails_EveryWaiterThrows_AndTheNextCallMintsAgain()
+    {
+        var handler = new GatedHandler { StatusCode = HttpStatusCode.BadRequest };
+        var sut = BuildProvider(ValidOptions(TargetResource), handler);
+
+        var calls = Enumerable.Range(0, 5).Select(_ => sut.GetAccessToken()).ToArray();
+        await WaitForCall(handler);
+        handler.Release();
+
+        foreach (var call in calls)
+        {
+            var capturedCall = call;
+            var act = () => capturedCall;
+            await act.Should().ThrowAsync<HttpRequestException>();
+        }
+        handler.CallCount.Should().Be(1, "every waiter shared the one failed mint, so Entra was only asked once");
+
+        var retry = () => sut.GetAccessToken();
+        await retry.Should().ThrowAsync<HttpRequestException>();
+        handler.CallCount.Should().Be(2, "a failed mint must not be remembered - the next call mints again");
+    }
+
+    [Fact]
+    public async Task CancellingOneWaiter_OnlyThatWaiterThrows_TheOthersStillGetTheToken()
+    {
+        var handler = new GatedHandler();
+        var sut = BuildProvider(ValidOptions(TargetResource), handler);
+        using var cts = new CancellationTokenSource();
+
+        var cancelledCall = sut.GetAccessToken(cts.Token);
+        var otherCall1 = sut.GetAccessToken();
+        var otherCall2 = sut.GetAccessToken();
+        await WaitForCall(handler);
+
+        cts.Cancel();
+        var act = () => cancelledCall;
+        await act.Should().ThrowAsync<OperationCanceledException>(
+            "cancelling a waiter must stop only that waiter's wait, not the shared mint");
+
+        handler.Release();
+
+        (await otherCall1).Should().Be("test-token");
+        (await otherCall2).Should().Be("test-token");
+        handler.CallCount.Should().Be(1, "the shared mint ran to completion for the callers that did not cancel");
+    }
+
+    [Fact]
+    public void AddAccessTokenProvider_RegistersTheNamedClientWithA15SecondTimeout()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAccessTokenProvider(ValidOptions(TargetResource));
+        using var provider = services.BuildServiceProvider();
+
+        var client = provider.GetRequiredService<IHttpClientFactory>()
+            .CreateClient(AccessTokenProvider.HttpClientName);
+
+        client.Timeout.Should().Be(TimeSpan.FromSeconds(15),
+            "HttpClient's 100-second default must not gate how fast a throttled Entra fails this call");
+    }
+
+    private static async Task WaitForCall(GatedHandler handler, int atLeast = 1)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (handler.CallCount < atLeast && stopwatch.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            await Task.Delay(5);
+        }
+        handler.CallCount.Should().BeGreaterThanOrEqualTo(atLeast,
+            "the mint should have reached the gate well within this timeout");
+    }
+
+    /// <summary>A settable clock, injected into the provider's MemoryCache so expiry can be tested
+    /// deterministically instead of by sleeping.</summary>
+    private class FakeClock : ISystemClock
+    {
+        public DateTimeOffset UtcNow { get; set; } = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// Blocks every request behind a shared gate until released, so concurrent callers genuinely
+    /// overlap inside the single-flight window instead of completing one at a time.
+    /// </summary>
+    private class GatedHandler : HttpMessageHandler
+    {
+        private readonly TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int CallCount { get; private set; }
+        public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
+        public string ResponseBody { get; init; } =
+            "{\"token_type\":\"Bearer\",\"expires_in\":3599,\"access_token\":\"test-token\"}";
+
+        public void Release() => gate.TrySetResult();
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            await gate.Task;
+            return new HttpResponseMessage(StatusCode)
+            {
+                Content = new StringContent(ResponseBody, Encoding.UTF8, "application/json")
+            };
+        }
     }
 
     /// <summary>

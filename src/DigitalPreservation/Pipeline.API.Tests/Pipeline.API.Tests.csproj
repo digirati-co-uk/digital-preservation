@@ -27,6 +27,13 @@
     <ItemGroup>
       <ProjectReference Include="..\Pipeline.API\Pipeline.API.csproj" />
       <ProjectReference Include="..\Preservation.Client\Preservation.Client.csproj" />
+      <ProjectReference Include="..\Test.Helpers\Test.Helpers.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="appsettings.Testing.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>
