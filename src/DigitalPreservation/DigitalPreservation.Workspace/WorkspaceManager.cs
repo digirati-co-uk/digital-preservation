@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -10,7 +11,6 @@ using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace.Requests;
-using LateApexEarlySpeed.Xunit.Assertion.Json;
 using MediatR;
 using Storage.Repository.Common;
 
@@ -357,15 +357,12 @@ public class WorkspaceManager(
         }
         var s3Json = JsonSerializer.Serialize(RemoveRootMetadata(readS3Result.Value));
         var metsJson = JsonSerializer.Serialize(RemoveRootMetadata(readJsonResult.Value));
-        try
+        if (JsonNode.DeepEquals(JsonNode.Parse(s3Json), JsonNode.Parse(metsJson)))
         {
-            JsonAssertion.Equivalent(s3Json, metsJson);
             return Result.Ok();
         }
-        catch (Exception e)
-        {
-            return Result.Fail(ErrorCodes.Conflict, "Storage validation Failed. " + e.Message);
-        }
+
+        return Result.Fail(ErrorCodes.Conflict, "Storage validation Failed. S3 file system and METS file system are not equivalent.");
     }
     
     

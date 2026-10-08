@@ -5,7 +5,6 @@ using DigitalPreservation.Mets.StorageImpl;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Xunit.Abstractions;
 
 namespace XmlGen.Tests;
 
