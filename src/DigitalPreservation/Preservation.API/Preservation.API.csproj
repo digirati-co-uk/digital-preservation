@@ -30,7 +30,7 @@
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
       <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
       <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.9.0" />
-      <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+      <PackageReference Include="SixLabors.ImageSharp" Version="4.1.2" />
       <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.0" />
     </ItemGroup>
 
