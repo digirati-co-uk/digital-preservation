@@ -341,29 +341,81 @@ public class WorkspaceManager(
     }
     
     public async Task<Result> ValidateDepositFileSystem()
-    {       
+    {
         var readS3Result = await mediator.Send(new GetWorkingDirectory(
             Deposit.Files!, true, false));
-        var readJsonResult = await mediator.Send(new GetWorkingDirectory(
+        var readDepositFileSystemResult = await mediator.Send(new GetWorkingDirectory(
             Deposit.Files!, false, false));
 
         if (readS3Result.Value == null)
         {
             return readS3Result;
         }
-        if (readJsonResult.Value == null)
+        if (readDepositFileSystemResult.Value == null)
         {
-            return readJsonResult;
+            return readDepositFileSystemResult;
         }
         var s3Json = JsonSerializer.Serialize(RemoveRootMetadata(readS3Result.Value));
-        var metsJson = JsonSerializer.Serialize(RemoveRootMetadata(readJsonResult.Value));
-        if (JsonNode.DeepEquals(JsonNode.Parse(s3Json), JsonNode.Parse(metsJson)))
+        var depositFileSystemJson = JsonSerializer.Serialize(RemoveRootMetadata(readDepositFileSystemResult.Value));
+        var s3Node = JsonNode.Parse(s3Json);
+        var depositFileSystemNode = JsonNode.Parse(depositFileSystemJson);
+        if (JsonNode.DeepEquals(s3Node, depositFileSystemNode))
         {
             return Result.Ok();
         }
 
-        return Result.Fail(ErrorCodes.Conflict, "Storage validation Failed. S3 file system and METS file system are not equivalent.");
+        var (location, s3Value, depositFileSystemValue) = FindFirstDifference(s3Node, depositFileSystemNode, string.Empty);
+        return Result.Fail(ErrorCodes.Conflict,
+            "Storage validation failed. S3 content and the Deposit File System file are not equivalent: " +
+            $"one is {s3Value ?? "(missing)"}, but the other is {depositFileSystemValue ?? "(missing)"}, " +
+            $"location (in json pointer format): \"{location}\"");
     }
+
+    /// <summary>
+    /// Walks two JSON trees already known to differ (per <see cref="JsonNode.DeepEquals"/>) to find
+    /// the first point at which they diverge, so <see cref="ValidateDepositFileSystem"/> can report
+    /// where - not just that - S3 content and the stored Deposit File System file disagree.
+    /// Internal, not private: through <see cref="ValidateDepositFileSystem"/> itself this is
+    /// deterministic (System.Text.Json always serialises <see cref="WorkingDirectory"/> in the same
+    /// property order for equivalent content), so "ignores object property order" can only be
+    /// exercised directly, against raw JSON, in tests.
+    /// </summary>
+    internal static (string Location, string? FirstValue, string? SecondValue) FindFirstDifference(
+        JsonNode? first, JsonNode? second, string pointer)
+    {
+        if (first is JsonObject firstObject && second is JsonObject secondObject)
+        {
+            var keys = firstObject.Select(property => property.Key)
+                .Union(secondObject.Select(property => property.Key));
+            foreach (var key in keys)
+            {
+                firstObject.TryGetPropertyValue(key, out var firstChild);
+                secondObject.TryGetPropertyValue(key, out var secondChild);
+                if (!JsonNode.DeepEquals(firstChild, secondChild))
+                {
+                    return FindFirstDifference(firstChild, secondChild, $"{pointer}/{EscapeJsonPointerSegment(key)}");
+                }
+            }
+        }
+        else if (first is JsonArray firstArray && second is JsonArray secondArray)
+        {
+            var count = Math.Max(firstArray.Count, secondArray.Count);
+            for (var index = 0; index < count; index++)
+            {
+                var firstChild = index < firstArray.Count ? firstArray[index] : null;
+                var secondChild = index < secondArray.Count ? secondArray[index] : null;
+                if (!JsonNode.DeepEquals(firstChild, secondChild))
+                {
+                    return FindFirstDifference(firstChild, secondChild, $"{pointer}/{index}");
+                }
+            }
+        }
+
+        return (pointer, first?.ToJsonString(), second?.ToJsonString());
+    }
+
+    private static string EscapeJsonPointerSegment(string segment) =>
+        segment.Replace("~", "~0").Replace("/", "~1");
     
     
     private static WorkingDirectory? RemoveRootMetadata(WorkingDirectory wd)

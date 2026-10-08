@@ -16,4 +16,8 @@
       <PackageReference Include="MediatR" Version="12.5.0" />
     </ItemGroup>
 
+    <ItemGroup>
+      <InternalsVisibleTo Include="Preservation.API.Tests" />
+    </ItemGroup>
+
 </Project>
