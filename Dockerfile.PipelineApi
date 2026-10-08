@@ -110,6 +110,16 @@ RUN sed -i 's/^#\?MaxConnectionQueueLength.*/MaxConnectionQueueLength 200/' /etc
 # only once the queue fix let more connections through to actually reach clamd's thread pool).
 RUN sed -i 's/^#\?MaxThreads.*/MaxThreads 50/' /etc/clamav/clamd.conf
 
+# Debian's packaged clamd.conf ships EnableVersionCommand disabled, so "clamscan --version" (via
+# clamscan-shim.sh -> clamdscan) can't ask clamd for its version and falls back to printing just
+# "ClamAV <engine-version>" - dropping the signature-database version/date that GetVirusDefinition
+# writes into METS/PREMIS as scan provenance (digital-preservation#363). Re-enabling it only lets a
+# local client read version info over the Unix socket already restricted to this container's own
+# namespace (see the LocalSocket/LocalSocketMode comment above); it does not expose anything over
+# a network.
+RUN sed -i 's/^#\?EnableVersionCommand.*/EnableVersionCommand yes/' /etc/clamav/clamd.conf
+RUN grep -q '^EnableVersionCommand yes' /etc/clamav/clamd.conf || echo 'EnableVersionCommand yes' >> /etc/clamav/clamd.conf
+
 # Brunnhilde always invokes the literal "clamscan" binary with no way to configure it - shadow the
 # real clamscan with a shim that instead talks to clamd running as a second process in this same
 # container (started by pipeline-api-entrypoint.sh), avoiding the signature-database reload cost

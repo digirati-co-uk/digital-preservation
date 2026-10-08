@@ -18,6 +18,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <InternalsVisibleTo Include="Pipeline.API.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
       <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.102.1" />
       <PackageReference Include="AWSSDK.S3" Version="4.0.104.1" />
       <PackageReference Include="AWSSDK.SecurityToken" Version="4.0.101.1" />
