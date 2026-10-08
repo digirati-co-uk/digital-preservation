@@ -6,6 +6,7 @@ on:
     tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
   workflow_dispatch:
     inputs:
       environment:
@@ -28,8 +29,8 @@ jobs:
     outputs:
       dotnet: ${{ steps.filter.outputs.dotnet }}
     steps:
-      - uses: actions/checkout@v4
       - id: filter
+        if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@v3
         with:
           filters: |
@@ -75,7 +76,7 @@ jobs:
          # Release inlining/optimisation can mis-attribute or drop covered lines. The Release
          # build that matters for shipping is test-dotnet's, below.
          dotnet build
-         dotnet-coverage collect "dotnet test --filter 'Category!=Manual'" -f xml -o "coverage.xml"
+         dotnet-coverage collect "dotnet test --filter Category!=Manual" -f xml -o "coverage.xml"
          dotnet-sonarscanner end  /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
 
   test-dotnet:
