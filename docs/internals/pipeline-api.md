@@ -107,6 +107,8 @@ Everything is baked into the image, `Dockerfile.PipelineApi`. There is no tool d
 
 A daily cron job re-runs `sf -update`, `freshclam` and `pip3 install --upgrade brunnhilde`, so a long-lived container does not drift too far from current signatures.
 
+**The base image's OS packages are not pinned**, and tool versions recorded as provenance (ExifTool, ClamAV's engine) or that affect the build (Python) can change as a side effect of an unrelated runtime upgrade, not a deliberate tool bump. The .NET 10 upgrade (#349) moved the image from `aspnet:8.0` to `aspnet:10.0` and silently took ExifTool from 12.57 to 12.76, Python from 3.11 to 3.12 (the `EXTERNALLY-MANAGED` glob above exists because of this), and ClamAV from an earlier 1.x to 1.5.4 (see the `EnableVersionCommand` note below - #363). As of the .NET 10 upgrade, the image carries ExifTool 12.76, Python 3.12 and ClamAV 1.5.4; check this note when the base image next moves.
+
 `PYTHONUTF8=1` is set image-wide. Without a configured locale, Python falls back to a restrictive codec, and a deposit file with a macron in its name would crash or hang Brunnhilde mid-run — which, because jobs are processed one at a time, wedges every subsequent job at `waiting` indefinitely.
 
 ### ClamAV
@@ -117,7 +119,7 @@ Brunnhilde invokes the literal command `clamscan`, with no way to configure it. 
 
 `clamd` and `freshclam` are started by `pipeline-api-entrypoint.sh`, each in its own supervision loop with `--foreground` so that the loop can tell a crash from Debian's default double-fork. This matters: a dead `clamd` does not fail a scan, it produces "Connection refused" followed by "Infected files: 0" — a false clean result. The entrypoint runs as root to create `clamd`'s runtime directories, then drops to the app user with `setpriv`, passing `HOME` explicitly because `setpriv` does not reset it and Siegfried would otherwise look for its signatures under `/root`.
 
-Three Debian defaults are patched in the image, each for a failure seen in practice: the `Example` line that stops both daemons starting at all; `MaxConnectionQueueLength` raised from 15 to 200 (bursts of concurrent jobs each open two connections to `clamd`); and `MaxThreads` raised from 12 to 50, without which about half of thirty concurrent `--multiscan` calls fail with "Not enough threads for multiscan".
+Four Debian defaults are patched in the image, each for a failure seen in practice: the `Example` line that stops both daemons starting at all; `MaxConnectionQueueLength` raised from 15 to 200 (bursts of concurrent jobs each open two connections to `clamd`); `MaxThreads` raised from 12 to 50, without which about half of thirty concurrent `--multiscan` calls fail with "Not enough threads for multiscan"; and `EnableVersionCommand` set to `yes`, without which `clamdscan --version` gets `COMMAND UNAVAILABLE` from `clamd` and falls back to printing just `ClamAV <engine-version>` - dropping the signature-database version/date that `GetVirusDefinition` writes into METS/PREMIS as scan provenance (#363). `GetVirusDefinition` logs a warning if the version string it captures is ever missing that database version again, so a future base-image change that resets this can't silently recur.
 
 ### Memory
 

@@ -13,6 +13,7 @@ using Pipeline.API.Config;
 using Preservation.Client;
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using Checksum = DigitalPreservation.Utils.Checksum;
 
 namespace Pipeline.API.Features.Pipeline.Requests;
@@ -1297,6 +1298,19 @@ public class ProcessPipelineJobHandler(
         });
     }
 
+    // "clamscan --version" (via clamscan-shim.sh -> clamdscan) normally returns
+    // "ClamAV <engine-version>/<daily-db-version>/<date>", recording which signature database a
+    // scan ran against - the part of this provenance that actually matters for preservation. If
+    // clamd's VERSION command is disabled, clamdscan instead prints just "ClamAV <engine-version>"
+    // (digital-preservation#363: a Debian clamav-daemon default, not a scan failure - scans
+    // themselves are unaffected). internal, not private, so Pipeline.API.Tests can exercise the
+    // parsing without spawning clamscan.
+    internal static readonly Regex VirusDefinitionWithSignatureDatabaseVersion =
+        new(@"ClamAV [\d.]+/\d+/", RegexOptions.Compiled);
+
+    internal static bool HasSignatureDatabaseVersion(string virusDefinition) =>
+        VirusDefinitionWithSignatureDatabaseVersion.IsMatch(virusDefinition);
+
     private async Task<string> GetVirusDefinition()
     {
         try
@@ -1325,6 +1339,14 @@ public class ProcessPipelineJobHandler(
             // ASP.NET Core health check) - see LPII-135.
             string result = await process.StandardOutput.ReadToEndAsync();
             await process.WaitForExitAsync();
+            if (result.HasText() && !HasSignatureDatabaseVersion(result))
+            {
+                logger.LogWarning(
+                    "Virus-check provenance is missing the signature database version: {VirusDefinition}. " +
+                    "clamd's VERSION command is likely disabled (digital-preservation#363) - scans " +
+                    "are unaffected, but preservation provenance no longer records which signature " +
+                    "database was used.", result.Trim());
+            }
             return result;
         }
         catch
