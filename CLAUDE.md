@@ -11,14 +11,14 @@ All .NET commands run from `src/DigitalPreservation/`.
 dotnet build DigitalPreservation.sln
 
 # Run all tests (CI skips 'Manual' category). Tests run on Microsoft.Testing.Platform (MTP), not
-# VSTest, per global.json - use --filter-* flags, not VSTest's --filter expression syntax.
+# VSTest, per global.json - prefer the --filter-* flags.
 dotnet test --solution DigitalPreservation.sln --filter-not-trait "Category=Manual"
 
 # Run a single test by name
-dotnet test --filter-method "*TestName*"
+dotnet test --filter-method "*TestName*" --ignore-exit-code 8
 
 # Run only integration tests
-dotnet test --filter-trait "Category=Integration"
+dotnet test --filter-trait "Category=Integration" --ignore-exit-code 8
 
 # Add a Preservation API migration
 dotnet ef migrations add "<migration-name>" -p Preservation.API -o Data/Migrations
