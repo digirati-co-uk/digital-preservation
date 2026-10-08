@@ -16,8 +16,16 @@ namespace Storage.API.Features.Import;
 public class ImportJobRunner(
     ILogger<ImportJobRunner> logger,
     IMediator mediator,
-    IImportJobResultStore importJobResultStore)
+    IImportJobResultStore importJobResultStore,
+    IServiceScopeFactory serviceScopeFactory,
+    IConfiguration configuration)
 {
+    // How often the heartbeat loop writes, not how long a missed heartbeat is tolerated for (that's
+    // ImportJobResultStore.HeartbeatWindow, checked by the reaper, not here) - these are
+    // deliberately two separate knobs.
+    private TimeSpan HeartbeatInterval =>
+        TimeSpan.FromSeconds(configuration.GetValue("ImportJobs:HeartbeatIntervalSeconds", 60));
+
     public async Task Execute(string jobIdentifier, CancellationToken cancellationToken)
     {
         // Should all this go inside ExecuteImportJob?
@@ -32,6 +40,12 @@ public class ImportJobRunner(
         }
 
         var jobResult = initialResult.Value;
+        // The heartbeat loop runs alongside the job on a timer of its own, independent of the job's
+        // progress - so it keeps going through a long single await (a slow Fedora commit, say) and
+        // stops only when this job is done, not when it's merely quiet. It uses its own scope and
+        // DbContext: it runs concurrently with everything below, and an EF context isn't thread-safe.
+        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var heartbeatTask = RunHeartbeatLoop(jobIdentifier, heartbeatCts.Token);
         try
         {
             var executeResult = await mediator.Send(new ExecuteImportJob(jobIdentifier, importJob.Value, jobResult), cancellationToken);
@@ -56,15 +70,59 @@ public class ImportJobRunner(
             logger.LogError(e, "Import job {JobIdentifier} threw; recording it as failed", jobIdentifier);
             MarkFailed(jobResult, e.Message);
         }
+        finally
+        {
+            await heartbeatCts.CancelAsync();
+            await heartbeatTask;
+        }
 
-        var finalUpdateResult = await importJobResultStore.SaveImportJobResult(jobIdentifier, jobResult, false, true, cancellationToken);
-        if (finalUpdateResult.Success)
+        // Conditional: if this job's heartbeat went quiet for long enough that it was reaped while
+        // the code above was still actually running (a long GC pause, a debugger break, or similar),
+        // the reaper has already written a completedWithErrors result for it. That record must win -
+        // overwriting it with a late "completed" would hide the fact that the platform had already
+        // reported, and possibly acted on, the job as failed.
+        var finalUpdateResult = await importJobResultStore.SaveFinalImportJobResult(jobIdentifier, jobResult, cancellationToken);
+        if (finalUpdateResult.Success && finalUpdateResult.Value)
         {
             logger.LogInformation("Saved Import Job Result: {JobResultId}", jobResult.Id);
+        }
+        else if (finalUpdateResult.Success)
+        {
+            logger.LogWarning(
+                "Import job {JobIdentifier} was already reaped as abandoned before it actually finished; keeping the reaper's record, not this result",
+                jobIdentifier);
         }
         else
         {
             logger.LogError("Failed to update final import job: {JobResultId}, {CodeAndMessage}", jobResult.Id, finalUpdateResult.CodeAndMessage());
+        }
+    }
+
+    /// <summary>
+    /// Writes an immediate heartbeat, then one roughly every <see cref="HeartbeatInterval"/>, until
+    /// cancelled. A fresh scope (and so a fresh DbContext) per tick: this loop outlives any single
+    /// EF operation and runs concurrently with the job's own DbContext usage elsewhere.
+    /// </summary>
+    private async Task RunHeartbeatLoop(string jobIdentifier, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                using var scope = serviceScopeFactory.CreateScope();
+                var store = scope.ServiceProvider.GetRequiredService<IImportJobResultStore>();
+                var result = await store.Heartbeat(jobIdentifier, cancellationToken);
+                if (result.Failure)
+                {
+                    logger.LogWarning("Heartbeat write failed for import job {JobIdentifier}: {CodeAndMessage}",
+                        jobIdentifier, result.CodeAndMessage());
+                }
+                await Task.Delay(HeartbeatInterval, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: the job finished (or the host is stopping) and Execute's finally cancelled us.
         }
     }
 

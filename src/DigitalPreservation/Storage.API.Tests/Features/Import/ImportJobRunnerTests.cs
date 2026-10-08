@@ -2,6 +2,8 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using FakeItEasy;
 using MediatR;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Storage.API.Features.Import;
 using Storage.API.Features.Import.Requests;
@@ -19,6 +21,7 @@ public class ImportJobRunnerTests
     private const string JobId = "job-1";
     private static readonly Uri BadGroup = new("https://storage.test/repository/cc/a%2Fb");
     private static readonly Uri GoodGroup = new("https://storage.test/repository/cc/thing");
+    private static readonly IConfiguration EmptyConfiguration = new ConfigurationBuilder().Build();
 
     [Fact]
     public async Task A_Job_Refused_By_Validation_Is_Saved_Inactive_Without_Asking_Fedora_For_The_Refused_Path()
@@ -36,12 +39,12 @@ public class ImportJobRunnerTests
         A.CallTo(() => mediator.Send(A<GetResourceFromFedora>._, A<CancellationToken>._))
             .Throws(new ArgumentException("would have thrown on the path"));
 
-        await new ImportJobRunner(NullLogger<ImportJobRunner>.Instance, mediator, store).Execute(JobId, default);
+        await Runner(mediator, store).Execute(JobId, default);
 
         A.CallTo(() => mediator.Send(A<GetResourceFromFedora>._, A<CancellationToken>._)).MustNotHaveHappened();
-        A.CallTo(() => store.SaveImportJobResult(JobId,
+        A.CallTo(() => store.SaveFinalImportJobResult(JobId,
                 A<ImportJobResult>.That.Matches(r => r.Status == ImportJobStates.CompletedWithErrors),
-                false, true, A<CancellationToken>._))
+                A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
     }
 
@@ -53,15 +56,15 @@ public class ImportJobRunnerTests
         A.CallTo(() => mediator.Send(A<ExecuteImportJob>._, A<CancellationToken>._))
             .Throws(new InvalidOperationException("boom"));
 
-        var act = () => new ImportJobRunner(NullLogger<ImportJobRunner>.Instance, mediator, store).Execute(JobId, default);
+        var act = () => Runner(mediator, store).Execute(JobId, default);
 
         await act.Should().NotThrowAsync();
-        A.CallTo(() => store.SaveImportJobResult(JobId,
+        A.CallTo(() => store.SaveFinalImportJobResult(JobId,
                 A<ImportJobResult>.That.Matches(r =>
                     r.Status == ImportJobStates.CompletedWithErrors
                     && r.DateFinished != null
                     && r.Errors != null && r.Errors.Any(e => e.Message!.Contains("boom"))),
-                false, true, A<CancellationToken>._))
+                A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
     }
 
@@ -79,11 +82,14 @@ public class ImportJobRunnerTests
         A.CallTo(() => mediator.Send(A<GetResourceFromFedora>._, A<CancellationToken>._))
             .Throws(new HttpRequestException("fedora away"));
 
-        await new ImportJobRunner(NullLogger<ImportJobRunner>.Instance, mediator, store).Execute(JobId, default);
+        await Runner(mediator, store).Execute(JobId, default);
 
-        A.CallTo(() => store.SaveImportJobResult(JobId, A<ImportJobResult>._, false, true, A<CancellationToken>._))
+        A.CallTo(() => store.SaveFinalImportJobResult(JobId, A<ImportJobResult>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
     }
+
+    private static ImportJobRunner Runner(IMediator mediator, IImportJobResultStore store) =>
+        new(NullLogger<ImportJobRunner>.Instance, mediator, store, ScopeFactoryFor(store), EmptyConfiguration);
 
     private static IImportJobResultStore Store(Uri archivalGroup)
     {
@@ -98,6 +104,28 @@ public class ImportJobRunnerTests
             }));
         A.CallTo(() => store.SaveImportJobResult(A<string>._, A<ImportJobResult>._, A<bool>._, A<bool>._, A<CancellationToken>._))
             .Returns(Result.Ok());
+        A.CallTo(() => store.SaveFinalImportJobResult(A<string>._, A<ImportJobResult>._, A<CancellationToken>._))
+            .Returns(Result.Ok(true));
+        A.CallTo(() => store.Heartbeat(A<string>._, A<CancellationToken>._))
+            .Returns(Result.Ok());
         return store;
+    }
+
+    /// <summary>
+    /// The runner's heartbeat loop resolves its own IImportJobResultStore from a fresh DI scope
+    /// (deliberately: it must not share the job's own DbContext). Faked here to resolve back to the
+    /// same fake store these tests already configure, rather than exercising real DI.
+    /// </summary>
+    private static IServiceScopeFactory ScopeFactoryFor(IImportJobResultStore store)
+    {
+        var serviceProvider = A.Fake<IServiceProvider>();
+        A.CallTo(() => serviceProvider.GetService(typeof(IImportJobResultStore))).Returns(store);
+
+        var scope = A.Fake<IServiceScope>();
+        A.CallTo(() => scope.ServiceProvider).Returns(serviceProvider);
+
+        var scopeFactory = A.Fake<IServiceScopeFactory>();
+        A.CallTo(() => scopeFactory.CreateScope()).Returns(scope);
+        return scopeFactory;
     }
 }
