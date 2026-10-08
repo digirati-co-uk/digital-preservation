@@ -139,6 +139,84 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
     }
 
     [Fact]
+    public async Task A_Reaped_Jobs_Running_Write_From_The_Executor_Does_Not_Resurrect_It()
+    {
+        // Simulates a job that was reaped (e.g. a long GC pause or debugger break stalled its
+        // heartbeat past the window) just before ExecuteImportJobHandler reaches its own "still
+        // running" write, which happens before anything touches Fedora. That write must be a no-op:
+        // the reaper's record must stand, and the row must not flip back to Active.
+        await using var dbContext = fixture.CreateNewStorageContext();
+        var archivalGroup = NewArchivalGroup();
+        var job = BuildJob("already-reaped-before-running-write", DateTime.UtcNow.AddMinutes(-15), archivalGroup);
+        dbContext.ImportJobs.Add(job);
+        await dbContext.SaveChangesAsync();
+        var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
+        await sut.GetActiveJobsForArchivalGroup(archivalGroup, CancellationToken.None); // reaps it
+
+        var lateRunningResult = new ImportJobResult
+        {
+            Id = new Uri("https://storage.test/import/results/already-reaped-before-running-write"),
+            ImportJob = new Uri("https://storage.test/import/already-reaped-before-running-write"),
+            ArchivalGroup = archivalGroup,
+            Status = ImportJobStates.Running,
+            SourceVersion = "v3"
+        };
+        var saveResult = await sut.SaveRunningImportJobResult(
+            "already-reaped-before-running-write", lateRunningResult, CancellationToken.None);
+
+        saveResult.Success.Should().BeTrue();
+        saveResult.Value.Should().BeFalse("the row was no longer Active, so the late running write must not have applied");
+
+        await using var verifyContext = fixture.CreateNewStorageContext();
+        var stillReaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "already-reaped-before-running-write");
+        stillReaped.Active.Should().BeFalse("the running write must not resurrect a reaped row");
+        stillReaped.ImportJobResultJson.Should().Contain(ImportJobStates.CompletedWithErrors,
+            "the reaper's record must survive, not the late 'running' result");
+    }
+
+    [Fact]
+    public async Task ReapAllStaleRunningJobs_Reaps_A_Stale_Job_With_No_QueueImportJob_Call()
+    {
+        // The point of ImportJobReapService: a group whose only job was abandoned has nothing else
+        // ever asking GetActiveJobsForArchivalGroup about it, so only this all-groups sweep can
+        // unblock it without a human intervening.
+        await using var dbContext = fixture.CreateNewStorageContext();
+        var archivalGroup = NewArchivalGroup();
+        var job = BuildJob("sweep-reaped-job", DateTime.UtcNow.AddMinutes(-15), archivalGroup); // older than the 10-minute default window
+        dbContext.ImportJobs.Add(job);
+        await dbContext.SaveChangesAsync();
+        var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
+
+        var result = await sut.ReapAllStaleRunningJobs(CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Value.Should().BeGreaterThanOrEqualTo(1);
+
+        await using var verifyContext = fixture.CreateNewStorageContext();
+        var reaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "sweep-reaped-job");
+        reaped.Active.Should().BeFalse("the sweep must reap a stale job without any call to GetActiveJobsForArchivalGroup");
+        reaped.ImportJobResultJson.Should().Contain(ImportJobStates.CompletedWithErrors);
+    }
+
+    [Fact]
+    public async Task ReapAllStaleRunningJobs_Leaves_A_Heartbeating_Job_Alone()
+    {
+        await using var dbContext = fixture.CreateNewStorageContext();
+        var job = BuildJob("sweep-heartbeating-job", DateTime.UtcNow.AddMinutes(-1), NewArchivalGroup());
+        dbContext.ImportJobs.Add(job);
+        await dbContext.SaveChangesAsync();
+        var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
+
+        var result = await sut.ReapAllStaleRunningJobs(CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+
+        await using var verifyContext = fixture.CreateNewStorageContext();
+        var stillRunning = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "sweep-heartbeating-job");
+        stillRunning.Active.Should().BeTrue("a job heartbeating within the window must not be reaped by the sweep");
+    }
+
+    [Fact]
     public async Task FailOrphanedWaitingJobs_Fails_A_Waiting_Job_And_It_Appears_In_The_Activity_Stream()
     {
         // The in-process equivalent of a dead-lettered SQS message: the in-memory queue is lost on

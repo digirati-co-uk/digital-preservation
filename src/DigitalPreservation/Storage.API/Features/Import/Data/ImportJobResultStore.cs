@@ -141,6 +141,39 @@ public class ImportJobResultStore(
     }
 
     /// <summary>
+    /// Periodic sweep across every Archival Group, not just the one a caller happens to be queuing
+    /// into right now - <see cref="GetActiveJobsForArchivalGroup"/> alone leaves a group whose only
+    /// job was abandoned blocked forever, because nothing then asks about that group again until a
+    /// human intervenes (issue #354 review). Driven by <c>ImportJobReapService</c> on a timer.
+    /// </summary>
+    public async Task<Result<int>> ReapAllStaleRunningJobs(CancellationToken cancellationToken)
+    {
+        try
+        {
+            // AsNoTracking: see the comment on the equivalent query in GetActiveJobsForArchivalGroup.
+            var activeJobs = await dbContext.ImportJobs
+                .AsNoTracking()
+                .Where(ij => ij.Active && ij.LastHeartbeat != null)
+                .ToListAsync(cancellationToken);
+
+            var reapedCount = 0;
+            foreach (var job in activeJobs)
+            {
+                if (await TryReapStaleRunningJob(job, cancellationToken))
+                {
+                    reapedCount++;
+                }
+            }
+            return Result.Ok(reapedCount);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<int>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    /// <summary>
     /// Attempts to reap one running job via a single conditional UPDATE guarded by the database's
     /// own clock (not this process's), so it cannot race a heartbeat or the runner's own final write
     /// landing between the read above and this write: if either already happened, the WHERE clause
@@ -287,7 +320,31 @@ public class ImportJobResultStore(
             return Result.Fail<bool>(ErrorCodes.UnknownError, e.Message);
         }
     }
-    
+
+    public async Task<Result<bool>> SaveRunningImportJobResult(
+        string jobIdentifier, ImportJobResult importJobResult, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resultJson = JsonSerializer.Serialize(importJobResult);
+            // Deliberately does not SetProperty(Active, true): the row is either already Active (the
+            // common case - this just records progress) or it was reaped out from under this job
+            // between dequeue and here, in which case the WHERE below matches no rows and this must
+            // stay a no-op rather than resurrecting it.
+            var rowsAffected = await dbContext.ImportJobs
+                .Where(ij => ij.Id == jobIdentifier && ij.Active)
+                .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(ij => ij.ImportJobResultJson, resultJson),
+                    cancellationToken);
+            return Result.Ok(rowsAffected > 0);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.Fail<bool>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
     public async Task<Result> SaveImportJob(string jobIdentifier, ImportJob importJob, CancellationToken cancellationToken)
     {
         if (importJob.ArchivalGroup == null)

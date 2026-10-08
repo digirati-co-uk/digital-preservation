@@ -48,6 +48,21 @@ try
     var useLocalHostedServiceForImport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForImport");
     var useLocalHostedServiceForExport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForExport");
 
+    // A heartbeat older than HeartbeatWindowMinutes is treated as abandoned (ImportJobResultStore);
+    // ImportJobRunner writes one every HeartbeatIntervalSeconds. If the interval were ever configured
+    // at or above the window, a job's own heartbeats could be mistaken for staleness between beats,
+    // reaping a job that is still genuinely running. Caught here, at startup, rather than discovered
+    // later as jobs failing inexplicably mid-run.
+    var heartbeatIntervalSeconds = builder.Configuration.GetValue("ImportJobs:HeartbeatIntervalSeconds", 60);
+    var heartbeatWindowMinutes = builder.Configuration.GetValue("ImportJobs:HeartbeatWindowMinutes", 10);
+    if (heartbeatIntervalSeconds >= heartbeatWindowMinutes * 60)
+    {
+        throw new InvalidOperationException(
+            $"ImportJobs:HeartbeatIntervalSeconds ({heartbeatIntervalSeconds}) must be smaller than " +
+            $"ImportJobs:HeartbeatWindowMinutes ({heartbeatWindowMinutes}) x 60 seconds, or a live job's " +
+            "own heartbeat gaps could be mistaken for abandonment.");
+    }
+
 
     if (useAuthFeatureFlag)
     {
@@ -116,8 +131,14 @@ try
     {
         throw new NotSupportedException("Separate export service not yet implemented!");
     }
-    
-    
+
+    // Unconditional, regardless of which mode actually executes import jobs (in-process or the
+    // separate SQS Importer): this is the one host that is always running, and the sweep's reap is
+    // idempotent (a conditional UPDATE), so it is safe even if more than one Storage API instance
+    // runs it at the same tick.
+    builder.Services.AddHostedService<ImportJobReapService>();
+
+
     var app = builder.Build();
     app
         .UseMiddleware<CorrelationIdMiddleware>()
