@@ -534,7 +534,7 @@ internal class FedoraClient(
         var checksumResult = await EnsureChecksum(binary, false);
         if (checksumResult.Failure)
         {
-            return Result.Fail<Binary>(ErrorCodes.BadRequest, "No checksum obtainable for binary " + binary.Id);
+            return Result.Fail<Binary>(ErrorCodes.BadRequest, "No checksum obtainable for binary " + binary.Id.GetPathUnderRoot());
         }
         logger.LogInformation("Binary {Path} has checksum {Checksum}", binary.Id!.AbsolutePath, binary.Digest);
         HttpRequestMessage? req;
@@ -586,9 +586,11 @@ internal class FedoraClient(
             logger.LogError("Response from Fedora was {Status}", response.StatusCode);
             var message = await response.Content.ReadAsStringAsync(cancellationToken);
             var code = ErrorCodes.GetErrorCode((int?)response.StatusCode);
-            // binary.Id, not its slug: ExecuteImportJob reports this message verbatim as the import job's
-            // failure, and a slug alone (page-001.jpg) is ambiguous across folders (#292).
-            return Result.Fail<Binary>(code, $"PUT {binary.Id} failed; response from Fedora was {response.StatusCode}: {message}");
+            // The path under the repository root, not the slug or the full URI: ExecuteImportJob reports
+            // this message verbatim as the import job's failure, a slug alone (page-001.jpg) is ambiguous
+            // across folders (#292), and binary.Id is a Storage API URI whose host must not reach
+            // Preservation API callers (#265, #360). The same goes for the other PutBinary failures.
+            return Result.Fail<Binary>(code, $"PUT {binary.Id.GetPathUnderRoot()} failed; response from Fedora was {response.StatusCode}: {message}");
         }
         var metadataUri = req.RequestUri!.MetadataUri();
         
@@ -618,7 +620,7 @@ internal class FedoraClient(
         if (madeBinary.Digest != binary.Digest)
         {
             return Result.Fail<Binary?>(ErrorCodes.UnknownError,
-                $"Fedora-generated checksum for {binary.Id} doesn't match ours (expected {binary.Digest}, Fedora computed {madeBinary.Digest})");
+                $"Fedora-generated checksum for {binary.Id.GetPathUnderRoot()} doesn't match ours (expected {binary.Digest}, Fedora computed {madeBinary.Digest})");
         }
         return Result.Ok(madeBinary);
     }
