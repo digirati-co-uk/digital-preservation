@@ -180,6 +180,16 @@ Import is the one part of the system that can be scaled independently, because i
 
 Either way the caller sees exactly the same thing: `201 Created` and an Import Job Result to poll.
 
+### Heartbeat and reaping
+
+Whichever mode runs a job, `ImportJobRunner` writes a `last_heartbeat` timestamp (the database's own clock) roughly every `ImportJobs:HeartbeatIntervalSeconds` (default 60) for as long as the job is actually executing. A job whose heartbeat has gone stale for longer than `ImportJobs:HeartbeatWindowMinutes` (default 10) - its processor crashed, or an ECS task was replaced mid-run - is **reaped**: a conditional `UPDATE` marks it inactive and records a `completedWithErrors` Import Job Result with a reason, so the Preservation API learns the job finished and the Archival Group stops being blocked. A job that has never sent a heartbeat (still queued) is never reaped by age - SQS retains a message for up to 14 days, so it may genuinely not have been picked up yet.
+
+Two things trigger a reap: queuing a new job for the same Archival Group (`GetActiveJobsForArchivalGroup`), and `ImportJobReapService`, a periodic sweep in the Storage API (`ImportJobs:ReapSweepIntervalMinutes`, default 5) that checks every Archival Group, not just one a caller happens to be touching right now - without it, a group whose only job was abandoned would stay blocked until a human intervened. The sweep's reap is idempotent, so it is safe to run on more than one Storage API instance at once.
+
+Startup fails fast if `HeartbeatIntervalSeconds` is configured at or above `HeartbeatWindowMinutes × 60`, since that would let a live job's own gaps between heartbeats be mistaken for abandonment.
+
+A row that is already stuck with **no** heartbeat at all - the dead-lettered SQS messages from #245, or any job that was mid-run on the old (pre-heartbeat) importer when this deployed - is never reaped by this mechanism, by design: nothing here can tell "genuinely still queued" apart from "will never run again" for a job that never started. #245's operator SQL remains the remedy for those; an automatic operator-facing path for dead-lettered jobs is tracked as a follow-up (#366).
+
 Export has the same shape of switch but only one working setting: `UseLocalHostedServiceForExport` must be `true`, because the separate export service has not been written and the Storage API throws on startup otherwise. Exports are queued on an in-memory channel bounded at ten, so a restart loses anything still waiting.
 
 ## Running locally
