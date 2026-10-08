@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -10,7 +11,6 @@ using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace.Requests;
-using LateApexEarlySpeed.Xunit.Assertion.Json;
 using MediatR;
 using Storage.Repository.Common;
 
@@ -341,31 +341,105 @@ public class WorkspaceManager(
     }
     
     public async Task<Result> ValidateDepositFileSystem()
-    {       
+    {
         var readS3Result = await mediator.Send(new GetWorkingDirectory(
             Deposit.Files!, true, false));
-        var readJsonResult = await mediator.Send(new GetWorkingDirectory(
+        var readDepositFileSystemResult = await mediator.Send(new GetWorkingDirectory(
             Deposit.Files!, false, false));
 
         if (readS3Result.Value == null)
         {
             return readS3Result;
         }
-        if (readJsonResult.Value == null)
+        if (readDepositFileSystemResult.Value == null)
         {
-            return readJsonResult;
+            return readDepositFileSystemResult;
         }
         var s3Json = JsonSerializer.Serialize(RemoveRootMetadata(readS3Result.Value));
-        var metsJson = JsonSerializer.Serialize(RemoveRootMetadata(readJsonResult.Value));
-        try
+        var depositFileSystemJson = JsonSerializer.Serialize(RemoveRootMetadata(readDepositFileSystemResult.Value));
+        var s3Node = JsonNode.Parse(s3Json);
+        var depositFileSystemNode = JsonNode.Parse(depositFileSystemJson);
+        if (JsonNode.DeepEquals(s3Node, depositFileSystemNode))
         {
-            JsonAssertion.Equivalent(s3Json, metsJson);
             return Result.Ok();
         }
-        catch (Exception e)
+
+        var (location, s3Value, depositFileSystemValue) = FindFirstDifference(s3Node, depositFileSystemNode, string.Empty);
+        return Result.Fail(ErrorCodes.Conflict,
+            $"S3 has {s3Value ?? "(missing)"}; the Deposit File System file has {depositFileSystemValue ?? "(missing)"}, " +
+            $"at \"{location}\"");
+    }
+
+    /// <summary>
+    /// How much of a differing value to quote in the validation message: the array walk below
+    /// returns a whole missing/extra subtree as one value when an entire directory differs, and for
+    /// a large born-digital deposit that could be thousands of files - truncated so the banner stays
+    /// readable rather than reproducing the deposit's file list.
+    /// </summary>
+    private const int MaxDescribedValueLength = 300;
+
+    /// <summary>
+    /// Walks two JSON trees already known to differ (per <see cref="JsonNode.DeepEquals"/>) to find
+    /// the first point at which they diverge, so <see cref="ValidateDepositFileSystem"/> can report
+    /// where - not just that - S3 content and the stored Deposit File System file disagree.
+    /// Internal, not private: through <see cref="ValidateDepositFileSystem"/> itself this is
+    /// deterministic (System.Text.Json always serialises <see cref="WorkingDirectory"/> in the same
+    /// property order for equivalent content), so "ignores object property order" can only be
+    /// exercised directly, against raw JSON, in tests.
+    /// </summary>
+    internal static (string Location, string? FirstValue, string? SecondValue) FindFirstDifference(
+        JsonNode? first, JsonNode? second, string pointer) =>
+        (first, second) switch
         {
-            return Result.Fail(ErrorCodes.Conflict, "Storage validation Failed. " + e.Message);
+            (JsonObject firstObject, JsonObject secondObject) => FirstObjectDifference(firstObject, secondObject, pointer),
+            (JsonArray firstArray, JsonArray secondArray) => FirstArrayDifference(firstArray, secondArray, pointer),
+            _ => (pointer, Describe(first), Describe(second))
+        };
+
+    private static (string Location, string? FirstValue, string? SecondValue) FirstObjectDifference(
+        JsonObject first, JsonObject second, string pointer)
+    {
+        var keys = first.Select(property => property.Key)
+            .Union(second.Select(property => property.Key));
+        foreach (var key in keys)
+        {
+            first.TryGetPropertyValue(key, out var firstChild);
+            second.TryGetPropertyValue(key, out var secondChild);
+            if (!JsonNode.DeepEquals(firstChild, secondChild))
+            {
+                return FindFirstDifference(firstChild, secondChild, $"{pointer}/{EscapeJsonPointerSegment(key)}");
+            }
         }
+        return (pointer, Describe(first), Describe(second));
+    }
+
+    private static (string Location, string? FirstValue, string? SecondValue) FirstArrayDifference(
+        JsonArray first, JsonArray second, string pointer)
+    {
+        var count = Math.Max(first.Count, second.Count);
+        for (var index = 0; index < count; index++)
+        {
+            var firstChild = index < first.Count ? first[index] : null;
+            var secondChild = index < second.Count ? second[index] : null;
+            if (!JsonNode.DeepEquals(firstChild, secondChild))
+            {
+                return FindFirstDifference(firstChild, secondChild, $"{pointer}/{index}");
+            }
+        }
+        return (pointer, Describe(first), Describe(second));
+    }
+
+    private static string EscapeJsonPointerSegment(string segment) =>
+        segment.Replace("~", "~0").Replace("/", "~1");
+
+    private static string? Describe(JsonNode? node)
+    {
+        var json = node?.ToJsonString();
+        if (json == null || json.Length <= MaxDescribedValueLength)
+        {
+            return json;
+        }
+        return json[..MaxDescribedValueLength] + "…";
     }
     
     

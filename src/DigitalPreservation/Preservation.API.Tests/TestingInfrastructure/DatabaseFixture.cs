@@ -24,7 +24,7 @@ public class DatabaseFixture : IAsyncLifetime
         postgresContainer = postgresBuilder.Build();
     }
     
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Start DB + apply migrations
         await postgresContainer.StartAsync();
@@ -32,7 +32,7 @@ public class DatabaseFixture : IAsyncLifetime
         await DbContext.Database.MigrateAsync();
     }
 
-    public Task DisposeAsync() => postgresContainer.StopAsync();
+    public async ValueTask DisposeAsync() => await postgresContainer.StopAsync();
     
     private void SetPropertiesFromContainer()
     {

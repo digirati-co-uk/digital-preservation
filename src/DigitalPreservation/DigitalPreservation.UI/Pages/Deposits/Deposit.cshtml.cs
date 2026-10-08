@@ -464,14 +464,16 @@ public class DepositModel(
             }
             else
             {
-                TempData[TempDataError] = result.ErrorMessage;
+                // Encoded because the banner renders with Html.Raw, and this message quotes S3
+                // file paths verbatim (see WorkspaceManager.FindFirstDifference).
+                TempData[TempDataError] = WebUtility.HtmlEncode(result.ErrorMessage);
             }
 
         }
 
         return Redirect($"/deposits/{id}");
     }
-    
+
     public async Task<IActionResult> OnPostLock([FromRoute] string id)
     {
         if (await BindDeposit(id))
