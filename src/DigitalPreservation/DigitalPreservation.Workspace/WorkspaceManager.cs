@@ -366,10 +366,17 @@ public class WorkspaceManager(
 
         var (location, s3Value, depositFileSystemValue) = FindFirstDifference(s3Node, depositFileSystemNode, string.Empty);
         return Result.Fail(ErrorCodes.Conflict,
-            "Storage validation failed. S3 content and the Deposit File System file are not equivalent: " +
-            $"one is {s3Value ?? "(missing)"}, but the other is {depositFileSystemValue ?? "(missing)"}, " +
-            $"location (in json pointer format): \"{location}\"");
+            $"S3 has {s3Value ?? "(missing)"}; the Deposit File System file has {depositFileSystemValue ?? "(missing)"}, " +
+            $"at \"{location}\"");
     }
+
+    /// <summary>
+    /// How much of a differing value to quote in the validation message: the array walk below
+    /// returns a whole missing/extra subtree as one value when an entire directory differs, and for
+    /// a large born-digital deposit that could be thousands of files - truncated so the banner stays
+    /// readable rather than reproducing the deposit's file list.
+    /// </summary>
+    private const int MaxDescribedValueLength = 300;
 
     /// <summary>
     /// Walks two JSON trees already known to differ (per <see cref="JsonNode.DeepEquals"/>) to find
@@ -381,41 +388,59 @@ public class WorkspaceManager(
     /// exercised directly, against raw JSON, in tests.
     /// </summary>
     internal static (string Location, string? FirstValue, string? SecondValue) FindFirstDifference(
-        JsonNode? first, JsonNode? second, string pointer)
-    {
-        if (first is JsonObject firstObject && second is JsonObject secondObject)
+        JsonNode? first, JsonNode? second, string pointer) =>
+        (first, second) switch
         {
-            var keys = firstObject.Select(property => property.Key)
-                .Union(secondObject.Select(property => property.Key));
-            foreach (var key in keys)
-            {
-                firstObject.TryGetPropertyValue(key, out var firstChild);
-                secondObject.TryGetPropertyValue(key, out var secondChild);
-                if (!JsonNode.DeepEquals(firstChild, secondChild))
-                {
-                    return FindFirstDifference(firstChild, secondChild, $"{pointer}/{EscapeJsonPointerSegment(key)}");
-                }
-            }
-        }
-        else if (first is JsonArray firstArray && second is JsonArray secondArray)
-        {
-            var count = Math.Max(firstArray.Count, secondArray.Count);
-            for (var index = 0; index < count; index++)
-            {
-                var firstChild = index < firstArray.Count ? firstArray[index] : null;
-                var secondChild = index < secondArray.Count ? secondArray[index] : null;
-                if (!JsonNode.DeepEquals(firstChild, secondChild))
-                {
-                    return FindFirstDifference(firstChild, secondChild, $"{pointer}/{index}");
-                }
-            }
-        }
+            (JsonObject firstObject, JsonObject secondObject) => FirstObjectDifference(firstObject, secondObject, pointer),
+            (JsonArray firstArray, JsonArray secondArray) => FirstArrayDifference(firstArray, secondArray, pointer),
+            _ => (pointer, Describe(first), Describe(second))
+        };
 
-        return (pointer, first?.ToJsonString(), second?.ToJsonString());
+    private static (string Location, string? FirstValue, string? SecondValue) FirstObjectDifference(
+        JsonObject first, JsonObject second, string pointer)
+    {
+        var keys = first.Select(property => property.Key)
+            .Union(second.Select(property => property.Key));
+        foreach (var key in keys)
+        {
+            first.TryGetPropertyValue(key, out var firstChild);
+            second.TryGetPropertyValue(key, out var secondChild);
+            if (!JsonNode.DeepEquals(firstChild, secondChild))
+            {
+                return FindFirstDifference(firstChild, secondChild, $"{pointer}/{EscapeJsonPointerSegment(key)}");
+            }
+        }
+        return (pointer, Describe(first), Describe(second));
+    }
+
+    private static (string Location, string? FirstValue, string? SecondValue) FirstArrayDifference(
+        JsonArray first, JsonArray second, string pointer)
+    {
+        var count = Math.Max(first.Count, second.Count);
+        for (var index = 0; index < count; index++)
+        {
+            var firstChild = index < first.Count ? first[index] : null;
+            var secondChild = index < second.Count ? second[index] : null;
+            if (!JsonNode.DeepEquals(firstChild, secondChild))
+            {
+                return FindFirstDifference(firstChild, secondChild, $"{pointer}/{index}");
+            }
+        }
+        return (pointer, Describe(first), Describe(second));
     }
 
     private static string EscapeJsonPointerSegment(string segment) =>
         segment.Replace("~", "~0").Replace("/", "~1");
+
+    private static string? Describe(JsonNode? node)
+    {
+        var json = node?.ToJsonString();
+        if (json == null || json.Length <= MaxDescribedValueLength)
+        {
+            return json;
+        }
+        return json[..MaxDescribedValueLength] + "…";
+    }
     
     
     private static WorkingDirectory? RemoveRootMetadata(WorkingDirectory wd)

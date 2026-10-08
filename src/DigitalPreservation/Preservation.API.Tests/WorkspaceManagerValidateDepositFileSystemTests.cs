@@ -73,21 +73,58 @@ public class WorkspaceManagerValidateDepositFileSystemTests
         result.Failure.Should().BeTrue();
         result.ErrorCode.Should().Be(ErrorCodes.Conflict);
         result.ErrorMessage.Should()
+            .Contain("S3 has").And
             .Contain("objects/a.tif").And
+            .Contain("Deposit File System file has").And
             .Contain("objects/b.tif").And
             .Contain("/directories/0/files/0/localPath");
     }
+}
+
+/// <summary>
+/// WorkspaceManager.FindFirstDifference is exercised directly here (it's internal, exposed to this
+/// assembly via InternalsVisibleTo) because ValidateDepositFileSystem can only ever feed it trees
+/// that already differ, so cases like "no difference found" or array-length mismatches can't be
+/// reached through that higher-level path.
+/// </summary>
+public class FindFirstDifferenceTests
+{
+    [Fact]
+    public void Finds_Differing_Property_Regardless_Of_Each_Objects_Key_Order()
+    {
+        var first = JsonNode.Parse("""{"type": "WorkingDirectory", "localPath": "a", "extra": "x"}""");
+        var second = JsonNode.Parse("""{"extra": "x", "localPath": "b", "type": "WorkingDirectory"}""");
+
+        var (location, firstValue, secondValue) = WorkspaceManager.FindFirstDifference(first, second, string.Empty);
+
+        location.Should().Be("/localPath");
+        firstValue.Should().Be("\"a\"");
+        secondValue.Should().Be("\"b\"");
+    }
 
     [Fact]
-    public void The_Comparison_Ignores_Object_Property_Order()
+    public void An_Extra_Array_Element_Is_Reported_As_Missing_On_The_Other_Side()
     {
-        // ValidateDepositFileSystem can't exercise this directly: System.Text.Json always
-        // serialises WorkingDirectory/WorkingFile in the same (JsonPropertyOrder-declared) order
-        // for equivalent content, so two differently-key-ordered-but-equal documents never
-        // actually arise there. This locks in the JsonNode.DeepEquals guarantee it relies on.
-        var tree = JsonNode.Parse("""{"type": "WorkingDirectory", "localPath": "objects"}""");
-        var sameTreeDifferentPropertyOrder = JsonNode.Parse("""{"localPath": "objects", "type": "WorkingDirectory"}""");
+        var first = JsonNode.Parse("""{"files": [{"localPath": "a"}, {"localPath": "b"}]}""");
+        var second = JsonNode.Parse("""{"files": [{"localPath": "a"}]}""");
 
-        JsonNode.DeepEquals(tree, sameTreeDifferentPropertyOrder).Should().BeTrue();
+        var (location, firstValue, secondValue) = WorkspaceManager.FindFirstDifference(first, second, string.Empty);
+
+        location.Should().Be("/files/1");
+        firstValue.Should().Be("""{"localPath":"b"}""");
+        secondValue.Should().BeNull();
+    }
+
+    [Fact]
+    public void A_Key_Needing_Escaping_Is_Escaped_In_Json_Pointer_Format()
+    {
+        var first = JsonNode.Parse("""{"a/b~c": "1"}""");
+        var second = JsonNode.Parse("""{"a/b~c": "2"}""");
+
+        var (location, firstValue, secondValue) = WorkspaceManager.FindFirstDifference(first, second, string.Empty);
+
+        location.Should().Be("/a~1b~0c");
+        firstValue.Should().Be("\"1\"");
+        secondValue.Should().Be("\"2\"");
     }
 }
