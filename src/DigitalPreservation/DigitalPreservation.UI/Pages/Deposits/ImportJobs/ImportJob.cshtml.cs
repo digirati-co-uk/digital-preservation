@@ -38,6 +38,7 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
                 ItemsWithInvalidSlugs = itemsWithInvalidSlugs;
                 ItemsWithInvalidSlugsMessage = invalidSlugMessage;
                 AddedBinariesWithInvalidContentTypes = ImportJob.AddedBinariesWithInvalidContentTypes();
+                RenameRefusalMessage = ImportJob.RenameRefusalMessage();
                 ViewData["Title"] = $"Diff from {depositId} to {ImportJob.ArchivalGroupName ?? ImportJob.ArchivalGroup.GetPathUnderRoot()}";
                 return;
             }
@@ -87,6 +88,7 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
     public List<PreservedResource> ItemsWithInvalidSlugs { get; set; } = [];
     public string? ItemsWithInvalidSlugsMessage { get; set; }
     public List<Binary> AddedBinariesWithInvalidContentTypes { get; set; } = [];
+    public string? RenameRefusalMessage { get; set; }
     
     public ImportJobResult? ImportJobResult { get; set; }
 }

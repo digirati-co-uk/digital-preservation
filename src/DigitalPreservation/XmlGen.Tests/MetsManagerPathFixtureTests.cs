@@ -648,7 +648,7 @@ public class MetsManagerPathFixtureTests
         var metsUri = CopyFixture("path-fixture-special.xml", "fixture-special-rawxml.xml");
 
         // Read as raw text to confirm entity encoding in the file on disk
-        var rawXml = await File.ReadAllTextAsync(metsUri.LocalPath);
+        var rawXml = await File.ReadAllTextAsync(metsUri.LocalPath, TestContext.Current.CancellationToken);
         rawXml.Should().Contain("AT&amp;T guide.pdf",
             "ampersand in attribute values must be entity-encoded in well-formed XML");
         rawXml.Should().NotContain("AT&T guide.pdf",

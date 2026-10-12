@@ -3,7 +3,6 @@ using System.Xml.Linq;
 using System.Xml.Serialization;
 using DigitalPreservation.Mets;
 using FluentAssertions;
-using Xunit.Abstractions;
 
 namespace XmlGen.Tests.Experimental.Parsing;
 

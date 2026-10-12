@@ -1,12 +1,12 @@
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
+using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
 using Storage.API.Web;
-using Microsoft.OpenApi.Models;
 using Serilog;
 using Storage.API.Data;
 using Storage.API.Features.Export;
@@ -48,6 +48,11 @@ try
     var useLocalHostedServiceForImport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForImport");
     var useLocalHostedServiceForExport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForExport");
 
+    // ImportJobRunner (the heartbeat writer) only runs in this host in in-process mode; in SQS mode
+    // it's the separate Importer. Both hosts validate unconditionally regardless of mode - see
+    // Storage.API.Importer/Program.cs for its copy of this call - so a deployment can't end up with
+    // one host's settings checked and the other's not depending on which mode happens to be live.
+    ImportJobHeartbeatSettings.Validate(builder.Configuration);
 
     if (useAuthFeatureFlag)
     {
@@ -87,65 +92,7 @@ try
         });
 
 
-    builder.Services.AddSwaggerGen(c =>
-    {
-        c.SwaggerDoc("v1", new OpenApiInfo { Title = "Storage API", Version = "v1" });
-
-        if (useAuthFeatureFlag)
-        {
-
-            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer",
-                Description = "Bearer token add:   'Bearer <your token>'  "
-            });
-            
-            c.AddSecurityRequirement(new OpenApiSecurityRequirement()
-            {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        },
-                        Scheme = "oauth2",
-                        Name = "Bearer",
-                        In = ParameterLocation.Header,
-
-                    },
-                    new List<string>()
-                }
-            });
-        }
-
-        c.AddSecurityDefinition("X-Client-Identity", new OpenApiSecurityScheme
-        {
-            Type = SecuritySchemeType.ApiKey,
-            In = ParameterLocation.Header,
-            Name = "X-Client-Identity",
-            Description = "client identity header for machine to machine calls"
-        });
-
-        c.AddSecurityRequirement(new OpenApiSecurityRequirement
-        {
-            {
-                new OpenApiSecurityScheme
-                {
-                    Reference = new OpenApiReference
-                    {
-                        Type = ReferenceType.SecurityScheme,
-                        Id = "X-Client-Identity"
-                    }
-                },
-                []
-            }
-        });
-    });
+    builder.Services.AddApiSwaggerGen("Storage API", useAuthFeatureFlag);
 
 
     if (useLocalHostedServiceForImport)
@@ -174,8 +121,14 @@ try
     {
         throw new NotSupportedException("Separate export service not yet implemented!");
     }
-    
-    
+
+    // Unconditional, regardless of which mode actually executes import jobs (in-process or the
+    // separate SQS Importer): this is the one host that is always running, and the sweep's reap is
+    // idempotent (a conditional UPDATE), so it is safe even if more than one Storage API instance
+    // runs it at the same tick.
+    builder.Services.AddHostedService<ImportJobReapService>();
+
+
     var app = builder.Build();
     app
         .UseMiddleware<CorrelationIdMiddleware>()
@@ -183,6 +136,8 @@ try
         .UseRouting()
         .UseForwardedHeaders()
         .TryRunMigrations(builder.Configuration, app.Logger);
+
+    await app.FailOrphanedWaitingImportJobsIfInProcessAsync(useLocalHostedServiceForImport);
 
     //Auth
     if (useAuthFeatureFlag)

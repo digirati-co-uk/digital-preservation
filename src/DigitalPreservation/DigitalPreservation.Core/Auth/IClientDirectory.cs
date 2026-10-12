@@ -13,4 +13,12 @@ public interface IClientDirectory
     /// null/empty or unrecognised app id — an unknown caller is never resolved.
     /// </summary>
     bool TryResolve(string? appId, [NotNullWhen(true)] out ClientProfile? profile);
+
+    /// <summary>
+    /// Every distinct, non-empty <see cref="ClientProfile.DepositBucket"/> across every known
+    /// client, compared ordinally (S3 bucket names are lower-case). Together with the API's default
+    /// working bucket, this is the platform's whole set of deposit buckets - used to validate an
+    /// export destination without a separate allow-list (issue #288).
+    /// </summary>
+    IReadOnlyCollection<string> DepositBuckets { get; }
 }

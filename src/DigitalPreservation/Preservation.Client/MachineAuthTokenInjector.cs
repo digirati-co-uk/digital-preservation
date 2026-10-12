@@ -13,9 +13,9 @@ namespace Preservation.Client;
 /// </summary>
 public class MachineAuthTokenInjector(IAccessTokenProvider tokenProvider, ILogger<MachineAuthTokenInjector> logger) : DelegatingHandler
 {
-    private async Task SetBearerToken(HttpRequestMessage request)
+    private async Task SetBearerToken(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        var token = await tokenProvider.GetAccessToken();
+        var token = await tokenProvider.GetAccessToken(cancellationToken);
 
         if (token != null)
         {
@@ -30,7 +30,7 @@ public class MachineAuthTokenInjector(IAccessTokenProvider tokenProvider, ILogge
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        await SetBearerToken(request);
+        await SetBearerToken(request, cancellationToken);
         return await base.SendAsync(request, cancellationToken);
     }
 }

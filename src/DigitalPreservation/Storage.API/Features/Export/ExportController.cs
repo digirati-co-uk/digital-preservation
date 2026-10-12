@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -21,7 +22,7 @@ public class ExportController(
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Queuing export for {Path}", export.ArchivalGroup.GetPathUnderRoot());
-        var queueExportResult = await mediator.Send(new QueueExport(export), cancellationToken);
+        var queueExportResult = await mediator.Send(new QueueExport(export, User.GetCallerIdentity()), cancellationToken);
         logger.LogInformation("Returned from QueueExport");
         var createdLocation = queueExportResult.Success ? queueExportResult.Value!.Id : null;
         return this.StatusResponseFromResult(queueExportResult, 201, createdLocation);

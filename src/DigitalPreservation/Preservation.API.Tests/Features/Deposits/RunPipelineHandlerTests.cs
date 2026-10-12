@@ -77,6 +77,22 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         return await context.Deposits.AsNoTracking().SingleAsync(d => d.MintedId == depositId);
     }
 
+    private static async Task SavePipelineRunJob(PreservationContext context, string depositId, string status)
+    {
+        context.PipelineRunJobs.Add(new Preservation.API.Data.Entities.PipelineRunJob
+        {
+            Id = $"job-{Guid.NewGuid()}",
+            Deposit = depositId,
+            ArchivalGroup = null,
+            Status = status,
+            DateSubmitted = DateTime.UtcNow,
+            LastUpdated = DateTime.UtcNow,
+            PipelineJobJson = "{}",
+            RunUser = "tester"
+        });
+        await context.SaveChangesAsync();
+    }
+
     [Fact]
     public async Task Handle_QueuesJob_ForDepositInDefaultWorkingBucket()
     {
@@ -177,5 +193,56 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         reloaded.LockedBy.Should().BeNull("the lock this call took must not survive a failed publish");
         var job = context.PipelineRunJobs.Single(j => j.Deposit == deposit.MintedId);
         job.Status.Should().Be(PipelineJobStates.CompletedWithErrors);
+    }
+
+    /// <summary>
+    /// The lock holder queuing a second run while the first is still going (a double-submit, a
+    /// script, two browser tabs) would write to the same metadata/ tool-output folders twice, and
+    /// run 1 finishing would release the lock run 2 relies on, since both share the same RunUser
+    /// (issue #317). Checked and refused before the lock is even acquired, so a 409 here never
+    /// leaves one behind.
+    /// </summary>
+    [Theory]
+    [InlineData(PipelineJobStates.Waiting)]
+    [InlineData(PipelineJobStates.Running)]
+    [InlineData(PipelineJobStates.MetadataCreated)]
+    public async Task Handle_Refuses_WhenAnotherJob_Is_Already_Active_For_The_Deposit(string activeStatus)
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
+        await SavePipelineRunJob(context, deposit.MintedId, activeStatus);
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+
+        var result = await CreateHandler(context, snsClient)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.Conflict);
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+        context.PipelineRunJobs.Count(j => j.Deposit == deposit.MintedId).Should().Be(1,
+            "no second job row is created for the refused run");
+        var reloaded = await ReloadDeposit(deposit.MintedId);
+        reloaded.LockedBy.Should().BeNull("the check runs before the lock is acquired, so a refusal leaves no lock behind");
+    }
+
+    [Fact]
+    public async Task Handle_Runs_Normally_WhenTheDepositsOnlyJobsAreTerminal()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
+        await SavePipelineRunJob(context, deposit.MintedId, PipelineJobStates.Completed);
+        await SavePipelineRunJob(context, deposit.MintedId, PipelineJobStates.CompletedWithErrors);
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .Returns(new PublishResponse { HttpStatusCode = HttpStatusCode.OK, MessageId = "m-1" });
+
+        var result = await CreateHandler(context, snsClient)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.Success.Should().BeTrue("a deposit whose previous runs have all finished may run again");
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        context.PipelineRunJobs.Count(j => j.Deposit == deposit.MintedId).Should().Be(3);
     }
 }

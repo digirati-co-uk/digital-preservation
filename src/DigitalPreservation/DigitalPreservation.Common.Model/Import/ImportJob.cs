@@ -155,17 +155,20 @@ public class ImportJob : Resource
     
     // (metadata to change?) more general. NOT for Oct demo.
 
+    /// <summary>
+    /// Checks only the Add lists (plus Rename, which is refused outright regardless - issue #260).
+    /// Patch and Delete name resources that already exist in Fedora: if the slug alphabet tightens,
+    /// an existing resource with a now-invalid slug must still be patchable or deletable through the
+    /// UI, so those lists are deliberately not checked here (issue #298).
+    /// </summary>
     public (List<PreservedResource>, string?) ItemsWithInvalidSlugs()
     {
         var itemsWithInvalidSlugs = new List<PreservedResource>();
         var invalidSlugMessages = new List<string>();
         AppendInvalidSlugMessage(ContainersToAdd, itemsWithInvalidSlugs, invalidSlugMessages);
         AppendInvalidSlugMessage(ContainersToRename, itemsWithInvalidSlugs, invalidSlugMessages);
-        AppendInvalidSlugMessage(ContainersToDelete, itemsWithInvalidSlugs, invalidSlugMessages);
         AppendInvalidSlugMessage(BinariesToAdd, itemsWithInvalidSlugs, invalidSlugMessages);
-        AppendInvalidSlugMessage(BinariesToPatch, itemsWithInvalidSlugs, invalidSlugMessages);
         AppendInvalidSlugMessage(BinariesToRename, itemsWithInvalidSlugs, invalidSlugMessages);
-        AppendInvalidSlugMessage(BinariesToDelete, itemsWithInvalidSlugs, invalidSlugMessages);
         string? msg = null;
         if (invalidSlugMessages.Count > 0)
         {
@@ -178,10 +181,19 @@ public class ImportJob : Resource
     {
         foreach (var item in itemsToTest)
         {
+            // PreservedResource.GetSlug() throws for a relative Uri (Id.Segments requires an
+            // absolute one) - a hand-built job can supply one (issue #267's "invalid-id" case), and
+            // this check must produce the same "invalid" verdict as a bad slug, never a crash.
+            if (item.Id is not { IsAbsoluteUri: true })
+            {
+                itemsWithInvalidSlugs.Add(item);
+                invalidSlugMessages.Add("Item has no id, or the id is not an absolute URI.");
+                continue;
+            }
             if (!PreservedResource.ValidSlug(item.GetSlug(), out var msg))
             {
                 itemsWithInvalidSlugs.Add(item);
-                invalidSlugMessages.Add(msg!);   
+                invalidSlugMessages.Add(msg!);
             }
         }
     }
@@ -192,5 +204,28 @@ public class ImportJob : Resource
         binaries.AddRange(BinariesToAdd.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
         binaries.AddRange(BinariesToPatch.Where(binary => binary.ContentType.IsNullOrWhiteSpace()));
         return binaries;
+    }
+
+    /// <summary>
+    /// The message to refuse this job with, or null when it asks for no renames. Renaming (changing
+    /// only a Container or Binary's display name / dc:title, never its slug or path) is not
+    /// implemented yet (issue #260); both the Preservation and Storage APIs refuse a job that asks
+    /// for one, using this same wording.
+    /// </summary>
+    public string? RenameRefusalMessage()
+    {
+        var renamedItems = ContainersToRename.Concat<PreservedResource>(BinariesToRename).ToList();
+        if (renamedItems.Count == 0)
+        {
+            return null;
+        }
+
+        var ids = renamedItems.Select(item => item.Id?.ToString() ?? "(no id)").ToList();
+        var idsText = ids.Count <= 3 ? string.Join(", ", ids) : string.Join(", ", ids.Take(3)) + ", …";
+
+        return $"Renaming is not supported yet: this import job asks to rename {renamedItems.Count} item(s) " +
+               $"({idsText}). A rename changes only the display name (dc:title) of an existing Container or " +
+               "Binary. To proceed, make the name in the METS match the name the Archival Group already has, " +
+               "or remove the rename entries from the job.";
     }
 }

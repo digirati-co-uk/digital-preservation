@@ -130,19 +130,16 @@ public class MediaController(
             return await ImageFromImageService(workspaceManager, file.Value, size);
         }
 
-        // Bare imagesvc URL — redirect to info.json if the file exists
-        if (elements.Length >= 4)
+        // Bare imagesvc URL: the image service's base URI, which is the whole path. Redirect to its
+        // info.json if it names a file. Any other image API shape (another format, rotation or
+        // quality) is not a file in the tree, so it 404s - this is a level 0 service.
+        if (ResolveDepositFile(workingDirectory, isBagIt, origin, localPath) != null)
         {
-            var testRealLocalPath = string.Join('/', elements[..^4]);
-            var testMediaItem = ResolveDepositFile(workingDirectory, isBagIt, origin, testRealLocalPath)?.Item;
-            if (testMediaItem != null)
-            {
-                // Relative redirect: avoids echoing the client-supplied Host header
-                // and any query string back into the Location header (Sonar S5146).
-                var infoJsonUrl = Request.PathBase.Add(Request.Path).Add("/info.json").Value!;
-                if (Url.IsLocalUrl(infoJsonUrl))
-                    return Redirect(infoJsonUrl);
-            }
+            // Relative redirect: avoids echoing the client-supplied Host header
+            // and any query string back into the Location header (Sonar S5146).
+            var infoJsonUrl = Request.PathBase.Add(Request.Path).Add("/info.json").Value!;
+            if (Url.IsLocalUrl(infoJsonUrl))
+                return Redirect(infoJsonUrl);
         }
 
         return NotFound();

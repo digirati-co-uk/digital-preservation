@@ -2,12 +2,13 @@
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Common.Model.Transit.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalPreservation.UI.Pages.Shared;
 
 public static class ModsMetadataDisplayBuilder
 {
-    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(CombinedBase? combinedBase)
+    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(CombinedBase? combinedBase, ILogger? logger = null)
     {
         if (combinedBase == null)
         {
@@ -20,11 +21,12 @@ public static class ModsMetadataDisplayBuilder
             combinedBase.EffectiveRightsStatement,
             combinedBase.RightsStatementSuppressed,
             combinedBase.RecordInfo,
-            combinedBase.EffectiveRecordInfo);
+            combinedBase.EffectiveRecordInfo,
+            logger);
     }
-    
-    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(ResourceBase? resourceBase)
-    {        
+
+    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(ResourceBase? resourceBase, ILogger? logger = null)
+    {
         if (resourceBase == null)
         {
             return [];
@@ -36,7 +38,8 @@ public static class ModsMetadataDisplayBuilder
             resourceBase.EffectiveRightsStatement,
             resourceBase.RightsStatementSuppressed,
             resourceBase.RecordInfo,
-            resourceBase.EffectiveRecordInfo);
+            resourceBase.EffectiveRecordInfo,
+            logger);
     }
 
     private static List<(string Label, string Text, bool Inherited)> GetDisplayItems(
@@ -46,15 +49,24 @@ public static class ModsMetadataDisplayBuilder
         Uri? effectiveRightsStatement,
         bool rightsStatementSuppressed,
         RecordInfo? recordInfo,
-        RecordInfo? effectiveRecordInfo)
+        RecordInfo? effectiveRecordInfo,
+        ILogger? logger)
     {
         // Collect display items as (label, text, inherited). Inherited items render in muted style.
         var items = new List<(string Label, string Text, bool Inherited)>();
 
+        // An explicit value always overrides to become the effective value (MetsParser.
+        // ComputeEffectiveMetadata), so a mismatch here means that invariant has been broken -
+        // defensive, not reachable today. Showing the explicit value and logging a warning keeps a
+        // future regression from turning a cosmetic inconsistency into a 500 for the whole page.
         if (accessRestrictions is { Count: > 0 })
         {
             if (effectiveAccessRestrictions != null && !effectiveAccessRestrictions.SequenceEqual(accessRestrictions))
-                throw new NotSupportedException("Effective access restrictions don't equal explicit access restrictions");
+            {
+                logger?.LogWarning(
+                    "Effective access restrictions ({Effective}) don't match explicit access restrictions ({Explicit}); showing the explicit value",
+                    string.Join(", ", effectiveAccessRestrictions), string.Join(", ", accessRestrictions));
+            }
             items.Add(("Access", string.Join(", ", accessRestrictions), false));
         }
         else if (effectiveAccessRestrictions is { Count: > 0 })
@@ -65,7 +77,11 @@ public static class ModsMetadataDisplayBuilder
         if (rightsStatement != null)
         {
             if (effectiveRightsStatement != rightsStatement)
-                throw new NotSupportedException("Effective rights statement does not equal explicit rights statement");
+            {
+                logger?.LogWarning(
+                    "Effective rights statement ({Effective}) does not match explicit rights statement ({Explicit}); showing the explicit value",
+                    effectiveRightsStatement, rightsStatement);
+            }
             items.Add(("Rights", RightsStatement.GetShortLabel(rightsStatement) ?? "", false));
         }
         else if (rightsStatementSuppressed)
@@ -81,7 +97,11 @@ public static class ModsMetadataDisplayBuilder
         if (recordInfo != null)
         {
             if (!recordInfo.HasSameIdentifiers(effectiveRecordInfo))
-                throw new NotSupportedException("Effective record identifiers do not equal explicit record identifiers");
+            {
+                logger?.LogWarning(
+                    "Effective record identifiers ({Effective}) do not match explicit record identifiers ({Explicit}); showing the explicit value",
+                    effectiveRecordInfo?.ToCompactString(", "), recordInfo.ToCompactString(", "));
+            }
             items.Add(("Record", recordInfo.ToCompactString(", ") ?? "", false));
         }
         else if (effectiveRecordInfo != null)

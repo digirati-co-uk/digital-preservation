@@ -199,12 +199,13 @@ The point here is only that the verified `azp` is the safe key such policy hangs
   subsequent storage operation derives its location (and bucket) from that URI.
 - **The pipeline only runs on default-bucket deposits.** Pipeline.API reaches deposit files
   through a filesystem mount of the default working bucket, so `RunPipelineHandler` declines
-  (400) any deposit whose `Files` URI is outside it. **Caveat: it is *not* the only producer of
-  pipeline jobs** — Pipeline.API's own `POST /pipeline` (`PipelineController`, guarded only by
-  `X-API-KEY`) publishes the same message to the same topic with no bucket check, bypassing this
-  guard. That entrypoint needs the same check, or retiring — tracked as
-  [#231](https://github.com/digirati-co-uk/digital-preservation/issues/231). Revisit if a routed
-  caller ever needs characterisation.
+  (400) any deposit whose `Files` URI is outside it. Pipeline.API's own `POST /pipeline`
+  (`PipelineController`, guarded only by `X-API-KEY`) used to bypass this guard entirely —
+  publishing the same message to the same topic with no bucket check or lock check. Resolved by
+  [#231](https://github.com/digirati-co-uk/digital-preservation/issues/231): that entrypoint is
+  now a thin proxy over `POST /deposits/{id}/pipeline`, so `RunPipelineHandler` is the only
+  producer of pipeline jobs and this guard applies to every caller. Revisit if a routed caller
+  ever needs characterisation.
 - Deployment prerequisite, not code: the task roles of every service that touches deposit
   files (Preservation API, Storage API + Importer for export, UI) need IAM read/write on each
   per-caller bucket, and the caller needs access to its own bucket.
@@ -382,5 +383,4 @@ Keep it minimal and self-only: it sits behind the standard `AuthorizeFilter` and
 - `Preservation.API/Program.cs`, `Storage.API/Program.cs` — `AzureAd` audience config; role enforcement filter.
 - `DigitalPreservation.Core/Web/Headers/PropagateCorrelationIdHandler.cs` — relays the inbound user token downstream, and when there is none falls back to `AccessTokenProvider` for an app-only token, hard-coding `X-Client-Identity: "api-call"`; it also relays any *inbound* `X-Client-Identity` verbatim (remove both in Phase 4).
 - `DigitalPreservation.Core/Web/Headers/AccessTokenProvider.cs` + the `TokenProvider` config section (`Preservation.API`, `Pipeline.API`) — the APIs' own machine credentials/identity for service-to-service calls (see §3.2 #7). Migrating these in Phase 2 is *not* config-only — the own-resource-only limitation (§8 Q1) forces either a code change here or the run-as-`84c62880` stopgap (see Phase 2). While touching it, move off the legacy v1 `/oauth2/token` endpoint.
-- `Pipeline.API/Features/Pipeline/PipelineController.cs` — `POST /pipeline` enqueues pipeline jobs with no default-bucket guard, bypassing `RunPipelineHandler`'s check (§5.2); add the guard or retire the entrypoint ([#231](https://github.com/digirati-co-uk/digital-preservation/issues/231)).
 - `Storage.API.Tests/Integration/ApiAuthorizationStackTests.cs` — existing characterisation of the authorization stack; extend with role-enforcement cases.

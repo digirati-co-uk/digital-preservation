@@ -10,6 +10,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Utils;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
@@ -31,7 +32,8 @@ public class DeleteItems(
 
 public class DeleteItemsHandler(
     IAmazonS3 s3Client,
-    IMetsManager metsManager) : IRequestHandler<DeleteItems, Result<ItemsAffected>>
+    IMetsManager metsManager,
+    ILogger<DeleteItemsHandler> logger) : IRequestHandler<DeleteItems, Result<ItemsAffected>>
 {
     public async Task<Result<ItemsAffected>> Handle(DeleteItems request, CancellationToken cancellationToken)
     { 
@@ -85,8 +87,11 @@ public class DeleteItemsHandler(
         foreach (var item in deepestFirst)
         {
             Result<ItemsAffected>? failedDeleteResult = null;
+            // Set alongside the three protection-guard failures below - never tolerated by
+            // ContinueIfFail regardless of what it lists, unlike a not-found, S3 or unknown error.
+            bool isProtectionGuardFailure = false;
             bool deletedFromDepositFiles = false;
-            var deleteDirectoryContext = item.RelativePath; 
+            var deleteDirectoryContext = item.RelativePath;
             if (!item.IsDirectory)
             {
                 deleteDirectoryContext = deleteDirectoryContext.GetParent();
@@ -115,12 +120,14 @@ public class DeleteItemsHandler(
                     {
                         failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                             ErrorCodes.BadRequest, "You cannot delete the objects directory.");
+                        isProtectionGuardFailure = true;
                     }
 
                     if (deleteDirectory.LocalPath == FolderNames.MetadataAdHoc)
                     {
                         failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                             ErrorCodes.BadRequest, "You cannot delete the metadata ad-hoc directory.");
+                        isProtectionGuardFailure = true;
                     }
 
                     if (deleteDirectory.Files.Count > 0)
@@ -151,6 +158,7 @@ public class DeleteItemsHandler(
                         {
                             failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                                 ErrorCodes.BadRequest, "You cannot delete protected files in the root.");
+                            isProtectionGuardFailure = true;
                         }
                     }
 
@@ -259,9 +267,17 @@ public class DeleteItemsHandler(
                 }
             }
 
-            if (failedDeleteResult == null || (request.DeleteSelection.ContinueIfFail != null && request.DeleteSelection.ContinueIfFail.Length > 0 && !request.DeleteSelection.ContinueIfFail.Contains(item.RelativePath)))
+            if (failedDeleteResult == null)
             {
                 goodResult.Items.Add(item);
+            }
+            else if (!isProtectionGuardFailure && request.DeleteSelection.FailureIsTolerated(item.RelativePath))
+            {
+                // Tolerated: not added to Items, since it was not actually deleted - the caller
+                // asked to carry on past this, not to be told it succeeded.
+                logger.LogWarning(
+                    "Tolerating failed deletion of {RelativePath}: {ErrorCode} {ErrorMessage}",
+                    item.RelativePath, failedDeleteResult.ErrorCode, failedDeleteResult.ErrorMessage);
             }
             else
             {

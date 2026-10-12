@@ -129,6 +129,20 @@ public class ImportJobsController(
             }
         }
 
+        if (RenameRefusal(importJob) is { } renameRefusal)
+        {
+            // Checked before SuppressedButNotMetsOnly, so a suppressed job that also asks for a
+            // rename gets this message rather than the generic suppression one.
+            return renameRefusal;
+        }
+
+        if (InvalidSlugRefusal(importJob) is { } invalidSlugRefusal)
+        {
+            // Next to the rename refusal (#260): both judge the job that would actually run, so
+            // both come after the diff-reference expansion and before SuppressedButNotMetsOnly.
+            return invalidSlugRefusal;
+        }
+
         if (SuppressedButNotMetsOnly(importJob, deposit.ArchivalGroup!) is { } refusal)
         {
             // The feature flag says WHEN suppression may be used; this says WHAT FOR. Until now
@@ -213,6 +227,41 @@ public class ImportJobsController(
         return null;
     }
     
+    /// <summary>
+    /// The refusal to return when a job asks for a rename, which the platform does not perform yet
+    /// (issue #260); null when the job asks for none. Runs after the diff-reference expansion, so a
+    /// diff reference is judged on the job that would actually run.
+    /// </summary>
+    private ActionResult? RenameRefusal(ImportJob importJob)
+    {
+        if (importJob.RenameRefusalMessage() is not { } message)
+        {
+            return null;
+        }
+        logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
+        return this.StatusResponseFromResult(
+            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+    }
+
+    /// <summary>
+    /// The refusal to return when a job's ContainersToAdd or BinariesToAdd contains an invalid
+    /// slug (issue #298); null when the job is fine. Previously this was only checked client-side,
+    /// by the diff page, which hides Execute for it - a caller posting a job directly was sent to
+    /// Fedora unchecked. Runs after the diff-reference expansion, so a diff reference is judged on
+    /// the job that would actually run.
+    /// </summary>
+    private ActionResult? InvalidSlugRefusal(ImportJob importJob)
+    {
+        var (_, message) = importJob.ItemsWithInvalidSlugs();
+        if (message is null)
+        {
+            return null;
+        }
+        logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
+        return this.StatusResponseFromResult(
+            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+    }
+
     /// <summary>
     /// The refusal to return when a job asks for Activity Stream suppression but is not the one
     /// kind of job suppression exists for; null when the job is fine.

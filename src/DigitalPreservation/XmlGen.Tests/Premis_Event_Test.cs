@@ -2,7 +2,6 @@
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using FluentAssertions;
 using DigitalPreservation.Mets;
-using Xunit.Abstractions;
 
 namespace XmlGen.Tests;
 public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
@@ -53,8 +52,8 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
         var xmlElement = PremisManager.GetXmlElement(premis, false);
         var xmlElementMetadata = PremisEventManagerVirus.GetXmlElement(premisEvent);
 
-        testOutputHelper.WriteLine(xmlElement?.ToString());
-        testOutputHelper.WriteLine(xmlElementMetadata?.ToString());
+        testOutputHelper.WriteLine(xmlElement?.ToString() ?? "null");
+        testOutputHelper.WriteLine(xmlElementMetadata?.ToString() ?? "null");
 
         var serialisedPremis = PremisManager.Serialise(premis);
         serialisedPremis.Should().Contain(testPremisData.Digest!);
