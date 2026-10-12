@@ -108,7 +108,18 @@ public class MediaImagesTests
 
         var render = () => MediaImages.RenderJpeg(new MemoryStream(original), 40, 0);
 
-        render.Should().Throw<VipsException>();
+        render.Should().Throw<InvalidDataException>();
+    }
+
+    [Fact]
+    public void A_Corrupt_File_Is_Refused_As_Invalid_Data_Not_A_Library_Exception()
+    {
+        // Starts like a JPEG, then isn't one.
+        byte[] corrupt = [0xFF, 0xD8, 0xFF, 0xE0, .. "not really a jpeg"u8.ToArray()];
+
+        var render = () => MediaImages.RenderJpeg(new MemoryStream(corrupt), 40, 0);
+
+        render.Should().Throw<InvalidDataException>().WithInnerException<VipsException>();
     }
 
     [Theory]

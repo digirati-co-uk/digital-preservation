@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging.Abstractions;
 using NetVips;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Features.MediaServer;
@@ -162,6 +163,31 @@ public class MediaControllerTests
         AssertNoStreamCalls();
     }
 
+    [Theory]
+    [InlineData("100,80", 100, 80)]       // ManifestBuilder's thumbnail size
+    [InlineData("100,", 100, 80)]
+    [InlineData("1200,960", 1000, 800)]   // its canvas image size
+    public async Task A_File_That_Cannot_Be_Decoded_Gets_The_Placeholder_Uncached(
+        string size, int expectedWidth, int expectedHeight)
+    {
+        A.CallTo(() => mediator.Send(A<GetFileStream>._, A<CancellationToken>._))
+            .ReturnsLazily(() => Result.OkNotNull<(Stream?, DateTime)>(
+                (new MemoryStream("not an image"u8.ToArray()), DateTime.UtcNow)));
+        var localPath = $"objects/page-001.jpg/full/{size}/0/default.jpg";
+        var controller = CreateController(localPath, "imagesvc");
+
+        var result = await controller.GetMedia(Token, "deposit", SourceId, "imagesvc", localPath);
+
+        var file = result.Should().BeOfType<FileContentResult>().Subject;
+        file.ContentType.Should().Be("image/png");
+        using var png = Image.NewFromBuffer(file.FileContents);
+        png.Width.Should().Be(expectedWidth);
+        png.Height.Should().Be(expectedHeight);
+        var headers = controller.Response.Headers;
+        headers.CacheControl.ToString().Should().Be("no-store");
+        headers.ContainsKey("ETag").Should().BeFalse("a placeholder must not be revalidated as the real image");
+    }
+
     [Fact]
     public async Task The_Default_Jpg_Branch_Returns_A_Jpeg_Of_The_Requested_Width()
     {
@@ -265,7 +291,8 @@ public class MediaControllerTests
         httpContext.Request.Host = new HostString("example.org");
         httpContext.Request.Path = $"/media/{Token}/deposit/{SourceId}/{type}/{localPath}";
 
-        return new MediaController(mediator, new WorkspaceManagerFactory(mediator, metsParser), tokenService)
+        return new MediaController(mediator, new WorkspaceManagerFactory(mediator, metsParser), tokenService,
+            NullLogger<MediaController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
             Url = new UrlHelper(new ActionContext(httpContext, new RouteData(), new ActionDescriptor()))

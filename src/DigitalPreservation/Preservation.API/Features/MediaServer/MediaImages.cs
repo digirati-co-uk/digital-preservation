@@ -42,21 +42,32 @@ internal static class MediaImages
     /// or height of 0 leaves that side unconstrained. Never upscales: a level-0 service only offers
     /// sizes up to the original's.
     /// </summary>
+    /// <exception cref="InvalidDataException">
+    /// The source is corrupt, or not in one of the preview formats. Thrown in place of the image
+    /// library's own exception, so callers don't depend on which library this is.
+    /// </exception>
     public static byte[] RenderJpeg(Stream source, int width, int height)
     {
-        // Shrinks while loading where the format allows it, so a large original is never fully decoded.
-        using var thumbnail = Image.ThumbnailStream(source,
-            width > 0 ? width : Unconstrained,
-            height: height > 0 ? height : Unconstrained,
-            size: Enums.Size.Down);
-        // thumbnail colour-manages CMYK to sRGB and jpegsave scales 16-bit to 8; MediaImagesTests holds
-        // libvips to both. Left to jpegsave, transparency would become black.
-        if (!thumbnail.HasAlpha())
+        try
         {
-            return thumbnail.JpegsaveBuffer(keep: Enums.ForeignKeep.None);
+            // Shrinks while loading where the format allows it, so a large original is never fully decoded.
+            using var thumbnail = Image.ThumbnailStream(source,
+                width > 0 ? width : Unconstrained,
+                height: height > 0 ? height : Unconstrained,
+                size: Enums.Size.Down);
+            // thumbnail colour-manages CMYK to sRGB and jpegsave scales 16-bit to 8; MediaImagesTests holds
+            // libvips to both. Left to jpegsave, transparency would become black.
+            if (!thumbnail.HasAlpha())
+            {
+                return thumbnail.JpegsaveBuffer(keep: Enums.ForeignKeep.None);
+            }
+            using var opaque = thumbnail.Flatten(background: [255, 255, 255]);
+            return opaque.JpegsaveBuffer(keep: Enums.ForeignKeep.None);
         }
-        using var opaque = thumbnail.Flatten(background: [255, 255, 255]);
-        return opaque.JpegsaveBuffer(keep: Enums.ForeignKeep.None);
+        catch (VipsException e)
+        {
+            throw new InvalidDataException(e.Message, e);
+        }
     }
 
     public static byte[] GreyPng(int width, int height)

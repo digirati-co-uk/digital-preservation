@@ -9,6 +9,7 @@ using IIIFSize = IIIF.Size;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.IIIF;
 
@@ -20,9 +21,13 @@ namespace Preservation.API.Features.MediaServer;
 public class MediaController(
     IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory,
-    ITokenService tokenService
+    ITokenService tokenService,
+    ILogger<MediaController> logger
 ) : ControllerBase
 {
+    // The largest size ManifestBuilder asks for as a thumbnail; anything bigger is a canvas image.
+    private const int ThumbnailSize = 100;
+
     private static readonly Lazy<byte[]> CanvasPlaceholder = new(() => MediaImages.GreyPng(1000, 800));
     private static readonly Lazy<byte[]> ThumbPlaceholder = new(() => MediaImages.GreyPng(100, 80));
 
@@ -216,15 +221,14 @@ public class MediaController(
         return new FileStreamResult(fullStreamResult.Value.Item1, contentType);
     }
 
-    private static IActionResult ServePlaceholder(string localPath)
-    {
-        var bytes = localPath == "thumb.png" ? ThumbPlaceholder.Value : CanvasPlaceholder.Value;
-        return new FileContentResult(bytes, "image/png");
-    }
+    private static IActionResult ServePlaceholder(string localPath) => Placeholder(localPath == "thumb.png");
+
+    private static FileContentResult Placeholder(bool thumbnail) =>
+        new(thumbnail ? ThumbPlaceholder.Value : CanvasPlaceholder.Value, "image/png");
 
     // Takes a resolved DepositFile, not a Uri, so that there is no way to reach S3 from this
     // controller except through ResolveDepositFile. Same for ProxyFileWithByteRangeSupport.
-    private static async Task<IActionResult> ImageFromImageService(
+    private async Task<IActionResult> ImageFromImageService(
         WorkspaceManager workspaceManager, DepositFile file, string size)
     {
         var parts = size.Split(',');
@@ -248,7 +252,20 @@ public class MediaController(
         }
         buffered.Position = 0;
 
-        var jpeg = MediaImages.RenderJpeg(buffered, w, h);
+        byte[] jpeg;
+        try
+        {
+            jpeg = MediaImages.RenderJpeg(buffered, w, h);
+        }
+        catch (InvalidDataException e)
+        {
+            // A corrupt file, or one in a format the service doesn't preview: the viewer still gets an
+            // image. Not cached, so a replacement file shows up as soon as it's there.
+            logger.LogWarning(e, "Image service could not decode {FileUri}; serving the placeholder", fileUri);
+            Response.Headers.CacheControl = "no-store";
+            Response.Headers.Remove(HeaderNames.ETag);
+            return Placeholder(thumbnail: Math.Max(w, h) <= ThumbnailSize);
+        }
         return new FileStreamResult(new MemoryStream(jpeg), "image/jpeg");
     }
 
