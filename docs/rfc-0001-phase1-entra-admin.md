@@ -56,8 +56,9 @@ To the DLIP engineering team:
   route), never email or chat;
 - (they already have the tenant ID).
 
-The DLIP team will test the credentials themselves first; intranda receive them only after the
-end-to-end path is proven.
+The DLIP team will test the credentials themselves first (`src/caller-check` in this
+repository mints a token, checks its claims, and proves deposit and export routing); intranda
+receive them only after the end-to-end path is proven.
 
 ## Do NOT
 
