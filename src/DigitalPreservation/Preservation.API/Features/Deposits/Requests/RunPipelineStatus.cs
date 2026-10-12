@@ -55,14 +55,17 @@ public class RunPipelineStatusHandler(
     }
 
     /// <summary>
-    /// Records a non-terminal report (MetadataCreated, Waiting), but only on a job that is not
-    /// already terminal. The pipeline posts MetadataCreated after its last force-complete check, so
-    /// it can land on a job that was force-completed, or closed by the stalled-run sweep (#301), a
-    /// moment earlier. An unconditional write would move that job back to non-terminal, and the
-    /// run's own later Completed report would then move it a second time - overwriting the status
-    /// and releasing a lock the same user may have retaken - which is the race CompleteJob closes
-    /// (issue #316). So, like CompleteJob, the database decides: a report on a finished job matches
-    /// no row and is ignored as late, not treated as an error.
+    /// Records the one non-terminal report there is: MetadataCreated, which a running job posts once
+    /// its tool outputs are written. Job states only move forward - created waiting, to processing
+    /// only by being claimed (ClaimJob), to metadataCreated by this report, then to a terminal status
+    /// (CompleteJob). So:
+    /// - any other non-terminal status is refused. A "waiting" report in particular would move a
+    ///   running job back to waiting, and ClaimJob would then let a duplicate SQS delivery of its
+    ///   start message claim and run it a second time (issue #356).
+    /// - MetadataCreated moves only a processing job (or repeats on a metadataCreated one). On a job
+    ///   already terminal it is a late report, ignored as before (#316): it can land just after a
+    ///   force complete or the stalled-run sweep (#301). On a job never claimed it is out of order.
+    /// The database decides, with a conditional update, as in ClaimJob and CompleteJob.
     /// </summary>
     private async Task<Result> RecordIntermediateStatus(RunPipelineStatus request, string depositId, CancellationToken cancellationToken)
     {
@@ -74,13 +77,21 @@ public class RunPipelineStatusHandler(
             return Result.Ok();
         }
 
+        if (newStatus != PipelineJobStates.MetadataCreated)
+        {
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"'{newStatus}' can't be reported for pipeline job {jobId}: a job is created waiting, is moved to " +
+                $"{PipelineJobStates.Running} only by being claimed, and otherwise reports " +
+                $"{PipelineJobStates.MetadataCreated} or a terminal status.");
+        }
+
         int updated;
         try
         {
             logger.LogInformation("Saving Pipeline Job entity {EntityId} to DB for deposit {MintedId}", jobId, depositId);
             updated = await dbContext.PipelineRunJobs
                 .Where(j => j.Deposit == depositId && j.Id == jobId
-                            && j.Status != PipelineJobStates.Completed && j.Status != PipelineJobStates.CompletedWithErrors)
+                            && (j.Status == PipelineJobStates.Running || j.Status == PipelineJobStates.MetadataCreated))
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(j => j.Status, newStatus)
                     .SetProperty(j => j.LastUpdated, DateTime.UtcNow), cancellationToken);
@@ -93,17 +104,25 @@ public class RunPipelineStatusHandler(
 
         if (updated == 0)
         {
-            var exists = await dbContext.PipelineRunJobs.AnyAsync(
-                j => j.Deposit == depositId && j.Id == jobId, cancellationToken);
-            if (!exists)
+            var currentStatus = await dbContext.PipelineRunJobs
+                .Where(j => j.Deposit == depositId && j.Id == jobId)
+                .Select(j => j.Status)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (currentStatus == null)
             {
                 return Result.Fail(ErrorCodes.NotFound, $"No pipeline job {jobId} for deposit {depositId}");
             }
 
-            logger.LogWarning(
-                "Pipeline job {JobId} for deposit {DepositId} reported {Status} after it had already finished; " +
-                "ignoring the late report", jobId, depositId, newStatus);
-            return Result.Ok();
+            if (PipelineJobStates.IsComplete(currentStatus))
+            {
+                logger.LogWarning(
+                    "Pipeline job {JobId} for deposit {DepositId} reported {Status} after it had already finished; " +
+                    "ignoring the late report", jobId, depositId, newStatus);
+                return Result.Ok();
+            }
+
+            return Result.Fail(ErrorCodes.Conflict,
+                $"Pipeline job {jobId} is {currentStatus}, not running, so it can't report {newStatus}.");
         }
 
         var callerIdentity = request.User.GetCallerIdentity();
@@ -129,10 +148,18 @@ public class RunPipelineStatusHandler(
         // RunUser is set once, at job creation, and never changes - reading it ahead of the
         // conditional move below (rather than from whatever row it affected) is safe either way,
         // and means the move and the release each need only the one query the issue specifies.
-        var runUser = await dbContext.PipelineRunJobs
+        // Projected into an object so that "no such job" (null) is distinguishable from a job whose
+        // RunUser is null; SingleAsync used to throw here, a 500, where the intermediate path answers
+        // 404 for the same input (#356).
+        var job = await dbContext.PipelineRunJobs
             .Where(j => j.Deposit == depositId && j.Id == jobId)
-            .Select(j => j.RunUser)
-            .SingleAsync(cancellationToken);
+            .Select(j => new { j.RunUser })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (job == null)
+        {
+            return Result.Fail(ErrorCodes.NotFound, $"No pipeline job {jobId} for deposit {depositId}");
+        }
+        var runUser = job.RunUser;
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 

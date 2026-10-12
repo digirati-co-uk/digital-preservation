@@ -161,7 +161,7 @@ Both are guarded by `ApiKeyMiddleware`, which compares the value of the header n
 | `GET /pipeline?depositId=…` | Diagnostics: lists the files and directories under the mounted deposit path, plus `df` output. |
 | `GET /health` | Liveness for the load balancer. |
 
-Outbound, Pipeline API calls Preservation API as a machine client (`AddMachinePreservationClient(..., "PipelineAPI")`) for: fetching the deposit (both to run the pipeline on it from `POST /pipeline` above, and as part of the dequeue loop below), reading the job list (used both by `CheckIfForceComplete` and to spot an already-force-completed job at dequeue time), queuing a run, releasing the lock, and reporting status.
+Outbound, Pipeline API calls Preservation API as a machine client (`AddMachinePreservationClient(..., "PipelineAPI")`) for: fetching the deposit (both to run the pipeline on it from `POST /pipeline` above, and as part of the dequeue loop below), reading the job list (used both by `CheckIfForceComplete` and to spot an already-force-completed job at dequeue time), queuing a run, and reporting status. It no longer releases the lock: since #309 the Preservation API takes the lock when it queues a run and releases it on the run's terminal status.
 
 Status reporting is `POST /deposits/pipeline-status`, hidden from the OpenAPI description because it is not for general use. The body is a `PipelineDeposit`:
 
@@ -175,7 +175,15 @@ Status reporting is `POST /deposits/pipeline-status`, hidden from the OpenAPI de
 }
 ```
 
-`id` is the job identifier, not the deposit's. `status` is one of the [job states](https://digirati-co-uk.github.io/digital-preservation-docs/preservation-api/tool-outputs-and-pipelines#job-states); `processing` is the claim described above, `completed` and `completedWithErrors` set `dateFinished`, and `errors` is a single string that Preservation API surfaces as a one-element `errors` array on the `ProcessPipelineResult`.
+`id` is the job identifier, not the deposit's. `status` is one of the [job states](https://digirati-co-uk.github.io/digital-preservation-docs/preservation-api/tool-outputs-and-pipelines#job-states), and states only move forward:
+
+* `processing` is the claim described above: it succeeds only on a `waiting` job, and answers `409` otherwise.
+* `metadataCreated` moves a `processing` job on (a repeat is accepted). On a job that has already finished it is a late report, ignored with `200`; on a job never claimed it is `409`.
+* `completed` and `completedWithErrors` set `dateFinished` and release the lock if the run's user still holds it. A second terminal report is ignored.
+* Anything else, `waiting` included, is refused with `400`. A job is created `waiting` and never returns to it, since that would let a duplicate start message claim it again (#356).
+* An unknown job is `404`.
+
+`errors` is a single string that Preservation API surfaces as a one-element `errors` array on the `ProcessPipelineResult`.
 
 ## Failure modes worth knowing
 

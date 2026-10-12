@@ -316,6 +316,80 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
             "the lock belongs to the new run, and the old run's late report must not release it");
     }
 
+    /// <summary>
+    /// Job states only move forward (issue #356). A "waiting" report on a running job used to move it
+    /// back to waiting, which ClaimJob's WHERE status = 'waiting' then let a duplicate SQS delivery of
+    /// its start message claim again - running Brunnhilde twice over one deposit.
+    /// </summary>
+    [Theory]
+    [InlineData(PipelineJobStates.Running)]
+    [InlineData(PipelineJobStates.MetadataCreated)]
+    public async Task A_Waiting_Report_Is_Refused_And_Cannot_Reopen_A_Running_Job_To_A_Second_Claim(string current)
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, current);
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.Waiting);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        (await ReloadJob(jobId)).Status.Should().Be(current);
+
+        var duplicateClaim = await Handle(context, depositId, jobId, PipelineJobStates.Running);
+        duplicateClaim.ErrorCode.Should().Be(ErrorCodes.Conflict,
+            "the job never went back to waiting, so a duplicate start message can't claim it again");
+    }
+
+    [Fact]
+    public async Task A_Status_That_Is_Not_A_Pipeline_State_Is_Refused_And_Not_Written()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running);
+
+        var result = await Handle(context, depositId, jobId, "bogus");
+
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        (await ReloadJob(jobId)).Status.Should().Be(PipelineJobStates.Running);
+    }
+
+    [Fact]
+    public async Task MetadataCreated_On_A_Job_That_Was_Never_Claimed_Is_A_Conflict_And_It_Stays_Waiting()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Waiting);
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.MetadataCreated);
+
+        result.ErrorCode.Should().Be(ErrorCodes.Conflict);
+        (await ReloadJob(jobId)).Status.Should().Be(PipelineJobStates.Waiting);
+    }
+
+    [Fact]
+    public async Task A_Repeated_MetadataCreated_Report_Is_Accepted()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.MetadataCreated);
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.MetadataCreated);
+
+        result.Success.Should().BeTrue("SNS/SQS can deliver the same report twice");
+        (await ReloadJob(jobId)).Status.Should().Be(PipelineJobStates.MetadataCreated);
+    }
+
+    [Theory]
+    [InlineData(PipelineJobStates.Completed)]
+    [InlineData(PipelineJobStates.CompletedWithErrors)]
+    public async Task A_Terminal_Report_For_A_Job_That_Does_Not_Exist_Is_NotFound(string terminalStatus)
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, _) = await SeedJob(context, PipelineJobStates.Running);
+
+        var result = await Handle(context, depositId, $"job-{Guid.NewGuid()}", terminalStatus);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.NotFound, "it used to throw from SingleAsync, a 500");
+    }
+
     [Fact]
     public async Task An_Intermediate_Report_For_A_Job_That_Does_Not_Exist_Is_NotFound()
     {

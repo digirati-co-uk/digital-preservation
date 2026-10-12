@@ -4,7 +4,6 @@ using DigitalPreservation.XmlGen.Premis.V3;
 using FluentAssertions;
 using System.Xml;
 using System.Xml.Serialization;
-using Xunit.Abstractions;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace XmlGen.Tests;

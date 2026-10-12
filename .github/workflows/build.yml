@@ -89,7 +89,7 @@ jobs:
       - id: build-dotnet
         run: dotnet build $SOLUTION --configuration $BUILD_CONFIG --no-restore
       - id: test-dotnet
-        run: dotnet test $SOLUTION --filter 'Category!=Manual' --configuration $BUILD_CONFIG --no-restore --no-build --verbosity normal
+        run: dotnet test --solution $SOLUTION --filter-not-trait 'Category=Manual' --configuration $BUILD_CONFIG --no-restore --no-build --verbosity normal
 
   build-push-images:
     runs-on: ubuntu-latest

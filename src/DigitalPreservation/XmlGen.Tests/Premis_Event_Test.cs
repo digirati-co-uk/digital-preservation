@@ -2,7 +2,6 @@
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using FluentAssertions;
 using DigitalPreservation.Mets;
-using Xunit.Abstractions;
 
 namespace XmlGen.Tests;
 public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
