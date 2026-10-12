@@ -37,11 +37,13 @@
     <PropertyGroup>
       <!-- libvips (used by the media server's image service) is a native dependency, so it must match the
            runtime being *targeted*, not the machine doing the build. A RID-specific build (dotnet publish -r ...)
-           names its target; a RID-agnostic one, as Dockerfile.PreservationApi uses, can only be for the build host. -->
-      <VipsRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</VipsRuntimeIdentifier>
-      <VipsRuntimeIdentifier Condition="'$(VipsRuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</VipsRuntimeIdentifier>
-      <VipsRuntimeIdentifier Condition="'$(VipsRuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">win-x64</VipsRuntimeIdentifier>
-      <VipsRuntimeIdentifier Condition="'$(VipsRuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</VipsRuntimeIdentifier>
+           names its target. A RID-agnostic one, as Dockerfile.PreservationApi uses, runs on the same dotnet as the
+           SDK doing the build, so the SDK's own RID (OS and architecture: linux-x64, osx-arm64, win-arm64...) is it. -->
+      <VipsTargetRuntimeIdentifier>$(RuntimeIdentifier)</VipsTargetRuntimeIdentifier>
+      <VipsTargetRuntimeIdentifier Condition="'$(VipsTargetRuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</VipsTargetRuntimeIdentifier>
+      <!-- The RIDs a NetVips.Native.<rid> package exists for. -->
+      <VipsNativeRuntimeIdentifiers>;win-x64;win-arm64;win-x86;osx-x64;osx-arm64;linux-x64;linux-arm64;linux-arm;linux-musl-x64;linux-musl-arm64;</VipsNativeRuntimeIdentifiers>
+      <VipsRuntimeIdentifier Condition="$(VipsNativeRuntimeIdentifiers.Contains(';$(VipsTargetRuntimeIdentifier);'))">$(VipsTargetRuntimeIdentifier)</VipsRuntimeIdentifier>
     </PropertyGroup>
 
     <ItemGroup>
@@ -52,7 +54,7 @@
     </ItemGroup>
 
     <Target Name="WarnIfNoLibVips" BeforeTargets="Build" Condition="'$(VipsRuntimeIdentifier)' == ''">
-      <Warning Text="No NetVips.Native package matches this build - the media server's image service will fail at runtime. Add a VipsRuntimeIdentifier mapping for '$(RuntimeIdentifier)'." />
+      <Warning Text="No NetVips.Native package exists for '$(VipsTargetRuntimeIdentifier)' - the media server's image service will fail at runtime on this build." />
     </Target>
 
     <ItemGroup>
