@@ -37,7 +37,7 @@ public class RenameRefusalTests
         var job = PlainJob();
         job.BinariesToRename.Add(Binary("objects/report.pdf"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("Renaming is not supported yet");
         Executed(mediator).MustNotHaveHappened();
@@ -51,7 +51,7 @@ public class RenameRefusalTests
         var job = PlainJob();
         job.ContainersToRename.Add(Container("objects/folder"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("Renaming is not supported yet");
         Executed(mediator).MustNotHaveHappened();
@@ -73,7 +73,7 @@ public class RenameRefusalTests
             ArchivalGroup = ArchivalGroup
         };
 
-        var result = await controller.ExecuteImportJob(DepositId, diffReference, default);
+        var result = await controller.ExecuteImportJob(DepositId, diffReference, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("Renaming is not supported yet");
         Executed(mediator).MustNotHaveHappened();
@@ -87,7 +87,7 @@ public class RenameRefusalTests
         var job = PlainJob();
         job.BinariesToAdd.Add(Binary("objects/new.pdf"));
 
-        await controller.ExecuteImportJob(DepositId, job, default);
+        await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -101,7 +101,7 @@ public class RenameRefusalTests
         job.SuppressActivityStreamEvent = true;
         job.BinariesToRename.Add(Binary("objects/report.pdf"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("Renaming is not supported yet");
         Executed(mediator).MustNotHaveHappened();

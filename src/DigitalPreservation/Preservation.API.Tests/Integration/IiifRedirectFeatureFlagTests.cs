@@ -23,7 +23,7 @@ public class IiifRedirectFeatureFlagTests
         using var factory = new DigitalPreservationAppFactory<Program>();
         var client = NoRedirectClient(factory);
 
-        var response = await client.GetAsync("/deposits/abc/iiif");
+        var response = await client.GetAsync("/deposits/abc/iiif", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
         response.Headers.Location.Should().BeNull();
@@ -36,7 +36,7 @@ public class IiifRedirectFeatureFlagTests
             .WithConfigValue("FeatureFlags:EnableIiifMediaEndpoints", "true");
         var client = NoRedirectClient(factory);
 
-        var response = await client.GetAsync("/deposits/abc/iiif");
+        var response = await client.GetAsync("/deposits/abc/iiif", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.Redirect);
     }

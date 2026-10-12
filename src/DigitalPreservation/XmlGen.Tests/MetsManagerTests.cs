@@ -59,7 +59,7 @@ public class MetsManagerTests
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
         var agMetsFi = new FileInfo("Outputs/archivalGroup-mets-with-metadata.xml");
-        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName))!;
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName, TestContext.Current.CancellationToken))!;
 
         // Give the AG a preserved metadata/ folder with content. The template METS already
         // contains divs and amdSecs for metadata/ (and metadata/ad-hoc/), so building must
@@ -104,7 +104,7 @@ public class MetsManagerTests
         var agFi = new FileInfo("Samples/archivalGroup.json");
         var agMetsFi = new FileInfo("Outputs/archivalGroup-mets.xml");
         
-        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName));
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName, TestContext.Current.CancellationToken));
         var result = await metsFromArchivalGroup.CreateStandardMets(
             new Uri(agMetsFi.FullName), 
             archivalGroup!, 
@@ -190,7 +190,7 @@ public class MetsManagerTests
         var agMetsFi = new FileInfo("Outputs/archivalGroup-mets-add-dirs.xml");
         var agMetsUri = new Uri(agMetsFi.FullName);
         
-        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName));
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName, TestContext.Current.CancellationToken));
         var result = await metsFromArchivalGroup.CreateStandardMets(agMetsUri, archivalGroup!, 
             "ArchivalGroup Mets File - add folders");
         
@@ -342,7 +342,7 @@ public class MetsManagerTests
         var agMetsFi = new FileInfo("Outputs/archivalGroup-mets-add-files.xml");
         var agMetsUri = new Uri(agMetsFi.FullName);
         
-        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName));
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName, TestContext.Current.CancellationToken));
         var result = await metsFromArchivalGroup.CreateStandardMets(agMetsUri, archivalGroup!, 
             "ArchivalGroup Mets File - add folders");
         
@@ -406,7 +406,7 @@ public class MetsManagerTests
         var agMetsFi = new FileInfo("Outputs/archivalGroup-mets-delete-files.xml");
         var agMetsUri = new Uri(agMetsFi.FullName);
         
-        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName));
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName, TestContext.Current.CancellationToken));
         var result = await metsFromArchivalGroup.CreateStandardMets(agMetsUri, archivalGroup!, "ArchivalGroup Mets File Deletion");
 
         result.Success.Should().BeTrue();
@@ -433,7 +433,7 @@ public class MetsManagerTests
         var agMetsFi = new FileInfo("Outputs/archivalGroup-mets-delete-dirs.xml");
         var agMetsUri = new Uri(agMetsFi.FullName);
         
-        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName));
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName, TestContext.Current.CancellationToken));
         var result = await metsFromArchivalGroup.CreateStandardMets(agMetsUri, archivalGroup!, "ArchivalGroup Mets Directory Deletion");
 
         result.Success.Should().BeTrue();
@@ -509,7 +509,7 @@ public class MetsManagerTests
         var agFi = new FileInfo("Samples/archivalGroup.json");
         var agMetsFi = new FileInfo("Outputs/archivalGroup-mets-delete-notfound.xml");
         var agMetsUri = new Uri(agMetsFi.FullName);
-        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName));
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName, TestContext.Current.CancellationToken));
         var result = await metsFromArchivalGroup.CreateStandardMets(agMetsUri, archivalGroup!, "Delete NotFound Test");
         result.Success.Should().BeTrue();
 

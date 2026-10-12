@@ -59,7 +59,7 @@ public class MetadataReaderVirusTimestampTests
         var storage = FakeDepositStorage();
 
         var first = VirusScanFor(await MetadataReader.Create(storage, Root), "objects/a.txt");
-        await Task.Delay(10);
+        await Task.Delay(10, TestContext.Current.CancellationToken);
         var second = VirusScanFor(await MetadataReader.Create(storage, Root), "objects/a.txt");
 
         second.Timestamp.Should().Be(first.Timestamp);

@@ -94,10 +94,10 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
         // this new run on behalf of the job it already closed out.
         await using (var relockContext = fixture.CreateNewAuthServiceContext())
         {
-            var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId);
+            var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId, cancellationToken: TestContext.Current.CancellationToken);
             deposit.LockedBy = "tester";
             deposit.LockDate = DateTime.UtcNow;
-            await relockContext.SaveChangesAsync();
+            await relockContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await RunSweep(context);

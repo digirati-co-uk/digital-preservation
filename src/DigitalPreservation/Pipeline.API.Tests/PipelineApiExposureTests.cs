@@ -31,7 +31,7 @@ public class PipelineApiExposureTests
         using var factory = BuildFactory();
         var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/");
+        var response = await client.GetAsync("/", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "the initial-setup hello-world route must be removed, not merely gated");
@@ -43,7 +43,7 @@ public class PipelineApiExposureTests
         using var factory = BuildFactory();
         var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/health");
+        var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, "the load balancer's health check depends on this path");
     }
@@ -57,7 +57,7 @@ public class PipelineApiExposureTests
         using var factory = BuildFactory();
         var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var response = await client.GetAsync("/swagger/v1/swagger.json", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -41,56 +42,61 @@ public class ApiAuthorizationStackTests
 {
     private const string SecurePath = "/secure";
 
-    private static TestServer BuildServer(IClientDirectory? clients = null, CapturingLoggerProvider? logs = null)
+    private static async Task<IHost> BuildServer(IClientDirectory? clients = null, CapturingLoggerProvider? logs = null)
     {
-        var builder = new WebHostBuilder()
-            .ConfigureServices(services =>
-            {
-                services.AddAuthentication("Test")
-                    .AddScheme<AuthenticationSchemeOptions, StubAuthHandler>("Test", _ => { });
-                services.AddAuthorization();
-                if (logs != null)
+        // IHostBuilder + UseTestServer(), not the obsolete WebHostBuilder/TestServer(IWebHostBuilder)
+        // pair (ASPDEPR004/008): disposing the returned IHost disposes the TestServer along with it,
+        // unlike disposing a TestServer fetched via GetTestServer() on its own.
+        var hostBuilder = new HostBuilder()
+            .ConfigureWebHost(webBuilder => webBuilder
+                .UseTestServer()
+                .ConfigureServices(services =>
                 {
-                    services.AddLogging(logging =>
+                    services.AddAuthentication("Test")
+                        .AddScheme<AuthenticationSchemeOptions, StubAuthHandler>("Test", _ => { });
+                    services.AddAuthorization();
+                    if (logs != null)
                     {
-                        logging.SetMinimumLevel(LogLevel.Debug);
-                        logging.AddProvider(logs);
-                    });
-                }
-                if (clients != null)
+                        services.AddLogging(logging =>
+                        {
+                            logging.SetMinimumLevel(LogLevel.Debug);
+                            logging.AddProvider(logs);
+                        });
+                    }
+                    if (clients != null)
+                    {
+                        // RFC-0001 Phase 0: when a KnownClients allow-list is registered, AuthFilterIdentifier
+                        // resolves the signed azp ahead of the X-Client-Identity header.
+                        services.AddSingleton(clients);
+                    }
+                    services
+                        .AddControllers(config =>
+                        {
+                            // Exactly as registered in Storage.API / Preservation.API Program.cs.
+                            config.Filters.Add(new AuthorizeFilter());
+                            config.Filters.Add(new AuthFilterIdentifier());
+                        })
+                        .AddApplicationPart(typeof(ApiAuthorizationStackTests).Assembly);
+                })
+                .Configure(app =>
                 {
-                    // RFC-0001 Phase 0: when a KnownClients allow-list is registered, AuthFilterIdentifier
-                    // resolves the signed azp ahead of the X-Client-Identity header.
-                    services.AddSingleton(clients);
-                }
-                services
-                    .AddControllers(config =>
-                    {
-                        // Exactly as registered in Storage.API / Preservation.API Program.cs.
-                        config.Filters.Add(new AuthorizeFilter());
-                        config.Filters.Add(new AuthFilterIdentifier());
-                    })
-                    .AddApplicationPart(typeof(ApiAuthorizationStackTests).Assembly);
-            })
-            .Configure(app =>
-            {
-                app.UseRouting();
-                app.UseAuthentication();
-                app.UseAuthorization();
-                app.UseEndpoints(endpoints => endpoints.MapControllers());
-            });
+                    app.UseRouting();
+                    app.UseAuthentication();
+                    app.UseAuthorization();
+                    app.UseEndpoints(endpoints => endpoints.MapControllers());
+                }));
 
-        return new TestServer(builder);
+        return await hostBuilder.StartAsync();
     }
 
     [Fact]
     public async Task Request_WithNoCredentials_IsRejected()
     {
         // Authentication is enforced: the parameterless AuthorizeFilter == [Authorize].
-        using var server = BuildServer();
-        var client = server.CreateClient();
+        using var server = await BuildServer();
+        var client = server.GetTestClient();
 
-        var response = await client.GetAsync(SecurePath);
+        var response = await client.GetAsync(SecurePath, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -101,13 +107,13 @@ public class ApiAuthorizationStackTests
         // The key result: X-Client-Identity is NOT an authentication bypass. Without a validated
         // token the AuthorizeFilter rejects the request before AuthFilterIdentifier's machine branch
         // can attribute it.
-        using var server = BuildServer();
-        var client = server.CreateClient();
+        using var server = await BuildServer();
+        var client = server.GetTestClient();
 
         var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
         request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "totally-not-the-real-iiif-builder");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -117,13 +123,13 @@ public class ApiAuthorizationStackTests
     {
         // Normal human path: an authenticated principal that carries a display name passes via the
         // "valid user" branch of AuthFilterIdentifier.
-        using var server = BuildServer();
-        var client = server.CreateClient();
+        using var server = await BuildServer();
+        var client = server.GetTestClient();
 
         var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
         request.Headers.Add(StubAuthHandler.AuthenticateUserHeader, "true");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -136,17 +142,17 @@ public class ApiAuthorizationStackTests
         // identity the call is attributed to (logs, METS authorship). That label is self-asserted, so
         // one authenticated machine caller can attribute its calls to a different one. It is NOT a
         // privilege escalation — the caller had to present a valid token first.
-        using var server = BuildServer();
-        var client = server.CreateClient();
+        using var server = await BuildServer();
+        var client = server.GetTestClient();
 
         var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
         request.Headers.Add(StubAuthHandler.AuthenticateMachineHeader, "true");
         request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "some-other-service");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var attributedIdentity = await response.Content.ReadAsStringAsync();
+        var attributedIdentity = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         attributedIdentity.Should().Be("some-other-service");
     }
 
@@ -155,18 +161,18 @@ public class ApiAuthorizationStackTests
     {
         // A v1.0-format delegated token carries upn/unique_name but no preferred_username. The
         // shared IsHumanCaller predicate must class it human, so no machine Name claim is injected.
-        using var server = BuildServer();
-        var client = server.CreateClient();
+        using var server = await BuildServer();
+        var client = server.GetTestClient();
 
         var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
         request.Headers.Add(StubAuthHandler.AuthenticateV1UserHeader, "true");
         // A spoofed header must be irrelevant for a human caller.
         request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "not-a-machine-really");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Be("authenticated-user");
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Be("authenticated-user");
     }
 
     [Fact]
@@ -176,15 +182,15 @@ public class ApiAuthorizationStackTests
         // platform's own service-to-service calls take this path on every request until they migrate,
         // so it must not warn per request.
         var logs = new CapturingLoggerProvider();
-        using var server = BuildServer(logs: logs);
-        var client = server.CreateClient();
+        using var server = await BuildServer(logs: logs);
+        var client = server.GetTestClient();
 
         for (var i = 0; i < 2; i++)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
             request.Headers.Add(StubAuthHandler.AuthenticateMachineHeader, "true");
             request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "legacy-caller");
-            (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.OK);
+            (await client.SendAsync(request, TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
         }
 
         var fallbackEntries = logs.Entries
@@ -203,13 +209,13 @@ public class ApiAuthorizationStackTests
             ["11111111-1111-1111-1111-111111111111"] = new() { Name = "iiif-builder" }
         });
         var logs = new CapturingLoggerProvider();
-        using var server = BuildServer(clients, logs);
-        var client = server.CreateClient();
+        using var server = await BuildServer(clients, logs);
+        var client = server.GetTestClient();
 
         var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
         request.Headers.Add(StubAuthHandler.AuthenticateMachineHeader, "true");
         request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "spoofed");
-        (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.SendAsync(request, TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
 
         logs.Entries.Should().NotContain(e => e.Message.Contains("not resolved from KnownClients"));
     }
@@ -225,17 +231,17 @@ public class ApiAuthorizationStackTests
         {
             ["11111111-1111-1111-1111-111111111111"] = new() { Name = "iiif-builder" }
         });
-        using var server = BuildServer(clients);
-        var client = server.CreateClient();
+        using var server = await BuildServer(clients);
+        var client = server.GetTestClient();
 
         var request = new HttpRequestMessage(HttpMethod.Get, SecurePath);
         request.Headers.Add(StubAuthHandler.AuthenticateMachineHeader, "true");
         request.Headers.Add(AuthFilterIdentifier.MachineHeaderName, "some-other-service");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var attributedIdentity = await response.Content.ReadAsStringAsync();
+        var attributedIdentity = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         attributedIdentity.Should().Be("iiif-builder");
     }
 }

@@ -111,7 +111,7 @@ public class FedoraTransactionMonitorTests
 
         monitor.MaintainTransactionState(tx);
 
-        await commitTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await commitTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         observedToken.IsCancellationRequested.Should().BeTrue(
             "the token CommitTransaction passed to fedoraClient.CommitTransaction must observe the cancel");
