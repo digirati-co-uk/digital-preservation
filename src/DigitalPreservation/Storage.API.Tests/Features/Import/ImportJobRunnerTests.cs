@@ -39,7 +39,7 @@ public class ImportJobRunnerTests
         A.CallTo(() => mediator.Send(A<GetResourceFromFedora>._, A<CancellationToken>._))
             .Throws(new ArgumentException("would have thrown on the path"));
 
-        await Runner(mediator, store).Execute(JobId, default);
+        await Runner(mediator, store).Execute(JobId, TestContext.Current.CancellationToken);
 
         A.CallTo(() => mediator.Send(A<GetResourceFromFedora>._, A<CancellationToken>._)).MustNotHaveHappened();
         A.CallTo(() => store.SaveFinalImportJobResult(JobId,
@@ -82,7 +82,7 @@ public class ImportJobRunnerTests
         A.CallTo(() => mediator.Send(A<GetResourceFromFedora>._, A<CancellationToken>._))
             .Throws(new HttpRequestException("fedora away"));
 
-        await Runner(mediator, store).Execute(JobId, default);
+        await Runner(mediator, store).Execute(JobId, TestContext.Current.CancellationToken);
 
         A.CallTo(() => store.SaveFinalImportJobResult(JobId, A<ImportJobResult>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();

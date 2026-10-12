@@ -15,7 +15,7 @@ public class BasicTest : IClassFixture<DigitalPreservationAppFactory<Program>>
     [Fact]
     public async Task Get_ReturnsNewCorrelationId_IfNoneSpecified()
     {
-        var response = await httpClient.GetAsync("/");
+        var response = await httpClient.GetAsync("/", TestContext.Current.CancellationToken);
 
         response.Headers.Should().ContainKey("x-correlation-id")
             .WhoseValue.Should().NotBeNull();
@@ -29,7 +29,7 @@ public class BasicTest : IClassFixture<DigitalPreservationAppFactory<Program>>
         var request = new HttpRequestMessage(HttpMethod.Get, "/");
         request.Headers.Add(header, nameof(Get_ReturnsProvidedCorrelationId_CaseInsensitive));
      
-        var response = await httpClient.SendAsync(request);
+        var response = await httpClient.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.Headers.Should().ContainKey("x-correlation-id")
             .WhoseValue.Should().BeEquivalentTo(nameof(Get_ReturnsProvidedCorrelationId_CaseInsensitive));

@@ -124,7 +124,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         var premis = premisManager.Create(testData);
         var xmlElement = PremisManager.GetXmlElement(premis, false);
 
-        testOutputHelper.WriteLine(xmlElement?.ToString());
+        testOutputHelper.WriteLine(xmlElement?.ToString() ?? "null");
 
         xmlElement.Should().NotBeNull();
         xmlElement!.NamespaceURI.Should().Be("http://www.loc.gov/premis/v3");

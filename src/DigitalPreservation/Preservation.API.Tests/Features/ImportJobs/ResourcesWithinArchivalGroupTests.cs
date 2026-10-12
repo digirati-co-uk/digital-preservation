@@ -38,7 +38,7 @@ public class ResourcesWithinArchivalGroupTests
         job.ContainersToAdd.Add(new Container { Id = new Uri(ArchivalGroup + "/objects/sub") });
         job.BinariesToDelete.Add(new Binary { Id = new Uri(ArchivalGroup + "/objects/old.tif") });
 
-        await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -50,7 +50,7 @@ public class ResourcesWithinArchivalGroupTests
         var job = Job();
         job.BinariesToDelete.Add(new Binary { Id = new Uri("https://preservation.test/repository/cc/someone-elses-thing/objects/x.tif") });
 
-        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("not within its Archival Group");
         Executed(mediator).MustNotHaveHappened();
@@ -63,7 +63,7 @@ public class ResourcesWithinArchivalGroupTests
         var job = Job();
         job.ContainersToAdd.Add(new Container { Id = new Uri("https://preservation.test/repository/cc/thing-2/objects") });
 
-        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("not within its Archival Group");
         Executed(mediator).MustNotHaveHappened();
@@ -77,7 +77,7 @@ public class ResourcesWithinArchivalGroupTests
         var job = Job();
         job.BinariesToAdd.Add(new Binary { Id = ArchivalGroup, Origin = new Uri(DepositFiles, "objects/..") });
 
-        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("not within its Archival Group");
         Executed(mediator).MustNotHaveHappened();
@@ -90,7 +90,7 @@ public class ResourcesWithinArchivalGroupTests
         var job = Job();
         job.BinariesToDelete.Add(new Binary { Id = new Uri("https://preservation.test/repository/cc/thing2/objects/x.tif") });
 
-        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("not within its Archival Group");
         Executed(mediator).MustNotHaveHappened();
@@ -103,7 +103,7 @@ public class ResourcesWithinArchivalGroupTests
         var job = Job();
         job.ContainersToDelete.Add(new Container());
 
-        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("must have an id");
         Executed(mediator).MustNotHaveHappened();
@@ -119,7 +119,7 @@ public class ResourcesWithinArchivalGroupTests
         var job = Job();
         job.ContainersToAdd.Add(new Container { Id = new Uri("invalid-id", UriKind.Relative) });
 
-        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("absolute URI");
         Executed(mediator).MustNotHaveHappened();
@@ -136,7 +136,7 @@ public class ResourcesWithinArchivalGroupTests
             Origin = new Uri("objects/page-002.tif", UriKind.Relative)
         });
 
-        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("not a child of deposit file location");
         Executed(mediator).MustNotHaveHappened();
@@ -149,7 +149,7 @@ public class ResourcesWithinArchivalGroupTests
         var job = Job();
         job.BinariesToPatch.Add(new Binary { Id = new Uri(ArchivalGroup + "/objects/page-002.tif") });
 
-        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        var result = await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("not a child of deposit file location");
         Executed(mediator).MustNotHaveHappened();
@@ -170,7 +170,7 @@ public class ResourcesWithinArchivalGroupTests
             Origin = new Uri(DepositFiles, "objects/page-002.tif")
         });
 
-        await Controller(mediator).ExecuteImportJob(DepositId, job, default);
+        await Controller(mediator).ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }

@@ -28,12 +28,12 @@ public class StoredImportJobResultRepairTests(DatabaseFixture fixture)
         await using var context = fixture.CreateNewAuthServiceContext();
         const string importJobId = "repair-job-single";
         context.ImportJobs.Add(SeedCompletedImportJob(importJobId));
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var handler = new GetImportJobResultHandler(
             NullLogger<GetImportJobResultHandler>.Instance, context, A.Fake<IStorageApiClient>(), Mutator());
 
-        var result = await handler.Handle(new GetImportJobResult(DepositId, importJobId), default);
+        var result = await handler.Handle(new GetImportJobResult(DepositId, importJobId), TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.Value!.ImportJob.Should().Be(new Uri("https://preservation.test/importjobs/repair-job-single"),
@@ -46,11 +46,11 @@ public class StoredImportJobResultRepairTests(DatabaseFixture fixture)
         await using var context = fixture.CreateNewAuthServiceContext();
         const string importJobId = "repair-job-list";
         context.ImportJobs.Add(SeedCompletedImportJob(importJobId));
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var handler = new GetImportJobResultsForDepositHandler(context, Mutator());
 
-        var result = await handler.Handle(new GetImportJobResultsForDeposit(DepositId), default);
+        var result = await handler.Handle(new GetImportJobResultsForDeposit(DepositId), TestContext.Current.CancellationToken);
 
         result.Success.Should().BeTrue();
         result.Value.Should().ContainSingle(r => r.ImportJob == new Uri("https://preservation.test/importjobs/repair-job-list"));

@@ -57,7 +57,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         await using var dbContext = fixture.CreateNewStorageContext();
         var job = BuildJob("heartbeating-job", DateTime.UtcNow.AddMinutes(-1), NewArchivalGroup());
         dbContext.ImportJobs.Add(job);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
 
         var result = await sut.GetActiveJobsForArchivalGroup(job.ArchivalGroup, CancellationToken.None);
@@ -72,7 +72,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         var job = BuildJob("queued-job", null, NewArchivalGroup());
         job.Received = DateTime.UtcNow.AddDays(-7); // old, but still well inside SQS's 14-day retention
         dbContext.ImportJobs.Add(job);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
 
         var result = await sut.GetActiveJobsForArchivalGroup(job.ArchivalGroup, CancellationToken.None);
@@ -87,7 +87,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         await using var dbContext = fixture.CreateNewStorageContext();
         var job = BuildJob("abandoned-job", DateTime.UtcNow.AddMinutes(-15), NewArchivalGroup()); // older than the 10-minute default window
         dbContext.ImportJobs.Add(job);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
 
         var result = await sut.GetActiveJobsForArchivalGroup(job.ArchivalGroup, CancellationToken.None);
@@ -95,7 +95,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         result.Value.Should().BeEmpty("the job's heartbeat is older than the staleness window, so it should no longer block new imports");
 
         await using var verifyContext = fixture.CreateNewStorageContext();
-        var reaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "abandoned-job");
+        var reaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "abandoned-job", cancellationToken: TestContext.Current.CancellationToken);
         reaped.Active.Should().BeFalse("reaping should persist, so repeated checks don't keep finding the same stale row");
         reaped.EndTime.Should().NotBeNull();
         reaped.ImportJobResultJson.Should().Contain(ImportJobStates.CompletedWithErrors);
@@ -115,7 +115,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         var archivalGroup = NewArchivalGroup();
         var job = BuildJob("already-reaped-job", DateTime.UtcNow.AddMinutes(-15), archivalGroup);
         dbContext.ImportJobs.Add(job);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
         await sut.GetActiveJobsForArchivalGroup(archivalGroup, CancellationToken.None); // reaps it
 
@@ -133,7 +133,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         saveResult.Value.Should().BeFalse("the row was no longer Active, so the late write must not have applied");
 
         await using var verifyContext = fixture.CreateNewStorageContext();
-        var stillReaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "already-reaped-job");
+        var stillReaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "already-reaped-job", cancellationToken: TestContext.Current.CancellationToken);
         stillReaped.ImportJobResultJson.Should().Contain(ImportJobStates.CompletedWithErrors,
             "the reaper's record must survive, not the late 'completed' result");
     }
@@ -149,7 +149,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         var archivalGroup = NewArchivalGroup();
         var job = BuildJob("already-reaped-before-running-write", DateTime.UtcNow.AddMinutes(-15), archivalGroup);
         dbContext.ImportJobs.Add(job);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
         await sut.GetActiveJobsForArchivalGroup(archivalGroup, CancellationToken.None); // reaps it
 
@@ -168,7 +168,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         saveResult.Value.Should().BeFalse("the row was no longer Active, so the late running write must not have applied");
 
         await using var verifyContext = fixture.CreateNewStorageContext();
-        var stillReaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "already-reaped-before-running-write");
+        var stillReaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "already-reaped-before-running-write", cancellationToken: TestContext.Current.CancellationToken);
         stillReaped.Active.Should().BeFalse("the running write must not resurrect a reaped row");
         stillReaped.ImportJobResultJson.Should().Contain(ImportJobStates.CompletedWithErrors,
             "the reaper's record must survive, not the late 'running' result");
@@ -184,7 +184,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         var archivalGroup = NewArchivalGroup();
         var job = BuildJob("sweep-reaped-job", DateTime.UtcNow.AddMinutes(-15), archivalGroup); // older than the 10-minute default window
         dbContext.ImportJobs.Add(job);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
 
         var result = await sut.ReapAllStaleRunningJobs(CancellationToken.None);
@@ -193,7 +193,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         result.Value.Should().BeGreaterThanOrEqualTo(1);
 
         await using var verifyContext = fixture.CreateNewStorageContext();
-        var reaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "sweep-reaped-job");
+        var reaped = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "sweep-reaped-job", cancellationToken: TestContext.Current.CancellationToken);
         reaped.Active.Should().BeFalse("the sweep must reap a stale job without any call to GetActiveJobsForArchivalGroup");
         reaped.ImportJobResultJson.Should().Contain(ImportJobStates.CompletedWithErrors);
     }
@@ -204,7 +204,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         await using var dbContext = fixture.CreateNewStorageContext();
         var job = BuildJob("sweep-heartbeating-job", DateTime.UtcNow.AddMinutes(-1), NewArchivalGroup());
         dbContext.ImportJobs.Add(job);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
 
         var result = await sut.ReapAllStaleRunningJobs(CancellationToken.None);
@@ -212,7 +212,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         result.Success.Should().BeTrue();
 
         await using var verifyContext = fixture.CreateNewStorageContext();
-        var stillRunning = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "sweep-heartbeating-job");
+        var stillRunning = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "sweep-heartbeating-job", cancellationToken: TestContext.Current.CancellationToken);
         stillRunning.Active.Should().BeTrue("a job heartbeating within the window must not be reaped by the sweep");
     }
 
@@ -232,7 +232,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         await using var dbContext = fixture.CreateNewStorageContext();
         var job = BuildJob("orphaned-waiting-job", null, NewArchivalGroup());
         dbContext.ImportJobs.Add(job);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
 
         var result = await sut.FailOrphanedWaitingJobs(
@@ -242,7 +242,7 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         result.Value.Should().BeGreaterThanOrEqualTo(1);
 
         await using var verifyContext = fixture.CreateNewStorageContext();
-        var failed = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "orphaned-waiting-job");
+        var failed = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "orphaned-waiting-job", cancellationToken: TestContext.Current.CancellationToken);
         failed.Active.Should().BeFalse();
         failed.EndTime.Should().NotBeNull();
         failed.ImportJobResultJson.Should().Contain(ImportJobStates.CompletedWithErrors);
@@ -259,15 +259,15 @@ public class ImportJobResultStoreStaleJobTests(DatabaseFixture fixture)
         var inactiveJob = BuildJob("inactive-for-heartbeat", DateTime.UtcNow.AddMinutes(-5), NewArchivalGroup());
         inactiveJob.Active = false;
         dbContext.ImportJobs.AddRange(activeJob, inactiveJob);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         var sut = new ImportJobResultStore(dbContext, NullLogger<ImportJobResultStore>.Instance, DefaultConfiguration);
 
         await sut.Heartbeat("active-for-heartbeat", CancellationToken.None);
         await sut.Heartbeat("inactive-for-heartbeat", CancellationToken.None);
 
         await using var verifyContext = fixture.CreateNewStorageContext();
-        var active = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "active-for-heartbeat");
-        var inactive = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "inactive-for-heartbeat");
+        var active = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "active-for-heartbeat", cancellationToken: TestContext.Current.CancellationToken);
+        var inactive = await verifyContext.ImportJobs.SingleAsync(ij => ij.Id == "inactive-for-heartbeat", cancellationToken: TestContext.Current.CancellationToken);
         active.LastHeartbeat.Should().BeAfter(DateTime.UtcNow.AddMinutes(-1));
         // Postgres' timestamp precision (microseconds) is coarser than a .NET DateTime tick, so an
         // unchanged value can differ from what was written by a sub-microsecond rounding error on

@@ -62,7 +62,7 @@ public class PipelineControllerTests : IDisposable
             .Returns(Result.Ok());
         var controller = Controller();
 
-        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "deposit-1" });
+        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "deposit-1" }, TestContext.Current.CancellationToken);
 
         result.Should().BeOfType<NoContentResult>();
         A.CallTo(() => preservationApiClient.RunPipeline(deposit, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
@@ -81,7 +81,7 @@ public class PipelineControllerTests : IDisposable
             .Returns(Result.Fail(errorCode, "refused by the Preservation API"));
         var controller = Controller();
 
-        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "deposit-1" });
+        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "deposit-1" }, TestContext.Current.CancellationToken);
 
         result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(expectedStatus);
     }
@@ -97,7 +97,7 @@ public class PipelineControllerTests : IDisposable
             .Returns(Result.Fail<Deposit>(errorCode, "the Preservation API could not be reached"));
         var controller = Controller();
 
-        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "deposit-1" });
+        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "deposit-1" }, TestContext.Current.CancellationToken);
 
         result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(expectedStatus);
         A.CallTo(() => preservationApiClient.RunPipeline(A<Deposit>._, A<CancellationToken>._)).MustNotHaveHappened();
@@ -110,7 +110,7 @@ public class PipelineControllerTests : IDisposable
             .Returns(Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at /deposits/no-such-deposit"));
         var controller = Controller();
 
-        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "no-such-deposit" });
+        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "no-such-deposit" }, TestContext.Current.CancellationToken);
 
         result.Should().BeOfType<NotFoundObjectResult>();
         A.CallTo(() => preservationApiClient.RunPipeline(A<Deposit>._, A<CancellationToken>._)).MustNotHaveHappened();
@@ -124,7 +124,7 @@ public class PipelineControllerTests : IDisposable
     {
         var controller = Controller();
 
-        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = depositName });
+        var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = depositName }, TestContext.Current.CancellationToken);
 
         result.Should().BeOfType<BadRequestObjectResult>();
         A.CallTo(() => preservationApiClient.GetDeposit(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
@@ -137,7 +137,7 @@ public class PipelineControllerTests : IDisposable
     {
         var controller = Controller();
 
-        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "deposit-1" });
+        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "deposit-1" }, TestContext.Current.CancellationToken);
 
         result.Errors.Should().BeEmpty();
         result.FilesInTarget.Should().Contain(f => f.EndsWith("a.txt"));
@@ -148,7 +148,7 @@ public class PipelineControllerTests : IDisposable
     {
         var controller = Controller();
 
-        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "../../.." });
+        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "../../.." }, TestContext.Current.CancellationToken);
 
         result.Errors.Should().NotBeEmpty();
         result.Directories.Should().BeNull();
@@ -164,7 +164,7 @@ public class PipelineControllerTests : IDisposable
         // Path.GetFullPath resolves the ".." lexically) is what actually refuses it here.
         var controller = Controller();
 
-        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = ".." });
+        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = ".." }, TestContext.Current.CancellationToken);
 
         result.Errors.Should().NotBeEmpty();
         result.Directories.Should().BeNull();
@@ -176,7 +176,7 @@ public class PipelineControllerTests : IDisposable
     {
         var controller = Controller();
 
-        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "deposit/1" });
+        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "deposit/1" }, TestContext.Current.CancellationToken);
 
         result.Errors.Should().ContainSingle(e => e.Contains("not valid"));
     }

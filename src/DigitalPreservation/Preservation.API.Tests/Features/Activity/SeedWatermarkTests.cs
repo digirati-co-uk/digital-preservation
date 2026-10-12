@@ -20,7 +20,7 @@ public class SeedWatermarkTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         await using var context = new PreservationContext(options);
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
 
         var latest = context.GetLatestArchivalGroupEvent();
 

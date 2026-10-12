@@ -243,7 +243,7 @@ public class MetsIdIntegrityTests
     {
         var agFi = new FileInfo("Samples/archivalGroup.json");
         var agMetsFi = new FileInfo("Outputs/id-integrity-archival-group.xml");
-        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName))!;
+        var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(await File.ReadAllTextAsync(agFi.FullName, TestContext.Current.CancellationToken))!;
 
         var result = await metsFromArchivalGroup.CreateStandardMets(
             new Uri(agMetsFi.FullName), archivalGroup, "ID Integrity AG");

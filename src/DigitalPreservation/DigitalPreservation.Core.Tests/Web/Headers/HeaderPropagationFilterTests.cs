@@ -75,7 +75,7 @@ public class HeaderPropagationFilterTests
         await using var services = BuildPreservationApiShapedServices(entra, new RecordingHandler("{}"));
         var provider = services.GetRequiredService<IAccessTokenProvider>();
 
-        var token = await provider.GetAccessToken();
+        var token = await provider.GetAccessToken(TestContext.Current.CancellationToken);
 
         token.Should().Be("test-token");
         var request = entra.Requests.Should().ContainSingle().Subject;
