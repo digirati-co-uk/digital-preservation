@@ -12,11 +12,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging.Abstractions;
+using NetVips;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Features.MediaServer;
 using Preservation.API.IIIF;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using Storage.Repository.Common;
 
 namespace Preservation.API.Tests.Features.MediaServer;
@@ -149,6 +149,60 @@ public class MediaControllerTests
         AssertNoStreamCalls();
     }
 
+    [Theory]
+    [InlineData("objects/page-001.jpg/full/,/0/default.jpg")]
+    [InlineData("objects/page-001.jpg/full/0,0/0/default.jpg")]
+    [InlineData("objects/page-001.jpg/full/-5,/0/default.jpg")]
+    public async Task A_Size_With_No_Positive_Dimension_Is_404_Before_Anything_Is_Read(string localPath)
+    {
+        var controller = CreateController(localPath, "imagesvc");
+
+        var result = await controller.GetMedia(Token, "deposit", SourceId, "imagesvc", localPath);
+
+        result.Should().BeOfType<NotFoundResult>();
+        AssertNoStreamCalls();
+    }
+
+    [Theory]
+    [InlineData("100,80", 100, 80)]       // ManifestBuilder's thumbnail size
+    [InlineData("100,", 100, 80)]
+    [InlineData("1200,960", 1000, 800)]   // its canvas image size
+    public async Task A_File_That_Cannot_Be_Decoded_Gets_The_Placeholder_Uncached(
+        string size, int expectedWidth, int expectedHeight)
+    {
+        A.CallTo(() => mediator.Send(A<GetFileStream>._, A<CancellationToken>._))
+            .ReturnsLazily(() => Result.OkNotNull<(Stream?, DateTime)>(
+                (new MemoryStream("not an image"u8.ToArray()), DateTime.UtcNow)));
+        var localPath = $"objects/page-001.jpg/full/{size}/0/default.jpg";
+        var controller = CreateController(localPath, "imagesvc");
+
+        var result = await controller.GetMedia(Token, "deposit", SourceId, "imagesvc", localPath);
+
+        var file = result.Should().BeOfType<FileContentResult>().Subject;
+        file.ContentType.Should().Be("image/png");
+        using var png = Image.NewFromBuffer(file.FileContents);
+        png.Width.Should().Be(expectedWidth);
+        png.Height.Should().Be(expectedHeight);
+        var headers = controller.Response.Headers;
+        headers.CacheControl.ToString().Should().Be("no-store");
+        headers.ContainsKey("ETag").Should().BeFalse("a placeholder must not be revalidated as the real image");
+    }
+
+    [Fact]
+    public async Task The_Default_Jpg_Branch_Returns_A_Jpeg_Of_The_Requested_Width()
+    {
+        var localPath = "objects/page-001.jpg/full/5,/0/default.jpg";
+        var controller = CreateController(localPath, "imagesvc");
+
+        var result = await controller.GetMedia(Token, "deposit", SourceId, "imagesvc", localPath);
+
+        var file = result.Should().BeOfType<FileStreamResult>().Subject;
+        file.ContentType.Should().Be("image/jpeg");
+        using var jpeg = Image.NewFromStream(file.FileStream);
+        jpeg.Width.Should().Be(5);
+        jpeg.Height.Should().Be(5);
+    }
+
     [Fact]
     public async Task The_Bare_Redirect_Points_At_The_Files_Own_Info_Json_Which_Answers()
     {
@@ -237,7 +291,8 @@ public class MediaControllerTests
         httpContext.Request.Host = new HostString("example.org");
         httpContext.Request.Path = $"/media/{Token}/deposit/{SourceId}/{type}/{localPath}";
 
-        return new MediaController(mediator, new WorkspaceManagerFactory(mediator, metsParser), tokenService)
+        return new MediaController(mediator, new WorkspaceManagerFactory(mediator, metsParser), tokenService,
+            NullLogger<MediaController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
             Url = new UrlHelper(new ActionContext(httpContext, new RouteData(), new ActionDescriptor()))
@@ -286,9 +341,8 @@ public class MediaControllerTests
 
     private static byte[] CreateJpegBytes()
     {
-        using var image = new Image<Rgb24>(10, 10, new Rgb24(10, 20, 30));
-        using var ms = new MemoryStream();
-        image.SaveAsJpeg(ms);
-        return ms.ToArray();
+        using var canvas = Image.Black(10, 10);
+        using var image = canvas.NewFromImage(10, 20, 30);
+        return image.JpegsaveBuffer();
     }
 }

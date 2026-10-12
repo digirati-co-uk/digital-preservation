@@ -9,11 +9,9 @@ using IIIFSize = IIIF.Size;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.IIIF;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace Preservation.API.Features.MediaServer;
 
@@ -23,11 +21,15 @@ namespace Preservation.API.Features.MediaServer;
 public class MediaController(
     IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory,
-    ITokenService tokenService
+    ITokenService tokenService,
+    ILogger<MediaController> logger
 ) : ControllerBase
 {
-    private static readonly Lazy<byte[]> CanvasPlaceholder = new(() => GeneratePlaceholderPng(1000, 800));
-    private static readonly Lazy<byte[]> ThumbPlaceholder = new(() => GeneratePlaceholderPng(100, 80));
+    // The largest size ManifestBuilder asks for as a thumbnail; anything bigger is a canvas image.
+    private const int ThumbnailSize = 100;
+
+    private static readonly Lazy<byte[]> CanvasPlaceholder = new(() => MediaImages.GreyPng(1000, 800));
+    private static readonly Lazy<byte[]> ThumbPlaceholder = new(() => MediaImages.GreyPng(100, 80));
 
     [AllowAnonymous]
     [RequireFeatureFlag("EnableIiifMediaEndpoints")]
@@ -219,37 +221,52 @@ public class MediaController(
         return new FileStreamResult(fullStreamResult.Value.Item1, contentType);
     }
 
-    private static IActionResult ServePlaceholder(string localPath)
-    {
-        var bytes = localPath == "thumb.png" ? ThumbPlaceholder.Value : CanvasPlaceholder.Value;
-        return new FileContentResult(bytes, "image/png");
-    }
+    private static IActionResult ServePlaceholder(string localPath) => Placeholder(localPath == "thumb.png");
+
+    private static FileContentResult Placeholder(bool thumbnail) =>
+        new(thumbnail ? ThumbPlaceholder.Value : CanvasPlaceholder.Value, "image/png");
 
     // Takes a resolved DepositFile, not a Uri, so that there is no way to reach S3 from this
     // controller except through ResolveDepositFile. Same for ProxyFileWithByteRangeSupport.
-    private static async Task<IActionResult> ImageFromImageService(
+    private async Task<IActionResult> ImageFromImageService(
         WorkspaceManager workspaceManager, DepositFile file, string size)
     {
+        var parts = size.Split(',');
+        var w = parts[0].Length > 0 && int.TryParse(parts[0], out var pw) ? pw : 0;
+        var h = parts.Length > 1 && parts[1].Length > 0 && int.TryParse(parts[1], out var ph) ? ph : 0;
+        // "," (or anything without a positive dimension) is not a size.
+        if (w <= 0 && h <= 0)
+            return new NotFoundResult();
+
         var fileUri = file.FileUri;
         var streamResult = await workspaceManager.GetStream(fileUri);
         if (streamResult is not { Success: true, Value.Item1: not null })
             return new NotFoundResult();
 
-        var parts = size.Split(',');
-        var w = parts[0].Length > 0 && int.TryParse(parts[0], out var pw) ? pw : 0;
-        var h = parts.Length > 1 && parts[1].Length > 0 && int.TryParse(parts[1], out var ph) ? ph : 0;
-
-        using var image = await Image.LoadAsync(streamResult.Value.Item1);
-        image.Mutate(x => x.Resize(new ResizeOptions
+        // libvips reads its source synchronously, so read the S3 stream asynchronously first rather
+        // than block a request thread on the network.
+        using var buffered = new MemoryStream();
+        await using (var source = streamResult.Value.Item1)
         {
-            Size = new SixLabors.ImageSharp.Size(w, h),
-            Mode = ResizeMode.Max
-        }));
+            await source.CopyToAsync(buffered);
+        }
+        buffered.Position = 0;
 
-        var ms = new MemoryStream();
-        await image.SaveAsJpegAsync(ms);
-        ms.Position = 0;
-        return new FileStreamResult(ms, "image/jpeg");
+        byte[] jpeg;
+        try
+        {
+            jpeg = MediaImages.RenderJpeg(buffered, w, h);
+        }
+        catch (InvalidDataException e)
+        {
+            // A corrupt file, or one in a format the service doesn't preview: the viewer still gets an
+            // image. Not cached, so a replacement file shows up as soon as it's there.
+            logger.LogWarning(e, "Image service could not decode {FileUri}; serving the placeholder", fileUri);
+            Response.Headers.CacheControl = "no-store";
+            Response.Headers.Remove(HeaderNames.ETag);
+            return Placeholder(thumbnail: Math.Max(w, h) <= ThumbnailSize);
+        }
+        return new FileStreamResult(new MemoryStream(jpeg), "image/jpeg");
     }
 
     private static IActionResult InfoJson(string imageBaseUrl, WorkingFile? mediaItem)
@@ -282,13 +299,5 @@ public class MediaController(
             Content     = JsonSerializer.Serialize(info),
             ContentType = "application/json"
         };
-    }
-
-    private static byte[] GeneratePlaceholderPng(int width, int height)
-    {
-        using var image = new Image<Rgb24>(width, height, new Rgb24(0x88, 0x88, 0x88));
-        using var ms = new MemoryStream();
-        image.SaveAsPng(ms);
-        return ms.ToArray();
     }
 }
