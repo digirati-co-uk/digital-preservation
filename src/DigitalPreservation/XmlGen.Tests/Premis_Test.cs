@@ -4,7 +4,6 @@ using DigitalPreservation.XmlGen.Premis.V3;
 using FluentAssertions;
 using System.Xml;
 using System.Xml.Serialization;
-using Xunit.Abstractions;
 using File = DigitalPreservation.XmlGen.Premis.V3.File;
 
 namespace XmlGen.Tests;
@@ -125,7 +124,7 @@ public class PremisTests(ITestOutputHelper testOutputHelper)
         var premis = premisManager.Create(testData);
         var xmlElement = PremisManager.GetXmlElement(premis, false);
 
-        testOutputHelper.WriteLine(xmlElement?.ToString());
+        testOutputHelper.WriteLine(xmlElement?.ToString() ?? "null");
 
         xmlElement.Should().NotBeNull();
         xmlElement!.NamespaceURI.Should().Be("http://www.loc.gov/premis/v3");

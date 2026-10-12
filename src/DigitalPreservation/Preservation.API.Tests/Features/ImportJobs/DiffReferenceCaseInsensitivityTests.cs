@@ -40,7 +40,7 @@ public class DiffReferenceCaseInsensitivityTests
         var mediator = Mediator();
         var controller = Controller(mediator, path);
 
-        await controller.ExecuteImportJob(DepositId, new ImportJob { Id = new Uri(jobId) }, default);
+        await controller.ExecuteImportJob(DepositId, new ImportJob { Id = new Uri(jobId) }, TestContext.Current.CancellationToken);
 
         A.CallTo(() => mediator.Send(A<GetDiffImportJob>._, A<CancellationToken>._)).MustHaveHappened();
     }
@@ -57,7 +57,7 @@ public class DiffReferenceCaseInsensitivityTests
             Origin = new Uri(DepositFiles, "objects/new.pdf")
         });
 
-        await controller.ExecuteImportJob(DepositId, job, default);
+        await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         A.CallTo(() => mediator.Send(A<GetDiffImportJob>._, A<CancellationToken>._)).MustNotHaveHappened();
     }

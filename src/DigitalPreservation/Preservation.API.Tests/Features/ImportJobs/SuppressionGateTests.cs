@@ -36,8 +36,7 @@ public class SuppressionGateTests
         var mediator = Mediator();
         var controller = Controller(mediator, migrationFlagOn: false);
 
-        var result = await controller.ExecuteImportJob(
-            DepositId, new ImportJob { SuppressActivityStreamEvent = true }, default);
+        var result = await controller.ExecuteImportJob(DepositId, new ImportJob { SuppressActivityStreamEvent = true }, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("EnableMetsIdNormalisation");
         // Refused before anything was looked up, let alone executed.
@@ -50,7 +49,7 @@ public class SuppressionGateTests
         var mediator = Mediator();
         var controller = Controller(mediator, migrationFlagOn: false);
 
-        await controller.ExecuteImportJob(DepositId, MetsOnlyJob(suppress: false), default);
+        await controller.ExecuteImportJob(DepositId, MetsOnlyJob(suppress: false), TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -61,7 +60,7 @@ public class SuppressionGateTests
         var mediator = Mediator();
         var controller = Controller(mediator, migrationFlagOn: true);
 
-        await controller.ExecuteImportJob(DepositId, MetsOnlyJob(suppress: true), default);
+        await controller.ExecuteImportJob(DepositId, MetsOnlyJob(suppress: true), TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -77,7 +76,7 @@ public class SuppressionGateTests
         var job = MetsOnlyJob(suppress: true);
         job.BinariesToAdd.Add(Binary("objects/new.pdf"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("adds, deletes or renames");
         Executed(mediator).MustNotHaveHappened();
@@ -96,7 +95,7 @@ public class SuppressionGateTests
         job.ContainersToAdd.Add(Container("metadata"));
         job.ContainersToAdd.Add(Container("metadata/ad-hoc"));
 
-        await controller.ExecuteImportJob(DepositId, job, default);
+        await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -110,7 +109,7 @@ public class SuppressionGateTests
         job.ContainersToAdd.Add(Container("metadata/ad-hoc"));
         job.ContainersToAdd.Add(Container("objects/new-folder"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("adds content");
         Executed(mediator).MustNotHaveHappened();
@@ -119,7 +118,6 @@ public class SuppressionGateTests
     [Theory]
     [InlineData("https://preservation.test/repository/cc/other/metadata/ad-hoc")] // another object
     [InlineData("https://elsewhere.test/repository/cc/thing/metadata")]           // another host
-    [InlineData("https://preservation.test/repository/cc/thing/metadata%2Fad-hoc")] // one segment, not two
     [InlineData("https://preservation.test/repository/cc/thing/data/metadata")]   // a real folder called data
     public async Task A_Container_That_Merely_Resembles_A_Scaffold_Folder_Is_Not_Tolerated(string containerId)
     {
@@ -130,9 +128,29 @@ public class SuppressionGateTests
         var job = MetsOnlyJob(suppress: true);
         job.ContainersToAdd.Add(new DigitalPreservation.Common.Model.Container { Id = new Uri(containerId) });
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("adds content");
+        Executed(mediator).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Scaffold_Look_Alike_With_An_Encoded_Separator_Is_Refused_As_An_Invalid_Slug_Not_As_Suppression()
+    {
+        // "metadata%2Fad-hoc" is one segment, not two - it would also fail the scaffold-folder
+        // literal match - but issue #298's server-side slug check now runs before
+        // SuppressedButNotMetsOnly, so an encoded separator is caught there first.
+        var mediator = Mediator();
+        var controller = Controller(mediator, migrationFlagOn: true);
+        var job = MetsOnlyJob(suppress: true);
+        job.ContainersToAdd.Add(new DigitalPreservation.Common.Model.Container
+        {
+            Id = new Uri("https://preservation.test/repository/cc/thing/metadata%2Fad-hoc")
+        });
+
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
+
+        Refusal(result).Should().Contain("encoded path separator");
         Executed(mediator).MustNotHaveHappened();
     }
 
@@ -148,7 +166,7 @@ public class SuppressionGateTests
         job.ArchivalGroup = new Uri(ArchivalGroup + "/objects");
         job.ContainersToAdd.Add(Container("objects/metadata"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("adds content");
         Executed(mediator).MustNotHaveHappened();
@@ -168,7 +186,7 @@ public class SuppressionGateTests
         job.ArchivalGroup = new Uri("https://storage.test/repository/cc/thing/");
         job.ContainersToAdd.Add(Container("metadata/ad-hoc"));
 
-        await controller.ExecuteImportJob(DepositId, job, default);
+        await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -181,7 +199,7 @@ public class SuppressionGateTests
         var job = new ImportJob { SuppressActivityStreamEvent = true, Deposit = DepositUri };
         job.BinariesToPatch.Add(Binary("objects/report.pdf"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("not a METS file");
         Executed(mediator).MustNotHaveHappened();

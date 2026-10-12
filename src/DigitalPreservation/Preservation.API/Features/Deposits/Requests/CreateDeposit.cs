@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Workspace;
 using LeedsDlipServices.Identity;
 using MediatR;
+using Microsoft.Extensions.Options;
 using Preservation.API.Data;
 using Preservation.API.Mutation;
 using Storage.Client;
@@ -32,7 +33,8 @@ public class CreateDepositHandler(
     MetsFromArchivalGroup metsFromArchivalGroup,
     WorkspaceManagerFactory workspaceManagerFactory,
     IMetsParser metsParser,
-    IClientDirectory clientDirectory
+    IClientDirectory clientDirectory,
+    IOptions<AwsStorageOptions> storageOptions
     ) :
         CreateDepositBase(
             logger,
@@ -45,7 +47,8 @@ public class CreateDepositHandler(
             metsFromArchivalGroup,
             workspaceManagerFactory,
             metsParser,
-            clientDirectory),
+            clientDirectory,
+            storageOptions),
         IRequestHandler<CreateDeposit, Result<Deposit?>>
 {
     public async Task<Result<Deposit?>> Handle(CreateDeposit request, CancellationToken cancellationToken)

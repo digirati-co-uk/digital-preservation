@@ -6,11 +6,8 @@ on:
     tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
-    paths:
-      - "src/DigitalPreservation/**"
-      - ".github/**"
-      - "Dockerfile.*"
-  workflow_dispatch: 
+    types: [ opened, synchronize, reopened, ready_for_review ]
+  workflow_dispatch:
     inputs:
       environment:
         description: "environment"
@@ -22,9 +19,40 @@ on:
           - test
           - production
 
+env:
+  # AWS SDK v4 resolves credentials eagerly as soon as an AWS client (e.g. IAmazonS3) is
+  # constructed via DI, rather than lazily on first real call (SDK v3's behaviour). Several
+  # integration tests build a controller through that DI graph without ever calling AWS, and
+  # this runner has no profile/role to resolve - these fake values satisfy the environment-
+  # variable credential provider (the first one checked) so construction succeeds; nothing here
+  # ever signs a real request.
+  AWS_ACCESS_KEY_ID: "test-key-id"
+  AWS_SECRET_ACCESS_KEY: "test-secret-key"
+
 jobs:
+  # A workflow SKIPPED by an if: reports as Skipped, which satisfies a required status check; a
+  # workflow never TRIGGERED (the old paths: filter) leaves that check Pending forever and blocks
+  # the merge. This job exists so every PR triggers the workflow, and the dotnet jobs below skip
+  # themselves via if: when nothing under these paths changed (issue #230).
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dotnet: ${{ steps.filter.outputs.dotnet }}
+    steps:
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            dotnet:
+              - 'src/DigitalPreservation/**'
+              - '.github/**'
+              - 'Dockerfile.*'
+
   sonar-cloud-analysis:
     name: SonarCloud Analysis
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.dotnet == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,12 +82,16 @@ jobs:
         run: |
          dotnet tool install --global dotnet-coverage
          dotnet-sonarscanner begin /k:"digirati-co-uk_digital-preservation" /o:"digirati" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+         # Deliberately Debug (no --configuration): coverage is collected from this build, and
+         # Release inlining/optimisation can mis-attribute or drop covered lines. The Release
+         # build that matters for shipping is test-dotnet's, below.
          dotnet build
-         dotnet-coverage collect "dotnet test" -f xml -o "coverage.xml"
+         dotnet-coverage collect "dotnet test --filter Category!=Manual" -f xml -o "coverage.xml"
          dotnet-sonarscanner end  /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
 
   test-dotnet:
-    if: github.event.pull_request.draft != true
+    needs: changes
+    if: (github.event_name != 'pull_request' || needs.changes.outputs.dotnet == 'true') && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -73,20 +105,21 @@ jobs:
       - id: setup-dotnet
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "10.0.x"
       - id: restore-dotnet-dependencies
         run: dotnet restore $SOLUTION
       - id: build-dotnet
         run: dotnet build $SOLUTION --configuration $BUILD_CONFIG --no-restore
       - id: test-dotnet
-        run: dotnet test $SOLUTION --filter 'Category!=Manual' --configuration $BUILD_CONFIG --no-restore --no-build --verbosity normal
+        run: dotnet test --solution $SOLUTION --filter-not-trait 'Category=Manual' --configuration $BUILD_CONFIG --no-restore --no-build --verbosity normal
 
   build-push-images:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
-    needs: test-dotnet
+    needs: [changes, test-dotnet]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.dotnet == 'true'
     strategy:
       matrix:
         include:

@@ -30,7 +30,7 @@ public class IdentityService(
         }
         try
         {
-            var uri = new Uri($"{ApiPrefix}ids?q={q}&s={schema}", UriKind.Relative);
+            var uri = new Uri($"{ApiPrefix}ids?q={Uri.EscapeDataString(q)}&s={Uri.EscapeDataString(schema)}", UriKind.Relative);
             logger.LogInformation("Calling identity Service for {Uri}", uri);
             var response = await httpClient.GetAsync(uri, cancellationToken);
             if (response.IsSuccessStatusCode)
@@ -70,7 +70,7 @@ public class IdentityService(
     {
         try
         {
-            var uri = new Uri($"{ApiPrefix}ids/{pid}", UriKind.Relative);
+            var uri = new Uri($"{ApiPrefix}ids/{Uri.EscapeDataString(pid)}", UriKind.Relative);
             var response = await httpClient.GetAsync(uri, cancellationToken);
             if (response.IsSuccessStatusCode)
             {

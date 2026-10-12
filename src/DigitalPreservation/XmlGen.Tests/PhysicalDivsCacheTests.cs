@@ -760,7 +760,7 @@ public class PhysicalDivsCacheTests
     public async Task A_Mets_Built_From_An_Archival_Group_Is_Fully_Navigable_By_Path()
     {
         var archivalGroup = JsonSerializer.Deserialize<ArchivalGroup>(
-            await File.ReadAllTextAsync(new FileInfo("Samples/archivalGroup.json").FullName))!;
+            await File.ReadAllTextAsync(new FileInfo("Samples/archivalGroup.json").FullName, TestContext.Current.CancellationToken))!;
 
         var metsUri = OutputUri("cache-archival-group-export.xml");
         var created = await metsFromArchivalGroup.CreateStandardMets(metsUri, archivalGroup, "Cache AG Export");

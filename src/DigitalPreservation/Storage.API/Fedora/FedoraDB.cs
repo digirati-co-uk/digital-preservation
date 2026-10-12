@@ -139,7 +139,7 @@ public class FedoraDB
         return container;
     }
 
-    public async Task<SearchResultFedora[]> GetSimpleSearch(string text, int? page = 0, int? pageSize = 20)
+    public async Task<SearchResultFedora[]> GetSimpleSearch(string text, int page = 0, int pageSize = 20)
     {
         if (page < 0)
         {

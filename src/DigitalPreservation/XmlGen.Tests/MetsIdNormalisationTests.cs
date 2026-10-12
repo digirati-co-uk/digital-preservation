@@ -152,12 +152,12 @@ public class MetsIdNormalisationTests
     {
         var (metsUri, first) = await NormaliseFixture("path-fixture-spaces.xml", "normalise-twice.xml");
         first.Changed.Should().BeTrue();
-        var afterFirst = await File.ReadAllTextAsync(metsUri.LocalPath);
+        var afterFirst = await File.ReadAllTextAsync(metsUri.LocalPath, TestContext.Current.CancellationToken);
 
         var second = await NormaliseInPlace(metsUri);
         second.Changed.Should().BeFalse("a document that already conforms must not be modified");
         second.IdsRewritten.Should().Be(0);
-        (await File.ReadAllTextAsync(metsUri.LocalPath)).Should().Be(afterFirst);
+        (await File.ReadAllTextAsync(metsUri.LocalPath, TestContext.Current.CancellationToken)).Should().Be(afterFirst);
     }
 
     [Fact]
@@ -266,10 +266,9 @@ public class MetsIdNormalisationTests
         // created, so a dangling DMDID is normal - and a legacy one is not a legal NCName. Leaving
         // it would mean the document still did not conform after a migration that said it did.
         var metsUri = CopyFixture("path-fixture-spaces.xml", "normalise-dangling.xml");
-        var xml = await File.ReadAllTextAsync(metsUri.LocalPath);
+        var xml = await File.ReadAllTextAsync(metsUri.LocalPath, TestContext.Current.CancellationToken);
         xml.Should().Contain("DMDID=\"DMD_metadata\"");
-        await File.WriteAllTextAsync(metsUri.LocalPath,
-            xml.Replace("DMDID=\"DMD_metadata\"", "DMDID=\"DMD_metadata/ad-hoc\""));
+        await File.WriteAllTextAsync(metsUri.LocalPath, xml.Replace("DMDID=\"DMD_metadata\"", "DMDID=\"DMD_metadata/ad-hoc\""), TestContext.Current.CancellationToken);
 
         var report = await NormaliseInPlace(metsUri);
 
@@ -675,7 +674,7 @@ public class MetsIdNormalisationTests
             doc.Descendants(MetsNs + "amdSec")
                 .Single(a => a.Attribute("ID")!.Value == "ADM_objects/my great file.pdf")
                 .SetAttributeValue("ID", "ADM_objects/my file.pdf"));
-        var before = await File.ReadAllTextAsync(metsUri.LocalPath);
+        var before = await File.ReadAllTextAsync(metsUri.LocalPath, TestContext.Current.CancellationToken);
 
         // No ETag, because there is no getting one: MetsParser indexes IDs into a dictionary and
         // throws on the second copy. GetFullMets does not, which is the whole point - the document
@@ -687,7 +686,7 @@ public class MetsIdNormalisationTests
 
         result.Success.Should().BeFalse("the document carries one ID on two elements");
         result.ErrorMessage.Should().Contain("ADM_objects/my file.pdf");
-        (await File.ReadAllTextAsync(metsUri.LocalPath)).Should().Be(before);
+        (await File.ReadAllTextAsync(metsUri.LocalPath, TestContext.Current.CancellationToken)).Should().Be(before);
     }
 
     [Fact]

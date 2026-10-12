@@ -121,4 +121,30 @@ public class ImportJobPathValidationTests
         result.Failure.Should().BeTrue();
         result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
     }
+
+    [Fact]
+    public void A_Job_With_A_Binary_Rename_Is_Refused()
+    {
+        var job = Job("https://storage.test/repository/cc/thing");
+        job.BinariesToRename.Add(new Binary { Id = new Uri("https://storage.test/repository/cc/thing/objects/page-001.tif") });
+
+        var result = ExecuteImportJobHandler.PreProcessValidateImportJob(job);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        result.ErrorMessage.Should().Contain("Renaming is not supported yet");
+    }
+
+    [Fact]
+    public void A_Job_With_A_Container_Rename_Is_Refused()
+    {
+        var job = Job("https://storage.test/repository/cc/thing");
+        job.ContainersToRename.Add(new Container { Id = new Uri("https://storage.test/repository/cc/thing/objects") });
+
+        var result = ExecuteImportJobHandler.PreProcessValidateImportJob(job);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be(ErrorCodes.BadRequest);
+        result.ErrorMessage.Should().Contain("Renaming is not supported yet");
+    }
 }

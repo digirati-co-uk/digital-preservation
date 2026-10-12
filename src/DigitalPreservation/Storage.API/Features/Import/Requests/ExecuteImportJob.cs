@@ -51,7 +51,10 @@ public class ExecuteImportJobHandler(
         stopwatch.Start();
         
         var transaction = await fedoraClient.BeginTransaction();
-        var transactionMonitor = new FedoraTransactionMonitor(logger, fedoraClient, transaction, stopwatch);
+        // Disposed on every path out of this method, including every FailEarly return - and always
+        // after the explicit timer.DisposeAsync() calls below, since a callback parked at one of its
+        // awaits keeps running after the timer is disposed and would otherwise race Dispose() here.
+        using var transactionMonitor = new FedoraTransactionMonitor(logger, fedoraClient, transaction, stopwatch);
         var timer = new Timer(transactionMonitor.MaintainTransactionState, transaction, 60 * 1000, 60 * 1000);
 
         // From here to the commit, nothing may let an exception escape: the keep-alive timer would go
@@ -119,12 +122,24 @@ public class ExecuteImportJobHandler(
             }
         
             importJobResult.SourceVersion = sourceVersion;
-        
-            logger.LogInformation("Saving running ImportJobResult before processing binaries and containers");
-            await importJobResultStore.SaveImportJobResult(
-                request.JobIdentifier, importJobResult, true, false, cancellationToken);
 
-        
+            logger.LogInformation("Saving running ImportJobResult before processing binaries and containers");
+            var savedRunning = await importJobResultStore.SaveRunningImportJobResult(
+                request.JobIdentifier, importJobResult, cancellationToken);
+            if (savedRunning.Failure || !savedRunning.Value)
+            {
+                // The row is no longer Active: this job's heartbeat went stale long enough that the
+                // reap sweep already recorded it as abandoned (completedWithErrors) before this job
+                // actually reached Fedora - a long GC pause or debugger break stalled it between
+                // dequeue and here. That record must stand; rolling back now (nothing has been
+                // written to Fedora yet) and failing early keeps this call from contradicting it by
+                // writing to Fedora, or from flipping Active back to true and masking the reap.
+                return await FailEarly(
+                    "Import job was already reaped as abandoned (stale heartbeat) before it reached Fedora",
+                    ErrorCodes.Conflict);
+            }
+
+
             logger.LogInformation("(TX) Now looping through import job tasks");
             try
             {
@@ -269,11 +284,14 @@ public class ExecuteImportJobHandler(
                 const int halfAnHour = 30 * 60 * 1000;
                 timer.Change(halfAnHour, halfAnHour);
                 await transactionMonitor.CommitTransaction();
-                await timer.DisposeAsync(); // does this stop the timer?
+                // Stops future ticks. A callback already parked at one of its awaits keeps running
+                // and can resume after this - the transaction monitor's own disposed-guard is what
+                // stops that from crashing the process (see FedoraTransactionMonitor).
+                await timer.DisposeAsync();
             }
             catch (Exception e)
             {
-                await timer.DisposeAsync(); // does this stop the timer?
+                await timer.DisposeAsync(); // stops future ticks; see the comment on the success path above.
                 var errorTime = DateTime.UtcNow - startCommitTime;
                 var message = $"(TX) Unable to commit Fedora transaction: duration {errorTime.TotalSeconds} seconds: {e.Message}";
                 logger.LogError(e, message);
@@ -324,7 +342,10 @@ public class ExecuteImportJobHandler(
     /// In particular every repository path in the job - the Archival Group and each resource id - must
     /// be a path under the root (<see cref="SafeRepositoryPath"/>): <see cref="Converters.GetFedoraUri"/>
     /// throws for one that is not, and here that would happen with a Fedora transaction open and
-    /// outside any catch, which would take the whole import host down with it.
+    /// outside any catch, which would take the whole import host down with it. Also refuses a job
+    /// that asks for a rename, which this executor never performs (issue #260) - the Preservation
+    /// API refuses one first for a job posted there, but a job reaching this API directly (POST
+    /// /import) or arriving from the queue is judged here too.
     /// </summary>
     internal static Result PreProcessValidateImportJob(ImportJob importJob)
     {
@@ -336,6 +357,10 @@ public class ExecuteImportJobHandler(
         {
             return Result.Fail(ErrorCodes.BadRequest,
                 $"Archival Group {importJob.ArchivalGroup} is not a path under the repository root: {agReason}");
+        }
+        if (importJob.RenameRefusalMessage() is { } renameMessage)
+        {
+            return Result.Fail(ErrorCodes.BadRequest, renameMessage);
         }
 
         var binaryIds = importJob.BinariesToAdd

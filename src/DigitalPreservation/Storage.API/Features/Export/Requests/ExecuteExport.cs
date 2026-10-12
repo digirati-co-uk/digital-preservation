@@ -3,6 +3,7 @@ using Amazon.S3.Model;
 using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.Utils;
 using MediatR;
 using Storage.API.Fedora;
@@ -51,37 +52,19 @@ public class ExecuteExportHandler(
 
             export.SourceVersion = storageMap.Version.OcflVersion;
             export.DateBegun = DateTime.UtcNow;
-            foreach (var file in storageMap.Files)
+            var filesToExport = request.MetsOnly
+                ? storageMap.Files.Where(file => MetsUtils.IsMetsFile(file.Value.FullPath))
+                : storageMap.Files;
+            foreach (var (logicalPath, originFile) in filesToExport)
             {
-                if (request.MetsOnly && !MetsUtils.IsMetsFile(file.Value.FullPath))
+                var copy = await CopyAndVerify(storageMap, logicalPath, originFile, destinationBucket, destinationKey, cancellationToken);
+                if (copy.Error is null)
                 {
-                    continue;
-                }
-                var sourceKey = SafeJoin(storageMap.ObjectPath, file.Value.FullPath);
-                var destKey = SafeJoin(destinationKey, file.Key.UnEscapePathElementsNoHashes());
-                var req = new CopyObjectRequest
-                {
-                    SourceBucket = storageMap.Root,
-                    SourceKey = sourceKey,
-                    DestinationBucket = destinationBucket,
-                    DestinationKey = destKey,
-                    ChecksumAlgorithm = ChecksumAlgorithm.SHA256
-                };
-                var resp = await s3Client.CopyObjectAsync(req, cancellationToken);
-                var hexChecksum = AwsChecksum.FromBase64ToHex(resp.ChecksumSHA256);
-                if(resp is { ChecksumSHA256: not null } && hexChecksum == file.Value.Hash)
-                {
-                    export.Files.Add(req.GetDestinationS3Uri());
+                    export.Files.Add(copy.Destination);
                 }
                 else
                 {
-                    errors.Add(new Error
-                    {
-                        Id = req.GetDestinationS3Uri(),
-                        Message = "Checksum of moved file " +
-                          $"[ source: {req.GetSourceS3Uri()} - {file.Value.Hash}, dest: {req.GetDestinationS3Uri()} - {hexChecksum} ]" +
-                          " does not match expected value"
-                    });
+                    errors.Add(copy.Error);
                 }
             }
             export.DateFinished = DateTime.UtcNow;
@@ -92,7 +75,10 @@ public class ExecuteExportHandler(
                 request.Identifier, request.Export.ArchivalGroup, request.MetsOnly);
             errors.Add(new Error
             {
-                Id = new Uri(export.Id + "#error"),
+                // export.Id is null for /exportMetsOnly (ExecuteExport is called with no minted
+                // identifier there), and new Uri("#error") throws - which escaped this catch as a
+                // 500 instead of the errors array every other export failure is reported in.
+                Id = export.Id is null ? null : new Uri(export.Id + "#error"),
                 Message = ex.Message
             });
         }
@@ -106,5 +92,36 @@ public class ExecuteExportHandler(
         return Result.OkNotNull(export);
     }
     
+    /// <summary>
+    /// Copies one file of the OCFL object to the export destination, asking S3 for the copy's
+    /// SHA-256, and checks it against the digest the storage map records. A mismatch (or no checksum
+    /// back from S3) is reported as an Error rather than thrown, so one bad file doesn't stop the rest.
+    /// </summary>
+    private async Task<(Uri Destination, Error? Error)> CopyAndVerify(StorageMap storageMap, string logicalPath,
+        OriginFile originFile, string destinationBucket, string destinationKey, CancellationToken cancellationToken)
+    {
+        var req = new CopyObjectRequest
+        {
+            SourceBucket = storageMap.Root,
+            SourceKey = SafeJoin(storageMap.ObjectPath, originFile.FullPath),
+            DestinationBucket = destinationBucket,
+            DestinationKey = SafeJoin(destinationKey, logicalPath.UnEscapePathElementsNoHashes()),
+            ChecksumAlgorithm = ChecksumAlgorithm.SHA256
+        };
+        var resp = await s3Client.CopyObjectAsync(req, cancellationToken);
+        var hexChecksum = AwsChecksum.FromBase64ToHex(resp.ChecksumSHA256);
+        if (resp is { ChecksumSHA256: not null } && hexChecksum == originFile.Hash)
+        {
+            return (req.GetDestinationS3Uri(), null);
+        }
+        return (req.GetDestinationS3Uri(), new Error
+        {
+            Id = req.GetDestinationS3Uri(),
+            Message = "Checksum of moved file " +
+                      $"[ source: {req.GetSourceS3Uri()} - {originFile.Hash}, dest: {req.GetDestinationS3Uri()} - {hexChecksum} ]" +
+                      " does not match expected value"
+        });
+    }
+
     private static string SafeJoin(params string[] parts) => string.Join("/", parts).Replace("//", "/");
 }

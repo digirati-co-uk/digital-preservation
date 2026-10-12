@@ -66,10 +66,16 @@ ViewData["section"] = "deposits";
                             </ul>
                         </div>
                     }
-                    
+                    if (Model.RenameRefusalMessage != null)
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <p>@Model.RenameRefusalMessage</p>
+                        </div>
+                    }
+
                     @await Html.PartialAsync("_RenderImportJob", Model.ImportJob)
 
-                    if (Model.ItemsWithInvalidSlugs.Any() || Model.AddedBinariesWithInvalidContentTypes.Any())
+                    if (Model.ItemsWithInvalidSlugs.Any() || Model.AddedBinariesWithInvalidContentTypes.Any() || Model.RenameRefusalMessage != null)
                     {
                         <p>This import job is invalid.</p>
                     }

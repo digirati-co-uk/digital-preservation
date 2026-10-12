@@ -33,13 +33,15 @@ public class QueueMessage
 
     public static QueueMessage FromSqsMessage(Message message, string queueName)
     {
-        var messageAttributes = message.MessageAttributes
+        // SDK v4: MessageAttributes/Attributes are null (not empty dictionaries) when the
+        // message carries none - the normal case for our plain SNS-published job messages.
+        var messageAttributes = (message.MessageAttributes ?? [])
             .ToDictionary(pair => pair.Key, pair => pair.Value.StringValue);
 
         var queueMessage = new QueueMessage
         {
             MessageAttributes = messageAttributes,
-            Attributes = message.Attributes,
+            Attributes = message.Attributes ?? [],
             Body = JsonNode.Parse(message.Body)!.AsObject(),
             MessageId = message.MessageId,
             QueueName = queueName

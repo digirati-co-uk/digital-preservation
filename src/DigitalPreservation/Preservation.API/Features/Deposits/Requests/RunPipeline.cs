@@ -54,6 +54,28 @@ public class RunPipelineHandler(
                 "storage the pipeline can reach.");
         }
 
+        // Also ahead of the lock, for the same reason: a 409 here must never leave a lock behind
+        // either. The lock holder queuing a second run while the first is still going (a
+        // double-submit, a script, two browser tabs) would otherwise both runs write to the same
+        // metadata/ tool-output folders at once, and run 1 finishing would release the lock run 2 is
+        // relying on, since both share the same RunUser (issue #317, from the adversarial review of
+        // #309). A job stuck in "processing" because its worker died blocks new runs until it's
+        // cleaned up (force complete, the UI's stale-job tidy-up, or #301's sweep) - that is the
+        // right behaviour, not a bug to work around here.
+        var activeJob = await dbContext.PipelineRunJobs
+            .Where(j => j.Deposit == request.DepositId
+                        && (j.Status == PipelineJobStates.Waiting
+                            || j.Status == PipelineJobStates.Running
+                            || j.Status == PipelineJobStates.MetadataCreated))
+            .OrderByDescending(j => j.DateSubmitted)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (activeJob != null)
+        {
+            return Result.Fail(ErrorCodes.Conflict,
+                $"A pipeline run is already in progress for deposit {request.DepositId} " +
+                $"(job {activeJob.Id}, {activeJob.Status}). Force complete it first if it is stuck.");
+        }
+
         var callerIdentity = request.User.GetCallerIdentity();
         var (lockFailure, acquiredByThisCall) = await AcquireLock(request.DepositId, callerIdentity, cancellationToken);
         if (lockFailure != null)

@@ -17,7 +17,7 @@ namespace Storage.API.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.8")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -87,6 +87,10 @@ namespace Storage.API.Data.Migrations
                     b.Property<string>("ImportJobResultUri")
                         .HasColumnType("text")
                         .HasColumnName("import_job_result_uri");
+
+                    b.Property<DateTime?>("LastHeartbeat")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_heartbeat");
 
                     b.Property<DateTime?>("Received")
                         .HasColumnType("timestamp with time zone")
