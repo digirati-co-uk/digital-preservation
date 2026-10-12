@@ -10,6 +10,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Utils;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Storage.Repository.Common;
 using Storage.Repository.Common.S3;
 
@@ -31,7 +32,8 @@ public class DeleteItems(
 
 public class DeleteItemsHandler(
     IAmazonS3 s3Client,
-    IMetsManager metsManager) : IRequestHandler<DeleteItems, Result<ItemsAffected>>
+    IMetsManager metsManager,
+    ILogger<DeleteItemsHandler> logger) : IRequestHandler<DeleteItems, Result<ItemsAffected>>
 {
     public async Task<Result<ItemsAffected>> Handle(DeleteItems request, CancellationToken cancellationToken)
     { 
@@ -81,11 +83,15 @@ public class DeleteItemsHandler(
         
         var deepestFirst = request.DeleteSelection.Items.Where(x => x.RelativePath.Contains("/"))
             .OrderByDescending(item => item.RelativePath.Count(c => c == '/'));
+        Result<ItemsAffected>? terminalFailure = null;
         foreach (var item in deepestFirst)
         {
             Result<ItemsAffected>? failedDeleteResult = null;
+            // Set alongside the three protection-guard failures below - never tolerated by
+            // ContinueIfFail regardless of what it lists, unlike a not-found, S3 or unknown error.
+            bool isProtectionGuardFailure = false;
             bool deletedFromDepositFiles = false;
-            var deleteDirectoryContext = item.RelativePath; 
+            var deleteDirectoryContext = item.RelativePath;
             if (!item.IsDirectory)
             {
                 deleteDirectoryContext = deleteDirectoryContext.GetParent();
@@ -114,12 +120,14 @@ public class DeleteItemsHandler(
                     {
                         failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                             ErrorCodes.BadRequest, "You cannot delete the objects directory.");
+                        isProtectionGuardFailure = true;
                     }
 
                     if (deleteDirectory.LocalPath == FolderNames.MetadataAdHoc)
                     {
                         failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                             ErrorCodes.BadRequest, "You cannot delete the metadata ad-hoc directory.");
+                        isProtectionGuardFailure = true;
                     }
 
                     if (deleteDirectory.Files.Count > 0)
@@ -150,6 +158,7 @@ public class DeleteItemsHandler(
                         {
                             failedDeleteResult = Result.FailNotNull<ItemsAffected>(
                                 ErrorCodes.BadRequest, "You cannot delete protected files in the root.");
+                            isProtectionGuardFailure = true;
                         }
                     }
 
@@ -258,15 +267,26 @@ public class DeleteItemsHandler(
                 }
             }
 
-            if (failedDeleteResult == null || (request.DeleteSelection.ContinueIfFail != null && request.DeleteSelection.ContinueIfFail.Length > 0 && !request.DeleteSelection.ContinueIfFail.Contains(item.RelativePath)))
+            if (failedDeleteResult == null)
             {
                 goodResult.Items.Add(item);
             }
+            else if (!isProtectionGuardFailure && request.DeleteSelection.FailureIsTolerated(item.RelativePath))
+            {
+                // Tolerated: not added to Items, since it was not actually deleted - the caller
+                // asked to carry on past this, not to be told it succeeded.
+                logger.LogWarning(
+                    "Tolerating failed deletion of {RelativePath}: {ErrorCode} {ErrorMessage}",
+                    item.RelativePath, failedDeleteResult.ErrorCode, failedDeleteResult.ErrorMessage);
+            }
             else
             {
-                return Result.FailNotNull<ItemsAffected>(
-                    failedDeleteResult.ErrorCode!,
-                    $"Delete failed after {goodResult.Items.Count} items. {failedDeleteResult.ErrorMessage}.");
+                // Don't return here: items before this one in the deepest-first order may already be
+                // deleted from S3 and removed from the in-memory METS. Break instead, so the METS
+                // write below still runs and catches those changes up - S3 has no transaction to roll
+                // back, so the METS catching up to what's actually there is the right repair.
+                terminalFailure = failedDeleteResult;
+                break;
             }
 
         }
@@ -276,12 +296,53 @@ public class DeleteItemsHandler(
             var writeMetsResult = await metsManager.WriteMets(mets);
             if (writeMetsResult.Failure)
             {
+                if (terminalFailure != null)
+                {
+                    var partialFailureMessage = FormatPartialFailureMessage(
+                        goodResult.Items.Count,
+                        goodResult.Items.Select(i => i.RelativePath),
+                        terminalFailure.ErrorMessage);
+                    return Result.FailNotNull<ItemsAffected>(
+                        terminalFailure.ErrorCode!,
+                        $"{partialFailureMessage} Additionally, the METS file could not be written ({writeMetsResult.ErrorMessage}), " +
+                        "so it may still list files already deleted from S3.");
+                }
+
                 return Result.FailNotNull<ItemsAffected>(
                     writeMetsResult.ErrorCode!,
                     $"Delete failed after {goodResult.Items.Count} items. Unable to write METS file.");
-                
+
             }
         }
+
+        if (terminalFailure != null)
+        {
+            var partialFailureMessage = FormatPartialFailureMessage(
+                goodResult.Items.Count,
+                goodResult.Items.Select(i => i.RelativePath),
+                terminalFailure.ErrorMessage);
+            return Result.FailNotNull<ItemsAffected>(terminalFailure.ErrorCode!, partialFailureMessage);
+        }
+
         return Result.OkNotNull(goodResult);
+    }
+
+    // Items.Count is 0 when the very first item attempted is the one that fails, so the "(...)"
+    // detail has nothing to list; and errorMessage already carries its own trailing full stop, so
+    // appending another unconditionally doubles it up (see #303 e2e report).
+    private static string FormatPartialFailureMessage(int succeededCount, IEnumerable<string> deletedPaths, string? errorMessage)
+    {
+        var paths = string.Join(", ", deletedPaths);
+        var itemsPart = paths.Length == 0
+            ? $"Delete failed after {succeededCount} items."
+            : $"Delete failed after {succeededCount} items ({paths}).";
+
+        if (string.IsNullOrEmpty(errorMessage))
+        {
+            return itemsPart;
+        }
+
+        var trimmedError = errorMessage.TrimEnd();
+        return trimmedError.EndsWith('.') ? $"{itemsPart} {trimmedError}" : $"{itemsPart} {trimmedError}.";
     }
 }

@@ -123,7 +123,7 @@ def survey(
     already_known = set() if rescan else ledger.known_paths()
     if pause is None:
         pause = settings.SURVEY_PAUSE_SECONDS
-    skip = _skip_slugs(skip_creators if skip_creators is not None else settings.SKIP_CREATED_BY)
+    skip = skip_slugs(skip_creators if skip_creators is not None else settings.SKIP_CREATED_BY)
     # Skipped-by-depositor rows are the one kind of known row a walk still cares about: a deposit
     # by anyone else upgrades them to a real verdict.
     skipped_before = set() if rescan else {row["path"] for row in ledger.in_state(SKIPPED)}
@@ -238,7 +238,7 @@ def survey(
     logger.info("Survey so far: %s", ", ".join(f"{state}={n}" for state, n in sorted(counts.items())))
 
 
-def _skip_slugs(values: list[str]) -> frozenset[str]:
+def skip_slugs(values: list[str]) -> frozenset[str]:
     """
     The depositor identities to skip, as bare ids however they were spelt. createdBy comes back as
     an agent URI whose base differs between environments, so matching the last segment is what lets

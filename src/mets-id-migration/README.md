@@ -70,12 +70,17 @@ actually declares an ID of that name; otherwise it is a list, and each token sta
 4. **Generate the diff import job and refuse unless it is exactly one binary to patch — the METS.**
    This is the gate that matters. Because a METS-only deposit gets its file list from the METS, a
    file the Archival Group holds but the METS does not mention would be listed for *deletion* rather
-   than failing the diff. The assertion closes that.
+   than failing the diff. The assertion closes that. One allowance: an Archival Group preserved
+   before the platform scaffolded `metadata/` and `metadata/ad-hoc/` (LPII-9) gets those folders
+   written into the deposit's METS on creation, so its diff also *adds* those two empty containers.
+   The gate tolerates exactly those, judged relative to the Archival Group, and nothing else; the
+   platform's own gate makes the same allowance.
 5. **Execute it**, with `suppressActivityStreamEvent` set.
 6. **Verify**: re-read the preserved METS and check the set of paths and digests is byte-identical
    to what it was before. A rename of identifiers cannot change it; anything worse would.
 
-The result is one new OCFL version whose only new content is `mets.xml`.
+The result is one new OCFL version whose only new content is `mets.xml` (plus, for a pre-LPII-9
+group, the empty `metadata/` and `metadata/ad-hoc/` containers).
 
 ## Why the Activity Stream event is suppressed
 
@@ -268,9 +273,43 @@ python mets_id_migration.py verify                        # read-only
 
 `--dry-run` goes all the way to generating the diff and checking the gate, then throws the deposit
 away without preserving. It is the rehearsal that proves, per Archival Group, that the change really
-is a single METS patch.
+is a single METS patch (plus, at most, the platform's own empty scaffold folders).
 
 There is deliberately no command that does the whole thing unattended. Read `report` between steps.
+
+## The validation survey (pre-release check)
+
+`validation-survey` is a separate, read-only, ledger-free command that answers a different
+question: **does this deployment hold anything the platform's current validation rules would
+refuse?** The September 2026 hardening made three kinds of value invalid that older builds
+accepted - METS paths containing a dot segment, a backslash, or a percent-encoded separator, and
+(pending [#287](https://github.com/digirati-co-uk/digital-preservation/issues/287)) slugs
+containing `%`. A preserved METS carrying such a path would fail to parse wherever the platform
+reads it, so the survey belongs immediately **before cutting a production release** - see
+`docs/rfc-0001-landing-sequence.md`, "Cutting a production release".
+
+```bash
+# the two read-only SQL checks against Fedora's own database (slugs; answers #287's survey):
+python mets_id_migration.py validation-survey --fedora-sql
+# ...or let the tool run them by setting FEDORA_DB_DSN (read-only credentials suffice)
+
+# the METS walk, with the same scale lever as survey - on production, skip the ~100,000
+# EPrints groups and spot-check a sample of them instead:
+python mets_id_migration.py validation-survey     --skip-created-by eprints-migration-app --sample-skipped 200     --csv validation-prod.csv --pause 0.25
+```
+
+It fetches each Archival Group's METS and applies **exactly** the parser's refusal rule
+(`MetsParser.RejectDotSegments`; the mirror is pinned by `tests.py` against the same cases as
+the .NET tests). Exit codes: **0** clean, **1** findings (a CSV row per finding - content
+the rules would refuse, including a METS that is not well-formed XML), **2** incomplete
+(groups unreadable after retries, the circuit breaker stopping a struggling platform, or
+the slug check failing to run) - rerun before treating the gate as passed. Incomplete wins
+over findings: a run that stopped early exits 2 even when it already found content, because
+exit 1 promises a verdict over the whole population. Without `FEDORA_DB_DSN` a clean METS
+walk still exits 0, but only the METS population was checked - the release gate then also
+needs the `--fedora-sql` queries run against Fedora's database, and the final log line says
+so. It writes nothing anywhere - no deposits, no ledger, only the CSV you ask for - so it
+is safe to point at production.
 
 ## Doing it by hand
 

@@ -23,6 +23,13 @@ public static class ResultX
             case ErrorCodes.Conflict:
                 pd.Status = 409;
                 break;
+            case ErrorCodes.PreconditionFailed:
+                // 409, not 412 (issue #266): the controller-level If-Match checks already answer
+                // 409 for exactly this condition, and the docs tell callers "a mismatch is 409" -
+                // consistency matters more than strict HTTP semantics here, and a client then
+                // needs only one handler for a METS write losing a race against another write.
+                pd.Status = 409;
+                break;
             case ErrorCodes.Unprocessable:
                 pd.Status = 422;
                 break;

@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
 WORKDIR /src
 COPY ["src/DigitalPreservation/Pipeline.API/Pipeline.API.csproj", "Pipeline.API/"]
@@ -13,7 +13,7 @@ RUN dotnet build "Pipeline.API.csproj" -c Release -o /app/build
 FROM build AS publish
 RUN dotnet publish "Pipeline.API.csproj" -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 
 # This container has no hard memory limit set in its ECS task definition (only a 1536 MiB soft
 # memory_reservation) - deliberately, so two tasks (old + new) can overlap on this single-instance
@@ -64,7 +64,9 @@ RUN sf -update
 USER root
 #brunnhilde
 RUN apt-get install python3-full python3-pip -y
-RUN rm /usr/lib/python3.11/EXTERNALLY-MANAGED
+# Path has moved before with the base image's Debian/Python version (3.11 -> 3.12) - glob it so a
+# future bump doesn't silently reintroduce this same failure.
+RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 RUN pip3 install --upgrade brunnhilde
 RUN brunnhilde.py -V
 
@@ -107,6 +109,25 @@ RUN sed -i 's/^#\?MaxConnectionQueueLength.*/MaxConnectionQueueLength 200/' /etc
 # Increase MaxThreads. ERROR" (a distinct failure from the connection-refused one above, surfaced
 # only once the queue fix let more connections through to actually reach clamd's thread pool).
 RUN sed -i 's/^#\?MaxThreads.*/MaxThreads 50/' /etc/clamav/clamd.conf
+
+# The distro's packaged clamd.conf ships EnableVersionCommand and EnableReloadCommand both
+# disabled - clamav-daemon's postinst sets them off when debconf has no answer, which is also why
+# EnableStatsCommand/EnableShutdownCommand are off (left disabled; nothing here uses them).
+# EnableVersionCommand disabled means "clamscan --version" (via clamscan-shim.sh -> clamdscan)
+# can't ask clamd for its version and falls back to printing just "ClamAV <engine-version>" -
+# dropping the signature-database version/date that GetVirusDefinition writes into METS/PREMIS as
+# scan provenance (digital-preservation#363). EnableReloadCommand disabled means freshclam's
+# NotifyClamd (freshclam.conf) can't tell clamd to reload after a signature update - clamd still
+# picks up the new database on its own via SelfCheck (hourly by default), so scans only run on
+# signatures up to an hour older than they could be, not stale data; provenance stays accurate
+# either way, because VERSION reports whatever is actually loaded. Re-enabling both only lets a
+# local client send these over the Unix socket already restricted to this container's own
+# namespace (see the LocalSocket/LocalSocketMode comment above); neither exposes anything over a
+# network.
+RUN sed -i 's/^#\?EnableVersionCommand.*/EnableVersionCommand yes/' /etc/clamav/clamd.conf
+RUN grep -q '^EnableVersionCommand yes' /etc/clamav/clamd.conf || echo 'EnableVersionCommand yes' >> /etc/clamav/clamd.conf
+RUN sed -i 's/^#\?EnableReloadCommand.*/EnableReloadCommand yes/' /etc/clamav/clamd.conf
+RUN grep -q '^EnableReloadCommand yes' /etc/clamav/clamd.conf || echo 'EnableReloadCommand yes' >> /etc/clamav/clamd.conf
 
 # Brunnhilde always invokes the literal "clamscan" binary with no way to configure it - shadow the
 # real clamscan with a shim that instead talks to clamd running as a second process in this same

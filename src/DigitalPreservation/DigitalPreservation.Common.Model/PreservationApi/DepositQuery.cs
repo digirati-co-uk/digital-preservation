@@ -32,6 +32,8 @@ public class DepositQuery : QueryBase
                ExportedAfter is null &&
                ExportedBefore is null &&
                Status is null &&
-               ShowAll is null or false;
+               ShowAll is null or false &&
+               Archived is null &&
+               Active is null;
     }
 }

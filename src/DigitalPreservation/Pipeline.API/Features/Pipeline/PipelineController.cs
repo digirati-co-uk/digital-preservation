@@ -1,15 +1,14 @@
-﻿using DigitalPreservation.Common.Model.Identity;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Web;
-using MediatR;
+using DigitalPreservation.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Pipeline.API.Features.Pipeline.Models;
-using Pipeline.API.Features.Pipeline.Requests;
 using Pipeline.API.Middleware;
-using System.Diagnostics;
 using DigitalPreservation.Common.Model.Results;
 using Microsoft.Extensions.Options;
 using Pipeline.API.Config;
+using Preservation.Client;
 
 namespace Pipeline.API.Features.Pipeline;
 
@@ -17,13 +16,22 @@ namespace Pipeline.API.Features.Pipeline;
 [Route("[controller]")]
 [ApiController]
 public class PipelineController(
-    IMediator mediator,
     ILogger<PipelineController> logger,
     IOptions<StorageOptions> storageOptions,
-    IIdentityMinter identityMinter) : Controller
+    IPreservationApiClient preservationApiClient) : ControllerBase
 {
     private readonly List<string>? files = [];
 
+    /// <summary>
+    /// A thin proxy over POST /deposits/{id}/pipeline on the Preservation API (issue #231): this is
+    /// the way in for a caller that cannot reach the Preservation API directly, not a second producer
+    /// of pipeline jobs. Forwarding here means the lock check, the default-bucket guard, and every
+    /// other check RunPipelineHandler makes all apply automatically, and every job gets a
+    /// PipelineRunJob row - there is exactly one place pipeline jobs are queued from. The body's
+    /// optional runUser is no longer honoured: the run is attributed to whatever identity this
+    /// service calls the Preservation API with. Nothing in the platform sets runUser on this
+    /// endpoint today.
+    /// </summary>
     [HttpPost(Name = "ExecutePipelineProcess")]
     [Produces<Result>]
     [Produces("application/json")]
@@ -33,22 +41,28 @@ public class PipelineController(
         if(pipelineJob.DepositName == null)
            return BadRequest("Deposit name is required in the request.");
 
-        var jobIdentifier = identityMinter.MintIdentity(nameof(PipelineJob));
+        if (!PreservedResource.ValidSlug(pipelineJob.DepositName, out var invalidDepositNameReason))
+            return BadRequest($"Deposit name is not valid: {invalidDepositNameReason}");
 
-        var pipelineJobsResult = await mediator.Send(new LogPipelineJobStatus(pipelineJob.DepositName, jobIdentifier, PipelineJobStates.Waiting,
-            pipelineJob.RunUser ?? "PipelineApi"), cancellationToken);
-
-        if(pipelineJobsResult?.Value?.Errors is { Length: 0 })
-            logger.LogInformation("Job {JobIdentifier} status Waiting logged", jobIdentifier);
-
-        pipelineJob.JobIdentifier = jobIdentifier;
+        var depositResult = await preservationApiClient.GetDeposit(pipelineJob.DepositName, cancellationToken);
+        if (depositResult.Failure && depositResult.ErrorCode != ErrorCodes.NotFound)
+        {
+            // Not a "not found": the Preservation API refused us (401/403), failed, or couldn't be
+            // reached. Pass that through rather than misreporting it as a missing deposit.
+            logger.LogWarning("ExecutePipelineJob: could not fetch deposit {DepositName}: {Error}",
+                pipelineJob.DepositName, depositResult.CodeAndMessage());
+            return this.StatusResponseFromResult(depositResult);
+        }
+        if (depositResult.Failure || depositResult.Value is null)
+        {
+            logger.LogWarning("ExecutePipelineJob: deposit {DepositName} not found", pipelineJob.DepositName);
+            return NotFound($"Deposit {pipelineJob.DepositName} not found.");
+        }
 
         logger.LogInformation(
-            "ExecutePipelineJob:Executing pipeline process for job id {JobIdentifier} and deposit {DepositName}", jobIdentifier, pipelineJob.DepositName);
-        var pipelineProcessJobResult = await mediator.Send(new ProcessPipelineJob(pipelineJob), cancellationToken);
-        logger.LogInformation(
-            "Returned from ProcessPipelineJob for job id {JobIdentifier} and deposit {DepositName}", jobIdentifier, pipelineJob.DepositName);
-        return this.StatusResponseFromResult(pipelineProcessJobResult, 204);
+            "ExecutePipelineJob: forwarding pipeline run for deposit {DepositName} to the Preservation API", pipelineJob.DepositName);
+        var runResult = await preservationApiClient.RunPipeline(depositResult.Value, cancellationToken);
+        return this.StatusResponseFromResult(runResult, 204);
     }
 
     [HttpGet(Name = "CheckDepositFolderExists")]
@@ -70,6 +84,12 @@ public class PipelineController(
                 return await Task.FromResult(model);
             }
 
+            if (!PreservedResource.ValidSlug(depositFilesModel.DepositId, out var invalidDepositIdReason))
+            {
+                model.Errors.Add($"DepositId is not valid: {invalidDepositIdReason}");
+                return await Task.FromResult(model);
+            }
+
             if (storageOptions.Value.FileMountPath == null)
             {
                 model.Errors.Add("File Mount path option setting is null");
@@ -80,6 +100,19 @@ public class PipelineController(
 
             var depositPath = Path.GetFullPath(Path.Combine(baseDirectory, depositFilesModel.DepositId));
 
+            // Path.Combine discards baseDirectory outright when DepositId is itself rooted (e.g.
+            // "/etc"), and GetFullPath resolves ".." lexically with no regard to where it ends up -
+            // ValidSlug above narrows the character set but does not rule out "..", so this is the
+            // check that actually keeps depositPath inside the mount.
+            if (!PathX.IsUnderRoot(baseDirectory, depositPath))
+            {
+                logger.LogWarning(
+                    "Refusing to check deposit folder for DepositId {DepositId}: {DepositPath} is not under {BaseDirectory}",
+                    depositFilesModel.DepositId, depositPath, baseDirectory);
+                model.Errors.Add("DepositId does not resolve to a path under the file mount.");
+                return await Task.FromResult(model);
+            }
+
             var allDirectories = Directory.GetDirectories(depositPath, "*", SearchOption.AllDirectories);
 
             ProcessDirectory(depositPath);
@@ -87,7 +120,7 @@ public class PipelineController(
             model.WorkingDirectory = baseDirectory;
             model.FilesInTarget = files;
             model.Directories = allDirectories;
-            model.DiskSpace = GetDf(depositPath);
+            model.DiskSpace = GetDiskSpace(depositPath);
 
             logger.LogInformation("Returned from CheckDepositFolderExists");
         }
@@ -121,36 +154,10 @@ public class PipelineController(
 
     }
 
-    private string GetDf(string? targetDirectory)
+    private static string GetDiskSpace(string targetDirectory)
     {
-        return Bash(GetDiskSpace(), targetDirectory);
-    }
-
-    private static string GetDiskSpace()
-    {
-        return string.Join(" ", "df");
-    }
-
-    private string Bash(string cmd, string? targetDirectory)
-    {
-        var escapedArgs = cmd.Replace("\"", "\\\"");
-
-        var process = new Process()
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "bash",
-                Arguments = $"-c \"{escapedArgs}\"",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WorkingDirectory = targetDirectory
-            }
-        };
-        process.Start();
-        string result = process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
-        return result;
+        var drive = new DriveInfo(targetDirectory);
+        return $"{drive.Name}: {drive.AvailableFreeSpace} bytes free of {drive.TotalSize} bytes";
     }
 
 }

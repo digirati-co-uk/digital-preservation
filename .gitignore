@@ -361,3 +361,6 @@ fedora.bat
 .venv
 
 .claude
+
+# Local-only working notes alongside docs (never committed)
+docs/*.local.md

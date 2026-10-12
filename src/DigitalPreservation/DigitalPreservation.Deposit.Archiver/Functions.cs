@@ -54,12 +54,26 @@ public class Functions
 
         var deposits = await preservationApiClient.GetDeposits(query, CancellationToken.None);
 
-        if (!HasDeposits(deposits))
+        if (deposits.Failure)
         {
             Log.Logger.Error(
-                "No deposits returned {ErrorCode} {ErrorMessage}",
+                "Failed to query deposits to archive {ErrorCode} {ErrorMessage}",
                 deposits.ErrorCode,
                 deposits.ErrorMessage);
+
+            // This function is invoked only by an EventBridge schedule, with no API Gateway in
+            // front of it, so returning a result - even a 500 one - is a successful invocation as
+            // far as Lambda is concerned: the Errors metric, and any alarm on it, never see it.
+            // Throwing is what makes the failure visible; EventBridge's asynchronous invocation
+            // retries a failed invocation up to twice, which is harmless here since a failed query
+            // has done no work.
+            throw new InvalidOperationException(
+                $"Failed to query deposits to archive: {deposits.ErrorCode} {deposits.ErrorMessage}");
+        }
+
+        if (!HasDeposits(deposits))
+        {
+            Log.Logger.Information("No deposits to archive");
 
             return HttpResults.Ok("No deposits to archive");
         }
@@ -86,16 +100,10 @@ public class Functions
 
     private static DepositQuery BuildDepositQuery()
     {
-        var rawMonthsValue = Convert.ToInt32(
+        var months = ArchiverSettingsParser.ParseLastModifiedMonths(
             Environment.GetEnvironmentVariable("LAST_MODIFIED_MONTHS"));
-
-        var months = Math.Abs(rawMonthsValue);
-
-        if (months == 0)
-        {
-            throw new InvalidOperationException(
-                "LAST_MODIFIED_MONTHS must be a non-zero value.");
-        }
+        var batchSize = ArchiverSettingsParser.ParseBatchSize(
+            Environment.GetEnvironmentVariable("BATCH_SIZE"));
 
         var cutoffDate = DateTime.UtcNow.AddMonths(-months);
 
@@ -103,8 +111,8 @@ public class Functions
         {
             Status = "preserved",
             OrderBy = DepositQuery.LastModified,
-            Page = 0,
-            PageSize = Convert.ToInt32(Environment.GetEnvironmentVariable("BATCH_SIZE")),
+            Page = 1,
+            PageSize = batchSize,
             Ascending = true,
             ShowAll = false,
             Archived = false,

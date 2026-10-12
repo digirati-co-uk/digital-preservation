@@ -1,4 +1,5 @@
-﻿using Amazon.SimpleNotificationService;
+﻿using Amazon.S3.Util;
+using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
@@ -13,6 +14,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalPreservation.Core.Auth;
 using Preservation.API.Data.Entities;
+using Storage.Repository.Common;
 
 namespace Preservation.API.Features.Deposits.Requests;
 
@@ -28,6 +30,7 @@ public class RunPipelineHandler(
     PreservationContext dbContext,
     IAmazonSimpleNotificationService snsClient,
     IOptions<PipelineOptions> pipelineOptions,
+    IOptions<AwsStorageOptions> storageOptions,
     IIdentityMinter identityMinter) : IRequestHandler<RunPipeline, Result>
 {
     public async Task<Result> Handle(RunPipeline request, CancellationToken cancellationToken)
@@ -35,20 +38,54 @@ public class RunPipelineHandler(
         var entity = await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == request.DepositId, cancellationToken);
         if (entity == null)
         {
-            return Result.Fail(ErrorCodes.NotFound, 
+            return Result.Fail(ErrorCodes.NotFound,
                 "Could not run pipeline because could not find no deposit for ID " + request.DepositId);
         }
-        
-        var callerIdentity = request.User.GetCallerIdentity();
-        if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
+
+        // Ahead of the lock: a 400 here must never leave a lock behind.
+        // Pipeline.API reaches deposit files through a filesystem mount of the default working
+        // bucket only, so a deposit routed to a per-caller bucket (RFC-0001 §8) can't be
+        // characterised - decline it here, the only place pipeline jobs are queued from.
+        if (!IsInDefaultWorkingBucket(entity.Files))
         {
-            return Result.Fail(ErrorCodes.Conflict, 
-                $"Could not run pipeline because the deposit {request.DepositId} is locked by " + entity.LockedBy);
+            return Result.Fail(ErrorCodes.BadRequest,
+                $"Could not run pipeline: deposit {request.DepositId} is not in the default " +
+                $"working bucket '{storageOptions.Value.DefaultWorkingBucket}', which is the only " +
+                "storage the pipeline can reach.");
+        }
+
+        // Also ahead of the lock, for the same reason: a 409 here must never leave a lock behind
+        // either. The lock holder queuing a second run while the first is still going (a
+        // double-submit, a script, two browser tabs) would otherwise both runs write to the same
+        // metadata/ tool-output folders at once, and run 1 finishing would release the lock run 2 is
+        // relying on, since both share the same RunUser (issue #317, from the adversarial review of
+        // #309). A job stuck in "processing" because its worker died blocks new runs until it's
+        // cleaned up (force complete, the UI's stale-job tidy-up, or #301's sweep) - that is the
+        // right behaviour, not a bug to work around here.
+        var activeJob = await dbContext.PipelineRunJobs
+            .Where(j => j.Deposit == request.DepositId
+                        && (j.Status == PipelineJobStates.Waiting
+                            || j.Status == PipelineJobStates.Running
+                            || j.Status == PipelineJobStates.MetadataCreated))
+            .OrderByDescending(j => j.DateSubmitted)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (activeJob != null)
+        {
+            return Result.Fail(ErrorCodes.Conflict,
+                $"A pipeline run is already in progress for deposit {request.DepositId} " +
+                $"(job {activeJob.Id}, {activeJob.Status}). Force complete it first if it is stuck.");
+        }
+
+        var callerIdentity = request.User.GetCallerIdentity();
+        var (lockFailure, acquiredByThisCall) = await AcquireLock(request.DepositId, callerIdentity, cancellationToken);
+        if (lockFailure != null)
+        {
+            return lockFailure;
         }
 
         var topicArn = pipelineOptions.Value.PipelineJobTopicArn;
         var jobId = identityMinter.MintIdentity("PipelineJob");
-        
+
         // Create a new job in the DB
         var newJob = new PipelineRunJob
         {
@@ -61,24 +98,111 @@ public class RunPipelineHandler(
             LastUpdated = DateTime.UtcNow,
             RunUser = callerIdentity
         };
-        dbContext.PipelineRunJobs.Add(newJob);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        
-        // publish the Pipeline job message for Pipeline.API to pick up
-        var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage
-        {
-            DepositName = request.DepositId, 
-            JobIdentifier = jobId, 
-            RunUser = callerIdentity
-        });
-        var pubRequest = new PublishRequest(topicArn, pipelineJobMessage);
-        var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
 
-        logger.LogDebug(
-            "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
-            response.HttpStatusCode, request.DepositId, response.MessageId);
+        try
+        {
+            dbContext.PipelineRunJobs.Add(newJob);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not create pipeline job row for deposit {DepositId}", request.DepositId);
+            if (acquiredByThisCall)
+            {
+                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
+            }
+            return Result.Fail(ErrorCodes.UnknownError, "Could not create pipeline job: " + e.Message);
+        }
+
+        try
+        {
+            // publish the Pipeline job message for Pipeline.API to pick up
+            var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage
+            {
+                DepositName = request.DepositId,
+                JobIdentifier = jobId,
+                RunUser = callerIdentity
+            });
+            var pubRequest = new PublishRequest(topicArn, pipelineJobMessage);
+            var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
+
+            logger.LogDebug(
+                "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
+                response.HttpStatusCode, request.DepositId, response.MessageId);
+        }
+        catch (Exception e)
+        {
+            // The job row exists but Pipeline.API was never told about it, so it will sit as
+            // "waiting" forever unless we close it out ourselves here.
+            logger.LogError(e, "Could not publish pipeline job {JobId} for deposit {DepositId} to SNS", jobId, request.DepositId);
+            newJob.Status = PipelineJobStates.CompletedWithErrors;
+            newJob.DateFinished = DateTime.UtcNow;
+            newJob.Errors = "Could not queue pipeline job: " + e.Message;
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            if (acquiredByThisCall)
+            {
+                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
+            }
+            return Result.Fail(ErrorCodes.UnknownError, "Could not queue pipeline job: " + e.Message);
+        }
 
         return Result.Ok();
+    }
+
+    private bool IsInDefaultWorkingBucket(Uri? depositFiles) =>
+        depositFiles != null
+        && AmazonS3Uri.TryParseAmazonS3Uri(depositFiles, out var s3Uri)
+        && s3Uri.Bucket == storageOptions.Value.DefaultWorkingBucket;
+
+    /// <summary>
+    /// Takes the deposit's lock for the caller, atomically. Null failure means the caller may
+    /// proceed, either because this call took the lock or because the caller already held it -
+    /// transferred to the run, per issue #299's decision (Tom, 2026-09-23): the run's identity
+    /// is the caller's, so no data change is needed, and releasing at the end is exactly the
+    /// same operation either way. acquiredByThisCall is true only when this call itself took a
+    /// previously-unlocked deposit, so only this call is responsible for releasing it if
+    /// something later in Handle fails.
+    /// </summary>
+    private async Task<(Result? Failure, bool AcquiredByThisCall)> AcquireLock(
+        string depositId, string callerIdentity, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+
+        // A single conditional UPDATE, so two callers racing for an unlocked deposit cannot both
+        // read "unlocked" and both proceed - the same pattern as RunPipelineStatusHandler.ClaimJob.
+        var acquired = await dbContext.Deposits
+            .Where(d => d.MintedId == depositId && d.LockedBy == null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(d => d.LockedBy, callerIdentity)
+                .SetProperty(d => d.LockDate, now), cancellationToken);
+
+        if (acquired > 0)
+        {
+            return (null, true);
+        }
+
+        var currentLockHolder = await dbContext.Deposits
+            .Where(d => d.MintedId == depositId)
+            .Select(d => d.LockedBy)
+            .SingleAsync(cancellationToken);
+
+        if (currentLockHolder == callerIdentity)
+        {
+            return (null, false);
+        }
+
+        return (Result.Fail(ErrorCodes.Conflict,
+            $"Could not run pipeline because the deposit {depositId} is locked by " + currentLockHolder), false);
+    }
+
+    private async Task ReleaseLockIfHeldBy(string depositId, string callerIdentity, CancellationToken cancellationToken)
+    {
+        await dbContext.Deposits
+            .Where(d => d.MintedId == depositId && d.LockedBy == callerIdentity)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(d => d.LockedBy, (string?)null)
+                .SetProperty(d => d.LockDate, (DateTime?)null), cancellationToken);
     }
 }
 

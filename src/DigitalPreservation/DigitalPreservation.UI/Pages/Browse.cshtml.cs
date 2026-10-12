@@ -111,9 +111,9 @@ public class BrowseModel(
                 }
                 ViewData["Title"] = $"📦 {name}";
                 ArchivalGroupPath = PathUnderRoot;
-                // Temporary 
                 var parentSlug = ArchivalGroupPath?.GetParent()?.GetSlug();
-                HasPredictableIIIFPath = parentSlug is "cc" or "cc-test";
+                HasPredictableIIIFPath = parentSlug != null
+                    && preservationOptions.Value.IiifPredictableParents.Contains(parentSlug);
                 var query = new DepositQuery
                 {
                     ArchivalGroupPath = PathUnderRoot,

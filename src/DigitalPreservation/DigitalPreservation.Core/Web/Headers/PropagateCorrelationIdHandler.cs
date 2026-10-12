@@ -18,18 +18,33 @@ public static class ApplicationBuilderX
 }
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="contextAccessor"></param>
-/// <param name="tokenProvider">Only added when required via DI in startup</param>
-internal class HeaderPropagationMessageHandlerBuilderFilter(IHttpContextAccessor contextAccessor, IAccessTokenProvider? tokenProvider = null)
+/// <param name="serviceProvider">IAccessTokenProvider is resolved from this lazily, per handler
+/// chain, NOT constructor-injected: AccessTokenProvider depends on IHttpClientFactory, and the
+/// factory's own constructor consumes every registered IHttpMessageHandlerBuilderFilter, so
+/// constructor injection here closes that triangle into a circular resolution — undetectable to
+/// DI's creation-time cycle check (the factory is registered via a lambda) and therefore an
+/// unbounded runtime recursion that hangs the process at the first client build. By the time a
+/// handler chain is built the factory singleton exists, so resolving here is cycle-free; where no
+/// provider is registered (Storage API, the UI) it still resolves to null as before.</param>
+internal class HeaderPropagationMessageHandlerBuilderFilter(IHttpContextAccessor contextAccessor, IServiceProvider serviceProvider)
     : IHttpMessageHandlerBuilderFilter
 {
     public Action<HttpMessageHandlerBuilder> Configure(Action<HttpMessageHandlerBuilder> next)
     {
         return builder =>
         {
-            builder.AdditionalHandlers.Add(new PropagateCorrelationIdHandler(contextAccessor, tokenProvider));
+            // Never attach to the client AccessTokenProvider mints tokens through. This handler
+            // would call GetAccessToken to decorate the token request itself; mid-mint the cache
+            // cannot be populated yet, so that inner call mints again, synchronously, until the
+            // stack overflows. Platform auth headers have no business on a request to Entra anyway.
+            if (builder.Name != AccessTokenProvider.HttpClientName)
+            {
+                var tokenProvider = serviceProvider.GetService<IAccessTokenProvider>();
+                builder.AdditionalHandlers.Add(new PropagateCorrelationIdHandler(contextAccessor, tokenProvider));
+            }
             next(builder);
         };
     }
@@ -43,13 +58,13 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor,
 {
     private const string CorrelationHeaderKey = "x-correlation-id";
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         if (contextAccessor.HttpContext == null)
         {
-            SetMachineToken(request);
+            await SetMachineToken(request, cancellationToken);
 
-            return base.SendAsync(request, cancellationToken);
+            return await base.SendAsync(request, cancellationToken);
         }
 
         var headerValue = contextAccessor.HttpContext.TryGetHeaderValue(CorrelationHeaderKey);
@@ -59,7 +74,7 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor,
         }
 
 
-        //Pass Bearer token to downstream API 
+        //Pass Bearer token to downstream API
         var bearerToken = contextAccessor.HttpContext.TryGetHeaderValue("Authorization");
         if (!string.IsNullOrEmpty(bearerToken) && request.Headers.Authorization == null)
         {
@@ -68,7 +83,7 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor,
         else
         {
             //Add Bearer token to request if not already present
-            SetMachineToken(request);
+            await SetMachineToken(request, cancellationToken);
         }
 
         //Pass Machine Token Downstream
@@ -78,13 +93,13 @@ public class PropagateCorrelationIdHandler(IHttpContextAccessor contextAccessor,
             request.Headers.TryAddWithoutValidation(AuthFilterIdentifier.MachineHeaderName, machineToken);
         }
 
-        return base.SendAsync(request, cancellationToken);
+        return await base.SendAsync(request, cancellationToken);
     }
 
-    private void SetMachineToken(HttpRequestMessage request)
+    private async Task SetMachineToken(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         //Add Bearer token to request if not already present
-        var token = tokenProvider?.GetAccessToken().Result;
+        var token = tokenProvider is null ? null : await tokenProvider.GetAccessToken(cancellationToken);
 
         if (token is null) return;
 

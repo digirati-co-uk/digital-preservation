@@ -7,6 +7,7 @@ using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Preservation.API.Data;
 using Preservation.API.Features.Activity.Readers;
+using Preservation.API.Features.Deposits.PipelineCleanup;
 using Preservation.API.Infrastructure;
 using Preservation.API.Mutation;
 using Serilog;
@@ -19,7 +20,7 @@ using LeedsDlipServices;
 using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
-using Microsoft.OpenApi.Models;
+using DigitalPreservation.Core.Web;
 using Preservation.API.IIIF;
 using Storage.Repository.Common.Mets.StorageImpl;
 
@@ -53,6 +54,10 @@ try
             .EnableTokenAcquisitionToCallDownstreamApi()
             .AddInMemoryTokenCaches();
     }
+
+    // Allow-list of known machine callers, keyed by signed azp/appid (RFC-0001 Phase 0).
+    // Registered unconditionally so AuthFilterIdentifier can resolve it even with auth disabled.
+    builder.Services.AddClientDirectory(builder.Configuration);
 
     builder.Services.AddAWSService<IAmazonSimpleNotificationService>();
 
@@ -113,76 +118,22 @@ try
     {
         var accessTokenProviderOptions = new AccessTokenProviderOptions();
         builder.Configuration.GetSection("TokenProvider").Bind(accessTokenProviderOptions);
-        builder.Services.AddSingleton<IAccessTokenProviderOptions>(accessTokenProviderOptions);
-        builder.Services.AddSingleton<IAccessTokenProvider, AccessTokenProvider>();
+        builder.Services.AddAccessTokenProvider(accessTokenProviderOptions);
     }
 
 
-    builder.Services.AddSwaggerGen(c =>
-    {
-        c.SwaggerDoc("v1", new OpenApiInfo { Title = "Preservation API", Version = "v1" });
-
-        if (useAuthFeatureFlag)
-        {
-
-            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer",
-                Description = "Bearer token add:   'Bearer <your token>'  "
-            });
-
-            c.AddSecurityRequirement(new OpenApiSecurityRequirement()
-            {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        },
-                        Scheme = "oauth2",
-                        Name = "Bearer",
-                        In = ParameterLocation.Header,
-
-                    },
-                    new List<string>()
-                }
-            });
-        }
-
-        c.AddSecurityDefinition("X-Client-Identity", new OpenApiSecurityScheme
-        {
-            Type = SecuritySchemeType.ApiKey,
-            In = ParameterLocation.Header,
-            Name = "X-Client-Identity",
-            Description = "client identity header for machine to machine calls"
-        });
-
-        c.AddSecurityRequirement(new OpenApiSecurityRequirement
-        {
-            {
-                new OpenApiSecurityScheme
-                {
-                    Reference = new OpenApiReference
-                    {
-                        Type = ReferenceType.SecurityScheme,
-                        Id = "X-Client-Identity"
-                    }
-                },
-                []
-            }
-        });
-    });
+    builder.Services.AddApiSwaggerGen("Preservation API", useAuthFeatureFlag);
 
 
     builder.Services
         .AddHostedService<StorageImportJobsService>()
         .AddScoped<StorageImportJobsProcessor>();
-    
+
+    builder.Services
+        .AddHostedService<PipelineJobCleanupService>()
+        .AddScoped<PipelineJobCleanupProcessor>();
+
+
     var app = builder.Build();
     app
         .UseMiddleware<CorrelationIdMiddleware>()
@@ -216,7 +167,7 @@ try
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Storage API");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Preservation API");
     });
 
 

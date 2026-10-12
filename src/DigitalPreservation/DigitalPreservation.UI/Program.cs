@@ -1,5 +1,4 @@
 ﻿using DigitalPreservation.Mets;
-using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
@@ -36,9 +35,12 @@ try
             .Enrich.FromLogContext()
             .Enrich.WithCorrelationId());
 
-    // Don't impose any limit for file uploads
-    builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = long.MaxValue);
-    builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = long.MaxValue);
+    // Chunked/resumable upload is out of scope (issue #276): direct placement in the S3 deposit
+    // location is the supported route for files over this limit, so refuse an oversized request
+    // outright rather than stream it to S3.
+    var maxUploadBytes = UploadOptions.GetMaxUploadBytes(builder.Configuration);
+    builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = maxUploadBytes);
+    builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = maxUploadBytes);
 
     IEnumerable<string>? initialScopes = new List<string>();
     builder.Configuration.GetSection("DownstreamApi:Scopes").Bind(initialScopes);
@@ -57,7 +59,6 @@ try
 
 
     builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options => options.Events = new RejectSessionCookieWhenAccountNotInCacheEvents());
-    builder.Services.Configure<PipelineOptions>(builder.Configuration.GetSection("PipelineOptions"));
     // <ms_docref_add_default_controller_for_sign-in-out>
     builder.Services.AddRazorPages().AddMvcOptions(options =>
     {

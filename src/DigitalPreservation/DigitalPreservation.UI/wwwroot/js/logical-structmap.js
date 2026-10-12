@@ -14,6 +14,7 @@ let editRangeModalShown = false;
 // Used when modsModal is opened for a logical range
 let modsTargetStructmapId = null;
 let modsTargetRangeId = null;
+let modsModalShown = false;
 
 let dragState = null; // { structmapId, rangeId, localPath }
 
@@ -550,6 +551,9 @@ function wireModsModalIntercept() {
     const modsForm = modsModal.querySelector('form');
     if (!modsForm) return;
 
+    modsModal.addEventListener('shown.bs.modal', () => { modsModalShown = true; });
+    modsModal.addEventListener('hidden.bs.modal', () => { modsModalShown = false; });
+
     // Capture phase: fires before site.js single-submit listener
     modsForm.addEventListener('submit', function (e) {
         const ctx = document.getElementById('modsContext')?.value ?? '';
@@ -559,15 +563,30 @@ function wireModsModalIntercept() {
         e.stopImmediatePropagation();
 
         const smId = modsTargetStructmapId ?? findStructmapIdForRange(ctx);
-        if (!smId) { bootstrap.Modal.getInstance(modsModal)?.hide(); return; }
+        if (!smId) { hideModsModal(modsModal); return; }
 
         const accessRestrictions = readAccessRestrictionsFromForm();
         const rightsStatementUri = readRightsStatementUriFromForm();
         const recordIdentifiers = readRecordIdentifiersFromForm();
 
         setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers);
-        bootstrap.Modal.getInstance(modsModal)?.hide();
+        hideModsModal(modsModal);
     }, { capture: true });
+}
+
+function hideModsModal(modsModal) {
+    const instance = bootstrap.Modal.getOrCreateInstance(modsModal);
+    // Bootstrap's Modal.hide() is a documented no-op while the modal is still mid-way through its
+    // own show transition (it checks an internal _isTransitioning flag and just returns). The
+    // ~300ms fade-in from .show() can still be running when Save is clicked - a real user clicking
+    // fast, or Playwright filling the form and clicking, can both beat it - so hide() silently does
+    // nothing and the modal never closes. Deferring to shown.bs.modal guarantees the transition has
+    // genuinely finished before we ask Bootstrap to hide it. See editRangeModal for the same fix.
+    if (modsModalShown) {
+        instance.hide();
+    } else {
+        modsModal.addEventListener('shown.bs.modal', () => instance.hide(), { once: true });
+    }
 }
 
 function openModsModalForRange(structmapId, rangeId) {
@@ -786,15 +805,15 @@ function parseTimeInput(str) {
     if (!str?.trim()) return null;
     const parts = str.trim().split(':');
     if (parts.length === 3) {
-        const h = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        const s = parseFloat(parts[2]);
-        if (!isNaN(h) && !isNaN(m) && !isNaN(s) && h >= 0 && m >= 0 && s >= 0)
+        const h = Number.parseInt(parts[0], 10);
+        const m = Number.parseInt(parts[1], 10);
+        const s = Number.parseFloat(parts[2]);
+        if (!Number.isNaN(h) && !Number.isNaN(m) && !Number.isNaN(s) && h >= 0 && m >= 0 && s >= 0)
             return h * 3600 + m * 60 + s;
     } else if (parts.length === 2) {
-        const m = parseInt(parts[0], 10);
-        const s = parseFloat(parts[1]);
-        if (!isNaN(m) && !isNaN(s) && m >= 0 && s >= 0)
+        const m = Number.parseInt(parts[0], 10);
+        const s = Number.parseFloat(parts[1]);
+        if (!Number.isNaN(m) && !Number.isNaN(s) && m >= 0 && s >= 0)
             return m * 60 + s;
     }
     return null;
@@ -876,11 +895,11 @@ function createEditFilePointerModal() {
             result.endTime   = parseTimeInput(document.getElementById('editFpTimeEnd').value);
         }
         if (areaEnabled) {
-            const x1 = parseInt(document.getElementById('editFpX1').value, 10);
-            const y1 = parseInt(document.getElementById('editFpY1').value, 10);
-            const x2 = parseInt(document.getElementById('editFpX2').value, 10);
-            const y2 = parseInt(document.getElementById('editFpY2').value, 10);
-            if (!isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2))
+            const x1 = Number.parseInt(document.getElementById('editFpX1').value, 10);
+            const y1 = Number.parseInt(document.getElementById('editFpY1').value, 10);
+            const x2 = Number.parseInt(document.getElementById('editFpX2').value, 10);
+            const y2 = Number.parseInt(document.getElementById('editFpY2').value, 10);
+            if (!Number.isNaN(x1) && !Number.isNaN(y1) && !Number.isNaN(x2) && !Number.isNaN(y2))
                 result.region = { x1, y1, x2, y2 };
         }
         bootstrap.Modal.getInstance(document.getElementById('editFilePointerModal')).hide();

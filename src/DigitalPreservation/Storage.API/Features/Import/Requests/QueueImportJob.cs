@@ -22,12 +22,23 @@ public class QueueImportJobHandler(
 {
     public async Task<Result<ImportJobResult>> Handle(QueueImportJob request, CancellationToken cancellationToken)
     {
+        var preCheck = ExecuteImportJobHandler.PreProcessValidateImportJob(request.ImportJob);
+        if (preCheck.Failure)
+        {
+            return Result.FailNotNull<ImportJobResult>(preCheck.ErrorCode ?? ErrorCodes.BadRequest,
+                preCheck.ErrorMessage ?? "Import job is not valid");
+        }
         if (request.ImportJob.LastModifiedBy == null)
         {
             logger.LogError("Import Job {ImportJobId} does not have a LastModifiedBy", request.ImportJob.Id?.GetSlug());
-            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Unauthorized, 
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest,
                 $"Cannot queue an importJob that lacks a LastModifiedBy: {request.ImportJob.ArchivalGroup}");
         }
+        // The executor takes the caller identity it writes into Fedora from CreatedBy (ExecuteImportJob.cs)
+        // without validating it first - default it here, the same as the Preservation API does before
+        // calling in, so a direct caller of this API can't queue a job that later NullReferenceExceptions
+        // in the executor.
+        request.ImportJob.CreatedBy ??= request.ImportJob.LastModifiedBy;
         var activeImportJobs = await importJobResultStore.GetActiveJobsForArchivalGroup(request.ImportJob.ArchivalGroup, cancellationToken);
         if (activeImportJobs.Success && activeImportJobs.Value!.Count > 0)
         {

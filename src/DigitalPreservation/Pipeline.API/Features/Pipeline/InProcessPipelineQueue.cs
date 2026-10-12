@@ -4,7 +4,6 @@ namespace Pipeline.API.Features.Pipeline;
 
 public interface IPipelineQueue
 {
-    ValueTask QueueRequest(string jobIdentifier, string depositName, string? runUser, CancellationToken cancellationToken);
     ValueTask<PipelineJobMessage?> DequeueRequest(CancellationToken cancellationToken);
 }
 
@@ -15,7 +14,7 @@ public interface IPipelineQueue
 public class InProcessPipelineQueue : IPipelineQueue
 {
     private readonly Channel<PipelineJobMessage?> queue;
-    
+
     public InProcessPipelineQueue()
     {
         var options = new BoundedChannelOptions(10)
@@ -25,9 +24,6 @@ public class InProcessPipelineQueue : IPipelineQueue
 
         queue = Channel.CreateBounded<PipelineJobMessage?>(options);
     }
-    
-    public ValueTask QueueRequest(string jobIdentifier, string depositName, string? runUser, CancellationToken cancellationToken)
-        => queue.Writer.WriteAsync(new PipelineJobMessage { JobIdentifier = jobIdentifier, DepositName = depositName, RunUser = runUser}, cancellationToken);
 
     public ValueTask<PipelineJobMessage?> DequeueRequest(CancellationToken cancellationToken)
         => queue.Reader.ReadAsync(cancellationToken);

@@ -60,7 +60,7 @@
     var faqActive = faqHasRec ? "active" : "";
 
 
-    var hideIdentCount = !(@results?.DepositSearch?.Total is null && @results?.FedoraSearch?.Total is null & @results?.Identifier is null);
+    var hideIdentCount = !(@results?.DepositSearch?.Total is null && @results?.FedoraSearch?.Total is null && @results?.Identifier is null);
     var identCount = @results?.Identifier != null ? "1" : "0";
     var desCount = results?.DepositSearch?.Total?.ToString() ?? "0";
     var fedCount = results?.FedoraSearch?.Total?.ToString() ?? "0";

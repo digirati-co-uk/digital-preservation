@@ -9,11 +9,9 @@ using IIIFSize = IIIF.Size;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.IIIF;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace Preservation.API.Features.MediaServer;
 
@@ -23,11 +21,15 @@ namespace Preservation.API.Features.MediaServer;
 public class MediaController(
     IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory,
-    ITokenService tokenService
+    ITokenService tokenService,
+    ILogger<MediaController> logger
 ) : ControllerBase
 {
-    private static readonly Lazy<byte[]> CanvasPlaceholder = new(() => GeneratePlaceholderPng(1000, 800));
-    private static readonly Lazy<byte[]> ThumbPlaceholder = new(() => GeneratePlaceholderPng(100, 80));
+    // The largest size ManifestBuilder asks for as a thumbnail; anything bigger is a canvas image.
+    private const int ThumbnailSize = 100;
+
+    private static readonly Lazy<byte[]> CanvasPlaceholder = new(() => MediaImages.GreyPng(1000, 800));
+    private static readonly Lazy<byte[]> ThumbPlaceholder = new(() => MediaImages.GreyPng(100, 80));
 
     [AllowAnonymous]
     [RequireFeatureFlag("EnableIiifMediaEndpoints")]
@@ -77,65 +79,97 @@ public class MediaController(
         var origin = FolderNames.GetFilesLocation(deposit.Files!, isBagIt);
 
         if (type == "imagesvc")
-        {
-            var elements = localPath.Split('/');
+            return await ImageServiceRequest(workspaceManager, workingDirectory, origin, isBagIt, localPath);
 
-            if (elements[^1] == "info.json")
-            {
-                var realLocalPath = localPath[..^"/info.json".Length];
-                var mediaItem = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + realLocalPath);
-                var imageBaseUrl = Request.GetDisplayUrl();
-                imageBaseUrl = imageBaseUrl[..imageBaseUrl.LastIndexOf("/info.json", StringComparison.Ordinal)];
-                Response.Headers.CacheControl = "private, max-age=600";
-                return InfoJson(imageBaseUrl, mediaItem);
-            }
-
-            // /full/{w,h}/0/default.jpg — requires at least 4 segments after the file path
-            if (elements.Length >= 4 && elements[^1] == "default.jpg" && elements[^2] == "0" && elements[^4] == "full")
-            {
-                var size = elements[^3];
-                var imageApi = $"/full/{size}/0/default.jpg";
-                var realLocalPath = localPath[..^imageApi.Length];
-                Response.Headers.CacheControl = "private, max-age=3600";
-                Response.Headers.ETag = ImageETag(realLocalPath, size);
-                return await ImageFromImageService(workspaceManager, origin, realLocalPath, size);
-            }
-
-            // Bare imagesvc URL — redirect to info.json if the file exists
-            if (elements.Length >= 4)
-            {
-                var testRealLocalPath = string.Join('/', elements[..^4]);
-                var testMediaItem = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + testRealLocalPath);
-                if (testMediaItem != null)
-                {
-                    // Relative redirect: avoids echoing the client-supplied Host header
-                    // and any query string back into the Location header (Sonar S5146).
-                    var infoJsonUrl = Request.PathBase.Add(Request.Path).Add("/info.json").Value!;
-                    if (Url.IsLocalUrl(infoJsonUrl))
-                        return Redirect(infoJsonUrl);
-                }
-            }
-
-            return NotFound();
-        }
-
-        var item = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + localPath);
-        if (item == null)
+        var file = ResolveDepositFile(workingDirectory, isBagIt, origin, localPath);
+        if (file == null)
             return NotFound();
 
         Response.Headers.CacheControl = "private, max-age=3600";
-        Response.Headers.ETag = FileETag(localPath, item.Size);
-        return await ProxyFileWithByteRangeSupport(workspaceManager, origin, localPath, item, HttpContext);
+        Response.Headers.ETag = FileETag(localPath, file.Value.Item.Size);
+        return await ProxyFileWithByteRangeSupport(workspaceManager, file.Value, HttpContext);
     }
 
-    // ValidateLocalPath guards against path traversal in the S3 key.
-    // FindFile() is the authoritative gate (exact-match against deposit tree), so this is defence-in-depth.
-    private static bool ValidateLocalPath(string localPath)
+    // The three request shapes of the level-0 image service, most specific first:
+    // .../imagesvc/{path}/info.json, .../imagesvc/{path}/full/{w,h}/0/default.jpg, and the bare
+    // .../imagesvc/{path}, which redirects to its info.json when the file exists.
+    private async Task<IActionResult> ImageServiceRequest(
+        WorkspaceManager workspaceManager,
+        WorkingDirectory workingDirectory,
+        Uri origin,
+        bool isBagIt,
+        string localPath)
+    {
+        var elements = localPath.Split('/');
+
+        if (elements[^1] == "info.json")
+        {
+            // "info.json" with no file path in front of it is not a request for anything.
+            if (localPath.Length <= "/info.json".Length)
+                return NotFound();
+            var realLocalPath = localPath[..^"/info.json".Length];
+            var mediaItem = ResolveDepositFile(workingDirectory, isBagIt, origin, realLocalPath)?.Item;
+            var imageBaseUrl = Request.GetDisplayUrl();
+            imageBaseUrl = imageBaseUrl[..imageBaseUrl.LastIndexOf("/info.json", StringComparison.Ordinal)];
+            Response.Headers.CacheControl = "private, max-age=600";
+            return InfoJson(imageBaseUrl, mediaItem);
+        }
+
+        // /full/{w,h}/0/default.jpg — requires at least 4 segments after the file path
+        if (elements.Length >= 4 && elements[^1] == "default.jpg" && elements[^2] == "0" && elements[^4] == "full")
+        {
+            var size = elements[^3];
+            var imageApi = $"/full/{size}/0/default.jpg";
+            // The image API suffix with no file path in front of it is not a request for anything.
+            if (localPath.Length <= imageApi.Length)
+                return NotFound();
+            var realLocalPath = localPath[..^imageApi.Length];
+            var file = ResolveDepositFile(workingDirectory, isBagIt, origin, realLocalPath);
+            if (file == null)
+                return NotFound();
+            Response.Headers.CacheControl = "private, max-age=3600";
+            Response.Headers.ETag = ImageETag(realLocalPath, size);
+            return await ImageFromImageService(workspaceManager, file.Value, size);
+        }
+
+        // Bare imagesvc URL: the image service's base URI, which is the whole path. Redirect to its
+        // info.json if it names a file. Any other image API shape (another format, rotation or
+        // quality) is not a file in the tree, so it 404s - this is a level 0 service.
+        if (ResolveDepositFile(workingDirectory, isBagIt, origin, localPath) != null)
+        {
+            // Relative redirect: avoids echoing the client-supplied Host header
+            // and any query string back into the Location header (Sonar S5146).
+            var infoJsonUrl = Request.PathBase.Add(Request.Path).Add("/info.json").Value!;
+            if (Url.IsLocalUrl(infoJsonUrl))
+                return Redirect(infoJsonUrl);
+        }
+
+        return NotFound();
+    }
+
+    // A file's bytes are reached one way only: the path must name a file in this deposit's tree,
+    // exactly, and only then is the S3 URI built. Every branch that touches S3 goes through here -
+    // the image-bytes branch once did not, and that was the traversal. ValidateLocalPath is the
+    // defence in depth in front of this gate, not the gate.
+    private readonly record struct DepositFile(WorkingFile Item, Uri FileUri);
+
+    private static DepositFile? ResolveDepositFile(
+        WorkingDirectory workingDirectory, bool isBagIt, Uri origin, string localPath)
+    {
+        var item = workingDirectory.FindFile(FolderNames.GetPathPrefix(isBagIt) + localPath);
+        return item == null
+            ? null
+            : new DepositFile(item, new Uri(origin.ToString().TrimEnd('/') + "/" + localPath));
+    }
+
+    // Defence in depth in front of ResolveDepositFile: nothing that could move the path elsewhere
+    // is allowed to be built into an S3 URI at all. Routing decodes the route value once, so the
+    // shared rule (UriPathX) judges each segment after one more decode as well.
+    internal static bool ValidateLocalPath(string localPath)
     {
         if (string.IsNullOrEmpty(localPath)) return false;
         return !localPath.Split('/').Any(segment =>
-            string.IsNullOrEmpty(segment) || segment == ".." || segment == "."
-            || segment.Contains('\\') || segment.Contains('\0'));
+            string.IsNullOrEmpty(segment) || UriPathX.IsTraversalSegment(segment));
     }
 
     private static string FileETag(string localPath, long? size) =>
@@ -145,9 +179,9 @@ public class MediaController(
         $"W/\"{localPath.GetHashCode():x}-{sizeParam.GetHashCode():x}\"";
 
     private static async Task<IActionResult> ProxyFileWithByteRangeSupport(
-        WorkspaceManager workspaceManager, Uri origin, string localPath, WorkingFile item, HttpContext httpContext)
+        WorkspaceManager workspaceManager, DepositFile file, HttpContext httpContext)
     {
-        var fileUri = new Uri(origin.ToString().TrimEnd('/') + "/" + localPath);
+        var (item, fileUri) = file;
         var contentType = item.ContentType ?? "application/octet-stream";
 
         httpContext.Response.Headers.AcceptRanges = "bytes";
@@ -187,35 +221,52 @@ public class MediaController(
         return new FileStreamResult(fullStreamResult.Value.Item1, contentType);
     }
 
-    private static IActionResult ServePlaceholder(string localPath)
-    {
-        var bytes = localPath == "thumb.png" ? ThumbPlaceholder.Value : CanvasPlaceholder.Value;
-        return new FileContentResult(bytes, "image/png");
-    }
+    private static IActionResult ServePlaceholder(string localPath) => Placeholder(localPath == "thumb.png");
 
-    private static async Task<IActionResult> ImageFromImageService(
-        WorkspaceManager workspaceManager, Uri origin, string realLocalPath, string size)
+    private static FileContentResult Placeholder(bool thumbnail) =>
+        new(thumbnail ? ThumbPlaceholder.Value : CanvasPlaceholder.Value, "image/png");
+
+    // Takes a resolved DepositFile, not a Uri, so that there is no way to reach S3 from this
+    // controller except through ResolveDepositFile. Same for ProxyFileWithByteRangeSupport.
+    private async Task<IActionResult> ImageFromImageService(
+        WorkspaceManager workspaceManager, DepositFile file, string size)
     {
-        var fileUri = new Uri(origin.ToString().TrimEnd('/') + "/" + realLocalPath);
+        var parts = size.Split(',');
+        var w = parts[0].Length > 0 && int.TryParse(parts[0], out var pw) ? pw : 0;
+        var h = parts.Length > 1 && parts[1].Length > 0 && int.TryParse(parts[1], out var ph) ? ph : 0;
+        // "," (or anything without a positive dimension) is not a size.
+        if (w <= 0 && h <= 0)
+            return new NotFoundResult();
+
+        var fileUri = file.FileUri;
         var streamResult = await workspaceManager.GetStream(fileUri);
         if (streamResult is not { Success: true, Value.Item1: not null })
             return new NotFoundResult();
 
-        var parts = size.Split(',');
-        var w = parts[0].Length > 0 && int.TryParse(parts[0], out var pw) ? pw : 0;
-        var h = parts.Length > 1 && parts[1].Length > 0 && int.TryParse(parts[1], out var ph) ? ph : 0;
-
-        using var image = await Image.LoadAsync(streamResult.Value.Item1);
-        image.Mutate(x => x.Resize(new ResizeOptions
+        // libvips reads its source synchronously, so read the S3 stream asynchronously first rather
+        // than block a request thread on the network.
+        using var buffered = new MemoryStream();
+        await using (var source = streamResult.Value.Item1)
         {
-            Size = new SixLabors.ImageSharp.Size(w, h),
-            Mode = ResizeMode.Max
-        }));
+            await source.CopyToAsync(buffered);
+        }
+        buffered.Position = 0;
 
-        var ms = new MemoryStream();
-        await image.SaveAsJpegAsync(ms);
-        ms.Position = 0;
-        return new FileStreamResult(ms, "image/jpeg");
+        byte[] jpeg;
+        try
+        {
+            jpeg = MediaImages.RenderJpeg(buffered, w, h);
+        }
+        catch (InvalidDataException e)
+        {
+            // A corrupt file, or one in a format the service doesn't preview: the viewer still gets an
+            // image. Not cached, so a replacement file shows up as soon as it's there.
+            logger.LogWarning(e, "Image service could not decode {FileUri}; serving the placeholder", fileUri);
+            Response.Headers.CacheControl = "no-store";
+            Response.Headers.Remove(HeaderNames.ETag);
+            return Placeholder(thumbnail: Math.Max(w, h) <= ThumbnailSize);
+        }
+        return new FileStreamResult(new MemoryStream(jpeg), "image/jpeg");
     }
 
     private static IActionResult InfoJson(string imageBaseUrl, WorkingFile? mediaItem)
@@ -248,13 +299,5 @@ public class MediaController(
             Content     = JsonSerializer.Serialize(info),
             ContentType = "application/json"
         };
-    }
-
-    private static byte[] GeneratePlaceholderPng(int width, int height)
-    {
-        using var image = new Image<Rgb24>(width, height, new Rgb24(0x88, 0x88, 0x88));
-        using var ms = new MemoryStream();
-        image.SaveAsPng(ms);
-        return ms.ToArray();
     }
 }

@@ -7,6 +7,7 @@ using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.UI.Features.Preservation;
+using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
@@ -26,7 +27,6 @@ public class DepositModel(
     IMediator mediator,
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
-    IOptions<PipelineOptions> pipelineOptions,
     IOptions<PreservationOptions> preservationOptions,
     IConfiguration configuration,
     ILogger<DepositModel> logger) : PageModel
@@ -46,6 +46,14 @@ public class DepositModel(
     public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
 
     /// <summary>
+    /// The largest file the browser upload form will accept, mirrored server-side by
+    /// Program.cs's Kestrel/FormOptions limits so an oversized request is refused rather than
+    /// streamed to S3 (issue #276 item 1). Chunked/resumable upload is out of scope; the
+    /// deposit's storage location is the supported route for files over this limit.
+    /// </summary>
+    public long MaxUploadBytes => UploadOptions.GetMaxUploadBytes(configuration);
+
+    /// <summary>
     /// Whether to offer the METS ID migration (issue #188 step 3) from the Actions menu. Off by
     /// default: it exists so the operation can be tried on one deposit before anything is run in
     /// bulk, not as an everyday action. Preservation API gates the endpoint itself with its own
@@ -55,6 +63,7 @@ public class DepositModel(
     public bool ShowNormaliseMetsIds =>
         configuration.GetValue<bool?>("FeatureFlags:ShowNormaliseMetsIds") ?? false;
 
+    public int MisMatchCount { get; private set; }
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];
     public List<string> FilesWithViruses { get; set; } = [];
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
@@ -174,7 +183,7 @@ public class DepositModel(
             }
 
             ImportJobResults = await GetImportJobResults();
-            (PipelineJobResults, RunningPipelineJob) = await GetCleanedPipelineJobsRunning();
+            (PipelineJobResults, RunningPipelineJob) = await GetRunningPipelineJob();
             LogicalStructMaps = WorkspaceManager.LogicalStructures;
 
             if (Deposit.Status != DepositStates.Exporting)
@@ -186,12 +195,7 @@ public class DepositModel(
                     if (WorkspaceManager.Editable)
                     {
                         var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
-                        TempData.Remove("MisMatchCount");
-
-                        if (mismatches.Count != 0)
-                        {
-                            TempData["MisMatchCount"] = mismatches.Count;
-                        }
+                        MisMatchCount = mismatches.Count;
 
                         FileMisMatches = detailedMismatches;
                         FilesWithViruses = RootCombinedDirectory.GetFilesWithVirus();
@@ -460,14 +464,16 @@ public class DepositModel(
             }
             else
             {
-                TempData[TempDataError] = result.ErrorMessage;
+                // Encoded because the banner renders with Html.Raw, and this message quotes S3
+                // file paths verbatim (see WorkspaceManager.FindFirstDifference).
+                TempData[TempDataError] = WebUtility.HtmlEncode(result.ErrorMessage);
             }
 
         }
 
         return Redirect($"/deposits/{id}");
     }
-    
+
     public async Task<IActionResult> OnPostLock([FromRoute] string id)
     {
         if (await BindDeposit(id))
@@ -494,13 +500,14 @@ public class DepositModel(
     {
         if (await BindDeposit(id))
         {
-            var result = await mediator.Send(new LockDeposit(Deposit!));
-            var result1 = await mediator.Send(new RunPipeline(Deposit!));
+            // Preservation API takes the deposit's lock itself when it queues the run - transferring
+            // it from the caller's own lock if they already held one - and releases it when the run
+            // ends, whichever way that happens (issue #299). No separate LockDeposit call needed.
+            var result = await mediator.Send(new RunPipeline(Deposit!));
 
-            if (result.Success && result1.Success)
+            if (result.Success)
             {
-                TempData["Valid"] = "Deposit locked and pipeline run message sent.";
-                TempData.Remove("MisMatchCount"); //will be recalculated as METS is refreshed with pipeline run
+                TempData["Valid"] = "Pipeline run started; the deposit is locked until it finishes.";
             }
             else
             {
@@ -520,11 +527,12 @@ public class DepositModel(
     {
         if (await BindDeposit(id) && RunningPipelineJob?.JobId != null)
         {
-            var result = await mediator.Send(new ReleaseLock(Deposit!));
+            // Posting completedWithErrors below is itself what releases the lock now, when the run's
+            // own user still holds it (issue #299) - no separate ReleaseLock call needed.
             var result1 = await mediator.Send(new ForceCompletePipeline(RunningPipelineJob.JobId, id, User));
-            if (result.Success && result1.Success)
+            if (result1.Success)
             {
-                TempData["Valid"] = "Force complete of pipeline succeeded and lock released.";
+                TempData["Valid"] = "Force complete of pipeline succeeded.";
             }
             else
             {
@@ -715,56 +723,24 @@ public class DepositModel(
     }
 
 
-    public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetCleanedPipelineJobsRunning()
+    /// <summary>
+    /// Finds this deposit's currently-running (or waiting) pipeline job, if any, for display. Used
+    /// to tidy up stalled jobs itself as a side effect of this GET - that cleanup is now a
+    /// Preservation API background sweep (issue #301), run on a timer regardless of whether anyone
+    /// opens this page, so a deposit can't be unstuck twice by two people opening it at once, and it
+    /// no longer released a lock this page view had no business touching.
+    /// </summary>
+    public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetRunningPipelineJob()
     {
-        var allJobs = GetPipelineJobResults().Result;
-        var cutoffDate = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(pipelineOptions.Value.PipelineJobsCleanupMinutes));
-        var longRunningUnfinishedJobs = allJobs
-            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value < cutoffDate && x.Deposit == Id)
-            .Where(x => PipelineJobStates.IsNotComplete(x.Status))
-            .ToList();
-
-        var longRunningUnfinishedWaitingJobs = allJobs
-            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value < cutoffDate && x.Deposit == Id)
-            .Where(x => PipelineJobStates.IsNotComplete(x.Status))
-            .ToList();
-
-
-        longRunningUnfinishedJobs.AddRange(longRunningUnfinishedWaitingJobs);
-
-        foreach (var job in longRunningUnfinishedJobs)
-        {
-            var pipelineDeposit = new PipelineDeposit
-            {
-                Id = job.JobId!,
-                Status = PipelineJobStates.CompletedWithErrors,
-                DepositId = job.Deposit,
-                RunUser = job.RunUser,
-                Errors = "Cleaned up as previous processing did not complete"
-            };
-
-            var result = await mediator.Send(new ReleaseLock(Deposit!));
-            if (result.Success && Deposit != null)
-            {
-                Deposit.LockDate = null;
-                Deposit.LockedBy = null;
-            }
-            await preservationApiClient.LogPipelineRunStatus(pipelineDeposit, CancellationToken.None);
-        }
-
-        if (longRunningUnfinishedJobs.Any())
-        {
-            //refresh as all jobs have been sent
-            allJobs = GetPipelineJobResults().Result;
-        }
+        var allJobs = await GetPipelineJobResults();
 
         var latestJob = allJobs
-            .Where(x => x.DateBegun.HasValue && x.DateBegun.Value >= cutoffDate && x.Deposit == Id)
+            .Where(x => x.DateBegun.HasValue && x.Deposit == Id)
             .OrderByDescending(x => x.DateBegun)
             .FirstOrDefault();
 
         var latestWaitingJob = allJobs
-            .Where(x => x is { Created: not null, DateBegun: null } && x.Created.Value >= cutoffDate && x.Deposit == Id)
+            .Where(x => x is { Created: not null, DateBegun: null } && x.Deposit == Id)
             .OrderByDescending(x => x.Created)
             .FirstOrDefault();
 
@@ -776,7 +752,7 @@ public class DepositModel(
         ProcessPipelineResult? runningJob = null;
         if (latestJob != null && PipelineJobStates.IsNotComplete(latestJob.Status))
         {
-            runningJob = latestJob; 
+            runningJob = latestJob;
         }
 
         if (runningJob == null && latestWaitingJob != null && PipelineJobStates.IsNotComplete(latestWaitingJob.Status))

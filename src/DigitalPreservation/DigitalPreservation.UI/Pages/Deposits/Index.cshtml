@@ -332,12 +332,6 @@
 {
     @await Component.InvokeAsync("Pager", new { values = Model.PagerValues })
 }
-else
-{
-    <div class="alert alert-danger" role="alert">
-        <p>No PagerValues Present - are any deposits returned?</p>
-    </div>
-}
 
 
 

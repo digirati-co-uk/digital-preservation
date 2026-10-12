@@ -5,6 +5,7 @@
 @using DigitalPreservation.UI.Pages.Shared
 @using DigitalPreservation.Utils
 @model BrowseModel
+@inject ILogger<BrowseModel> Logger
 @{
     ViewData["section"] = "browse";
 }
@@ -42,9 +43,12 @@
                 }
                 else
                 {
-                    <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled>
+                    <button type="button" class="btn btn-sm btn-outline-primary me-2" disabled
+                            title="No IIIF manifest address is known for objects in this location."
+                            aria-describedby="iiifDisabledReason">
                         <img src="/img/iiif.png" alt="IIIF Logo" style="height: 1.3em; margin-bottom: 0.2em"/> IIIF
                     </button>
+                    <span id="iiifDisabledReason" class="visually-hidden">No IIIF manifest address is known for objects in this location.</span>
                 }
             }
             
@@ -376,7 +380,7 @@
                                         if (localPath != null)
                                         {
                                             var metsContainer = Model.MetsWorkingDirectory?.FindDirectory(localPath);
-                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsContainer);
+                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsContainer, Logger);
                                             for (var i = 0; i < items.Count; i++)
                                             {
                                                 if (i > 0) { <br/> }
@@ -431,7 +435,7 @@
                                     <td aria-label="td-format" title="@fileFormatMetadata?.FormatName">@fileFormatMetadata?.PronomKey</td>
                                     <td aria-label="td-access">
                                         @{
-                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsBinary);
+                                            var items = ModsMetadataDisplayBuilder.GetDisplayItems(metsBinary, Logger);
                                             for (var i = 0; i < items.Count; i++)
                                             {
                                                 if (i > 0) { <br/> }

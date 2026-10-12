@@ -34,7 +34,7 @@ public class StorageTests
         
         storage.Should().NotBeNull(); }
 
-    [Fact] public void GetWorkingFilesLocation_FileExistsConflict()
+    [Fact] public async Task GetWorkingFilesLocation_FileExistsConflict()
     {
         var expectedPath = @"C:\temp\working";
         A.CallTo(() => options.Value).Returns(new AwsStorageOptions
@@ -53,9 +53,8 @@ public class StorageTests
 
         // Provide required parameters for GetWorkingFilesLocation
         var idPart = "testId";
-        var templateType = TemplateType.None; 
-        var resultTask = storage.GetWorkingFilesLocation(idPart, templateType);
-        var result = resultTask.GetAwaiter().GetResult();
+        var templateType = TemplateType.None;
+        var result = await storage.GetWorkingFilesLocation(idPart, templateType);
 
         // Adjust assertion as needed based on actual return type
         result.Failure.Should().BeTrue();
@@ -66,7 +65,7 @@ public class StorageTests
 
 
     [Fact]
-    public void GetWorkingFilesLocation_Saves3File()
+    public async Task GetWorkingFilesLocation_Saves3File()
     {
         var expectedPath = @"C:\temp\working";
         _ = A.CallTo(() => options.Value).Returns(new AwsStorageOptions
@@ -95,8 +94,7 @@ public class StorageTests
         // Provide required parameters for GetWorkingFilesLocation
         var idPart = "testId";
         var templateType = TemplateType.RootLevel;
-        var resultTask = storage.GetWorkingFilesLocation(idPart, templateType);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.GetWorkingFilesLocation(idPart, templateType);
 
         // Adjust assertion as needed based on actual return type
         result.Failure.Should().BeFalse();
@@ -105,7 +103,7 @@ public class StorageTests
 
 
     [Fact]
-    public void GetWorkingFilesLocation_Saves3FileBagIt()
+    public async Task GetWorkingFilesLocation_Saves3FileBagIt()
     {
         var expectedPath = @"C:\temp\working";
         _ = A.CallTo(() => options.Value).Returns(new AwsStorageOptions
@@ -133,8 +131,7 @@ public class StorageTests
         // Provide required parameters for GetWorkingFilesLocation
         var idPart = "testId";
         var templateType = TemplateType.BagIt;
-        var resultTask = storage.GetWorkingFilesLocation(idPart, templateType);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.GetWorkingFilesLocation(idPart, templateType);
 
         // Adjust assertion as needed based on actual return type
         result.Failure.Should().BeFalse();
@@ -143,7 +140,7 @@ public class StorageTests
 
 
     [Fact]
-    public void GetWorkingFilesLocation_SkipsMetadataFolders_WhenCreateMetadataFoldersFalse()
+    public async Task GetWorkingFilesLocation_SkipsMetadataFolders_WhenCreateMetadataFoldersFalse()
     {
         // LPII-133: for a deposit against an existing Archival Group, CreateDepositBase passes
         // createMetadataFolders=false so the metadata/ad-hoc folders aren't scaffolded in S3 ahead of
@@ -171,8 +168,7 @@ public class StorageTests
             }));
 
         var idPart = "testId";
-        var resultTask = storage.GetWorkingFilesLocation(idPart, TemplateType.RootLevel, null, createMetadataFolders: false);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.GetWorkingFilesLocation(idPart, TemplateType.RootLevel, null, createMetadataFolders: false);
 
         result.Success.Should().BeTrue();
         putRequests.Should().NotContain(r => r.Key.Contains("metadata"));
@@ -180,7 +176,7 @@ public class StorageTests
     }
 
     [Fact]
-    public void GetWorkingFilesLocation_CreatesMetadataFolders_WhenCreateMetadataFoldersTrue()
+    public async Task GetWorkingFilesLocation_CreatesMetadataFolders_WhenCreateMetadataFoldersTrue()
     {
         var expectedPath = @"C:\temp\working";
         A.CallTo(() => options.Value).Returns(new AwsStorageOptions
@@ -205,12 +201,107 @@ public class StorageTests
             }));
 
         var idPart = "testId";
-        var resultTask = storage.GetWorkingFilesLocation(idPart, TemplateType.RootLevel, null, createMetadataFolders: true);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.GetWorkingFilesLocation(idPart, TemplateType.RootLevel, null, createMetadataFolders: true);
 
         result.Success.Should().BeTrue();
         putRequests.Should().Contain(r => r.Key.EndsWith("metadata/"));
         putRequests.Should().Contain(r => r.Key.EndsWith("metadata/ad-hoc/"));
+    }
+
+    [Fact]
+    public async Task GetWorkingFilesLocation_CarvesInWorkingRoot_WhenSupplied()
+    {
+        // Per-caller deposit routing (RFC-0001 §8): an explicit workingRoot (a bucket name in
+        // this implementation) overrides the default for everything created at carve-out time.
+        A.CallTo(() => options.Value).Returns(new AwsStorageOptions
+        {
+            DefaultWorkingBucket = "default-bucket"
+        });
+
+        var getRequests = new List<GetObjectRequest>();
+        A.CallTo(() => s3Client.GetObjectAsync(A<GetObjectRequest>.Ignored, CancellationToken.None))
+            .Invokes((GetObjectRequest req, CancellationToken _) => getRequests.Add(req))
+            .Throws(new AmazonS3Exception("Not found")
+            {
+                ErrorCode = "NotFound",
+                StatusCode = HttpStatusCode.NotFound
+            });
+
+        var putRequests = new List<PutObjectRequest>();
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Invokes((PutObjectRequest req, CancellationToken _) => putRequests.Add(req))
+            .Returns(Task.FromResult(new PutObjectResponse
+            {
+                HttpStatusCode = HttpStatusCode.Created,
+            }));
+
+        var result = await storage.GetWorkingFilesLocation(
+            "testId", TemplateType.RootLevel, "caller-bucket");
+
+        result.Success.Should().BeTrue();
+        result.Value!.Host.Should().Be("caller-bucket");
+        getRequests.Should().OnlyContain(r => r.BucketName == "caller-bucket"); // the exists pre-check
+        putRequests.Should().NotBeEmpty();
+        putRequests.Should().OnlyContain(r => r.BucketName == "caller-bucket");
+    }
+
+    [Fact]
+    public async Task GetWorkingFilesLocation_CarvesInDefaultBucket_WhenNoWorkingRoot()
+    {
+        // Storage captures options.Value at construction, so build one with real options here
+        // rather than configuring the class-level fake after the fact.
+        var defaultingStorage = new Repository.Common.Storage(
+            s3Client,
+            Options.Create(new AwsStorageOptions { DefaultWorkingBucket = "default-bucket" }),
+            logger);
+
+        A.CallTo(() => s3Client.GetObjectAsync(A<GetObjectRequest>.Ignored, CancellationToken.None))
+            .Throws(new AmazonS3Exception("Not found")
+            {
+                ErrorCode = "NotFound",
+                StatusCode = HttpStatusCode.NotFound
+            });
+
+        var putRequests = new List<PutObjectRequest>();
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Invokes((PutObjectRequest req, CancellationToken _) => putRequests.Add(req))
+            .Returns(Task.FromResult(new PutObjectResponse
+            {
+                HttpStatusCode = HttpStatusCode.Created,
+            }));
+
+        var result = await defaultingStorage.GetWorkingFilesLocation(
+            "testId", TemplateType.RootLevel);
+
+        result.Success.Should().BeTrue();
+        result.Value!.Host.Should().Be("default-bucket");
+        putRequests.Should().NotBeEmpty();
+        putRequests.Should().OnlyContain(r => r.BucketName == "default-bucket");
+    }
+
+    [Fact]
+    public async Task EmptyStorageLocation_Refuses_NonDepositsLocation()
+    {
+        var result = await storage.EmptyStorageLocation(
+            new UriBuilder("s3://some-bucket/exports/thing/").Uri, CancellationToken.None);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be("BadRequest");
+        A.CallTo(() => s3Client.ListObjectsV2Async(A<ListObjectsV2Request>.Ignored, A<CancellationToken>.Ignored))
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task EmptyStorageLocation_Allows_DepositsLocation()
+    {
+        A.CallTo(() => s3Client.ListObjectsV2Async(A<ListObjectsV2Request>.Ignored, A<CancellationToken>.Ignored))
+            .Returns(Task.FromResult(new ListObjectsV2Response { S3Objects = new List<S3Object>() }));
+
+        var result = await storage.EmptyStorageLocation(
+            new UriBuilder("s3://some-bucket/deposits/dep-1/").Uri, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Value!.ObjectsToDelete.Should().Be(0);
     }
 
     [Fact]
@@ -303,8 +394,7 @@ public class StorageTests
 
 
   
-        var resultTask = storage.AddToDepositFileSystem(uri, dir, CancellationToken.None);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.AddToDepositFileSystem(uri, dir, CancellationToken.None);
 
         result.Failure.Should().BeFalse();
         result.Success.Should().BeTrue();
@@ -343,8 +433,7 @@ public class StorageTests
             }));
 
        
-        var resultTask = storage.AddToDepositFileSystem(uri, dir, CancellationToken.None);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.AddToDepositFileSystem(uri, dir, CancellationToken.None);
 
         result.Failure.Should().BeTrue();
         result.Success.Should().BeFalse();
@@ -390,10 +479,9 @@ public class StorageTests
                 HttpStatusCode = HttpStatusCode.Created,
             }));
 
-        var resultTask = storage.AddToDepositFileSystem(uri, file, CancellationToken.None);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.AddToDepositFileSystem(uri, file, CancellationToken.None);
 
-        result.Failure.Should().BeFalse(); 
+        result.Failure.Should().BeFalse();
         result.Success.Should().BeTrue();
     }
 
@@ -410,8 +498,7 @@ public class StorageTests
         };
 
         var uri = new UriBuilder("s3://folder/folder/somefile.txt").Uri;
-        var resultTask = storage.AddToDepositFileSystem(uri, file, CancellationToken.None);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.AddToDepositFileSystem(uri, file, CancellationToken.None);
 
         result.Failure.Should().BeTrue();
         result.Success.Should().BeFalse();
@@ -445,8 +532,7 @@ public class StorageTests
 
             }));
         
-        var resultTask = storage.DeleteFromDepositFileSystem(uri, path, errorFound , CancellationToken.None);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.DeleteFromDepositFileSystem(uri, path, errorFound , CancellationToken.None);
 
         result.Failure.Should().BeFalse();
         result.Success.Should().BeTrue();
@@ -463,13 +549,12 @@ public class StorageTests
             {
                 S3Objects = new List<S3Object>
                 {
-                    new S3Object { Key = "testId/file1.txt" },
-                    new S3Object { Key = "testId/file2.txt" }
+                    new S3Object { Key = "testId/file1.txt", LastModified = DateTime.UtcNow },
+                    new S3Object { Key = "testId/file2.txt", LastModified = DateTime.UtcNow }
                 }
             }));
 
-        var resultTask = storage.GenerateDepositFileSystem(uri, false, null, CancellationToken.None);
-        var result = resultTask.GetAwaiter().GetResult();
+        var result = await storage.GenerateDepositFileSystem(uri, false, null, CancellationToken.None);
         
         result.Failure.Should().BeFalse();
         result.Success.Should().BeTrue();

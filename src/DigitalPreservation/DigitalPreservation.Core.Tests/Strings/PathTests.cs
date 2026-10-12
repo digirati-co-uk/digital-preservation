@@ -47,6 +47,33 @@ public class PathTests
         parent.Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData("aa/bb/cc", "aa", "bb/cc")]
+    [InlineData("aa/bb/cc", "aa/bb", "cc")]
+    [InlineData("/aa/bb/cc", "/aa/bb", "cc")]
+    [InlineData("aa/bb/cc/", "aa/bb", "cc")]
+    [InlineData("aa/bb/cc", "aa/bb/", "cc")]
+    [InlineData("aa/bb/cc/", "aa/bb/", "cc")]
+    [InlineData("/repository/cc/thing/metadata/ad-hoc", "/repository/cc/thing", "metadata/ad-hoc")]
+    [InlineData("/aa/bb", "/", "aa/bb")]     // "/" is a real root
+    public void Can_Get_Path_Below(string path, string parent, string expected)
+    {
+        path.GetPathBelow(parent).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("aa/bb", "aa/bb")]          // equal, not below
+    [InlineData("aa/bb/", "aa/bb")]         // equal, not below
+    [InlineData("aa/bbb", "aa/bb")]         // longer sibling, not a child
+    [InlineData("aa/bb", "aa/bb/cc")]       // above, not below
+    [InlineData("xx/bb/cc", "aa")]          // elsewhere entirely
+    [InlineData("aa/bb", "")]               // no parent means nothing is "below" it...
+    [InlineData("/aa/bb", "")]              // ...rooted or not
+    public void Path_Not_Below_Parent_Is_Null(string path, string parent)
+    {
+        path.GetPathBelow(parent).Should().BeNull();
+    }
+
     [Fact]
     public void Can_Walk_Up()
     {

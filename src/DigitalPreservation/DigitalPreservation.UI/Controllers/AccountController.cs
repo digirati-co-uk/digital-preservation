@@ -42,8 +42,9 @@ public class AccountController() : Controller
     [Route("/Account/RefreshLogin/")]
     public IActionResult SignRefresh([FromQuery] string? path )
     {
-        //default to root if path is not well-formed
-        var validPath = Uri.IsWellFormedUriString(path, UriKind.Relative) ? path : "/";
+        // Only ever return the user to a page on this site. A well-formed *relative* reference is
+        // not enough: "//host/x" is one, and would send a freshly signed-in user to another host.
+        var validPath = !string.IsNullOrEmpty(path) && Url.IsLocalUrl(path) ? path : "/";
 
         //issue a challenge to the user to sign in again
         var scheme = OpenIdConnectDefaults.AuthenticationScheme;
