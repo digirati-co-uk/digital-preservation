@@ -210,4 +210,3 @@ The supported local setup runs the databases and the Python service in Docker an
 > does not: it defines only the Storage API, Preservation API, UI and a single database, the Storage
 > API has no environment file, and there is no Pipeline API or importer. Use
 > `docker-compose.local.yml` and run the .NET services yourself.
-
