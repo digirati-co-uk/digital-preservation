@@ -27,12 +27,35 @@
       <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.12" />
       <PackageReference Include="Microsoft.Identity.Web" Version="4.16.0" />
       <PackageReference Include="Microsoft.Identity.Web.GraphServiceClient" Version="4.16.0" />
+      <PackageReference Include="NetVips" Version="3.2.0" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
       <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
       <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.9.0" />
-      <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
       <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.0" />
     </ItemGroup>
+
+    <PropertyGroup>
+      <!-- libvips (used by the media server's image service) is a native dependency, so it must match the
+           runtime being *targeted*, not the machine doing the build. A RID-specific build (dotnet publish -r ...)
+           names its target. A RID-agnostic one, as Dockerfile.PreservationApi uses, runs on the same dotnet as the
+           SDK doing the build, so the SDK's own RID (OS and architecture: linux-x64, osx-arm64, win-arm64...) is it. -->
+      <VipsTargetRuntimeIdentifier>$(RuntimeIdentifier)</VipsTargetRuntimeIdentifier>
+      <VipsTargetRuntimeIdentifier Condition="'$(VipsTargetRuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</VipsTargetRuntimeIdentifier>
+      <!-- The RIDs a NetVips.Native.<rid> package exists for. -->
+      <VipsNativeRuntimeIdentifiers>;win-x64;win-arm64;win-x86;osx-x64;osx-arm64;linux-x64;linux-arm64;linux-arm;linux-musl-x64;linux-musl-arm64;</VipsNativeRuntimeIdentifiers>
+      <VipsRuntimeIdentifier Condition="$(VipsNativeRuntimeIdentifiers.Contains(';$(VipsTargetRuntimeIdentifier);'))">$(VipsTargetRuntimeIdentifier)</VipsRuntimeIdentifier>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <!-- Only the matching RID is pulled in - each NetVips.Native.* package is ~25MB. The NetVips wrapper is MIT;
+           the native libvips bundle is LGPL-3.0-or-later, loaded dynamically. -->
+      <PackageReference Include="NetVips.Native.$(VipsRuntimeIdentifier)" Version="8.18.7"
+                        Condition="'$(VipsRuntimeIdentifier)' != ''" />
+    </ItemGroup>
+
+    <Target Name="WarnIfNoLibVips" BeforeTargets="Build" Condition="'$(VipsRuntimeIdentifier)' == ''">
+      <Warning Text="No NetVips.Native package exists for '$(VipsTargetRuntimeIdentifier)' - the media server's image service will fail at runtime on this build." />
+    </Target>
 
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Workspace\DigitalPreservation.Workspace.csproj" />
