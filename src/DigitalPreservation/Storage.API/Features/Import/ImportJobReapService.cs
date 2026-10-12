@@ -38,9 +38,9 @@ public class ImportJobReapService(
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException e)
         {
-            logger.LogInformation($"Stopping {nameof(ImportJobReapService)}");
+            logger.LogInformation(e, $"Stopping {nameof(ImportJobReapService)}");
         }
     }
 }

@@ -48,21 +48,11 @@ try
     var useLocalHostedServiceForImport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForImport");
     var useLocalHostedServiceForExport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForExport");
 
-    // A heartbeat older than HeartbeatWindowMinutes is treated as abandoned (ImportJobResultStore);
-    // ImportJobRunner writes one every HeartbeatIntervalSeconds. If the interval were ever configured
-    // at or above the window, a job's own heartbeats could be mistaken for staleness between beats,
-    // reaping a job that is still genuinely running. Caught here, at startup, rather than discovered
-    // later as jobs failing inexplicably mid-run.
-    var heartbeatIntervalSeconds = builder.Configuration.GetValue("ImportJobs:HeartbeatIntervalSeconds", 60);
-    var heartbeatWindowMinutes = builder.Configuration.GetValue("ImportJobs:HeartbeatWindowMinutes", 10);
-    if (heartbeatIntervalSeconds >= heartbeatWindowMinutes * 60)
-    {
-        throw new InvalidOperationException(
-            $"ImportJobs:HeartbeatIntervalSeconds ({heartbeatIntervalSeconds}) must be smaller than " +
-            $"ImportJobs:HeartbeatWindowMinutes ({heartbeatWindowMinutes}) x 60 seconds, or a live job's " +
-            "own heartbeat gaps could be mistaken for abandonment.");
-    }
-
+    // ImportJobRunner (the heartbeat writer) only runs in this host in in-process mode; in SQS mode
+    // it's the separate Importer. Both hosts validate unconditionally regardless of mode - see
+    // Storage.API.Importer/Program.cs for its copy of this call - so a deployment can't end up with
+    // one host's settings checked and the other's not depending on which mode happens to be live.
+    ImportJobHeartbeatSettings.Validate(builder.Configuration);
 
     if (useAuthFeatureFlag)
     {
@@ -147,30 +137,7 @@ try
         .UseForwardedHeaders()
         .TryRunMigrations(builder.Configuration, app.Logger);
 
-    if (useLocalHostedServiceForImport)
-    {
-        // In-process mode's import queue is an in-memory channel: any job still Active and waiting
-        // (never sent a heartbeat, so never actually started) cannot be in the newly-created, empty
-        // channel this process just built - it was lost when the previous process stopped. This is
-        // the in-process equivalent of an SQS message being dead-lettered, and unlike that case we
-        // *can* tell it apart from "still genuinely queued" here, because there is no queue left to
-        // still be in. Never do this in SQS mode: there, a waiting job may really still be queued.
-        using var startupScope = app.Services.CreateScope();
-        var importJobResultStore = startupScope.ServiceProvider.GetRequiredService<IImportJobResultStore>();
-        var orphanedResult = await importJobResultStore.FailOrphanedWaitingJobs(
-            "never started: the in-process import queue was lost when the Storage API restarted",
-            CancellationToken.None);
-        if (orphanedResult.Success && orphanedResult.Value > 0)
-        {
-            app.Logger.LogWarning("Failed {Count} import job(s) left waiting in the in-process queue by a previous run",
-                orphanedResult.Value);
-        }
-        else if (orphanedResult.Failure)
-        {
-            app.Logger.LogError("Could not check for orphaned waiting import jobs at startup: {CodeAndMessage}",
-                orphanedResult.CodeAndMessage());
-        }
-    }
+    await app.FailOrphanedWaitingImportJobsIfInProcessAsync(useLocalHostedServiceForImport);
 
     //Auth
     if (useAuthFeatureFlag)
