@@ -28,14 +28,13 @@ The Pipeline API is the odd one out: it spawns external processes (Python, ClamA
 
 ## The build
 
-`.github/workflows/build.yml` runs on pushes to `main`, on tags, and on pull requests that touch `src/DigitalPreservation/`, `.github/` or a `Dockerfile.*`. It does three things in sequence:
+`.github/workflows/build.yml` runs on every push to `main`, every tag, and every pull request. A first job, `changes`, checks whether the pull request touches `src/DigitalPreservation/`, `.github/` or a `Dockerfile.*`; on a pull request that touches none of them, the jobs below report **Skipped** rather than not running at all - a required status check stays Pending forever for a workflow that was never triggered, but a job skipped by an `if:` satisfies it. Pushes to `main`, tags and manual runs always run everything, regardless of what changed.
 
+1. **SonarCloud analysis** and **build and test** run in parallel, not in sequence - only image publishing waits on the test job:
+   - SonarCloud analysis builds the solution (deliberately Debug, for accurate line-coverage attribution) and collects coverage, running the same `--filter 'Category!=Manual'` test set as the build-and-test job below.
+   - Build and test: `dotnet build` then `dotnet test` with `--filter 'Category!=Manual'`, so tests that must not run unattended - ones needing a local corpus, a stopwatch, or that are really a fixture generator rather than a test - are excluded from CI. This job, `test-dotnet`, is the required status check on `main`.
 
-1. **SonarCloud analysis**, building the solution and collecting coverage.
-
-2. **Build and test**: `dotnet build` then `dotnet test` with `--filter 'Category!=Manual'`, so the tests that need a real Fedora or real AWS are excluded from CI.
-
-3. **Build and push images**, one matrix job per Dockerfile, tagged with the commit SHA.
+2. **Build and push images**, one matrix job per Dockerfile, tagged with the commit SHA, once `test-dotnet` has passed.
 
 
 `.github/workflows/build_iiifbuilder.yml` does the same for the Python service, on changes under `src/iiif-builder/`. It is separate because the iiif-builder has no part in the .NET solution and changes on its own rhythm.
