@@ -48,6 +48,10 @@ jobs:
               - 'src/DigitalPreservation/**'
               - '.github/**'
               - 'Dockerfile.*'
+              # Not .NET, but built into the images: Dockerfile.PipelineApi copies clamscan-shim.sh and
+              # pipeline-api-entrypoint.sh, and .dockerignore shapes every image's build context.
+              - '*.sh'
+              - '.dockerignore'
 
   sonar-cloud-analysis:
     name: SonarCloud Analysis
