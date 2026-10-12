@@ -110,15 +110,24 @@ RUN sed -i 's/^#\?MaxConnectionQueueLength.*/MaxConnectionQueueLength 200/' /etc
 # only once the queue fix let more connections through to actually reach clamd's thread pool).
 RUN sed -i 's/^#\?MaxThreads.*/MaxThreads 50/' /etc/clamav/clamd.conf
 
-# Debian's packaged clamd.conf ships EnableVersionCommand disabled, so "clamscan --version" (via
-# clamscan-shim.sh -> clamdscan) can't ask clamd for its version and falls back to printing just
-# "ClamAV <engine-version>" - dropping the signature-database version/date that GetVirusDefinition
-# writes into METS/PREMIS as scan provenance (digital-preservation#363). Re-enabling it only lets a
-# local client read version info over the Unix socket already restricted to this container's own
-# namespace (see the LocalSocket/LocalSocketMode comment above); it does not expose anything over
-# a network.
+# The distro's packaged clamd.conf ships EnableVersionCommand and EnableReloadCommand both
+# disabled - clamav-daemon's postinst sets them off when debconf has no answer, which is also why
+# EnableStatsCommand/EnableShutdownCommand are off (left disabled; nothing here uses them).
+# EnableVersionCommand disabled means "clamscan --version" (via clamscan-shim.sh -> clamdscan)
+# can't ask clamd for its version and falls back to printing just "ClamAV <engine-version>" -
+# dropping the signature-database version/date that GetVirusDefinition writes into METS/PREMIS as
+# scan provenance (digital-preservation#363). EnableReloadCommand disabled means freshclam's
+# NotifyClamd (freshclam.conf) can't tell clamd to reload after a signature update - clamd still
+# picks up the new database on its own via SelfCheck (hourly by default), so scans only run on
+# signatures up to an hour older than they could be, not stale data; provenance stays accurate
+# either way, because VERSION reports whatever is actually loaded. Re-enabling both only lets a
+# local client send these over the Unix socket already restricted to this container's own
+# namespace (see the LocalSocket/LocalSocketMode comment above); neither exposes anything over a
+# network.
 RUN sed -i 's/^#\?EnableVersionCommand.*/EnableVersionCommand yes/' /etc/clamav/clamd.conf
 RUN grep -q '^EnableVersionCommand yes' /etc/clamav/clamd.conf || echo 'EnableVersionCommand yes' >> /etc/clamav/clamd.conf
+RUN sed -i 's/^#\?EnableReloadCommand.*/EnableReloadCommand yes/' /etc/clamav/clamd.conf
+RUN grep -q '^EnableReloadCommand yes' /etc/clamav/clamd.conf || echo 'EnableReloadCommand yes' >> /etc/clamav/clamd.conf
 
 # Brunnhilde always invokes the literal "clamscan" binary with no way to configure it - shadow the
 # real clamscan with a shim that instead talks to clamd running as a second process in this same

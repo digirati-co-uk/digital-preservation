@@ -1302,11 +1302,11 @@ public class ProcessPipelineJobHandler(
     // "ClamAV <engine-version>/<daily-db-version>/<date>", recording which signature database a
     // scan ran against - the part of this provenance that actually matters for preservation. If
     // clamd's VERSION command is disabled, clamdscan instead prints just "ClamAV <engine-version>"
-    // (digital-preservation#363: a Debian clamav-daemon default, not a scan failure - scans
+    // (digital-preservation#363: the distro's clamav-daemon default, not a scan failure - scans
     // themselves are unaffected). internal, not private, so Pipeline.API.Tests can exercise the
     // parsing without spawning clamscan.
     internal static readonly Regex VirusDefinitionWithSignatureDatabaseVersion =
-        new(@"ClamAV [\d.]+/\d+/", RegexOptions.Compiled);
+        new(@"ClamAV [\d.]+/\d+/", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     internal static bool HasSignatureDatabaseVersion(string virusDefinition) =>
         VirusDefinitionWithSignatureDatabaseVersion.IsMatch(virusDefinition);
