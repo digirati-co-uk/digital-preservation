@@ -169,7 +169,7 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
         var middle = MakeDeposit($"middle-{uniqueSuffix}", now.AddMinutes(-1));
         var newest = MakeDeposit($"newest-{uniqueSuffix}", now);
         context.Deposits.AddRange(oldest, middle, newest);
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var handler = new GetDepositsHandler(new NullLogger<GetDepositsHandler>(), context, Mutator());
         var query = new DepositQuery { Page = 2, PageSize = 1, ArchivalGroupPath = uniqueSuffix };

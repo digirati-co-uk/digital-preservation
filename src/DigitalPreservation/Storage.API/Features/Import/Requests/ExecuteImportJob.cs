@@ -120,12 +120,24 @@ public class ExecuteImportJobHandler(
             }
         
             importJobResult.SourceVersion = sourceVersion;
-        
-            logger.LogInformation("Saving running ImportJobResult before processing binaries and containers");
-            await importJobResultStore.SaveImportJobResult(
-                request.JobIdentifier, importJobResult, true, false, cancellationToken);
 
-        
+            logger.LogInformation("Saving running ImportJobResult before processing binaries and containers");
+            var savedRunning = await importJobResultStore.SaveRunningImportJobResult(
+                request.JobIdentifier, importJobResult, cancellationToken);
+            if (savedRunning.Failure || !savedRunning.Value)
+            {
+                // The row is no longer Active: this job's heartbeat went stale long enough that the
+                // reap sweep already recorded it as abandoned (completedWithErrors) before this job
+                // actually reached Fedora - a long GC pause or debugger break stalled it between
+                // dequeue and here. That record must stand; rolling back now (nothing has been
+                // written to Fedora yet) and failing early keeps this call from contradicting it by
+                // writing to Fedora, or from flipping Active back to true and masking the reap.
+                return await FailEarly(
+                    "Import job was already reaped as abandoned (stale heartbeat) before it reached Fedora",
+                    ErrorCodes.Conflict);
+            }
+
+
             logger.LogInformation("(TX) Now looping through import job tasks");
             try
             {

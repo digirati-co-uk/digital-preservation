@@ -30,7 +30,7 @@ public class SeeAlsoRewriteTests(DatabaseFixture fixture)
         context.ImportJobs.Add(SeedImportJob(depositId, importJobId, storageResultId));
         var archivalGroupEvent = SeedEvent(storageResultId);
         context.ArchivalGroupEvents.Add(archivalGroupEvent);
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var activity = await FindActivity(context, archivalGroupEvent.ArchivalGroup);
 
@@ -48,7 +48,7 @@ public class SeeAlsoRewriteTests(DatabaseFixture fixture)
         // Deliberately no matching row in ImportJobs.
         var archivalGroupEvent = SeedEvent(storageResultId);
         context.ArchivalGroupEvents.Add(archivalGroupEvent);
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var activity = await FindActivity(context, archivalGroupEvent.ArchivalGroup);
 

@@ -52,8 +52,8 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
         var xmlElement = PremisManager.GetXmlElement(premis, false);
         var xmlElementMetadata = PremisEventManagerVirus.GetXmlElement(premisEvent);
 
-        testOutputHelper.WriteLine(xmlElement?.ToString());
-        testOutputHelper.WriteLine(xmlElementMetadata?.ToString());
+        testOutputHelper.WriteLine(xmlElement?.ToString() ?? "null");
+        testOutputHelper.WriteLine(xmlElementMetadata?.ToString() ?? "null");
 
         var serialisedPremis = PremisManager.Serialise(premis);
         serialisedPremis.Should().Contain(testPremisData.Digest!);

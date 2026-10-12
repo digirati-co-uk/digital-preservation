@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Protocols;
@@ -106,48 +107,53 @@ public class AudienceValidationTests
         ["AzureAd:TokenValidationParameters:ValidAudiences:1"] = OwnAudience,
     };
 
-    private static TestServer BuildServer(Dictionary<string, string?> azureAdSettings)
+    private static async Task<IHost> BuildServer(Dictionary<string, string?> azureAdSettings)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(azureAdSettings).Build();
 
-        var builder = new WebHostBuilder()
-            .ConfigureServices(services =>
-            {
-                // Exactly as registered in Storage.API / Preservation.API Program.cs.
-                services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                    .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
-
-                // Hermetic test seam only — audience handling is left untouched.
-                services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+        // IHostBuilder + UseTestServer(), not the obsolete WebHostBuilder/TestServer(IWebHostBuilder)
+        // pair (ASPDEPR004/008): disposing the returned IHost disposes the TestServer along with it,
+        // unlike disposing a TestServer fetched via GetTestServer() on its own.
+        var hostBuilder = new HostBuilder()
+            .ConfigureWebHost(webBuilder => webBuilder
+                .UseTestServer()
+                .ConfigureServices(services =>
                 {
-                    options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(
-                        new OpenIdConnectConfiguration());
-                    // A configured IssuerValidator delegate (Microsoft.Identity.Web installs its
-                    // AadIssuerValidator) runs even when ValidateIssuer is false, so drop it too.
-                    options.TokenValidationParameters.ValidateIssuer = false;
-                    options.TokenValidationParameters.IssuerValidator = null;
-                    options.TokenValidationParameters.IssuerSigningKey = SigningKey;
-                });
+                    // Exactly as registered in Storage.API / Preservation.API Program.cs.
+                    services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                        .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
 
-                services.AddAuthorization();
-                services.AddRouting();
-            })
-            .Configure(app =>
-            {
-                app.UseRouting();
-                app.UseAuthentication();
-                app.UseAuthorization();
-                app.UseEndpoints(endpoints =>
-                    endpoints.MapGet("/probe", context => context.Response.WriteAsync("ok"))
-                        .RequireAuthorization());
-            });
+                    // Hermetic test seam only — audience handling is left untouched.
+                    services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+                    {
+                        options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(
+                            new OpenIdConnectConfiguration());
+                        // A configured IssuerValidator delegate (Microsoft.Identity.Web installs its
+                        // AadIssuerValidator) runs even when ValidateIssuer is false, so drop it too.
+                        options.TokenValidationParameters.ValidateIssuer = false;
+                        options.TokenValidationParameters.IssuerValidator = null;
+                        options.TokenValidationParameters.IssuerSigningKey = SigningKey;
+                    });
 
-        return new TestServer(builder);
+                    services.AddAuthorization();
+                    services.AddRouting();
+                })
+                .Configure(app =>
+                {
+                    app.UseRouting();
+                    app.UseAuthentication();
+                    app.UseAuthorization();
+                    app.UseEndpoints(endpoints =>
+                        endpoints.MapGet("/probe", context => context.Response.WriteAsync("ok"))
+                            .RequireAuthorization());
+                }));
+
+        return await hostBuilder.StartAsync();
     }
 
-    private static async Task<HttpStatusCode> Probe(TestServer server, string audience)
+    private static async Task<HttpStatusCode> Probe(IHost server, string audience)
     {
-        var client = server.CreateClient();
+        var client = server.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/probe");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", MintToken(audience));
         var response = await client.SendAsync(request);
@@ -194,7 +200,7 @@ public class AudienceValidationTests
     {
         // The transition depends on this: during Phases 1-3 un-migrated callers present the
         // transitional audience while migrated callers present the API's own.
-        using var server = BuildServer(PhaseZeroShape);
+        using var server = await BuildServer(PhaseZeroShape);
 
         var status = await Probe(server, audience);
 
@@ -208,7 +214,7 @@ public class AudienceValidationTests
     [InlineData(TransitionalClientId)]
     public async Task FourEntryShape_AcceptsBothFormsOfBothAudiences(string audience)
     {
-        using var server = BuildServer(FourEntryShape);
+        using var server = await BuildServer(FourEntryShape);
 
         var status = await Probe(server, audience);
 
@@ -218,7 +224,7 @@ public class AudienceValidationTests
     [Fact]
     public async Task FourEntryShape_RejectsForeignAudience()
     {
-        using var server = BuildServer(FourEntryShape);
+        using var server = await BuildServer(FourEntryShape);
 
         var status = await Probe(server, ForeignAudience);
 
@@ -228,7 +234,7 @@ public class AudienceValidationTests
     [Fact]
     public async Task PhaseZeroShape_RejectsForeignAudience()
     {
-        using var server = BuildServer(PhaseZeroShape);
+        using var server = await BuildServer(PhaseZeroShape);
 
         var status = await Probe(server, ForeignAudience);
 
@@ -240,7 +246,7 @@ public class AudienceValidationTests
     {
         // Today's singular-Audience config: the API's own App ID URI is NOT accepted — which is
         // why Phase 0 must widen the audience list before any caller can be repointed.
-        using var server = BuildServer(CurrentShape);
+        using var server = await BuildServer(CurrentShape);
 
         (await Probe(server, TransitionalAudience)).Should().Be(HttpStatusCode.OK);
         (await Probe(server, OwnAudience)).Should().Be(HttpStatusCode.Unauthorized);
@@ -255,7 +261,7 @@ public class AudienceValidationTests
         // silence the singular key, so the flip should replace it, not accumulate alongside it.
         // (In the real flip the singular value — the transitional audience — is in the list
         // anyway, so even a forgotten removal changes nothing; this pin is what proves that.)
-        using var server = BuildServer(BothKeysShape);
+        using var server = await BuildServer(BothKeysShape);
 
         (await Probe(server, TransitionalAudience)).Should().Be(HttpStatusCode.OK);
         (await Probe(server, OwnAudience)).Should().Be(HttpStatusCode.OK);
@@ -268,7 +274,7 @@ public class AudienceValidationTests
     {
         // Regression pin for the RFC-0001 Phase 0 defect: a top-level plural Audiences key is not a
         // property of any bound options type, so it configures nothing...
-        using var server = BuildServer(BrokenPluralShape);
+        using var server = await BuildServer(BrokenPluralShape);
 
         var options = server.Services.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme);

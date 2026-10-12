@@ -45,7 +45,13 @@ try
         // Here we will need some auth config that allows Storage.API.Importer to have a ClientID and Secret
         // It _only_ makes calls this way because it never has a user context
     }
-    
+
+    // The Importer is the heartbeat writer in deployed (SQS) environments: ImportJobRunner here reads
+    // ImportJobs:HeartbeatIntervalSeconds from this host's own configuration, not the Storage API's.
+    // Validated here too (see Storage.API/Program.cs for its copy of this call) so a misconfigured
+    // interval on this specific host can't slip past the Storage API's own check of its own config.
+    ImportJobHeartbeatSettings.Validate(builder.Configuration);
+
     builder.Services
         .AddOcfl(builder.Configuration)
         .AddMemoryCache()

@@ -47,7 +47,7 @@ public class AccessTokenProviderTests
         var handler = new CapturingHandler();
         var sut = BuildProvider(ValidOptions(), handler);
 
-        var token = await sut.GetAccessToken();
+        var token = await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         token.Should().Be("test-token");
         handler.Request!.RequestUri!.ToString()
@@ -66,7 +66,7 @@ public class AccessTokenProviderTests
         var handler = new CapturingHandler();
         var sut = BuildProvider(ValidOptions(TargetResource), handler);
 
-        var token = await sut.GetAccessToken();
+        var token = await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         token.Should().Be("test-token");
         handler.Request!.RequestUri!.ToString()
@@ -86,7 +86,7 @@ public class AccessTokenProviderTests
         var handler = new CapturingHandler();
         var sut = BuildProvider(ValidOptions(TargetResource + "/"), handler);
 
-        await sut.GetAccessToken();
+        await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         handler.ParsedForm()["scope"].Should().Be($"{TargetResource}/.default");
     }
@@ -101,7 +101,7 @@ public class AccessTokenProviderTests
         var handler = new CapturingHandler();
         var sut = BuildProvider(options, handler);
 
-        var token = await sut.GetAccessToken();
+        var token = await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         token.Should().NotBeNull();
         handler.Request.Should().NotBeNull();
@@ -118,7 +118,7 @@ public class AccessTokenProviderTests
         var sut = BuildProvider(new AccessTokenProviderOptions
             { ClientId = clientId, ClientSecret = secret, TenantId = tenantId }, handler);
 
-        var token = await sut.GetAccessToken();
+        var token = await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         token.Should().BeNull();
         handler.Request.Should().BeNull();
@@ -130,8 +130,8 @@ public class AccessTokenProviderTests
         var handler = new CapturingHandler();
         var sut = BuildProvider(ValidOptions(TargetResource), handler);
 
-        var first = await sut.GetAccessToken();
-        var second = await sut.GetAccessToken();
+        var first = await sut.GetAccessToken(TestContext.Current.CancellationToken);
+        var second = await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         second.Should().Be(first);
         handler.CallCount.Should().Be(1);
@@ -190,7 +190,7 @@ public class AccessTokenProviderTests
         options.ClientSecret = "   ";
         var sut = BuildProvider(options, handler);
 
-        var token = await sut.GetAccessToken();
+        var token = await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         token.Should().BeNull();
         handler.CallCount.Should().Be(0);
@@ -203,7 +203,7 @@ public class AccessTokenProviderTests
         var handler = new CapturingHandler();
         var sut = BuildProvider(ValidOptions("   "), handler);
 
-        await sut.GetAccessToken();
+        await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         handler.Request!.RequestUri!.AbsoluteUri.Should().NotContain("/v2.0/");
         var form = HttpUtility.ParseQueryString(handler.FormBody!);
@@ -231,17 +231,17 @@ public class AccessTokenProviderTests
             { ResponseBody = "{\"token_type\":\"Bearer\",\"expires_in\":3600,\"access_token\":\"test-token\"}" };
         var sut = BuildProvider(ValidOptions(TargetResource), handler, clock);
 
-        await sut.GetAccessToken();
+        await sut.GetAccessToken(TestContext.Current.CancellationToken);
         handler.CallCount.Should().Be(1);
 
         // Still inside the cached lifetime (3600s - 5 minute margin = 3300s = 55 minutes).
         clock.UtcNow += TimeSpan.FromMinutes(54);
-        await sut.GetAccessToken();
+        await sut.GetAccessToken(TestContext.Current.CancellationToken);
         handler.CallCount.Should().Be(1, "a second call inside the cached lifetime must not mint again");
 
         // Past it: the cache entry has expired, so this call mints a fresh token.
         clock.UtcNow += TimeSpan.FromMinutes(2);
-        await sut.GetAccessToken();
+        await sut.GetAccessToken(TestContext.Current.CancellationToken);
         handler.CallCount.Should().Be(2, "a call past expires_in minus the margin must mint again");
     }
 
@@ -252,8 +252,8 @@ public class AccessTokenProviderTests
             { ResponseBody = "{\"token_type\":\"Bearer\",\"expires_in\":\"3600\",\"access_token\":\"test-token\"}" };
         var sut = BuildProvider(ValidOptions(), handler);
 
-        var first = await sut.GetAccessToken();
-        var second = await sut.GetAccessToken();
+        var first = await sut.GetAccessToken(TestContext.Current.CancellationToken);
+        var second = await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         first.Should().Be("test-token");
         second.Should().Be(first);
@@ -267,16 +267,16 @@ public class AccessTokenProviderTests
         var handler = new CapturingHandler { ResponseBody = "{\"token_type\":\"Bearer\",\"access_token\":\"test-token\"}" };
         var sut = BuildProvider(ValidOptions(TargetResource), handler, clock);
 
-        var token = await sut.GetAccessToken();
+        var token = await sut.GetAccessToken(TestContext.Current.CancellationToken);
         token.Should().Be("test-token", "the token is still usable even though its lifetime is unknown");
         handler.CallCount.Should().Be(1);
 
         clock.UtcNow += TimeSpan.FromMinutes(4);
-        await sut.GetAccessToken();
+        await sut.GetAccessToken(TestContext.Current.CancellationToken);
         handler.CallCount.Should().Be(1, "within the conservative 5-minute lifetime, still served from cache");
 
         clock.UtcNow += TimeSpan.FromMinutes(2);
-        await sut.GetAccessToken();
+        await sut.GetAccessToken(TestContext.Current.CancellationToken);
         handler.CallCount.Should().Be(2, "past the conservative lifetime, a token of unknown age must not be reused");
     }
 
@@ -289,7 +289,7 @@ public class AccessTokenProviderTests
         };
         var sut = BuildProvider(ValidOptions(TargetResource), handler);
 
-        var token = await sut.GetAccessToken();
+        var token = await sut.GetAccessToken(TestContext.Current.CancellationToken);
 
         token.Should().Be("test-token");
     }
@@ -304,11 +304,11 @@ public class AccessTokenProviderTests
             { ResponseBody = "{\"token_type\":\"Bearer\",\"expires_in\":60,\"access_token\":\"test-token\"}" };
         var sut = BuildProvider(ValidOptions(TargetResource), handler, clock);
 
-        await sut.GetAccessToken();
+        await sut.GetAccessToken(TestContext.Current.CancellationToken);
         handler.CallCount.Should().Be(1);
 
         clock.UtcNow += TimeSpan.FromMinutes(6);
-        await sut.GetAccessToken();
+        await sut.GetAccessToken(TestContext.Current.CancellationToken);
         handler.CallCount.Should().Be(2, "a 60-second expires_in must not be cached past the conservative margin");
     }
 
@@ -359,8 +359,8 @@ public class AccessTokenProviderTests
         using var cts = new CancellationTokenSource();
 
         var cancelledCall = sut.GetAccessToken(cts.Token);
-        var otherCall1 = sut.GetAccessToken();
-        var otherCall2 = sut.GetAccessToken();
+        var otherCall1 = sut.GetAccessToken(TestContext.Current.CancellationToken);
+        var otherCall2 = sut.GetAccessToken(TestContext.Current.CancellationToken);
         await WaitForCall(handler);
 
         cts.Cancel();
