@@ -18,7 +18,10 @@ missed (consent not granted, wrong secret value, wrong tenant). Stage C delibera
 fallback before the `KnownClients` config is applied, the caller's profile name after. Stages D
 and E create only deposits, and delete them; E's Archival Group is read, never written.
 
-The script refuses a `PRESERVATION_API` containing `prod` unless `--allow-prod` is passed.
+The script refuses any `PRESERVATION_API` that isn't a dev host (`-dev.` in the hostname) or
+localhost unless `--allow-non-dev` is passed. It's an allow-list because the production hostname
+doesn't contain `prod`. Stage E stops waiting for the export after 20 minutes and leaves that
+deposit for you to delete.
 
 `.env` keys: `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `API_APP_ID_URI` (e.g.
 `api://<the API registration's client id>`), `PRESERVATION_API`, `EXPECTED_BUCKET` (stages D/E).

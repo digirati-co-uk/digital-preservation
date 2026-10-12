@@ -18,8 +18,9 @@ each building on the last:
                the same bucket: the integrator's pull-back scenario, proven. Deletes the
                deposit afterwards; the Archival Group itself is only read.
 
-Read-only against Entra; stages D and E write only deposits, which they delete. Refuses a
-PRESERVATION_API containing 'prod' unless --allow-prod is given.
+Read-only against Entra; stages D and E write only deposits, which they delete. Refuses any
+PRESERVATION_API that isn't a dev host ('-dev.' in the hostname) or localhost unless
+--allow-non-dev is given - an allow-list, because the production hostname doesn't say 'prod'.
 
 Configuration (environment, or a .env beside this script):
   TENANT_ID, CLIENT_ID, CLIENT_SECRET   the registration under test
@@ -40,8 +41,12 @@ import os
 import sys
 import time
 import uuid
+from urllib.parse import urlparse
 
 import requests
+
+# Stage E gives up waiting after this long; a real Archival Group export is usually far quicker.
+EXPORT_TIMEOUT_SECONDS = 20 * 60
 
 def load_env() -> None:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
@@ -64,6 +69,10 @@ def decode_claims(token: str) -> dict:
     payload += "=" * (-len(payload) % 4)
     return json.loads(base64.urlsafe_b64decode(payload))
 
+def is_dev_host(api: str) -> bool:
+    host = (urlparse(api).hostname or "").lower()
+    return "-dev." in host or host in ("localhost", "127.0.0.1", "::1")
+
 def check(label: str, ok: bool, detail: str) -> bool:
     print(f"  {'PASS' if ok else 'FAIL'}  {label}: {detail}")
     return ok
@@ -82,7 +91,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument("--deposit", action="store_true", help="run stage D (create+delete a deposit)")
     parser.add_argument("--export", metavar="AG_PATH", help="run stage E against this Archival Group path")
-    parser.add_argument("--allow-prod", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--allow-non-dev", action="store_true", help=argparse.SUPPRESS)
     arguments = parser.parse_args()
 
     load_env()
@@ -92,9 +101,9 @@ def main() -> int:
     resource = need("API_APP_ID_URI").rstrip("/")
     api = need("PRESERVATION_API").rstrip("/")
 
-    if "prod" in api.lower() and not arguments.allow_prod:
-        sys.exit(f"PRESERVATION_API looks like production ({api}). Point this at dev, "
-                 "or pass --allow-prod if you really mean it.")
+    if not is_dev_host(api) and not arguments.allow_non_dev:
+        sys.exit(f"PRESERVATION_API is not a dev host ({api}) - it could be production. Point "
+                 "this at dev, or pass --allow-non-dev if you really mean it.")
 
     failures = 0
 
@@ -178,13 +187,19 @@ def main() -> int:
             failures += not check("export bucket", bucket == expected,
                                   f"{deposit.get('files')!r}")
             slug = deposit["id"].rsplit("/", 1)[-1]
-            while deposit.get("status") == "exporting":
+            deadline = time.monotonic() + EXPORT_TIMEOUT_SECONDS
+            while deposit.get("status") == "exporting" and time.monotonic() < deadline:
                 time.sleep(5)
                 deposit = requests.get(f"{api}/deposits/{slug}", headers=headers, timeout=60).json()
                 print(f"  …status={deposit.get('status')}")
-            failures += not check("export completed", deposit.get("status") == "new",
-                                  f"status={deposit.get('status')!r}")
-            delete_deposit(api, headers, deposit)
+            if deposit.get("status") == "exporting":
+                failures += not check("export completed", False,
+                                      f"still exporting after {EXPORT_TIMEOUT_SECONDS // 60} min")
+                print(f"  deposit {slug} left in place: delete it once the export finishes")
+            else:
+                failures += not check("export completed", deposit.get("status") == "new",
+                                      f"status={deposit.get('status')!r}")
+                delete_deposit(api, headers, deposit)
 
     print(f"\n{'ALL CHECKS PASSED' if failures == 0 else f'{failures} CHECK(S) FAILED'}")
     return 0 if failures == 0 else 1
