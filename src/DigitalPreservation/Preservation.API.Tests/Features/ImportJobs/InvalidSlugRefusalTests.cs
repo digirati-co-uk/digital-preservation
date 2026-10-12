@@ -39,7 +39,7 @@ public class InvalidSlugRefusalTests
         // is not a valid slug character - reliably exercising the same refusal a%zz.txt would.
         job.BinariesToAdd.Add(Binary("objects/report@final.txt"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("not allowed in slugs");
         Executed(mediator).MustNotHaveHappened();
@@ -53,7 +53,7 @@ public class InvalidSlugRefusalTests
         var job = PlainJob();
         job.ContainersToAdd.Add(Container("objects/folder@name"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("not allowed in slugs");
         Executed(mediator).MustNotHaveHappened();
@@ -67,7 +67,7 @@ public class InvalidSlugRefusalTests
         var job = PlainJob();
         job.BinariesToAdd.Add(Binary("objects/Teto%20in%20tree.png"));
 
-        await controller.ExecuteImportJob(DepositId, job, default);
+        await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -80,7 +80,7 @@ public class InvalidSlugRefusalTests
         var job = PlainJob();
         job.BinariesToPatch.Add(Binary("objects/report@final.txt"));
 
-        await controller.ExecuteImportJob(DepositId, job, default);
+        await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -93,7 +93,7 @@ public class InvalidSlugRefusalTests
         var job = PlainJob();
         job.BinariesToDelete.Add(Binary("objects/report@final.txt"));
 
-        await controller.ExecuteImportJob(DepositId, job, default);
+        await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }

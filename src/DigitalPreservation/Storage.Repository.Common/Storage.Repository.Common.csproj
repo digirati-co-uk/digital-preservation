@@ -13,7 +13,6 @@
       <PackageReference Include="AWSSDK.SSO" Version="4.0.100.17" />
       <PackageReference Include="AWSSDK.SSOOIDC" Version="4.0.100.16" />
       <PackageReference Include="MediatR" Version="12.5.0" />
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <PackageReference Include="MimeTypes" Version="2.5.2">
           <PrivateAssets>all</PrivateAssets>

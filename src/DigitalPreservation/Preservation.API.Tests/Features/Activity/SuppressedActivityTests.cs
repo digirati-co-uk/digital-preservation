@@ -49,7 +49,7 @@ public class SuppressedActivityTests(DatabaseFixture fixture)
         // watermark on an otherwise-empty table - it must never itself be published (issue #269).
         await using var context = fixture.CreateNewAuthServiceContext();
 
-        var seed = await context.ArchivalGroupEvents.SingleAsync(e => e.Id == -1);
+        var seed = await context.ArchivalGroupEvents.SingleAsync(e => e.Id == -1, cancellationToken: TestContext.Current.CancellationToken);
 
         seed.Suppressed.Should().BeTrue();
     }

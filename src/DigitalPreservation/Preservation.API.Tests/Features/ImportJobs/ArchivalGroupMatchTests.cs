@@ -37,7 +37,7 @@ public class ArchivalGroupMatchTests
         var controller = Controller(mediator);
         var job = Job(new Uri("https://preservation.test/repository/cc/someone-elses-thing"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("does not match the Deposit's Archival Group");
         Executed(mediator).MustNotHaveHappened();
@@ -50,7 +50,7 @@ public class ArchivalGroupMatchTests
         var controller = Controller(mediator);
         var job = Job(archivalGroup: null);
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("must declare which Archival Group");
         Executed(mediator).MustNotHaveHappened();
@@ -62,7 +62,7 @@ public class ArchivalGroupMatchTests
         var mediator = Mediator();
         var controller = Controller(mediator);
 
-        await controller.ExecuteImportJob(DepositId, Job(ArchivalGroup), default);
+        await controller.ExecuteImportJob(DepositId, Job(ArchivalGroup), TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -76,7 +76,7 @@ public class ArchivalGroupMatchTests
         var controller = Controller(mediator);
         var job = Job(new Uri("https://storage.test/repository/cc/thing/"));
 
-        await controller.ExecuteImportJob(DepositId, job, default);
+        await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Executed(mediator).MustHaveHappened();
     }
@@ -92,7 +92,7 @@ public class ArchivalGroupMatchTests
         var controller = Controller(mediator);
         var job = Job(new Uri("https://preservation.test/repository/cc/foo/bar"));
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("does not match the Deposit's Archival Group");
         Executed(mediator).MustNotHaveHappened();
@@ -112,7 +112,7 @@ public class ArchivalGroupMatchTests
             Origin = new Uri(DepositFiles, "objects/page-001.tif")
         });
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("does not match the Deposit's Archival Group");
         Executed(mediator).MustNotHaveHappened();
@@ -126,7 +126,7 @@ public class ArchivalGroupMatchTests
         var job = Job(ArchivalGroup);
         job.Deposit = new Uri(DepositId, UriKind.Relative);
 
-        var result = await controller.ExecuteImportJob(DepositId, job, default);
+        var result = await controller.ExecuteImportJob(DepositId, job, TestContext.Current.CancellationToken);
 
         Refusal(result).Should().Contain("does not match the Deposit it was submitted to");
         Executed(mediator).MustNotHaveHappened();

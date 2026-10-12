@@ -184,10 +184,10 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
 
         await using (var forceContext = fixture.CreateNewAuthServiceContext())
         {
-            var deposit = await forceContext.Deposits.SingleAsync(d => d.MintedId == depositId);
+            var deposit = await forceContext.Deposits.SingleAsync(d => d.MintedId == depositId, cancellationToken: TestContext.Current.CancellationToken);
             deposit.LockedBy = "someone-else";
             deposit.LockDate = DateTime.UtcNow;
-            await forceContext.SaveChangesAsync();
+            await forceContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await Handle(context, depositId, jobId, PipelineJobStates.CompletedWithErrors, "it broke");
@@ -218,7 +218,7 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
 
         // The late report's own handler invocation already has this job tracked as "processing" -
         // stale the moment the first report (below) moves it.
-        await lateContext.PipelineRunJobs.SingleAsync(j => j.Id == jobId);
+        await lateContext.PipelineRunJobs.SingleAsync(j => j.Id == jobId, cancellationToken: TestContext.Current.CancellationToken);
 
         await using (var firstContext = fixture.CreateNewAuthServiceContext())
         {
@@ -229,10 +229,10 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         // The same user starts a new run and takes the lock again before the stale report arrives.
         await using (var relockContext = fixture.CreateNewAuthServiceContext())
         {
-            var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId);
+            var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId, cancellationToken: TestContext.Current.CancellationToken);
             deposit.LockedBy = "tester";
             deposit.LockDate = DateTime.UtcNow;
-            await relockContext.SaveChangesAsync();
+            await relockContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var lateResult = await Handle(lateContext, depositId, jobId, PipelineJobStates.Completed);
@@ -300,10 +300,10 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         // Completed report arrives.
         await using (var relockContext = fixture.CreateNewAuthServiceContext())
         {
-            var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId);
+            var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId, cancellationToken: TestContext.Current.CancellationToken);
             deposit.LockedBy = "tester";
             deposit.LockDate = DateTime.UtcNow;
-            await relockContext.SaveChangesAsync();
+            await relockContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await using var lateContext = fixture.CreateNewAuthServiceContext();

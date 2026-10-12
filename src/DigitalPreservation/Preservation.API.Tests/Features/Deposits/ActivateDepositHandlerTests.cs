@@ -38,7 +38,7 @@ public class ActivateDepositHandlerTests
             LastModifiedBy = "tester"
         };
         context.Deposits.Add(deposit);
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var handler = new ActivateDepositHandler(new NullLogger<ActivateDepositHandler>(), context);
         var principal = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "tester") }, "test"));
@@ -46,7 +46,7 @@ public class ActivateDepositHandlerTests
         var result = await handler.Handle(new ActivateDeposit(mintedId, false, principal), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        await context.Entry(deposit).ReloadAsync();
+        await context.Entry(deposit).ReloadAsync(TestContext.Current.CancellationToken);
         deposit.Active.Should().BeTrue();
     }
 
@@ -66,7 +66,7 @@ public class ActivateDepositHandlerTests
             LastModifiedBy = "tester"
         };
         context.Deposits.Add(deposit);
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var handler = new ActivateDepositHandler(new NullLogger<ActivateDepositHandler>(), context);
         var principal = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "tester") }, "test"));
@@ -74,7 +74,7 @@ public class ActivateDepositHandlerTests
         var result = await handler.Handle(new ActivateDeposit(mintedId, false, principal), CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        await context.Entry(deposit).ReloadAsync();
+        await context.Entry(deposit).ReloadAsync(TestContext.Current.CancellationToken);
         deposit.Active.Should().BeFalse();
     }
 
@@ -94,7 +94,7 @@ public class ActivateDepositHandlerTests
             LastModifiedBy = "tester"
         };
         context.Deposits.Add(deposit);
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var handler = new ActivateDepositHandler(new NullLogger<ActivateDepositHandler>(), context);
         var principal = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "tester") }, "test"));
@@ -102,7 +102,7 @@ public class ActivateDepositHandlerTests
         var result = await handler.Handle(new ActivateDeposit(mintedId, true, principal), CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        await context.Entry(deposit).ReloadAsync();
+        await context.Entry(deposit).ReloadAsync(TestContext.Current.CancellationToken);
         deposit.Active.Should().BeTrue();
     }
 }

@@ -48,6 +48,11 @@ try
     var useLocalHostedServiceForImport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForImport");
     var useLocalHostedServiceForExport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForExport");
 
+    // ImportJobRunner (the heartbeat writer) only runs in this host in in-process mode; in SQS mode
+    // it's the separate Importer. Both hosts validate unconditionally regardless of mode - see
+    // Storage.API.Importer/Program.cs for its copy of this call - so a deployment can't end up with
+    // one host's settings checked and the other's not depending on which mode happens to be live.
+    ImportJobHeartbeatSettings.Validate(builder.Configuration);
 
     if (useAuthFeatureFlag)
     {
@@ -116,8 +121,14 @@ try
     {
         throw new NotSupportedException("Separate export service not yet implemented!");
     }
-    
-    
+
+    // Unconditional, regardless of which mode actually executes import jobs (in-process or the
+    // separate SQS Importer): this is the one host that is always running, and the sweep's reap is
+    // idempotent (a conditional UPDATE), so it is safe even if more than one Storage API instance
+    // runs it at the same tick.
+    builder.Services.AddHostedService<ImportJobReapService>();
+
+
     var app = builder.Build();
     app
         .UseMiddleware<CorrelationIdMiddleware>()
@@ -125,6 +136,8 @@ try
         .UseRouting()
         .UseForwardedHeaders()
         .TryRunMigrations(builder.Configuration, app.Logger);
+
+    await app.FailOrphanedWaitingImportJobsIfInProcessAsync(useLocalHostedServiceForImport);
 
     //Auth
     if (useAuthFeatureFlag)

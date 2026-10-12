@@ -28,9 +28,9 @@ public class RepositoryPathFilterTests : IClassFixture<DigitalPreservationAppFac
     [InlineData("/repository/cc/thing/fcr:tombstone")]
     public async Task A_Path_That_Would_Leave_The_Root_Is_Refused_Before_The_Handler(string url)
     {
-        var response = await httpClient.GetAsync(url);
+        var response = await httpClient.GetAsync(url, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("repository root");
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Contain("repository root");
     }
 }
