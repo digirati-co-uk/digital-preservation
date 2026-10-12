@@ -12,11 +12,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
+using NetVips;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Features.MediaServer;
 using Preservation.API.IIIF;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using Storage.Repository.Common;
 
 namespace Preservation.API.Tests.Features.MediaServer;
@@ -147,6 +146,35 @@ public class MediaControllerTests
 
         result.Should().BeOfType<NotFoundResult>();
         AssertNoStreamCalls();
+    }
+
+    [Theory]
+    [InlineData("objects/page-001.jpg/full/,/0/default.jpg")]
+    [InlineData("objects/page-001.jpg/full/0,0/0/default.jpg")]
+    [InlineData("objects/page-001.jpg/full/-5,/0/default.jpg")]
+    public async Task A_Size_With_No_Positive_Dimension_Is_404_Before_Anything_Is_Read(string localPath)
+    {
+        var controller = CreateController(localPath, "imagesvc");
+
+        var result = await controller.GetMedia(Token, "deposit", SourceId, "imagesvc", localPath);
+
+        result.Should().BeOfType<NotFoundResult>();
+        AssertNoStreamCalls();
+    }
+
+    [Fact]
+    public async Task The_Default_Jpg_Branch_Returns_A_Jpeg_Of_The_Requested_Width()
+    {
+        var localPath = "objects/page-001.jpg/full/5,/0/default.jpg";
+        var controller = CreateController(localPath, "imagesvc");
+
+        var result = await controller.GetMedia(Token, "deposit", SourceId, "imagesvc", localPath);
+
+        var file = result.Should().BeOfType<FileStreamResult>().Subject;
+        file.ContentType.Should().Be("image/jpeg");
+        using var jpeg = Image.NewFromStream(file.FileStream);
+        jpeg.Width.Should().Be(5);
+        jpeg.Height.Should().Be(5);
     }
 
     [Fact]
@@ -286,9 +314,8 @@ public class MediaControllerTests
 
     private static byte[] CreateJpegBytes()
     {
-        using var image = new Image<Rgb24>(10, 10, new Rgb24(10, 20, 30));
-        using var ms = new MemoryStream();
-        image.SaveAsJpeg(ms);
-        return ms.ToArray();
+        using var canvas = Image.Black(10, 10);
+        using var image = canvas.NewFromImage(10, 20, 30);
+        return image.JpegsaveBuffer();
     }
 }

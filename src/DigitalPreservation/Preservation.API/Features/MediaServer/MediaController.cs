@@ -11,9 +11,6 @@ using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.IIIF;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace Preservation.API.Features.MediaServer;
 
@@ -26,8 +23,8 @@ public class MediaController(
     ITokenService tokenService
 ) : ControllerBase
 {
-    private static readonly Lazy<byte[]> CanvasPlaceholder = new(() => GeneratePlaceholderPng(1000, 800));
-    private static readonly Lazy<byte[]> ThumbPlaceholder = new(() => GeneratePlaceholderPng(100, 80));
+    private static readonly Lazy<byte[]> CanvasPlaceholder = new(() => MediaImages.GreyPng(1000, 800));
+    private static readonly Lazy<byte[]> ThumbPlaceholder = new(() => MediaImages.GreyPng(100, 80));
 
     [AllowAnonymous]
     [RequireFeatureFlag("EnableIiifMediaEndpoints")]
@@ -230,26 +227,29 @@ public class MediaController(
     private static async Task<IActionResult> ImageFromImageService(
         WorkspaceManager workspaceManager, DepositFile file, string size)
     {
+        var parts = size.Split(',');
+        var w = parts[0].Length > 0 && int.TryParse(parts[0], out var pw) ? pw : 0;
+        var h = parts.Length > 1 && parts[1].Length > 0 && int.TryParse(parts[1], out var ph) ? ph : 0;
+        // "," (or anything without a positive dimension) is not a size.
+        if (w <= 0 && h <= 0)
+            return new NotFoundResult();
+
         var fileUri = file.FileUri;
         var streamResult = await workspaceManager.GetStream(fileUri);
         if (streamResult is not { Success: true, Value.Item1: not null })
             return new NotFoundResult();
 
-        var parts = size.Split(',');
-        var w = parts[0].Length > 0 && int.TryParse(parts[0], out var pw) ? pw : 0;
-        var h = parts.Length > 1 && parts[1].Length > 0 && int.TryParse(parts[1], out var ph) ? ph : 0;
-
-        using var image = await Image.LoadAsync(streamResult.Value.Item1);
-        image.Mutate(x => x.Resize(new ResizeOptions
+        // libvips reads its source synchronously, so read the S3 stream asynchronously first rather
+        // than block a request thread on the network.
+        using var buffered = new MemoryStream();
+        await using (var source = streamResult.Value.Item1)
         {
-            Size = new SixLabors.ImageSharp.Size(w, h),
-            Mode = ResizeMode.Max
-        }));
+            await source.CopyToAsync(buffered);
+        }
+        buffered.Position = 0;
 
-        var ms = new MemoryStream();
-        await image.SaveAsJpegAsync(ms);
-        ms.Position = 0;
-        return new FileStreamResult(ms, "image/jpeg");
+        var jpeg = MediaImages.RenderJpeg(buffered, w, h);
+        return new FileStreamResult(new MemoryStream(jpeg), "image/jpeg");
     }
 
     private static IActionResult InfoJson(string imageBaseUrl, WorkingFile? mediaItem)
@@ -282,13 +282,5 @@ public class MediaController(
             Content     = JsonSerializer.Serialize(info),
             ContentType = "application/json"
         };
-    }
-
-    private static byte[] GeneratePlaceholderPng(int width, int height)
-    {
-        using var image = new Image<Rgb24>(width, height, new Rgb24(0x88, 0x88, 0x88));
-        using var ms = new MemoryStream();
-        image.SaveAsPng(ms);
-        return ms.ToArray();
     }
 }

@@ -27,12 +27,33 @@
       <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.12" />
       <PackageReference Include="Microsoft.Identity.Web" Version="4.16.0" />
       <PackageReference Include="Microsoft.Identity.Web.GraphServiceClient" Version="4.16.0" />
+      <PackageReference Include="NetVips" Version="3.2.0" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
       <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
       <PackageReference Include="Serilog.Enrichers.ClientInfo" Version="2.9.0" />
-      <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
       <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.0" />
     </ItemGroup>
+
+    <PropertyGroup>
+      <!-- libvips (used by the media server's image service) is a native dependency, so it must match the
+           runtime being *targeted*, not the machine doing the build. A RID-specific build (dotnet publish -r ...)
+           names its target; a RID-agnostic one, as Dockerfile.PreservationApi uses, can only be for the build host. -->
+      <VipsRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</VipsRuntimeIdentifier>
+      <VipsRuntimeIdentifier Condition="'$(VipsRuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</VipsRuntimeIdentifier>
+      <VipsRuntimeIdentifier Condition="'$(VipsRuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">win-x64</VipsRuntimeIdentifier>
+      <VipsRuntimeIdentifier Condition="'$(VipsRuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</VipsRuntimeIdentifier>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <!-- Only the matching RID is pulled in - each NetVips.Native.* package is ~25MB. The NetVips wrapper is MIT;
+           the native libvips bundle is LGPL-3.0-or-later, loaded dynamically. -->
+      <PackageReference Include="NetVips.Native.$(VipsRuntimeIdentifier)" Version="8.18.7"
+                        Condition="'$(VipsRuntimeIdentifier)' != ''" />
+    </ItemGroup>
+
+    <Target Name="WarnIfNoLibVips" BeforeTargets="Build" Condition="'$(VipsRuntimeIdentifier)' == ''">
+      <Warning Text="No NetVips.Native package matches this build - the media server's image service will fail at runtime. Add a VipsRuntimeIdentifier mapping for '$(RuntimeIdentifier)'." />
+    </Target>
 
     <ItemGroup>
       <ProjectReference Include="..\DigitalPreservation.Workspace\DigitalPreservation.Workspace.csproj" />
