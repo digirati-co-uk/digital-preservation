@@ -160,7 +160,7 @@ jobs:
     # only because the tag matched main at the time; that won't be true of every tag push from
     # here on. Excluding tag refs here means a tag only builds and pushes images - an actual
     # deploy still needs an explicit workflow_dispatch run naming the target environment.
-    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'deploy'))) && !startsWith(github.ref, 'refs/tags/')
+    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'deploy'))) && !(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
     with:
       image_tag: "${{ github.sha }}"
       target_env: "${{ inputs.environment || 'development' }}"
