@@ -62,18 +62,24 @@ public class RunPipelineHandler(
         // #309). A job stuck in "processing" because its worker died blocks new runs until it's
         // cleaned up (force complete, the UI's stale-job tidy-up, or #301's sweep) - that is the
         // right behaviour, not a bug to work around here.
-        var activeJob = await dbContext.PipelineRunJobs
-            .Where(j => j.Deposit == request.DepositId
-                        && (j.Status == PipelineJobStates.Waiting
-                            || j.Status == PipelineJobStates.Running
-                            || j.Status == PipelineJobStates.MetadataCreated))
+        //
+        // Blocks only on the deposit's *latest* job (by DateSubmitted - the same definition
+        // PipelineJobCleanupProcessor uses), not on any job that merely happens to still be active.
+        // Before this (issue #357), a non-latest job left active by data predating this check - job A
+        // stuck processing, a later job B already completed - blocked every new run indefinitely: the
+        // UI shows no running job (it was already looking for the latest one) and has nothing to
+        // offer "Force complete" on, and this handler refused regardless. A non-latest active job is
+        // now always closed immediately by the sweep rather than waiting out its usual overdue
+        // cutoff, so this is a narrow, short-lived gap rather than a standing one.
+        var latestJob = await dbContext.PipelineRunJobs
+            .Where(j => j.Deposit == request.DepositId)
             .OrderByDescending(j => j.DateSubmitted)
             .FirstOrDefaultAsync(cancellationToken);
-        if (activeJob != null)
+        if (latestJob != null && PipelineJobStates.IsNotComplete(latestJob.Status))
         {
             return Result.Fail(ErrorCodes.Conflict,
                 $"A pipeline run is already in progress for deposit {request.DepositId} " +
-                $"(job {activeJob.Id}, {activeJob.Status}). Force complete it first if it is stuck.");
+                $"(job {latestJob.Id}, {latestJob.Status}). Force complete it first if it is stuck.");
         }
 
         var callerIdentity = request.User.GetCallerIdentity();

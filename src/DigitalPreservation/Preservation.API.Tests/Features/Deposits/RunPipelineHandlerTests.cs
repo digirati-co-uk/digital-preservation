@@ -77,7 +77,8 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         return await context.Deposits.AsNoTracking().SingleAsync(d => d.MintedId == depositId);
     }
 
-    private static async Task SavePipelineRunJob(PreservationContext context, string depositId, string status)
+    private static async Task SavePipelineRunJob(
+        PreservationContext context, string depositId, string status, DateTime? dateSubmitted = null)
     {
         context.PipelineRunJobs.Add(new Preservation.API.Data.Entities.PipelineRunJob
         {
@@ -85,7 +86,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
             Deposit = depositId,
             ArchivalGroup = null,
             Status = status,
-            DateSubmitted = DateTime.UtcNow,
+            DateSubmitted = dateSubmitted ?? DateTime.UtcNow,
             LastUpdated = DateTime.UtcNow,
             PipelineJobJson = "{}",
             RunUser = "tester"
@@ -241,6 +242,38 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
             .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
 
         result.Success.Should().BeTrue("a deposit whose previous runs have all finished may run again");
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        context.PipelineRunJobs.Count(j => j.Deposit == deposit.MintedId).Should().Be(3);
+    }
+
+    /// <summary>
+    /// Data predating issue #339's check (or the #301/#357 sweep catching up) can leave an old job
+    /// non-terminal - processing, say - while a job submitted after it has already completed. Before
+    /// #357 this blocked every new run indefinitely: the check looked at *any* active job regardless
+    /// of recency, where the UI's "what's running" look-up only ever considered the latest-by-date
+    /// job - so a non-latest active job was invisible to the UI (nothing to force-complete) and yet
+    /// still refused here. Blocking only on the deposit's actual latest job fixes both: a stale,
+    /// superseded job no longer blocks a new run (and the sweep now closes it immediately rather
+    /// than waiting out its usual overdue cutoff, per issue #357).
+    /// </summary>
+    [Fact]
+    public async Task Handle_Runs_Normally_WhenANonLatestJobIsActive_ButTheDepositsLatestJobIsComplete()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
+        var earlier = DateTime.UtcNow.AddHours(-2);
+        await SavePipelineRunJob(context, deposit.MintedId, PipelineJobStates.Running, dateSubmitted: earlier);
+        await SavePipelineRunJob(context, deposit.MintedId, PipelineJobStates.Completed, dateSubmitted: earlier.AddMinutes(5));
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .Returns(new PublishResponse { HttpStatusCode = HttpStatusCode.OK, MessageId = "m-1" });
+
+        var result = await CreateHandler(context, snsClient)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.Success.Should().BeTrue(
+            "the deposit's latest job is complete; a stale non-latest active job must not block a new run");
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
         context.PipelineRunJobs.Count(j => j.Deposit == deposit.MintedId).Should().Be(3);

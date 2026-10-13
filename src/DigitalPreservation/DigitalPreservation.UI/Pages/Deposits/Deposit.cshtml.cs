@@ -730,35 +730,24 @@ public class DepositModel(
     /// opens this page, so a deposit can't be unstuck twice by two people opening it at once, and it
     /// no longer released a lock this page view had no business touching.
     /// </summary>
+    /// <remarks>
+    /// Used to pick the latest-by-DateBegun job first and only then ask whether that one was still
+    /// running - so a job stuck non-terminal that was not the latest (DateBegun null, or earlier than
+    /// a job started since) was invisible here even though it was exactly what was blocking
+    /// RunPipelineHandler's own check. Picks the running job directly instead: the same "any
+    /// non-terminal job for this deposit, most recent by Created" RunPipelineHandler and
+    /// PipelineJobCleanupProcessor use (Created is the job's DateSubmitted - see
+    /// ResourceMutator.MutatePipelineRunJob), so the UI, the 409 and the sweep agree on which job is
+    /// "the" one to show and act on (issue #357).
+    /// </remarks>
     public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetRunningPipelineJob()
     {
         var allJobs = await GetPipelineJobResults();
 
-        var latestJob = allJobs
-            .Where(x => x.DateBegun.HasValue && x.Deposit == Id)
-            .OrderByDescending(x => x.DateBegun)
-            .FirstOrDefault();
-
-        var latestWaitingJob = allJobs
-            .Where(x => x is { Created: not null, DateBegun: null } && x.Deposit == Id)
+        var runningJob = allJobs
+            .Where(x => x.Deposit == Id && PipelineJobStates.IsNotComplete(x.Status))
             .OrderByDescending(x => x.Created)
             .FirstOrDefault();
-
-        if (latestJob == null && latestWaitingJob == null)
-        {
-            return (allJobs, null);
-        }
-
-        ProcessPipelineResult? runningJob = null;
-        if (latestJob != null && PipelineJobStates.IsNotComplete(latestJob.Status))
-        {
-            runningJob = latestJob;
-        }
-
-        if (runningJob == null && latestWaitingJob != null && PipelineJobStates.IsNotComplete(latestWaitingJob.Status))
-        {
-            runningJob = latestWaitingJob;
-        }
 
         return (allJobs, runningJob);
     }
