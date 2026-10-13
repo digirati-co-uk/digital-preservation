@@ -509,7 +509,11 @@ public class WorkspaceManager(
         foreach (var localPath in allCombinedDirectories.Where(cd => cd.DirectoryInMets is not null).Select(cd => cd.LocalPath))
         {
             // It's in the incoming METS...
-            if (allExistingContainers.Exists(c => c.Id!.LocalPath == agLocalPathWithSlash + localPath))
+            // Container Ids carry the repository's #-stand-in (UriX.HashReplacement) that Uri.LocalPath
+            // leaves alone, since it isn't percent-encoding; localPath (from the METS) is the literal
+            // display path. EscapePathElementsNoHashes puts both sides into the same form - the same
+            // substitution every neighbouring check here already goes through (issue #243).
+            if (allExistingContainers.Exists(c => c.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + localPath!.EscapePathElementsNoHashes()))
             {
                 // ...and also in the ArchivalGroup
                 continue;
