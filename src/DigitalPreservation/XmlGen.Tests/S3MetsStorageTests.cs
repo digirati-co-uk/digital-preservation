@@ -156,6 +156,13 @@ public class S3MetsStorageTests
     }
 
 
+    /// <summary>
+    /// AmazonS3Client throws AmazonS3Exception for every non-2xx response rather than returning
+    /// one - verified against a local HTTP listener answering 412 to a conditional PutObject -
+    /// so the HttpStatusCode.PreconditionFailed check this used to simulate as a returned
+    /// response never actually happens; it was dead code (issue #355). This exercises the real
+    /// shape: a thrown exception with that status.
+    /// </summary>
     [Fact]
     public async Task GetFullMets_PreconditionFailed()
     {
@@ -164,23 +171,46 @@ public class S3MetsStorageTests
             Scheme = "s3"
         }.Uri;
 
-        var metsXml = GetMetsSample();
-
         A.CallTo(() => s3Client.GetObjectAsync(
                 A<GetObjectRequest>.Ignored, CancellationToken.None))
-            .Returns(Task.FromResult(new GetObjectResponse()
+            .Throws(new AmazonS3Exception("Precondition Failed")
             {
-                HttpStatusCode = HttpStatusCode.PreconditionFailed,
-                ResponseStream = new MemoryStream(Encoding.UTF8.GetBytes(metsXml))
-
-            }));
+                StatusCode = HttpStatusCode.PreconditionFailed
+            });
 
         var result = await metsStorage.GetFullMets(uri, "s3");
 
         result.Failure.Should().BeTrue();
         result.Success.Should().BeFalse();
         result.ErrorCode.Should().Be("PreconditionFailed");
+    }
 
+    /// <summary>
+    /// As above: WriteMets's own PutObjectAsync call throws on a lost If-Match race rather than
+    /// returning a 412 response, so the result must come from catching the exception, not from
+    /// a status-code switch that never sees it (issue #355).
+    /// </summary>
+    [Fact]
+    public async Task WriteMets_PreconditionFailed()
+    {
+        var fullMets = new FullMets
+        {
+            Mets = new Mets(),
+            Uri = new UriBuilder("http://example.com/mets.xml") { Scheme = "s3" }.Uri,
+            ETag = "\"some-etag\""
+        };
+
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Throws(new AmazonS3Exception("Precondition Failed")
+            {
+                StatusCode = HttpStatusCode.PreconditionFailed
+            });
+
+        var result = await metsStorage.WriteMets(fullMets);
+
+        result.Failure.Should().BeTrue();
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be("PreconditionFailed");
     }
 
     [Fact]

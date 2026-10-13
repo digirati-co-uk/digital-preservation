@@ -42,13 +42,22 @@ public class S3MetsStorage(
             req.IfMatch = fullMets.ETag;
         }
 
-        var resp = await s3Client.PutObjectAsync(req);
+        PutObjectResponse resp;
+        try
+        {
+            resp = await s3Client.PutObjectAsync(req);
+        }
+        catch (AmazonS3Exception e) when (e.StatusCode == HttpStatusCode.PreconditionFailed)
+        {
+            // AmazonS3Client throws for every non-2xx response rather than returning it, so a
+            // lost If-Match race never reaches the switch below - the PreconditionFailed arm
+            // that used to sit there was dead code (issue #355).
+            return Result.Fail(ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
+        }
 
         return resp.HttpStatusCode switch
         {
             HttpStatusCode.Created or HttpStatusCode.OK => Result.Ok(),
-            HttpStatusCode.PreconditionFailed => Result.Fail(ErrorCodes.PreconditionFailed,
-                "Supplied ETag did not match METS"),
             _ => Result.Fail(ErrorCodes.BadRequest,
                 "AWS returned HTTP Status " + resp.HttpStatusCode + " when writing METS")
         };
@@ -91,13 +100,15 @@ public class S3MetsStorage(
                 mets = (DigitalPreservation.XmlGen.Mets.Mets)serializer.Deserialize(reader)!;
             }
 
-            if (resp.HttpStatusCode is HttpStatusCode.PreconditionFailed)
-            {
-                return Result.FailNotNull<FullMets>(ErrorCodes.PreconditionFailed,
-                    "Supplied ETag did not match METS");
-            }
-
             returnedETag = resp.ETag;
+        }
+        catch (AmazonS3Exception e) when (e.StatusCode == HttpStatusCode.PreconditionFailed)
+        {
+            // As in WriteMets: AmazonS3Client throws rather than returning a 412 response, so the
+            // PreconditionFailed status check that used to sit in the try block above never saw a
+            // lost ETag race (issue #355).
+            return Result.FailNotNull<FullMets>(ErrorCodes.PreconditionFailed,
+                "Supplied ETag did not match METS");
         }
         catch (Exception e)
         {

@@ -171,6 +171,28 @@ public class ResultHelpersTests
         Assert.Contains(exception.StatusCode.ToString(), message);
     }
 
+    /// <summary>
+    /// Issue #355: AmazonS3Client throws rather than returning a 412 response, so a lost ETag
+    /// race on a conditional write reaches a caller of FailNotNullFromS3Exception (DeleteItems,
+    /// which relies on this for its own AmazonS3Exception catch) as this exception, not an
+    /// HttpStatusCode to switch on elsewhere.
+    /// </summary>
+    [Fact]
+    public void FailNotNullFromS3Exception_Should_Map_PreconditionFailed_Status()
+    {
+        var uri = new Uri("s3://bucket/key");
+        var exception = CreateS3Exception(HttpStatusCode.PreconditionFailed, "precondition failed");
+        var result = ResultHelpers.FailNotNullFromS3Exception<string>(exception, "Write failed", uri);
+
+        var errorCode = ExtractErrorCode(result);
+        var message = ExtractMessage(result);
+
+        Assert.Equal(ErrorCodes.PreconditionFailed, errorCode);
+        Assert.Contains("Supplied ETag did not match", message);
+        Assert.Contains(uri.ToString(), message);
+        Assert.Contains(exception.Message, message);
+    }
+
     #endregion
 
 
