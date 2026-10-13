@@ -268,7 +268,10 @@ public class MetadataReader : IMetadataReader
             // A size-limit skip is reported as a "hit" the same as a real detection (clamdscan has
             // no separate outcome for it), so without this check it would be recorded as infected -
             // a false positive as wrong in its own way as the false-clean this issue is about.
-            var exceedsLimit = file.VirusFound.StartsWith(LimitsExceededPrefix, StringComparison.Ordinal);
+            // TrimStart here, not on the stored value: clamdscan's "<path>: <signature> FOUND"
+            // format always leaves a leading space after the colon, and VirusFound keeps it
+            // verbatim (see ReadInfectedFilePaths) for the real-detection case.
+            var exceedsLimit = file.VirusFound.TrimStart().StartsWith(LimitsExceededPrefix, StringComparison.Ordinal);
 
             var metadataList = GetMetadataList(localPath!);
             metadataList.Add(new VirusScanMetadata
@@ -395,9 +398,12 @@ public class MetadataReader : IMetadataReader
             model.Add(new VirusModel
             {
                 Filepath = virusStringSplit[0],
-                // Trimmed so the Heuristics.Limits.Exceeded prefix check in AddVirusScanMetadata
-                // isn't thrown off by the leading space clamdscan always puts after the colon.
-                VirusFound = virusStringSplit[1].Trim()
+                // NOT trimmed: this is the stored value, and it already carries a leading space
+                // today for a genuine detection (clamdscan's "<path>: <signature> FOUND" format) -
+                // the e2e suite asserts that exact string, and CombinedFile compares it against
+                // what's already in METS for files pipelined before this change. Trim only where
+                // it's being checked (AddVirusScanMetadata), not where it's stored.
+                VirusFound = virusStringSplit[1]
             });
         }
         return model;

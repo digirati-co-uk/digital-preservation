@@ -57,7 +57,11 @@ public class MetadataReaderVirusLimitsExceededTests
             "ClamAV never actually scanned this file - it was skipped for exceeding the size limit");
         scan.HasVirus.Should().BeFalse(
             "a size-limit skip is not a detection, and must not be recorded as one");
-        scan.VirusFound.Should().Be("Heuristics.Limits.Exceeded.MaxFileSize FOUND",
+        // Leading space preserved: clamdscan's "<path>: <signature> FOUND" format always leaves
+        // one after the colon, and the stored VirusFound must not diverge from what a genuine
+        // detection already stores (below) or from what's already in METS for files scanned
+        // before this fix - a mismatch either way is its own bug (PR #372 review).
+        scan.VirusFound.Should().Be(" Heuristics.Limits.Exceeded.MaxFileSize FOUND",
             "the raw ClamAV outcome stays visible for audit, same as it would for a genuine hit");
     }
 
@@ -71,7 +75,8 @@ public class MetadataReaderVirusLimitsExceededTests
         scan.HasVirus.Should().BeTrue();
         scan.NotScanned.Should().BeFalse(
             "a real detection must not be swallowed by the new not-scanned handling");
-        scan.VirusFound.Should().Be("Eicar-Signature FOUND");
+        scan.VirusFound.Should().Be(" Eicar-Signature FOUND",
+            "VirusFound is stored verbatim, leading space included - trimming it here would be the same bug this fix exists to avoid");
     }
 
     [Fact]

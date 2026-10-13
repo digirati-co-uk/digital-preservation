@@ -130,6 +130,22 @@ RUN grep -q '^#\?AlertExceedsMax' /etc/clamav/clamd.conf \
     && sed -i 's/^#\?AlertExceedsMax.*/AlertExceedsMax yes/' /etc/clamav/clamd.conf \
     || echo 'AlertExceedsMax yes' >> /etc/clamav/clamd.conf
 
+# PCREMaxFileSize (packaged default 25M) is a separate limit from the three above: files over it
+# still get scanned normally, but PCRE subsignatures are skipped for them - and unlike
+# MaxFileSize/MaxScanSize/MaxRecursion/MaxFiles/MaxScanTime, this one isn't in the set
+# AlertExceedsMax watches, so there is no Heuristics.Limits.Exceeded hit to catch it; it would
+# just be a file scanned with an incomplete signature set and no record of that. Raised to match
+# the others so a file between the old 25MB and the new 2000M isn't missing PCRE coverage.
+RUN sed -i 's/^#\?PCREMaxFileSize.*/PCREMaxFileSize 2000M/' /etc/clamav/clamd.conf
+
+# MaxScanTime (packaged default 120000ms/2min) is deliberately left alone, not raised to match -
+# clamd.conf(5) itself warns against setting it too high: a scan that can run arbitrarily long can
+# lock up a scanning thread, which is its own denial-of-service risk given this image already runs
+# up to 50 concurrent multiscan threads (MaxThreads above). A file that takes over 2 minutes to
+# scan will report Heuristics.Limits.Exceeded.MaxScanTime and be recorded as "not scanned" rather
+# than silently passed as clean - the correct outcome under this fix either way, just reached for
+# a different reason than running out of file-size headroom.
+
 # Brunnhilde always invokes the literal "clamscan" binary with no way to configure it - shadow the
 # real clamscan with a shim that instead talks to clamd running as a second process in this same
 # container (started by pipeline-api-entrypoint.sh), avoiding the signature-database reload cost
