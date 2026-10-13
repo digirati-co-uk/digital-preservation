@@ -696,6 +696,8 @@ public class MetsParser(
                     {
                         Source = "ClamAV",
                         HasVirus = eventOutcome?.Value.ToLower() == "fail",
+                        NotScanned = string.Equals(eventOutcome?.Value, Constants.VirusCheckNotScannedOutcome,
+                            StringComparison.OrdinalIgnoreCase),
                         VirusFound = eventOutcomeDetailNote != null ? eventOutcomeDetailNote.Value : string.Empty,
                         Timestamp = Convert.ToDateTime(
                             eventDatetime != null ? eventDatetime.Value : DateTime.UtcNow),

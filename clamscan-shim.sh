@@ -7,8 +7,10 @@
 # run.
 #
 # clamdscan does not accept --max-scansize/--max-filesize per invocation the way clamscan does -
-# those limits are configured as MaxScanSize/MaxFileSize in the host's clamd.conf instead, so
-# strip them here rather than letting clamdscan reject the call outright.
+# those limits are configured as MaxScanSize/MaxFileSize/StreamMaxLength in the host's clamd.conf
+# instead (Dockerfile.PipelineApi, issue #371 - also where AlertExceedsMax is turned on, so a file
+# over the limit is reported as a Heuristics.Limits.Exceeded.* hit rather than silently passed as
+# clean), so strip these flags here rather than letting clamdscan reject the call outright.
 
 set -euo pipefail
 

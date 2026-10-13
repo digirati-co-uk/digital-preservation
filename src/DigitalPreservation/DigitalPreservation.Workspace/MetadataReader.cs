@@ -245,6 +245,14 @@ public class MetadataReader : IMetadataReader
         }
     }
 
+    /// <summary>
+    /// The signature name ClamAV reports for a file it skipped for exceeding a configured size
+    /// limit (MaxFileSize/MaxScanSize/MaxRecursion/...) with AlertExceedsMax enabled, rather than
+    /// a genuine detection - see issue #371. Checked as a prefix because the suffix varies by which
+    /// limit was hit (MaxFileSize, MaxScanSize, MaxFiles, ...).
+    /// </summary>
+    private const string LimitsExceededPrefix = "Heuristics.Limits.Exceeded.";
+
     private void AddVirusScanMetadata(List<File> objectsFiles, string infectedFilesCommonParent, string siegfriedFilesCommonParent, string source,
         DateTime timestamp, string virusDefinition)
     {
@@ -257,11 +265,17 @@ public class MetadataReader : IMetadataReader
                 infectedLocalPaths.Add(localPath);
             }
 
+            // A size-limit skip is reported as a "hit" the same as a real detection (clamdscan has
+            // no separate outcome for it), so without this check it would be recorded as infected -
+            // a false positive as wrong in its own way as the false-clean this issue is about.
+            var exceedsLimit = file.VirusFound.StartsWith(LimitsExceededPrefix, StringComparison.Ordinal);
+
             var metadataList = GetMetadataList(localPath!);
             metadataList.Add(new VirusScanMetadata
             {
                 Source = source,
-                HasVirus = true,
+                HasVirus = !exceedsLimit,
+                NotScanned = exceedsLimit,
                 VirusFound = file.VirusFound,
                 Timestamp = timestamp,
                 VirusDefinition = virusDefinition
@@ -381,7 +395,9 @@ public class MetadataReader : IMetadataReader
             model.Add(new VirusModel
             {
                 Filepath = virusStringSplit[0],
-                VirusFound = virusStringSplit[1]
+                // Trimmed so the Heuristics.Limits.Exceeded prefix check in AddVirusScanMetadata
+                // isn't thrown off by the leading space clamdscan always puts after the colon.
+                VirusFound = virusStringSplit[1].Trim()
             });
         }
         return model;
