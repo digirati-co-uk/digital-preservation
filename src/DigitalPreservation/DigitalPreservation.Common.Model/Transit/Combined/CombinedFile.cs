@@ -89,6 +89,12 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
                     DepositVirusScanMetadata.HasVirus.ToString(), MetsVirusScanMetadata.HasVirus.ToString()));
             }
 
+            if (DepositVirusScanMetadata.NotScanned != MetsVirusScanMetadata.NotScanned)
+            {
+                misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "NotScanned",
+                    DepositVirusScanMetadata.NotScanned.ToString(), MetsVirusScanMetadata.NotScanned.ToString()));
+            }
+
             if (DepositVirusScanMetadata.VirusFound != MetsVirusScanMetadata.VirusFound)
             {
                 misMatches.Add(new FileMisMatch(nameof(VirusScanMetadata), "VirusFound",
