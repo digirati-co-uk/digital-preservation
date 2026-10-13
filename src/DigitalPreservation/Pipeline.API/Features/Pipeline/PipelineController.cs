@@ -18,7 +18,8 @@ namespace Pipeline.API.Features.Pipeline;
 public class PipelineController(
     ILogger<PipelineController> logger,
     IOptions<StorageOptions> storageOptions,
-    IPreservationApiClient preservationApiClient) : ControllerBase
+    IPreservationApiClient preservationApiClient,
+    InProcessPipelineQueue inProcessPipelineQueue) : ControllerBase
 {
     private readonly List<string>? files = [];
 
@@ -63,6 +64,42 @@ public class PipelineController(
             "ExecutePipelineJob: forwarding pipeline run for deposit {DepositName} to the Preservation API", pipelineJob.DepositName);
         var runResult = await preservationApiClient.RunPipeline(depositResult.Value, cancellationToken);
         return this.StatusResponseFromResult(runResult, 204);
+    }
+
+    /// <summary>
+    /// Local development/testing only (issue #352): the Preservation API's RunPipelineHandler calls
+    /// this directly over HTTP instead of publishing to SNS when FeatureFlags:UseLocalPipelineDelivery
+    /// is on, mirroring how imports already work locally (Preservation API -&gt; Storage API's own
+    /// POST /import -&gt; its in-process queue). Every check (the lock, the default-bucket guard, the
+    /// PipelineRunJob row) has already happened in RunPipelineHandler by the time this is called -
+    /// this is purely the delivery step, the same role SNS plays today. Must not be POST /pipeline:
+    /// that endpoint forwards TO the Preservation API, and reusing it here would loop back into
+    /// RunPipelineHandler a second time for a job it has already created and queued once.
+    /// Gated behind FeatureFlags:UseLocalHostedServiceForPipeline so it 404s wherever that is off -
+    /// every deployed environment - rather than being a second, unauthenticated-by-flag way to queue
+    /// a job in a live system. [ApiKey] (class-level, above) still applies underneath that.
+    /// </summary>
+    [HttpPost("jobs", Name = "QueuePipelineJobLocally")]
+    [RequireFeatureFlag("UseLocalHostedServiceForPipeline")]
+    [Produces("application/json")]
+    public async Task<IActionResult> QueuePipelineJob([FromBody] PipelineJobMessage pipelineJobMessage,
+        CancellationToken cancellationToken = default)
+    {
+        if (!pipelineJobMessage.DepositName.HasText())
+            return BadRequest("Deposit name is required in the request.");
+
+        if (!pipelineJobMessage.JobIdentifier.HasText())
+            return BadRequest("Job identifier is required in the request.");
+
+        logger.LogInformation(
+            "QueuePipelineJob: enqueueing local pipeline job {JobIdentifier} for deposit {DepositName}",
+            pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName);
+
+        await inProcessPipelineQueue.QueueRequest(
+            pipelineJobMessage.JobIdentifier!, pipelineJobMessage.DepositName, pipelineJobMessage.RunUser,
+            cancellationToken);
+
+        return NoContent();
     }
 
     [HttpGet(Name = "CheckDepositFolderExists")]

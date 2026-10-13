@@ -8,6 +8,7 @@ using DigitalPreservation.Workspace;
 using Preservation.API.Data;
 using Preservation.API.Features.Activity.Readers;
 using Preservation.API.Features.Deposits.PipelineCleanup;
+using Preservation.API.Features.Deposits.PipelineDelivery;
 using Preservation.API.Infrastructure;
 using Preservation.API.Mutation;
 using Serilog;
@@ -23,6 +24,8 @@ using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Web;
 using Preservation.API.IIIF;
 using Storage.Repository.Common.Mets.StorageImpl;
+using DigitalPreservation.Utils;
+using Microsoft.Extensions.Options;
 
 
 Log.Logger = new LoggerConfiguration()
@@ -42,6 +45,32 @@ try
 
     builder.Services.Configure<PipelineOptions>(
         builder.Configuration.GetSection("PipelineOptions"));
+
+    builder.Services.Configure<PipelineDeliveryFlags>(
+        builder.Configuration.GetSection("FeatureFlags"));
+
+    // Local development/testing only (issue #352): deliver pipeline jobs to the Pipeline API
+    // directly over HTTP instead of publishing to SNS. Registered only when the flag is on -
+    // RunPipelineHandler's IPipelineJobDeliveryClient dependency is optional (defaults to null)
+    // for exactly this reason, so a deployed instance with the flag off never even tries to
+    // construct an HttpClient against a PipelineApiDelivery:BaseUrl that was never configured.
+    var useLocalPipelineDelivery = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalPipelineDelivery");
+    if (useLocalPipelineDelivery)
+    {
+        builder.Services.Configure<PipelineApiClientOptions>(
+            builder.Configuration.GetSection("PipelineApiDelivery"));
+        builder.Services.AddHttpClient<IPipelineJobDeliveryClient, PipelineJobDeliveryClient>((sp, client) =>
+        {
+            var pipelineApiClientOptions = sp.GetRequiredService<IOptions<PipelineApiClientOptions>>().Value;
+            if (!pipelineApiClientOptions.BaseUrl.HasText())
+            {
+                throw new InvalidOperationException(
+                    "FeatureFlags:UseLocalPipelineDelivery is true but PipelineApiDelivery:BaseUrl is not set.");
+            }
+            client.BaseAddress = new Uri(pipelineApiClientOptions.BaseUrl);
+            client.DefaultRequestHeaders.Add("X-API-KEY", pipelineApiClientOptions.ApiKey);
+        });
+    }
 
     //Auth enabled flag
     var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");

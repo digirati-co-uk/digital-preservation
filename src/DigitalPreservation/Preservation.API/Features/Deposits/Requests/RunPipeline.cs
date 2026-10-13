@@ -14,6 +14,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalPreservation.Core.Auth;
 using Preservation.API.Data.Entities;
+using Preservation.API.Features.Deposits.PipelineDelivery;
 using Storage.Repository.Common;
 
 namespace Preservation.API.Features.Deposits.Requests;
@@ -31,7 +32,9 @@ public class RunPipelineHandler(
     IAmazonSimpleNotificationService snsClient,
     IOptions<PipelineOptions> pipelineOptions,
     IOptions<AwsStorageOptions> storageOptions,
-    IIdentityMinter identityMinter) : IRequestHandler<RunPipeline, Result>
+    IOptions<PipelineDeliveryFlags> pipelineDeliveryFlags,
+    IIdentityMinter identityMinter,
+    IPipelineJobDeliveryClient? pipelineJobDeliveryClient = null) : IRequestHandler<RunPipeline, Result>
 {
     public async Task<Result> Handle(RunPipeline request, CancellationToken cancellationToken)
     {
@@ -116,25 +119,49 @@ public class RunPipelineHandler(
 
         try
         {
-            // publish the Pipeline job message for Pipeline.API to pick up
-            var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage
+            var pipelineJobMessage = new PipelineJobMessage
             {
                 DepositName = request.DepositId,
                 JobIdentifier = jobId,
                 RunUser = callerIdentity
-            });
-            var pubRequest = new PublishRequest(topicArn, pipelineJobMessage);
-            var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
+            };
 
-            logger.LogDebug(
-                "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
-                response.HttpStatusCode, request.DepositId, response.MessageId);
+            if (pipelineDeliveryFlags.Value.UseLocalPipelineDelivery)
+            {
+                // Local development/testing only (issue #352): deliver directly to the Pipeline
+                // API's internal enqueue endpoint over HTTP instead of publishing to SNS, mirroring
+                // how imports already work locally. IPipelineJobDeliveryClient is registered only
+                // when this flag is on (see Program.cs), so it is never null here; thrown on
+                // delivery failure to fall into the same catch block and cleanup as a failed SNS
+                // publish below.
+                var deliveryResult = await pipelineJobDeliveryClient!.EnqueuePipelineJob(pipelineJobMessage, cancellationToken);
+                if (deliveryResult.Failure)
+                {
+                    throw new InvalidOperationException(
+                        deliveryResult.ErrorMessage ?? "The Pipeline API refused the local delivery enqueue call");
+                }
+
+                logger.LogDebug(
+                    "Delivered pipeline job {JobId} for {Identifier} to the Pipeline API directly (local delivery)",
+                    jobId, request.DepositId);
+            }
+            else
+            {
+                // publish the Pipeline job message for Pipeline.API to pick up
+                var pubRequest = new PublishRequest(topicArn, JsonSerializer.Serialize(pipelineJobMessage));
+                var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
+
+                logger.LogDebug(
+                    "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
+                    response.HttpStatusCode, request.DepositId, response.MessageId);
+            }
         }
         catch (Exception e)
         {
             // The job row exists but Pipeline.API was never told about it, so it will sit as
-            // "waiting" forever unless we close it out ourselves here.
-            logger.LogError(e, "Could not publish pipeline job {JobId} for deposit {DepositId} to SNS", jobId, request.DepositId);
+            // "waiting" forever unless we close it out ourselves here. Identical handling whether
+            // delivery was SNS or the local HTTP path above.
+            logger.LogError(e, "Could not deliver pipeline job {JobId} for deposit {DepositId}", jobId, request.DepositId);
             newJob.Status = PipelineJobStates.CompletedWithErrors;
             newJob.DateFinished = DateTime.UtcNow;
             newJob.Errors = "Could not queue pipeline job: " + e.Message;
@@ -208,7 +235,8 @@ public class RunPipelineHandler(
 
 //TODO: put job id into the pipeline into the class
 // NB this is the same class as Pipeline.API.Features.Pipeline.PipelineJobMessage
-internal class PipelineJobMessage
+// Public (not internal): IPipelineJobDeliveryClient.EnqueuePipelineJob takes one (issue #352).
+public class PipelineJobMessage
 {
     [JsonPropertyName("depositname")]
     public required string DepositName { get; set; }

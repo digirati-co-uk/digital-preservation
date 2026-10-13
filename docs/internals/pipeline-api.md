@@ -21,9 +21,9 @@ It runs on an **EC2-backed ECS cluster**, not Fargate, because of the mount and 
 
 1. Something calls `POST /deposits/{id}/pipeline` on Preservation API. The handler checks the deposit exists, that nobody else holds the lock, and that its workspace is in `AwsStorage:DefaultWorkingBucket`.
 
-2. It mints a job identifier, writes a `PipelineRunJob` row with status `waiting`, and **publishes to the SNS topic** named by `PipelineOptions:PipelineJobTopicArn`. The message is small — deposit identifier, job identifier, who asked. Then it returns `204`.
+2. It mints a job identifier, writes a `PipelineRunJob` row with status `waiting`, then delivers the job - deposit identifier, job identifier, who asked. Everywhere deployed this **publishes to the SNS topic** named by `PipelineOptions:PipelineJobTopicArn`. Local development/testing only (issue #352): with `FeatureFlags:UseLocalPipelineDelivery` on, it instead calls the Pipeline API's own `POST /pipeline/jobs` directly over HTTP (`PipelineApiDelivery:BaseUrl`, authenticated with `PipelineApiDelivery:ApiKey`) - the same role SNS plays, just without AWS in the loop, mirroring how imports already run locally (Preservation API → Storage API's `POST /import` → its in-process queue). A delivery failure either way marks the job `completedWithErrors` and releases the lock the same call took, so the two paths fail identically. Either way it returns `204`.
 
-3. The topic fans out to the SQS queue named by `PipelineOptions:PipelineJobQueue`. `SqsPipelineQueue.DequeueRequest` long-polls that queue for one message at a time.
+3. Everywhere deployed, the SNS topic fans out to the SQS queue named by `PipelineOptions:PipelineJobQueue`, and `SqsPipelineQueue.DequeueRequest` long-polls that queue for one message at a time. Locally with both flags on, `POST /pipeline/jobs` instead writes straight into `InProcessPipelineQueue`'s in-memory channel, which `PipelineJobExecutorService` reads from directly - no SQS, no network hop.
 
 4. Before running anything, the consumer asks Preservation API to move the job from `waiting` to `processing`. This is a **claim**, not a status report — see below.
 
@@ -33,6 +33,8 @@ It runs on an **EC2-backed ECS cluster**, not Fargate, because of the mount and 
 
 
 Pipeline API also has its own entry point, `POST /pipeline`, which takes a `PipelineJob` body with a `depositName`. It is a way in for something that cannot call Preservation API, and it is not how the UI or the API do it. Since issue #231, it is a thin proxy: it forwards to `POST /deposits/{id}/pipeline` on the Preservation API and returns that result, rather than queuing a job itself. Every check `RunPipelineHandler` makes - the default-bucket guard, the lock, and the `PipelineRunJob` row - applies automatically, and there is exactly one place pipeline jobs are queued from. The body's optional `runUser` is not honoured: the run is attributed to whatever identity Pipeline API calls Preservation API with.
+
+A second entry point, `POST /pipeline/jobs` (issue #352), is the opposite direction: the internal delivery step `RunPipelineHandler` calls *into*, not a second way *in*. Every check has already happened by the time this is reached - it just writes the already-validated job into `InProcessPipelineQueue`. Gated behind `[RequireFeatureFlag("UseLocalHostedServiceForPipeline")]`, so it 404s wherever that flag is off (every deployed environment), on top of the same `[ApiKey]` gate the rest of the controller carries. Confusing this with `POST /pipeline` would loop a job back into `RunPipelineHandler` a second time for one it has already created and queued once.
 
 ### The claim, and why it is a conditional UPDATE
 
@@ -148,18 +150,19 @@ Two environment variables in the image exist because of how .NET behaves in a co
 
 > **Two config settings to know about**
 >
-> `FeatureFlags:UseLocalHostedServiceForPipeline` selects the queue (`InProcessPipelineQueue` when `true`, `SqsPipelineQueue` when `false`), but **leave it `false`**. The Preservation API is the only producer of pipeline jobs and it publishes to SNS, so nothing can write to the in-process queue: with the flag `true`, jobs are never picked up, and the service logs a warning at startup. Delivering jobs over HTTP in local mode, the way imports run locally, is issue #352.
+> `FeatureFlags:UseLocalHostedServiceForPipeline` selects the queue (`InProcessPipelineQueue` when `true`, `SqsPipelineQueue` when `false`). Set `true` for fully local development/testing with no SNS/SQS - but it only does anything once the Preservation API is also delivering jobs locally (its own `FeatureFlags:UseLocalPipelineDelivery`, issue #352): turning this on alone just means jobs published to SNS are not picked up by this instance, since nothing then writes to the in-process queue. `appsettings.Example.json` sets this `true`; every deployed environment leaves it `false`.
 >
 > `FeatureFlags:DisableAuth` is also present and also read by nothing here. Pipeline API's only gate is the API key, unconditionally. (Preservation API, Storage API and the Importer do honour that flag.)
 
 
 ## Endpoints
 
-Both are guarded by `ApiKeyMiddleware`, which compares the value of the header named by `ApiKeyOptions:ApiHeaderName` — `X-API-KEY` — against the configured key and records the verdict in `HttpContext.Items`. `ApiKeyAttribute` on the controller turns a false verdict into `401`.
+All of `PipelineController` is guarded by `ApiKeyMiddleware`, which compares the value of the header named by `ApiKeyOptions:ApiHeaderName` — `X-API-KEY` — against the configured key and records the verdict in `HttpContext.Items`. `ApiKeyAttribute` on the controller turns a false verdict into `401`.
 
 | Endpoint | What it does |
 |---|---|
 | `POST /pipeline` | A thin proxy: fetches the deposit named by `depositName` and forwards to Preservation API's `POST /deposits/{id}/pipeline`, returning its result (`204`, or its status and message on failure). `404` if the deposit does not exist. The body's optional `runUser` is not honoured. |
+| `POST /pipeline/jobs` | Local development/testing only (issue #352): the Preservation API's internal delivery step, called instead of an SNS publish when `FeatureFlags:UseLocalPipelineDelivery` is on there. Writes the already-validated job straight into `InProcessPipelineQueue`. `404` wherever this service's own `FeatureFlags:UseLocalHostedServiceForPipeline` is off - every deployed environment. |
 | `GET /pipeline?depositId=…` | Diagnostics: lists the files and directories under the mounted deposit path, plus `df` output. |
 | `GET /health` | Liveness for the load balancer. |
 
