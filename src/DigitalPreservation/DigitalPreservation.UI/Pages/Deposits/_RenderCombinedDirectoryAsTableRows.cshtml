@@ -175,9 +175,9 @@ File is in both
         else if (virusMetadata is { NotScanned: true })
         {
             <td aria-label="td-virus-not-scanned">
-                <label title="@virusMetadata.GetDisplay()" aria-label="virus-not-scanned" class="form-check-label text-warning">
+                <span title="@virusMetadata.GetDisplay()" aria-label="virus-not-scanned" class="form-check-label text-warning">
                     <svg class="bi" aria-hidden="true"><use xlink:href="#exclamation-triangle"/></svg>
-                </label>
+                </span>
             </td>
         }
         else if (!isMetadata && hasToolOutput)

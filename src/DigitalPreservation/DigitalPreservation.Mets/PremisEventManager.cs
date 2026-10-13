@@ -27,9 +27,7 @@ public class PremisEventManagerVirus
         {
             EventOutcome = new StringPlusAuthority
             {
-                Value = virusScanMetadata.NotScanned
-                    ? Constants.VirusCheckNotScannedOutcome
-                    : virusScanMetadata.HasVirus ? "Fail" : "Pass"
+                Value = EventOutcomeFor(virusScanMetadata)
             },
             EventOutcomeDetail = { new EventOutcomeDetailComplexType
             {
@@ -41,6 +39,17 @@ public class PremisEventManagerVirus
         eventComplexType.EventOutcomeInformation.Add(eventOutcomeInformationComplexType);
 
         return eventComplexType;
+    }
+
+    /// <summary>
+    /// "Not scanned" (issue #371) takes precedence over Pass/Fail: a file ClamAV skipped for
+    /// exceeding a configured limit was never actually scanned, so HasVirus - which only means "no
+    /// detection was recorded" - does not apply to it either way.
+    /// </summary>
+    private static string EventOutcomeFor(VirusScanMetadata virusScanMetadata)
+    {
+        if (virusScanMetadata.NotScanned) return Constants.VirusCheckNotScannedOutcome;
+        return virusScanMetadata.HasVirus ? "Fail" : "Pass";
     }
 
     /// <summary>
