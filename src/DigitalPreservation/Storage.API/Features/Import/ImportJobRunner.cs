@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Utils;
 using MediatR;
 using Storage.API.Features.Import.Requests;
 using Storage.API.Features.Repository.Requests;
@@ -151,16 +152,44 @@ public class ImportJobRunner(
             {
                 jobResult.NewVersion = ag.Version!.OcflVersion;
                 logger.LogInformation("Import Job new version is {NewVersion} for {JobResultId}", jobResult.NewVersion, jobResult.Id);
+
+                // A version is recorded, but did the job's own work actually land? For an update,
+                // an unchanged version is as much "nothing committed" as a missing group would be -
+                // this is the same check issue #350's commit-outcome verification makes, applied
+                // here too so a job that reports success without this check ever running (the
+                // executor's own verification only runs when the monitor had to cancel the commit
+                // PUT) still gets caught if the version genuinely never moved.
+                if (jobResult.SourceVersion.HasText() && jobResult.NewVersion == jobResult.SourceVersion)
+                {
+                    const string message = "Import job reported success, but the Archival Group's version did not change";
+                    logger.LogError("{Message}: {JobResultId}, version {Version}", message, jobResult.Id, jobResult.NewVersion);
+                    jobResult.Errors = [.. jobResult.Errors ?? [], new Error { Message = message }];
+                    jobResult.Status = ImportJobStates.CompletedWithErrors;
+                }
             }
             else
             {
                 logger.LogError("Resource is not an Archival Group: {Resource}", agResult.Value);
+                RecordVersionCouldNotBeEstablished(jobResult, "the resource returned is not an Archival Group");
             }
         }
         else
         {
             logger.LogError("Unable to obtain saved Archival Group (maybe because of a failed create): {CodeAndMessage}", agResult.CodeAndMessage());
+            RecordVersionCouldNotBeEstablished(jobResult, agResult.CodeAndMessage());
         }
+    }
+
+    /// <summary>
+    /// The job reported success, but its new version could not even be established - the group
+    /// could not be read back at all. That must not stand as a silent success (issue #350): record
+    /// it as an error on the result, the same as a job that fails any other way.
+    /// </summary>
+    private static void RecordVersionCouldNotBeEstablished(ImportJobResult jobResult, string? reason)
+    {
+        var message = $"Import job reported success, but its new version could not be established: {reason}";
+        jobResult.Errors = [.. jobResult.Errors ?? [], new Error { Message = message }];
+        jobResult.Status = ImportJobStates.CompletedWithErrors;
     }
 
     private static void MarkFailed(ImportJobResult jobResult, string message)

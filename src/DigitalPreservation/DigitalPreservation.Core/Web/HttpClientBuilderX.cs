@@ -8,31 +8,46 @@ public static class HttpClientBuilderX
     // See https://github.com/dotnet/runtime/issues/77755
     // See https://github.com/dotnet/runtime/issues/24917
     // https://repost.aws/articles/ARjhCdFMoTTwmxenTc4B7elg/how-to-avoid-network-timeout-issues-when-invoking-long-running-lambda-functions-from-net6-applications-on-linux-platforms
-    
-    // A previous variant configured keep-alive via socket options on the SocketsHttpHandler
-    // (ConfigureSocketTcpKeepAliveDoesntWorkOnLinux, settings 120/60/60) - that approach does
-    // not take effect on Linux (see the runtime issues above), which is why this one uses
-    // SocketsHttpHandler.KeepAlivePing* instead. Don't reintroduce the socket-option variant.
+
+    // Why this exists (issue #350): these clients reach Fedora, Storage API and Preservation API
+    // through an internet-facing ALB, so their traffic leaves through a NAT gateway and comes back
+    // in. The NAT gateway drops a connection's mapping after it has been silent for its fixed 350s
+    // idle timeout - confirmed as the cause of both a large Fedora GET failing with a broken pipe
+    // and a large commit PUT appearing to hang, although Fedora had in both cases already written
+    // the response; the ALB just couldn't deliver it back through the expired mapping. A TCP
+    // keepalive probe sent well inside that 350s window keeps the mapping alive for as long as the
+    // connection is genuinely still in use.
+    //
+    // This sets keepalive via socket options inside a ConnectCallback, not via
+    // SocketsHttpHandler.KeepAlivePing* (a previous version of this comment said otherwise):
+    // KeepAlivePing only applies to HTTP/2, and these clients all use HTTP/1.1. The ConnectCallback
+    // resolves the host to an IP address itself and connects a raw Socket, because setting
+    // keepalive on a socket SocketsHttpHandler connected by hostname does not take effect on Linux
+    // (see the runtime issues above) - don't go back to configuring keepalive without this
+    // indirection.
     public static IHttpClientBuilder ConfigureTcpKeepAlive(
         this IHttpClientBuilder builder,
         bool enabled,
         TimeSpan keepAliveTime, TimeSpan keepAliveInterval,
         int retryCount = 10)
     {
-        if (enabled)
+        if (!enabled)
         {
-            return builder.ConfigurePrimaryHttpMessageHandler(CreateHttpMessageHandler);
+            return builder;
         }
-        
-        return builder;
+
+        return builder.ConfigurePrimaryHttpMessageHandler(
+            () => CreateHttpMessageHandler(keepAliveTime, keepAliveInterval, retryCount));
     }
-    
-    
-    private static HttpMessageHandler CreateHttpMessageHandler()
+
+
+    private static HttpMessageHandler CreateHttpMessageHandler(
+        TimeSpan keepAliveTime, TimeSpan keepAliveInterval, int retryCount)
     {
         var handler = new SocketsHttpHandler
         {
-            ConnectCallback = ConfigureSocketTcpKeepAlive
+            ConnectCallback = (context, token) =>
+                ConfigureSocketTcpKeepAlive(context, token, keepAliveTime, keepAliveInterval, retryCount)
         };
 
         return handler;
@@ -40,16 +55,19 @@ public static class HttpClientBuilderX
 
     private static async ValueTask<Stream> ConfigureSocketTcpKeepAlive(
         SocketsHttpConnectionContext context,
-        CancellationToken token)
+        CancellationToken token,
+        TimeSpan keepAliveTime,
+        TimeSpan keepAliveInterval,
+        int retryCount)
     {
         var ipAddresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, token);
         var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
         try
         {
             socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, 300);
-            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 15);
-            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, 5);
+            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, (int)keepAliveTime.TotalSeconds);
+            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, (int)keepAliveInterval.TotalSeconds);
+            socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, retryCount);
             await socket.ConnectAsync(ipAddresses, context.DnsEndPoint.Port, token);
             return new NetworkStream(socket, ownsSocket: true);
         }

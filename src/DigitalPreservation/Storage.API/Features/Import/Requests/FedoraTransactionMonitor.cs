@@ -65,12 +65,14 @@ public sealed class FedoraTransactionMonitor(
             {
                 logger.LogInformation("(TX) (M) Transaction {TransactionId} is currently being committed", transactionId);
                 bool cancel = tx.CancelRequested;
-                // While Fedora is in its emit events stage, this WILL NOT RETURN until Fedora has finished
-                // So we get a massive pileup of these calls because the timer is still ticking every minute,
-                // re-entering this method.
-
-                // Try it again with stopping the timer completely once commit called
-                // Try it again without the following line, instead just fedoraClient.KeepTransactionAlive(tx) - does that return immediately?
+                // This branch is a documented safety net, not the fix for a real Fedora hang
+                // (issue #350): a commit silent for a very long time is almost always the NAT
+                // gateway's 350s idle timeout on the connection between us and Fedora, which TCP
+                // keepalive now handles - a 38.7 GB, 2,797-binary commit that was silent for 22
+                // minutes still returned 204 once keepalive was in place. This poll only matters
+                // for the gap keepalive doesn't cover: the ALB's own ~4,000s idle-timeout ceiling,
+                // which keepalive probes don't reset, and any future network path change. The timer
+                // is stretched to 30 minutes once the commit starts specifically so this poll is rare.
                 var currentStatus = await fedoraClient.GetTransactionHttpStatus(tx);
                 var currentStatusCode = (int)currentStatus;
                 logger.LogInformation("(TX) (M) Transaction {TransactionId} has HTTP Status {StatusCode}.", transactionId, currentStatusCode);
@@ -143,6 +145,18 @@ public sealed class FedoraTransactionMonitor(
                 logger.LogInformation("(TX) (M) (commit not started) Keeping transaction {TransactionId} alive after {ElapsedMilliseconds} ms",
                     transactionId, stopwatch.ElapsedMilliseconds);
                 await fedoraClient.KeepTransactionAlive(tx);
+                var statusCode = (int)tx.StatusCode;
+                if (statusCode < 200 || statusCode > 299)
+                {
+                    // Fedora has expired or otherwise lost this transaction (issue #350) - most
+                    // likely during a stall long enough to pass its 3-minute session timeout. Record
+                    // it so the import loop can stop feeding a transaction that is already gone,
+                    // rather than reaching a commit whose outcome would then be undefined.
+                    logger.LogWarning(
+                        "(TX) (M) KeepTransactionAlive for transaction {TransactionId} returned {StatusCode}; the transaction appears to be lost.",
+                        transactionId, statusCode);
+                    tx.TransactionLost = true;
+                }
             }
         }
         catch (Exception ex)

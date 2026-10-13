@@ -144,6 +144,10 @@ public class ExecuteImportJobHandler(
                 logger.LogInformation("{Count} containers to add", importJob.ContainersToAdd.Count);
                 foreach (var container in importJob.ContainersToAdd.OrderBy(cd => cd.Id!.ToString()))
                 {
+                    if (await FailIfTransactionLost() is { } lostOnContainersToAdd)
+                    {
+                        return lostOnContainersToAdd;
+                    }
                     logger.LogInformation("(TX) Creating container {Id}", container.Id);
                     var fedoraContainerResult = await fedoraClient.CreateContainerWithinArchivalGroup(
                         container.Id.GetPathUnderRoot()!,
@@ -166,6 +170,10 @@ public class ExecuteImportJobHandler(
                 logger.LogInformation("{Count} binaries to add", importJob.BinariesToAdd.Count);
                 foreach (var binary in importJob.BinariesToAdd)
                 {
+                    if (await FailIfTransactionLost() is { } lostOnBinariesToAdd)
+                    {
+                        return lostOnBinariesToAdd;
+                    }
                     logger.LogInformation("(TX) Adding binary {Id}, size: {Size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
                     var fedoraPutBinaryResult = await fedoraClient.PutBinary(
                         binary,
@@ -189,6 +197,10 @@ public class ExecuteImportJobHandler(
                 logger.LogInformation("{Count} binaries to patch", importJob.BinariesToPatch.Count);
                 foreach (var binary in importJob.BinariesToPatch)
                 {
+                    if (await FailIfTransactionLost() is { } lostOnBinariesToPatch)
+                    {
+                        return lostOnBinariesToPatch;
+                    }
                     logger.LogInformation("(TX) Patching file {Id}, size: {Size}", binary.Id, StringUtils.FormatFileSize(binary.Size));
                     var fedoraPatchBinaryResult = await fedoraClient.PutBinary(
                         binary,
@@ -210,6 +222,10 @@ public class ExecuteImportJobHandler(
                 logger.LogInformation("{Count} binaries to delete", importJob.BinariesToDelete.Count);
                 foreach (var binary in importJob.BinariesToDelete)
                 {
+                    if (await FailIfTransactionLost() is { } lostOnBinariesToDelete)
+                    {
+                        return lostOnBinariesToDelete;
+                    }
                     logger.LogInformation("(TX) Deleting file {Id}", binary.Id);
                     var fedoraDeleteResult = await fedoraClient.Delete(
                         binary,
@@ -235,6 +251,10 @@ public class ExecuteImportJobHandler(
                 logger.LogInformation("{Count} containers to delete", importJob.ContainersToDelete.Count);
                 foreach (var container in importJob.ContainersToDelete.OrderByDescending(c => c.Id!.ToString()))
                 {
+                    if (await FailIfTransactionLost() is { } lostOnContainersToDelete)
+                    {
+                        return lostOnContainersToDelete;
+                    }
                     logger.LogInformation("(TX) Deleting container {Id}", container.Id);
                     var fedoraDeleteResult = await fedoraClient.Delete(
                         container,
@@ -274,17 +294,22 @@ public class ExecuteImportJobHandler(
                 return await FailEarly(ex.Message);
             }
 
+            if (await FailIfTransactionLost() is { } lostBeforeCommit)
+            {
+                return lostBeforeCommit;
+            }
+
             logger.LogInformation("(TX) Committing Fedora transaction {TransactionLocation}", transaction.Location);
             var startCommitTime = DateTime.UtcNow;
             try
             {
-                // disposing it here will prevent further ticks while the commit is carried out.
-                // which should be OK but we introduced the 404 check specifically so we could cancel the
-                // http request and finish processing
-
-                // or give it MUCH longer between checks
-                // So it will allow our test one to finish before checking; we can see if it returns before then or not
-            
+                // The commit PUT can run long - a large commit's connection can stay silent for
+                // many minutes (22, in a 2,797-binary/38.7 GB test) purely because Fedora is
+                // streaming the response slowly, not because anything is actually stuck (issue
+                // #350). The timer is stretched to 30 minutes here so the monitor's post-commit
+                // poll - a safety net for the rare case TCP keepalive doesn't cover, not the normal
+                // path - stays rare rather than piling up every minute against a commit that is
+                // simply still running.
                 const int halfAnHour = 30 * 60 * 1000;
                 timer.Change(halfAnHour, halfAnHour);
                 await transactionMonitor.CommitTransaction();
@@ -304,6 +329,35 @@ public class ExecuteImportJobHandler(
             importJobResult.DateFinished = DateTime.UtcNow;
             var commitDuration = importJobResult.DateFinished - startCommitTime;
             logger.LogInformation("(TX) Fedora commit transaction took {Duration} seconds", commitDuration.Value.TotalSeconds);
+
+            if (transaction.Cancelled)
+            {
+                // The monitor's post-commit poll found the transaction gone and cancelled the PUT -
+                // previously treated as if the commit had succeeded (issue #350). The PUT's actual
+                // outcome is genuinely unknown from here: Fedora may have committed successfully
+                // before the connection's NAT mapping expired (the ALB still delivers the response
+                // in that case - see the issue's evidence), or the transaction may really have been
+                // rolled back, by Fedora's own session expiry during a stall. Confirm which with a
+                // cheap version check rather than a full read of the group (issue #244).
+                if (!await CommitOutcomeIsConfirmed(sourceVersion))
+                {
+                    return await FailEarly(
+                        "(TX) Fedora transaction commit outcome could not be confirmed after the monitor cancelled the commit PUT",
+                        rollback: false);
+                }
+                logger.LogInformation(
+                    "(TX) Commit outcome confirmed despite the cancelled PUT for transaction {TransactionLocation}", transaction.Location);
+            }
+            else if ((int)transaction.StatusCode is < 200 or >= 300)
+            {
+                // CommitTransaction records the status but never throws for a non-2xx response
+                // (issue #350), so a committed-but-rejected transaction (409, 410, a 5xx) would
+                // otherwise be reported as success.
+                return await FailEarly(
+                    $"(TX) Fedora transaction commit returned HTTP status {(int)transaction.StatusCode} ({transaction.StatusCode})",
+                    rollback: false);
+            }
+
             importJobResult.Status = ImportJobStates.Completed;
             return Result.OkNotNull(importJobResult);
         }
@@ -336,6 +390,51 @@ public class ExecuteImportJobHandler(
             importJobResult.DateFinished = DateTime.UtcNow;
             importJobResult.Status = ImportJobStates.CompletedWithErrors;
             return Result.OkNotNull(importJobResult); // This is a "success" for the purposes of returning an ImportJobResult
+        }
+
+        /// <summary>
+        /// Null to carry on; a result to return immediately when the pre-commit keep-alive has
+        /// found the transaction gone (issue #350). Checked between items in every loop above and
+        /// once more immediately before the commit, so a transaction lost mid-stream - through a
+        /// stall long enough to pass Fedora's 3-minute session timeout - is noticed before writing
+        /// into it further or reaching a commit whose outcome would then be undefined, rather than
+        /// only once the commit itself fails or does something unexpected.
+        /// </summary>
+        async Task<Result<ImportJobResult>?> FailIfTransactionLost()
+        {
+            if (!transaction.TransactionLost)
+            {
+                return null;
+            }
+            return await FailEarly(
+                $"(TX) Fedora transaction {transaction.Location} was lost before the commit could be attempted " +
+                "(the pre-commit keep-alive found it gone)",
+                rollback: false);
+        }
+
+        /// <summary>
+        /// Whether the Archival Group's own state confirms the commit actually happened, for the
+        /// one case where the commit PUT's own response can't be trusted: the monitor cancelled it
+        /// after finding the transaction gone. A cheap version check (issue #244: a full read of a
+        /// wide group can take 10-30 minutes), not a cache of anything read before the commit -
+        /// this has to be the real post-commit state. A new group existing at all, with a version,
+        /// is success; an update needs its version to have actually moved past where it started -
+        /// unchanged means the transaction never committed, the same as the group being missing
+        /// entirely would.
+        /// </summary>
+        async Task<bool> CommitOutcomeIsConfirmed(string? sourceVersion)
+        {
+            var versionResult = await fedoraClient.GetArchivalGroupVersion(archivalGroupPathUnderRoot);
+            if (versionResult.Failure || versionResult.Value is null)
+            {
+                logger.LogWarning(
+                    "(TX) Could not confirm commit outcome for {ArchivalGroupPath}: {CodeAndMessage}",
+                    archivalGroupPathUnderRoot, versionResult.CodeAndMessage());
+                return false;
+            }
+
+            var newVersion = versionResult.Value.OcflVersion;
+            return importJob.IsUpdate ? newVersion.HasText() && newVersion != sourceVersion : newVersion.HasText();
         }
     }
 

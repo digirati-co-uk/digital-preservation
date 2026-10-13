@@ -51,6 +51,45 @@ public class FedoraTransactionMonitorTests
         act.Should().NotThrow();
     }
 
+    /// <summary>
+    /// Issue #350: a lost transaction was previously only visible in the logs. Recording it on the
+    /// transaction itself is what lets ExecuteImportJobHandler's loop notice and stop feeding it,
+    /// rather than reaching a commit whose outcome would then be undefined.
+    /// </summary>
+    [Fact]
+    public async Task MaintainTransactionState_Marks_The_Transaction_Lost_When_KeepTransactionAlive_Returns_NonSuccess()
+    {
+        var fedoraClient = A.Fake<IFedoraClient>();
+        var tx = MakeTransaction();
+        tx.CommitStarted = false;
+        A.CallTo(() => fedoraClient.KeepTransactionAlive(tx))
+            .Invokes(() => tx.StatusCode = HttpStatusCode.NotFound)
+            .Returns(Task.CompletedTask);
+        var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
+
+        monitor.MaintainTransactionState(tx);
+        await WaitUntilAsync(() => tx.TransactionLost, TimeSpan.FromSeconds(2));
+
+        tx.TransactionLost.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task MaintainTransactionState_Does_Not_Mark_The_Transaction_Lost_When_KeepTransactionAlive_Succeeds()
+    {
+        var fedoraClient = A.Fake<IFedoraClient>();
+        var tx = MakeTransaction();
+        tx.CommitStarted = false;
+        A.CallTo(() => fedoraClient.KeepTransactionAlive(tx))
+            .Invokes(() => tx.StatusCode = HttpStatusCode.NoContent)
+            .Returns(Task.CompletedTask);
+        var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
+
+        monitor.MaintainTransactionState(tx);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+
+        tx.TransactionLost.Should().BeFalse();
+    }
+
     [Fact]
     public void MaintainTransactionState_Does_Not_Throw_When_The_Timer_State_Is_Not_The_Transaction()
     {
