@@ -126,35 +126,7 @@ public class RunPipelineHandler(
                 RunUser = callerIdentity
             };
 
-            if (pipelineDeliveryFlags.Value.UseLocalPipelineDelivery)
-            {
-                // Local development/testing only (issue #352): deliver directly to the Pipeline
-                // API's internal enqueue endpoint over HTTP instead of publishing to SNS, mirroring
-                // how imports already work locally. IPipelineJobDeliveryClient is registered only
-                // when this flag is on (see Program.cs), so it is never null here; thrown on
-                // delivery failure to fall into the same catch block and cleanup as a failed SNS
-                // publish below.
-                var deliveryResult = await pipelineJobDeliveryClient!.EnqueuePipelineJob(pipelineJobMessage, cancellationToken);
-                if (deliveryResult.Failure)
-                {
-                    throw new InvalidOperationException(
-                        deliveryResult.ErrorMessage ?? "The Pipeline API refused the local delivery enqueue call");
-                }
-
-                logger.LogDebug(
-                    "Delivered pipeline job {JobId} for {Identifier} to the Pipeline API directly (local delivery)",
-                    jobId, request.DepositId);
-            }
-            else
-            {
-                // publish the Pipeline job message for Pipeline.API to pick up
-                var pubRequest = new PublishRequest(topicArn, JsonSerializer.Serialize(pipelineJobMessage));
-                var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
-
-                logger.LogDebug(
-                    "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
-                    response.HttpStatusCode, request.DepositId, response.MessageId);
-            }
+            await DeliverPipelineJobMessage(pipelineJobMessage, topicArn, request.DepositId, cancellationToken);
         }
         catch (Exception e)
         {
@@ -175,6 +147,51 @@ public class RunPipelineHandler(
         }
 
         return Result.Ok();
+    }
+
+    /// <summary>
+    /// Extracted out of Handle (Sonar: Cognitive Complexity) - also the natural seam, since this is
+    /// the one piece of Handle with a real decision in it: where the job goes. Throws on a local
+    /// delivery failure rather than returning a Result, so Handle's existing catch block (which
+    /// already marks the job completedWithErrors and releases the lock) handles it identically to a
+    /// failed SNS publish, without Handle needing to know which path was taken.
+    /// </summary>
+    private async Task DeliverPipelineJobMessage(
+        PipelineJobMessage pipelineJobMessage, string topicArn, string depositId, CancellationToken cancellationToken)
+    {
+        if (pipelineDeliveryFlags.Value.UseLocalPipelineDelivery)
+        {
+            // Local development/testing only (issue #352): deliver directly to the Pipeline API's
+            // internal enqueue endpoint over HTTP instead of publishing to SNS, mirroring how
+            // imports already work locally. IPipelineJobDeliveryClient is registered only when this
+            // flag is on (see Program.cs), so it is never null here.
+            var deliveryResult = await pipelineJobDeliveryClient!.EnqueuePipelineJob(pipelineJobMessage, cancellationToken);
+            if (deliveryResult.Failure)
+            {
+                throw new InvalidOperationException(
+                    deliveryResult.ErrorMessage ?? "The Pipeline API refused the local delivery enqueue call");
+            }
+
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug(
+                    "Delivered pipeline job {JobId} for {Identifier} to the Pipeline API directly (local delivery)",
+                    pipelineJobMessage.JobIdentifier, depositId);
+            }
+        }
+        else
+        {
+            // publish the Pipeline job message for Pipeline.API to pick up
+            var pubRequest = new PublishRequest(topicArn, JsonSerializer.Serialize(pipelineJobMessage));
+            var response = await snsClient.PublishAsync(pubRequest, cancellationToken);
+
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug(
+                    "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
+                    response.HttpStatusCode, depositId, response.MessageId);
+            }
+        }
     }
 
     private bool IsInDefaultWorkingBucket(Uri? depositFiles) =>

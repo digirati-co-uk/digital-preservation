@@ -91,12 +91,15 @@ public class PipelineController(
         if (!pipelineJobMessage.JobIdentifier.HasText())
             return BadRequest("Job identifier is required in the request.");
 
-        logger.LogInformation(
-            "QueuePipelineJob: enqueueing local pipeline job {JobIdentifier} for deposit {DepositName}",
-            pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation(
+                "QueuePipelineJob: enqueueing local pipeline job {JobIdentifier} for deposit {DepositName}",
+                pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName);
+        }
 
         await inProcessPipelineQueue.QueueRequest(
-            pipelineJobMessage.JobIdentifier!, pipelineJobMessage.DepositName, pipelineJobMessage.RunUser,
+            pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName, pipelineJobMessage.RunUser,
             cancellationToken);
 
         return NoContent();
