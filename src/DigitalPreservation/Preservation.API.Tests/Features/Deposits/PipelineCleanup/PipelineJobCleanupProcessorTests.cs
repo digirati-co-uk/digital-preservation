@@ -119,8 +119,13 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
         await SeedDeposit(context, depositId, lockedBy: "tester");
         var oldJobId = await SeedPipelineRunJob(context, depositId, PipelineJobStates.Running,
             dateSubmitted: Overdue, dateBegun: Overdue, runUser: "tester");
-        // The newer run that now holds the lock - started after the old one stalled.
-        await SeedPipelineRunJob(context, depositId, PipelineJobStates.Running,
+        // Issue #353's partial unique index now makes two simultaneously-active jobs for the same
+        // deposit impossible to insert at all, so this can no longer be the newer run that stalled
+        // the old one out of its slot - only that a later job of any kind exists, which is all
+        // "isLatestForDeposit" (a plain DateSubmitted comparison) actually checks. Terminal here
+        // rather than Running keeps the seed valid under the new constraint while still exercising
+        // the same "not latest" branch.
+        await SeedPipelineRunJob(context, depositId, PipelineJobStates.Completed,
             dateSubmitted: NotOverdue, dateBegun: NotOverdue, runUser: "tester");
 
         await RunSweep(context);

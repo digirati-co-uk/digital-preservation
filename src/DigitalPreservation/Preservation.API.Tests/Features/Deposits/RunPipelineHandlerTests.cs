@@ -8,8 +8,10 @@ using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using FakeItEasy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Preservation.API.Data;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Tests.TestingInfrastructure;
@@ -224,6 +226,114 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
             "no second job row is created for the refused run");
         var reloaded = await ReloadDeposit(deposit.MintedId);
         reloaded.LockedBy.Should().BeNull("the check runs before the lock is acquired, so a refusal leaves no lock behind");
+    }
+
+    /// <summary>
+    /// Backstop for issue #353: the read-then-insert can't serialise the lock holder racing
+    /// themselves (a double-click, a retrying script, two tabs). Deposit starts locked by the
+    /// caller already (the "lock holder" in the issue title) so both calls transfer rather than
+    /// acquire - neither is responsible for releasing on a lost race, and the partial unique
+    /// index is what actually decides the winner.
+    /// </summary>
+    [Fact]
+    public async Task Only_One_Of_Two_Concurrent_Claims_By_The_Lock_Holder_Wins()
+    {
+        await using var seedContext = fixture.CreateNewAuthServiceContext();
+        var deposit = await SaveDeposit(seedContext, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"), lockedBy: "tester");
+
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .Returns(new PublishResponse { HttpStatusCode = HttpStatusCode.OK, MessageId = "m-1" });
+
+        // Separate contexts, so this is two concurrent requests racing rather than one change
+        // tracker used twice.
+        await using var first = fixture.CreateNewAuthServiceContext();
+        await using var second = fixture.CreateNewAuthServiceContext();
+
+        var results = await Task.WhenAll(
+            CreateHandler(first, snsClient).Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None),
+            CreateHandler(second, snsClient).Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None));
+
+        results.Count(r => r.Success).Should().Be(1, "exactly one of the two double-submitted calls may queue a run");
+        results.Single(r => !r.Success).ErrorCode.Should().Be(ErrorCodes.Conflict);
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+
+        await using var assertContext = fixture.CreateNewAuthServiceContext();
+        assertContext.PipelineRunJobs.Count(j => j.Deposit == deposit.MintedId).Should().Be(1,
+            "the losing call's insert must not leave a second active job row");
+        var reloaded = await ReloadDeposit(deposit.MintedId);
+        reloaded.LockedBy.Should().Be("tester", "the lock holder's own race must not release the lock either way");
+    }
+
+    /// <summary>
+    /// Simulates another active job appearing for the same deposit after this call's own read
+    /// check has already passed, by inserting it via a raw connection from a
+    /// <see cref="SaveChangesInterceptor"/> that fires just before this call's own insert - the
+    /// same unique-index violation a true race would produce, but deterministic. This call took
+    /// the lock from free (the deposit starts unlocked), so it alone is responsible for releasing
+    /// it when its insert loses.
+    /// </summary>
+    [Fact]
+    public async Task Handle_ReleasesALockItAcquired_WhenItsInsertLosesTheRaceToAnotherActiveJob()
+    {
+        await using var seedContext = fixture.CreateNewAuthServiceContext();
+        var deposit = await SaveDeposit(seedContext, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+
+        var options = new DbContextOptionsBuilder<PreservationContext>()
+            .UseNpgsql(fixture.ConnectionString)
+            .UseSnakeCaseNamingConvention()
+            .AddInterceptors(new InsertRacingActiveJobInterceptor(fixture.ConnectionString, deposit.MintedId))
+            .Options;
+        await using var context = new PreservationContext(options);
+
+        var result = await CreateHandler(context, snsClient)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.Conflict);
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+
+        await using var assertContext = fixture.CreateNewAuthServiceContext();
+        var jobs = assertContext.PipelineRunJobs.Where(j => j.Deposit == deposit.MintedId).ToList();
+        jobs.Should().HaveCount(1, "only the racing job inserted by the interceptor should exist - this call's own insert must have been rolled back");
+        jobs.Single().RunUser.Should().Be("someone-else", "the surviving row is the one the interceptor raced in, not this call's own");
+        var reloaded = await ReloadDeposit(deposit.MintedId);
+        reloaded.LockedBy.Should().BeNull("this call took the lock from free, so it alone must release it when its insert loses");
+    }
+
+    /// <summary>
+    /// Races a conflicting active job into the database, via a raw connection, immediately before
+    /// the handler's own insert of its new job row reaches the database - reproducing the
+    /// unique-index violation a genuine double-submit would cause, deterministically.
+    /// </summary>
+    private sealed class InsertRacingActiveJobInterceptor(string connectionString, string depositId) : SaveChangesInterceptor
+    {
+        private bool fired;
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (!fired)
+            {
+                fired = true;
+                await using var connection = new NpgsqlConnection(connectionString);
+                await connection.OpenAsync(cancellationToken);
+                await using var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    INSERT INTO pipeline_run_jobs (id, deposit, archival_group, status, last_updated, date_submitted, pipeline_job_json, run_user)
+                    VALUES (@id, @deposit, NULL, 'waiting', now(), now(), '{}', 'someone-else')
+                    """;
+                command.Parameters.AddWithValue("id", $"racing-job-{Guid.NewGuid()}");
+                command.Parameters.AddWithValue("deposit", depositId);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            return await base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
     }
 
     [Fact]

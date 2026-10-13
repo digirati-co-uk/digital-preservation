@@ -13,6 +13,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalPreservation.Core.Auth;
+using Npgsql;
 using Preservation.API.Data.Entities;
 using Storage.Repository.Common;
 
@@ -33,6 +34,10 @@ public class RunPipelineHandler(
     IOptions<AwsStorageOptions> storageOptions,
     IIdentityMinter identityMinter) : IRequestHandler<RunPipeline, Result>
 {
+    // Must match PreservationContext.OnModelCreating's HasDatabaseName for the partial unique
+    // index backing the "one active job per deposit" check (issue #353).
+    private const string OneActiveJobPerDepositIndexName = "ix_pipeline_run_jobs_deposit_one_active";
+
     public async Task<Result> Handle(RunPipeline request, CancellationToken cancellationToken)
     {
         var entity = await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == request.DepositId, cancellationToken);
@@ -104,6 +109,24 @@ public class RunPipelineHandler(
             dbContext.PipelineRunJobs.Add(newJob);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+        catch (DbUpdateException e) when (IsOneActiveJobPerDepositViolation(e))
+        {
+            // The read check above raced with another insert for the same deposit - the common
+            // case being the lock holder's own double-submit (#353). The index is the backstop;
+            // whichever call loses here gets the same message the read check gives on the common
+            // path. Release only if this call itself took the lock: in the same-user race neither
+            // call acquired it (both transferred), so nothing is released and the winner keeps it.
+            logger.LogWarning(e,
+                "Pipeline job insert for deposit {DepositId} lost a race to another active job",
+                request.DepositId);
+            if (acquiredByThisCall)
+            {
+                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
+            }
+            return Result.Fail(ErrorCodes.Conflict,
+                $"A pipeline run is already in progress for deposit {request.DepositId}. " +
+                "Force complete it first if it is stuck.");
+        }
         catch (Exception e)
         {
             logger.LogError(e, "Could not create pipeline job row for deposit {DepositId}", request.DepositId);
@@ -149,6 +172,10 @@ public class RunPipelineHandler(
 
         return Result.Ok();
     }
+
+    private static bool IsOneActiveJobPerDepositViolation(DbUpdateException e) =>
+        e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg
+        && pg.ConstraintName == OneActiveJobPerDepositIndexName;
 
     private bool IsInDefaultWorkingBucket(Uri? depositFiles) =>
         depositFiles != null
