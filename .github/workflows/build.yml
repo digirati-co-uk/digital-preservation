@@ -153,7 +153,14 @@ jobs:
   deploy-environment:
     needs: [build-push-images]
     uses: ./.github/workflows/deploy.yml
-    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'deploy')))
+    # A tag push (e.g. hotfix-tagging this release branch) has no workflow_dispatch inputs, so
+    # target_env would silently fall back to 'development' - deploying whatever this branch
+    # happens to be (potentially an older .NET/base-image build than main's current dev) over
+    # dev's actual tracked state. v1.3.1's tag push on 22 September did exactly this harmlessly,
+    # only because the tag matched main at the time; that won't be true of every tag push from
+    # here on. Excluding tag refs here means a tag only builds and pushes images - an actual
+    # deploy still needs an explicit workflow_dispatch run naming the target environment.
+    if: (github.event_name != 'pull_request' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'deploy'))) && !startsWith(github.ref, 'refs/tags/')
     with:
       image_tag: "${{ github.sha }}"
       target_env: "${{ inputs.environment || 'development' }}"
