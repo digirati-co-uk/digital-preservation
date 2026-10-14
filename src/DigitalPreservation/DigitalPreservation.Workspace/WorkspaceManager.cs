@@ -496,7 +496,12 @@ public class WorkspaceManager(
                 continue;
             }
 
-            if (importJob.BinariesToAdd.Exists(b => b.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + localPath!.EscapePathElementsNoHashes()))
+            // The whole right side is escaped as one unit, not just localPath: agLocalPathWithSlash
+            // is Uri.LocalPath, unescaped, so an Archival Group whose own path contains a reserved
+            // character ('(', ')', a literal '%XX') needs escaping too, or it never matches the left
+            // side's escaped c.Id.LocalPath (issue #243 review - this was escaped unevenly, which
+            // made nearly every diff against such a group fail).
+            if (importJob.BinariesToAdd.Exists(b => b.Id!.LocalPath.EscapePathElementsNoHashes() == (agLocalPathWithSlash + localPath!).EscapePathElementsNoHashes()))
             {
                 // It's being added in this operation
                 continue;
@@ -512,14 +517,18 @@ public class WorkspaceManager(
             // Container Ids carry the repository's #-stand-in (UriX.HashReplacement) that Uri.LocalPath
             // leaves alone, since it isn't percent-encoding; localPath (from the METS) is the literal
             // display path. EscapePathElementsNoHashes puts both sides into the same form - the same
-            // substitution every neighbouring check here already goes through (issue #243).
-            if (allExistingContainers.Exists(c => c.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + localPath!.EscapePathElementsNoHashes()))
+            // substitution every neighbouring check here already goes through (issue #243). The whole
+            // right side is escaped as one unit (not agLocalPathWithSlash + an escaped localPath):
+            // agLocalPathWithSlash is also unescaped Uri.LocalPath, so an Archival Group whose own
+            // path contains a reserved character needs the same treatment, or it never matches the
+            // left side's escaped c.Id.LocalPath (issue #243 review).
+            if (allExistingContainers.Exists(c => c.Id!.LocalPath.EscapePathElementsNoHashes() == (agLocalPathWithSlash + localPath!).EscapePathElementsNoHashes()))
             {
                 // ...and also in the ArchivalGroup
                 continue;
             }
 
-            if (importJob.ContainersToAdd.Exists(c => c.Id!.LocalPath.EscapePathElementsNoHashes() == agLocalPathWithSlash + localPath!.EscapePathElementsNoHashes()))
+            if (importJob.ContainersToAdd.Exists(c => c.Id!.LocalPath.EscapePathElementsNoHashes() == (agLocalPathWithSlash + localPath!).EscapePathElementsNoHashes()))
             {
                 // It's being added in this operation
                 continue;

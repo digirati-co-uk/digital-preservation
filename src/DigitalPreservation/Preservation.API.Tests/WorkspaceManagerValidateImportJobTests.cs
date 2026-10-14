@@ -26,11 +26,26 @@ public class WorkspaceManagerValidateImportJobTests
 {
     private static readonly Uri ArchivalGroupId = new("https://preservation.test/repository/cc/thing");
 
-    private static WorkspaceManager CreateManager() =>
+    private static WorkspaceManager CreateManagerFor(Uri archivalGroupId) =>
         new(
-            new Deposit { Files = new Uri("https://preservation.test/deposits/d1/files"), ArchivalGroup = ArchivalGroupId },
+            new Deposit { Files = new Uri("https://preservation.test/deposits/d1/files"), ArchivalGroup = archivalGroupId },
             A.Fake<IMediator>(),
             A.Fake<IMetsParser>());
+
+    private static WorkspaceManager CreateManager() => CreateManagerFor(ArchivalGroupId);
+
+    /// <summary>
+    /// Builds a Container Id the same way CombinedDirectory.ToContainer actually builds one for
+    /// Fedora: repositoryUri.AppendEscapedSlug(slug.EscapeForUriNoHashes()), one path segment at a
+    /// time, recursing down from the Archival Group's own Id. Appending all the segments as one
+    /// pre-joined string (e.g. AppendEscapedSlug($"objects/{folderName}".EscapeForUriNoHashes()))
+    /// is NOT equivalent - EscapeForUriNoHashes escapes '/' too, so a multi-segment path handed to
+    /// it in one call comes out with its slashes themselves escaped to %2F, and the test then only
+    /// passes because Uri.LocalPath happens to decode %2F back again (issue #243 review: this was
+    /// masking the real escaping bug the regression test below exists to catch).
+    /// </summary>
+    private static Uri ChildId(Uri archivalGroupId, params string[] segments) =>
+        segments.Aggregate(archivalGroupId, (uri, segment) => uri.AppendEscapedSlug(segment.EscapeForUriNoHashes()));
 
     [Fact]
     public void A_Folder_Whose_Name_Contains_A_Hash_Matches_The_Existing_Archival_Groups_Container()
@@ -38,10 +53,9 @@ public class WorkspaceManagerValidateImportJobTests
         const string folderName = "some #folder";
         var existingContainer = new Container
         {
-            // Built the same way CombinedDirectory.ToContainer builds a destination Id for Fedora -
-            // AppendEscapedSlug(slug.EscapeForUriNoHashes()) - so the '#' arrives as the repository's
-            // stand-in, not a literal '#' or a plain percent-escape.
-            Id = ArchivalGroupId.AppendEscapedSlug($"objects/{folderName}".EscapeForUriNoHashes()),
+            // '#' arrives as the repository's stand-in (UriX.HashReplacement), not a literal '#' or
+            // a plain percent-escape - see ChildId's remarks on why this must be segment-by-segment.
+            Id = ChildId(ArchivalGroupId, "objects", folderName),
             Name = folderName
         };
         var existingArchivalGroup = new ArchivalGroup
@@ -96,5 +110,49 @@ public class WorkspaceManagerValidateImportJobTests
 
         result.Failure.Should().BeTrue();
         result.ErrorMessage.Should().Contain($"objects/{folderName}");
+    }
+
+    /// <summary>
+    /// Issue #243 review: the original fix escaped only the localPath side of the comparison,
+    /// leaving agLocalPathWithSlash (Uri.LocalPath, unescaped) bare on the right. ValidSlug allows
+    /// '(', ')' and '%XX' in an Archival Group's own slug, so for an AG at .../cc/thing(1), the left
+    /// side (c.Id.LocalPath, escaped) had "thing%281%29" while the right side had the literal
+    /// "thing(1)" - never equal. That failed nearly every diff against such a group (any METS with
+    /// an objects folder), on top of the pre-existing, same-shaped bug already on main for
+    /// BinariesToAdd and ContainersToAdd.
+    /// </summary>
+    [Theory]
+    [InlineData("thing(1)")]
+    [InlineData("my%20thing")]
+    public void A_Folder_Matches_Against_An_Archival_Group_Whose_Own_Path_Needs_Escaping(string agSlug)
+    {
+        var archivalGroupId = new Uri($"https://preservation.test/repository/cc/{agSlug}");
+        const string folderName = "objects-subfolder";
+        var existingContainer = new Container
+        {
+            Id = ChildId(archivalGroupId, "objects", folderName),
+            Name = folderName
+        };
+        var existingArchivalGroup = new ArchivalGroup
+        {
+            Id = archivalGroupId,
+            Containers = [existingContainer]
+        };
+
+        var depositRoot = new CombinedDirectory(directoryInDeposit: null, directoryInMets: null)
+        {
+            Directories =
+            [
+                new CombinedDirectory(
+                    directoryInDeposit: null,
+                    directoryInMets: new WorkingDirectory { LocalPath = $"objects/{folderName}", Name = folderName })
+            ]
+        };
+
+        var importJob = new ImportJob { ArchivalGroup = archivalGroupId };
+
+        var result = CreateManagerFor(archivalGroupId).ValidateImportJob(importJob, depositRoot, existingArchivalGroup);
+
+        result.Success.Should().BeTrue(result.ErrorMessage);
     }
 }
