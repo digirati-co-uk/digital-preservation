@@ -158,8 +158,14 @@ public class ImportJobRunner(
                 // this is the same check issue #350's commit-outcome verification makes, applied
                 // here too so a job that reports success without this check ever running (the
                 // executor's own verification only runs when the monitor had to cancel the commit
-                // PUT) still gets caught if the version genuinely never moved.
-                if (jobResult.SourceVersion.HasText() && jobResult.NewVersion == jobResult.SourceVersion)
+                // PUT) still gets caught if the version genuinely never moved. Gated to a job that
+                // itself reported Completed (issue #383 review point 4): ExecuteImportJobHandler's
+                // FailEarly returns a Result-level success (so RecordNewVersion still runs and still
+                // records NewVersion) even for a rolled-back failure, whose Status is already
+                // CompletedWithErrors - without this gate, every such failure also got a second,
+                // misleading "reported success, but..." error appended on top of its real one.
+                if (jobResult.Status == ImportJobStates.Completed
+                    && jobResult.SourceVersion.HasText() && jobResult.NewVersion == jobResult.SourceVersion)
                 {
                     const string message = "Import job reported success, but the Archival Group's version did not change";
                     logger.LogError("{Message}: {JobResultId}, version {Version}", message, jobResult.Id, jobResult.NewVersion);

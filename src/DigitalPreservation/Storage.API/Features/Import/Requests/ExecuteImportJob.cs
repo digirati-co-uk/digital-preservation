@@ -19,8 +19,34 @@ public class ExecuteImportJob(string jobIdentifier, ImportJob importJob, ImportJ
 public class ExecuteImportJobHandler(
     IImportJobResultStore importJobResultStore,
     ILogger<ExecuteImportJobHandler> logger,
-    IFedoraClient fedoraClient) : IRequestHandler<ExecuteImportJob, Result<ImportJobResult>>
+    IFedoraClient fedoraClient,
+    Func<TimeSpan, CancellationToken, Task>? delayOverride = null) : IRequestHandler<ExecuteImportJob, Result<ImportJobResult>>
 {
+    // Seam for tests to skip the real wait while still exercising the retry count/logic - the
+    // built-in DI container falls back to this default for any caller that doesn't supply one.
+    private readonly Func<TimeSpan, CancellationToken, Task> delay = delayOverride ?? Task.Delay;
+
+    /// <summary>
+    /// How many times <see cref="Handle"/>'s commit-outcome verification re-reads the Archival
+    /// Group's version before giving up (issue #383 review point 1d). Exponential backoff between
+    /// attempts (2s, 4s, 8s, 16s - about 30s total) gives Fedora time to actually finish a commit
+    /// that was still running when the PUT's own response became untrustworthy.
+    /// </summary>
+    private const int CommitVerificationMaxAttempts = 5;
+
+    /// <summary>
+    /// Distinguishes "the Archival Group's version genuinely never moved" from "the check itself
+    /// never got a trustworthy read" (issue #383 review point 1d) - collapsing these into one bool,
+    /// as the pre-review version did, reported a transient read failure exactly the same way as a
+    /// real, checked non-commit.
+    /// </summary>
+    private enum CommitVerification
+    {
+        Confirmed,
+        ConfirmedNotCommitted,
+        CouldNotConfirm
+    }
+
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
         var importJob = request.ImportJob;
@@ -304,12 +330,12 @@ public class ExecuteImportJobHandler(
             try
             {
                 // The commit PUT can run long - a large commit's connection can stay silent for
-                // many minutes (22, in a 2,797-binary/38.7 GB test) purely because Fedora is
-                // streaming the response slowly, not because anything is actually stuck (issue
-                // #350). The timer is stretched to 30 minutes here so the monitor's post-commit
-                // poll - a safety net for the rare case TCP keepalive doesn't cover, not the normal
-                // path - stays rare rather than piling up every minute against a commit that is
-                // simply still running.
+                // many minutes (22, in a 2,797-binary/38.7 GB test). The response is an empty 204;
+                // Fedora is silent because it's still writing OCFL, not because it's streaming a
+                // response slowly (issue #350). The timer is stretched to 30 minutes here so the
+                // monitor's post-commit poll - a safety net for the rare case TCP keepalive doesn't
+                // cover, not the normal path - stays rare rather than piling up every minute against
+                // a commit that is simply still running.
                 const int halfAnHour = 30 * 60 * 1000;
                 timer.Change(halfAnHour, halfAnHour);
                 await transactionMonitor.CommitTransaction();
@@ -321,8 +347,27 @@ public class ExecuteImportJobHandler(
             catch (Exception e)
             {
                 await timer.DisposeAsync(); // stops future ticks; see the comment on the success path above.
+                // A connection error during the commit PUT itself - the ALB's ~4,000s idle timeout
+                // or a dropped NAT mapping - looks identical to a hang from here, but Fedora may
+                // already have committed: the client gets an HttpRequestException or IOException,
+                // not confirmation either way (issue #383 review point 2 - this is exactly the
+                // failure the safety net exists for). Verify before concluding failure, the same as
+                // the monitor-cancelled path below.
                 var errorTime = DateTime.UtcNow - startCommitTime;
-                var message = $"(TX) Unable to commit Fedora transaction: duration {errorTime.TotalSeconds} seconds: {e.Message}";
+                var outcome = await VerifyCommitOutcome(sourceVersion);
+                if (outcome == CommitVerification.Confirmed)
+                {
+                    logger.LogInformation(
+                        "(TX) Commit outcome confirmed despite a connection error during the commit PUT for transaction {TransactionLocation}: {Error}",
+                        transaction.Location, e.Message);
+                    importJobResult.DateFinished = DateTime.UtcNow;
+                    importJobResult.Status = ImportJobStates.Completed;
+                    return Result.OkNotNull(importJobResult);
+                }
+                var confirmation = outcome == CommitVerification.ConfirmedNotCommitted
+                    ? "confirmed not committed"
+                    : "could not be confirmed";
+                var message = $"(TX) Unable to commit Fedora transaction: duration {errorTime.TotalSeconds} seconds: {e.Message} (commit outcome {confirmation})";
                 logger.LogError(e, message);
                 return await FailEarly(message, rollback: false);
             }
@@ -339,22 +384,26 @@ public class ExecuteImportJobHandler(
                 // in that case - see the issue's evidence), or the transaction may really have been
                 // rolled back, by Fedora's own session expiry during a stall. Confirm which with a
                 // cheap version check rather than a full read of the group (issue #244).
-                if (!await CommitOutcomeIsConfirmed(sourceVersion))
+                var outcome = await VerifyCommitOutcome(sourceVersion);
+                if (outcome != CommitVerification.Confirmed)
                 {
+                    var confirmation = outcome == CommitVerification.ConfirmedNotCommitted
+                        ? "confirmed not committed"
+                        : "could not be confirmed";
                     return await FailEarly(
-                        "(TX) Fedora transaction commit outcome could not be confirmed after the monitor cancelled the commit PUT",
+                        $"(TX) Fedora transaction commit outcome {confirmation} after the monitor cancelled the commit PUT",
                         rollback: false);
                 }
                 logger.LogInformation(
                     "(TX) Commit outcome confirmed despite the cancelled PUT for transaction {TransactionLocation}", transaction.Location);
             }
-            else if ((int)transaction.StatusCode is < 200 or >= 300)
+            else if ((int)transaction.CommitStatusCode is < 200 or >= 300)
             {
                 // CommitTransaction records the status but never throws for a non-2xx response
                 // (issue #350), so a committed-but-rejected transaction (409, 410, a 5xx) would
                 // otherwise be reported as success.
                 return await FailEarly(
-                    $"(TX) Fedora transaction commit returned HTTP status {(int)transaction.StatusCode} ({transaction.StatusCode})",
+                    $"(TX) Fedora transaction commit returned HTTP status {(int)transaction.CommitStatusCode} ({transaction.CommitStatusCode})",
                     rollback: false);
             }
 
@@ -414,27 +463,64 @@ public class ExecuteImportJobHandler(
 
         /// <summary>
         /// Whether the Archival Group's own state confirms the commit actually happened, for the
-        /// one case where the commit PUT's own response can't be trusted: the monitor cancelled it
-        /// after finding the transaction gone. A cheap version check (issue #244: a full read of a
-        /// wide group can take 10-30 minutes), not a cache of anything read before the commit -
-        /// this has to be the real post-commit state. A new group existing at all, with a version,
-        /// is success; an update needs its version to have actually moved past where it started -
-        /// unchanged means the transaction never committed, the same as the group being missing
-        /// entirely would.
+        /// two cases where the commit PUT's own response can't be trusted: the monitor cancelled it
+        /// after finding the transaction gone, or the PUT itself threw a connection error (issue
+        /// #383 review points 1 and 2). Polls with backoff rather than checking once - in both
+        /// cases Fedora may still be finishing the commit when this runs, and the October test's
+        /// 22-minute commit is not far under the monitor's own 30-minute cancel threshold. A cheap
+        /// version check each time (issue #244: a full read of a wide group can take 10-30 minutes),
+        /// never a cache of anything read before the commit - this has to be the real post-commit
+        /// state. A new group existing at all, with a version, is success; an update needs its
+        /// version to have actually moved past where it started - unchanged means the transaction
+        /// never committed, the same as the group being missing entirely would.
+        ///
+        /// Any exception from the read itself - including a brand-new group that doesn't exist in
+        /// S3 yet, which GetArchivalGroupVersion throws for rather than returning NotFound (issue
+        /// #383 review point 3) - is caught here and treated as an unconfirmed attempt, not a
+        /// reason to let the whole import job fail with a misleading rollback of an already-acted-on
+        /// transaction.
         /// </summary>
-        async Task<bool> CommitOutcomeIsConfirmed(string? sourceVersion)
+        async Task<CommitVerification> VerifyCommitOutcome(string? sourceVersion)
         {
-            var versionResult = await fedoraClient.GetArchivalGroupVersion(archivalGroupPathUnderRoot);
-            if (versionResult.Failure || versionResult.Value is null)
+            var everReadSuccessfully = false;
+            for (var attempt = 1; attempt <= CommitVerificationMaxAttempts; attempt++)
             {
-                logger.LogWarning(
-                    "(TX) Could not confirm commit outcome for {ArchivalGroupPath}: {CodeAndMessage}",
-                    archivalGroupPathUnderRoot, versionResult.CodeAndMessage());
-                return false;
+                try
+                {
+                    var versionResult = await fedoraClient.GetArchivalGroupVersion(archivalGroupPathUnderRoot);
+                    if (versionResult is { Success: true, Value: not null })
+                    {
+                        everReadSuccessfully = true;
+                        var newVersion = versionResult.Value.OcflVersion;
+                        var committed = importJob.IsUpdate
+                            ? newVersion.HasText() && newVersion != sourceVersion
+                            : newVersion.HasText();
+                        if (committed)
+                        {
+                            return CommitVerification.Confirmed;
+                        }
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "(TX) Commit verification attempt {Attempt}/{MaxAttempts} for {ArchivalGroupPath}: {CodeAndMessage}",
+                            attempt, CommitVerificationMaxAttempts, archivalGroupPathUnderRoot, versionResult.CodeAndMessage());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex,
+                        "(TX) Commit verification attempt {Attempt}/{MaxAttempts} for {ArchivalGroupPath} threw",
+                        attempt, CommitVerificationMaxAttempts, archivalGroupPathUnderRoot);
+                }
+
+                if (attempt < CommitVerificationMaxAttempts)
+                {
+                    await delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), cancellationToken);
+                }
             }
 
-            var newVersion = versionResult.Value.OcflVersion;
-            return importJob.IsUpdate ? newVersion.HasText() && newVersion != sourceVersion : newVersion.HasText();
+            return everReadSuccessfully ? CommitVerification.ConfirmedNotCommitted : CommitVerification.CouldNotConfirm;
         }
     }
 
