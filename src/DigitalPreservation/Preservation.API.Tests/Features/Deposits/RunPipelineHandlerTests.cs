@@ -267,8 +267,13 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
             .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
 
         result.Success.Should().BeTrue();
+        // Issue #352 review: the matcher previously checked only DepositName and RunUser, not the
+        // minted job id this description claims - so a message delivered with, say, the wrong job's
+        // id (or none at all) would have passed silently.
+        var mintedJob = context.PipelineRunJobs.Single(j => j.Deposit == deposit.MintedId);
         A.CallTo(() => deliveryClient.EnqueuePipelineJob(
-                A<PipelineJobMessage>.That.Matches(m => m.DepositName == deposit.MintedId && m.RunUser == "tester"),
+                A<PipelineJobMessage>.That.Matches(m =>
+                    m.DepositName == deposit.MintedId && m.RunUser == "tester" && m.JobIdentifier == mintedJob.Id),
                 A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))

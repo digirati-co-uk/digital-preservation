@@ -164,8 +164,16 @@ public class RunPipelineHandler(
             // Local development/testing only (issue #352): deliver directly to the Pipeline API's
             // internal enqueue endpoint over HTTP instead of publishing to SNS, mirroring how
             // imports already work locally. IPipelineJobDeliveryClient is registered only when this
-            // flag is on (see Program.cs), so it is never null here.
-            var deliveryResult = await pipelineJobDeliveryClient!.EnqueuePipelineJob(pipelineJobMessage, cancellationToken);
+            // flag is on (see Program.cs), so this should never be null here - but if config drifts
+            // (the flag on, the client registration somehow missing) a clear exception is far more
+            // debuggable than the "Object reference not set..." a bare null-forgiving operator would
+            // have produced in the job's recorded error (issue #352 review).
+            if (pipelineJobDeliveryClient is null)
+            {
+                throw new InvalidOperationException(
+                    $"{nameof(PipelineDeliveryFlags.UseLocalPipelineDelivery)} is on, but no {nameof(IPipelineJobDeliveryClient)} is registered.");
+            }
+            var deliveryResult = await pipelineJobDeliveryClient.EnqueuePipelineJob(pipelineJobMessage, cancellationToken);
             if (deliveryResult.Failure)
             {
                 throw new InvalidOperationException(

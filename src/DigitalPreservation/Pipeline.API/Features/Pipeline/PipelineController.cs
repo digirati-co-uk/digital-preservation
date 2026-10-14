@@ -98,9 +98,18 @@ public class PipelineController(
                 pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName);
         }
 
-        await inProcessPipelineQueue.QueueRequest(
-            pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName, pipelineJobMessage.RunUser,
-            cancellationToken);
+        if (!inProcessPipelineQueue.TryQueueRequest(
+                pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName, pipelineJobMessage.RunUser))
+        {
+            // The queue holds 10 messages and jobs run one at a time, so this is a real, if rare,
+            // local-dev condition, not a bug - refuse it straight away rather than let the caller's
+            // HttpClient sit blocked for however long it takes space to free up (issue #352 review).
+            logger.LogWarning(
+                "QueuePipelineJob: local pipeline queue is full, refusing job {JobIdentifier} for deposit {DepositName}",
+                pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                "Local pipeline queue is full; try again shortly.");
+        }
 
         return NoContent();
     }

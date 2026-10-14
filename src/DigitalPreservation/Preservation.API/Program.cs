@@ -57,17 +57,23 @@ try
     var useLocalPipelineDelivery = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalPipelineDelivery");
     if (useLocalPipelineDelivery)
     {
-        builder.Services.Configure<PipelineApiClientOptions>(
-            builder.Configuration.GetSection("PipelineApiDelivery"));
+        // ValidateOnStart (issue #352 review): without it, a missing BaseUrl only threw when the
+        // HttpClient was first constructed - a 500 on the first pipeline run rather than a failure
+        // to start - and a missing ApiKey wasn't checked at all, surfacing only as a 401 in that
+        // job's recorded errors. Both are config mistakes a developer makes once, turning the flag
+        // on without finishing the PipelineApiDelivery section; catching them at startup is far
+        // cheaper to diagnose than either of those.
+        builder.Services.AddOptions<PipelineApiClientOptions>()
+            .Bind(builder.Configuration.GetSection("PipelineApiDelivery"))
+            .Validate(o => o.BaseUrl.HasText(),
+                "FeatureFlags:UseLocalPipelineDelivery is true but PipelineApiDelivery:BaseUrl is not set.")
+            .Validate(o => o.ApiKey.HasText(),
+                "FeatureFlags:UseLocalPipelineDelivery is true but PipelineApiDelivery:ApiKey is not set.")
+            .ValidateOnStart();
         builder.Services.AddHttpClient<IPipelineJobDeliveryClient, PipelineJobDeliveryClient>((sp, client) =>
         {
             var pipelineApiClientOptions = sp.GetRequiredService<IOptions<PipelineApiClientOptions>>().Value;
-            if (!pipelineApiClientOptions.BaseUrl.HasText())
-            {
-                throw new InvalidOperationException(
-                    "FeatureFlags:UseLocalPipelineDelivery is true but PipelineApiDelivery:BaseUrl is not set.");
-            }
-            client.BaseAddress = new Uri(pipelineApiClientOptions.BaseUrl);
+            client.BaseAddress = new Uri(pipelineApiClientOptions.BaseUrl!);
             client.DefaultRequestHeaders.Add("X-API-KEY", pipelineApiClientOptions.ApiKey);
         });
     }

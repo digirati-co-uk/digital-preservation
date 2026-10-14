@@ -145,9 +145,12 @@ The same sections as the Storage API, minus everything to do with serving HTTP: 
 
 > **Note**
 >
-> The Pipeline API's settings files carry `DisableAuth` and `UseLocalHostedServiceForPipeline`, and no
-> code in that service reads either. It authenticates with `X-API-KEY` unconditionally. Changing them
-> has no effect.
+> The Pipeline API's settings files carry `DisableAuth`, but no code in that service reads it - it
+> authenticates with `X-API-KEY` unconditionally, so changing `DisableAuth` has no effect.
+> `UseLocalHostedServiceForPipeline` is different (issue #352): it now gates the internal
+> `POST /pipeline/jobs` endpoint that lets Preservation API deliver pipeline jobs over plain HTTP in
+> local development instead of SNS - every deployed environment leaves it unset (false), so that
+> endpoint 404s there, but it is read.
 
 
 ## Databases and migrations

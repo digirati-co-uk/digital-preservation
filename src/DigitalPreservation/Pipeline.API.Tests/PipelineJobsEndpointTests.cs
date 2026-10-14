@@ -112,6 +112,31 @@ public class PipelineJobsEndpointTests
         dequeued.RunUser.Should().Be("tester");
     }
 
+    /// <summary>
+    /// Issue #352 review: the queue holds 10 messages and jobs run one at a time, so an 11th local
+    /// job used to block the whole request (TryQueueRequest's predecessor used WriteAsync, which
+    /// waits for space) rather than refusing it straight away. Fills the queue directly rather than
+    /// posting 11 real requests - the point here is the endpoint's response to TryWrite returning
+    /// false, not re-proving the queue's own bound.
+    /// </summary>
+    [Fact]
+    public async Task Returns503_WhenTheQueueIsFull()
+    {
+        using var factory = BuildFactory(localHostedServiceForPipeline: true);
+        var client = ClientWithApiKey(factory);
+        var queue = factory.Services.GetRequiredService<InProcessPipelineQueue>();
+        for (var i = 0; i < 10; i++)
+        {
+            queue.TryQueueRequest($"filler-{i}", "dep-filler", null).Should().BeTrue("the queue holds 10 messages");
+        }
+
+        var response = await client.PostAsJsonAsync("/pipeline/jobs",
+            new PipelineJobMessage { DepositName = "dep-1", JobIdentifier = "job-1" },
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+    }
+
     [Fact]
     public async Task Returns400_WhenDepositNameIsMissing()
     {
