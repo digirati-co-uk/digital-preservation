@@ -10,6 +10,18 @@
     --bs-focus-ring-color: #0a58ca;
 }
 
+/* The top navbar (.sticky-top in _Layout.cshtml, ~72px tall) stays pinned over the page as it
+   scrolls. Without this, a keyboard user tabbing to a control that's just above the viewport
+   can end up with the browser treating it as "already visible" and not scrolling further -
+   leaving the newly focused control rendered entirely behind the opaque header, with no focus
+   indicator visible at all (WCAG 2.4.11 Focus Not Obscured). scroll-padding-top tells the
+   browser's own focus-into-view behaviour to always leave this much room at the top, so a
+   focused element is never placed under the sticky header. 72px matches the navbar's rendered
+   height; update this if the navbar's own height ever changes. */
+html {
+    scroll-padding-top: 72px;
+}
+
 /*html {*/
 /*  font-size: 14px;*/
 /*}*/
