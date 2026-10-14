@@ -464,6 +464,14 @@
                                         </td>
 
                                     }
+                                    else if (virusMetadata is { NotScanned: true })
+                                    {
+                                        <td aria-label="td-virus-not-scanned">
+                                            <span title="@virusMetadata.GetDisplay()" aria-label="virus-not-scanned" class="form-check-label text-warning">
+                                                <svg class="bi" aria-hidden="true"><use xlink:href="#exclamation-triangle"/></svg>
+                                            </span>
+                                        </td>
+                                    }
                                     else
                                     {
                                         <td aria-label="td-virus">@virusMetadata?.GetDisplay()</td>
