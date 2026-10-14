@@ -258,24 +258,32 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     /// than waiting out its usual overdue cutoff, per issue #357).
     /// </summary>
     [Fact]
-    public async Task Handle_Runs_Normally_WhenANonLatestJobIsActive_ButTheDepositsLatestJobIsComplete()
+    public async Task Handle_Refuses_WhenANonLatestJobIsStillActive_EvenIfTheDepositsLatestJobIsComplete()
     {
+        // Issue #357 review: a prior version of this handler blocked only on the deposit's *latest*
+        // job, so this same seed data (a stale, non-latest active job alongside a newer completed
+        // one) was asserted to succeed. That contradicts #353's partial unique index, which allows
+        // at most one active job per deposit at all - this exact row combination cannot even be
+        // inserted under that constraint, and a "latest only" read check here would pass, then hit
+        // the index on insert as an unhandled constraint violation instead of a clean 409. Blocking
+        // on ANY active job (restored to match main) keeps the read check and the index in
+        // agreement, and matches the UI, which shows whichever job is still running. A stale
+        // non-latest job like this is closed on the very next sweep tick (PipelineJobCleanupProcessor),
+        // not left to block runs indefinitely.
         await using var context = fixture.CreateNewAuthServiceContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         var earlier = DateTime.UtcNow.AddHours(-2);
         await SavePipelineRunJob(context, deposit.MintedId, PipelineJobStates.Running, dateSubmitted: earlier);
         await SavePipelineRunJob(context, deposit.MintedId, PipelineJobStates.Completed, dateSubmitted: earlier.AddMinutes(5));
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
-        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
-            .Returns(new PublishResponse { HttpStatusCode = HttpStatusCode.OK, MessageId = "m-1" });
 
         var result = await CreateHandler(context, snsClient)
             .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
 
-        result.Success.Should().BeTrue(
-            "the deposit's latest job is complete; a stale non-latest active job must not block a new run");
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.Conflict);
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
-            .MustHaveHappenedOnceExactly();
-        context.PipelineRunJobs.Count(j => j.Deposit == deposit.MintedId).Should().Be(3);
+            .MustNotHaveHappened();
+        context.PipelineRunJobs.Count(j => j.Deposit == deposit.MintedId).Should().Be(2);
     }
 }

@@ -63,23 +63,30 @@ public class RunPipelineHandler(
         // cleaned up (force complete, the UI's stale-job tidy-up, or #301's sweep) - that is the
         // right behaviour, not a bug to work around here.
         //
-        // Blocks only on the deposit's *latest* job (by DateSubmitted - the same definition
-        // PipelineJobCleanupProcessor uses), not on any job that merely happens to still be active.
-        // Before this (issue #357), a non-latest job left active by data predating this check - job A
-        // stuck processing, a later job B already completed - blocked every new run indefinitely: the
-        // UI shows no running job (it was already looking for the latest one) and has nothing to
-        // offer "Force complete" on, and this handler refused regardless. A non-latest active job is
-        // now always closed immediately by the sweep rather than waiting out its usual overdue
-        // cutoff, so this is a narrow, short-lived gap rather than a standing one.
-        var latestJob = await dbContext.PipelineRunJobs
-            .Where(j => j.Deposit == request.DepositId)
+        // Blocks on ANY active job for the deposit, not only the latest one (issue #357 review):
+        // #353's partial unique index on (deposit, status IN active) enforces exactly this - at most
+        // one active job per deposit, ever - so a "latest job only" read check here would let the
+        // read pass and then hit that index on insert, turning a clean 409 into an unhandled
+        // constraint violation. It also matches the UI, which shows whichever job is still running
+        // regardless of whether it's the deposit's most recent. A non-latest active job - left behind
+        // by data predating #353/#357, since the index now prevents new ones - is closed immediately
+        // by the sweep (PipelineJobCleanupProcessor), not left to block runs indefinitely.
+        //
+        // Status compared directly (Waiting/Running/MetadataCreated), not
+        // PipelineJobStates.IsNotComplete(j.Status): EF Core cannot translate an arbitrary static
+        // method call into SQL (see the same note in PipelineJobCleanupProcessor).
+        var activeJob = await dbContext.PipelineRunJobs
+            .Where(j => j.Deposit == request.DepositId
+                        && (j.Status == PipelineJobStates.Waiting
+                            || j.Status == PipelineJobStates.Running
+                            || j.Status == PipelineJobStates.MetadataCreated))
             .OrderByDescending(j => j.DateSubmitted)
             .FirstOrDefaultAsync(cancellationToken);
-        if (latestJob != null && PipelineJobStates.IsNotComplete(latestJob.Status))
+        if (activeJob != null)
         {
             return Result.Fail(ErrorCodes.Conflict,
                 $"A pipeline run is already in progress for deposit {request.DepositId} " +
-                $"(job {latestJob.Id}, {latestJob.Status}). Force complete it first if it is stuck.");
+                $"(job {activeJob.Id}, {activeJob.Status}). Force complete it first if it is stuck.");
         }
 
         var callerIdentity = request.User.GetCallerIdentity();

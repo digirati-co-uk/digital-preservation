@@ -183,6 +183,33 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
         job.DateFinished.Should().NotBeNull();
     }
 
+    /// <summary>
+    /// Issue #357 review: in SQL, "null > x" and "x > null" are both unknown (neither true), so a
+    /// legacy job with no DateSubmitted would make isLatestForDeposit's AnyAsync always false
+    /// (nothing can be found strictly greater than an unknown value) and so always evaluate as
+    /// "latest" - even with a newer, dated job for the same deposit sitting right next to it. Without
+    /// the DateTime.MinValue coalesce, this job would be routed to the overdue-cutoff path instead of
+    /// being closed immediately as the clearly-superseded job it is.
+    /// </summary>
+    [Fact]
+    public async Task A_Legacy_Job_With_No_DateSubmitted_Is_Still_Recognised_As_Not_Latest()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var depositId = $"dep-{Guid.NewGuid()}";
+        await SeedDeposit(context, depositId, lockedBy: "tester");
+        var legacyJobId = await SeedPipelineRunJob(context, depositId, PipelineJobStates.Running,
+            dateSubmitted: null, dateBegun: null, runUser: "tester");
+        await SeedPipelineRunJob(context, depositId, PipelineJobStates.Completed,
+            dateSubmitted: NotOverdue, dateBegun: NotOverdue, runUser: "tester");
+
+        await RunSweep(context);
+
+        var legacyJob = await ReloadJob(legacyJobId);
+        legacyJob.Status.Should().Be(PipelineJobStates.CompletedWithErrors,
+            "a null-DateSubmitted job must not be wrongly treated as the deposit's latest just because " +
+            "nothing compares as strictly greater than an unknown value");
+    }
+
     private static async Task RunSweep(PreservationContext context)
     {
         var mediator = MediatorForwardingToRealHandler(context);
@@ -243,7 +270,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
 
     private static async Task<string> SeedPipelineRunJob(
         PreservationContext context, string depositId, string status,
-        DateTime dateSubmitted, DateTime? dateBegun, string runUser)
+        DateTime? dateSubmitted, DateTime? dateBegun, string runUser)
     {
         var jobId = $"job-{Guid.NewGuid()}";
         context.PipelineRunJobs.Add(new PipelineRunJob

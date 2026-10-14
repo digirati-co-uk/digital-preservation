@@ -733,12 +733,15 @@ public class DepositModel(
     /// <remarks>
     /// Used to pick the latest-by-DateBegun job first and only then ask whether that one was still
     /// running - so a job stuck non-terminal that was not the latest (DateBegun null, or earlier than
-    /// a job started since) was invisible here even though it was exactly what was blocking
-    /// RunPipelineHandler's own check. Picks the running job directly instead: the same "any
-    /// non-terminal job for this deposit, most recent by Created" RunPipelineHandler and
-    /// PipelineJobCleanupProcessor use (Created is the job's DateSubmitted - see
-    /// ResourceMutator.MutatePipelineRunJob), so the UI, the 409 and the sweep agree on which job is
-    /// "the" one to show and act on (issue #357).
+    /// a job started since) was invisible here, with nothing to offer "Force complete" on, even
+    /// though it was exactly what was blocking RunPipelineHandler's own check (issue #357). Picks the
+    /// running job directly instead: any non-terminal job for this deposit, most recent by Created
+    /// (the job's DateSubmitted - see ResourceMutator.MutatePipelineRunJob) in the rare case more than
+    /// one somehow exists. RunPipelineHandler blocks on any active job regardless of which is latest
+    /// (issue #357 review - #353's partial unique index allows at most one active job per deposit
+    /// anyway, so in steady state there is at most one for this to find), and
+    /// PipelineJobCleanupProcessor closes a non-latest one immediately - so a job this shows as
+    /// running is always exactly the one the 409 and the sweep already agree is active.
     /// </remarks>
     public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetRunningPipelineJob()
     {

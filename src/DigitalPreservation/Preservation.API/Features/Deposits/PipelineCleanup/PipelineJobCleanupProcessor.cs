@@ -34,12 +34,21 @@ public class PipelineJobCleanupProcessor(
 
             foreach (var job in nonTerminalJobs)
             {
-                // "Latest" is whichever job for this deposit was most recently submitted - every job
-                // gets DateSubmitted set at creation (RunPipelineHandler), so this needs no null
-                // handling, unlike DateBegun (never set for a job still waiting). The same definition
-                // RunPipelineHandler itself now uses to decide what blocks a new run (issue #357).
+                // "Latest" is whichever job for this deposit was most recently submitted. Every job
+                // created by RunPipelineHandler gets DateSubmitted set, but a legacy row predating
+                // that field can still have it null - and in SQL, "null > x" and "x > null" are both
+                // unknown (neither true), so a null-DateSubmitted job would otherwise never register
+                // as older than anything, making AnyAsync below always false and wrongly marking it
+                // "latest" regardless of how old it actually is (issue #357 review: Postgres's own
+                // NULLS-sort-first default for ORDER BY has the same root cause, here it shows up in
+                // a direct comparison instead). Coalescing to DateTime.MinValue treats an unknown
+                // submission time as the oldest possible one, which is the safe direction to be wrong
+                // in: worst case a legacy row is closed immediately instead of waiting out the normal
+                // overdue cutoff, never the reverse.
+                var jobDateSubmitted = job.DateSubmitted ?? DateTime.MinValue;
                 var isLatestForDeposit = !await dbContext.PipelineRunJobs
-                    .AnyAsync(j => j.Deposit == job.Deposit && j.DateSubmitted > job.DateSubmitted, cancellationToken);
+                    .AnyAsync(j => j.Deposit == job.Deposit && (j.DateSubmitted ?? DateTime.MinValue) > jobDateSubmitted,
+                        cancellationToken);
 
                 if (!isLatestForDeposit)
                 {
