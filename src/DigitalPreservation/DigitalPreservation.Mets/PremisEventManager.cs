@@ -27,7 +27,9 @@ public class PremisEventManagerVirus
         {
             EventOutcome = new StringPlusAuthority
             {
-                Value = virusScanMetadata.HasVirus ? "Fail" : "Pass"
+                Value = virusScanMetadata.NotScanned
+                    ? Constants.VirusCheckNotScannedOutcome
+                    : virusScanMetadata.HasVirus ? "Fail" : "Pass"
             },
             EventOutcomeDetail = { new EventOutcomeDetailComplexType
             {

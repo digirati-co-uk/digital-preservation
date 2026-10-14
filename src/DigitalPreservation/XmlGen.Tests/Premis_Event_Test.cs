@@ -116,6 +116,31 @@ public class Premis_Event_Test(ITestOutputHelper testOutputHelper)
         }
     }
 
+    /// <summary>
+    /// Issue #371: a file ClamAV skipped for exceeding a configured size limit is neither "Pass"
+    /// (it was never actually scanned) nor "Fail" (it is not a detection) - it needs its own
+    /// eventOutcome so METS/PREMIS does not misrepresent it as either.
+    /// </summary>
+    [Fact]
+    public void Virus_Event_For_A_File_That_Exceeded_The_Size_Limit_Is_Neither_Pass_Nor_Fail()
+    {
+        var premisEvent = new PremisEventManagerVirus().Create(new VirusScanMetadata
+        {
+            Source = "ClamAv",
+            HasVirus = false,
+            NotScanned = true,
+            VirusFound = "Heuristics.Limits.Exceeded.MaxFileSize FOUND",
+            Timestamp = DateTime.UtcNow
+        });
+
+        var serialised = PremisEventManagerVirus.Serialise(premisEvent);
+
+        serialised.Should().Contain("Not scanned");
+        serialised.Should().NotContain(">Pass<");
+        serialised.Should().NotContain(">Fail<");
+        serialised.Should().Contain("Heuristics.Limits.Exceeded.MaxFileSize FOUND");
+    }
+
     [Fact]
     public void Virus_Event_With_No_Known_Scan_Time_Falls_Back_To_Now_Not_Year_One()
     {
