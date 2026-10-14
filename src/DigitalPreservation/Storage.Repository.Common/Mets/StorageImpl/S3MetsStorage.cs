@@ -47,12 +47,24 @@ public class S3MetsStorage(
         {
             resp = await s3Client.PutObjectAsync(req);
         }
-        catch (AmazonS3Exception e) when (e.StatusCode == HttpStatusCode.PreconditionFailed)
+        catch (AmazonS3Exception e) when (e.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
         {
             // AmazonS3Client throws for every non-2xx response rather than returning it, so a
             // lost If-Match race never reaches the switch below - the PreconditionFailed arm
-            // that used to sit there was dead code (issue #355).
+            // that used to sit there was dead code (issue #355). A lost race on a conditional
+            // write isn't always reported as 412: AWS's own conditional-writes documentation
+            // says a concurrent PUT can also come back as 409 Conflict, and a concurrent delete
+            // of the same key can too - both are the same "someone else won the race" outcome
+            // from this caller's point of view, so both map to PreconditionFailed (issue #355
+            // review).
             return Result.Fail(ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS");
+        }
+        catch (AmazonS3Exception e)
+        {
+            // Nothing else about an S3 failure here is a precondition race - but nothing about
+            // writing METS should let an AmazonS3Exception escape uncaught either (issue #355
+            // review): GetFullMets already guards every S3 failure this way; WriteMets did not.
+            return Result.Fail(ErrorCodes.UnknownError, e.Message);
         }
 
         return resp.HttpStatusCode switch

@@ -148,8 +148,11 @@ public class DeleteItemsHandlerTests
 
         result.Failure.Should().BeTrue();
         result.ErrorCode.Should().Be(ErrorCodes.PreconditionFailed);
+        // Issue #355 review: the previous message named neither which files were already gone from
+        // S3 (while the METS, now unwritable, still lists them) nor why the write itself failed -
+        // both now appear, via the same FormatPartialFailureMessage the terminalFailure branches use.
         result.ErrorMessage.Should().Be(
-            "Delete failed after 2 items. Unable to write METS file.");
+            "Delete failed after 2 items (objects/a.txt, objects/b.txt). Unable to write METS file: Supplied ETag did not match METS.");
     }
 
     [Fact]

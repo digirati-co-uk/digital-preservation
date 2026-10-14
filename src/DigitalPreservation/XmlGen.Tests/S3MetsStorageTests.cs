@@ -213,6 +213,63 @@ public class S3MetsStorageTests
         result.ErrorCode.Should().Be("PreconditionFailed");
     }
 
+    /// <summary>
+    /// Issue #355 review: AWS's conditional-writes documentation says a concurrent PUT can also
+    /// come back as 409 Conflict, not only 412 - and a concurrent delete of the same key can too.
+    /// Both are the same "someone else won the race" outcome as 412 from this caller's point of
+    /// view, so both must map to PreconditionFailed rather than escape as an unhandled exception.
+    /// </summary>
+    [Fact]
+    public async Task WriteMets_Conflict_Maps_To_PreconditionFailed()
+    {
+        var fullMets = new FullMets
+        {
+            Mets = new Mets(),
+            Uri = new UriBuilder("http://example.com/mets.xml") { Scheme = "s3" }.Uri,
+            ETag = "\"some-etag\""
+        };
+
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Throws(new AmazonS3Exception("Conflict")
+            {
+                StatusCode = HttpStatusCode.Conflict
+            });
+
+        var result = await metsStorage.WriteMets(fullMets);
+
+        result.Failure.Should().BeTrue();
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be("PreconditionFailed");
+    }
+
+    /// <summary>
+    /// Issue #355 review: GetFullMets already guards every S3 failure with a catch-all; WriteMets
+    /// did not, so any AmazonS3Exception that wasn't specifically 412/409 (a throttle, a transient
+    /// 5xx) escaped uncaught. No S3 failure should be able to escape WriteMets.
+    /// </summary>
+    [Fact]
+    public async Task WriteMets_Other_S3_Exception_Does_Not_Escape()
+    {
+        var fullMets = new FullMets
+        {
+            Mets = new Mets(),
+            Uri = new UriBuilder("http://example.com/mets.xml") { Scheme = "s3" }.Uri,
+            ETag = "\"some-etag\""
+        };
+
+        A.CallTo(() => s3Client.PutObjectAsync(A<PutObjectRequest>.Ignored, CancellationToken.None))
+            .Throws(new AmazonS3Exception("Slow down")
+            {
+                StatusCode = HttpStatusCode.ServiceUnavailable
+            });
+
+        var result = await metsStorage.WriteMets(fullMets);
+
+        result.Failure.Should().BeTrue();
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be("UnknownError");
+    }
+
     [Fact]
     public async Task GetFullMets_MetsCreatorAgent_NoMatch()
     {
