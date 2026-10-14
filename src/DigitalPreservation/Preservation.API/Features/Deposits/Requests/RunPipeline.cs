@@ -67,13 +67,7 @@ public class RunPipelineHandler(
         // #309). A job stuck in "processing" because its worker died blocks new runs until it's
         // cleaned up (force complete, the UI's stale-job tidy-up, or #301's sweep) - that is the
         // right behaviour, not a bug to work around here.
-        var activeJob = await dbContext.PipelineRunJobs
-            .Where(j => j.Deposit == request.DepositId
-                        && (j.Status == PipelineJobStates.Waiting
-                            || j.Status == PipelineJobStates.Running
-                            || j.Status == PipelineJobStates.MetadataCreated))
-            .OrderByDescending(j => j.DateSubmitted)
-            .FirstOrDefaultAsync(cancellationToken);
+        var activeJob = await GetActiveJob(request.DepositId, cancellationToken);
         if (activeJob != null)
         {
             return Result.Fail(ErrorCodes.Conflict,
@@ -112,19 +106,23 @@ public class RunPipelineHandler(
         catch (DbUpdateException e) when (IsOneActiveJobPerDepositViolation(e))
         {
             // The read check above raced with another insert for the same deposit - the common
-            // case being the lock holder's own double-submit (#353). The index is the backstop;
-            // whichever call loses here gets the same message the read check gives on the common
-            // path. Release only if this call itself took the lock: in the same-user race neither
-            // call acquired it (both transferred), so nothing is released and the winner keeps it.
+            // case being the lock holder's own double-submit (#353). The index is the backstop.
+            // Which of the two calls set LockedBy and which call's insert wins the index aren't
+            // the same question - acquiredByThisCall alone isn't enough to decide whether to
+            // release: if the surviving job's RunUser is this caller's, that job now owns the
+            // lock (issue #299's transfer), even though this call is the one that physically wrote
+            // LockedBy, and releasing here would strip it out from under a run that's still going.
             logger.LogWarning(e,
                 "Pipeline job insert for deposit {DepositId} lost a race to another active job",
                 request.DepositId);
-            if (acquiredByThisCall)
+            var survivingJob = await GetActiveJob(request.DepositId, cancellationToken);
+            if (acquiredByThisCall && survivingJob?.RunUser != callerIdentity)
             {
                 await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
             }
+            var jobDetail = survivingJob != null ? $" (job {survivingJob.Id}, {survivingJob.Status})" : "";
             return Result.Fail(ErrorCodes.Conflict,
-                $"A pipeline run is already in progress for deposit {request.DepositId}. " +
+                $"A pipeline run is already in progress for deposit {request.DepositId}{jobDetail}. " +
                 "Force complete it first if it is stuck.");
         }
         catch (Exception e)
@@ -132,7 +130,15 @@ public class RunPipelineHandler(
             logger.LogError(e, "Could not create pipeline job row for deposit {DepositId}", request.DepositId);
             if (acquiredByThisCall)
             {
-                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
+                // Unlike the race above, this is a genuine failure of this call's own insert, not
+                // a lost race against a job that then needs the lock - but a concurrent
+                // double-submit could still have inserted its own job while this call was dying,
+                // so the same check still applies before releasing.
+                var survivingJob = await GetActiveJob(request.DepositId, cancellationToken);
+                if (survivingJob?.RunUser != callerIdentity)
+                {
+                    await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
+                }
             }
             return Result.Fail(ErrorCodes.UnknownError, "Could not create pipeline job: " + e.Message);
         }
@@ -176,6 +182,15 @@ public class RunPipelineHandler(
     private static bool IsOneActiveJobPerDepositViolation(DbUpdateException e) =>
         e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg
         && pg.ConstraintName == OneActiveJobPerDepositIndexName;
+
+    private async Task<PipelineRunJob?> GetActiveJob(string depositId, CancellationToken cancellationToken) =>
+        await dbContext.PipelineRunJobs
+            .Where(j => j.Deposit == depositId
+                        && (j.Status == PipelineJobStates.Waiting
+                            || j.Status == PipelineJobStates.Running
+                            || j.Status == PipelineJobStates.MetadataCreated))
+            .OrderByDescending(j => j.DateSubmitted)
+            .FirstOrDefaultAsync(cancellationToken);
 
     private bool IsInDefaultWorkingBucket(Uri? depositFiles) =>
         depositFiles != null

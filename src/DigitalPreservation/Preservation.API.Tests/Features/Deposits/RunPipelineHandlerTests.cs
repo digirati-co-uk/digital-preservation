@@ -232,8 +232,16 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     /// Backstop for issue #353: the read-then-insert can't serialise the lock holder racing
     /// themselves (a double-click, a retrying script, two tabs). Deposit starts locked by the
     /// caller already (the "lock holder" in the issue title) so both calls transfer rather than
-    /// acquire - neither is responsible for releasing on a lost race, and the partial unique
-    /// index is what actually decides the winner.
+    /// acquire - neither is responsible for releasing on a lost race.
+    /// NB this exercises two genuinely concurrent requests, but with no control over their
+    /// relative timing it doesn't prove the unique index itself is what decided the winner - if
+    /// one call's acquire-and-insert fully completes before the other even starts, the second call
+    /// is refused by the ordinary read check at the top of Handle instead, giving the same
+    /// one-success-one-conflict outcome asserted below without ever reaching the index. The
+    /// deterministic case for the index doing the deciding is
+    /// <see cref="Handle_ReleasesALockItAcquired_WhenItsInsertLosesTheRaceToAnotherActiveJob"/> and
+    /// <see cref="Handle_DoesNotReleaseALockItAcquired_WhenItLosesTheRaceToTheSameCallersOwnJob"/>,
+    /// which race the second insert in via an interceptor rather than real concurrency.
     /// </summary>
     [Fact]
     public async Task Only_One_Of_Two_Concurrent_Claims_By_The_Lock_Holder_Wins()
@@ -271,8 +279,8 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     /// check has already passed, by inserting it via a raw connection from a
     /// <see cref="SaveChangesInterceptor"/> that fires just before this call's own insert - the
     /// same unique-index violation a true race would produce, but deterministic. This call took
-    /// the lock from free (the deposit starts unlocked), so it alone is responsible for releasing
-    /// it when its insert loses.
+    /// the lock from free (the deposit starts unlocked), and the racing job belongs to a different
+    /// user, so it alone is responsible for releasing it when its insert loses.
     /// </summary>
     [Fact]
     public async Task Handle_ReleasesALockItAcquired_WhenItsInsertLosesTheRaceToAnotherActiveJob()
@@ -284,7 +292,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         var options = new DbContextOptionsBuilder<PreservationContext>()
             .UseNpgsql(fixture.ConnectionString)
             .UseSnakeCaseNamingConvention()
-            .AddInterceptors(new InsertRacingActiveJobInterceptor(fixture.ConnectionString, deposit.MintedId))
+            .AddInterceptors(new InsertRacingActiveJobInterceptor(fixture.ConnectionString, deposit.MintedId, "someone-else"))
             .Options;
         await using var context = new PreservationContext(options);
 
@@ -301,7 +309,48 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         jobs.Should().HaveCount(1, "only the racing job inserted by the interceptor should exist - this call's own insert must have been rolled back");
         jobs.Single().RunUser.Should().Be("someone-else", "the surviving row is the one the interceptor raced in, not this call's own");
         var reloaded = await ReloadDeposit(deposit.MintedId);
-        reloaded.LockedBy.Should().BeNull("this call took the lock from free, so it alone must release it when its insert loses");
+        reloaded.LockedBy.Should().BeNull("this call took the lock from free, and the surviving job belongs to someone else, so this call alone must release it when its insert loses");
+    }
+
+    /// <summary>
+    /// The race the adversarial review of #353 flagged as the serious case: this call takes the
+    /// lock from free (acquiredByThisCall), but a same-user double-submit's own insert is the one
+    /// that wins the unique index, not this call's. Which call set LockedBy and which call's insert
+    /// survives aren't the same thing - the surviving job (inserted by the interceptor, RunUser
+    /// "tester" like the caller) now owns the lock under issue #299's transfer rule, so this call
+    /// must not release it out from under that still-running job just because it happened to be the
+    /// one that physically acquired it.
+    /// </summary>
+    [Fact]
+    public async Task Handle_DoesNotReleaseALockItAcquired_WhenItLosesTheRaceToTheSameCallersOwnJob()
+    {
+        await using var seedContext = fixture.CreateNewAuthServiceContext();
+        var deposit = await SaveDeposit(seedContext, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+
+        var options = new DbContextOptionsBuilder<PreservationContext>()
+            .UseNpgsql(fixture.ConnectionString)
+            .UseSnakeCaseNamingConvention()
+            .AddInterceptors(new InsertRacingActiveJobInterceptor(fixture.ConnectionString, deposit.MintedId, "tester"))
+            .Options;
+        await using var context = new PreservationContext(options);
+
+        var result = await CreateHandler(context, snsClient)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.Conflict);
+        result.ErrorMessage.Should().Contain("racing-job-", "the backstop conflict should name the surviving job");
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+
+        await using var assertContext = fixture.CreateNewAuthServiceContext();
+        var jobs = assertContext.PipelineRunJobs.Where(j => j.Deposit == deposit.MintedId).ToList();
+        jobs.Should().HaveCount(1, "only the racing job inserted by the interceptor should exist - this call's own insert must have been rolled back");
+        jobs.Single().RunUser.Should().Be("tester");
+        var reloaded = await ReloadDeposit(deposit.MintedId);
+        reloaded.LockedBy.Should().Be("tester",
+            "the surviving job belongs to the same caller, so the lock now belongs to that job, even though this call is the one that physically acquired it");
     }
 
     /// <summary>
@@ -309,7 +358,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     /// the handler's own insert of its new job row reaches the database - reproducing the
     /// unique-index violation a genuine double-submit would cause, deterministically.
     /// </summary>
-    private sealed class InsertRacingActiveJobInterceptor(string connectionString, string depositId) : SaveChangesInterceptor
+    private sealed class InsertRacingActiveJobInterceptor(string connectionString, string depositId, string runUser) : SaveChangesInterceptor
     {
         private bool fired;
 
@@ -325,10 +374,11 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
                 command.CommandText =
                     """
                     INSERT INTO pipeline_run_jobs (id, deposit, archival_group, status, last_updated, date_submitted, pipeline_job_json, run_user)
-                    VALUES (@id, @deposit, NULL, 'waiting', now(), now(), '{}', 'someone-else')
+                    VALUES (@id, @deposit, NULL, 'waiting', now(), now(), '{}', @runUser)
                     """;
                 command.Parameters.AddWithValue("id", $"racing-job-{Guid.NewGuid()}");
                 command.Parameters.AddWithValue("deposit", depositId);
+                command.Parameters.AddWithValue("runUser", runUser);
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
