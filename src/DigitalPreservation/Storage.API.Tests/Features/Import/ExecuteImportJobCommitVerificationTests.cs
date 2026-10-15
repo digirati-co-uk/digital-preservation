@@ -1,4 +1,5 @@
 using System.Net;
+using Amazon.S3;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
@@ -122,6 +123,191 @@ public class ExecuteImportJobCommitVerificationTests
         // The outcome is Fedora's: a transaction it has already acted on (successfully or not)
         // must not then be rolled back.
         A.CallTo(() => fedoraClient.RollbackTransaction(A<Transaction>._)).MustNotHaveHappened();
+        // These are real answers from Fedora itself, unlike the ALB's own 502/503/504 below - no
+        // verification needed, so the version must never be read (issue #383's second review,
+        // point 1).
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(A<string>._, A<Transaction>._)).MustNotHaveHappened();
+    }
+
+    /// <summary>
+    /// Issue #383's second review, point 1: the ALB's own ~4,000s idle timeout on a long commit
+    /// arrives as an HTTP 504 response (502 for a dropped target connection), not an exception -
+    /// CommitTransaction returns normally with the status recorded. Before this fix that non-2xx
+    /// status failed the job immediately, with no verification, even though Fedora may already
+    /// have committed - exactly the same gap as the connection-error path, just reached a
+    /// different way.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task A_Transient_Gateway_Commit_Response_Confirmed_By_A_Later_Version_Gives_Completed(
+        HttpStatusCode commitStatus)
+    {
+        var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Invokes(() => transaction.CommitStatusCode = commitStatus)
+            .Returns(Task.CompletedTask);
+        // The transaction itself has already finished by the time this polls it.
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction)).Returns(HttpStatusCode.NotFound);
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
+            .Returns(Result.OkNotNull(new ObjectVersion { OcflVersion = "v2", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }));
+
+        var result = await CreateHandler().Handle(
+            new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), CancellationToken.None);
+
+        result.Value!.Status.Should().Be(ImportJobStates.Completed);
+        A.CallTo(() => fedoraClient.RollbackTransaction(A<Transaction>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task A_Transient_Gateway_Commit_Response_With_An_Unchanged_Version_Gives_CompletedWithErrors()
+    {
+        var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Invokes(() => transaction.CommitStatusCode = HttpStatusCode.GatewayTimeout)
+            .Returns(Task.CompletedTask);
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction)).Returns(HttpStatusCode.NotFound);
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
+            .Returns(Result.OkNotNull(new ObjectVersion { OcflVersion = "v1", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }));
+
+        var result = await CreateHandler().Handle(
+            new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), CancellationToken.None);
+
+        result.Value!.Status.Should().Be(ImportJobStates.CompletedWithErrors);
+        result.Value!.Errors.Should().Contain(e => e.Message!.Contains("confirmed not committed"));
+        A.CallTo(() => fedoraClient.RollbackTransaction(A<Transaction>._)).MustNotHaveHappened();
+    }
+
+    /// <summary>
+    /// Issue #383's second review, point 2: checking the Archival Group's version too early - while
+    /// the transaction is still mid-commit - can read it before the commit lands and wrongly report
+    /// "confirmed not committed". The fix polls the transaction itself first, while it answers 2xx
+    /// or 409 (still committing, the same two codes FedoraTransactionMonitor uses), and only checks
+    /// the version once it stops - here, on the third poll.
+    /// </summary>
+    [Fact]
+    public async Task A_Connection_Error_Waits_For_The_Transaction_To_Finish_Before_Checking_The_Version()
+    {
+        var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Throws(new HttpRequestException("connection reset"));
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction))
+            .ReturnsNextFromSequence(HttpStatusCode.NoContent, HttpStatusCode.Conflict, HttpStatusCode.NotFound);
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
+            .Returns(Result.OkNotNull(new ObjectVersion { OcflVersion = "v2", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }));
+
+        var result = await CreateHandler().Handle(
+            new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), CancellationToken.None);
+
+        result.Value!.Status.Should().Be(ImportJobStates.Completed);
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction)).MustHaveHappened(3, Times.Exactly);
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null)).MustHaveHappened(1, Times.Exactly);
+    }
+
+    /// <summary>
+    /// A transaction that never stops reporting as mid-commit must not be waited on forever - past
+    /// the generous bound, this gives up as "could not be confirmed" without ever reading the
+    /// Archival Group, rather than risk reading it while the commit may still be running.
+    /// </summary>
+    [Fact]
+    public async Task A_Connection_Error_Gives_CouldNotBeConfirmed_When_The_Transaction_Never_Finishes()
+    {
+        var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Throws(new HttpRequestException("connection reset"));
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction)).Returns(HttpStatusCode.Conflict);
+
+        var result = await CreateHandler().Handle(
+            new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), CancellationToken.None);
+
+        result.Value!.Status.Should().Be(ImportJobStates.CompletedWithErrors);
+        result.Value!.Errors.Should().Contain(e => e.Message!.Contains("could not be confirmed"));
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(A<string>._, A<Transaction>._)).MustNotHaveHappened();
+    }
+
+    /// <summary>
+    /// Issue #383's second review, first nit: the backoff delay inside verification used to run
+    /// against the job's own cancellation token. If a caller cancelled at this point - work may
+    /// already be committed to Fedora - the resulting OperationCanceledException escaped all the
+    /// way to the outer catch, which rolls back by default: the same post-commit DELETE issue #383's
+    /// first review (point 3) set out to avoid. Passing an already-cancelled token must not change
+    /// the outcome.
+    /// </summary>
+    [Fact]
+    public async Task A_Connection_Error_Still_Verifies_And_Does_Not_Roll_Back_When_The_Jobs_Own_Token_Is_Cancelled()
+    {
+        var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Throws(new HttpRequestException("connection reset"));
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction)).Returns(HttpStatusCode.NotFound);
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
+            .Returns(Result.OkNotNull(new ObjectVersion { OcflVersion = "v1", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }));
+        using var alreadyCancelled = new CancellationTokenSource();
+        await alreadyCancelled.CancelAsync();
+        // Unlike CreateHandler's own no-op delay (which ignores whatever token it's given, so it
+        // couldn't tell CancellationToken.None apart from a cancelled one), this one throws if
+        // asked to wait with a cancelled token - proving the production code passes
+        // CancellationToken.None to the backoff delay here, not the job's own (issue #383's second
+        // review, first nit). If it didn't, the OperationCanceledException thrown below would
+        // escape to the outer catch and roll back by default.
+        var cancelAwareDelay = (TimeSpan _, CancellationToken token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        };
+        var handler = new ExecuteImportJobHandler(
+            importJobResultStore, NullLogger<ExecuteImportJobHandler>.Instance, fedoraClient, cancelAwareDelay);
+
+        var result = await handler.Handle(
+            new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), alreadyCancelled.Token);
+
+        result.Value!.Status.Should().Be(ImportJobStates.CompletedWithErrors);
+        result.Value!.Errors.Should().Contain(e => e.Message!.Contains("confirmed not committed"));
+        A.CallTo(() => fedoraClient.RollbackTransaction(A<Transaction>._)).MustNotHaveHappened();
+    }
+
+    /// <summary>
+    /// Issue #383's second review, second nit: for a create - never an update, whose Archival
+    /// Group already existed before the job started - a missing group after the transaction has
+    /// already finished is genuine evidence the create never committed, not just an unconfirmed
+    /// read. Distinct from <see cref="A_MonitorCancelled_Commit_Whose_Group_Is_Missing_Gives_CompletedWithErrors"/>,
+    /// which simulates the general "read failed" case (a Result.Fail) rather than this specific,
+    /// real-world one (GetCacheableStorageMap's uncaught S3 GetObject 404).
+    /// </summary>
+    [Fact]
+    public async Task A_Create_Whose_Group_Does_Not_Exist_In_S3_Is_Confirmed_Not_Committed()
+    {
+        var transaction = new Transaction { Location = TxLocation };
+        var createJob = new ImportJob
+        {
+            ArchivalGroup = ArchivalGroupUri,
+            ArchivalGroupName = "Thing",
+            CreatedBy = new Uri("https://preservation.test/agents/tester"),
+            Deposit = new Uri("https://preservation.test/deposits/dep-1"),
+            IsUpdate = false
+        };
+        A.CallTo(() => fedoraClient.BeginTransaction()).Returns(transaction);
+        A.CallTo(() => fedoraClient.GetValidatedArchivalGroupForImportJob(ArchivalGroupPath, transaction))
+            .Returns(Result.Ok<ArchivalGroup?>(null));
+        A.CallTo(() => fedoraClient.CreateArchivalGroup(
+                ArchivalGroupPath, A<string>._, "Thing", transaction, A<CancellationToken>._))
+            .Returns(Result.OkNotNull<ArchivalGroup?>(new ArchivalGroup { Id = ArchivalGroupUri }));
+        A.CallTo(() => importJobResultStore.SaveRunningImportJobResult(JobId, A<ImportJobResult>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull(true));
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Throws(new OperationCanceledException());
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
+            .Throws(new AmazonS3Exception("Not found") { ErrorCode = "NoSuchKey", StatusCode = HttpStatusCode.NotFound });
+
+        var result = await CreateHandler().Handle(
+            new ExecuteImportJob(JobId, createJob, InitialResult()), CancellationToken.None);
+
+        result.Value!.Status.Should().Be(ImportJobStates.CompletedWithErrors);
+        result.Value!.Errors.Should().Contain(e => e.Message!.Contains("confirmed not committed"));
+        // Genuine evidence once the transaction has finished, not an unconfirmed read - no need to
+        // retry the rest of the backoff window.
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null)).MustHaveHappened(1, Times.Exactly);
     }
 
     /// <summary>

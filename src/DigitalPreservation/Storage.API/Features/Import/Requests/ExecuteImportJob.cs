@@ -1,5 +1,7 @@
 ﻿using Storage.API.Fedora.Model;
 using System.Diagnostics;
+using System.Net;
+using Amazon.S3;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
@@ -35,6 +37,18 @@ public class ExecuteImportJobHandler(
     private const int CommitVerificationMaxAttempts = 5;
 
     /// <summary>
+    /// Upper bound for how long to poll the transaction itself, waiting for it to stop reporting as
+    /// mid-commit, before giving up on verifying a commit whose own response couldn't be trusted (a
+    /// connection error, or an ALB 502/503/504 - issue #383's second review). Generous because
+    /// nothing rules out Fedora-side taking a very long time to finish; giving up too early risks
+    /// <see cref="VerifyCommitOutcome"/> reading the Archival Group before the commit has landed and
+    /// wrongly reporting "confirmed not committed".
+    /// </summary>
+    private static readonly TimeSpan TransactionFinishMaxWait = TimeSpan.FromHours(1);
+
+    private static readonly TimeSpan TransactionFinishPollInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// Distinguishes "the Archival Group's version genuinely never moved" from "the check itself
     /// never got a trustworthy read" (issue #383 review point 1d) - collapsing these into one bool,
     /// as the pre-review version did, reported a transient read failure exactly the same way as a
@@ -46,6 +60,9 @@ public class ExecuteImportJobHandler(
         ConfirmedNotCommitted,
         CouldNotConfirm
     }
+
+    private static bool IsTransientGatewayStatus(HttpStatusCode statusCode) =>
+        statusCode is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
 
     public async Task<Result<ImportJobResult>> Handle(ExecuteImportJob request, CancellationToken cancellationToken)
     {
@@ -352,9 +369,16 @@ public class ExecuteImportJobHandler(
                 // already have committed: the client gets an HttpRequestException or IOException,
                 // not confirmation either way (issue #383 review point 2 - this is exactly the
                 // failure the safety net exists for). Verify before concluding failure, the same as
-                // the monitor-cancelled path below.
+                // the monitor-cancelled path below - but only once the transaction itself has
+                // actually finished (issue #383's second review, point 2): unlike the
+                // monitor-cancelled path, a connection error gives no guarantee Fedora has stopped
+                // writing OCFL, and checking the Archival Group's version too early can read it
+                // before the commit lands and wrongly call it "confirmed not committed".
                 var errorTime = DateTime.UtcNow - startCommitTime;
-                var outcome = await VerifyCommitOutcome(sourceVersion);
+                var finishedBeforeVerifying = await WaitForTransactionToFinish();
+                var outcome = finishedBeforeVerifying
+                    ? await VerifyCommitOutcome(sourceVersion)
+                    : CommitVerification.CouldNotConfirm;
                 if (outcome == CommitVerification.Confirmed)
                 {
                     logger.LogInformation(
@@ -399,9 +423,42 @@ public class ExecuteImportJobHandler(
             }
             else if ((int)transaction.CommitStatusCode is < 200 or >= 300)
             {
+                if (IsTransientGatewayStatus(transaction.CommitStatusCode))
+                {
+                    // The ALB's own ~4,000s idle timeout on a long commit arrives as an HTTP 504
+                    // response, not an exception - a dropped target connection becomes a 502 -
+                    // so CommitTransaction returns normally with this recorded, rather than
+                    // throwing (issue #383's second review, point 1). A commit running that long
+                    // behaves exactly like the connection-error path above: the response can't be
+                    // trusted, and Fedora may already have committed or still be writing OCFL, so
+                    // wait for the transaction to finish before checking the version.
+                    var finishedBeforeVerifying = await WaitForTransactionToFinish();
+                    var gatewayOutcome = finishedBeforeVerifying
+                        ? await VerifyCommitOutcome(sourceVersion)
+                        : CommitVerification.CouldNotConfirm;
+                    if (gatewayOutcome == CommitVerification.Confirmed)
+                    {
+                        logger.LogInformation(
+                            "(TX) Commit outcome confirmed despite an HTTP {StatusCode} commit response for transaction {TransactionLocation}",
+                            (int)transaction.CommitStatusCode, transaction.Location);
+                        importJobResult.DateFinished = DateTime.UtcNow;
+                        importJobResult.Status = ImportJobStates.Completed;
+                        return Result.OkNotNull(importJobResult);
+                    }
+                    var gatewayConfirmation = gatewayOutcome == CommitVerification.ConfirmedNotCommitted
+                        ? "confirmed not committed"
+                        : "could not be confirmed";
+                    return await FailEarly(
+                        $"(TX) Fedora transaction commit returned HTTP status {(int)transaction.CommitStatusCode} " +
+                        $"({transaction.CommitStatusCode}) (commit outcome {gatewayConfirmation})",
+                        rollback: false);
+                }
+
                 // CommitTransaction records the status but never throws for a non-2xx response
-                // (issue #350), so a committed-but-rejected transaction (409, 410, a 5xx) would
-                // otherwise be reported as success.
+                // (issue #350), so a committed-but-rejected transaction (409, 410, and other
+                // statuses that come from Fedora itself) would otherwise be reported as success.
+                // Unlike the ALB's own 502/503/504 above, these are real answers from Fedora: no
+                // verification needed, the rejection is already certain.
                 return await FailEarly(
                     $"(TX) Fedora transaction commit returned HTTP status {(int)transaction.CommitStatusCode} ({transaction.CommitStatusCode})",
                     rollback: false);
@@ -462,6 +519,59 @@ public class ExecuteImportJobHandler(
         }
 
         /// <summary>
+        /// Polls the transaction itself (not the Archival Group) until Fedora stops reporting it as
+        /// mid-commit - a GET answers 2xx or 409 while the commit is still running (FedoraTransactionMonitor
+        /// uses the same two codes to decide the same thing), anything else once it has finished one
+        /// way or another. Needed before <see cref="VerifyCommitOutcome"/> runs on the connection-error
+        /// and ALB-gateway paths, where the commit PUT's own response can't be trusted and Fedora may
+        /// still be writing OCFL: checking the Archival Group's version too early can read it before
+        /// the commit lands and wrongly report "confirmed not committed" (issue #383's second review,
+        /// point 2). Not needed on the monitor-cancelled path below, which by definition only cancels
+        /// once a GET on the transaction has already returned a non-2xx, non-409 status - the
+        /// transaction has already finished by the time that happens.
+        ///
+        /// CancellationToken.None for the wait between polls, not the job's own token (issue #383's
+        /// second review, first nit): by this point work may already be committed to Fedora, so a
+        /// caller shutdown must not cut this short and let the OperationCanceledException escape to
+        /// the outer catch, which would roll back - via FailEarly's default rollback:true - a
+        /// transaction Fedora may have already acted on. The same applies to the backoff delay inside
+        /// VerifyCommitOutcome below.
+        /// </summary>
+        async Task<bool> WaitForTransactionToFinish()
+        {
+            var waited = TimeSpan.Zero;
+            while (waited < TransactionFinishMaxWait)
+            {
+                HttpStatusCode status;
+                try
+                {
+                    status = await fedoraClient.GetTransactionHttpStatus(transaction);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex,
+                        "(TX) Polling transaction {TransactionLocation} to see if it has finished threw; proceeding to verify the Archival Group directly",
+                        transaction.Location);
+                    return true;
+                }
+
+                var statusCode = (int)status;
+                if (status != HttpStatusCode.Conflict && statusCode is < 200 or > 299)
+                {
+                    return true;
+                }
+
+                await delay(TransactionFinishPollInterval, CancellationToken.None);
+                waited += TransactionFinishPollInterval;
+            }
+
+            logger.LogWarning(
+                "(TX) Transaction {TransactionLocation} still reported as committing after {MaxWait}; giving up without verifying the Archival Group",
+                transaction.Location, TransactionFinishMaxWait);
+            return false;
+        }
+
+        /// <summary>
         /// Whether the Archival Group's own state confirms the commit actually happened, for the
         /// two cases where the commit PUT's own response can't be trusted: the monitor cancelled it
         /// after finding the transaction gone, or the PUT itself threw a connection error (issue
@@ -478,7 +588,13 @@ public class ExecuteImportJobHandler(
         /// S3 yet, which GetArchivalGroupVersion throws for rather than returning NotFound (issue
         /// #383 review point 3) - is caught here and treated as an unconfirmed attempt, not a
         /// reason to let the whole import job fail with a misleading rollback of an already-acted-on
-        /// transaction.
+        /// transaction. The one exception: for a create (never an update, whose Archival Group
+        /// already existed before the job started), that same "doesn't exist in S3" throw is
+        /// genuine evidence the create never committed, not just an unreadable attempt - but only
+        /// because every caller of VerifyCommitOutcome has already waited for the transaction
+        /// itself to finish (WaitForTransactionToFinish above, or the monitor-cancelled path's own
+        /// equivalent guarantee), so there's nothing left for a retry to wait out (issue #383's
+        /// second review, second nit).
         /// </summary>
         async Task<CommitVerification> VerifyCommitOutcome(string? sourceVersion)
         {
@@ -507,6 +623,13 @@ public class ExecuteImportJobHandler(
                             attempt, CommitVerificationMaxAttempts, archivalGroupPathUnderRoot, versionResult.CodeAndMessage());
                     }
                 }
+                catch (AmazonS3Exception ex) when (!importJob.IsUpdate && ex.StatusCode == HttpStatusCode.NotFound)
+                {
+                    logger.LogInformation(ex,
+                        "(TX) Commit verification attempt {Attempt}/{MaxAttempts} for {ArchivalGroupPath}: the Archival Group still doesn't exist in S3, and the transaction has already finished, so the create never committed",
+                        attempt, CommitVerificationMaxAttempts, archivalGroupPathUnderRoot);
+                    return CommitVerification.ConfirmedNotCommitted;
+                }
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex,
@@ -516,7 +639,9 @@ public class ExecuteImportJobHandler(
 
                 if (attempt < CommitVerificationMaxAttempts)
                 {
-                    await delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), cancellationToken);
+                    // CancellationToken.None, not the job's own token - see WaitForTransactionToFinish's
+                    // remarks above (issue #383's second review, first nit).
+                    await delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), CancellationToken.None);
                 }
             }
 
