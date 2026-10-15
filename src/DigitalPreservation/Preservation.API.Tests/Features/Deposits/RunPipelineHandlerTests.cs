@@ -6,11 +6,13 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using FakeItEasy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Preservation.API.Data;
+using Preservation.API.Features.Deposits.PipelineDelivery;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Tests.TestingInfrastructure;
 using Storage.Repository.Common;
@@ -27,7 +29,8 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         new(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "tester") }, "test"));
 
     private static RunPipelineHandler CreateHandler(
-        PreservationContext context, IAmazonSimpleNotificationService snsClient)
+        PreservationContext context, IAmazonSimpleNotificationService snsClient,
+        bool useLocalPipelineDelivery = false, IPipelineJobDeliveryClient? pipelineJobDeliveryClient = null)
     {
         var identityMinter = A.Fake<IIdentityMinter>();
         // A unique ID per call: this collection shares one real Postgres container across every
@@ -45,7 +48,9 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
                 PipelineJobQueue = "test-queue"
             }),
             Options.Create(new AwsStorageOptions { DefaultWorkingBucket = DefaultBucket }),
-            identityMinter);
+            Options.Create(new PipelineDeliveryFlags { UseLocalPipelineDelivery = useLocalPipelineDelivery }),
+            identityMinter,
+            pipelineJobDeliveryClient);
     }
 
     private static async Task<DepositEntity> SaveDeposit(
@@ -245,6 +250,84 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
         context.PipelineRunJobs.Count(j => j.Deposit == deposit.MintedId).Should().Be(3);
+    }
+
+    // --- Local pipeline delivery (issue #352) ---
+
+    [Fact]
+    public async Task Handle_Delivers_ViaTheLocalClient_AndNeverCallsSns_WhenLocalDeliveryIsOn()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+        var deliveryClient = A.Fake<IPipelineJobDeliveryClient>();
+        A.CallTo(() => deliveryClient.EnqueuePipelineJob(A<PipelineJobMessage>._, A<CancellationToken>._))
+            .Returns(Result.Ok());
+
+        var result = await CreateHandler(context, snsClient, useLocalPipelineDelivery: true, deliveryClient)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        // Issue #352 review: the matcher previously checked only DepositName and RunUser, not the
+        // minted job id this description claims - so a message delivered with, say, the wrong job's
+        // id (or none at all) would have passed silently.
+        var mintedJob = context.PipelineRunJobs.Single(j => j.Deposit == deposit.MintedId);
+        A.CallTo(() => deliveryClient.EnqueuePipelineJob(
+                A<PipelineJobMessage>.That.Matches(m =>
+                    m.DepositName == deposit.MintedId && m.RunUser == "tester" && m.JobIdentifier == mintedJob.Id),
+                A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+        var reloaded = await ReloadDeposit(deposit.MintedId);
+        reloaded.LockedBy.Should().Be("tester");
+    }
+
+    [Fact]
+    public async Task Handle_ReleasesALockItAcquired_WhenLocalDeliveryFails()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+        var deliveryClient = A.Fake<IPipelineJobDeliveryClient>();
+        A.CallTo(() => deliveryClient.EnqueuePipelineJob(A<PipelineJobMessage>._, A<CancellationToken>._))
+            .Returns(Result.Fail(ErrorCodes.UnknownError, "Pipeline API returned 500"));
+
+        var result = await CreateHandler(context, snsClient, useLocalPipelineDelivery: true, deliveryClient)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ErrorCodes.UnknownError);
+        var reloaded = await ReloadDeposit(deposit.MintedId);
+        reloaded.LockedBy.Should().BeNull("the lock this call took must not survive a failed local delivery, " +
+                                          "identically to a failed SNS publish");
+        var job = context.PipelineRunJobs.Single(j => j.Deposit == deposit.MintedId);
+        job.Status.Should().Be(PipelineJobStates.CompletedWithErrors);
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task Handle_PublishesToSns_WhenLocalDeliveryIsOff_EvenWithAClientRegistered()
+    {
+        // The flag, not merely whether a client happens to be registered, decides the path - a
+        // deployed instance with the flag off must behave identically whether or not a stray
+        // IPipelineJobDeliveryClient is present in DI.
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
+        var snsClient = A.Fake<IAmazonSimpleNotificationService>();
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .Returns(new PublishResponse { HttpStatusCode = HttpStatusCode.OK, MessageId = "m-1" });
+        var deliveryClient = A.Fake<IPipelineJobDeliveryClient>();
+
+        var result = await CreateHandler(context, snsClient, useLocalPipelineDelivery: false, deliveryClient)
+            .Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => deliveryClient.EnqueuePipelineJob(A<PipelineJobMessage>._, A<CancellationToken>._))
+            .MustNotHaveHappened();
     }
 
     /// <summary>

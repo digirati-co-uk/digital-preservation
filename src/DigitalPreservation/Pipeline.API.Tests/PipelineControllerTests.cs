@@ -29,6 +29,7 @@ public class PipelineControllerTests : IDisposable
 {
     private readonly string mountPath = Path.Combine(Path.GetTempPath(), "pipeline-controller-tests-" + Guid.NewGuid());
     private readonly IPreservationApiClient preservationApiClient = A.Fake<IPreservationApiClient>();
+    private readonly InProcessPipelineQueue inProcessPipelineQueue = new();
 
     public PipelineControllerTests()
     {
@@ -47,7 +48,8 @@ public class PipelineControllerTests : IDisposable
         return new PipelineController(
             NullLogger<PipelineController>.Instance,
             Options.Create(new StorageOptions { FileMountPath = mountPath }),
-            preservationApiClient);
+            preservationApiClient,
+            inProcessPipelineQueue);
     }
 
     // --- POST: proxies to the Preservation API ---
