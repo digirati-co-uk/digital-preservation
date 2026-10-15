@@ -10,16 +10,21 @@
     --bs-focus-ring-color: #0a58ca;
 }
 
-/* The top navbar (.sticky-top in _Layout.cshtml, ~72px tall) stays pinned over the page as it
+/* The top navbar (header.sticky-top in _Layout.cshtml) stays pinned over the page as it
    scrolls. Without this, a keyboard user tabbing to a control that's just above the viewport
    can end up with the browser treating it as "already visible" and not scrolling further -
    leaving the newly focused control rendered entirely behind the opaque header, with no focus
    indicator visible at all (WCAG 2.4.11 Focus Not Obscured). scroll-padding-top tells the
    browser's own focus-into-view behaviour to always leave this much room at the top, so a
-   focused element is never placed under the sticky header. 72px matches the navbar's rendered
-   height; update this if the navbar's own height ever changes. */
+   focused element is never placed under the sticky header.
+
+   --dlip-header-height is kept equal to the header's real rendered height by site.js's
+   ResizeObserver - the header isn't a fixed 72px: it's 50px signed out, 72px signed in at
+   desktop widths, and grows to roughly 165px below Bootstrap's md breakpoint (a narrow window,
+   or a desktop browser zoomed to 200%+) where it wraps onto more than one line. 72px here is
+   only the fallback for the moment before that script runs (review on #384). */
 html {
-    scroll-padding-top: 72px;
+    scroll-padding-top: var(--dlip-header-height, 72px);
 }
 
 /*html {*/
