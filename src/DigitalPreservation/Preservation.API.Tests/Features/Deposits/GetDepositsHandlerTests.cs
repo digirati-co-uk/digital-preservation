@@ -139,6 +139,44 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
         result.Value!.Deposits.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// GetSlug returns null for a URI with only a "/" segment, and the old
+    /// "uri.GetSlug()!.UnEscapeFromUri()" threw ArgumentNullException on that null - a 500 for
+    /// caller input (issue #359). A host-only URI resolves to no deposit's bare CreatedBy, so the
+    /// correct answer is an empty, successful page, not an error.
+    /// </summary>
+    [Fact]
+    public async Task CreatedBy_HostOnlyUri_ReturnsAnEmptyPage_NotAnError()
+    {
+        var context = fixture.CreateNewAuthServiceContext();
+        var creator = $"creator-{Guid.NewGuid():N}";
+        await SeedDeposit(context, $"dep-{Guid.NewGuid():N}", creator, creator, active: true, archived: null);
+
+        var result = await Handle(context, new DepositQuery { CreatedBy = $"{PreservationHost}/", PageSize = LargePageSize });
+
+        result.Success.Should().BeTrue();
+        result.Value!.Deposits.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Uri.TryCreate also succeeds for a bare name containing ':' (scheme "svc", e.g.
+    /// "svc:archiver") - before issue #359, that took the URI branch and resolved to a slug that
+    /// matched nothing, instead of the exact name as given. No live caller name has a colon
+    /// today, but this is the same filter path a URI-shaped CreatedBy goes through.
+    /// </summary>
+    [Fact]
+    public async Task CreatedBy_BareNameContainingColon_MatchesExactly_NotAsAUri()
+    {
+        var context = fixture.CreateNewAuthServiceContext();
+        var creator = $"svc:archiver-{Guid.NewGuid():N}";
+        var deposit = await SeedDeposit(context, $"dep-{Guid.NewGuid():N}", creator, creator, active: true, archived: null);
+
+        var result = await Handle(context, new DepositQuery { CreatedBy = creator, PageSize = LargePageSize });
+
+        result.Success.Should().BeTrue();
+        ResultIds(result).Should().Contain(DepositUri(deposit.MintedId));
+    }
+
     // Paging (issue #303)
 
     [Fact]
