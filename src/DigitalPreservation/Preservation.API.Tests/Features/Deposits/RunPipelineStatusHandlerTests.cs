@@ -129,7 +129,11 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
             depositLockedBy: "tester");
         // A newer job for the same deposit already exists - the job being completed below is no
         // longer the deposit's latest, so its lock (if it still held one) belongs to this newer run.
-        await AddAnotherJob(context, depositId, PipelineJobStates.Running,
+        // Terminal, not Running: issue #353's partial unique index now makes two simultaneously
+        // active jobs for the same deposit impossible to insert at all, so this can no longer be a
+        // second still-running job - only that a later job of any kind exists, which is all
+        // "isLatestForDeposit" (a plain DateSubmitted comparison) actually checks.
+        await AddAnotherJob(context, depositId, PipelineJobStates.Completed,
             dateSubmitted: DateTime.UtcNow.AddMinutes(5), runUser: "tester");
 
         var result = await Handle(context, depositId, jobId, PipelineJobStates.CompletedWithErrors, "superseded");

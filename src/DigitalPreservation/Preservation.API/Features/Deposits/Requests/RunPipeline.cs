@@ -13,6 +13,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DigitalPreservation.Core.Auth;
+using Npgsql;
 using Preservation.API.Data.Entities;
 using Preservation.API.Features.Deposits.PipelineDelivery;
 using Storage.Repository.Common;
@@ -36,6 +37,10 @@ public class RunPipelineHandler(
     IIdentityMinter identityMinter,
     IPipelineJobDeliveryClient? pipelineJobDeliveryClient = null) : IRequestHandler<RunPipeline, Result>
 {
+    // Must match PreservationContext.OnModelCreating's HasDatabaseName for the partial unique
+    // index backing the "one active job per deposit" check (issue #353).
+    private const string OneActiveJobPerDepositIndexName = "ix_pipeline_run_jobs_deposit_one_active";
+
     public async Task<Result> Handle(RunPipeline request, CancellationToken cancellationToken)
     {
         var entity = await dbContext.Deposits.SingleOrDefaultAsync(d => d.MintedId == request.DepositId, cancellationToken);
@@ -75,16 +80,9 @@ public class RunPipelineHandler(
         // by data predating #353/#357, since the index now prevents new ones - is closed immediately
         // by the sweep (PipelineJobCleanupProcessor), not left to block runs indefinitely.
         //
-        // Status compared directly (Waiting/Running/MetadataCreated), not
-        // PipelineJobStates.IsNotComplete(j.Status): EF Core cannot translate an arbitrary static
-        // method call into SQL (see the same note in PipelineJobCleanupProcessor).
-        var activeJob = await dbContext.PipelineRunJobs
-            .Where(j => j.Deposit == request.DepositId
-                        && (j.Status == PipelineJobStates.Waiting
-                            || j.Status == PipelineJobStates.Running
-                            || j.Status == PipelineJobStates.MetadataCreated))
-            .OrderByDescending(j => j.DateSubmitted)
-            .FirstOrDefaultAsync(cancellationToken);
+        // GetActiveJob (below) is the same query the 23505 backstop re-runs to decide whether to
+        // release the lock - kept as one method so the two call sites can't drift apart.
+        var activeJob = await GetActiveJob(request.DepositId, cancellationToken);
         if (activeJob != null)
         {
             return Result.Fail(ErrorCodes.Conflict,
@@ -115,38 +113,91 @@ public class RunPipelineHandler(
             RunUser = callerIdentity
         };
 
+        var insertFailure = await TryInsertJob(newJob, request.DepositId, acquiredByThisCall, callerIdentity, cancellationToken);
+        if (insertFailure != null)
+        {
+            return insertFailure;
+        }
+
+        return await PublishOrMarkFailed(newJob, request.DepositId, jobId, callerIdentity, topicArn, acquiredByThisCall, cancellationToken);
+    }
+
+    /// <summary>
+    /// Inserts the new job row, or - on the partial unique index's backstop - fails with a Conflict
+    /// after deciding whether this call's own lock acquisition still needs undoing (issue #353's
+    /// adversarial review: acquiredByThisCall alone doesn't answer that, see
+    /// <see cref="ReleaseLockUnlessSurvivorIsCaller"/>).
+    /// </summary>
+    private async Task<Result?> TryInsertJob(
+        PipelineRunJob newJob, string depositId, bool acquiredByThisCall, string callerIdentity, CancellationToken cancellationToken)
+    {
         try
         {
             dbContext.PipelineRunJobs.Add(newJob);
             await dbContext.SaveChangesAsync(cancellationToken);
+            return null;
+        }
+        catch (DbUpdateException e) when (IsOneActiveJobPerDepositViolation(e))
+        {
+            // The read check above raced with another insert for the same deposit - the common
+            // case being the lock holder's own double-submit (#353). The index is the backstop.
+            logger.LogWarning(e,
+                "Pipeline job insert for deposit {DepositId} lost a race to another active job",
+                depositId);
+            var survivingJob = await ReleaseLockUnlessSurvivorIsCaller(depositId, acquiredByThisCall, callerIdentity, cancellationToken);
+            var jobDetail = survivingJob != null ? $" (job {survivingJob.Id}, {survivingJob.Status})" : "";
+            return Result.Fail(ErrorCodes.Conflict,
+                $"A pipeline run is already in progress for deposit {depositId}{jobDetail}. " +
+                "Force complete it first if it is stuck.");
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Could not create pipeline job row for deposit {DepositId}", request.DepositId);
-            if (acquiredByThisCall)
-            {
-                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
-            }
+            logger.LogError(e, "Could not create pipeline job row for deposit {DepositId}", depositId);
+            await ReleaseLockUnlessSurvivorIsCaller(depositId, acquiredByThisCall, callerIdentity, cancellationToken);
             return Result.Fail(ErrorCodes.UnknownError, "Could not create pipeline job: " + e.Message);
         }
+    }
 
+    /// <summary>
+    /// Which of the two calls set LockedBy and which call's insert wins the index race aren't the
+    /// same question - acquiredByThisCall alone isn't enough to decide whether to release: if the
+    /// surviving job's RunUser is this caller's, that job now owns the lock (issue #299's transfer),
+    /// even though this call may be the one that physically wrote LockedBy, and releasing here would
+    /// strip it out from under a run that's still going.
+    /// </summary>
+    private async Task<PipelineRunJob?> ReleaseLockUnlessSurvivorIsCaller(
+        string depositId, bool acquiredByThisCall, string callerIdentity, CancellationToken cancellationToken)
+    {
+        var survivingJob = await GetActiveJob(depositId, cancellationToken);
+        if (acquiredByThisCall && survivingJob?.RunUser != callerIdentity)
+        {
+            await ReleaseLockIfHeldBy(depositId, callerIdentity, cancellationToken);
+        }
+        return survivingJob;
+    }
+
+    private async Task<Result> PublishOrMarkFailed(
+        PipelineRunJob newJob, string depositId, string jobId, string callerIdentity, string topicArn,
+        bool acquiredByThisCall, CancellationToken cancellationToken)
+    {
         try
         {
             var pipelineJobMessage = new PipelineJobMessage
             {
-                DepositName = request.DepositId,
+                DepositName = depositId,
                 JobIdentifier = jobId,
                 RunUser = callerIdentity
             };
 
-            await DeliverPipelineJobMessage(pipelineJobMessage, topicArn, request.DepositId, cancellationToken);
+            await DeliverPipelineJobMessage(pipelineJobMessage, topicArn, depositId, cancellationToken);
+            return Result.Ok();
         }
         catch (Exception e)
         {
             // The job row exists but Pipeline.API was never told about it, so it will sit as
             // "waiting" forever unless we close it out ourselves here. Identical handling whether
             // delivery was SNS or the local HTTP path above.
-            logger.LogError(e, "Could not deliver pipeline job {JobId} for deposit {DepositId}", jobId, request.DepositId);
+            logger.LogError(e, "Could not deliver pipeline job {JobId} for deposit {DepositId}", jobId, depositId);
             newJob.Status = PipelineJobStates.CompletedWithErrors;
             newJob.DateFinished = DateTime.UtcNow;
             newJob.Errors = "Could not queue pipeline job: " + e.Message;
@@ -154,13 +205,27 @@ public class RunPipelineHandler(
 
             if (acquiredByThisCall)
             {
-                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
+                await ReleaseLockIfHeldBy(depositId, callerIdentity, cancellationToken);
             }
             return Result.Fail(ErrorCodes.UnknownError, "Could not queue pipeline job: " + e.Message);
         }
-
-        return Result.Ok();
     }
+
+    private static bool IsOneActiveJobPerDepositViolation(DbUpdateException e) =>
+        e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg
+        && pg.ConstraintName == OneActiveJobPerDepositIndexName;
+
+    // Status compared directly (Waiting/Running/MetadataCreated), not
+    // PipelineJobStates.IsNotComplete(j.Status): EF Core cannot translate an arbitrary static
+    // method call into SQL (see the same note in PipelineJobCleanupProcessor).
+    private async Task<PipelineRunJob?> GetActiveJob(string depositId, CancellationToken cancellationToken) =>
+        await dbContext.PipelineRunJobs
+            .Where(j => j.Deposit == depositId
+                        && (j.Status == PipelineJobStates.Waiting
+                            || j.Status == PipelineJobStates.Running
+                            || j.Status == PipelineJobStates.MetadataCreated))
+            .OrderByDescending(j => j.DateSubmitted)
+            .FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>
     /// Extracted out of Handle (Sonar: Cognitive Complexity) - also the natural seam, since this is
