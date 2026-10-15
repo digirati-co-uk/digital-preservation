@@ -47,6 +47,25 @@ public class MetsParser(
     }
 
     /// <summary>
+    /// Resolves the one premis:storage element that is ours - the one whose storageMedium is
+    /// our own agent name, mirroring how PremisManager.Read already does it, and how
+    /// PremisManager.Create marks the one it writes. A techMD may legitimately carry others:
+    /// migrated-from provenance with no storageMedium (every recent EPrints migration), or
+    /// (once the platform edits and exports such an item) that provenance sitting alongside our
+    /// own marked one. Those are preserved as metadata elsewhere, but must never be read as *the*
+    /// storage location, and must never make this throw just because there is more than one
+    /// (issue #236).
+    /// </summary>
+    private static Uri? ResolveOurStorageLocation(XElement amdOrTechMd)
+    {
+        var ourStorage = amdOrTechMd.Descendants(XNames.PremisStorage)
+            .FirstOrDefault(storage => storage.Descendants(XNames.PremisStorageMedium)
+                .Any(medium => medium.Value == Constants.MetsCreatorAgent));
+        var contentLocationValue = ourStorage?.Descendants(XNames.PremisContentLocationValue).FirstOrDefault()?.Value;
+        return contentLocationValue.HasText() ? new Uri(contentLocationValue) : null;
+    }
+
+    /// <summary>
     /// Builds lookup dictionaries for efficient O(1) access to METS elements by ID.
     /// This is equivalent to the Python version's amd_map, file_map, and tech_map.
     /// </summary>
@@ -437,12 +456,7 @@ public class MetsParser(
                     if (amd != null)
                     {
                         var originalName = amd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
-                        Uri? storageLocation = null;
-                        var storageUri = amd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
-                        if (storageUri != null)
-                        {
-                            storageLocation = new Uri(storageUri);
-                        }
+                        var storageLocation = ResolveOurStorageLocation(amd);
 
                         if (originalName != null)
                         {
@@ -574,17 +588,13 @@ public class MetsParser(
                         }
 
                         originalName = techMd.Descendants(XNames.PremisOriginalName).SingleOrDefault()?.Value;
-                        var storageUri = techMd.Descendants(XNames.PremisContentLocation).SingleOrDefault()?.Value;
-                        if (storageUri != null)
+                        try
                         {
-                            try
-                            {
-                                storageLocation = new Uri(storageUri);
-                            }
-                            catch (Exception e)
-                            {
-                                logger.LogError(e, "Unable to parse storage location {StorageUri}", storageUri);
-                            }
+                            storageLocation = ResolveOurStorageLocation(techMd);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.LogError(e, "Unable to parse storage location for techMD {TechMdId}", techMd.Attribute("ID")?.Value);
                         }
 
                         haveUsedAdmIdAlready = true;
