@@ -98,57 +98,79 @@ public class RunPipelineHandler(
             RunUser = callerIdentity
         };
 
+        var insertFailure = await TryInsertJob(newJob, request.DepositId, acquiredByThisCall, callerIdentity, cancellationToken);
+        if (insertFailure != null)
+        {
+            return insertFailure;
+        }
+
+        return await PublishOrMarkFailed(newJob, request.DepositId, jobId, callerIdentity, topicArn, acquiredByThisCall, cancellationToken);
+    }
+
+    /// <summary>
+    /// Inserts the new job row, or - on the partial unique index's backstop - fails with a Conflict
+    /// after deciding whether this call's own lock acquisition still needs undoing (issue #353's
+    /// adversarial review: acquiredByThisCall alone doesn't answer that, see
+    /// <see cref="ReleaseLockUnlessSurvivorIsCaller"/>).
+    /// </summary>
+    private async Task<Result?> TryInsertJob(
+        PipelineRunJob newJob, string depositId, bool acquiredByThisCall, string callerIdentity, CancellationToken cancellationToken)
+    {
         try
         {
             dbContext.PipelineRunJobs.Add(newJob);
             await dbContext.SaveChangesAsync(cancellationToken);
+            return null;
         }
         catch (DbUpdateException e) when (IsOneActiveJobPerDepositViolation(e))
         {
             // The read check above raced with another insert for the same deposit - the common
             // case being the lock holder's own double-submit (#353). The index is the backstop.
-            // Which of the two calls set LockedBy and which call's insert wins the index aren't
-            // the same question - acquiredByThisCall alone isn't enough to decide whether to
-            // release: if the surviving job's RunUser is this caller's, that job now owns the
-            // lock (issue #299's transfer), even though this call is the one that physically wrote
-            // LockedBy, and releasing here would strip it out from under a run that's still going.
             logger.LogWarning(e,
                 "Pipeline job insert for deposit {DepositId} lost a race to another active job",
-                request.DepositId);
-            var survivingJob = await GetActiveJob(request.DepositId, cancellationToken);
-            if (acquiredByThisCall && survivingJob?.RunUser != callerIdentity)
-            {
-                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
-            }
+                depositId);
+            var survivingJob = await ReleaseLockUnlessSurvivorIsCaller(depositId, acquiredByThisCall, callerIdentity, cancellationToken);
             var jobDetail = survivingJob != null ? $" (job {survivingJob.Id}, {survivingJob.Status})" : "";
             return Result.Fail(ErrorCodes.Conflict,
-                $"A pipeline run is already in progress for deposit {request.DepositId}{jobDetail}. " +
+                $"A pipeline run is already in progress for deposit {depositId}{jobDetail}. " +
                 "Force complete it first if it is stuck.");
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Could not create pipeline job row for deposit {DepositId}", request.DepositId);
-            if (acquiredByThisCall)
-            {
-                // Unlike the race above, this is a genuine failure of this call's own insert, not
-                // a lost race against a job that then needs the lock - but a concurrent
-                // double-submit could still have inserted its own job while this call was dying,
-                // so the same check still applies before releasing.
-                var survivingJob = await GetActiveJob(request.DepositId, cancellationToken);
-                if (survivingJob?.RunUser != callerIdentity)
-                {
-                    await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
-                }
-            }
+            logger.LogError(e, "Could not create pipeline job row for deposit {DepositId}", depositId);
+            await ReleaseLockUnlessSurvivorIsCaller(depositId, acquiredByThisCall, callerIdentity, cancellationToken);
             return Result.Fail(ErrorCodes.UnknownError, "Could not create pipeline job: " + e.Message);
         }
+    }
 
+    /// <summary>
+    /// Which of the two calls set LockedBy and which call's insert wins the index race aren't the
+    /// same question - acquiredByThisCall alone isn't enough to decide whether to release: if the
+    /// surviving job's RunUser is this caller's, that job now owns the lock (issue #299's transfer),
+    /// even though this call may be the one that physically wrote LockedBy, and releasing here would
+    /// strip it out from under a run that's still going.
+    /// </summary>
+    private async Task<PipelineRunJob?> ReleaseLockUnlessSurvivorIsCaller(
+        string depositId, bool acquiredByThisCall, string callerIdentity, CancellationToken cancellationToken)
+    {
+        var survivingJob = await GetActiveJob(depositId, cancellationToken);
+        if (acquiredByThisCall && survivingJob?.RunUser != callerIdentity)
+        {
+            await ReleaseLockIfHeldBy(depositId, callerIdentity, cancellationToken);
+        }
+        return survivingJob;
+    }
+
+    private async Task<Result> PublishOrMarkFailed(
+        PipelineRunJob newJob, string depositId, string jobId, string callerIdentity, string topicArn,
+        bool acquiredByThisCall, CancellationToken cancellationToken)
+    {
         try
         {
             // publish the Pipeline job message for Pipeline.API to pick up
             var pipelineJobMessage = JsonSerializer.Serialize(new PipelineJobMessage
             {
-                DepositName = request.DepositId,
+                DepositName = depositId,
                 JobIdentifier = jobId,
                 RunUser = callerIdentity
             });
@@ -157,13 +179,14 @@ public class RunPipelineHandler(
 
             logger.LogDebug(
                 "Received statusCode {StatusCode} for sending to SNS for {Identifier} - {MessageId}",
-                response.HttpStatusCode, request.DepositId, response.MessageId);
+                response.HttpStatusCode, depositId, response.MessageId);
+            return Result.Ok();
         }
         catch (Exception e)
         {
             // The job row exists but Pipeline.API was never told about it, so it will sit as
             // "waiting" forever unless we close it out ourselves here.
-            logger.LogError(e, "Could not publish pipeline job {JobId} for deposit {DepositId} to SNS", jobId, request.DepositId);
+            logger.LogError(e, "Could not publish pipeline job {JobId} for deposit {DepositId} to SNS", jobId, depositId);
             newJob.Status = PipelineJobStates.CompletedWithErrors;
             newJob.DateFinished = DateTime.UtcNow;
             newJob.Errors = "Could not queue pipeline job: " + e.Message;
@@ -171,12 +194,10 @@ public class RunPipelineHandler(
 
             if (acquiredByThisCall)
             {
-                await ReleaseLockIfHeldBy(request.DepositId, callerIdentity, cancellationToken);
+                await ReleaseLockIfHeldBy(depositId, callerIdentity, cancellationToken);
             }
             return Result.Fail(ErrorCodes.UnknownError, "Could not queue pipeline job: " + e.Message);
         }
-
-        return Result.Ok();
     }
 
     private static bool IsOneActiveJobPerDepositViolation(DbUpdateException e) =>
