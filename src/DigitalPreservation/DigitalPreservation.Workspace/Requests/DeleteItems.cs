@@ -308,10 +308,16 @@ public class DeleteItemsHandler(
                         "so it may still list files already deleted from S3.");
                 }
 
-                return Result.FailNotNull<ItemsAffected>(
-                    writeMetsResult.ErrorCode!,
-                    $"Delete failed after {goodResult.Items.Count} items. Unable to write METS file.");
-
+                // Every S3 delete in this batch succeeded, so unlike the terminalFailure branches
+                // above, the caller still needs to know exactly what's already gone from S3 while
+                // the METS (now unwritable) still lists it - and why the write itself failed, e.g.
+                // the "Supplied ETag did not match METS" detail issue #355 makes reachable (issue
+                // #355 review: the previous message named neither).
+                var metsWriteFailureMessage = FormatPartialFailureMessage(
+                    goodResult.Items.Count,
+                    goodResult.Items.Select(i => i.RelativePath),
+                    $"Unable to write METS file: {writeMetsResult.ErrorMessage}");
+                return Result.FailNotNull<ItemsAffected>(writeMetsResult.ErrorCode!, metsWriteFailureMessage);
             }
         }
 

@@ -109,16 +109,18 @@ try
     // FeatureFlags:UseLocalHostedServiceForPipeline was read by no code before issue #231 - the two
     // unconditional registrations below meant the last one (Sqs) always won, so this flag never did
     // anything. Mirrors Storage.API/Program.cs's UseLocalHostedServiceForImport switch.
+    //
+    // InProcessPipelineQueue is registered as a concrete singleton unconditionally, not just when the
+    // flag is on: PipelineController.QueuePipelineJob (issue #352) needs to inject it directly to
+    // write into it, and it has to resolve whether or not this instance is actually using it as the
+    // IPipelineQueue - the endpoint itself 404s via [RequireFeatureFlag] when the flag is off, so an
+    // idle, never-written-to channel sitting in memory the rest of the time is the only cost.
+    builder.Services.AddSingleton<InProcessPipelineQueue>();
+
     var useLocalHostedServiceForPipeline = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForPipeline");
     if (useLocalHostedServiceForPipeline)
     {
-        // Nothing can feed the in-process queue yet: the Preservation API is the only producer of
-        // pipeline jobs and it publishes to SNS. Local delivery over HTTP is issue #352; until then,
-        // this flag means jobs are never picked up.
-        Log.Warning("FeatureFlags:UseLocalHostedServiceForPipeline is true, but nothing can feed the " +
-                    "in-process pipeline queue until local delivery exists (issue #352): pipeline jobs " +
-                    "published to SNS will NOT be picked up by this instance.");
-        builder.Services.AddSingleton<IPipelineQueue, InProcessPipelineQueue>();
+        builder.Services.AddSingleton<IPipelineQueue>(sp => sp.GetRequiredService<InProcessPipelineQueue>());
     }
     else
     {

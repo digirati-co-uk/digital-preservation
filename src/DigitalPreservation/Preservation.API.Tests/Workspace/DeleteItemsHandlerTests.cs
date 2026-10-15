@@ -1,6 +1,7 @@
 using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
@@ -117,6 +118,41 @@ public class DeleteItemsHandlerTests
         metsPassedToWrite!.PhysicalDivsByPath.Should().NotContainKey("objects/a.txt");
         metsPassedToWrite.PhysicalDivsByPath.Should().NotContainKey("objects/b.txt");
         metsPassedToWrite.PhysicalDivsByPath.Should().ContainKey("objects/c.txt");
+    }
+
+    /// <summary>
+    /// Issue #355: S3MetsStorage.WriteMets used to throw AmazonS3Exception on a lost ETag race
+    /// (412) rather than return a failed Result, so this never reached the "METS write also
+    /// failed" account #306/#319 added - the exception escaped past this handler entirely,
+    /// after the S3 deletes had already happened. With that fixed at the storage layer, a
+    /// PreconditionFailed WriteMets result reaches here as an ordinary failure.
+    /// </summary>
+    [Fact]
+    public async Task Handle_Reports_METS_Write_Failure_WhenAllDeletesSucceed()
+    {
+        var (combinedRoot, mets) = BuildFixture("a.txt", "b.txt");
+        SetUpS3Delete("a.txt", succeeds: true);
+        SetUpS3Delete("b.txt", succeeds: true);
+        SetUpMetsManager(mets);
+        A.CallTo(() => metsManager.WriteMets(A<FullMets>._))
+            .Returns(Result.Fail(ErrorCodes.PreconditionFailed, "Supplied ETag did not match METS"));
+
+        var request = new DeleteItems(
+            isBagItLayout: false,
+            depositFiles: DepositFiles,
+            deleteSelection: SelectionFor("a.txt", "b.txt"),
+            combinedRootDirectory: combinedRoot,
+            depositETag: DepositETag);
+
+        var result = await handler.Handle(request, CancellationToken.None);
+
+        result.Failure.Should().BeTrue();
+        result.ErrorCode.Should().Be(ErrorCodes.PreconditionFailed);
+        // Issue #355 review: the previous message named neither which files were already gone from
+        // S3 (while the METS, now unwritable, still lists them) nor why the write itself failed -
+        // both now appear, via the same FormatPartialFailureMessage the terminalFailure branches use.
+        result.ErrorMessage.Should().Be(
+            "Delete failed after 2 items (objects/a.txt, objects/b.txt). Unable to write METS file: Supplied ETag did not match METS.");
     }
 
     [Fact]
