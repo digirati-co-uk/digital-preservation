@@ -36,6 +36,11 @@ public static class ResultHelpers
                 $"{message} - Unauthorized for {s3Uri}; {s3E.Message}"),
             HttpStatusCode.BadRequest => Result.FailNotNull<T>(ErrorCodes.BadRequest,
                 $"{message} - Bad Request for {s3Uri}; {s3E.Message}"),
+            // AmazonS3Client throws rather than returning a 412 response, so a conditional write's
+            // lost ETag race reaches here as an exception, not an HttpStatusCode to switch on
+            // elsewhere (issue #355).
+            HttpStatusCode.PreconditionFailed => Result.FailNotNull<T>(ErrorCodes.PreconditionFailed,
+                $"{message} - Supplied ETag did not match for {s3Uri}; {s3E.Message}"),
             _ => Result.FailNotNull<T>(ErrorCodes.UnknownError,
                 $"{message} - AWS returned status code {s3E.StatusCode} for {s3Uri} with message {s3E.Message}.")
         };
