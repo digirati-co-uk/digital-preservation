@@ -275,6 +275,54 @@ public class FileMetadataTests : MetsParserTestBase
         virus.VirusDefinition.Should().Be("ClamAV 1.4.3/27944");
     }
 
+    /// <summary>
+    /// Issue #371: round-tripping a "Not scanned" outcome (written when ClamAV skipped a file for
+    /// exceeding a size limit) must come back as NotScanned, not silently collapse to HasVirus
+    /// false like any other non-"fail" outcome would.
+    /// </summary>
+    [Fact]
+    public void Virus_scan_not_scanned_event_produces_metadata_with_NotScanned_true()
+    {
+        var clamavId = "digiprovMD_ClamAV_ADM_objects/toobig.bin";
+        var extraAmdSecs = $"""
+            <mets:amdSec ID="ADM_EXTRA">
+              <mets:digiprovMD ID="{clamavId}">
+                <mets:mdWrap MDTYPE="PREMIS:EVENT">
+                  <mets:xmlData>
+                    <premis:event>
+                      <premis:eventDateTime>2026-03-18T12:00:00Z</premis:eventDateTime>
+                      <premis:eventDetailInformation>
+                        <premis:eventDetail>ClamAV 1.4.3/27944</premis:eventDetail>
+                      </premis:eventDetailInformation>
+                      <premis:eventOutcomeInformation>
+                        <premis:eventOutcome>Not scanned</premis:eventOutcome>
+                        <premis:eventOutcomeDetail>
+                          <premis:eventOutcomeDetailNote>Heuristics.Limits.Exceeded.MaxFileSize FOUND</premis:eventOutcomeDetailNote>
+                        </premis:eventOutcomeDetail>
+                      </premis:eventOutcomeInformation>
+                    </premis:event>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:digiprovMD>
+            </mets:amdSec>
+            """;
+
+        var xml = FullMets("ADM_objects/toobig.bin", "objects/toobig.bin", "application/octet-stream", """
+            <premis:fixity>
+              <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+              <premis:messageDigest>bigFile</premis:messageDigest>
+            </premis:fixity>
+            """, extraAmdSecs);
+
+        var mets = Parse(xml);
+
+        var virus = mets.Files[0].Metadata.OfType<VirusScanMetadata>().Single();
+        virus.NotScanned.Should().BeTrue();
+        virus.HasVirus.Should().BeFalse("a size-limit skip is not a detection");
+        virus.VirusFound.Should().Be("Heuristics.Limits.Exceeded.MaxFileSize FOUND");
+        virus.VirusDefinition.Should().Be("ClamAV 1.4.3/27944");
+    }
+
     [Fact]
     public void ADMID_on_mets_file_element_is_used_when_div_has_no_ADMID()
     {

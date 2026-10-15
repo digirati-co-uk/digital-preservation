@@ -129,6 +129,50 @@ RUN grep -q '^EnableVersionCommand yes' /etc/clamav/clamd.conf || echo 'EnableVe
 RUN sed -i 's/^#\?EnableReloadCommand.*/EnableReloadCommand yes/' /etc/clamav/clamd.conf
 RUN grep -q '^EnableReloadCommand yes' /etc/clamav/clamd.conf || echo 'EnableReloadCommand yes' >> /etc/clamav/clamd.conf
 
+# The distro's packaged clamd.conf defaults (MaxScanSize 100M, MaxFileSize 25M, StreamMaxLength
+# 25M) silently skip any file over 25MB - AlertExceedsMax defaults to off, so clamd reports a
+# skipped file as clean rather than flagging it, and that false-clean result was going into
+# METS/PREMIS as the file's virus-check provenance (issue #371). 2000M is just under ClamAV's own
+# hard per-file scanning ceiling (clamd.conf(5): "Technical design limitations prevent ClamAV from
+# scanning files greater than 2 GB" - and every size option here is capped at 4GB regardless,
+# silently clamped if set higher), so this is as large as these can usefully go. AlertExceedsMax
+# makes a file that still exceeds the limit (or the cumulative MaxScanSize) report as a
+# Heuristics.Limits.Exceeded.* hit instead of being silently passed; MetadataReader.AddVirusScanMetadata
+# recognises that prefix and records a distinct "not scanned" PREMIS outcome rather than treating
+# it as an infection.
+RUN sed -i 's/^#\?MaxScanSize.*/MaxScanSize 2000M/' /etc/clamav/clamd.conf
+RUN sed -i 's/^#\?MaxFileSize.*/MaxFileSize 2000M/' /etc/clamav/clamd.conf
+RUN sed -i 's/^#\?StreamMaxLength.*/StreamMaxLength 2000M/' /etc/clamav/clamd.conf
+# Unlike the other three, the distro's packaged clamd.conf does not ship AlertExceedsMax at all,
+# even commented out (verified against clamav-daemon 1.5.4 on this image's Ubuntu base) - a plain
+# sed replace would silently match nothing and do nothing, as it did in an earlier version of this
+# fix (there, against clamav-daemon 1.4.3 on Debian). Append it if the grep finds no existing line
+# (commented or not); replace in place if it does, same as every other directive here.
+RUN grep -q '^#\?AlertExceedsMax' /etc/clamav/clamd.conf \
+    && sed -i 's/^#\?AlertExceedsMax.*/AlertExceedsMax yes/' /etc/clamav/clamd.conf \
+    || echo 'AlertExceedsMax yes' >> /etc/clamav/clamd.conf
+
+# PCREMaxFileSize (packaged default 25M) is a separate limit from the three above: files over it
+# still get scanned normally, but PCRE subsignatures are skipped for them - and unlike
+# MaxFileSize/MaxScanSize/MaxRecursion/MaxFiles/MaxScanTime, this one isn't in the set
+# AlertExceedsMax watches, so there is no Heuristics.Limits.Exceeded hit to catch it; it would
+# just be a file scanned with an incomplete signature set and no record of that. Raised to match
+# the others so a file between the old 25MB and the new 2000M isn't missing PCRE coverage.
+RUN sed -i 's/^#\?PCREMaxFileSize.*/PCREMaxFileSize 2000M/' /etc/clamav/clamd.conf
+
+# MaxScanTime (packaged default 120000ms/2min) raised to 1800000ms/30min. Measured locally against
+# clamd 1.5.4 with these settings, on the one-to-two vCPUs this container actually gets: four
+# ~600MB files scanned together via --multiscan (as the shim runs it) all hit the 120s default
+# before finishing, so with files now allowed up to 2000M, "not scanned" would have become the
+# common case under ordinary concurrent load rather than the rare one - defeating the point of
+# raising the size limits above. 30 minutes is comfortably enough for a full 2GB file even sharing
+# the CPU (observed throughput: 15-25MB/s per core), and clamd.conf(5)'s warning about raising this
+# - a scan that runs long can lock up a scanning thread - is bounded by whatever value is set here;
+# the pipeline has no other per-job timeout this could usefully collide with. A scan that still
+# doesn't finish in time reports Heuristics.Limits.Exceeded.MaxScanTime and is recorded as "not
+# scanned" rather than silently passed as clean, the same honest outcome either way.
+RUN sed -i 's/^#\?MaxScanTime.*/MaxScanTime 1800000/' /etc/clamav/clamd.conf
+
 # Brunnhilde always invokes the literal "clamscan" binary with no way to configure it - shadow the
 # real clamscan with a shim that instead talks to clamd running as a second process in this same
 # container (started by pipeline-api-entrypoint.sh), avoiding the signature-database reload cost

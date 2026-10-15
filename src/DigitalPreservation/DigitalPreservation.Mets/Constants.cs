@@ -41,6 +41,15 @@ public static class Constants
     public const string VirusCheckEventType = "virus check";
 
     /// <summary>
+    /// premis:eventOutcome for a virus-check event that ClamAV skipped because the file exceeded
+    /// its configured size limit (issue #371) - distinct from "Pass" (scanned, clean) and "Fail"
+    /// (scanned, infected), neither of which is true for a file that was never actually scanned.
+    /// Written by PremisEventManagerVirus, matched back by MetsParser the same way the other two
+    /// outcomes are: by value, not by how the event's ID is spelt.
+    /// </summary>
+    public const string VirusCheckNotScannedOutcome = "Not scanned";
+
+    /// <summary>
     /// The PREMIS v3 namespace, and the only place in this library it is spelled out. A version
     /// change is a change to what we write and what we recognise, so it should be one edit rather
     /// than a search.

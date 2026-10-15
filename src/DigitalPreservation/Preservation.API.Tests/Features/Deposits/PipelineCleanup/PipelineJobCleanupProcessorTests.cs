@@ -133,6 +133,83 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
             "the lock belongs to the newer run now (issue #299's transfer decision); closing the old job must not take it");
     }
 
+    /// <summary>
+    /// Before issue #357, a non-latest job only closed once it was also overdue - so a job
+    /// superseded moments ago by a newer run sat non-terminal, non-latest and therefore invisible
+    /// to the UI (not the one it shows as running) for up to <see cref="CleanupMinutes"/>, yet still
+    /// blocked RunPipelineHandler's own check in the meantime. There is nothing to wait for once a
+    /// newer job exists, so this closes on the very next sweep regardless of age.
+    /// </summary>
+    [Fact]
+    public async Task A_Non_Latest_Job_Is_Closed_Immediately_Even_When_Not_Yet_Overdue()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var depositId = $"dep-{Guid.NewGuid()}";
+        await SeedDeposit(context, depositId, lockedBy: "tester");
+        var oldJobId = await SeedPipelineRunJob(context, depositId, PipelineJobStates.Running,
+            dateSubmitted: NotOverdue, dateBegun: NotOverdue, runUser: "tester");
+        await SeedPipelineRunJob(context, depositId, PipelineJobStates.Completed,
+            dateSubmitted: NotOverdue.AddSeconds(1), dateBegun: NotOverdue.AddSeconds(1), runUser: "tester");
+
+        await RunSweep(context);
+
+        var oldJob = await ReloadJob(oldJobId);
+        oldJob.Status.Should().Be(PipelineJobStates.CompletedWithErrors,
+            "a non-latest job is superseded the moment a newer one exists, with no overdue cutoff to wait out");
+    }
+
+    /// <summary>
+    /// DeleteDeposit does not check for an active pipeline job, so a deposit can be deleted while its
+    /// own run is still non-terminal (issue #357). RunPipelineStatusHandler refuses with NotFound for
+    /// a deposit that no longer exists, before it can touch the job row at all - without a fallback,
+    /// the job would never move out of a non-terminal status and would be re-swept, and re-refused,
+    /// on every tick for ever.
+    /// </summary>
+    [Fact]
+    public async Task An_Overdue_Job_Whose_Deposit_No_Longer_Exists_Is_Closed_As_CompletedWithErrors()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        // Deliberately no SeedDeposit: simulates the deposit having been deleted out from under its
+        // own still-non-terminal pipeline job.
+        var depositId = $"dep-{Guid.NewGuid()}";
+        var jobId = await SeedPipelineRunJob(context, depositId, PipelineJobStates.Running,
+            dateSubmitted: Overdue, dateBegun: Overdue, runUser: "tester");
+
+        await RunSweep(context);
+
+        var job = await ReloadJob(jobId);
+        job.Status.Should().Be(PipelineJobStates.CompletedWithErrors,
+            "a job whose deposit has been deleted must not be left non-terminal, re-swept for ever");
+        job.DateFinished.Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Issue #357 review: in SQL, "null > x" and "x > null" are both unknown (neither true), so a
+    /// legacy job with no DateSubmitted would make isLatestForDeposit's AnyAsync always false
+    /// (nothing can be found strictly greater than an unknown value) and so always evaluate as
+    /// "latest" - even with a newer, dated job for the same deposit sitting right next to it. Without
+    /// the DateTime.MinValue coalesce, this job would be routed to the overdue-cutoff path instead of
+    /// being closed immediately as the clearly-superseded job it is.
+    /// </summary>
+    [Fact]
+    public async Task A_Legacy_Job_With_No_DateSubmitted_Is_Still_Recognised_As_Not_Latest()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var depositId = $"dep-{Guid.NewGuid()}";
+        await SeedDeposit(context, depositId, lockedBy: "tester");
+        var legacyJobId = await SeedPipelineRunJob(context, depositId, PipelineJobStates.Running,
+            dateSubmitted: null, dateBegun: null, runUser: "tester");
+        await SeedPipelineRunJob(context, depositId, PipelineJobStates.Completed,
+            dateSubmitted: NotOverdue, dateBegun: NotOverdue, runUser: "tester");
+
+        await RunSweep(context);
+
+        var legacyJob = await ReloadJob(legacyJobId);
+        legacyJob.Status.Should().Be(PipelineJobStates.CompletedWithErrors,
+            "a null-DateSubmitted job must not be wrongly treated as the deposit's latest just because " +
+            "nothing compares as strictly greater than an unknown value");
+    }
+
     private static async Task RunSweep(PreservationContext context)
     {
         var mediator = MediatorForwardingToRealHandler(context);
@@ -193,7 +270,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
 
     private static async Task<string> SeedPipelineRunJob(
         PreservationContext context, string depositId, string status,
-        DateTime dateSubmitted, DateTime? dateBegun, string runUser)
+        DateTime? dateSubmitted, DateTime? dateBegun, string runUser)
     {
         var jobId = $"job-{Guid.NewGuid()}";
         context.PipelineRunJobs.Add(new PipelineRunJob
