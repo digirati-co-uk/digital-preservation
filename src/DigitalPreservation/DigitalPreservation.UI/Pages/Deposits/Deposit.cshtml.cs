@@ -730,35 +730,27 @@ public class DepositModel(
     /// opens this page, so a deposit can't be unstuck twice by two people opening it at once, and it
     /// no longer released a lock this page view had no business touching.
     /// </summary>
+    /// <remarks>
+    /// Used to pick the latest-by-DateBegun job first and only then ask whether that one was still
+    /// running - so a job stuck non-terminal that was not the latest (DateBegun null, or earlier than
+    /// a job started since) was invisible here, with nothing to offer "Force complete" on, even
+    /// though it was exactly what was blocking RunPipelineHandler's own check (issue #357). Picks the
+    /// running job directly instead: any non-terminal job for this deposit, most recent by Created
+    /// (the job's DateSubmitted - see ResourceMutator.MutatePipelineRunJob) in the rare case more than
+    /// one somehow exists. RunPipelineHandler blocks on any active job regardless of which is latest
+    /// (issue #357 review - #353's partial unique index allows at most one active job per deposit
+    /// anyway, so in steady state there is at most one for this to find), and
+    /// PipelineJobCleanupProcessor closes a non-latest one immediately - so a job this shows as
+    /// running is always exactly the one the 409 and the sweep already agree is active.
+    /// </remarks>
     public async Task<(List<ProcessPipelineResult> jobs, ProcessPipelineResult? runningJob)> GetRunningPipelineJob()
     {
         var allJobs = await GetPipelineJobResults();
 
-        var latestJob = allJobs
-            .Where(x => x.DateBegun.HasValue && x.Deposit == Id)
-            .OrderByDescending(x => x.DateBegun)
-            .FirstOrDefault();
-
-        var latestWaitingJob = allJobs
-            .Where(x => x is { Created: not null, DateBegun: null } && x.Deposit == Id)
+        var runningJob = allJobs
+            .Where(x => x.Deposit == Id && PipelineJobStates.IsNotComplete(x.Status))
             .OrderByDescending(x => x.Created)
             .FirstOrDefault();
-
-        if (latestJob == null && latestWaitingJob == null)
-        {
-            return (allJobs, null);
-        }
-
-        ProcessPipelineResult? runningJob = null;
-        if (latestJob != null && PipelineJobStates.IsNotComplete(latestJob.Status))
-        {
-            runningJob = latestJob;
-        }
-
-        if (runningJob == null && latestWaitingJob != null && PipelineJobStates.IsNotComplete(latestWaitingJob.Status))
-        {
-            runningJob = latestWaitingJob;
-        }
 
         return (allJobs, runningJob);
     }

@@ -113,6 +113,39 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         deposit.LockDate.Should().BeNull();
     }
 
+    /// <summary>
+    /// Issue #357 review: force-completing a non-latest job (e.g. from the UI, on a job a newer run
+    /// has already superseded) went through this same CompleteJob path and released the lock, which
+    /// by then belongs to that newer run, not to the one being closed. PipelineJobCleanupProcessor's
+    /// own sweep already avoids this by never routing a non-latest job through CompleteJob at all
+    /// (CloseWithoutReleasing instead); this is the same rule enforced here too, since a terminal
+    /// report - force-complete included - reaches this handler directly, not only via the sweep.
+    /// </summary>
+    [Fact]
+    public async Task A_Terminal_Report_For_A_NonLatest_Job_Does_Not_Release_The_Lock()
+    {
+        await using var context = fixture.CreateNewAuthServiceContext();
+        var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, runUser: "tester",
+            depositLockedBy: "tester");
+        // A newer job for the same deposit already exists - the job being completed below is no
+        // longer the deposit's latest, so its lock (if it still held one) belongs to this newer run.
+        // Terminal, not Running: issue #353's partial unique index now makes two simultaneously
+        // active jobs for the same deposit impossible to insert at all, so this can no longer be a
+        // second still-running job - only that a later job of any kind exists, which is all
+        // "isLatestForDeposit" (a plain DateSubmitted comparison) actually checks.
+        await AddAnotherJob(context, depositId, PipelineJobStates.Completed,
+            dateSubmitted: DateTime.UtcNow.AddMinutes(5), runUser: "tester");
+
+        var result = await Handle(context, depositId, jobId, PipelineJobStates.CompletedWithErrors, "superseded");
+
+        result.Success.Should().BeTrue();
+        var job = await ReloadJob(jobId);
+        job.Status.Should().Be(PipelineJobStates.CompletedWithErrors, "the status move itself is unaffected");
+        var deposit = await ReloadDeposit(depositId);
+        deposit.LockedBy.Should().Be("tester",
+            "the lock belongs to the newer, still-latest job now, not to the non-latest job just closed");
+    }
+
     [Fact]
     public async Task A_Repeated_Terminal_Report_Does_Not_Release_A_Lock_Someone_Else_Has_Since_Taken()
     {
@@ -451,6 +484,28 @@ public class RunPipelineStatusHandlerTests(DatabaseFixture fixture)
         await context.SaveChangesAsync();
 
         return (depositId, jobId);
+    }
+
+    /// <summary>
+    /// Adds a second job for a deposit SeedJob already created, with its own DateSubmitted - for
+    /// tests that need to control which of two jobs is the deposit's latest.
+    /// </summary>
+    private static async Task AddAnotherJob(
+        Preservation.API.Data.PreservationContext context, string depositId, string status,
+        DateTime dateSubmitted, string runUser = "tester")
+    {
+        context.PipelineRunJobs.Add(new PipelineRunJob
+        {
+            Id = $"job-{Guid.NewGuid()}",
+            Deposit = depositId,
+            ArchivalGroup = null,
+            Status = status,
+            DateSubmitted = dateSubmitted,
+            LastUpdated = DateTime.UtcNow,
+            PipelineJobJson = "{}",
+            RunUser = runUser
+        });
+        await context.SaveChangesAsync();
     }
 
     private async Task<PipelineRunJob> ReloadJob(string jobId)

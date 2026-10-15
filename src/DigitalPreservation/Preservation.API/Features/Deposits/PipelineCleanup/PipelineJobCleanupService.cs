@@ -14,8 +14,11 @@ public class PipelineJobCleanupService(
     {
         logger.LogInformation($"Starting {nameof(PipelineJobCleanupService)}");
 
-        // A job is only overdue after PipelineJobsCleanupMinutes (a day by default), so sweeping
-        // more often than this buys nothing.
+        // A job overdue by DateBegun/DateSubmitted is only overdue after PipelineJobsCleanupMinutes
+        // (a day by default), but a non-latest active job is now closed on the very next tick
+        // regardless of that cutoff (issue #357) - so this 15-minute interval is how long such a job
+        // lingers, blocking RunPipelineHandler and sitting unreachable in the UI, not a value that
+        // "buys nothing" between ticks the way it used to read (issue #357 review nit).
         using PeriodicTimer timer = new(TimeSpan.FromMinutes(15));
         try
         {

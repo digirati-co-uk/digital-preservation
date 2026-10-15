@@ -67,6 +67,18 @@ public class RunPipelineHandler(
         // #309). A job stuck in "processing" because its worker died blocks new runs until it's
         // cleaned up (force complete, the UI's stale-job tidy-up, or #301's sweep) - that is the
         // right behaviour, not a bug to work around here.
+        //
+        // Blocks on ANY active job for the deposit, not only the latest one (issue #357 review):
+        // #353's partial unique index on (deposit, status IN active) enforces exactly this - at most
+        // one active job per deposit, ever - so a "latest job only" read check here would let the
+        // read pass and then hit that index on insert, turning a clean 409 into an unhandled
+        // constraint violation. It also matches the UI, which shows whichever job is still running
+        // regardless of whether it's the deposit's most recent. A non-latest active job - left behind
+        // by data predating #353/#357, since the index now prevents new ones - is closed immediately
+        // by the sweep (PipelineJobCleanupProcessor), not left to block runs indefinitely.
+        //
+        // GetActiveJob (below) is the same query the 23505 backstop re-runs to decide whether to
+        // release the lock - kept as one method so the two call sites can't drift apart.
         var activeJob = await GetActiveJob(request.DepositId, cancellationToken);
         if (activeJob != null)
         {
@@ -204,6 +216,9 @@ public class RunPipelineHandler(
         e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg
         && pg.ConstraintName == OneActiveJobPerDepositIndexName;
 
+    // Status compared directly (Waiting/Running/MetadataCreated), not
+    // PipelineJobStates.IsNotComplete(j.Status): EF Core cannot translate an arbitrary static
+    // method call into SQL (see the same note in PipelineJobCleanupProcessor).
     private async Task<PipelineRunJob?> GetActiveJob(string depositId, CancellationToken cancellationToken) =>
         await dbContext.PipelineRunJobs
             .Where(j => j.Deposit == depositId
