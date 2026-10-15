@@ -27,26 +27,43 @@ public class PipelineJobCleanupProcessor(
 
             // Not PipelineJobStates.IsNotComplete(j.Status) here: EF Core cannot translate an
             // arbitrary static method call into SQL, so the two terminal statuses are compared
-            // directly instead, both here and in the conditional update below.
-            var overdueJobs = await dbContext.PipelineRunJobs
+            // directly instead, both here and in the conditional updates below.
+            var nonTerminalJobs = await dbContext.PipelineRunJobs
                 .Where(j => j.Status != PipelineJobStates.Completed && j.Status != PipelineJobStates.CompletedWithErrors)
-                .Where(j => (j.DateBegun != null && j.DateBegun < cutoff)
-                            || (j.DateBegun == null && j.DateSubmitted != null && j.DateSubmitted < cutoff))
                 .ToListAsync(cancellationToken);
 
-            foreach (var job in overdueJobs)
+            foreach (var job in nonTerminalJobs)
             {
-                // "Latest" is whichever job for this deposit was most recently submitted - every job
-                // gets DateSubmitted set at creation (RunPipelineHandler), so this needs no null
-                // handling, unlike DateBegun (never set for a job still waiting).
+                // "Latest" is whichever job for this deposit was most recently submitted. Every job
+                // created by RunPipelineHandler gets DateSubmitted set, but a legacy row predating
+                // that field can still have it null - and in SQL, "null > x" and "x > null" are both
+                // unknown (neither true), so a null-DateSubmitted job would otherwise never register
+                // as older than anything, making AnyAsync below always false and wrongly marking it
+                // "latest" regardless of how old it actually is (issue #357 review: Postgres's own
+                // NULLS-sort-first default for ORDER BY has the same root cause, here it shows up in
+                // a direct comparison instead). Coalescing to DateTime.MinValue treats an unknown
+                // submission time as the oldest possible one, which is the safe direction to be wrong
+                // in: worst case a legacy row is closed immediately instead of waiting out the normal
+                // overdue cutoff, never the reverse.
+                var jobDateSubmitted = job.DateSubmitted ?? DateTime.MinValue;
                 var isLatestForDeposit = !await dbContext.PipelineRunJobs
-                    .AnyAsync(j => j.Deposit == job.Deposit && j.DateSubmitted > job.DateSubmitted, cancellationToken);
+                    .AnyAsync(j => j.Deposit == job.Deposit && (j.DateSubmitted ?? DateTime.MinValue) > jobDateSubmitted,
+                        cancellationToken);
 
                 if (!isLatestForDeposit)
                 {
+                    // Closed immediately, with no overdue cutoff: a non-latest job is superseded the
+                    // moment a newer one exists for the same deposit, so there is nothing to wait for
+                    // (issue #357) - leaving it active for up to PipelineJobsCleanupMinutes blocks
+                    // RunPipelineHandler's "is the deposit's latest job active" check for no reason
+                    // and leaves the UI with a job it can neither show as running nor force-complete.
                     await CloseWithoutReleasing(job.Id, job.Deposit, cancellationToken);
+                    continue;
                 }
-                else
+
+                var isOverdue = (job.DateBegun != null && job.DateBegun < cutoff)
+                                 || (job.DateBegun == null && job.DateSubmitted != null && job.DateSubmitted < cutoff);
+                if (isOverdue)
                 {
                     await CloseAndReleaseIfHeld(job, cancellationToken);
                 }
@@ -108,6 +125,20 @@ public class PipelineJobCleanupProcessor(
         var result = await mediator.Send(new RunPipelineStatus(pipelineDeposit, new ClaimsPrincipal()), cancellationToken);
         if (result.Failure)
         {
+            if (result.ErrorCode == ErrorCodes.NotFound)
+            {
+                // The deposit itself no longer exists - DeleteDeposit does not check for an active
+                // pipeline job (issue #357) - so RunPipelineStatusHandler refuses before it can touch
+                // the job at all. There is no deposit left to release a lock on, which is exactly
+                // CloseWithoutReleasing's job; without this fallback the job sits non-terminal and
+                // gets re-swept, and re-refused, on every tick for ever.
+                logger.LogInformation(
+                    "Pipeline job {JobId}'s deposit {DepositId} no longer exists; closing it out without releasing a lock",
+                    job.Id, job.Deposit);
+                await CloseWithoutReleasing(job.Id, job.Deposit, cancellationToken);
+                return;
+            }
+
             logger.LogWarning(
                 "Could not clean up stale pipeline job {JobId} for deposit {DepositId}: {CodeAndMessage}",
                 job.Id, job.Deposit, result.CodeAndMessage());
