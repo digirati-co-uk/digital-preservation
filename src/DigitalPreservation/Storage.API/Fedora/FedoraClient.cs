@@ -1175,6 +1175,17 @@ internal class FedoraClient(
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Post);
         var response = await httpClient.SendAsync(req);
+
+        if (tx.CommitStarted)
+        {
+            // The commit can start (and even finish) between this POST going out and its response
+            // coming back. Writing StatusCode here would risk a late keep-alive response
+            // overwriting the commit's own result (issue #383 review point 5) - once a commit has
+            // started, a keep-alive's result no longer means anything; it's the commit's own
+            // outcome, recorded separately on CommitStatusCode, that matters now.
+            return;
+        }
+
         tx.StatusCode = response.StatusCode; // Allow for the possibility of a 404
 
         if (response.Headers.TryGetValues("Atomic-Expires", out var values))
@@ -1187,7 +1198,7 @@ internal class FedoraClient(
     {
         HttpRequestMessage req = MakeHttpRequestMessage(tx.Location, HttpMethod.Put);
         var response = await httpClient.SendAsync(req, cancellationToken);
-        tx.StatusCode = response.StatusCode;
+        tx.CommitStatusCode = response.StatusCode;
     }
 
     public async Task RollbackTransaction(Transaction tx)
