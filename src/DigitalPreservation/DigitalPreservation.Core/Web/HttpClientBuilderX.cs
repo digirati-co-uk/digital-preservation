@@ -41,13 +41,13 @@ public static class HttpClientBuilderX
     }
 
 
-    private static HttpMessageHandler CreateHttpMessageHandler(
+    private static SocketsHttpHandler CreateHttpMessageHandler(
         TimeSpan keepAliveTime, TimeSpan keepAliveInterval, int retryCount)
     {
         var handler = new SocketsHttpHandler
         {
             ConnectCallback = (context, token) =>
-                ConfigureSocketTcpKeepAlive(context, token, keepAliveTime, keepAliveInterval, retryCount)
+                ConfigureSocketTcpKeepAlive(context, keepAliveTime, keepAliveInterval, retryCount, token)
         };
 
         return handler;
@@ -55,10 +55,10 @@ public static class HttpClientBuilderX
 
     private static async ValueTask<Stream> ConfigureSocketTcpKeepAlive(
         SocketsHttpConnectionContext context,
-        CancellationToken token,
         TimeSpan keepAliveTime,
         TimeSpan keepAliveInterval,
-        int retryCount)
+        int retryCount,
+        CancellationToken token)
     {
         var ipAddresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, token);
         var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };

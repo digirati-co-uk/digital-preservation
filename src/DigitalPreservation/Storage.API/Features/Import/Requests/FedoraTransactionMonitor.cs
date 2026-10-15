@@ -87,9 +87,12 @@ public sealed class FedoraTransactionMonitor(
                     // 409 on a GET of a transaction that is mid-commit means Fedora is still
                     // committing it, not that the transaction is gone - this is "still running",
                     // not grounds to cancel (issue #383 review point 1).
-                    logger.LogInformation(
-                        "(TX) (M) Transaction {TransactionId} returned 409 (Conflict) while committing - still committing, not cancelling.",
-                        transactionId);
+                    if (logger.IsEnabled(LogLevel.Information))
+                    {
+                        logger.LogInformation(
+                            "(TX) (M) Transaction {TransactionId} returned 409 (Conflict) while committing - still committing, not cancelling.",
+                            transactionId);
+                    }
                 }
                 else if (currentStatusCode < 200 || currentStatusCode > 299)
                 {

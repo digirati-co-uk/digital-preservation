@@ -381,9 +381,12 @@ public class ExecuteImportJobHandler(
                     : CommitVerification.CouldNotConfirm;
                 if (outcome == CommitVerification.Confirmed)
                 {
-                    logger.LogInformation(
-                        "(TX) Commit outcome confirmed despite a connection error during the commit PUT for transaction {TransactionLocation}: {Error}",
-                        transaction.Location, e.Message);
+                    if (logger.IsEnabled(LogLevel.Information))
+                    {
+                        logger.LogInformation(
+                            "(TX) Commit outcome confirmed despite a connection error during the commit PUT for transaction {TransactionLocation}: {Error}",
+                            transaction.Location, e.Message);
+                    }
                     importJobResult.DateFinished = DateTime.UtcNow;
                     importJobResult.Status = ImportJobStates.Completed;
                     return Result.OkNotNull(importJobResult);
@@ -418,8 +421,11 @@ public class ExecuteImportJobHandler(
                         $"(TX) Fedora transaction commit outcome {confirmation} after the monitor cancelled the commit PUT",
                         rollback: false);
                 }
-                logger.LogInformation(
-                    "(TX) Commit outcome confirmed despite the cancelled PUT for transaction {TransactionLocation}", transaction.Location);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation(
+                        "(TX) Commit outcome confirmed despite the cancelled PUT for transaction {TransactionLocation}", transaction.Location);
+                }
             }
             else if ((int)transaction.CommitStatusCode is < 200 or >= 300)
             {
@@ -438,9 +444,12 @@ public class ExecuteImportJobHandler(
                         : CommitVerification.CouldNotConfirm;
                     if (gatewayOutcome == CommitVerification.Confirmed)
                     {
-                        logger.LogInformation(
-                            "(TX) Commit outcome confirmed despite an HTTP {StatusCode} commit response for transaction {TransactionLocation}",
-                            (int)transaction.CommitStatusCode, transaction.Location);
+                        if (logger.IsEnabled(LogLevel.Information))
+                        {
+                            logger.LogInformation(
+                                "(TX) Commit outcome confirmed despite an HTTP {StatusCode} commit response for transaction {TransactionLocation}",
+                                (int)transaction.CommitStatusCode, transaction.Location);
+                        }
                         importJobResult.DateFinished = DateTime.UtcNow;
                         importJobResult.Status = ImportJobStates.Completed;
                         return Result.OkNotNull(importJobResult);
@@ -625,9 +634,12 @@ public class ExecuteImportJobHandler(
                 }
                 catch (AmazonS3Exception ex) when (!importJob.IsUpdate && ex.StatusCode == HttpStatusCode.NotFound)
                 {
-                    logger.LogInformation(ex,
-                        "(TX) Commit verification attempt {Attempt}/{MaxAttempts} for {ArchivalGroupPath}: the Archival Group still doesn't exist in S3, and the transaction has already finished, so the create never committed",
-                        attempt, CommitVerificationMaxAttempts, archivalGroupPathUnderRoot);
+                    if (logger.IsEnabled(LogLevel.Information))
+                    {
+                        logger.LogInformation(ex,
+                            "(TX) Commit verification attempt {Attempt}/{MaxAttempts} for {ArchivalGroupPath}: the Archival Group still doesn't exist in S3, and the transaction has already finished, so the create never committed",
+                            attempt, CommitVerificationMaxAttempts, archivalGroupPathUnderRoot);
+                    }
                     return CommitVerification.ConfirmedNotCommitted;
                 }
                 catch (Exception ex)
