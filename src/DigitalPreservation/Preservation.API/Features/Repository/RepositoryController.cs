@@ -194,17 +194,19 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
     [ProducesResponseType(410)]
     public async Task<IActionResult?> HeadResource([FromRoute] string path)
     {
-        var result = await mediator.Send(new GetResourceType(path));
+        // GetResourceType needs the full /repository/... path (CommonApiBase.GetResourceType HEADs
+        // it as-is against the Storage API), not the route-bound path parameter, which the
+        // {*path} catch-all strips down to everything after "repository/" - that stripped form
+        // 404s every request against the Storage API, including ones that exist (issue #348).
+        // Request.Path is the same full-path source Browse already uses for this (via
+        // TryStreamConventionalMets and GetResource).
+        var result = await mediator.Send(new GetResourceType(Request.Path));
         if (result.Success)
         {
-            if (result.Value == nameof(ErrorCodes.Tombstone))
-            {
-                Response.StatusCode = 410;
-            }
-            else
-            {
-                Response.Headers[HttpHeaders.XPreservationResourceType] = result.Value;
-            }
+            // A tombstone never reaches here as a success: CommonApiBase.GetResourceType reports
+            // it as a failure with ErrorCode Tombstone, which the else branch below turns into
+            // 410 via ResultX.ToProblemDetails (issue #348).
+            Response.Headers[HttpHeaders.XPreservationResourceType] = result.Value;
         }
         else
         {
