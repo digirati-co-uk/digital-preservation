@@ -380,6 +380,20 @@ public class CreateDepositBase(
                     return Result.Ok();
                 }
 
+                if (exportMetsResult is { Success: true, Value.DateFinished: null })
+                {
+                    // Issue #273/PR #333: the Storage API answers 200 with errors recorded on the
+                    // Export rather than throwing when the export itself fails, so ErrorCode and
+                    // ErrorMessage are both null here - falling through to the failed-Result branch
+                    // below would reach ResultX.ToProblemDetails' default case (a 500 with an empty
+                    // detail), dropping the exception text the Storage API did capture (issue #358).
+                    var errorText = exportMetsResult.Value!.Errors is { Length: > 0 } errors
+                        ? string.Join("; ", errors.Select(e => e.Message))
+                        : "METS-only export did not finish, for an unknown reason.";
+                    logger.LogError("METS-only export did not finish: {ErrorText}", errorText);
+                    return Result.Fail(ErrorCodes.UnknownError, errorText);
+                }
+
                 logger.LogError("Unable to copy METS file to deposit: {CodeAndMessage}", exportMetsResult.CodeAndMessage());
                 return Result.Fail(exportMetsResult.ErrorCode!, exportMetsResult.ErrorMessage);
             }
