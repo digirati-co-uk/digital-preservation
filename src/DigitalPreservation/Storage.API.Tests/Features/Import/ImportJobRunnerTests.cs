@@ -1,5 +1,7 @@
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Common.Model.Storage;
 using FakeItEasy;
 using MediatR;
 using Microsoft.Extensions.Configuration;
@@ -85,6 +87,113 @@ public class ImportJobRunnerTests
         await Runner(mediator, store).Execute(JobId, TestContext.Current.CancellationToken);
 
         A.CallTo(() => store.SaveFinalImportJobResult(JobId, A<ImportJobResult>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    /// <summary>
+    /// Issue #350: RecordNewVersion used to only log when the group could not be read at all, and
+    /// never checked whether the version it did read had actually moved on - so a job that reported
+    /// success without ever really committing (a transaction Fedora's own expiry rolled back, for
+    /// one) was recorded as a plain, unqualified success.
+    /// </summary>
+    [Fact]
+    public async Task A_Successful_Job_Whose_Version_Did_Not_Change_Is_Recorded_As_An_Error()
+    {
+        var mediator = A.Fake<IMediator>();
+        var store = Store(GoodGroup);
+        A.CallTo(() => mediator.Send(A<ExecuteImportJob>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull(new ImportJobResult
+            {
+                Id = new Uri("https://storage.test/import/results/" + JobId), ImportJob = new Uri("https://storage.test/import/" + JobId), ArchivalGroup = GoodGroup,
+                Status = ImportJobStates.Completed,
+                SourceVersion = "v1"
+            }));
+        A.CallTo(() => mediator.Send(A<GetResourceFromFedora>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull<PreservedResource?>(new ArchivalGroup
+            {
+                Id = GoodGroup,
+                Version = new ObjectVersion { OcflVersion = "v1", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }
+            }));
+
+        await Runner(mediator, store).Execute(JobId, TestContext.Current.CancellationToken);
+
+        A.CallTo(() => store.SaveFinalImportJobResult(JobId,
+                A<ImportJobResult>.That.Matches(r =>
+                    r.Status == ImportJobStates.CompletedWithErrors
+                    && r.NewVersion == "v1"
+                    && r.Errors != null && r.Errors.Any(e => e.Message!.Contains("version did not change"))),
+                A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    /// <summary>
+    /// Issue #383 review point 4: ExecuteImportJobHandler's FailEarly returns a Result-level success
+    /// (so executeResult.Success is true, and RecordNewVersion still runs and still records
+    /// NewVersion) even for a rolled-back failure - whose Status is already CompletedWithErrors.
+    /// The previous version ran the "did the version actually move" check regardless of status, so
+    /// every rolled-back update and every failed create also got a second, misleading
+    /// "reported success, but..." error appended on top of its real one.
+    /// </summary>
+    [Fact]
+    public async Task A_Failed_Job_With_An_Unchanged_Version_Is_Not_Flagged_As_A_False_Success()
+    {
+        var mediator = A.Fake<IMediator>();
+        var store = Store(GoodGroup);
+        A.CallTo(() => mediator.Send(A<ExecuteImportJob>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull(new ImportJobResult
+            {
+                Id = new Uri("https://storage.test/import/results/" + JobId), ImportJob = new Uri("https://storage.test/import/" + JobId), ArchivalGroup = GoodGroup,
+                Status = ImportJobStates.CompletedWithErrors,
+                SourceVersion = "v1",
+                Errors = [new Error { Message = "(TX) Fedora transaction commit returned HTTP status 409 (Conflict)" }]
+            }));
+        A.CallTo(() => mediator.Send(A<GetResourceFromFedora>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull<PreservedResource?>(new ArchivalGroup
+            {
+                Id = GoodGroup,
+                Version = new ObjectVersion { OcflVersion = "v1", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }
+            }));
+
+        await Runner(mediator, store).Execute(JobId, TestContext.Current.CancellationToken);
+
+        A.CallTo(() => store.SaveFinalImportJobResult(JobId,
+                A<ImportJobResult>.That.Matches(r =>
+                    r.Status == ImportJobStates.CompletedWithErrors
+                    && r.NewVersion == "v1"
+                    && r.Errors != null
+                    && r.Errors.Count(e => e.Message!.Contains("version did not change")) == 0),
+                A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    /// <summary>
+    /// The new-group case has no SourceVersion to compare against - any version at all confirms
+    /// the create landed, so this must not be flagged as the "version did not change" error.
+    /// </summary>
+    [Fact]
+    public async Task A_Successful_Job_For_A_New_Group_With_No_Source_Version_Is_Not_Flagged()
+    {
+        var mediator = A.Fake<IMediator>();
+        var store = Store(GoodGroup);
+        A.CallTo(() => mediator.Send(A<ExecuteImportJob>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull(new ImportJobResult
+            {
+                Id = new Uri("https://storage.test/import/results/" + JobId), ImportJob = new Uri("https://storage.test/import/" + JobId), ArchivalGroup = GoodGroup,
+                Status = ImportJobStates.Completed,
+                SourceVersion = null
+            }));
+        A.CallTo(() => mediator.Send(A<GetResourceFromFedora>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull<PreservedResource?>(new ArchivalGroup
+            {
+                Id = GoodGroup,
+                Version = new ObjectVersion { OcflVersion = "v1", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }
+            }));
+
+        await Runner(mediator, store).Execute(JobId, TestContext.Current.CancellationToken);
+
+        A.CallTo(() => store.SaveFinalImportJobResult(JobId,
+                A<ImportJobResult>.That.Matches(r => r.Status == ImportJobStates.Completed),
+                A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
     }
 
