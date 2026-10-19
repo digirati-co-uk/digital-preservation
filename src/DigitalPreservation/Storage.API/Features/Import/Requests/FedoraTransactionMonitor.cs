@@ -85,7 +85,10 @@ public sealed class FedoraTransactionMonitor(
                 // answers with 409, so POSTing one here was cancelling commits that were simply
                 // still running, not actually lost.
                 var currentStatus = await fedoraClient.GetTransactionHttpStatus(tx);
-                logger.LogInformation("(TX) (M) Transaction {TransactionId} has HTTP Status {StatusCode}.", transactionId, (int)currentStatus);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("(TX) (M) Transaction {TransactionId} has HTTP Status {StatusCode}.", transactionId, (int)currentStatus);
+                }
                 if (IsTransactionFinished(currentStatus))
                 {
                     // 404/410 is Fedora's own, definitive answer that it no longer has this
