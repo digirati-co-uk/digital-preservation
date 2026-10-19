@@ -227,6 +227,33 @@ public class ExecuteImportJobCommitVerificationTests
     }
 
     /// <summary>
+    /// Issue #383's third review, point 1: polling the transaction to see if it has finished goes
+    /// through the same ALB/NAT path as the commit PUT itself, so it can fail the same way. The
+    /// previous version treated a failed poll as "finished" and went straight to the version check -
+    /// the same false-positive the second review's fix closed for a transient gateway status,
+    /// reopened for an outright exception. A failed poll must keep polling instead, exactly like a
+    /// non-definitive status.
+    /// </summary>
+    [Fact]
+    public async Task A_Connection_Error_Keeps_Polling_When_Checking_The_Transaction_Itself_Also_Fails()
+    {
+        var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
+        A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
+            .Throws(new HttpRequestException("connection reset"));
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction))
+            .Throws(new HttpRequestException("connection reset")).Once()
+            .Then.Returns(HttpStatusCode.NotFound);
+        A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
+            .Returns(Result.OkNotNull(new ObjectVersion { OcflVersion = "v2", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }));
+
+        var result = await CreateHandler().Handle(
+            new ExecuteImportJob(JobId, UpdateJobWithNoChanges(), InitialResult()), CancellationToken.None);
+
+        result.Value!.Status.Should().Be(ImportJobStates.Completed);
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction)).MustHaveHappened(2, Times.Exactly);
+    }
+
+    /// <summary>
     /// Issue #383's second review, first nit: the backoff delay inside verification used to run
     /// against the job's own cancellation token. If a caller cancelled at this point - work may
     /// already be committed to Fedora - the resulting OperationCanceledException escaped all the
@@ -426,6 +453,10 @@ public class ExecuteImportJobCommitVerificationTests
         var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
         A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
             .Throws(new HttpRequestException("connection reset"));
+        // A real, definitive answer that the transaction is gone (issue #383's third review: only
+        // 404/410 counts - a GET never answers 409, and the fake's own unstubbed default (0) isn't
+        // one either, so this must be stubbed for WaitForTransactionToFinish to ever return true).
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction)).Returns(HttpStatusCode.NotFound);
         A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
             .Returns(Result.OkNotNull(new ObjectVersion { OcflVersion = "v2", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }));
 
@@ -442,6 +473,7 @@ public class ExecuteImportJobCommitVerificationTests
         var transaction = GivenTheHappyPathToCommit(sourceVersion: "v1");
         A.CallTo(() => fedoraClient.CommitTransaction(transaction, A<CancellationToken>._))
             .Throws(new HttpRequestException("connection reset"));
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(transaction)).Returns(HttpStatusCode.NotFound);
         A.CallTo(() => fedoraClient.GetArchivalGroupVersion(ArchivalGroupPath, null))
             .Returns(Result.OkNotNull(new ObjectVersion { OcflVersion = "v1", MementoTimestamp = "t", MementoDateTime = DateTime.UtcNow }));
 

@@ -125,9 +125,14 @@ public class FedoraTransactionMonitorTests
     }
 
     /// <summary>
-    /// Issue #383 review point 1: a GET on a transaction that is mid-commit answers 409, and the
-    /// previous version treated any non-2xx - 409 included - as grounds to cancel. That cancelled
-    /// commits that were simply still running. 409 specifically must not cancel.
+    /// Issue #383's first review, point 1: the previous version treated any non-2xx status as
+    /// grounds to cancel, which included 409 - cancelling commits that were simply still running.
+    /// A GET never actually answers 409 in practice (issue #383's third review, reading fcrepo's own
+    /// source: a GET answers 204 until the transaction's 3-minute expiry, then blocks until the
+    /// commit finishes and answers 404/410 - 409 comes from the keep-alive POST's refresh()
+    /// instead), but this is kept as a defensive case: only a definitive 404/410 answer
+    /// (<see cref="FedoraTransactionMonitor.IsTransactionFinished"/>) may cancel, so 409 - however it
+    /// arrived - must not.
     /// </summary>
     [Fact]
     public async Task A_409_Status_While_Committing_Does_Not_Cancel()
@@ -136,6 +141,33 @@ public class FedoraTransactionMonitorTests
         var tx = MakeTransaction();
         tx.CommitStarted = true;
         A.CallTo(() => fedoraClient.GetTransactionHttpStatus(tx)).Returns(HttpStatusCode.Conflict);
+        var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
+
+        monitor.MaintainTransactionState(tx);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+
+        tx.CancelRequested.Should().BeFalse();
+        tx.Cancelled.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Issue #383's third review, point 2: the previous version cancelled on any non-2xx, non-409
+    /// status while committing - which included a transient 502/503/504 from the same ALB/NAT path
+    /// the commit PUT itself uses (a 503 is what the ALB returns when it judges the target
+    /// unhealthy, plausible while Fedora is busy with a large commit). Only a definitive 404/410
+    /// answer means Fedora is actually done with the transaction; anything else is "no information",
+    /// not grounds to cancel a commit that may simply still be running.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task A_Transient_Gateway_Status_While_Committing_Does_Not_Cancel(HttpStatusCode transientStatus)
+    {
+        var fedoraClient = A.Fake<IFedoraClient>();
+        var tx = MakeTransaction();
+        tx.CommitStarted = true;
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(tx)).Returns(transientStatus);
         var monitor = new FedoraTransactionMonitor(NullLogger.Instance, fedoraClient, tx, Stopwatch.StartNew());
 
         monitor.MaintainTransactionState(tx);
@@ -191,13 +223,20 @@ public class FedoraTransactionMonitorTests
         tx.TransactionLost.Should().BeFalse();
     }
 
-    [Fact]
-    public async Task A_Non_2xx_Status_Cancels_The_Token_CommitTransaction_Observes_Without_Disposal()
+    /// <summary>
+    /// Both statuses <see cref="FedoraTransactionMonitor.IsTransactionFinished"/> treats as
+    /// definitive (issue #383's third review) must cancel.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Gone)]
+    public async Task A_Definitive_Finished_Status_Cancels_The_Token_CommitTransaction_Observes_Without_Disposal(
+        HttpStatusCode finishedStatus)
     {
         var fedoraClient = A.Fake<IFedoraClient>();
         var tx = MakeTransaction();
         tx.CommitStarted = true;
-        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(tx)).Returns(HttpStatusCode.NotFound);
+        A.CallTo(() => fedoraClient.GetTransactionHttpStatus(tx)).Returns(finishedStatus);
 
         // Stands in for the real HTTP call: stays pending until the token it was given is
         // cancelled, same as the real fedoraClient.CommitTransaction observing cancellation.

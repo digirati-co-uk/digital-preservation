@@ -528,16 +528,25 @@ public class ExecuteImportJobHandler(
         }
 
         /// <summary>
-        /// Polls the transaction itself (not the Archival Group) until Fedora stops reporting it as
-        /// mid-commit - a GET answers 2xx or 409 while the commit is still running (FedoraTransactionMonitor
-        /// uses the same two codes to decide the same thing), anything else once it has finished one
-        /// way or another. Needed before <see cref="VerifyCommitOutcome"/> runs on the connection-error
-        /// and ALB-gateway paths, where the commit PUT's own response can't be trusted and Fedora may
+        /// Polls the transaction itself (not the Archival Group) until Fedora gives a definitive
+        /// answer that it no longer has it - a GET answers 404 or 410 only once the commit Fedora
+        /// was synchronizing the expiry check against has actually finished (issue #383's third
+        /// review, reading fcrepo's own source: before the transaction's 3-minute expiry a GET
+        /// answers 204; past it, the GET itself blocks until the commit ends, then answers 404/410 -
+        /// so in practice this is often one long, event-driven wait rather than real polling).
+        /// Needed before <see cref="VerifyCommitOutcome"/> runs on the connection-error and
+        /// ALB-gateway paths, where the commit PUT's own response can't be trusted and Fedora may
         /// still be writing OCFL: checking the Archival Group's version too early can read it before
-        /// the commit lands and wrongly report "confirmed not committed" (issue #383's second review,
-        /// point 2). Not needed on the monitor-cancelled path below, which by definition only cancels
-        /// once a GET on the transaction has already returned a non-2xx, non-409 status - the
-        /// transaction has already finished by the time that happens.
+        /// the commit lands and wrongly report "confirmed not committed" (issue #383's second
+        /// review, point 2). Not needed on the monitor-cancelled path below, which only cancels once
+        /// its own GET has already answered 404/410 via <see cref="FedoraTransactionMonitor.IsTransactionFinished"/>
+        /// - the transaction has already finished by the time that happens.
+        ///
+        /// Neither an exception from this GET nor a non-404/410 status (204 before expiry, or a
+        /// transient 502/503/504 from the same ALB/NAT path the commit PUT itself uses) is treated
+        /// as "finished" (issue #383's third review, point 1): both mean only that this particular
+        /// poll didn't get a real answer, not that the transaction is over, so both keep polling
+        /// within the bound below rather than letting the version check run too early.
         ///
         /// CancellationToken.None for the wait between polls, not the job's own token (issue #383's
         /// second review, first nit): by this point work may already be committed to Fedora, so a
@@ -551,23 +560,19 @@ public class ExecuteImportJobHandler(
             var waited = TimeSpan.Zero;
             while (waited < TransactionFinishMaxWait)
             {
-                HttpStatusCode status;
                 try
                 {
-                    status = await fedoraClient.GetTransactionHttpStatus(transaction);
+                    var status = await fedoraClient.GetTransactionHttpStatus(transaction);
+                    if (FedoraTransactionMonitor.IsTransactionFinished(status))
+                    {
+                        return true;
+                    }
                 }
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex,
-                        "(TX) Polling transaction {TransactionLocation} to see if it has finished threw; proceeding to verify the Archival Group directly",
+                        "(TX) Polling transaction {TransactionLocation} to see if it has finished threw; will keep polling",
                         transaction.Location);
-                    return true;
-                }
-
-                var statusCode = (int)status;
-                if (status != HttpStatusCode.Conflict && statusCode is < 200 or > 299)
-                {
-                    return true;
                 }
 
                 await delay(TransactionFinishPollInterval, CancellationToken.None);
