@@ -145,9 +145,8 @@ public class DepositsController(
     [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> GetDepositAsIIIFManifestWithToken([FromRoute] string id, [FromRoute] string token)
     {
-        var key = tokenService.GetKey(token);
-        if (!key.HasText() || key.GetSlug() != id)
-            return SessionExpiredResult();
+        if (!tokenService.IsValidForDeposit(token, id))
+            return this.IiifSessionExpiredResult();
 
         var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
         var manifestUrl = Request.GetDisplayUrl();
@@ -168,9 +167,8 @@ public class DepositsController(
     [HttpPost("{id}/iiif-token/{token}", Name = "PostIIIFManifestToDepositWithToken")]
     public async Task<IActionResult> PostIIIFManifestToDepositWithToken([FromRoute] string id, [FromRoute] string token)
     {
-        var key = tokenService.GetKey(token);
-        if (!key.HasText() || key.GetSlug() != id)
-            return SessionExpiredResult();
+        if (!tokenService.IsValidForDeposit(token, id))
+            return this.IiifSessionExpiredResult();
 
         string rawJson;
         using (var reader = new System.IO.StreamReader(Request.Body))
@@ -203,12 +201,6 @@ public class DepositsController(
             return NoContent();
         return this.StatusResponseFromResult(result);
     }
-
-    private ObjectResult SessionExpiredResult() => Problem(
-        title: "Session expired",
-        detail: "The IIIF session token has expired. Re-open the manifest from the preservation system to get a fresh link.",
-        statusCode: 401);
-
 
     [HttpPost("{id}/mets", Name = "AddDepositItemsToMets")]
     [ProducesResponseType<ItemsAffected>(200, "application/json")]
