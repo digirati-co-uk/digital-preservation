@@ -117,7 +117,7 @@ public class PipelineController(
     [HttpGet(Name = "CheckDepositFolderExists")]
     [Produces<string[]>]
     [Produces("application/json")]
-    public async Task<DirectoryModel> CheckDepositFolderAndContents([FromQuery] DepositFilesModel depositFilesModel,
+    public DirectoryModel CheckDepositFolderAndContents([FromQuery] DepositFilesModel depositFilesModel,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Checking deposit folder {DepositId} and contents exist.", depositFilesModel.DepositId);
@@ -130,19 +130,19 @@ public class PipelineController(
             if (string.IsNullOrEmpty(depositFilesModel.DepositId))
             {
                 model.Errors.Add("DepositNameOrPath is null or empty");
-                return await Task.FromResult(model);
+                return model;
             }
 
             if (!PreservedResource.ValidSlug(depositFilesModel.DepositId, out var invalidDepositIdReason))
             {
                 model.Errors.Add($"DepositId is not valid: {invalidDepositIdReason}");
-                return await Task.FromResult(model);
+                return model;
             }
 
             if (storageOptions.Value.FileMountPath == null)
             {
                 model.Errors.Add("File Mount path option setting is null");
-                return await Task.FromResult(model);
+                return model;
             }
 
             var baseDirectory = Path.GetFullPath(storageOptions.Value.FileMountPath);
@@ -159,7 +159,7 @@ public class PipelineController(
                     "Refusing to check deposit folder for DepositId {DepositId}: {DepositPath} is not under {BaseDirectory}",
                     depositFilesModel.DepositId, depositPath, baseDirectory);
                 model.Errors.Add("DepositId does not resolve to a path under the file mount.");
-                return await Task.FromResult(model);
+                return model;
             }
 
             var allDirectories = Directory.GetDirectories(depositPath, "*", SearchOption.AllDirectories);
@@ -176,10 +176,10 @@ public class PipelineController(
         catch (Exception ex)
         {
             model.Errors.Add(ex.Message);
-            return await Task.FromResult(model);
+            return model;
         }
 
-        return await Task.FromResult(model);
+        return model;
     }
 
     private void ProcessDirectory(string? targetDirectory)
