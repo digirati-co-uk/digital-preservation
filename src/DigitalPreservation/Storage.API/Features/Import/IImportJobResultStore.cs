@@ -40,6 +40,21 @@ public interface IImportJobResultStore
     public Task<Result<List<string>>> GetActiveJobsForArchivalGroup(Uri? archivalGroup, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Operator path for issue #366: clears a job that is Active but has never sent a heartbeat at
+    /// all - dead-lettered, genuinely still queued (SQS retains a message for up to 14 days), or
+    /// mid-run on an importer from before heartbeats existed (#354). That is exactly the gap
+    /// <see cref="GetActiveJobsForArchivalGroup"/> and <see cref="ReapAllStaleRunningJobs"/>
+    /// deliberately leave alone, because neither can tell those three cases apart on its own. This
+    /// is instead a deliberate, named, operator action: the caller is asserting - from evidence
+    /// outside this API - that the job will never run, so it is honoured even though a null
+    /// heartbeat alone is not proof of that. Refuses a job that already has a heartbeat (that one
+    /// belongs to the automatic reap instead) or is already inactive. Replaces the raw
+    /// <c>update import_jobs set active = false where id = …</c> SQL that was the only remedy before
+    /// this existed (issue #245).
+    /// </summary>
+    public Task<Result<ImportJobResult>> CancelStuckImportJob(string jobIdentifier, string reason, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Periodic sweep (<see cref="ImportJobReapService"/>) across every Active, heartbeating job
     /// regardless of Archival Group - unlike <see cref="GetActiveJobsForArchivalGroup"/>, which only
     /// reaps as a side effect of another job being queued for the *same* group, so a group whose only
