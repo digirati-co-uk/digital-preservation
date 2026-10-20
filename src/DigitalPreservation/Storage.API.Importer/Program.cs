@@ -1,17 +1,9 @@
-using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Core.Configuration;
-using DigitalPreservation.Core.Web.Headers;
 using Serilog;
-using Storage.API.Data;
 using Storage.API.Features.Export;
-using Storage.API.Features.Export.Data;
 using Storage.API.Features.Import;
-using Storage.API.Features.Import.Data;
 using Storage.API.Fedora;
 using Storage.API.Infrastructure;
-using Storage.API.Ocfl;
 using Storage.Repository.Common;
-using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -28,45 +20,17 @@ try
             .Enrich.FromLogContext()
             .Enrich.WithCorrelationId());
     
-    builder.Services
-        .ConfigureForwardedHeaders()
-        .AddHttpContextAccessor()
-        .AddMediatR(cfg =>
-        {
-            cfg.RegisterServicesFromAssemblyContaining<IStorage>();
-            cfg.RegisterServicesFromAssemblyContaining<IFedoraClient>();
-        });
-    
-    
-    //Auth enabled flag - can still use this, eg for local testing scenarios
-    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
-    if (useAuthFeatureFlag)
+    builder.Services.AddMediatR(cfg =>
     {
-        // Here we will need some auth config that allows Storage.API.Importer to have a ClientID and Secret
-        // It _only_ makes calls this way because it never has a user context
-    }
+        cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+        cfg.RegisterServicesFromAssemblyContaining<IFedoraClient>();
+    });
 
-    // The Importer is the heartbeat writer in deployed (SQS) environments: ImportJobRunner here reads
-    // ImportJobs:HeartbeatIntervalSeconds from this host's own configuration, not the Storage API's.
-    // Validated here too (see Storage.API/Program.cs for its copy of this call) so a misconfigured
-    // interval on this specific host can't slip past the Storage API's own check of its own config.
-    ImportJobHeartbeatSettings.Validate(builder.Configuration);
+    // Auth: this host never has a user context, only ever a ClientID/Secret for calling out - there
+    // is nothing here yet to gate on the flag, unlike the Storage API's own copy of this read.
 
-    builder.Services
-        .AddOcfl(builder.Configuration)
-        .AddMemoryCache()
-        .AddFedoraClient(builder.Configuration, "Storage-API-Importer")
-        .AddFedoraDB(builder.Configuration, "Fedora")
-        .AddStorageAwsAccess(builder.Configuration)
-        .AddSingleton<IHttpContextAccessor, HttpContextAccessor>()
-        .AddImportExport(builder.Configuration)
-        .AddSingleton<IIdentityMinter, IdentityMinter>()
-        .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
-        .AddScoped<IExportResultStore, ExportResultStore>() // only for Storage API; happens after above for shared S3
-        .AddStorageHealthChecks()
-        .AddCorrelationIdHeaderPropagation()
-        .AddStorageContext(builder.Configuration);
-    
+    builder.Services.AddStorageCore(builder.Configuration, "Storage-API-Importer");
+
     builder.Services
         .AddHostedService<ImportJobExecutorService>()
         .AddScoped<ImportJobRunner>()
@@ -74,6 +38,10 @@ try
         .AddSingleton<IExportQueue, InProcessExportQueue>(); // don't need this but Mediatr does
     
     var app = builder.Build();
+    // AddStorageCore configures forwarded-headers options for both hosts; applying the middleware
+    // itself was missing here (issue #388), so /health's logged client IP was always the load
+    // balancer's, never the real caller's.
+    app.UseForwardedHeaders();
     app.UseHealthChecks("/health");
     await app.RunAsync();
 }

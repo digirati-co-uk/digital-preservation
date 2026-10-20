@@ -4,9 +4,9 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Storage;
 using FakeItEasy;
 using MediatR;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Storage.API.Features.Import;
 using Storage.API.Features.Import.Requests;
 using Storage.API.Features.Repository.Requests;
@@ -23,7 +23,7 @@ public class ImportJobRunnerTests
     private const string JobId = "job-1";
     private static readonly Uri BadGroup = new("https://storage.test/repository/cc/a%2Fb");
     private static readonly Uri GoodGroup = new("https://storage.test/repository/cc/thing");
-    private static readonly IConfiguration EmptyConfiguration = new ConfigurationBuilder().Build();
+    private static readonly IOptions<ImportJobOptions> DefaultImportJobOptions = Options.Create(new ImportJobOptions());
 
     [Fact]
     public async Task A_Job_Refused_By_Validation_Is_Saved_Inactive_Without_Asking_Fedora_For_The_Refused_Path()
@@ -198,7 +198,7 @@ public class ImportJobRunnerTests
     }
 
     private static ImportJobRunner Runner(IMediator mediator, IImportJobResultStore store) =>
-        new(NullLogger<ImportJobRunner>.Instance, mediator, store, ScopeFactoryFor(store), EmptyConfiguration);
+        new(NullLogger<ImportJobRunner>.Instance, mediator, store, ScopeFactoryFor(store), DefaultImportJobOptions);
 
     private static IImportJobResultStore Store(Uri archivalGroup)
     {

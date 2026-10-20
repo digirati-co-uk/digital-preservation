@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+
 namespace Storage.API.Features.Import;
 
 /// <summary>
@@ -10,11 +12,11 @@ namespace Storage.API.Features.Import;
 /// </summary>
 public class ImportJobReapService(
     IServiceScopeFactory serviceScopeFactory,
-    IConfiguration configuration,
+    IOptions<ImportJobOptions> importJobOptions,
     ILogger<ImportJobReapService> logger) : BackgroundService
 {
     private TimeSpan SweepInterval =>
-        TimeSpan.FromMinutes(configuration.GetValue("ImportJobs:ReapSweepIntervalMinutes", 5));
+        TimeSpan.FromMinutes(importJobOptions.Value.ReapSweepIntervalMinutes);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
