@@ -19,13 +19,19 @@ public class GetImportJobsOrderedCollectionPageHandler(
 {
     public async Task<Result<OrderedCollectionPage>> Handle(GetImportJobsOrderedCollectionPage request, CancellationToken cancellationToken)
     {
+        if (request.Page < 1)
+        {
+            return Result.FailNotNull<OrderedCollectionPage>(ErrorCodes.BadRequest, "Page must be 1 or greater.");
+        }
+
         try
         {
             var totalItemsResult = await importJobResultStore.GetTotalImportJobs(cancellationToken);
-            if (totalItemsResult is not { Success: true, Value: > 0 })
+            if (totalItemsResult.Failure)
             {
-                return Result.FailNotNull<OrderedCollectionPage>(ErrorCodes.UnknownError,
-                    totalItemsResult.ErrorMessage);
+                // Diverged (issue #388): this used to check Value: > 0 as well as Success, so an
+                // empty-but-successful stream would be reported as a 500 with a null Detail.
+                return Result.ConvertFailNotNull<int, OrderedCollectionPage>(totalItemsResult);
             }
 
             var pageResult = await importJobResultStore.GetActivityPageOfResults(
@@ -37,35 +43,12 @@ public class GetImportJobsOrderedCollectionPageHandler(
                 return Result.FailNotNull<OrderedCollectionPage>(ErrorCodes.UnknownError, pageResult.ErrorMessage);
             }
 
-            int startIndex = (request.Page - 1) * OrderedCollectionPage.DefaultPageSize;
-            int totalItems = totalItemsResult.Value;
-            var page = new OrderedCollectionPage
-            {
-                Id = converters.ActivityUri($"importjobs/pages/{request.Page}"),
-                PartOf = new OrderedCollection
-                {
-                    Id = converters.ActivityUri("importjobs/collection"),
-                },
-                StartIndex = startIndex,
-                OrderedItems = pageResult.Value
-            };
-            if (request.Page > 1)
-            {
-                page.Prev = new OrderedCollectionPage
-                {
-                    Id = converters.ActivityUri($"importjobs/pages/{request.Page - 1}"),
-                };
-            }
-
-            if (totalItems > startIndex + OrderedCollectionPage.DefaultPageSize)
-            {
-                page.Next = new OrderedCollectionPage
-                {
-                    Id = converters.ActivityUri($"importjobs/pages/{request.Page + 1}"),
-                };
-            }
-
-            page.WithContext();
+            var page = OrderedCollectionPage.For(
+                converters.ActivityUri("importjobs/collection"),
+                p => converters.ActivityUri($"importjobs/pages/{p}"),
+                request.Page,
+                totalItemsResult.Value,
+                pageResult.Value);
 
             return Result.OkNotNull(page);
 
