@@ -1,7 +1,6 @@
 ﻿using Amazon.S3;
 using Amazon.SimpleNotificationService;
 using Amazon.SQS;
-using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.OpenApi;
@@ -43,10 +42,6 @@ try
 
     builder.Services.Configure<PipelineOptions>(
         builder.Configuration.GetSection("PipelineOptions"));
-
-    //Add TokenScope
-    builder.Services.AddSingleton<ITokenScope>(x =>
-        new TokenScope(builder.Configuration.GetSection("AzureAd:ScopeUri").Value));
 
     builder.Services
         .ConfigureForwardedHeaders()
