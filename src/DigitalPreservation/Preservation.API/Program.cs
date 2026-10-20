@@ -44,7 +44,7 @@ try
             .Enrich.WithCorrelationId());
 
     builder.Services.Configure<PipelineOptions>(
-        builder.Configuration.GetSection("PipelineOptions"));
+        builder.Configuration.GetSection(PipelineOptions.PipelineOptionsName));
 
     builder.Services.Configure<PipelineDeliveryFlags>(
         builder.Configuration.GetSection("FeatureFlags"));

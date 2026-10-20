@@ -42,7 +42,7 @@ try
         builder.Configuration.GetSection("PipelineToolOptions"));
 
     builder.Services.Configure<PipelineOptions>(
-        builder.Configuration.GetSection("PipelineOptions"));
+        builder.Configuration.GetSection(PipelineOptions.PipelineOptionsName));
 
     //Add TokenScope
     builder.Services.AddSingleton<ITokenScope>(x =>
