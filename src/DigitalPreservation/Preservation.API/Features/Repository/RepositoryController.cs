@@ -36,6 +36,11 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
         [FromQuery] string? view = null,
         [FromQuery] string? version = null)
     {
+        if (IsRepositoryRootRequest())
+        {
+            return NoResourcePathProblem();
+        }
+
         if (version.HasText() && view != ViewValues.Lightweight)
         {
             var problem = new ProblemDetails
@@ -149,6 +154,34 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
     private static bool CanSafelyAppendTo(string requestPath) =>
         !requestPath.Split('/').Contains("..");
 
+    /// <summary>
+    /// The deliberate answer to the repository root having no path to resolve a resource for - HEAD
+    /// or GET on /repository or /repository/ - instead of either an accidental validation artifact
+    /// (HeadResource, pre-#386) or an unhandled exception downstream of a null path (Browse,
+    /// pre-#386). The root isn't itself a Container, Binary or ArchivalGroup, so there is no type to
+    /// report and no resource to redirect a browser to; 400 says that plainly, in the same
+    /// ProblemDetails shape every other 400 in this controller uses.
+    /// </summary>
+    private ObjectResult NoResourcePathProblem() =>
+        BadRequest(new ProblemDetails
+        {
+            Status = (int)HttpStatusCode.BadRequest,
+            Title = "No resource path given",
+            Detail = "A path under /repository is required; the repository root itself is not a resource."
+        });
+
+    /// <summary>
+    /// Whether this request's full path is the repository root itself - "/repository" or
+    /// "/repository/", nothing after - checked against Request.Path, the same full-path source the
+    /// rest of this controller already treats as authoritative (see HeadResource's own comment on
+    /// why), rather than the route-bound path parameter. A direct call bypassing routing, as most
+    /// of this controller's own unit tests do, never populates that parameter at all - checking it
+    /// would misread every one of those as a root request too.
+    /// </summary>
+    private bool IsRepositoryRootRequest() =>
+        (Request.Path.Value?.TrimEnd('/') ?? string.Empty)
+            .Equals($"/{PreservedResource.BasePathElement}", StringComparison.Ordinal);
+
     private async Task<IActionResult> GetMetsResult(ArchivalGroup archivalGroup, string view)
     {            
         var mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, true));
@@ -189,11 +222,23 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
 
     [HttpHead(Name = "HeadResource")]
     [ProducesResponseType(200)]
+    [ProducesResponseType<ProblemDetails>(400, "application/json")]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     [ProducesResponseType(410)]
-    public async Task<IActionResult?> HeadResource([FromRoute] string path)
+    public async Task<IActionResult?> HeadResource([FromRoute] string? path = null)
     {
+        // path was declared non-nullable with no default, so HEAD /repository or /repository/ (the
+        // {*path} catch-all capturing nothing) left [ApiController]'s automatic model validation to
+        // reject it before this method ever ran, with FluentValidation's generic "field is required"
+        // shape rather than a deliberate answer (issue #386). Giving path a default, like Browse
+        // already has, moves that decision in here instead - checked against Request.Path like
+        // Browse's own guard, not this now-unused path parameter (see IsRepositoryRootRequest).
+        if (IsRepositoryRootRequest())
+        {
+            return NoResourcePathProblem();
+        }
+
         // GetResourceType needs the full /repository/... path (CommonApiBase.GetResourceType HEADs
         // it as-is against the Storage API), not the route-bound path parameter, which the
         // {*path} catch-all strips down to everything after "repository/" - that stripped form
