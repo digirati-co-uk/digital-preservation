@@ -719,12 +719,13 @@ internal class FedoraClient(
                 return Result.OkNotNull(resource);
             }
             var message = await response.Content.ReadAsStringAsync(cancellationToken);
-            return response.StatusCode switch
+            var detail = response.StatusCode switch
             {
-                HttpStatusCode.NotFound => Result.FailNotNull<PreservedResource>(ErrorCodes.NotFound, "Not found: " + message),
-                HttpStatusCode.Unauthorized => Result.FailNotNull<PreservedResource>(ErrorCodes.Unauthorized, "Unauthorized: " + message),
-                _ => Result.FailNotNull<PreservedResource>(ErrorCodes.UnknownError, "Fedora returned " + response.StatusCode + ": " + message)
+                HttpStatusCode.NotFound => "Not found: " + message,
+                HttpStatusCode.Unauthorized => "Unauthorized: " + message,
+                _ => "Fedora returned " + response.StatusCode + ": " + message
             };
+            return Result.FailNotNull<PreservedResource>(ErrorCodes.GetErrorCode((int)response.StatusCode), detail);
         }
         catch (Exception e)
         {
