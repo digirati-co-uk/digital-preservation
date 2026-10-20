@@ -60,7 +60,7 @@ public class UploadFileToDepositHandler(
             ChecksumAlgorithm = ChecksumAlgorithm.SHA256,
             InputStream = request.Stream
         };
-        req.Metadata.Add(S3Helpers.OriginalNameMetadataKey, WebUtility.UrlEncode(request.DepositFileName));
+        req.Metadata.SetOriginalName(request.DepositFileName);
         try
         {
             var response = await s3Client.PutObjectAsync(req, cancellationToken);
