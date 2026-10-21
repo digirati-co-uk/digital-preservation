@@ -1,8 +1,5 @@
 ﻿using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.Identity.Web;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Preservation.API.Data;
@@ -81,13 +78,10 @@ try
     //Auth enabled flag
     var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
 
-    //Auth 
+    //Auth
     if (useAuthFeatureFlag)
     {
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
-            .EnableTokenAcquisitionToCallDownstreamApi()
-            .AddInMemoryTokenCaches();
+        builder.Services.AddPlatformApiAuthentication(builder.Configuration);
     }
 
     // Allow-list of known machine callers, keyed by signed azp/appid (RFC-0001 Phase 0).
@@ -142,8 +136,7 @@ try
         {
             if (useAuthFeatureFlag)
             {
-                config.Filters.Add(new AuthorizeFilter());
-                config.Filters.Add(new AuthFilterIdentifier());
+                config.AddPlatformAuthorizationFilters();
             }
         });
 
