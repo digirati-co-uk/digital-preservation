@@ -28,21 +28,20 @@ public class QueueExportHandler(
 {
     public async Task<Result<ExportResource>> Handle(QueueExport request, CancellationToken cancellationToken)
     {
-        if (request.Export.ArchivalGroup == null)
+        var validation = ExportValidation.Validate(request.Export, storageOptions.Value, clientDirectory, logger);
+        if (validation.Failure)
         {
-            return Result.FailNotNull<ExportResource>(ErrorCodes.BadRequest, "Export has no Archival Group");
+            return Result.FailNotNull<ExportResource>(validation.ErrorCode!, validation.ErrorMessage);
         }
-        if (!SafeRepositoryPath.IsRepositoryPath(request.Export.ArchivalGroup.GetPathUnderRoot(), out var pathReason))
-        {
-            return Result.FailNotNull<ExportResource>(ErrorCodes.BadRequest,
-                $"Export Archival Group {request.Export.ArchivalGroup} is not a path under the repository root: {pathReason}");
-        }
+
+        // Not checked here (out of scope for #288): that the Archival Group really exists, and that
+        // the destination is reachable.
         var runningExports = await exportResultStore
-            .GetUnfinishedExportsForArchivalGroup(request.Export.ArchivalGroup, cancellationToken);
+            .GetUnfinishedExportsForArchivalGroup(request.Export.ArchivalGroup!, cancellationToken);
         if (runningExports.Success && runningExports.Value!.Count > 0)
         {
             return Result.FailNotNull<ExportResource>(ErrorCodes.Conflict,
-                $"There is an unfinished export ({runningExports.Value[0]}) for Archival Group {request.Export.ArchivalGroup.GetPathUnderRoot()}");
+                $"There is an unfinished export ({runningExports.Value[0]}) for Archival Group {request.Export.ArchivalGroup!.GetPathUnderRoot()}");
         }
         if (runningExports.Failure)
         {
@@ -50,26 +49,7 @@ public class QueueExportHandler(
                 $"Could not check for running exports for Archival Group {request.Export.ArchivalGroup}");
         }
 
-        // Not checked here (out of scope for #288): that the Archival Group really exists, and that
-        // the destination is reachable. The destination must be one of the deposit buckets, refused
-        // before anything is stamped, persisted or queued.
-        var permittedBuckets = PermittedExportBuckets.All(storageOptions.Value, clientDirectory);
-        if (!ExportDestination.IsInBucket(request.Export.Destination, permittedBuckets, out var reason))
-        {
-            logger.LogWarning(
-                "Refusing export destination {Destination}: {Reason}. Permitted buckets: {PermittedBuckets}",
-                request.Export.Destination, reason, permittedBuckets);
-            return Result.FailNotNull<ExportResource>(ErrorCodes.BadRequest, reason);
-        }
-
-        // Stamped server-side, the same as every other resource in the platform - unlike the rest of
-        // the record, nothing here trusted the caller's own values before. A supplied createdBy is
-        // still trusted, the same way an import job's lastModifiedBy is trusted (issue #273).
-        var now = DateTime.UtcNow;
-        request.Export.Created = now;
-        request.Export.LastModified = now;
-        request.Export.CreatedBy ??= converters.GetAgentUri(request.CallerIdentity);
-        request.Export.LastModifiedBy = request.Export.CreatedBy;
+        ExportValidation.Stamp(request.Export, converters, request.CallerIdentity);
 
         var identifier = identityMinter.MintIdentity(nameof(ExportResource));
         request.Export.Id = converters.GetExportResultId(identifier);
