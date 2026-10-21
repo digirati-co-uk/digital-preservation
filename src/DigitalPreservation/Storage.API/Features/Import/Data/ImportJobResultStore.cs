@@ -5,6 +5,7 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using Microsoft.EntityFrameworkCore;
 using Storage.API.Data;
+using Storage.API.Fedora.Model;
 
 namespace Storage.API.Features.Import.Data;
 
@@ -14,7 +15,8 @@ using ImportJobEntity = Storage.API.Data.Entities.ImportJob;
 public class ImportJobResultStore(
     StorageContext dbContext,
     ILogger<ImportJobResultStore> logger,
-    IConfiguration configuration) : IImportJobResultStore
+    IConfiguration configuration,
+    Converters converters) : IImportJobResultStore
 {
     // A job whose processor crashed or was killed mid-run (e.g. an ECS task restart) stops sending
     // heartbeats, which would otherwise wedge its Archival Group's imports behind a 409 Conflict
@@ -138,6 +140,99 @@ public class ImportJobResultStore(
             logger.LogError(e, e.Message);
             return Result.FailNotNull<List<string>>(ErrorCodes.UnknownError, e.Message);
         }
+    }
+
+    /// <summary>
+    /// See the interface doc comment (issue #366). Only touches a row that is currently Active with
+    /// no heartbeat, via a single conditional UPDATE guarded by both conditions, so it can't race a
+    /// heartbeat that starts arriving between the checks below and this write.
+    /// </summary>
+    public async Task<Result<ImportJobResult>> CancelStuckImportJob(string jobIdentifier, string reason, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // AsNoTracking: see the comment on the equivalent query in GetActiveJobsForArchivalGroup.
+            var job = await dbContext.ImportJobs.AsNoTracking()
+                .SingleOrDefaultAsync(ij => ij.Id == jobIdentifier, cancellationToken);
+            if (job == null)
+            {
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, $"Import job {jobIdentifier} could not be found");
+            }
+            if (!job.Active)
+            {
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, $"Import job {jobIdentifier} is not active; there is nothing to cancel");
+            }
+            if (job.LastHeartbeat != null)
+            {
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict,
+                    $"Import job {jobIdentifier} has a heartbeat (last seen {job.LastHeartbeat:O}); if it has genuinely " +
+                    "stalled the automatic reap will clear it. This operator path is only for a job that never sent one at all.");
+            }
+
+            var cancelledResult = BuildCancelledResult(job, reason);
+            var resultJson = JsonSerializer.Serialize(cancelledResult);
+
+            var rowsAffected = await dbContext.ImportJobs
+                .Where(ij => ij.Id == jobIdentifier && ij.Active && ij.LastHeartbeat == null)
+                .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(ij => ij.Active, false)
+                        .SetProperty(ij => ij.ImportJobResultJson, resultJson)
+                        .SetProperty(ij => ij.EndTime, cancelledResult.DateFinished)
+                        .SetProperty(ij => ij.ImportJobResultUri, cancelledResult.Id),
+                    cancellationToken);
+
+            if (rowsAffected == 0)
+            {
+                // A heartbeat arrived, or the job otherwise changed state, between the checks above
+                // and this write - report the conflict rather than a result that no longer holds.
+                return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict,
+                    $"Import job {jobIdentifier} changed state while being cancelled; it may have started running or already finished.");
+            }
+
+            logger.LogWarning(
+                "Operator cancelled stuck import job {JobId} for Archival Group {ArchivalGroup}: {Reason}",
+                jobIdentifier, job.ArchivalGroup, reason);
+            return Result.OkNotNull(cancelledResult);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Builds the completedWithErrors result for <see cref="CancelStuckImportJob"/>. Prefers the
+    /// job's own last-known stored result, same as <see cref="BuildAbandonedResult"/>, but falls
+    /// back to synthesising a minimal one from the originally submitted ImportJob (which
+    /// <see cref="SaveImportJob"/> always stores) when there is no stored result at all - true of
+    /// the oldest rows (issue #245's May/June 2025 residue), which predate the "waiting" result
+    /// that QueueImportJob now writes at queue time, and which this operator path exists for.
+    /// </summary>
+    private ImportJobResult BuildCancelledResult(ImportJobEntity job, string reason)
+    {
+        var existing = BuildAbandonedResult(job, reason);
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        var originalImportJob = JsonSerializer.Deserialize<ImportJob>(job.ImportJobJson)!;
+        var now = DateTime.UtcNow;
+        return new ImportJobResult
+        {
+            Id = converters.GetStorageImportJobResultId(job.ArchivalGroup.GetPathUnderRoot()!, job.Id),
+            Status = ImportJobStates.CompletedWithErrors,
+            ArchivalGroup = job.ArchivalGroup,
+            ImportJob = originalImportJob.Id ?? job.ArchivalGroup,
+            OriginalImportJob = originalImportJob.OriginalId,
+            Created = job.Received ?? now,
+            CreatedBy = originalImportJob.LastModifiedBy,
+            LastModified = now,
+            LastModifiedBy = originalImportJob.LastModifiedBy,
+            DateFinished = now,
+            Errors = [new Error { Message = reason }]
+        };
     }
 
     /// <summary>
