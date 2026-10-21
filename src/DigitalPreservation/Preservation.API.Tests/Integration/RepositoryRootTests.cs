@@ -1,4 +1,5 @@
 using System.Net;
+using DigitalPreservation.Core.Web.Headers;
 using Test.Helpers;
 
 namespace Preservation.API.Tests.Integration;
@@ -7,15 +8,21 @@ namespace Preservation.API.Tests.Integration;
 /// Issue #386: HEAD /repository or /repository/ (the root, no path at all) left [ApiController]'s
 /// automatic model validation to answer 400 with FluentValidation's generic "field is required"
 /// shape before HeadResource's body ever ran - an accidental artifact of path being declared
-/// non-nullable with no default, not a deliberate decision. GET /repository(/) was worse: path
-/// binds to null the same way, but Browse never checked it, and something downstream (traced to
-/// CommonApiBase.GetResourceInternal's new Uri(path, UriKind.Relative) call) threw an unhandled
-/// ArgumentNullException, surfacing to the caller as a bare 500.
+/// non-nullable with no default, not a deliberate decision.
 ///
-/// A controller test calling HeadResource(path) or Browse(path) directly, as the existing
-/// Features/Repository/HeadResourceTests.cs does, can't catch either case: both bugs live in
-/// routing and model binding, which a direct method call bypasses entirely. These are HTTP-level
-/// tests for that reason, following Integration/BasicTest.cs's pattern.
+/// Review feedback on the first version of this fix (PR #391) pointed out that the root IS a real,
+/// documented resource - GET /repository works in every deployed environment and returns a
+/// Container typed "RepositoryRoot" (Fedora reports it as fedora:RepositoryRoot). So HEAD's answer
+/// must agree with GET's: 200 with the resource-type header, not a 400 refusal. See
+/// RepositoryRootBrowseTests.cs for GET's own coverage of that - it needs a faked IMediator rather
+/// than this class's real HTTP round trip, because GET's root case (unlike HEAD's) still calls
+/// through to Storage API, which DigitalPreservationAppFactory has no backing instance of.
+///
+/// This stays an HTTP-level test because the bug lives in routing and model binding - a controller
+/// test calling HeadResource(path) directly, as Features/Repository/HeadResourceTests.cs does,
+/// bypasses both and can't catch it. HEAD's root case is still safe to exercise this way because it
+/// never reaches the mediator: RepositoryController answers it directly, so there is no backing
+/// Storage API call for the test host to be missing.
 /// </summary>
 [Trait("Category", "Integration")]
 public class RepositoryRootTests : IClassFixture<DigitalPreservationAppFactory<Program>>
@@ -30,24 +37,14 @@ public class RepositoryRootTests : IClassFixture<DigitalPreservationAppFactory<P
     [Theory]
     [InlineData("/repository")]
     [InlineData("/repository/")]
-    public async Task Head_RepositoryRoot_Returns400_AsADeliberateDecision(string path)
+    [InlineData("/Repository")]
+    public async Task Head_RepositoryRoot_Returns200_AgreeingWithGet(string path)
     {
         var request = new HttpRequestMessage(HttpMethod.Head, path);
 
         var response = await httpClient.SendAsync(request, TestContext.Current.CancellationToken);
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Theory]
-    [InlineData("/repository")]
-    [InlineData("/repository/")]
-    public async Task Get_RepositoryRoot_Returns400_NotAnUnhandledException(string path)
-    {
-        var response = await httpClient.GetAsync(path, TestContext.Current.CancellationToken);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        body.Should().Contain("No resource path given");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.GetValues(HttpHeaders.XPreservationResourceType).Should().ContainSingle("RepositoryRoot");
     }
 }
