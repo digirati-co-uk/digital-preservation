@@ -44,34 +44,28 @@ public class PreservationApiClient(
     public async Task<Result> LockDeposit(Deposit deposit, bool force, CancellationToken cancellationToken)
     {
         var uri = new Uri(deposit.Id!.AbsolutePath + "/lock" + (force ? "?force=true" : ""), UriKind.Relative);
-        var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
-        if (response.IsSuccessStatusCode)
-        {
-            return Result.Ok();
-        }
-        return await response.ToFailResult("Unable to lock deposit");
+        return await SendForResult(
+            () => preservationHttpClient.PostAsync(uri, null, cancellationToken),
+            "Unable to lock deposit",
+            "Could not lock deposit");
     }
 
     public async Task<Result> ReleaseDepositLock(Deposit deposit, CancellationToken cancellationToken)
     {
         var uri = new Uri(deposit.Id!.AbsolutePath + "/lock", UriKind.Relative);
-        var response = await preservationHttpClient.DeleteAsync(uri, cancellationToken);
-        if (response.IsSuccessStatusCode)
-        {
-            return Result.Ok();
-        }
-        return await response.ToFailResult("Unable to remove lock");
+        return await SendForResult(
+            () => preservationHttpClient.DeleteAsync(uri, cancellationToken),
+            "Unable to remove lock",
+            "Could not release deposit lock");
     }
 
     public async Task<Result> RunPipeline(Deposit deposit, CancellationToken cancellationToken)
     {
         var uri = new Uri(deposit.Id!.AbsolutePath + "/pipeline", UriKind.Relative);
-        var response = await preservationHttpClient.PostAsync(uri, null, cancellationToken);
-        if (response.IsSuccessStatusCode)
-        {
-            return Result.Ok();
-        }
-        return await response.ToFailResult("Unable to run pipeline");
+        return await SendForResult(
+            () => preservationHttpClient.PostAsync(uri, null, cancellationToken),
+            "Unable to run pipeline",
+            "Could not run pipeline");
     }
 
     public async Task<OrderedCollection?> GetOrderedCollection(string stream)
@@ -97,97 +91,46 @@ public class PreservationApiClient(
 
     public async Task<Result<List<Uri>>> GetAllAgents(CancellationToken cancellationToken)
     {
-        try
-        {
-            var uri = new Uri("/agents", UriKind.Relative);
-            var response = await preservationHttpClient.GetAsync(uri, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var agents = await response.Content.ReadFromJsonAsync<List<Uri>>(cancellationToken: cancellationToken);
-                if (agents is not null)
-                {
-                    return Result.OkNotNull(agents);
-                }
-                return Result.FailNotNull<List<Uri>>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailNotNullResult<List<Uri>>("Unable to get agents");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not get all agents");
-            return Result.FailNotNull<List<Uri>>(ErrorCodes.UnknownError, e.Message);
-        }
+        var uri = new Uri("/agents", UriKind.Relative);
+        return await SendForJsonNotNull<List<Uri>>(
+            () => preservationHttpClient.GetAsync(uri, cancellationToken),
+            "Unable to get agents",
+            ErrorCodes.NotFound,
+            "No resource at " + uri,
+            "Could not get all agents");
     }
 
 
     public async Task<Result<Deposit?>> UpdateDeposit(Deposit deposit, CancellationToken cancellationToken)
     {
         var uri = new Uri(deposit.Id!.AbsolutePath, UriKind.Relative);
-        try
-        {
-            HttpResponseMessage response = await preservationHttpClient.PatchAsJsonAsync(uri, deposit, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var patchedDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
-                if (patchedDeposit is not null)
-                {
-                    return Result.Ok(patchedDeposit);
-                }
-                return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
-            }
-            return await response.ToFailResult<Deposit>("Unable to update deposit");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not update deposit");
-            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
-        }
+        return await SendForJson<Deposit>(
+            () => preservationHttpClient.PatchAsJsonAsync(uri, deposit, cancellationToken),
+            "Unable to update deposit",
+            ErrorCodes.UnknownError,
+            "No deposit returned",
+            "Could not update deposit");
     }
 
     public async Task<Result> DeleteDeposit(string id, CancellationToken cancellationToken)
     {
-        try
-        {
-            var relPath = $"/deposits/{id}";
-            var uri = new Uri(relPath, UriKind.Relative);
-            var response = await preservationHttpClient.DeleteAsync(uri, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                return Result.Ok();
-            }
-
-            return await response.ToFailResult("Unable to delete deposit");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not delete deposit");
-            return Result.Fail(ErrorCodes.UnknownError, e.Message);
-        }
+        var uri = new Uri($"/deposits/{id}", UriKind.Relative);
+        return await SendForResult(
+            () => preservationHttpClient.DeleteAsync(uri, cancellationToken),
+            "Unable to delete deposit",
+            "Could not delete deposit");
     }
 
     public async Task<Result<Deposit?>> CreateDepositFromIdentifier(string schema, string identifier, TemplateType templateType, CancellationToken cancellationToken)
     {
         var uri = new Uri($"/{Deposit.BasePathElement}/from-identifier", UriKind.Relative);
         var body = new SchemaAndValue{ Schema = schema, Value = identifier, Template = templateType };
-        try
-        {
-            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(uri, body, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var createdDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
-                if (createdDeposit is not null)
-                {
-                    return Result.Ok(createdDeposit);
-                }
-                return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
-            }
-            return await response.ToFailResult<Deposit>("Unable to create deposit from identifier");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not create deposit");
-            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
-        }
+        return await SendForJson<Deposit>(
+            () => preservationHttpClient.PostAsJsonAsync(uri, body, cancellationToken),
+            "Unable to create deposit from identifier",
+            ErrorCodes.UnknownError,
+            "No deposit returned",
+            "Could not create deposit");
     }
 
     public async Task<Result<Deposit?>> CreateDeposit(
@@ -216,228 +159,120 @@ public class PreservationApiClient(
         {
             postTarget = new Uri($"/{Deposit.BasePathElement}", UriKind.Relative);
         }
-        try
-        {
-            HttpResponseMessage response = await preservationHttpClient.PostAsJsonAsync(postTarget, deposit, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var createdDeposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
-                if (createdDeposit is not null)
-                {
-                    return Result.Ok(createdDeposit);
-                }
-                return Result.Fail<Deposit>(ErrorCodes.UnknownError, "No deposit returned");
-            }
-            return await response.ToFailResult<Deposit>("Unable to create deposit");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not create deposit");
-            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
-        }
+        return await SendForJson<Deposit>(
+            () => preservationHttpClient.PostAsJsonAsync(postTarget, deposit, cancellationToken),
+            "Unable to create deposit",
+            ErrorCodes.UnknownError,
+            "No deposit returned",
+            "Could not create deposit");
     }
 
 
 
     public async Task<Result<DepositQueryPage>> GetDeposits(DepositQuery? query, CancellationToken cancellationToken = default)
     {
-        var responseStatusCode = -1;
-        try
+        var relPath = "/deposits";
+        var queryString = QueryBuilder.MakeQueryString(query);
+        if (queryString.HasText())
         {
-            var relPath = "/deposits";
-            var queryString = QueryBuilder.MakeQueryString(query);
-            if (queryString.HasText())
-            {
-                relPath += $"?{queryString}";
-            }
-            var uri = new Uri(relPath, UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            responseStatusCode = (int)response.StatusCode;
-            if (response.IsSuccessStatusCode)
-            {
-                var deposits = await response.Content.ReadFromJsonAsync<DepositQueryPage>(cancellationToken: cancellationToken);
-                if (deposits is not null)
-                {
-                    return Result.OkNotNull(deposits);
-                }
-                return Result.FailNotNull<DepositQueryPage>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailNotNullResult<DepositQueryPage>("Unable to get Deposits");
+            relPath += $"?{queryString}";
         }
-        catch (Exception e)
-        {
-            var errorCode = ErrorCodes.GetErrorCode(responseStatusCode);
-            logger.LogError(e, "status code was {Status}, error was {Message}", responseStatusCode, e.Message);
-            return Result.FailNotNull<DepositQueryPage>(errorCode, e.Message);
-        }
+        var uri = new Uri(relPath, UriKind.Relative);
+        // The previous hand-rolled version caught exceptions and re-derived an ErrorCode from the
+        // last-seen response status code, rather than always reporting UnknownError - but that
+        // only ever runs after IsSuccessStatusCode was already true (the exception came from
+        // parsing a successful response), and GetErrorCode has no case for a 2xx status, so it
+        // always fell through to UnknownError anyway. Nothing behavioural is lost here.
+        return await SendForJsonNotNull<DepositQueryPage>(
+            () => preservationHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancellationToken),
+            "Unable to get Deposits",
+            ErrorCodes.NotFound,
+            "No resource at " + uri);
     }
 
     public async Task<Result<List<ImportJobResult>>> GetImportJobResultsForDeposit(string depositId, CancellationToken cancellationToken)
     {
-        try
-        {
-            var uri = new Uri($"/deposits/{depositId}/importJobs/results", UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var jobResults = await response.Content.ReadFromJsonAsync<List<ImportJobResult>>(cancellationToken: cancellationToken);
-                if (jobResults is not null)
-                {
-                    return Result.OkNotNull(jobResults);
-                }
-                return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailNotNullResult<List<ImportJobResult>>("Unable to get import job results");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not get import job results for deposit");
-            return Result.FailNotNull<List<ImportJobResult>>(ErrorCodes.UnknownError, e.Message);
-        }
+        var uri = new Uri($"/deposits/{depositId}/importJobs/results", UriKind.Relative);
+        return await SendForJsonNotNull<List<ImportJobResult>>(
+            () => preservationHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancellationToken),
+            "Unable to get import job results",
+            ErrorCodes.NotFound,
+            "No resource at " + uri,
+            "Could not get import job results for deposit");
     }
 
     public async Task<Result<ImportJobResult>> GetImportJobResult(string depositId, string importJobResultId, CancellationToken cancellationToken)
     {
-        try
-        {
-            var uri = new Uri($"/deposits/{depositId}/importJobs/results/{importJobResultId}", UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var jobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
-                if (jobResult is not null)
-                {
-                    return Result.OkNotNull(jobResult);
-                }
-                return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailNotNullResult<ImportJobResult>("Unable to get import job result");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not get import job result");
-            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
-        }
+        var uri = new Uri($"/deposits/{depositId}/importJobs/results/{importJobResultId}", UriKind.Relative);
+        return await SendForJsonNotNull<ImportJobResult>(
+            () => preservationHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancellationToken),
+            "Unable to get import job result",
+            ErrorCodes.NotFound,
+            "No resource at " + uri,
+            "Could not get import job result");
     }
 
     public async Task<Result<ImportJob>> GetDiffImportJob(string depositId, CancellationToken cancellationToken)
     {
-        try
-        {
-            var relPath = $"/deposits/{depositId}/importjobs/diff";
-            var uri = new Uri(relPath, UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var diffImportJob = await response.Content.ReadFromJsonAsync<ImportJob>(cancellationToken: cancellationToken);
-                if (diffImportJob is not null)
-                {
-                    return Result.OkNotNull(diffImportJob);
-                }
-                return Result.FailNotNull<ImportJob>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailNotNullResult<ImportJob>("Unable to get diff import job");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not get diff import job");
-            return Result.FailNotNull<ImportJob>(ErrorCodes.UnknownError, e.Message);
-        }
+        var uri = new Uri($"/deposits/{depositId}/importjobs/diff", UriKind.Relative);
+        return await SendForJsonNotNull<ImportJob>(
+            () => preservationHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancellationToken),
+            "Unable to get diff import job",
+            ErrorCodes.NotFound,
+            "No resource at " + uri,
+            "Could not get diff import job");
     }
 
     public async Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, bool suppressActivityStreamEvent, CancellationToken cancellationToken)
     {
-        try
+        var importJob = new ImportJob
         {
-            var importJob = new ImportJob
-            {
-                Id = new Uri(preservationHttpClient.BaseAddress + $"/deposits/{depositId}/importjobs/diff"),
-                SuppressActivityStreamEvent = suppressActivityStreamEvent
-            };
-            var relPath = $"/deposits/{depositId}/importjobs";
-            var uri = new Uri(relPath, UriKind.Relative);
-            var response = await preservationHttpClient.PostAsJsonAsync(uri, importJob, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var diffImportJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
-                if (diffImportJobResult is not null)
-                {
-                    return Result.OkNotNull(diffImportJobResult);
-                }
-                return Result.FailNotNull<ImportJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailNotNullResult<ImportJobResult>("Unable to send diff import job");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not send diff import job");
-            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
-        }
+            Id = new Uri(preservationHttpClient.BaseAddress + $"/deposits/{depositId}/importjobs/diff"),
+            SuppressActivityStreamEvent = suppressActivityStreamEvent
+        };
+        var uri = new Uri($"/deposits/{depositId}/importjobs", UriKind.Relative);
+        return await SendForJsonNotNull<ImportJobResult>(
+            () => preservationHttpClient.PostAsJsonAsync(uri, importJob, cancellationToken),
+            "Unable to send diff import job",
+            ErrorCodes.NotFound,
+            "No resource at " + uri,
+            "Could not send diff import job");
     }
 
     public async Task<Result<MetsIdNormalisationReport>> NormaliseDepositMetsIds(
         string depositId, string? metsETag, CancellationToken cancellationToken)
     {
-        try
+        var uri = new Uri($"/deposits/{depositId}/mets/normalise", UriKind.Relative);
+        var request = new HttpRequestMessage(HttpMethod.Post, uri);
+        if (metsETag.HasText())
         {
-            var uri = new Uri($"/deposits/{depositId}/mets/normalise", UriKind.Relative);
-            var request = new HttpRequestMessage(HttpMethod.Post, uri);
-            if (metsETag.HasText())
-            {
-                // The API enforces If-Match only when it is sent, so sending it is what makes the
-                // documented 409-on-concurrent-edit real rather than dead code.
-                request.Headers.TryAddWithoutValidation("If-Match", metsETag);
-            }
-            var response = await preservationHttpClient.SendAsync(request, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var report = await response.Content
-                    .ReadFromJsonAsync<MetsIdNormalisationReport>(cancellationToken: cancellationToken);
-                if (report is not null)
-                {
-                    return Result.OkNotNull(report);
-                }
-                return Result.FailNotNull<MetsIdNormalisationReport>(
-                    ErrorCodes.UnknownError, "No normalisation report returned by " + uri);
-            }
-            return await response.ToFailNotNullResult<MetsIdNormalisationReport>("Unable to normalise METS IDs");
+            // The API enforces If-Match only when it is sent, so sending it is what makes the
+            // documented 409-on-concurrent-edit real rather than dead code.
+            request.Headers.TryAddWithoutValidation("If-Match", metsETag);
         }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not normalise METS IDs for deposit {DepositId}", depositId);
-            return Result.FailNotNull<MetsIdNormalisationReport>(ErrorCodes.UnknownError, e.Message);
-        }
+        return await SendForJsonNotNull<MetsIdNormalisationReport>(
+            () => preservationHttpClient.SendAsync(request, cancellationToken),
+            "Unable to normalise METS IDs",
+            ErrorCodes.UnknownError,
+            "No normalisation report returned by " + uri,
+            $"Could not normalise METS IDs for deposit {depositId}");
     }
 
     public async Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default)
     {
-        try
+        var uri = new Uri($"/deposits/{id}", UriKind.Relative);
+        var result = await SendForJson<Deposit>(
+            () => preservationHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancellationToken),
+            "Unable to get deposit",
+            ErrorCodes.NotFound,
+            "No resource at " + uri,
+            "Could not get deposit");
+        if (result is { Success: true, Value: not null })
         {
-            var relPath = $"/deposits/{id}";
-            var uri = new Uri(relPath, UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var deposit = await response.Content.ReadFromJsonAsync<Deposit>(cancellationToken: cancellationToken);
-                if (deposit is not null)
-                {
-                    logger.LogInformation("In preservation API client for deposit {Deposit} Lock date: {LockDate}, Locked by: {LockedBy} ", deposit.Id, deposit?.LockDate, deposit?.LockedBy);
-                    return Result.Ok(deposit);
-                }
-                return Result.Fail<Deposit>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailResult<Deposit>("Unable to get deposit");
+            logger.LogInformation("In preservation API client for deposit {Deposit} Lock date: {LockDate}, Locked by: {LockedBy} ",
+                result.Value.Id, result.Value.LockDate, result.Value.LockedBy);
         }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not get deposit");
-            return Result.Fail<Deposit>(ErrorCodes.UnknownError, e.Message);
-        }
+        return result;
     }
 
     public async Task<Result<(string, string)>> GetMetsWithETag(string depositId, CancellationToken cancellationToken)
@@ -592,148 +427,88 @@ public class PreservationApiClient(
 
     public async Task<Result<List<ProcessPipelineResult>>> GetPipelineJobResultsForDeposit(string depositId, CancellationToken cancellationToken)
     {
-        try
-        {
-            var uri = new Uri($"/deposits/{depositId}/pipelinerunjobs", UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var jobResults = await response.Content.ReadFromJsonAsync<List<ProcessPipelineResult>>(cancellationToken: cancellationToken);
-                if (jobResults is not null)
-                {
-                    return Result.OkNotNull(jobResults);
-                }
-                return Result.FailNotNull<List<ProcessPipelineResult>>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailNotNullResult<List<ProcessPipelineResult>>("Unable to get pipeline run job results");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not get get pipeline job results for deposit");
-            return Result.FailNotNull<List<ProcessPipelineResult>>(ErrorCodes.UnknownError, e.Message);
-        }
+        var uri = new Uri($"/deposits/{depositId}/pipelinerunjobs", UriKind.Relative);
+        return await SendForJsonNotNull<List<ProcessPipelineResult>>(
+            () => preservationHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancellationToken),
+            "Unable to get pipeline run job results",
+            ErrorCodes.NotFound,
+            "No resource at " + uri,
+            "Could not get get pipeline job results for deposit");
     }
 
     public async Task<Result<ProcessPipelineResult>> GetPipelineJobResult(string depositId, string pipelineJobResultId, CancellationToken cancellationToken)
     {
-        try
-        {
-            var uri = new Uri($"/deposits/{depositId}/pipelinerunjobs/{pipelineJobResultId}", UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var jobResult = await response.Content.ReadFromJsonAsync<ProcessPipelineResult>(cancellationToken: cancellationToken);
-                if (jobResult is not null)
-                {
-                    return Result.OkNotNull(jobResult);
-                }
-                return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailNotNullResult<ProcessPipelineResult>("Unable to get pipeline run job result");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not get pipeline job result");
-            return Result.FailNotNull<ProcessPipelineResult>(ErrorCodes.UnknownError, e.Message);
-        }
+        var uri = new Uri($"/deposits/{depositId}/pipelinerunjobs/{pipelineJobResultId}", UriKind.Relative);
+        return await SendForJsonNotNull<ProcessPipelineResult>(
+            () => preservationHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancellationToken),
+            "Unable to get pipeline run job result",
+            ErrorCodes.NotFound,
+            "No resource at " + uri,
+            "Could not get pipeline job result");
     }
 
     public async Task<Result<LogPipelineStatusResult>> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit, CancellationToken cancellationToken)
     {
-        try
-        {
-            var uri = new Uri("/Deposits/pipeline-status", UriKind.Relative);
-            var response = await preservationHttpClient.PostAsJsonAsync(uri, pipelineDeposit, cancellationToken);
-
-            if (response.IsSuccessStatusCode)
-            {
-                return Result.OkNotNull(new LogPipelineStatusResult { Status = "Success", JobId = pipelineDeposit.Id });
-            }
-
-            return await response.ToFailNotNullResult<LogPipelineStatusResult>("Unable to update pipeline status.");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Error calling pipeline status endpoint");
-            return Result.FailNotNull<LogPipelineStatusResult>(ErrorCodes.UnknownError, e.Message);
-        }
-
-
+        // The success value isn't read from the response body - it's synthesised locally - so this
+        // is SendForResult (success/fail only), not SendForJsonNotNull, with the success value built
+        // from the already-known request rather than parsed from anything the API returned.
+        var uri = new Uri("/Deposits/pipeline-status", UriKind.Relative);
+        var result = await SendForResult(
+            () => preservationHttpClient.PostAsJsonAsync(uri, pipelineDeposit, cancellationToken),
+            "Unable to update pipeline status.",
+            "Error calling pipeline status endpoint");
+        return result.Success
+            ? Result.OkNotNull(new LogPipelineStatusResult { Status = "Success", JobId = pipelineDeposit.Id })
+            : Result.FailNotNull<LogPipelineStatusResult>(result.ErrorCode!, result.ErrorMessage);
     }
 
     public async Task<Result> ActivateDeposit(Deposit deposit, CancellationToken cancellationToken)
     {
         var uri = new Uri(deposit.Id!.AbsolutePath + "/activate", UriKind.Relative);
-        var response = await preservationHttpClient.PutAsync(uri, null, cancellationToken);
-        if (response.IsSuccessStatusCode)
-        {
-            return Result.Ok();
-        }
-
-        return await response.ToFailResult("Unable to Activate deposit");
+        return await SendForResult(
+            () => preservationHttpClient.PutAsync(uri, null, cancellationToken),
+            "Unable to Activate deposit",
+            "Could not activate deposit");
     }
 
     public async Task<Result> DeactivateDeposit(Deposit deposit, CancellationToken cancellationToken)
     {
         var uri = new Uri(deposit.Id!.AbsolutePath + "/deactivate", UriKind.Relative);
-        var response = await preservationHttpClient.PutAsync(uri, null, cancellationToken);
-        if (response.IsSuccessStatusCode)
-        {
-            return Result.Ok();
-        }
-
-        return await response.ToFailResult("Unable to Deactivate deposit");
+        return await SendForResult(
+            () => preservationHttpClient.PutAsync(uri, null, cancellationToken),
+            "Unable to Deactivate deposit",
+            "Could not deactivate deposit");
     }
 
     public async Task<Result<ArchiveJobResult>> GetArchiveJobResult(string depositId, CancellationToken cancellationToken)
     {
-        try
-        {
-            var relPath = $"/DepositArchiveJobs/{depositId}";
-            var uri = new Uri(relPath, UriKind.Relative);
-            var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            var response = await preservationHttpClient.SendAsync(req, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var jobResult = await response.Content.ReadFromJsonAsync<ArchiveJobResult>(cancellationToken: cancellationToken);
-                if (jobResult is not null)
-                {
-                    return Result.OkNotNull(jobResult);
-                }
-                return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.NotFound, "No resource at " + uri);
-            }
-            return await response.ToFailNotNullResult<ArchiveJobResult>("Unable to get archive run job result");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Error getting archive job result");
-            return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
-        }
+        var uri = new Uri($"/DepositArchiveJobs/{depositId}", UriKind.Relative);
+        return await SendForJsonNotNull<ArchiveJobResult>(
+            () => preservationHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancellationToken),
+            "Unable to get archive run job result",
+            ErrorCodes.NotFound,
+            "No resource at " + uri,
+            "Error getting archive job result");
     }
 
     public async Task<Result<ArchiveJobResult>> ArchiveDeposit([FromBody] ArchiveDepositJob archiveDepositJob, CancellationToken cancellationToken)
     {
-        try
-        {
-            var uri = new Uri("/Deposits/archive-job", UriKind.Relative);
-            var response = await preservationHttpClient.PostAsJsonAsync(uri, archiveDepositJob, cancellationToken);
-
-            if (response.IsSuccessStatusCode)
-            {
-                return Result.OkNotNull(new ArchiveJobResult { Status = "Success", DepositId = archiveDepositJob.DepositId });
-            }
-
-            return await response.ToFailNotNullResult<ArchiveJobResult>("Unable to archive deposit.");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Error archiving deposit");
-            return Result.FailNotNull<ArchiveJobResult>(ErrorCodes.UnknownError, e.Message);
-        }
+        // As with LogPipelineRunStatus: the success value is synthesised, not parsed from the
+        // response, so this composes SendForResult rather than SendForJsonNotNull.
+        var uri = new Uri("/Deposits/archive-job", UriKind.Relative);
+        var result = await SendForResult(
+            () => preservationHttpClient.PostAsJsonAsync(uri, archiveDepositJob, cancellationToken),
+            "Unable to archive deposit.",
+            "Error archiving deposit");
+        return result.Success
+            ? Result.OkNotNull(new ArchiveJobResult { Status = "Success", DepositId = archiveDepositJob.DepositId })
+            : Result.FailNotNull<ArchiveJobResult>(result.ErrorCode!, result.ErrorMessage);
     }
 
+    // GetAccessConditions and GetRangeTypes are deliberately NOT migrated to SendForJsonNotNull
+    // (issue #388 item 2.2): both treat a null/absent body on success as an empty list via `?? []`,
+    // not as a failure - the one place in this file an empty body isn't itself an error - and the
+    // shared helper has no equivalent of that fallback.
     public async Task<Result<List<AccessRestriction>>> GetAccessConditions(CancellationToken cancellationToken = default)
     {
         const string cacheKey = "preservation:access-conditions";
