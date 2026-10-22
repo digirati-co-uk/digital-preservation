@@ -38,8 +38,10 @@ try
         });
     
     
+    builder.Services.AddFeatureFlagOptions(builder.Configuration);
+
     //Auth enabled flag - can still use this, eg for local testing scenarios
-    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
+    var useAuthFeatureFlag = !builder.Configuration.GetFeatureFlags().DisableAuth;
     if (useAuthFeatureFlag)
     {
         // Here we will need some auth config that allows Storage.API.Importer to have a ClientID and Secret

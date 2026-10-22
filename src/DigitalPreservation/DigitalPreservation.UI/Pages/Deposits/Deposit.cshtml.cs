@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
+using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.UI.Features.Preservation.Requests;
@@ -28,6 +29,7 @@ public class DepositModel(
     WorkspaceManagerFactory workspaceManagerFactory,
     IPreservationApiClient preservationApiClient,
     IOptions<PreservationOptions> preservationOptions,
+    IOptions<FeatureFlagOptions> featureFlags,
     IConfiguration configuration,
     ILogger<DepositModel> logger) : PageModel
 {
@@ -43,7 +45,7 @@ public class DepositModel(
 
     public bool ArchivalGroupExists => Deposit is not null && Deposit.ArchivalGroupExists;
 
-    public bool ShowPipeline => configuration.GetValue<bool?>("FeatureFlags:ShowPipeline") ?? false;
+    public bool ShowPipeline => featureFlags.Value.ShowPipeline;
 
     /// <summary>
     /// The largest file the browser upload form will accept, mirrored server-side by
@@ -60,8 +62,7 @@ public class DepositModel(
     /// EnableMetsIdNormalisation flag, so turning this on alone shows a menu item that will be
     /// refused.
     /// </summary>
-    public bool ShowNormaliseMetsIds =>
-        configuration.GetValue<bool?>("FeatureFlags:ShowNormaliseMetsIds") ?? false;
+    public bool ShowNormaliseMetsIds => featureFlags.Value.ShowNormaliseMetsIds;
 
     public int MisMatchCount { get; private set; }
     public List<(List<CombinedFile.FileMisMatch>, string)> FileMisMatches { get; set; } = [];

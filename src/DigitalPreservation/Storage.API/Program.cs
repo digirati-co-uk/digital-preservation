@@ -43,10 +43,13 @@ try
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
         });
 
+    builder.Services.AddFeatureFlagOptions(builder.Configuration);
+    var featureFlags = builder.Configuration.GetFeatureFlags();
+
     //Auth enabled flag
-    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
-    var useLocalHostedServiceForImport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForImport");
-    var useLocalHostedServiceForExport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForExport");
+    var useAuthFeatureFlag = !featureFlags.DisableAuth;
+    var useLocalHostedServiceForImport = featureFlags.UseLocalHostedServiceForImport;
+    var useLocalHostedServiceForExport = featureFlags.UseLocalHostedServiceForExport;
 
     // ImportJobRunner (the heartbeat writer) only runs in this host in in-process mode; in SQS mode
     // it's the separate Importer. Both hosts validate unconditionally regardless of mode - see
