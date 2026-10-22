@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
@@ -184,13 +185,13 @@ public class DepositsController(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Could not deserialise POSTed IIIF manifest for deposit {Id}", id);
-            return BadRequest(new ProblemDetails { Title = "Invalid IIIF Manifest", Detail = ex.Message });
+            return this.ProblemFor(ErrorCodes.BadRequest, ex.Message, "Invalid IIIF Manifest");
         }
 
         if (manifest is null)
         {
             logger.LogWarning("POSTed IIIF manifest for deposit {Id} deserialised to null", id);
-            return BadRequest(new ProblemDetails { Title = "Invalid IIIF Manifest", Detail = "The request body did not contain a manifest." });
+            return this.ProblemFor(ErrorCodes.BadRequest, "The request body did not contain a manifest.", "Invalid IIIF Manifest");
         }
 
         var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
@@ -204,10 +205,10 @@ public class DepositsController(
         return this.StatusResponseFromResult(result);
     }
 
-    private ObjectResult SessionExpiredResult() => Problem(
-        title: "Session expired",
-        detail: "The IIIF session token has expired. Re-open the manifest from the preservation system to get a fresh link.",
-        statusCode: 401);
+    private ActionResult SessionExpiredResult() => this.ProblemFor(
+        ErrorCodes.Unauthorized,
+        "The IIIF session token has expired. Re-open the manifest from the preservation system to get a fresh link.",
+        "Session expired");
 
 
     [HttpPost("{id}/mets", Name = "AddDepositItemsToMets")]
@@ -231,13 +232,7 @@ public class DepositsController(
             if (!eTag.HasText() || eTag != deposit.MetsETag)
             {
                 logger.LogWarning("Supplied eTag {ETag} does not match deposit eTag {DepositETag}", eTag, deposit.MetsETag);
-                var pd = new ProblemDetails
-                {
-                    Title = "Conflict: ETag does not match deposit METS",
-                    Detail = deposit.MetsETag,
-                    Status = 409
-                };
-                return Conflict(pd);
+                return this.ProblemFor(ErrorCodes.Conflict, deposit.MetsETag, "Conflict: ETag does not match deposit METS");
             }
         }
 
@@ -301,11 +296,7 @@ public class DepositsController(
         var deposit = depositResult.Value;
         if (!deposit.MetsETag.HasText())
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Deposit has no METS file to normalise",
-                Status = 400
-            });
+            return this.ProblemFor(ErrorCodes.BadRequest, null, "Deposit has no METS file to normalise");
         }
 
         // The same courtesy every other mutation extends: a deposit someone else holds the lock
@@ -313,12 +304,7 @@ public class DepositsController(
         var otherLockOwner = deposit.GetOtherLockOwner(User.GetCallerIdentity());
         if (otherLockOwner is not null)
         {
-            return Conflict(new ProblemDetails
-            {
-                Title = "Conflict: Deposit is locked by another user",
-                Detail = otherLockOwner,
-                Status = 409
-            });
+            return this.ProblemFor(ErrorCodes.Conflict, otherLockOwner, "Conflict: Deposit is locked by another user");
         }
 
         // If-Match is optional here, unlike the item operations: the migration tool reads the
@@ -329,12 +315,7 @@ public class DepositsController(
         if (eTag.HasText() && eTag != deposit.MetsETag)
         {
             logger.LogWarning("Supplied eTag {ETag} does not match deposit eTag {DepositETag}", eTag, deposit.MetsETag);
-            return Conflict(new ProblemDetails
-            {
-                Title = "Conflict: ETag does not match deposit METS",
-                Detail = deposit.MetsETag,
-                Status = 409
-            });
+            return this.ProblemFor(ErrorCodes.Conflict, deposit.MetsETag, "Conflict: ETag does not match deposit METS");
         }
 
         // Uninitialised on purpose: normalising reads and parses the METS for itself, so building
@@ -366,13 +347,7 @@ public class DepositsController(
                 return this.StatusResponseFromResult(deleteResult);
             }
 
-            var pd = new ProblemDetails
-            {
-                Title = "Conflict: ETag does not match deposit METS",
-                Detail = deposit.MetsETag,
-                Status = 409
-            };
-            return Conflict(pd);
+            return this.ProblemFor(ErrorCodes.Conflict, deposit.MetsETag, "Conflict: ETag does not match deposit METS");
         }
         return this.StatusResponseFromResult(depositResult);
     }

@@ -209,7 +209,8 @@ public class PostIIIFManifestToDepositTests
 
         var result = await controller.PostIIIFManifestToDepositWithToken(DepositId, token);
 
-        var objectResult = Assert.IsType<BadRequestObjectResult>(result);
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        objectResult.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
         var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
         problem.Title.Should().Be("Invalid IIIF Manifest");
     }
