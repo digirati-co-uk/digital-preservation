@@ -8,6 +8,7 @@ using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.UI.Features.Preservation;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.Repository.Requests;
+using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -350,10 +351,10 @@ public class BrowseModel(
     {
         if (containerSlug.IsNullOrWhiteSpace())
         {
-            TempData["ContainerError"] = "Missing container name";
+            TempData[TempDataKeys.ContainerError] = "Missing container name";
             return Redirect(Request.Path);
         }
-        
+
         var slug = containerSlug.ToLowerInvariant();
         var slugValidResult = ValidateNewContainerSlug(slug);
         if (slugValidResult.Success)
@@ -361,16 +362,16 @@ public class BrowseModel(
             var result = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle));
             if(result is { Success: true, Value: not null })
             {
-                TempData["ContainerSuccess"] = "Created Container " + result.Value;
+                TempData[TempDataKeys.ContainerSuccess] = "Created Container " + result.Value;
             }
             else
             {
-                TempData["ContainerError"] = "Failed to create Container: " + result.CodeAndMessage();
+                TempData[TempDataKeys.ContainerError] = "Failed to create Container: " + result.CodeAndMessage();
             }
             return Redirect(Request.Path);
         }
 
-        TempData["ContainerError"] = slugValidResult.ErrorMessage;
+        TempData[TempDataKeys.ContainerError] = slugValidResult.ErrorMessage;
         return Redirect(Request.Path);
     }
 

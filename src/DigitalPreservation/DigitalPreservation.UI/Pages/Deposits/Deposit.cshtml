@@ -5,6 +5,7 @@
 @using DigitalPreservation.Common.Model.Transit.Combined
 @using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
+@using DigitalPreservation.UI.Infrastructure
 @using DigitalPreservation.Utils
 @model DepositModel
 
@@ -160,39 +161,16 @@
 </div>
 
 <div>
-    @if (!jobRunningOrArchived && TempData["Error"] != null)
+    @if (!jobRunningOrArchived)
     {
-        <div class="alert alert-danger" role="alert">
-            <p>@Html.Raw(TempData["Error"])</p>
-        </div>
+        <status-message key="@TempDataKeys.Error" variant="danger" dismissible="false" />
+        <status-message key="@TempDataKeys.Deleted" variant="success" />
+        <status-message key="@TempDataKeys.Updated" variant="success" />
     }
-    @if (!jobRunningOrArchived && TempData["Deleted"] != null)
+    <status-message key="@TempDataKeys.Valid" variant="success" />
+    @if (!jobRunningOrArchived)
     {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <p>@Html.Raw(TempData["Deleted"])</p>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    }
-    @if (!jobRunningOrArchived && TempData["Updated"] != null)
-    {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <p>@Html.Raw(TempData["Updated"])</p>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    }
-    @if (TempData["Valid"] != null)
-    {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <p>@Html.Raw(TempData["Valid"])</p>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    }
-    @if (!jobRunningOrArchived && TempData["AccessConditionsUpdated"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <p>@Html.Raw(TempData["AccessConditionsUpdated"])</p>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
+        <status-message key="@TempDataKeys.AccessConditionsUpdated" variant="success" />
     }
 
     @if (Model.IsLockedByOtherUser())
@@ -247,7 +225,7 @@
     }
 
     
-    @if (jobRunningOrArchived && TempData["Valid"] == null && Model.Deposit?.Archived == null)
+    @if (jobRunningOrArchived && TempData[TempDataKeys.Valid] == null && Model.Deposit?.Archived == null)
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <p>This deposit has a metadata pipeline being run by @Model.Deposit!.LockedBy?.GetSlug() . <br/> 
@@ -933,20 +911,20 @@
     <script src="~/js/deposit.js" asp-append-version="true"></script>
     <script src="~/js/logical-structmap.js" asp-append-version="true"></script>
     <script src="~/js/file-links.js" asp-append-version="true"></script>
-    @if (TempData["ActiveTab"] != null)
+    @if (TempData[TempDataKeys.ActiveTab] != null)
     {
         <script>
-            const activeTabId = '@TempData["ActiveTab"]';
+            const activeTabId = '@TempData[TempDataKeys.ActiveTab]';
             const tabEl = document.getElementById('logicalTab_' + activeTabId + '-tab');
             if (tabEl) { bootstrap.Tab.getOrCreateInstance(tabEl).show(); }
         </script>
     }
 }
 
-@if (TempData["Context"] != null)
+@if (TempData[TempDataKeys.Context] != null)
 {
     <script>
-        const contextRow = document.querySelectorAll('[data-path="@TempData["Context"]"]');
+        const contextRow = document.querySelectorAll('[data-path="@TempData[TempDataKeys.Context]"]');
         contextRow[0].click();
     </script>
 }

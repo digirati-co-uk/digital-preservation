@@ -2,6 +2,7 @@
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.Import
 @using DigitalPreservation.UI.Features
+@using DigitalPreservation.UI.Infrastructure
 @using DigitalPreservation.UI.Pages.Shared
 @using DigitalPreservation.Utils
 @model BrowseModel
@@ -117,19 +118,8 @@
 }
 
 <div>
-    @if (TempData["ContainerError"] != null)
-    {
-        <div class="alert alert-danger" role="alert">
-            <p>@TempData["ContainerError"]</p>
-        </div>
-    }
-
-    @if (TempData["ContainerSuccess"] != null)
-    {
-        <div class="alert alert-success" role="alert">
-            <p>@TempData["ContainerSuccess"]</p>
-        </div>
-    }
+    <status-message key="@TempDataKeys.ContainerError" variant="danger" dismissible="false" />
+    <status-message key="@TempDataKeys.ContainerSuccess" variant="success" dismissible="false" />
     
     @{
         var modelBinary = Model.Resource as Binary;

@@ -1,5 +1,6 @@
 ﻿using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.UI.Features.Preservation.Requests;
+using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.UI.ViewComponents;
 using DigitalPreservation.Utils;
 using MediatR;
@@ -61,7 +62,7 @@ public class IndexModel(IMediator mediator) : PageModel
         }
         else
         {
-            TempData["Error"] = result.CodeAndMessage();
+            TempData[TempDataKeys.Error] = result.CodeAndMessage();
         }
         return Page();
     }
