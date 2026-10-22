@@ -3,9 +3,6 @@ using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.Identity.Web;
 using Storage.API.Web;
 using Serilog;
 using Storage.API.Data;
@@ -57,11 +54,7 @@ try
     if (useAuthFeatureFlag)
     {
         // Auth
-        builder.Services
-            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
-            .EnableTokenAcquisitionToCallDownstreamApi()
-            .AddInMemoryTokenCaches();
+        builder.Services.AddPlatformApiAuthentication(builder.Configuration);
     }
 
     // Allow-list of known machine callers, keyed by signed azp/appid (RFC-0001 Phase 0).
@@ -86,8 +79,7 @@ try
             config.Filters.Add<RepositoryPathFilter>();
             if (useAuthFeatureFlag)
             {
-                config.Filters.Add(new AuthorizeFilter());
-                config.Filters.Add(new AuthFilterIdentifier());
+                config.AddPlatformAuthorizationFilters();
             }
         });
 
