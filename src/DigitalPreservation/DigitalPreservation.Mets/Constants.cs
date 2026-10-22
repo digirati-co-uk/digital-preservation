@@ -9,6 +9,7 @@ public static class Constants
     public const string RestrictionOnAccess = "restriction on access";
     public const string UseAndReproduction = "use and reproduction";
     public const string Mets = "METS";
+    public const string ModsMdWrapType = "MODS";
     public const string PhysIdPrefix = "PHYS_";
     public const string FileIdPrefix = "FILE_";
     public const string AdmIdPrefix = "ADM_";

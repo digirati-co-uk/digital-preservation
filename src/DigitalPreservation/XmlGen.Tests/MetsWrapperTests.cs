@@ -84,8 +84,13 @@ public class MetsWrapperTests
         // EPrints has no TYPE="LOGICAL" structmap, so there are no logical structures
         result.Value.LogicalStructures.Should().BeEmpty();
 
-        // EPrints MODS uses mets:recordIdentifier (not mods:recordIdentifier), so RecordInfo
-        // is not parsed — all files have no effective access, rights, record info, or links
+        // This sample's dmdSec is linked from the root structMap div, which carries no
+        // TYPE="Directory" and no mets:fptr of its own - EPrints nests the four actual files one
+        // level below it, on divs with no DMDID of their own - so the record info GetDmdForDiv
+        // reads there (now including the mets:recordIdentifier form EPrints writes - issue #237)
+        // has nowhere to land: it is neither a WorkingDirectory's own RecordInfo nor, since the
+        // div is not type Directory, the root PhysicalStructure's. All files have no effective
+        // access, rights, record info, or links.
         phys.Directories[0].Files.Should().OnlyContain(f =>
             f.EffectiveAccessRestrictions.Count == 0 &&
             f.EffectiveRightsStatement == null &&

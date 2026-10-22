@@ -24,6 +24,7 @@ public static class XNames
     public static readonly XName MetsTechMD = mets + "techMD";
     public static readonly XName MetsRightsMD = mets + "rightsMD";
     public static readonly XName MetsDigiprovMD = mets + "digiprovMD";
+    public static readonly XName MetsRecordIdentifier = mets + "recordIdentifier";
 
     public static readonly XNamespace mods = "http://www.loc.gov/mods/v3";
     public static readonly XName ModsTitle = mods + "title";
