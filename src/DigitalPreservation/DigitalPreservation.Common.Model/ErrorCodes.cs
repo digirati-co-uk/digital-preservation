@@ -22,6 +22,7 @@ public static class ErrorCodes
             409 => Conflict,
             422 => Unprocessable,
             410 => Tombstone,
+            412 => PreconditionFailed,
             _ => UnknownError
         };
         return errorCode;
