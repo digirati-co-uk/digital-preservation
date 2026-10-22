@@ -1,5 +1,4 @@
-﻿using Amazon.S3;
-using Amazon.SimpleNotificationService;
+﻿using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
@@ -54,7 +53,6 @@ try
         .AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining<Program>();
-            cfg.RegisterServicesFromAssemblyContaining<IAmazonSimpleNotificationService>();
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
             cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
@@ -128,7 +126,6 @@ try
     }
 
     builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
-    builder.Services.AddAWSService<IAmazonS3>();
 
     builder.Services.AddStorageAwsAccess(builder.Configuration);
     builder.Services.AddSingleton<IMetsLoader, S3MetsLoader>();
