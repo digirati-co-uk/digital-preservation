@@ -13,9 +13,9 @@ public static class DepositJobResultFetcher
 {
     // This gets the preservation API's view, which is not necessarily up to date.
     // TODO: The preservation API should listen for result completion and update these behind the scenes
-    public static async Task<Result<List<ImportJobResult>>> GetImportJobResults(string depositId, IMediator mediator)
+    public static async Task<Result<List<ImportJobResult>>> GetImportJobResults(string depositId, IMediator mediator, CancellationToken cancellationToken)
     {
-        var importJobsResult = await mediator.Send(new GetImportJobResults(depositId));
+        var importJobsResult = await mediator.Send(new GetImportJobResults(depositId), cancellationToken);
         if (importJobsResult.Failure)
         {
             return importJobsResult;
@@ -33,7 +33,7 @@ public static class DepositJobResultFetcher
             {
                 if (ImportJobStates.IsNotComplete(importJobResult.Status))
                 {
-                    var ijrResult = await mediator.Send(new GetImportJobResult(depositId, importJobResult.Id!.GetSlug()!));
+                    var ijrResult = await mediator.Send(new GetImportJobResult(depositId, importJobResult.Id!.GetSlug()!), cancellationToken);
                     if (ijrResult.Success)
                     {
                         updatedImportJobResults.Add(ijrResult.Value!);
@@ -50,9 +50,9 @@ public static class DepositJobResultFetcher
 
     // This gets the preservation API's view, which is not necessarily up to date.
     // TODO: The preservation API should listen for result completion and update these behind the scenes
-    public static async Task<Result<List<ProcessPipelineResult>>> GetPipelineJobResults(string depositId, IMediator mediator)
+    public static async Task<Result<List<ProcessPipelineResult>>> GetPipelineJobResults(string depositId, IMediator mediator, CancellationToken cancellationToken)
     {
-        var pipelineJobsResult = await mediator.Send(new GetPipelineJobsResults(depositId));
+        var pipelineJobsResult = await mediator.Send(new GetPipelineJobsResults(depositId), cancellationToken);
         if (pipelineJobsResult.Failure)
         {
             return pipelineJobsResult;
@@ -64,9 +64,9 @@ public static class DepositJobResultFetcher
 
     }
 
-    public static async Task<Result<ArchiveJobResult?>> GetArchiveJobResult(string depositId, IMediator mediator)
+    public static async Task<Result<ArchiveJobResult?>> GetArchiveJobResult(string depositId, IMediator mediator, CancellationToken cancellationToken)
     {
-        var archiveJobResult = await mediator.Send(new GetArchiveJobResult(depositId));
+        var archiveJobResult = await mediator.Send(new GetArchiveJobResult(depositId), cancellationToken);
         if (archiveJobResult.Failure)
         {
             return Result.Fail<ArchiveJobResult?>(ErrorCodes.BadRequest, "no archive job for deposit");
