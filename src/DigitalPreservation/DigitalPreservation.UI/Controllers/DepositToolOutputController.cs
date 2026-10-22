@@ -14,12 +14,12 @@ public class DepositToolOutputController(
     IStorage storage) : Controller
 {
     [HttpGet]
-    public async Task<IActionResult> Get([FromRoute] string id, [FromQuery] string path)
+    public async Task<IActionResult> Get([FromRoute] string id, [FromQuery] string path, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(path))
             return BadRequest();
 
-        var depositResult = await preservationApiClient.GetDeposit(id, CancellationToken.None);
+        var depositResult = await preservationApiClient.GetDeposit(id, cancellationToken);
         if (!depositResult.Success || depositResult.Value?.Files == null)
             return NotFound();
 

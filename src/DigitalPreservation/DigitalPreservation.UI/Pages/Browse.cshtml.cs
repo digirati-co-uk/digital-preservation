@@ -45,12 +45,12 @@ public class BrowseModel(
     public Dictionary<string, List<ImportJobResult>> ImportJobResultsForNewDeposits { get; set; } = new();
 
     
-    public async Task<IActionResult> OnGet(string? pathUnderRoot, [FromQuery] string? view)
+    public async Task<IActionResult> OnGet(string? pathUnderRoot, [FromQuery] string? view, CancellationToken cancellationToken)
     {
         string? version = null;
         PathUnderRoot = pathUnderRoot;
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot ?? string.Empty}";
-        Resource = await TryGetResourceFromCachedArchivalGroup(pathUnderRoot);
+        Resource = await TryGetResourceFromCachedArchivalGroup(pathUnderRoot, cancellationToken);
         if (Resource != null && CachedArchivalGroup != null)
         {
             Resource.PartOf = CachedArchivalGroup.Id;
@@ -65,7 +65,7 @@ public class BrowseModel(
         if (Resource == null)
         {
             // The resource is not an Archival Group and is not in an Archival Group
-            var result = await mediator.Send(new GetResource(resourcePath));
+            var result = await mediator.Send(new GetResource(resourcePath), cancellationToken);
             if (result.Success)
             {
                 Resource = result.Value;
@@ -86,7 +86,7 @@ public class BrowseModel(
                 {
                     ArchivalGroupPathParent = path
                 };
-                var potentialGhostDepositResult = await mediator.Send(new GetDeposits(query));
+                var potentialGhostDepositResult = await mediator.Send(new GetDeposits(query), cancellationToken);
                 if (potentialGhostDepositResult.Success)
                 {
                     ActiveDepositsForArchivalGroupsInContainer = potentialGhostDepositResult.Value!.Deposits
@@ -120,11 +120,11 @@ public class BrowseModel(
                     OrderBy = DepositQuery.Created,
                     ShowAll = true
                 };
-                var depositsResult = await mediator.Send(new GetDeposits(query));
+                var depositsResult = await mediator.Send(new GetDeposits(query), cancellationToken);
                 if (depositsResult.Success)
                 {
                     Deposits = depositsResult.Value!.Deposits;
-                    await GetJobsForActiveDeposits();
+                    await GetJobsForActiveDeposits(cancellationToken);
                 }
                 break;
             case nameof(Container):
@@ -216,7 +216,7 @@ public class BrowseModel(
             .RemoveStart("/");
     }
 
-    private async Task<PreservedResource?> TryGetResourceFromCachedArchivalGroup(string? pathUnderRoot)
+    private async Task<PreservedResource?> TryGetResourceFromCachedArchivalGroup(string? pathUnderRoot, CancellationToken cancellationToken)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{pathUnderRoot}";
         if (pathUnderRoot is null or "/" or "")
@@ -254,7 +254,7 @@ public class BrowseModel(
         if (CachedArchivalGroup == null)
         {
             // If not, get the resource.
-            var result = await mediator.Send(new GetResource(resourcePath));
+            var result = await mediator.Send(new GetResource(resourcePath), cancellationToken);
             if (result.Success)
             {
                 ArchivalGroup? archivalGroupToBeCached = null;
@@ -274,7 +274,7 @@ public class BrowseModel(
                 else if (preservedResource.PartOf != null)
                 {
                     // If it's partOf an archival group, get the archival group.
-                    result = await mediator.Send(new GetResource(preservedResource.PartOf.AbsolutePath));
+                    result = await mediator.Send(new GetResource(preservedResource.PartOf.AbsolutePath), cancellationToken);
                     archivalGroupToBeCached = result.Value as ArchivalGroup;
                     if (archivalGroupToBeCached != null)
                     {
@@ -331,13 +331,13 @@ public class BrowseModel(
         string CacheKey(string s) => $"AG-UI-{s}";
     }
 
-    private async Task GetJobsForActiveDeposits()
+    private async Task GetJobsForActiveDeposits(CancellationToken cancellationToken)
     {
         foreach (var deposit in Deposits)
         {
             if (deposit.Status == DepositStates.New)
             {
-                var result = await DepositJobResultFetcher.GetImportJobResults(deposit.Id!.GetSlug()!, mediator);
+                var result = await DepositJobResultFetcher.GetImportJobResults(deposit.Id!.GetSlug()!, mediator, cancellationToken);
                 if (result is { Success: true, Value: not null })
                 {
                     ImportJobResultsForNewDeposits[deposit.Id!.GetSlug()!] = result.Value;
@@ -346,7 +346,7 @@ public class BrowseModel(
         }
     }
 
-    public async Task<IActionResult> OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle)
+    public async Task<IActionResult> OnPost(string? pathUnderRoot, string? containerSlug, string? containerTitle, CancellationToken cancellationToken)
     {
         if (containerSlug.IsNullOrWhiteSpace())
         {
@@ -358,7 +358,7 @@ public class BrowseModel(
         var slugValidResult = ValidateNewContainerSlug(slug);
         if (slugValidResult.Success)
         {
-            var result = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle));
+            var result = await mediator.Send(new CreateContainer(pathUnderRoot, slug, containerTitle), cancellationToken);
             if(result is { Success: true, Value: not null })
             {
                 TempData["ContainerSuccess"] = "Created Container " + result.Value;
