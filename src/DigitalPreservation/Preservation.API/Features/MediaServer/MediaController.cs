@@ -1,6 +1,8 @@
 using System.Text.Json;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
@@ -43,17 +45,17 @@ public class MediaController(
         [FromRoute] string localPath)
     {
         if (source != "deposit")
-            return BadRequest(new ProblemDetails { Title = "Unsupported source", Detail = "Only 'deposit' is supported." });
+            return this.ProblemFor(ErrorCodes.BadRequest, "Only 'deposit' is supported.", "Unsupported source");
 
         if (!ValidateLocalPath(localPath))
             return Unauthorized();
 
         var key = tokenService.GetKey(token);
         if (!key.HasText() || key.GetSlug() != sourceId)
-            return Problem(
-                title: "Session expired",
-                detail: "The IIIF session token has expired or is invalid. Re-open the manifest from the preservation system.",
-                statusCode: 401);
+            return this.ProblemFor(
+                ErrorCodes.Unauthorized,
+                "The IIIF session token has expired or is invalid. Re-open the manifest from the preservation system.",
+                "Session expired");
 
         var depositResult = await mediator.Send(new GetDeposit(sourceId));
         if (depositResult is not { Success: true, Value: not null })

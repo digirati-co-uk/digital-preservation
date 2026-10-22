@@ -40,10 +40,10 @@ public class PipelineController(
         CancellationToken cancellationToken = default)
     {
         if(pipelineJob.DepositName == null)
-           return BadRequest("Deposit name is required in the request.");
+           return this.ProblemFor(ErrorCodes.BadRequest, "Deposit name is required in the request.");
 
         if (!PreservedResource.ValidSlug(pipelineJob.DepositName, out var invalidDepositNameReason))
-            return BadRequest($"Deposit name is not valid: {invalidDepositNameReason}");
+            return this.ProblemFor(ErrorCodes.BadRequest, $"Deposit name is not valid: {invalidDepositNameReason}");
 
         var depositResult = await preservationApiClient.GetDeposit(pipelineJob.DepositName, cancellationToken);
         if (depositResult.Failure && depositResult.ErrorCode != ErrorCodes.NotFound)
@@ -57,7 +57,7 @@ public class PipelineController(
         if (depositResult.Failure || depositResult.Value is null)
         {
             logger.LogWarning("ExecutePipelineJob: deposit {DepositName} not found", pipelineJob.DepositName);
-            return NotFound($"Deposit {pipelineJob.DepositName} not found.");
+            return this.ProblemFor(ErrorCodes.NotFound, $"Deposit {pipelineJob.DepositName} not found.");
         }
 
         logger.LogInformation(
@@ -86,10 +86,10 @@ public class PipelineController(
         CancellationToken cancellationToken = default)
     {
         if (!pipelineJobMessage.DepositName.HasText())
-            return BadRequest("Deposit name is required in the request.");
+            return this.ProblemFor(ErrorCodes.BadRequest, "Deposit name is required in the request.");
 
         if (!pipelineJobMessage.JobIdentifier.HasText())
-            return BadRequest("Job identifier is required in the request.");
+            return this.ProblemFor(ErrorCodes.BadRequest, "Job identifier is required in the request.");
 
         if (logger.IsEnabled(LogLevel.Information))
         {
@@ -107,6 +107,8 @@ public class PipelineController(
             logger.LogWarning(
                 "QueuePipelineJob: local pipeline queue is full, refusing job {JobIdentifier} for deposit {DepositName}",
                 pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName);
+            // Left as a plain string (issue #388 item 2.3): ErrorCodes has no 503 entry, and
+            // ProblemFor would turn this into a 500, losing the "retry me" signal a 503 gives.
             return StatusCode(StatusCodes.Status503ServiceUnavailable,
                 "Local pipeline queue is full; try again shortly.");
         }
