@@ -11,7 +11,12 @@ public class PagerViewComponent : ViewComponent
     public const int DefaultWindow = 7;
     public const int DefaultEnds = 3;
 
-    public Task<IViewComponentResult> InvokeAsync(PagerValues values)
+    /// <summary>
+    /// Pass a <paramref name="key"/> when a page shows more than one pager (e.g. Search.cshtml's
+    /// Fedora and Deposit tabs), so each gets its own cached model instead of colliding on the
+    /// per-request cache key (issue #388 item 4.1).
+    /// </summary>
+    public Task<IViewComponentResult> InvokeAsync(PagerValues values, string? key = null)
     {
         if (values.HideForSinglePage && values.Total <= values.Size)
         {
@@ -19,8 +24,10 @@ public class PagerViewComponent : ViewComponent
             return Task.FromResult<IViewComponentResult>(Content(String.Empty));
         }
 
+        var cacheKey = key ?? nameof(PagerViewComponent);
+
         // Store the model in the request for duplicated pagers
-        if (HttpContext.Items[nameof(PagerViewComponent)] is not PagerModel model)
+        if (HttpContext.Items[cacheKey] is not PagerModel model)
         {
             var path = Request.Path;
             int pages = values.Total / values.Size;
@@ -92,7 +99,7 @@ public class PagerViewComponent : ViewComponent
                 }
             }
 
-            HttpContext.Items[nameof(PagerViewComponent)] = model;
+            HttpContext.Items[cacheKey] = model;
         }
 
         return Task.FromResult<IViewComponentResult>(View(model));
