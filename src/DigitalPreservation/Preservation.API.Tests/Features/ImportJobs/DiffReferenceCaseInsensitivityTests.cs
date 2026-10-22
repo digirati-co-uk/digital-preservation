@@ -2,11 +2,11 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core.Configuration;
 using FakeItEasy;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Preservation.API.Features.Deposits.Requests;
@@ -87,8 +87,7 @@ public class DiffReferenceCaseInsensitivityTests
 
     private static ImportJobsController Controller(IMediator mediator, string requestPath)
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?>()).Build();
+        var featureFlags = Options.Create(new FeatureFlagOptions());
         var mutator = new ResourceMutator(Options.Create(new MutatorOptions
         {
             Storage = "https://storage.test",
@@ -97,7 +96,7 @@ public class DiffReferenceCaseInsensitivityTests
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Path = new PathString(requestPath);
         return new ImportJobsController(
-            NullLogger<ImportJobsController>.Instance, mediator, mutator, configuration)
+            NullLogger<ImportJobsController>.Instance, mediator, mutator, featureFlags)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };

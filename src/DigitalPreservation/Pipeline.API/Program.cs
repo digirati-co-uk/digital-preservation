@@ -10,12 +10,10 @@ using Pipeline.API.Features.Pipeline;
 using Pipeline.API.Middleware;
 using Serilog;
 using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.Mets;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Workspace;
 using Preservation.Client;
 using Storage.Repository.Common;
-using Storage.Repository.Common.Mets.StorageImpl;
 using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
@@ -116,8 +114,9 @@ try
     // IPipelineQueue - the endpoint itself 404s via [RequireFeatureFlag] when the flag is off, so an
     // idle, never-written-to channel sitting in memory the rest of the time is the only cost.
     builder.Services.AddSingleton<InProcessPipelineQueue>();
+    builder.Services.AddFeatureFlagOptions(builder.Configuration);
 
-    var useLocalHostedServiceForPipeline = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForPipeline");
+    var useLocalHostedServiceForPipeline = builder.Configuration.GetFeatureFlags().UseLocalHostedServiceForPipeline;
     if (useLocalHostedServiceForPipeline)
     {
         builder.Services.AddSingleton<IPipelineQueue>(sp => sp.GetRequiredService<InProcessPipelineQueue>());
@@ -131,16 +130,7 @@ try
     builder.Services.AddAWSService<IAmazonS3>();
 
     builder.Services.AddStorageAwsAccess(builder.Configuration);
-    builder.Services.AddSingleton<IMetsLoader, S3MetsLoader>();
-    builder.Services.AddSingleton<IMetsParser, MetsParser>();
-    builder.Services.Configure<MetsManagerOptions>(builder.Configuration.GetSection("FeatureFlags"));
-    builder.Services.AddSingleton<IMetsManager, MetsManager>();
-    builder.Services.AddSingleton<MetadataManager>();
-    builder.Services.AddSingleton<PremisManager>();
-    builder.Services.AddSingleton<PremisManagerExif>();
-    builder.Services.AddSingleton<PremisEventManagerVirus>();
-    builder.Services.AddSingleton<IMetsStorage, S3MetsStorage>();
-    builder.Services.AddSingleton<WorkspaceManagerFactory>();
+    builder.Services.AddDepositWorkspace(builder.Configuration);
 
     var app = builder.Build();
     app

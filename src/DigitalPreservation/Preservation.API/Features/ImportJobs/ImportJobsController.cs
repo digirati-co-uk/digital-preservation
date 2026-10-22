@@ -4,11 +4,13 @@ using DigitalPreservation.Common.Model.LogHelpers;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
+using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Preservation.API.Features.Deposits.Requests;
 using Preservation.API.Features.ImportJobs.Requests;
 using Preservation.API.Mutation;
@@ -22,7 +24,7 @@ public class ImportJobsController(
     ILogger<ImportJobsController> logger,
     IMediator mediator,
     ResourceMutator resourceMutator,
-    IConfiguration configuration) : ControllerBase
+    IOptions<FeatureFlagOptions> featureFlags) : ControllerBase
 {
     [HttpGet("diff", Name = "GetDiffImportJob")]
     [ProducesResponseType<ImportJob>(200, "application/json")]
@@ -83,7 +85,7 @@ public class ImportJobsController(
         logger.LogInformation("Import Jobs Controller: Executing Import Job {ImportJobSummary}", importJob.LogSummary());
 
         if (importJob.SuppressActivityStreamEvent
-            && !configuration.GetValue<bool>("FeatureFlags:EnableMetsIdNormalisation"))
+            && !featureFlags.Value.EnableMetsIdNormalisation)
         {
             // Suppression keeps a preserved version out of the published Activity Stream, which
             // means IIIF and every other consumer is never told to rebuild. That is right for a

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Xml.Serialization;
 
@@ -27,8 +28,7 @@ internal static class MetsGraph
     private static readonly string[] GeneratedNamespaces =
         ["DigitalPreservation.XmlGen.Mets", "DigitalPreservation.XmlGen.Xlink"];
 
-    private static readonly Dictionary<Type, TypePlan> Plans = new();
-    private static readonly object PlansLock = new();
+    private static readonly ConcurrentDictionary<Type, TypePlan> Plans = new();
 
     /// <summary>
     /// The reflected shape of one generated type: which properties hold child nodes, and which
@@ -143,19 +143,12 @@ internal static class MetsGraph
     private static string AttributeName(PropertyInfo property) =>
         property.GetCustomAttribute<XmlAttributeAttribute>()?.AttributeName ?? property.Name;
 
-    private static TypePlan PlanFor(Type type)
-    {
-        lock (PlansLock)
-        {
-            if (Plans.TryGetValue(type, out var existing))
-            {
-                return existing;
-            }
-            var plan = BuildPlan(type);
-            Plans[type] = plan;
-            return plan;
-        }
-    }
+    // ConcurrentDictionary.GetOrAdd, not Dictionary + lock (issue #233 item 3): this runs once per
+    // node in the walk, so the hot path - every cache hit, which is almost every call once a type
+    // has been seen - no longer takes a lock at all. BuildPlan is pure reflection over a type with
+    // no side effects, so the rare race where two threads both miss the cache and both build the
+    // same plan is harmless: GetOrAdd keeps only one of the (equal) results, and nothing is lost.
+    private static TypePlan PlanFor(Type type) => Plans.GetOrAdd(type, BuildPlan);
 
     /// <summary>What one property of a generated type is, to this walk.</summary>
     private enum Role

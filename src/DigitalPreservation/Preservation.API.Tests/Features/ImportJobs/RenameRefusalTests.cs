@@ -1,13 +1,13 @@
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
+using DigitalPreservation.Core.Configuration;
 using FakeItEasy;
 using FakeItEasy.Configuration;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Preservation.API.Features.Deposits.Requests;
@@ -155,11 +155,7 @@ public class RenameRefusalTests
 
     private static ImportJobsController Controller(IMediator mediator)
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?>
-            {
-                ["FeatureFlags:EnableMetsIdNormalisation"] = "true"
-            }).Build();
+        var featureFlags = Options.Create(new FeatureFlagOptions { EnableMetsIdNormalisation = true });
         var mutator = new ResourceMutator(Options.Create(new MutatorOptions
         {
             Storage = "https://storage.test",
@@ -169,7 +165,7 @@ public class RenameRefusalTests
         A.CallTo(() => urlHelper.RouteUrl(A<UrlRouteContext>._))
             .Returns(DepositUri + "/importjobs/diff");
         return new ImportJobsController(
-            NullLogger<ImportJobsController>.Instance, mediator, mutator, configuration)
+            NullLogger<ImportJobsController>.Instance, mediator, mutator, featureFlags)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
             Url = urlHelper

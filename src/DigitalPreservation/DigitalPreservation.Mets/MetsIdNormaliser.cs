@@ -42,13 +42,13 @@ public static class MetsIdNormaliser
         var report = new MetsIdNormalisationReport();
         var nodes = MetsGraph.Nodes(mets).ToList();
 
-        var plan = PlanRewrites(nodes, report);
+        var plan = PlanRewrites(nodes, report, out var anyInvalidReference);
         if (report.DuplicateIds.Count > 0)
         {
             // Refused before anything is touched, so the caller gets the document as it was.
             return report;
         }
-        if (plan.ById.Count == 0 && !AnyInvalidReference(nodes))
+        if (plan.ById.Count == 0 && !anyInvalidReference)
         {
             return report;
         }
@@ -89,33 +89,42 @@ public static class MetsIdNormaliser
 
     /// <summary>
     /// Every ID that needs to change, old to new, with the collisions that would make the result
-    /// invalid ruled out first.
+    /// invalid ruled out first. Also reports, as a byproduct of this same walk, whether any
+    /// reference in the document is broken - so a conforming document is confirmed conforming in
+    /// one pass over <paramref name="nodes"/> rather than two (issue #233 item 4).
     /// </summary>
     private static RewritePlan PlanRewrites(
-        List<object> nodes, MetsIdNormalisationReport report)
+        List<object> nodes, MetsIdNormalisationReport report, out bool anyInvalidReference)
     {
         var existing = new HashSet<string>(StringComparer.Ordinal);
         var seenTwice = new HashSet<string>(StringComparer.Ordinal);
         var invalid = new List<string>();
+        var invalidReference = false;
         foreach (var node in nodes)
         {
             var id = MetsGraph.GetId(node);
-            if (id is null)
+            if (id is not null)
             {
-                continue;
+                if (!existing.Add(id))
+                {
+                    // Two elements already share this ID, so the document is not valid and never
+                    // was. A rewrite maps an ID value, not an element, so both would land on one new
+                    // ID and the duplication would survive - legal-looking, and no longer obvious.
+                    // Refuse.
+                    seenTwice.Add(id);
+                }
+                if (!MetsIds.IsValidId(id))
+                {
+                    invalid.Add(id);
+                }
             }
-            if (!existing.Add(id))
+
+            if (!invalidReference && HasInvalidReference(node))
             {
-                // Two elements already share this ID, so the document is not valid and never was.
-                // A rewrite maps an ID value, not an element, so both would land on one new ID and
-                // the duplication would survive - legal-looking, and no longer obvious. Refuse.
-                seenTwice.Add(id);
-            }
-            if (!MetsIds.IsValidId(id))
-            {
-                invalid.Add(id);
+                invalidReference = true;
             }
         }
+        anyInvalidReference = invalidReference;
 
         if (seenTwice.Count > 0)
         {
@@ -234,36 +243,29 @@ public static class MetsIdNormaliser
     }
 
     /// <summary>
-    /// Whether any reference in the document is not a legal NCName even though nothing defines it.
-    /// A document with no invalid IDs can still carry an invalid reference - the template writes
+    /// Whether this node carries a reference that is not a legal NCName even though nothing defines
+    /// it. A document with no invalid IDs can still carry an invalid reference - the template writes
     /// DMDID onto folder divs whose dmdSec is only created on first metadata write, so
     /// <c>DMD_metadata/ad-hoc</c> can sit there naming nothing - and leaving it would mean the
     /// document still does not conform after a migration that reported success.
     /// </summary>
-    private static bool AnyInvalidReference(List<object> nodes)
+    private static bool HasInvalidReference(object node)
     {
-        foreach (var node in nodes)
+        foreach (var (_, value, _) in MetsGraph.SingleIdRefs(node))
         {
-            foreach (var (_, value, _) in MetsGraph.SingleIdRefs(node))
-            {
-                if (!MetsIds.IsValidId(value))
-                {
-                    return true;
-                }
-            }
-            foreach (var (_, tokens) in MetsGraph.TokenIdRefs(node))
-            {
-                if (tokens.Any(token => !MetsIds.IsValidId(token)))
-                {
-                    return true;
-                }
-            }
-            if (UntypedIdRefs(node).Any(reference => !MetsIds.IsValidId(reference.Value)))
+            if (!MetsIds.IsValidId(value))
             {
                 return true;
             }
         }
-        return false;
+        foreach (var (_, tokens) in MetsGraph.TokenIdRefs(node))
+        {
+            if (tokens.Any(token => !MetsIds.IsValidId(token)))
+            {
+                return true;
+            }
+        }
+        return UntypedIdRefs(node).Any(reference => !MetsIds.IsValidId(reference.Value));
     }
 
     private static int RewriteReferences(
