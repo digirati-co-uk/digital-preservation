@@ -30,34 +30,19 @@ public class ExportMetsOnlyController(
         [FromBody] ExportResource export,
         CancellationToken cancellationToken = default)
     {
-        // Body-bound path: the route filter never sees it, so the same rule the queue handler applies.
-        if (export.ArchivalGroup == null)
+        // Body-bound path: the route filter never sees it, so the same rule the queue handler
+        // applies - this route calls ExecuteExport directly rather than going through
+        // QueueExportHandler, so it must apply the same checks itself, not rely on ExecuteExport,
+        // which the queued path only runs later, after 201 has already been returned (issue #288).
+        var validation = ExportValidation.Validate(export, storageOptions.Value, clientDirectory, logger);
+        if (validation.Failure)
         {
-            return ControllerX.GetProblemObjectResult(Result.Fail(ErrorCodes.BadRequest, "Export has no Archival Group"));
+            return ControllerX.GetProblemObjectResult(validation);
         }
-        if (!SafeRepositoryPath.IsRepositoryPath(export.ArchivalGroup.GetPathUnderRoot(), out var pathReason))
-        {
-            return ControllerX.GetProblemObjectResult(Result.Fail(ErrorCodes.BadRequest,
-                $"Export Archival Group {export.ArchivalGroup} is not a path under the repository root: {pathReason}"));
-        }
-        // This route calls ExecuteExport directly rather than going through QueueExportHandler, so
-        // it must apply the same destination check itself - not relying on ExecuteExport, which the
-        // queued path only runs later, after 201 has already been returned (issue #288).
-        var permittedBuckets = PermittedExportBuckets.All(storageOptions.Value, clientDirectory);
-        if (!ExportDestination.IsInBucket(export.Destination, permittedBuckets, out var reason))
-        {
-            logger.LogWarning(
-                "Refusing export destination {Destination}: {Reason}. Permitted buckets: {PermittedBuckets}",
-                export.Destination, reason, permittedBuckets);
-            return ControllerX.GetProblemObjectResult(Result.Fail(ErrorCodes.BadRequest, reason));
-        }
+
         // Not stored (there is no QueueExportHandler step for this synchronous route), so the
         // response is the only place these fields can be set (issue #273).
-        var now = DateTime.UtcNow;
-        export.Created = now;
-        export.LastModified = now;
-        export.CreatedBy ??= converters.GetAgentUri(User.GetCallerIdentity());
-        export.LastModifiedBy = export.CreatedBy;
+        ExportValidation.Stamp(export, converters, User.GetCallerIdentity());
 
         logger.LogInformation("Synchronously exporting METS export for {Path}", export.ArchivalGroup.GetPathUnderRoot());
         var metsExportResult = await mediator.Send(new ExecuteExport(null, export, true), cancellationToken);
