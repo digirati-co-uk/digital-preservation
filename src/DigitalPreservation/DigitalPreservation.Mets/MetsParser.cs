@@ -904,6 +904,32 @@ public class MetsParser(
             });
         }
 
+        // EPrints writes its own record identifiers - including the id.library.leeds.ac.uk PID -
+        // as mets:recordIdentifier rather than mods:recordIdentifier, even though mdWrap/@MDTYPE
+        // claims the content is MODS (issue #237). Read them too, but only when that MODS claim is
+        // actually made - this is tolerance for one third party's mistake, not a general scavenge
+        // of METS-namespace elements - and only for sources the mods: form above didn't already
+        // supply: once #223 makes a document editable, a write adds genuine mods:recordIdentifier
+        // elements alongside the untouched EPrints originals, and the mods: form must win so the
+        // document is not reported as carrying the same identifier twice.
+        if (dmd.Element(XNames.MetsMdWrap)?.Attribute("MDTYPE")?.Value == Constants.ModsMdWrapType)
+        {
+            foreach (var recordIdentifierEl in dmd.Descendants(XNames.MetsRecordIdentifier))
+            {
+                var source = recordIdentifierEl.Attribute("source")?.Value;
+                if (!source.HasText() || recordInfo?.RecordIdentifiers.Any(ri => ri.Source == source) == true)
+                {
+                    continue;
+                }
+                recordInfo ??= new RecordInfo();
+                recordInfo.RecordIdentifiers.Add(new RecordIdentifier()
+                {
+                    Source = source,
+                    Value = recordIdentifierEl.Value
+                });
+            }
+        }
+
         return (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet);
     }
 
