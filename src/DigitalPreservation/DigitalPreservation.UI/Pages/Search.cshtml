@@ -225,7 +225,7 @@
                                             @result.Created
                                         </td>
                                         <td aria-label="td-deposits-createdby">
-                                            @result.CreatedBy?.ToString().Split("/").Last()
+                                            @result.CreatedBy.GetAgentDisplayName()
                                         </td>
                                     </tr>
                                 }
