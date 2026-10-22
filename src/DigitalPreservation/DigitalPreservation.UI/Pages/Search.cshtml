@@ -163,7 +163,7 @@
 
                 @if (Model.FedoraPagerValues != null && Model.SearchModelData?.FedoraSearch?.Total > 0)
                 {
-                    @await Component.InvokeAsync("Pager", new { values = Model.FedoraPagerValues })
+                    @await Component.InvokeAsync("Pager", new { values = Model.FedoraPagerValues, key = "FedoraPager" })
                 }
             </div>
             
@@ -235,8 +235,8 @@
                     </table>
                 </div>
                 @if (Model.DepositPagerValues != null && Model.SearchModelData?.DepositSearch?.Total > 0)
-                { 
-                    @await Component.InvokeAsync("PagerTwo", new { values = Model.DepositPagerValues })
+                {
+                    @await Component.InvokeAsync("Pager", new { values = Model.DepositPagerValues, key = "DepositPager" })
                 }
 
                 @*************  Deposit Search Results END *************@
