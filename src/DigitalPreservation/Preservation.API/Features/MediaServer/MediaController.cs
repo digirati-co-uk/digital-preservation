@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
