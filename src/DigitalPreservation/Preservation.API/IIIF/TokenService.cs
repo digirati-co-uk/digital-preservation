@@ -36,4 +36,10 @@ public class TokenService(IMemoryCache memoryCache) : ITokenService
         memoryCache.TryGetValue(token, out string? key);
         return key.HasText() ? key : null;
     }
+
+    public bool IsValidForDeposit(string token, string depositId)
+    {
+        var key = GetKey(token);
+        return key.HasText() && key.GetSlug() == depositId;
+    }
 }
