@@ -97,7 +97,8 @@ public class PreservationApiClient(
             "Unable to get agents",
             ErrorCodes.NotFound,
             "No resource at " + uri,
-            "Could not get all agents");
+            "Could not get all agents",
+            cancellationToken: cancellationToken);
     }
 
 
@@ -109,7 +110,8 @@ public class PreservationApiClient(
             "Unable to update deposit",
             ErrorCodes.UnknownError,
             "No deposit returned",
-            "Could not update deposit");
+            "Could not update deposit",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result> DeleteDeposit(string id, CancellationToken cancellationToken)
@@ -130,7 +132,8 @@ public class PreservationApiClient(
             "Unable to create deposit from identifier",
             ErrorCodes.UnknownError,
             "No deposit returned",
-            "Could not create deposit");
+            "Could not create deposit",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<Deposit?>> CreateDeposit(
@@ -164,7 +167,8 @@ public class PreservationApiClient(
             "Unable to create deposit",
             ErrorCodes.UnknownError,
             "No deposit returned",
-            "Could not create deposit");
+            "Could not create deposit",
+            cancellationToken: cancellationToken);
     }
 
 
@@ -187,7 +191,8 @@ public class PreservationApiClient(
             () => preservationHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri), cancellationToken),
             "Unable to get Deposits",
             ErrorCodes.NotFound,
-            "No resource at " + uri);
+            "No resource at " + uri,
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<List<ImportJobResult>>> GetImportJobResultsForDeposit(string depositId, CancellationToken cancellationToken)
@@ -198,7 +203,8 @@ public class PreservationApiClient(
             "Unable to get import job results",
             ErrorCodes.NotFound,
             "No resource at " + uri,
-            "Could not get import job results for deposit");
+            "Could not get import job results for deposit",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<ImportJobResult>> GetImportJobResult(string depositId, string importJobResultId, CancellationToken cancellationToken)
@@ -209,7 +215,8 @@ public class PreservationApiClient(
             "Unable to get import job result",
             ErrorCodes.NotFound,
             "No resource at " + uri,
-            "Could not get import job result");
+            "Could not get import job result",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<ImportJob>> GetDiffImportJob(string depositId, CancellationToken cancellationToken)
@@ -220,7 +227,8 @@ public class PreservationApiClient(
             "Unable to get diff import job",
             ErrorCodes.NotFound,
             "No resource at " + uri,
-            "Could not get diff import job");
+            "Could not get diff import job",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<ImportJobResult>> SendDiffImportJob(string depositId, bool suppressActivityStreamEvent, CancellationToken cancellationToken)
@@ -236,7 +244,8 @@ public class PreservationApiClient(
             "Unable to send diff import job",
             ErrorCodes.NotFound,
             "No resource at " + uri,
-            "Could not send diff import job");
+            "Could not send diff import job",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<MetsIdNormalisationReport>> NormaliseDepositMetsIds(
@@ -255,7 +264,8 @@ public class PreservationApiClient(
             "Unable to normalise METS IDs",
             ErrorCodes.UnknownError,
             "No normalisation report returned by " + uri,
-            $"Could not normalise METS IDs for deposit {depositId}");
+            $"Could not normalise METS IDs for deposit {depositId}",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<Deposit?>> GetDeposit(string id, CancellationToken cancellationToken = default)
@@ -266,7 +276,8 @@ public class PreservationApiClient(
             "Unable to get deposit",
             ErrorCodes.NotFound,
             "No resource at " + uri,
-            "Could not get deposit");
+            "Could not get deposit",
+            cancellationToken: cancellationToken);
         if (result is { Success: true, Value: not null })
         {
             logger.LogInformation("In preservation API client for deposit {Deposit} Lock date: {LockDate}, Locked by: {LockedBy} ",
@@ -433,7 +444,8 @@ public class PreservationApiClient(
             "Unable to get pipeline run job results",
             ErrorCodes.NotFound,
             "No resource at " + uri,
-            "Could not get get pipeline job results for deposit");
+            "Could not get get pipeline job results for deposit",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<ProcessPipelineResult>> GetPipelineJobResult(string depositId, string pipelineJobResultId, CancellationToken cancellationToken)
@@ -444,7 +456,8 @@ public class PreservationApiClient(
             "Unable to get pipeline run job result",
             ErrorCodes.NotFound,
             "No resource at " + uri,
-            "Could not get pipeline job result");
+            "Could not get pipeline job result",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<LogPipelineStatusResult>> LogPipelineRunStatus([FromBody] PipelineDeposit pipelineDeposit, CancellationToken cancellationToken)
@@ -488,7 +501,8 @@ public class PreservationApiClient(
             "Unable to get archive run job result",
             ErrorCodes.NotFound,
             "No resource at " + uri,
-            "Error getting archive job result");
+            "Error getting archive job result",
+            cancellationToken: cancellationToken);
     }
 
     public async Task<Result<ArchiveJobResult>> ArchiveDeposit([FromBody] ArchiveDepositJob archiveDepositJob, CancellationToken cancellationToken)
