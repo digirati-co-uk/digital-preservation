@@ -102,26 +102,10 @@ public static class MetsIdNormaliser
         var invalidReference = false;
         foreach (var node in nodes)
         {
-            var id = MetsGraph.GetId(node);
-            if (id is not null)
+            TrackId(MetsGraph.GetId(node), existing, seenTwice, invalid);
+            if (!invalidReference)
             {
-                if (!existing.Add(id))
-                {
-                    // Two elements already share this ID, so the document is not valid and never
-                    // was. A rewrite maps an ID value, not an element, so both would land on one new
-                    // ID and the duplication would survive - legal-looking, and no longer obvious.
-                    // Refuse.
-                    seenTwice.Add(id);
-                }
-                if (!MetsIds.IsValidId(id))
-                {
-                    invalid.Add(id);
-                }
-            }
-
-            if (!invalidReference && HasInvalidReference(node))
-            {
-                invalidReference = true;
+                invalidReference = HasInvalidReference(node);
             }
         }
         anyInvalidReference = invalidReference;
@@ -158,6 +142,31 @@ public static class MetsIdNormaliser
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)
             .Select(pair => new MetsIdRewrite { From = pair.Key, To = pair.Value }));
         return new RewritePlan(rewrites, IndexByCollapsedId(rewrites, report), existing);
+    }
+
+    /// <summary>
+    /// One node's contribution to <see cref="PlanRewrites"/>'s id-tracking sets: records a
+    /// duplicate if this id has already been seen, and a candidate for rewriting if it is not
+    /// already a legal <c>xs:ID</c>. A node with no id of its own contributes nothing.
+    /// </summary>
+    private static void TrackId(
+        string? id, HashSet<string> existing, HashSet<string> seenTwice, List<string> invalid)
+    {
+        if (id is null)
+        {
+            return;
+        }
+        if (!existing.Add(id))
+        {
+            // Two elements already share this ID, so the document is not valid and never was. A
+            // rewrite maps an ID value, not an element, so both would land on one new ID and the
+            // duplication would survive - legal-looking, and no longer obvious. Refuse.
+            seenTwice.Add(id);
+        }
+        if (!MetsIds.IsValidId(id))
+        {
+            invalid.Add(id);
+        }
     }
 
     /// <summary>
