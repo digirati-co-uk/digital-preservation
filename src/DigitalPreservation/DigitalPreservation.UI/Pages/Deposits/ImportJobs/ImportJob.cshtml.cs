@@ -66,13 +66,22 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
     public async Task<IActionResult> OnPostExecuteDiffDirect(
         [FromRoute] string depositId,
         [FromRoute] string importJobId,
-        [FromForm] bool suppressActivityStreamEvent,
-        CancellationToken cancellationToken)
+        [FromForm] bool suppressActivityStreamEvent)
     {
         // Belt and braces: the checkbox is only rendered under the flag, but a posted form is not
         // where the decision should be trusted from.
         var suppress = suppressActivityStreamEvent && ShowNormaliseMetsIds;
-        var result = await mediator.Send(new SendDiffImportJob(depositId, suppress), cancellationToken);
+
+        // Deliberately CancellationToken.None, not the request's own token (review feedback on
+        // #418): SendDiffImportJob's round trip to the Preservation API hands the job to the
+        // Storage API and then records it in the Preservation API's own database - once the
+        // Storage API has accepted the job, it is already running, so a browser disconnect at that
+        // exact moment must not be allowed to abort the follow-up save and leave the job queued in
+        // Storage but unrecorded here (see issue #428, which fixes the same gap from the Preservation
+        // API's side for every caller, not just this one). Every other call on this page is a single
+        // round trip to one system, where cancelling on disconnect is the right default and stays on
+        // the real token.
+        var result = await mediator.Send(new SendDiffImportJob(depositId, suppress), CancellationToken.None);
         if (result.Success)
         {
             var importJobResult = result.Value;
