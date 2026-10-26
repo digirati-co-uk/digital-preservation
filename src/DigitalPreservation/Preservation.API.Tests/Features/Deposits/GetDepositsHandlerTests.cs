@@ -90,7 +90,7 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task CreatedBy_Accepts_A_Full_Agent_Uri_The_Same_As_The_Bare_Name()
     {
-        var context = fixture.CreateNewAuthServiceContext();
+        var context = fixture.CreateNewPreservationContext();
         var creator = $"creator-{Guid.NewGuid():N}";
         var deposit = await SeedDeposit(context, $"dep-{Guid.NewGuid():N}", creator, creator, active: true, archived: null);
 
@@ -109,7 +109,7 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task LastModifiedBy_Accepts_A_Full_Agent_Uri_The_Same_As_The_Bare_Name()
     {
-        var context = fixture.CreateNewAuthServiceContext();
+        var context = fixture.CreateNewPreservationContext();
         var modifier = $"modifier-{Guid.NewGuid():N}";
         var deposit = await SeedDeposit(context, $"dep-{Guid.NewGuid():N}", modifier, modifier, active: true, archived: null);
 
@@ -128,7 +128,7 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task CreatedBy_Matching_Stays_Exact_Not_A_Prefix_Search()
     {
-        var context = fixture.CreateNewAuthServiceContext();
+        var context = fixture.CreateNewPreservationContext();
         var creator = $"creator-{Guid.NewGuid():N}";
         await SeedDeposit(context, $"dep-{Guid.NewGuid():N}", creator, creator, active: true, archived: null);
 
@@ -148,7 +148,7 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task CreatedBy_HostOnlyUri_ReturnsAnEmptyPage_NotAnError()
     {
-        var context = fixture.CreateNewAuthServiceContext();
+        var context = fixture.CreateNewPreservationContext();
         var creator = $"creator-{Guid.NewGuid():N}";
         await SeedDeposit(context, $"dep-{Guid.NewGuid():N}", creator, creator, active: true, archived: null);
 
@@ -167,7 +167,7 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task CreatedBy_BareNameContainingColon_MatchesExactly_NotAsAUri()
     {
-        var context = fixture.CreateNewAuthServiceContext();
+        var context = fixture.CreateNewPreservationContext();
         var creator = $"svc:archiver-{Guid.NewGuid():N}";
         var deposit = await SeedDeposit(context, $"dep-{Guid.NewGuid():N}", creator, creator, active: true, archived: null);
 
@@ -182,7 +182,7 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_DefaultsPageAndPageSize_WhenQueryHasNoPagingTerms()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var handler = new GetDepositsHandler(new NullLogger<GetDepositsHandler>(), context, Mutator());
 
         var result = await handler.Handle(new GetDeposits(null), CancellationToken.None);
@@ -195,7 +195,7 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_ReturnsSecondDeposit_WhenPageIsTwoAndPageSizeIsOne()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         // ArchivalGroupPath (no '/') is matched via EndsWith, so a unique suffix on every path
         // scopes the query to just this test's three deposits.
         var uniqueSuffix = $"paging-test-{Guid.NewGuid()}";
@@ -224,7 +224,7 @@ public class GetDepositsHandlerTests(DatabaseFixture fixture)
     private async Task<(PreservationContext Context, DepositEntity Active, DepositEntity Inactive, DepositEntity ArchivedAndInactive)>
         SeedThreeDeposits()
     {
-        var context = fixture.CreateNewAuthServiceContext();
+        var context = fixture.CreateNewPreservationContext();
         var suffix = Guid.NewGuid().ToString("N");
 
         var active = await SeedDeposit(context, $"active-{suffix}", "alice", "alice", active: true, archived: null);

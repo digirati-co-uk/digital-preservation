@@ -145,9 +145,8 @@ public class DepositsController(
     [ProducesResponseType<ProblemDetails>(401, "application/json")]
     public async Task<IActionResult> GetDepositAsIIIFManifestWithToken([FromRoute] string id, [FromRoute] string token)
     {
-        var key = tokenService.GetKey(token);
-        if (!key.HasText() || key.GetSlug() != id)
-            return SessionExpiredResult();
+        if (!tokenService.IsValidForDeposit(token, id))
+            return this.IiifSessionExpiredResult();
 
         var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
         var manifestUrl = Request.GetDisplayUrl();
@@ -168,9 +167,8 @@ public class DepositsController(
     [HttpPost("{id}/iiif-token/{token}", Name = "PostIIIFManifestToDepositWithToken")]
     public async Task<IActionResult> PostIIIFManifestToDepositWithToken([FromRoute] string id, [FromRoute] string token)
     {
-        var key = tokenService.GetKey(token);
-        if (!key.HasText() || key.GetSlug() != id)
-            return SessionExpiredResult();
+        if (!tokenService.IsValidForDeposit(token, id))
+            return this.IiifSessionExpiredResult();
 
         string rawJson;
         using (var reader = new System.IO.StreamReader(Request.Body))
@@ -204,12 +202,6 @@ public class DepositsController(
         return this.StatusResponseFromResult(result);
     }
 
-    private ObjectResult SessionExpiredResult() => Problem(
-        title: "Session expired",
-        detail: "The IIIF session token has expired. Re-open the manifest from the preservation system to get a fresh link.",
-        statusCode: 401);
-
-
     [HttpPost("{id}/mets", Name = "AddDepositItemsToMets")]
     [ProducesResponseType<ItemsAffected>(200, "application/json")]
     [ProducesResponseType<ProblemDetails>(400, "application/json")]
@@ -225,20 +217,10 @@ public class DepositsController(
             return this.StatusResponseFromResult(depositResult);
         }
         var deposit = depositResult.Value;
-        if (deposit.MetsETag != null) // only should true when there is no METS file
+        var ifMatchFailure = CheckMetsIfMatch(deposit, required: true);
+        if (ifMatchFailure != null)
         {
-            var eTag = Request.Headers.IfMatch.FirstOrDefault();
-            if (!eTag.HasText() || eTag != deposit.MetsETag)
-            {
-                logger.LogWarning("Supplied eTag {ETag} does not match deposit eTag {DepositETag}", eTag, deposit.MetsETag);
-                var pd = new ProblemDetails
-                {
-                    Title = "Conflict: ETag does not match deposit METS",
-                    Detail = deposit.MetsETag,
-                    Status = 409
-                };
-                return Conflict(pd);
-            }
+            return ifMatchFailure;
         }
 
         var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
@@ -325,16 +307,10 @@ public class DepositsController(
         // deposit and normalises it in one go with nothing in between. When it IS supplied it is
         // enforced, so a person doing this from the UI while someone else edits gets a 409 rather
         // than a silent overwrite.
-        var eTag = Request.Headers.IfMatch.FirstOrDefault();
-        if (eTag.HasText() && eTag != deposit.MetsETag)
+        var ifMatchFailure = CheckMetsIfMatch(deposit, required: false);
+        if (ifMatchFailure != null)
         {
-            logger.LogWarning("Supplied eTag {ETag} does not match deposit eTag {DepositETag}", eTag, deposit.MetsETag);
-            return Conflict(new ProblemDetails
-            {
-                Title = "Conflict: ETag does not match deposit METS",
-                Detail = deposit.MetsETag,
-                Status = 409
-            });
+            return ifMatchFailure;
         }
 
         // Uninitialised on purpose: normalising reads and parses the METS for itself, so building
@@ -358,23 +334,53 @@ public class DepositsController(
         if (depositResult is { Success: true, Value: not null })
         {
             var deposit = depositResult.Value;
-            var eTag = Request.Headers.IfMatch.FirstOrDefault();
-            if (eTag.HasText() && eTag == deposit.MetsETag)
+            var ifMatchFailure = CheckMetsIfMatch(deposit, required: true);
+            if (ifMatchFailure != null)
             {
-                var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
-                var deleteResult = await workspaceManager.DeleteItems(deleteSelection, User.GetCallerIdentity());
-                return this.StatusResponseFromResult(deleteResult);
+                return ifMatchFailure;
             }
 
-            var pd = new ProblemDetails
-            {
-                Title = "Conflict: ETag does not match deposit METS",
-                Detail = deposit.MetsETag,
-                Status = 409
-            };
-            return Conflict(pd);
+            var workspaceManager = await workspaceManagerFactory.CreateAsync(depositResult.Value);
+            var deleteResult = await workspaceManager.DeleteItems(deleteSelection, User.GetCallerIdentity());
+            return this.StatusResponseFromResult(deleteResult);
         }
         return this.StatusResponseFromResult(depositResult);
+    }
+
+    /// <summary>
+    /// Enforces an If-Match header against the deposit's current METS ETag (issue #388 item 2.5).
+    /// With no METS yet (<see cref="Deposit.MetsETag"/> is null) there is nothing to conflict with,
+    /// so the check is always skipped. Once a METS exists, <paramref name="required"/> decides
+    /// whether a missing header is itself a conflict (true, used by the item-mutating endpoints) or
+    /// only enforced when supplied (false, used by NormaliseMetsIds - see the comment at its call
+    /// site for why).
+    /// </summary>
+    /// <returns>null if the check passes, otherwise the 409 response to return.</returns>
+    private IActionResult? CheckMetsIfMatch(Deposit deposit, bool required)
+    {
+        if (deposit.MetsETag == null)
+        {
+            return null;
+        }
+
+        var eTag = Request.Headers.IfMatch.FirstOrDefault();
+        if (!required && !eTag.HasText())
+        {
+            return null;
+        }
+
+        if (eTag.HasText() && eTag == deposit.MetsETag)
+        {
+            return null;
+        }
+
+        logger.LogWarning("Supplied eTag {ETag} does not match deposit eTag {DepositETag}", eTag, deposit.MetsETag);
+        return Conflict(new ProblemDetails
+        {
+            Title = "Conflict: ETag does not match deposit METS",
+            Detail = deposit.MetsETag,
+            Status = 409
+        });
     }
     
     [HttpGet("{id}/filesystem", Name = "GetWorkingDirectory")]

@@ -21,7 +21,7 @@ namespace Storage.Client;
 /// Marked internal to avoid consumers depending on this implementation, which will allow us to alter how it's
 /// implemented in the future to use, e.g. Refit client instead
 /// </remarks>
-internal class StorageApiClient(
+public class StorageApiClient(
     HttpClient httpClient, 
     ILogger<StorageApiClient> logger) : CommonApiBase(httpClient, logger), IStorageApiClient
 {
@@ -85,30 +85,15 @@ internal class StorageApiClient(
     }
     
     public async Task<Result<ImportJobResult>> GetImportJobResult(Uri storageApiImportJobResultUri)
-    {        
+    {
         logger.LogInformation("StorageAPIClient, GetImportJobResult : {StorageApiImportJobResultUri}", storageApiImportJobResultUri);
-        try
-        {
-            var req = new HttpRequestMessage(HttpMethod.Get, storageApiImportJobResultUri);
-            var response = await storageHttpClient.SendAsync(req);
-            if (response.IsSuccessStatusCode)
-            {
-                var importJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>();
-                if(importJobResult != null)
-                {
-                    return Result.OkNotNull(importJobResult);
-                }
-                return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
-            }
-            return await response.ToFailNotNullResult<ImportJobResult>("Unable to get import job result");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
-        }
+        return await SendForJsonNotNull<ImportJobResult>(
+            () => storageHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, storageApiImportJobResultUri)),
+            "Unable to get import job result",
+            ErrorCodes.UnknownError,
+            "Resource could not be parsed.");
     }
- 
+
     public async Task<Result<ImportJobResult>> ExecuteImportJob(ImportJob? requestImportJob, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Storage API Client Executing import job: {ImportJobSummary}", requestImportJob.LogSummary());
@@ -116,25 +101,12 @@ internal class StorageApiClient(
         {
             return Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, "Unable to parse storage import job from request body.");
         }
-        try
-        {
-            var response = await storageHttpClient.PostAsJsonAsync("import", requestImportJob, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var importJobResult = await response.Content.ReadFromJsonAsync<ImportJobResult>(cancellationToken: cancellationToken);
-                if(importJobResult != null)
-                {
-                    return Result.OkNotNull(importJobResult);
-                }
-                return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, "Resource could not be parsed.");
-            }
-            return await response.ToFailNotNullResult<ImportJobResult>("Unable to execute import job");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.FailNotNull<ImportJobResult>(ErrorCodes.UnknownError, e.Message);
-        }
+        return await SendForJsonNotNull<ImportJobResult>(
+            () => storageHttpClient.PostAsJsonAsync("import", requestImportJob, cancellationToken),
+            "Unable to execute import job",
+            ErrorCodes.UnknownError,
+            "Resource could not be parsed.",
+            cancellationToken: cancellationToken);
     }
 
 
@@ -186,51 +158,27 @@ internal class StorageApiClient(
             Destination = exportLocation,
             SourceVersion = versionToExport
         };
-        try
+        var result = await SendForJsonNotNull<Export>(
+            () => storageHttpClient.PostAsJsonAsync(pathElement, export, cancellationToken),
+            "Unable to export archival group",
+            ErrorCodes.UnknownError,
+            "Resource could not be parsed.",
+            cancellationToken: cancellationToken);
+        if (result.Success)
         {
-            var response = await storageHttpClient.PostAsJsonAsync(pathElement, export, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                var exportResult = await response.Content.ReadFromJsonAsync<Export>(cancellationToken: cancellationToken);
-                if(exportResult != null)
-                {
-                    logger.LogInformation("Received exportResult with exportResult.ArchivalGroup: {ArchivalGroup}", exportResult.ArchivalGroup);
-                    return Result.OkNotNull(exportResult);
-                }
-                return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");
-            }
-            return await response.ToFailNotNullResult<Export>("Unable to export archival group");
+            logger.LogInformation("Received exportResult with exportResult.ArchivalGroup: {ArchivalGroup}", result.Value.ArchivalGroup);
         }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.FailNotNull<Export>(ErrorCodes.UnknownError, e.Message);
-        }
+        return result;
     }
 
 
     public async Task<Result<Export>> GetExport(Uri entityExportResultUri)
-    {     
-        try
-        {
-            var req = new HttpRequestMessage(HttpMethod.Get, entityExportResultUri);
-            var response = await storageHttpClient.SendAsync(req);
-            if (response.IsSuccessStatusCode)
-            {
-                var export = await response.Content.ReadFromJsonAsync<Export>();
-                if(export != null)
-                {
-                    return Result.OkNotNull(export);
-                }
-                return Result.FailNotNull<Export>(ErrorCodes.UnknownError, "Resource could not be parsed.");
-            }
-            return await response.ToFailNotNullResult<Export>("Unable to get export result");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, e.Message);
-            return Result.FailNotNull<Export>(ErrorCodes.UnknownError, e.Message);
-        }
+    {
+        return await SendForJsonNotNull<Export>(
+            () => storageHttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, entityExportResultUri)),
+            "Unable to get export result",
+            ErrorCodes.UnknownError,
+            "Resource could not be parsed.");
     }
 
 
@@ -273,15 +221,17 @@ internal class StorageApiClient(
     {
         try
         {
-            var res = await storageHttpClient.GetFromJsonAsync<SearchCollectiveFedora>($"/FedoraSearch?text={text}&page={page}&pageSize={pageSize}");
+            // issue #388 item 2.2: text was interpolated unescaped here, unlike
+            // PreservationApiClient.Search's Uri.EscapeDataString(text) - a "&" or "#" in the search
+            // text would silently truncate or redirect the query string.
+            var res = await storageHttpClient.GetFromJsonAsync<SearchCollectiveFedora>(
+                $"/FedoraSearch?text={Uri.EscapeDataString(text)}&page={page}&pageSize={pageSize}");
             return Result.Ok(res);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error occured while checking if API is alive");
             return Result.Fail<SearchCollectiveFedora?>(ErrorCodes.UnknownError, ex.Message);
-
-
         }
     }
 }

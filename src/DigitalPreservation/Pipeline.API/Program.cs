@@ -1,7 +1,5 @@
-﻿using Amazon.S3;
-using Amazon.SimpleNotificationService;
+﻿using Amazon.SimpleNotificationService;
 using Amazon.SQS;
-using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.OpenApi;
@@ -30,7 +28,8 @@ try
     builder.Host.UseSerilog((hostContext, loggerConfiguration)
         => loggerConfiguration
             .ReadFrom.Configuration(hostContext.Configuration)
-            .Enrich.FromLogContext());
+            .Enrich.FromLogContext()
+            .Enrich.WithCorrelationId());
 
     builder.Services.Configure<ApiKeyOptions>(
         builder.Configuration.GetSection("ApiKeyOptions"));
@@ -42,19 +41,15 @@ try
         builder.Configuration.GetSection("PipelineToolOptions"));
 
     builder.Services.Configure<PipelineOptions>(
-        builder.Configuration.GetSection("PipelineOptions"));
-
-    //Add TokenScope
-    builder.Services.AddSingleton<ITokenScope>(x =>
-        new TokenScope(builder.Configuration.GetSection("AzureAd:ScopeUri").Value));
+        builder.Configuration.GetSection(PipelineOptions.PipelineOptionsName));
 
     builder.Services
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
+        .AddCorrelationIdHeaderPropagation()
         .AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining<Program>();
-            cfg.RegisterServicesFromAssemblyContaining<IAmazonSimpleNotificationService>();
             cfg.RegisterServicesFromAssemblyContaining<IStorage>();
             cfg.RegisterServicesFromAssemblyContaining<WorkspaceManagerFactory>();
         })
@@ -128,7 +123,6 @@ try
     }
 
     builder.Services.AddSingleton<IIdentityMinter, IdentityMinter>();
-    builder.Services.AddAWSService<IAmazonS3>();
 
     builder.Services.AddStorageAwsAccess(builder.Configuration);
     builder.Services.AddSingleton<IMetsLoader, S3MetsLoader>();
@@ -144,6 +138,7 @@ try
 
     var app = builder.Build();
     app
+        .UseMiddleware<CorrelationIdMiddleware>()
         .UseMiddleware<ApiKeyMiddleware>()
         .UseSerilogRequestLogging()
         .UseRouting()

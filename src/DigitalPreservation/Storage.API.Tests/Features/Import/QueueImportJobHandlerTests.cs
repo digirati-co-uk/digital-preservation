@@ -4,11 +4,9 @@ using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using FakeItEasy;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Storage.API.Features.Import;
 using Storage.API.Features.Import.Requests;
-using Storage.API.Fedora;
-using Storage.API.Fedora.Model;
+using Storage.API.Tests.TestingInfrastructure;
 
 namespace Storage.API.Tests.Features.Import;
 
@@ -35,19 +33,9 @@ public class QueueImportJobHandlerTests
 
     public QueueImportJobHandlerTests()
     {
-        var converters = new Converters(
-            Options.Create(new FedoraOptions
-            {
-                Root = new Uri("https://fedora.test/fcrepo/rest/"),
-                AdminUser = "admin",
-                AdminPassword = "admin",
-                Bucket = "fedora-bucket",
-                OcflS3Prefix = ""
-            }),
-            Options.Create(new ConverterOptions { StorageRoot = new Uri("https://storage.test/repository/") }));
         handler = new QueueImportJobHandler(
             NullLogger<QueueImportJobHandler>.Instance,
-            converters,
+            TestConverters.Make(storageRoot: new Uri("https://storage.test/repository/")),
             A.Fake<IIdentityMinter>(),
             importJobResultStore,
             importJobQueue);
@@ -85,7 +73,7 @@ public class QueueImportJobHandlerTests
         var identityMinter = A.Fake<IIdentityMinter>();
         A.CallTo(() => identityMinter.MintIdentity(A<string>._, A<Uri>._)).Returns("job-1");
         var queueHandler = new QueueImportJobHandler(
-            NullLogger<QueueImportJobHandler>.Instance, MakeConverters(), identityMinter, store, A.Fake<IImportJobQueue>());
+            NullLogger<QueueImportJobHandler>.Instance, TestConverters.Make(), identityMinter, store, A.Fake<IImportJobQueue>());
         var importJob = new ImportJob { ArchivalGroup = ArchivalGroup, LastModifiedBy = Agent };
 
         var result = await queueHandler.Handle(new QueueImportJob(importJob), CancellationToken.None);
@@ -101,7 +89,7 @@ public class QueueImportJobHandlerTests
     public async Task A_Missing_LastModifiedBy_Is_Refused_As_BadRequest_Not_Unauthorized()
     {
         var queueHandler = new QueueImportJobHandler(
-            NullLogger<QueueImportJobHandler>.Instance, MakeConverters(), A.Fake<IIdentityMinter>(),
+            NullLogger<QueueImportJobHandler>.Instance, TestConverters.Make(), A.Fake<IIdentityMinter>(),
             A.Fake<IImportJobResultStore>(), A.Fake<IImportJobQueue>());
         var importJob = new ImportJob { ArchivalGroup = ArchivalGroup };
 
@@ -111,15 +99,4 @@ public class QueueImportJobHandlerTests
         result.ErrorCode.Should().Be(ErrorCodes.BadRequest,
             "a missing attribution field is a malformed request, not a credential problem");
     }
-
-    private static Converters MakeConverters() => new(
-        Options.Create(new FedoraOptions
-        {
-            Root = new Uri("https://fedora.test/fcrepo/rest/"),
-            AdminUser = "admin",
-            AdminPassword = "admin",
-            Bucket = "fedora-bucket",
-            OcflS3Prefix = ""
-        }),
-        Options.Create(new ConverterOptions { StorageRoot = new Uri("https://storage.test/") }));
 }

@@ -103,15 +103,26 @@ public class Deposit : Resource
     /// </summary>
     /// <param name="callerIdentity"></param>
     /// <returns></returns>
-    public string? GetOtherLockOwner(string? callerIdentity)
+    public string? GetOtherLockOwner(string? callerIdentity) =>
+        GetOtherLockOwner(LockedBy?.GetSlug(), callerIdentity);
+
+    /// <summary>
+    /// The one deposit-lock rule (issue #388): a lock blocks every caller except the one who holds
+    /// it, and - deliberately - a null or empty <paramref name="callerIdentity"/> is never blocked.
+    /// That isn't an oversight: it is how a system-triggered action (not a user edit) says "proceed
+    /// regardless of who, if anyone, holds the lock" - see the deliberate null passed by
+    /// GetDepositBase's post-export reconciliation. Both the model (through the instance overload
+    /// above, against a parsed <see cref="LockedBy"/>) and the DB entity (against its raw
+    /// <c>LockedBy</c> string) call this, so there is exactly one place the rule can drift.
+    /// </summary>
+    /// <param name="lockedBy">The identity currently holding the lock, or null/empty if unlocked.</param>
+    /// <param name="callerIdentity">The identity attempting the change.</param>
+    /// <returns>The other identity holding the lock, or null if the caller may proceed.</returns>
+    public static string? GetOtherLockOwner(string? lockedBy, string? callerIdentity)
     {
-        if (callerIdentity.HasText() && LockedBy != null)
+        if (callerIdentity.HasText() && lockedBy is not null && lockedBy != callerIdentity)
         {
-            var lockedBy = LockedBy.GetSlug();
-            if (lockedBy != callerIdentity)
-            {
-                return lockedBy;
-            }
+            return lockedBy;
         }
         return null;
     }

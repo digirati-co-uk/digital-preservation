@@ -1,5 +1,4 @@
 ﻿using DigitalPreservation.Mets;
-using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.UI.Infrastructure;
@@ -72,11 +71,6 @@ try
     // Add session timeout page filter
     builder.Services.AddTransient<SessionTimeoutAsyncPageFilter>();
     builder.Services.AddSession();
-
-    //Add TokenScope
-    builder.Services.AddSingleton<ITokenScope>(x =>
-        new TokenScope(builder.Configuration.GetSection("AzureAd:ScopeUri").Value));
-
 
     // Add services to the container.
     builder.Services
