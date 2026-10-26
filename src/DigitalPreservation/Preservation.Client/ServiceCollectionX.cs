@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Guard;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Handlers;
@@ -22,6 +23,11 @@ public static class ServiceCollectionX
         IConfiguration configuration, string componentName)
     {
         serviceCollection.Configure<PreservationOptions>(configuration.GetSection(PreservationOptions.Preservation));
+        // AuthTokenInjector (added below) is this registration's only consumer - owned here rather
+        // than by each caller, since every caller of this method needs it the same way (issue #388
+        // item 1.4).
+        serviceCollection.AddSingleton<ITokenScope>(_ =>
+            new TokenScope(configuration.GetSection("AzureAd:ScopeUri").Value));
         serviceCollection
             .AddTransient<TimingHandler>()
             .AddTransient<AuthTokenInjector>()

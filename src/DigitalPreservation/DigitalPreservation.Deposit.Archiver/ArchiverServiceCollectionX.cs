@@ -1,5 +1,4 @@
 using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.Mets;
@@ -25,8 +24,6 @@ public static class ArchiverServiceCollectionX
         this IServiceCollection services, IConfiguration configuration, ArchiverStartupSettings settings)
     {
         services.AddSingleton<IConfiguration>(configuration);
-
-        services.AddSingleton<ITokenScope>(_ => new TokenScope(settings.ScopeUri));
 
         services.ConfigureForwardedHeaders()
             .AddHttpContextAccessor()
