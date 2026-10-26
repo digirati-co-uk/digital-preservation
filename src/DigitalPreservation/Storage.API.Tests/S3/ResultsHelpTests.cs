@@ -347,10 +347,12 @@ public class ResultHelpersTests
     // Before the fix, each of these four helpers hand-rolled its own switch covering only
     // NotFound/Conflict/Unauthorized/BadRequest (plus PreconditionFailed in one), so a 403, 410,
     // 412 or 422 response fell through to UnknownError here even though ErrorCodes.GetErrorCode
-    // already classified them correctly everywhere else in the codebase.
+    // already classified them correctly everywhere else in the codebase. 403 maps to
+    // UpstreamUnauthorized, not Unauthorized (review feedback on #394): it is S3 refusing OUR OWN
+    // credentials, not the caller's.
 
     [Theory]
-    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.UpstreamUnauthorized)]
     [InlineData(HttpStatusCode.Gone, ErrorCodes.Tombstone)]
     [InlineData(HttpStatusCode.UnprocessableEntity, ErrorCodes.Unprocessable)]
     [InlineData(HttpStatusCode.PreconditionFailed, ErrorCodes.PreconditionFailed)]
@@ -364,7 +366,7 @@ public class ResultHelpersTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.UpstreamUnauthorized)]
     [InlineData(HttpStatusCode.Gone, ErrorCodes.Tombstone)]
     [InlineData(HttpStatusCode.UnprocessableEntity, ErrorCodes.Unprocessable)]
     public void FailNotNullFromS3Exception_Maps_Previously_Diverged_Status(HttpStatusCode statusCode, string expectedErrorCode)
@@ -377,7 +379,7 @@ public class ResultHelpersTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.UpstreamUnauthorized)]
     [InlineData(HttpStatusCode.Gone, ErrorCodes.Tombstone)]
     [InlineData(HttpStatusCode.UnprocessableEntity, ErrorCodes.Unprocessable)]
     [InlineData(HttpStatusCode.PreconditionFailed, ErrorCodes.PreconditionFailed)]
@@ -390,7 +392,7 @@ public class ResultHelpersTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.UpstreamUnauthorized)]
     [InlineData(HttpStatusCode.Gone, ErrorCodes.Tombstone)]
     [InlineData(HttpStatusCode.UnprocessableEntity, ErrorCodes.Unprocessable)]
     [InlineData(HttpStatusCode.PreconditionFailed, ErrorCodes.PreconditionFailed)]

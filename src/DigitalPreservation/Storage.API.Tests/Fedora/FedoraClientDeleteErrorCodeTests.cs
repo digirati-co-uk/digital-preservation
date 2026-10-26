@@ -65,8 +65,10 @@ public class FedoraClientDeleteErrorCodeTests
     [InlineData(HttpStatusCode.NotFound, ErrorCodes.NotFound)]
     [InlineData(HttpStatusCode.Unauthorized, ErrorCodes.Unauthorized)]
     // Previously fell through Delete's own switch to UnknownError, even though GetErrorCode has
-    // always classified these three correctly - the divergence issue #388 flags.
-    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.Unauthorized)]
+    // always classified these three correctly - the divergence issue #388 flags. Forbidden (403)
+    // from Fedora is OUR OWN admin credentials being refused, not the caller's - UpstreamUnauthorized,
+    // not Unauthorized (review feedback on #394).
+    [InlineData(HttpStatusCode.Forbidden, ErrorCodes.UpstreamUnauthorized)]
     [InlineData(HttpStatusCode.Gone, ErrorCodes.Tombstone)]
     [InlineData(HttpStatusCode.UnprocessableEntity, ErrorCodes.Unprocessable)]
     [InlineData(HttpStatusCode.PreconditionFailed, ErrorCodes.PreconditionFailed)]
