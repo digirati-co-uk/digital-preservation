@@ -38,10 +38,13 @@ try
         .AddSingleton<IExportQueue, InProcessExportQueue>(); // don't need this but Mediatr does
     
     var app = builder.Build();
-    // AddStorageCore configures forwarded-headers options for both hosts; applying the middleware
-    // itself was missing here (issue #388), so /health's logged client IP was always the load
-    // balancer's, never the real caller's.
-    app.UseForwardedHeaders();
+    // Deliberately no app.UseForwardedHeaders() here, unlike the Storage API (review feedback on
+    // #388): this host serves no HTTP beyond the bare /health check, with no load balancer in front
+    // of it (see docs/internals/deployment.md - "the same sections as the Storage API, minus
+    // everything to do with serving HTTP"). AddStorageCore still configures the options, since both
+    // hosts share it, but applying the middleware here would have nothing to rewrite and nothing to
+    // fix - a comment claiming it corrected /health's logged client IP would be describing a load
+    // balancer this host doesn't have.
     app.UseHealthChecks("/health");
     await app.RunAsync();
 }
