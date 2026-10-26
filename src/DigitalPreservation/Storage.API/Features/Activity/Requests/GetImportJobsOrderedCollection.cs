@@ -19,32 +19,20 @@ public class GetImportJobsOrderedCollectionHandler(
         try
         {
             var totalItemsResult = await importJobResultStore.GetTotalImportJobs(cancellationToken);
-            if (totalItemsResult is not { Success: true, Value: > 0 })
+            if (totalItemsResult.Failure)
             {
-                return Result.FailNotNull<OrderedCollection>(ErrorCodes.UnknownError, totalItemsResult.ErrorMessage);
+                // Diverged (issue #388): this used to check Value: > 0 as well as Success, so an
+                // empty-but-successful stream (no import jobs at all) was reported as a 500 with a
+                // null Detail, instead of the empty collection the Preservation API's own copy of
+                // this logic already returned for the identical condition.
+                return Result.ConvertFailNotNull<int, OrderedCollection>(totalItemsResult);
             }
 
-            var id = converters.ActivityUri("importjobs/collection");
-            int totalPages = totalItemsResult.Value / OrderedCollectionPage.DefaultPageSize;
-            if (totalItemsResult.Value % OrderedCollectionPage.DefaultPageSize > 0)
-            {
-                totalPages++;
-            }
+            var collection = OrderedCollection.For(
+                converters.ActivityUri("importjobs/collection"),
+                p => converters.ActivityUri($"importjobs/pages/{p}"),
+                totalItemsResult.Value);
 
-            var collection = new OrderedCollection
-            {
-                Id = id,
-                First = new OrderedCollectionPage
-                {
-                    Id = converters.ActivityUri("importjobs/pages/1")
-                },
-                Last = new OrderedCollectionPage
-                {
-                    Id = converters.ActivityUri($"importjobs/pages/{totalPages}")
-                },
-                TotalItems = totalItemsResult.Value
-            };
-            collection.WithContext();
             return Result.OkNotNull(collection);
         }
         catch (Exception e)
