@@ -375,4 +375,70 @@ public class DescriptiveMetadataTests : MetsParserTestBase
         mets.Files[0].RightsStatement.Should().BeNull();
         mets.Files[0].RecordInfo.Should().BeNull();
     }
+
+    [Fact]
+    public void Untyped_root_div_with_no_direct_file_pointers_anchors_record_info_at_physical_root()
+    {
+        // Real EPrints METS (issue #237's second review pass): DMDID sits directly on the
+        // structMap's root div, which carries no TYPE at all and no mets:fptr of its own - the
+        // actual files are one level further down, on divs with no DMDID of their own. Neither
+        // existing branch applied to a div shaped like this (not type="Directory", so it never
+        // reaches the WorkingDirectory-creation path or the untyped-structural-with-no-ADMID root
+        // fallback), so its own record info had nowhere to land until this div was recognised as
+        // its own third case: untyped, and holding no file pointer of its own.
+        var xml = """
+            <mets:mets xmlns:mets="http://www.loc.gov/METS/"
+                       xmlns:xlink="http://www.w3.org/1999/xlink"
+                       xmlns:premis="http://www.loc.gov/premis/v3"
+                       xmlns:mods="http://www.loc.gov/mods/v3">
+              <mets:dmdSec ID="DMD_eprint">
+                <mets:mdWrap MDTYPE="MODS">
+                  <mets:xmlData>
+                    <mods:recordInfo>
+                      <mods:recordIdentifier source="EPrints">12345</mods:recordIdentifier>
+                    </mods:recordInfo>
+                  </mets:xmlData>
+                </mets:mdWrap>
+              </mets:dmdSec>
+              <mets:amdSec ID="ADM_objects/file.txt">
+                <mets:techMD ID="TECH_objects/file.txt">
+                  <mets:mdWrap MDTYPE="PREMIS:OBJECT">
+                    <mets:xmlData>
+                      <premis:object>
+                        <premis:objectCharacteristics>
+                          <premis:fixity>
+                            <premis:messageDigestAlgorithm>SHA256</premis:messageDigestAlgorithm>
+                            <premis:messageDigest>abc</premis:messageDigest>
+                          </premis:fixity>
+                        </premis:objectCharacteristics>
+                      </premis:object>
+                    </mets:xmlData>
+                  </mets:mdWrap>
+                </mets:techMD>
+              </mets:amdSec>
+              <mets:fileSec>
+                <mets:fileGrp>
+                  <mets:file ID="FILE_1" MIMETYPE="text/plain">
+                    <mets:FLocat xlink:href="objects/file.txt"/>
+                  </mets:file>
+                </mets:fileGrp>
+              </mets:fileSec>
+              <mets:structMap>
+                <mets:div DMDID="DMD_eprint" ADMID="ADM_eprint">
+                  <mets:div ADMID="ADM_objects/file.txt">
+                    <mets:fptr FILEID="FILE_1"/>
+                  </mets:div>
+                </mets:div>
+              </mets:structMap>
+            </mets:mets>
+            """;
+
+        var mets = Parse(xml);
+
+        mets.Files[0].RecordInfo.Should().BeNull("the file's own div carries no DMDID");
+        mets.Files[0].EffectiveRecordInfo.Should().NotBeNull(
+            "it should inherit from the untyped root div's own DMD, now anchored at the physical root");
+        mets.Files[0].EffectiveRecordInfo!.RecordIdentifiers.Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new { Source = "EPrints", Value = "12345" });
+    }
 }

@@ -505,6 +505,24 @@ public class MetsParser(
                         mets.PhysicalStructure!.RecordInfo ??= recordInfo;
                 }
             }
+            else if (type == null && !div.Elements(XNames.MetsFptr).Any())
+            {
+                // Not typed as a Directory, and not a File div either (no mets:fptr of its own -
+                // those are on CHILD divs instead, handled individually as this method recurses).
+                // Real EPrints METS carries DMDID and ADMID directly on the structMap's root div
+                // with no TYPE attribute at all, wrapping the whole item rather than naming a
+                // folder (issue #237 review: the namespace fix in GetDmdForDiv alone wasn't
+                // enough, because nothing applied what it found - this div is neither branch
+                // above, so its recordInfo/access/rights were silently discarded). Same root-level
+                // inheritance anchor as the untyped-structural-div case just above, for the same
+                // reason: nothing more specific is ever going to claim this div's own DMD.
+                if (accessRestrictions != null)
+                    mets.PhysicalStructure!.AccessRestrictions ??= accessRestrictions;
+                if (rightsStatement != null)
+                    mets.PhysicalStructure!.RightsStatement ??= rightsStatement;
+                if (recordInfo != null)
+                    mets.PhysicalStructure!.RecordInfo ??= recordInfo;
+            }
 
             // type may be Directory, we need to match them up to file paths
             // but there might not be any directories in the structmap, just implied by flocats.

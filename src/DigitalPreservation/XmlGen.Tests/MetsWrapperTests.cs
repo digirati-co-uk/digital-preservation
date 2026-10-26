@@ -86,16 +86,24 @@ public class MetsWrapperTests
 
         // This sample's dmdSec is linked from the root structMap div, which carries no
         // TYPE="Directory" and no mets:fptr of its own - EPrints nests the four actual files one
-        // level below it, on divs with no DMDID of their own - so the record info GetDmdForDiv
-        // reads there (now including the mets:recordIdentifier form EPrints writes - issue #237)
-        // has nowhere to land: it is neither a WorkingDirectory's own RecordInfo nor, since the
-        // div is not type Directory, the root PhysicalStructure's. All files have no effective
-        // access, rights, record info, or links.
+        // level below it, on divs with no DMDID of their own. Neither the WorkingDirectory branch
+        // nor the original "structural-only, no ADMID" root-fallback applied to a div shaped like
+        // this (ADMID present, but no TYPE at all) - its record info (now including the
+        // mets:recordIdentifier form EPrints writes - issue #237) had nowhere to land. A second
+        // review on the same issue caught it: fixed by anchoring an untyped, fptr-less div's own
+        // DMD at the root PhysicalStructure too, the same inheritance anchor the structural-only
+        // case already used, so every file in the deposit now inherits the item's two identifiers.
+        // No access or rights data exists in this sample's dmdSec, so those stay empty/null.
         phys.Directories[0].Files.Should().OnlyContain(f =>
             f.EffectiveAccessRestrictions.Count == 0 &&
             f.EffectiveRightsStatement == null &&
-            f.EffectiveRecordInfo == null &&
             f.Links.Count == 0);
+        phys.Directories[0].Files.Should().OnlyContain(f =>
+            f.EffectiveRecordInfo!.RecordIdentifiers.Count == 2);
+        phys.Directories[0].Files[0].EffectiveRecordInfo!.RecordIdentifiers
+            .Should().Contain(ri => ri.Source == "EPrints" && ri.Value == "10315");
+        phys.Directories[0].Files[0].EffectiveRecordInfo!.RecordIdentifiers
+            .Should().Contain(ri => ri.Source == "EMu" && ri.Value == "372705");
     }
 
     [Fact]
