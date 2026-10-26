@@ -25,7 +25,7 @@ public class ActivateDepositHandlerTests
     [InlineData(DepositStates.Archived)]
     public async Task Handle_Fails_When_DeactivatingDepositInNonErrorState(string status)
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var mintedId = $"dep-{Guid.NewGuid()}";
         var deposit = new DepositEntity
         {
@@ -53,7 +53,7 @@ public class ActivateDepositHandlerTests
     [Fact]
     public async Task Handle_Succeeds_When_DeactivatingErrorDeposit()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var mintedId = $"dep-{Guid.NewGuid()}";
         var deposit = new DepositEntity
         {
@@ -81,7 +81,7 @@ public class ActivateDepositHandlerTests
     [Fact]
     public async Task Handle_SetsActive_WhenDepositExists()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var mintedId = $"dep-{Guid.NewGuid()}";
         var deposit = new DepositEntity
         {

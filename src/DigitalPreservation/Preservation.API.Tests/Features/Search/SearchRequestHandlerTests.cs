@@ -47,7 +47,7 @@ public class SearchRequestHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_EchoesTextAndSearchType_FromTheRequest()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var handler = new SearchRequestHandler(StorageApiClient(), context, IdentityService(), Mutator());
 
         var result = await handler.Handle(
@@ -61,7 +61,7 @@ public class SearchRequestHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_SerialisesSearchTypeAsAString()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var handler = new SearchRequestHandler(StorageApiClient(), context, IdentityService(), Mutator());
 
         var result = await handler.Handle(
