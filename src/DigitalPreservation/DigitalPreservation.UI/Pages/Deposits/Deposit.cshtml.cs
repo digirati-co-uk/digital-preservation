@@ -169,49 +169,70 @@ public class DepositModel(
     {
         Id = id;
         var getDepositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
-        if (getDepositResult.Success)
-        {
-            Deposit = getDepositResult.Value!;
-            WorkspaceManager = await workspaceManagerFactory.CreateAsync(Deposit);
-
-            if (!Deposit.ArchivalGroupExists && Deposit.ArchivalGroup != null && Deposit.ArchivalGroup.GetPathUnderRoot().HasText())
-            {
-                var testArchivalGroupResult = await mediator.Send(new TestArchivalGroupPath(Deposit.ArchivalGroup.GetPathUnderRoot()!), cancellationToken);
-                if (testArchivalGroupResult.Failure)
-                {
-                    ArchivalGroupTestWarning = $"{testArchivalGroupResult.ErrorMessage} Please check the path and enter a different, valid location under the repository root.";
-                }
-            }
-
-            ImportJobResults = await GetImportJobResults(cancellationToken);
-            (PipelineJobResults, RunningPipelineJob) = await GetRunningPipelineJob(cancellationToken);
-            LogicalStructMaps = WorkspaceManager.LogicalStructures;
-
-            if (Deposit.Status != DepositStates.Exporting)
-            {
-                var combinedResult = WorkspaceManager.GetRootCombinedDirectory();
-                if (combinedResult is { Success: true, Value: not null })
-                {
-                    RootCombinedDirectory = combinedResult.Value;
-                    if (WorkspaceManager.Editable)
-                    {
-                        var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
-                        MisMatchCount = mismatches.Count;
-
-                        FileMisMatches = detailedMismatches;
-                        FilesWithViruses = RootCombinedDirectory.GetFilesWithVirus();
-                    }
-                }
-            }
-        }
-        else
+        if (!getDepositResult.Success)
         {
             TempData[TempDataError] = getDepositResult.CodeAndMessage();
             return false;
         }
 
+        Deposit = getDepositResult.Value!;
+        WorkspaceManager = await workspaceManagerFactory.CreateAsync(Deposit);
+
+        await CheckArchivalGroupPathValidity(cancellationToken);
+
+        ImportJobResults = await GetImportJobResults(cancellationToken);
+        (PipelineJobResults, RunningPipelineJob) = await GetRunningPipelineJob(cancellationToken);
+        LogicalStructMaps = WorkspaceManager.LogicalStructures;
+
+        PopulateCombinedDirectoryAndMismatches();
+
         logger.LogInformation("In Bind deposit for deposit {Deposit} Lock date: {LockDate}, Locked by: {LockedBy} ", Deposit?.Id, Deposit?.LockDate, Deposit?.LockedBy);
         return true;
+    }
+
+    /// <summary>
+    /// Warns when the deposit's declared Archival Group path doesn't yet exist and isn't a valid
+    /// location to create one at - extracted from BindDeposit to keep its own cognitive complexity
+    /// under the project's threshold (SonarCloud).
+    /// </summary>
+    private async Task CheckArchivalGroupPathValidity(CancellationToken cancellationToken)
+    {
+        if (Deposit!.ArchivalGroupExists || Deposit.ArchivalGroup == null || !Deposit.ArchivalGroup.GetPathUnderRoot().HasText())
+        {
+            return;
+        }
+        var testArchivalGroupResult = await mediator.Send(new TestArchivalGroupPath(Deposit.ArchivalGroup.GetPathUnderRoot()!), cancellationToken);
+        if (testArchivalGroupResult.Failure)
+        {
+            ArchivalGroupTestWarning = $"{testArchivalGroupResult.ErrorMessage} Please check the path and enter a different, valid location under the repository root.";
+        }
+    }
+
+    /// <summary>
+    /// Populates the root CombinedDirectory and, for an editable deposit, its METS/workspace
+    /// mismatch counts - extracted from BindDeposit (see <see cref="CheckArchivalGroupPathValidity"/>).
+    /// A deposit that is exporting has nothing to compute here: its workspace is in flight.
+    /// </summary>
+    private void PopulateCombinedDirectoryAndMismatches()
+    {
+        if (Deposit!.Status == DepositStates.Exporting)
+        {
+            return;
+        }
+        var combinedResult = WorkspaceManager.GetRootCombinedDirectory();
+        if (combinedResult is not { Success: true, Value: not null })
+        {
+            return;
+        }
+        RootCombinedDirectory = combinedResult.Value;
+        if (!WorkspaceManager.Editable)
+        {
+            return;
+        }
+        var (mismatches, detailedMismatches) = RootCombinedDirectory.GetMisMatches();
+        MisMatchCount = mismatches.Count;
+        FileMisMatches = detailedMismatches;
+        FilesWithViruses = RootCombinedDirectory.GetFilesWithVirus();
     }
     
 
@@ -311,26 +332,21 @@ public class DepositModel(
 
     public async Task<IActionResult> OnPostUploadFile(
         [FromRoute] string id,
-        [FromForm] List<IFormFile> depositFile,
-        [FromForm] string checksum,
-        [FromForm] string depositFileName,
-        [FromForm] string depositFileContentType,
-        [FromForm] string? newFileContext,
-        [FromForm] bool contextIsFile,
+        [FromForm] UploadFileFormModel form,
         CancellationToken cancellationToken)
     {
         string errorMessage = "";
-        if (depositFile.Count == 0)
+        if (form.DepositFile.Count == 0)
         {
             errorMessage += "No file uploaded in form. ";
         }
 
-        if (depositFile.Count > 1)
+        if (form.DepositFile.Count > 1)
         {
             errorMessage += "More than one file uploaded in form.";
         }
 
-        if (checksum.IsNullOrWhiteSpace())
+        if (form.Checksum.IsNullOrWhiteSpace())
         {
             errorMessage += "No checksum supplied in form.";
         }
@@ -341,26 +357,26 @@ public class DepositModel(
             return Redirect($"/deposits/{id}");
         }
 
-        if (contextIsFile && newFileContext.HasText())
+        if (form.ContextIsFile && form.NewFileContext.HasText())
         {
-            newFileContext = newFileContext.GetParent();
+            form.NewFileContext = form.NewFileContext.GetParent();
         }
 
-        var slug = PreservedResource.MakeValidSlug(depositFile[0].FileName);
+        var slug = PreservedResource.MakeValidSlug(form.DepositFile[0].FileName);
 
-        if(string.IsNullOrWhiteSpace(depositFileContentType) && MimeTypes.TryGetMimeType(slug, out var foundMimeType))
-            depositFileContentType = foundMimeType;
+        if(string.IsNullOrWhiteSpace(form.DepositFileContentType) && MimeTypes.TryGetMimeType(slug, out var foundMimeType))
+            form.DepositFileContentType = foundMimeType;
 
         if (await BindDeposit(id, cancellationToken))
         {
             var result = await WorkspaceManager.UploadSingleSmallFile(
-                depositFile[0].OpenReadStream(),
-                depositFile[0].Length,
-                depositFile[0].FileName,
-                checksum,
-                depositFileName,
-                depositFileContentType,
-                newFileContext,
+                form.DepositFile[0].OpenReadStream(),
+                form.DepositFile[0].Length,
+                form.DepositFile[0].FileName,
+                form.Checksum,
+                form.DepositFileName,
+                form.DepositFileContentType,
+                form.NewFileContext,
                 User.GetCallerIdentity()
             );
             if (result.Success)
@@ -640,20 +656,15 @@ public class DepositModel(
 
     public async Task<IActionResult> OnPostSetRightsAndAccess(
         [FromRoute] string id,
-        [FromForm] string modsContext,
-        [FromForm] bool modsContextIsFile,
-        [FromForm] List<string> accessRestrictions,
-        [FromForm] string? rightsStatement,
-        [FromForm] RecordIdentifier[] recordIdentifiers,
-        [FromForm] string? fileLinksJson,
+        [FromForm] SetRightsAndAccessFormModel form,
         CancellationToken cancellationToken)
     {
         if (await BindDeposit(id, cancellationToken))
         {
             List<FileLink>? fileLinks = null;
-            if (modsContextIsFile && !string.IsNullOrEmpty(fileLinksJson))
+            if (form.ModsContextIsFile && !string.IsNullOrEmpty(form.FileLinksJson))
             {
-                try { fileLinks = JsonSerializer.Deserialize<List<FileLink>>(fileLinksJson); }
+                try { fileLinks = JsonSerializer.Deserialize<List<FileLink>>(form.FileLinksJson); }
                 catch { /* ignore malformed */ }
             }
 
@@ -661,13 +672,13 @@ public class DepositModel(
             //   ""        → clear any explicit rights and inherit from the parent
             //   sentinel  → explicitly no rights; stop inheriting (effective null)
             //   a URI     → set that rights statement
-            var suppressRights = rightsStatement == RightsStatement.DoNotInheritSentinel;
+            var suppressRights = form.RightsStatement == RightsStatement.DoNotInheritSentinel;
             Uri? rightsUri = null;
             if (!suppressRights)
             {
-                Uri.TryCreate(rightsStatement, UriKind.Absolute, out rightsUri);
+                Uri.TryCreate(form.RightsStatement, UriKind.Absolute, out rightsUri);
             }
-            var result = await WorkspaceManager.SetModsInformation(modsContext, accessRestrictions, rightsUri, suppressRights, recordIdentifiers, fileLinks);
+            var result = await WorkspaceManager.SetModsInformation(form.ModsContext, form.AccessRestrictions, rightsUri, suppressRights, form.RecordIdentifiers, fileLinks);
             if (result.Success)
             {
                 TempData["AccessConditionsUpdated"] = "Access Restrictions and Rights Statement updated.";
@@ -875,5 +886,41 @@ public class DepositModel(
         }
         return Redirect($"/deposits/{id}");
     }
+}
+
+/// <summary>
+/// The fields posted by the "Upload File" form on the deposit page, grouped into one bound model
+/// (SonarCloud: OnPostUploadFile had 8 parameters, 1 over the project's limit). ASP.NET Core's
+/// complex-type model binder tries the parameter name as a prefix first (e.g. "form.DepositFile")
+/// and falls back to the bare property name when that finds nothing, so the existing posted field
+/// names (depositFile, checksum, etc. - unchanged in the view) still bind correctly with no view
+/// or JS changes needed.
+/// </summary>
+public class UploadFileFormModel
+{
+    public List<IFormFile> DepositFile { get; set; } = [];
+    public string Checksum { get; set; } = "";
+    public string DepositFileName { get; set; } = "";
+    public string DepositFileContentType { get; set; } = "";
+    public string? NewFileContext { get; set; }
+    public bool ContextIsFile { get; set; }
+}
+
+/// <summary>
+/// The fields posted by the "Set Rights and Access" form on the deposit page, grouped into one
+/// bound model for the same reason as <see cref="UploadFileFormModel"/> - including
+/// <see cref="RecordIdentifiers"/>, posted as indexed sub-properties (e.g.
+/// <c>RecordIdentifiers[0].Source</c>) by deposit.js: the same prefix-fallback binding applies to
+/// each property in turn, so the nested indexer names still resolve once the top-level prefix
+/// ("form") itself falls through to none.
+/// </summary>
+public class SetRightsAndAccessFormModel
+{
+    public string ModsContext { get; set; } = "";
+    public bool ModsContextIsFile { get; set; }
+    public List<string> AccessRestrictions { get; set; } = [];
+    public string? RightsStatement { get; set; }
+    public RecordIdentifier[] RecordIdentifiers { get; set; } = [];
+    public string? FileLinksJson { get; set; }
 }
 

@@ -69,17 +69,17 @@ public class SearchModel(IMediator mediator) : PageModel
     }
     
     public async Task OnGet(string? text, CancellationToken cancellationToken) =>
-        await GetResults(cancellationToken, text?.Trim());
+        await GetResults(text?.Trim(), cancellationToken: cancellationToken);
 
     public async Task OnPostSearchAsync(string? text, CancellationToken cancellationToken, int page = 1, int pageSize = DefaultPageSize) =>
-        await GetResults(cancellationToken, text, page, SearchType.All, pageSize);
+        await GetResults(text, page, SearchType.All, pageSize, cancellationToken: cancellationToken);
 
 
     public async Task OnGetPageChangeAsync([FromQuery] int page, [FromQuery] string text, [FromQuery] int otherPage,  [FromQuery] SearchType type, CancellationToken cancellationToken) =>
-        await GetResults(cancellationToken, text, page, type, DefaultPageSize, otherPage);
+        await GetResults(text, page, type, DefaultPageSize, otherPage, cancellationToken);
 
 
-    private async Task GetResults(CancellationToken cancellationToken, string? text, int page = 1, SearchType type = SearchType.All, int pageSize = DefaultPageSize, int otherPage = 0)
+    private async Task GetResults(string? text, int page = 1, SearchType type = SearchType.All, int pageSize = DefaultPageSize, int otherPage = 0, CancellationToken cancellationToken = default)
     {
         try
         {
