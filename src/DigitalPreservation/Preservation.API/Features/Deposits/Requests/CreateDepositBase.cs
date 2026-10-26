@@ -377,6 +377,18 @@ public class CreateDepositBase(
                     filesLocation, ocflVersion, cancellationToken);
                 if (exportMetsResult is { Success: true, Value: not null, Value.DateFinished: not null })
                 {
+                    if (exportMetsResult.Value.Errors is { Length: > 0 } checksumErrors)
+                    {
+                        // Issue #385: DateFinished being set only means CopyAndVerify's loop ran to
+                        // completion - it does not stop on a checksum mismatch, so a copy whose file
+                        // (or the METS file itself) failed its SHA-256 check still finishes and still
+                        // records the mismatch as an Error, same shape as the "didn't finish" case
+                        // below (#358). Checking DateFinished alone would treat that as success and
+                        // let the deposit be created with a METS file that may not match Fedora/OCFL.
+                        var errorText = string.Join("; ", checksumErrors.Select(e => e.Message));
+                        logger.LogError("METS-only export finished but reported errors: {ErrorText}", errorText);
+                        return Result.Fail(ErrorCodes.UnknownError, errorText);
+                    }
                     return Result.Ok();
                 }
 
