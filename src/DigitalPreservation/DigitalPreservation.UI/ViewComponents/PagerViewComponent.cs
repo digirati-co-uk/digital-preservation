@@ -103,7 +103,12 @@ public class PagerViewComponent : ViewComponent
 
     private static void AddLinkRange(PagerModel model, PathString path, int from, int to, PagerValues values)
     {
-        for (int linkPage = from; linkPage <= to; linkPage++)
+        // from/to are derived from values.Index, which carries the unsanitized "page" query
+        // string value - clamp against model.TotalPages (the actual page count) so a crafted
+        // page number can never drive this loop beyond the real number of pages.
+        var lowerBound = Math.Max(from, 1);
+        var upperBound = Math.Min(to, model.TotalPages);
+        for (int linkPage = lowerBound; linkPage <= upperBound; linkPage++)
         {
             AddLinkToModel(model, path, linkPage, values);
         }
