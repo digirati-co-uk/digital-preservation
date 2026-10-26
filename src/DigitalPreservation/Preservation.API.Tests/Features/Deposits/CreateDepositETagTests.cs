@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Preservation.API.Data;
 using Preservation.API.Features.Deposits.Requests;
-using Preservation.API.Mutation;
+using Preservation.API.Tests.TestingInfrastructure;
 using Storage.Client;
 using Storage.Repository.Common;
 using Storage.Repository.Common.Mets;
@@ -75,11 +75,7 @@ public class CreateDepositETagTests
         var identityService = A.Fake<IIdentityService>();
         A.CallTo(() => identityService.MintIdentity(nameof(Deposit), A<Uri?>._)).Returns(MintedId);
 
-        var resourceMutator = new ResourceMutator(Options.Create(new MutatorOptions
-        {
-            Storage = "https://storage.test",
-            Preservation = "https://preservation.test"
-        }));
+        var resourceMutator = TestMutator.Make();
 
         var handler = new CreateDepositHandler(
             NullLogger<CreateDepositHandler>.Instance,
