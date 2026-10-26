@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Review feedback on #427: pinning the ASP.NET base images to an exact patched tag (10.0.14,
+  # fixing CVE-2026-111497/GHSA-p3jp-9v83-76w9) closes the gap a floating 10.0 tag left - no proof
+  # a given build actually got the patched runtime - but trades it for a different one: nothing
+  # now bumps that pin when the next patch ships. Watching the Dockerfiles here (all six live at
+  # the repo root) is what keeps the pin itself a live, maintained version rather than a one-time
+  # fix that quietly goes stale.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
