@@ -29,7 +29,8 @@ try
     builder.Host.UseSerilog((hostContext, loggerConfiguration)
         => loggerConfiguration
             .ReadFrom.Configuration(hostContext.Configuration)
-            .Enrich.FromLogContext());
+            .Enrich.FromLogContext()
+            .Enrich.WithCorrelationId());
 
     builder.Services.Configure<ApiKeyOptions>(
         builder.Configuration.GetSection("ApiKeyOptions"));
@@ -50,6 +51,7 @@ try
     builder.Services
         .ConfigureForwardedHeaders()
         .AddHttpContextAccessor()
+        .AddCorrelationIdHeaderPropagation()
         .AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining<Program>();
@@ -141,6 +143,7 @@ try
 
     var app = builder.Build();
     app
+        .UseMiddleware<CorrelationIdMiddleware>()
         .UseMiddleware<ApiKeyMiddleware>()
         .UseSerilogRequestLogging()
         .UseRouting()
