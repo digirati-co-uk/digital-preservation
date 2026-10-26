@@ -55,7 +55,7 @@ public class CreateFolderHandler(
             BucketName = s3Uri.Bucket,
             Key = fullKey
         };
-        pReq.Metadata.Add(S3Helpers.OriginalNameMetadataKey, WebUtility.UrlEncode(request.Name));
+        pReq.Metadata.SetOriginalName(request.Name);
         try
         {
             var response = await s3Client.PutObjectAsync(pReq, cancellationToken);
