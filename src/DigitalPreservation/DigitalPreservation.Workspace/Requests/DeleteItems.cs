@@ -50,7 +50,7 @@ public class DeleteItemsHandler(
                 var dor = new DeleteObjectRequest
                 {
                     BucketName = s3Uri.Bucket,
-                    Key = s3Uri.Key + rootDeletionItem.RelativePath.TrimStart('/')
+                    Key = S3Helpers.BuildDepositObjectKey(s3Uri.Key, rootDeletionItem.RelativePath)
                 };
                 var response = await s3Client.DeleteObjectAsync(dor, cancellationToken);
 
@@ -165,13 +165,14 @@ public class DeleteItemsHandler(
                 }
 
                 // this is the DeleteObject code
-                var depositPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + item.RelativePath;
+                var depositPath = S3Helpers.BuildDepositObjectKey(
+                    FolderNames.GetPathPrefix(request.IsBagItLayout), item.RelativePath);
                 if (failedDeleteResult == null)
                 {
                     var dor = new DeleteObjectRequest
                     {
                         BucketName = s3Uri.Bucket,
-                        Key = s3Uri.Key + depositPath 
+                        Key = S3Helpers.BuildDepositObjectKey(s3Uri.Key, depositPath)
                     };
                     if (item.IsDirectory && !dor.Key.EndsWith('/'))
                     {

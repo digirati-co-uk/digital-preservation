@@ -51,7 +51,7 @@ public class UploadFileToDepositHandler(
         // TODO: This needs to prevent overlapping calls (repeated requests for the same object, or two uploads trying to update METS)
         var s3Uri = new AmazonS3Uri(request.RootUri);
         var keyPath = request.BagitFile ? string.Empty : FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent;
-        var fullKey = StringUtils.BuildPath(false, s3Uri.Key, keyPath, request.Slug);
+        var fullKey = S3Helpers.BuildDepositObjectKey(s3Uri.Key, keyPath, request.Slug);
         var req = new PutObjectRequest
         {
             BucketName = s3Uri.Bucket,
