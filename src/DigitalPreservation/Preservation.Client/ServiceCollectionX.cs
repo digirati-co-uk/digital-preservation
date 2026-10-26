@@ -1,5 +1,6 @@
 ﻿using System.Net.Http.Headers;
 using DigitalPreservation.CommonApiClient;
+using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Guard;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Handlers;
@@ -65,7 +66,7 @@ public static class ServiceCollectionX
                 var preservationOptions = provider.GetRequiredService<IOptions<PreservationOptions>>().Value;
                 client.BaseAddress = !string.IsNullOrEmpty(clientBaseAddress) ? new Uri(clientBaseAddress) : preservationOptions.Root.ThrowIfNull(nameof(preservationOptions.Root));
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
-                client.DefaultRequestHeaders.Add("X-Client-Identity", componentName);
+                client.DefaultRequestHeaders.Add(AuthFilterIdentifier.MachineHeaderName, componentName);
                 client.Timeout = TimeSpan.FromMinutes(preservationOptions.TimeoutMinutes);
             })
             .ConfigurePlatformTcpKeepAlive()

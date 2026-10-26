@@ -61,7 +61,7 @@ public class DeleteDepositHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_Refuses_A_Deposit_Locked_By_Someone_Else_With_Conflict_Naming_The_Lock_Holder()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SeedDeposit(context, LockHolder);
         var handler = new DeleteDepositHandler(
             new NullLogger<DeleteDepositHandler>(), context, SucceedingStorage());
@@ -77,7 +77,7 @@ public class DeleteDepositHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_Allows_The_Lock_Holders_Own_Call_To_Proceed()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SeedDeposit(context, LockHolder);
         var handler = new DeleteDepositHandler(
             new NullLogger<DeleteDepositHandler>(), context, SucceedingStorage());
@@ -91,7 +91,7 @@ public class DeleteDepositHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_Allows_Any_Caller_When_The_Deposit_Is_Not_Locked()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SeedDeposit(context, lockedBy: null);
         var handler = new DeleteDepositHandler(
             new NullLogger<DeleteDepositHandler>(), context, SucceedingStorage());

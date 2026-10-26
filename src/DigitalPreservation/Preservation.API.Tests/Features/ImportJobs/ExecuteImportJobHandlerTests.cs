@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Identity;
@@ -13,6 +13,7 @@ using Preservation.API.Mutation;
 using Preservation.API.Tests.TestingInfrastructure;
 using Storage.Client;
 using DepositEntity = Preservation.API.Data.Entities.Deposit;
+
 
 namespace Preservation.API.Tests.Features.ImportJobs;
 
@@ -64,7 +65,7 @@ public class ExecuteImportJobHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_Refuses_A_Deposit_Locked_By_Someone_Else_With_Conflict_Naming_The_Lock_Holder()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SeedDeposit(context, LockHolder);
         var handler = new ExecuteImportJobHandler(
             new NullLogger<ExecuteImportJobHandler>(), A.Fake<IStorageApiClient>(), context,
@@ -85,7 +86,7 @@ public class ExecuteImportJobHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_Allows_The_Lock_Holders_Own_Call_To_Proceed_Past_The_Lock_Check()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SeedDeposit(context, LockHolder);
         var identityService = A.Fake<IIdentityService>();
         A.CallTo(() => identityService.MintIdentity(A<string>._)).Returns("job-" + Guid.NewGuid());
@@ -104,7 +105,7 @@ public class ExecuteImportJobHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_Allows_Any_Caller_When_The_Deposit_Is_Not_Locked()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SeedDeposit(context, lockedBy: null);
         var identityService = A.Fake<IIdentityService>();
         A.CallTo(() => identityService.MintIdentity(A<string>._)).Returns("job-" + Guid.NewGuid());

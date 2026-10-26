@@ -26,7 +26,7 @@ public class GetArchivalGroupsOrderedCollectionPageHandlerTests(DatabaseFixture 
     [InlineData(-1)]
     public async Task A_Page_Below_1_Is_Refused_As_A_Bad_Request(int page)
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var handler = new GetArchivalGroupsOrderedCollectionPageHandler(
             NullLogger<GetArchivalGroupsOrderedCollectionPageHandler>.Instance, Mutator(), context);
 
