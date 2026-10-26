@@ -31,7 +31,7 @@ public static class AwsChecksum
         if (!string.IsNullOrWhiteSpace(base64Sha256))
         {
             byte[] bytes = Convert.FromBase64String(base64Sha256);
-            return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+            return Convert.ToHexStringLower(bytes);
         }
         return null;
     }
