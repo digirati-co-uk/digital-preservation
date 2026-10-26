@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using Amazon.S3.Model;
+using DigitalPreservation.Utils;
 
 namespace Storage.Repository.Common;
 
@@ -23,6 +24,27 @@ public static class S3Helpers
         metadata.Keys.Contains(OriginalNameMetadataResponseKey)
             ? WebUtility.UrlDecode(metadata[OriginalNameMetadataResponseKey])
             : null;
+
+    /// <summary>
+    /// Builds an S3 object key by joining a deposit's root key with every further path segment
+    /// (issue #388 item 3.1), rather than each caller concatenating raw strings by hand.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately NOT <see cref="StringUtils.BuildPath"/>, despite the overlap: that trims
+    /// whitespace from each segment, which is right for a UI-facing or repository path but wrong
+    /// here. An S3 key has to address whatever object is actually sitting in the bucket, and a file
+    /// written straight to S3 - bypassing the platform's own slug validation - can genuinely have a
+    /// leading or trailing space in its name. Trimming the key built for a delete of such a file
+    /// would address a different key to the one it was uploaded under, so the delete either throws
+    /// (NoSuchKey, if the request is strict about it) or silently does nothing (S3's DeleteObject is
+    /// idempotent and reports success for a key that was never there). Only stray/empty path
+    /// segments - e.g. a trailing slash on the root key - are collapsed; every character inside a
+    /// real segment, whitespace included, is preserved exactly.
+    /// </remarks>
+    public static string BuildDepositObjectKey(string rootKey, params string?[] segments) =>
+        string.Join('/', new[] { rootKey }.Concat(segments)
+            .Where(s => s.HasText())
+            .SelectMany(s => s!.Split('/', StringSplitOptions.RemoveEmptyEntries)));
 
     public static Uri GetS3Uri(this S3Object s3Object) =>
         new UriBuilder($"s3://{s3Object.BucketName}") { Path = s3Object.Key }.Uri;

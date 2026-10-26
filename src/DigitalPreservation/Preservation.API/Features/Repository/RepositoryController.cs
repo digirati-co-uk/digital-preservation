@@ -149,6 +149,19 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
     private static bool CanSafelyAppendTo(string requestPath) =>
         !requestPath.Split('/').Contains("..");
 
+    /// <summary>
+    /// Whether this request's full path is the repository root itself - "/repository" or
+    /// "/repository/", nothing after - checked against Request.Path, the same full-path source the
+    /// rest of this controller already treats as authoritative (see HeadResource's own comment on
+    /// why), rather than the route-bound path parameter. A direct call bypassing routing, as most
+    /// of this controller's own unit tests do, never populates that parameter at all - checking it
+    /// would misread every one of those as a root request too. Routing is case-insensitive, so this
+    /// compares the same way - "/Repository" is still the root, not a 404.
+    /// </summary>
+    private bool IsRepositoryRootRequest() =>
+        (Request.Path.Value?.TrimEnd('/') ?? string.Empty)
+            .Equals($"/{PreservedResource.BasePathElement}", StringComparison.OrdinalIgnoreCase);
+
     private async Task<IActionResult> GetMetsResult(ArchivalGroup archivalGroup, string view)
     {            
         var mets = archivalGroup.Binaries.SingleOrDefault(b => MetsUtils.IsMetsFile(b.Id!.GetSlug()!, true));
@@ -192,8 +205,27 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
     [ProducesResponseType(410)]
-    public async Task<IActionResult?> HeadResource([FromRoute] string path)
+    public async Task<IActionResult?> HeadResource([FromRoute] string? path = null)
     {
+        // path was declared non-nullable with no default, so HEAD /repository or /repository/ (the
+        // {*path} catch-all capturing nothing) left [ApiController]'s automatic model validation to
+        // reject it before this method ever ran, with FluentValidation's generic "field is required"
+        // shape rather than a deliberate answer (issue #386). Giving path a default, like Browse
+        // already has, moves the decision in here instead - checked against Request.Path like the
+        // rest of this method, not this now-mostly-unused path parameter (see IsRepositoryRootRequest).
+        if (IsRepositoryRootRequest())
+        {
+            // The root is a real, documented resource: Fedora reports it as fedora:RepositoryRoot,
+            // and GET /repository answers with it (a Container typed "RepositoryRoot" - see
+            // Converters.PopulateType and PreservedResourceDeserializer). HEAD must agree with GET
+            // rather than refuse what GET accepts, but Storage API's own HeadResource has this same
+            // non-nullable path parameter and would refuse the request before it got anywhere near
+            // Fedora - so answering directly here, without a round trip neither side could complete,
+            // is the only way the two stay consistent.
+            Response.Headers[HttpHeaders.XPreservationResourceType] = "RepositoryRoot";
+            return new EmptyResult();
+        }
+
         // GetResourceType needs the full /repository/... path (CommonApiBase.GetResourceType HEADs
         // it as-is against the Storage API), not the route-bound path parameter, which the
         // {*path} catch-all strips down to everything after "repository/" - that stripped form

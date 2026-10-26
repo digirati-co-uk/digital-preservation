@@ -134,4 +134,27 @@ public class MetsOnlyExportDiagnosticsTests
         result.Success.Should().BeFalse();
         result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
     }
+
+    [Fact]
+    public async Task A_METS_Only_Export_With_DateFinished_But_A_Checksum_Error_Still_Fails()
+    {
+        // Issue #385: ExecuteExportHandler.CopyAndVerify records a SHA-256 mismatch as an Error on
+        // the Export but does not stop the copy loop, so DateFinished still ends up set - the same
+        // "finished, but not actually right" shape #358 fixed for the no-DateFinished case. Checking
+        // DateFinished alone would treat this as success and create the deposit with a METS file
+        // that may not match what Fedora/OCFL actually has.
+        A.CallTo(() => storageApiClient.ExportArchivalGroupMetsOnly(A<Uri>._, A<Uri>._, A<string?>._, A<CancellationToken>._))
+            .Returns(Result.OkNotNull(new Export
+            {
+                ArchivalGroup = ArchivalGroup,
+                Destination = Files,
+                DateFinished = DateTime.UtcNow,
+                Errors = [new DigitalPreservation.Common.Model.Error { Message = "Checksum mismatch for mets.xml: expected abc, got def" }]
+            }));
+
+        var result = await CreateHandler().Handle(Request(), CancellationToken.None);
+
+        result.Success.Should().BeFalse("a checksum mismatch means the copied METS file may not match Fedora/OCFL, even though the export reported DateFinished");
+        result.ErrorMessage.Should().Contain("Checksum mismatch for mets.xml");
+    }
 }

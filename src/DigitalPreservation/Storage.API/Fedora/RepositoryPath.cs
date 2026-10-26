@@ -12,7 +12,7 @@ public static class RepositoryPath
         var infoId = $"info:fedora/{id}";
         var bytes = Encoding.UTF8.GetBytes(infoId);
         var hash = SHA256.HashData(bytes);
-        var idDigest = Convert.ToHexString(hash).ToLower();
+        var idDigest = Convert.ToHexStringLower(hash);
         var sb = new StringBuilder();
         for (int i = 0; i < numberOfTuples; i++)
         {

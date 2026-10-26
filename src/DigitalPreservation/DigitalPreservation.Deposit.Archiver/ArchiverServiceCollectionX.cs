@@ -1,4 +1,3 @@
-using Amazon.S3;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
@@ -46,8 +45,6 @@ public static class ArchiverServiceCollectionX
             ResourceUri = settings.ResourceUri
         };
         services.AddAccessTokenProvider(accessTokenProviderOptions);
-
-        services.AddAWSService<IAmazonS3>();
 
         services.AddStorageAwsAccess(configuration);
         services.AddSingleton<IIdentityMinter, IdentityMinter>();

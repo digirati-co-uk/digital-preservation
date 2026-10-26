@@ -26,6 +26,11 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
     
     public async Task<Result<OrderedCollectionPage>> Handle(GetArchivalGroupsOrderedCollectionPage request, CancellationToken cancellationToken)
     {
+        if (request.Page < 1)
+        {
+            return Result.FailNotNull<OrderedCollectionPage>(ErrorCodes.BadRequest, "Page must be 1 or greater.");
+        }
+
         var totalItems = await dbContext.PublishedArchivalGroupEvents()
             .CountAsync(cancellationToken: cancellationToken);
 
@@ -59,32 +64,13 @@ public class GetArchivalGroupsOrderedCollectionPageHandler(
                 .Select(e => MakeActivity(e, importJobsByResult))
                 .ToList();
             
-            int startIndex = (request.Page - 1) * OrderedCollectionPage.DefaultPageSize;
-            var page = new OrderedCollectionPage
-            {
-                Id = resourceMutator.GetActivityStreamUri($"archivalgroups/pages/{request.Page}"),
-                PartOf = new OrderedCollection
-                {
-                    Id = resourceMutator.GetActivityStreamUri("archivalgroups/collection"),
-                },
-                StartIndex = startIndex,
-                OrderedItems = activities
-            };
-            if (request.Page > 1)
-            {
-                page.Prev = new OrderedCollectionPage
-                {
-                    Id = resourceMutator.GetActivityStreamUri($"archivalgroups/pages/{request.Page - 1}")
-                };
-            }
-            if (totalItems > startIndex + OrderedCollectionPage.DefaultPageSize)
-            {
-                page.Next = new OrderedCollectionPage
-                {
-                    Id = resourceMutator.GetActivityStreamUri($"archivalgroups/pages/{request.Page + 1}")
-                };
-            }
-            page.WithContext();
+            var page = OrderedCollectionPage.For(
+                resourceMutator.GetActivityStreamUri("archivalgroups/collection"),
+                p => resourceMutator.GetActivityStreamUri($"archivalgroups/pages/{p}"),
+                request.Page,
+                totalItems,
+                activities);
+
             return Result.OkNotNull(page);
 
         }

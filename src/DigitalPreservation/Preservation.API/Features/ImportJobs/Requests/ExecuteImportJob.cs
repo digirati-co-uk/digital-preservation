@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.LogHelpers;
+using DigitalPreservation.Common.Model.PreservationApi;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Utils;
@@ -32,9 +33,10 @@ public class ExecuteImportJobHandler(
     {
         var callerIdentity = request.Principal.GetCallerIdentity();
         var depositEntity = dbContext.Deposits.SingleOrDefault(d => d.MintedId == request.ImportJob.Deposit!.GetSlug());
-        if (depositEntity?.LockedBy != null && depositEntity.LockedBy != callerIdentity)
+        var otherLockOwner = Deposit.GetOtherLockOwner(depositEntity?.LockedBy, callerIdentity);
+        if (otherLockOwner is not null)
         {
-            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "Deposit is locked by another user: " + callerIdentity);
+            return Result.FailNotNull<ImportJobResult>(ErrorCodes.Conflict, "Deposit is locked by another user: " + otherLockOwner);
         }
         logger.LogInformation("ExecuteImportJobHandler handling import job {ImportJobSummary}", request.ImportJob.LogSummary());
         if (request.ImportJob.SuppressActivityStreamEvent)
