@@ -369,35 +369,25 @@ public class ImportJobsController(
             StringComparison.Ordinal);
 
     /// <summary>
-    /// The refusal to return when the posted job's content is not the deposit's own - it names a
-    /// different Deposit, no Deposit at all, a different Archival Group, or binaries from outside
-    /// the deposit's file area; null when everything belongs.
-    /// </summary>
-    private static IEnumerable<Uri?> ResourceIds(ImportJob importJob) =>
-        importJob.BinariesToAdd.Select(b => b.Id)
-            .Concat(importJob.BinariesToPatch.Select(b => b.Id))
-            .Concat(importJob.BinariesToDelete.Select(b => b.Id))
-            .Concat(importJob.BinariesToRename.Select(b => b.Id))
-            .Concat(importJob.ContainersToAdd.Select(c => c.Id))
-            .Concat(importJob.ContainersToDelete.Select(c => c.Id))
-            .Concat(importJob.ContainersToRename.Select(c => c.Id));
-
-    /// <summary>
     /// Whether a resource id lies strictly below the Archival Group - compared by repository path, as
     /// <see cref="SameArchivalGroup"/> does, so the host does not matter. Strictly below: a job may not
     /// name the group itself as a binary or container, which is what a file uploaded under the name
     /// ".." would otherwise produce.
     /// </summary>
-    private static bool IsWithinArchivalGroup(Uri resourceId, Uri archivalGroup)
-    {
-        var groupPath = archivalGroup.GetPathUnderRoot()?.TrimEnd('/') + "/";
-        return resourceId.GetPathUnderRoot()?.StartsWith(groupPath, StringComparison.Ordinal) == true;
-    }
+    private static bool IsWithinArchivalGroup(Uri resourceId, Uri archivalGroup) =>
+        resourceId.GetPathUnderRoot() is { } resourcePath
+        && archivalGroup.GetPathUnderRoot() is { } groupPath
+        && resourcePath.IsStrictlyBelow(groupPath);
 
+    /// <summary>
+    /// The refusal to return when the posted job's content is not the deposit's own - it names a
+    /// different Deposit, no Deposit at all, a different Archival Group, or binaries from outside
+    /// the deposit's file area; null when everything belongs.
+    /// </summary>
     private ActionResult? JobDoesNotBelongToDeposit(ImportJob importJob, string depositId, Deposit deposit)
     {
         string? message = null;
-        var resourceIds = ResourceIds(importJob).ToList();
+        var resourceIds = importJob.AllResourceIds().ToList();
         // The IsAbsoluteUri guards below are load-bearing, not tidiness: a bare string in the JSON
         // ("invalid-id") deserialises as a RELATIVE Uri, and AbsolutePath / GetPathUnderRoot /
         // IsBaseOf all throw on a relative Uri — turning a job that must be refused with 400 into
