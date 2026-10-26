@@ -14,6 +14,7 @@ public class ResultXTests
     [Theory]
     [InlineData(ErrorCodes.NotFound, 404)]
     [InlineData(ErrorCodes.Unauthorized, 401)]
+    [InlineData(ErrorCodes.UpstreamUnauthorized, 502)]
     [InlineData(ErrorCodes.BadRequest, 400)]
     [InlineData(ErrorCodes.Conflict, 409)]
     [InlineData(ErrorCodes.PreconditionFailed, 409)]
