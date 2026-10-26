@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.Extensions.Caching.Memory;
 using Preservation.API.IIIF;
 
 namespace Preservation.API.Tests.IIIF;
@@ -35,5 +35,21 @@ public class TokenServiceTests
         var token = service.GetToken("someuser/deposit/dep-99");
 
         service.IsValidForDeposit(token, "dep-1").Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetToken_Returns_A_32_Character_Lowercase_Hex_String()
+    {
+        var token = Service().GetToken("deposit/dep-1");
+
+        token.Should().MatchRegex("^[0-9a-f]{32}$", "16 random bytes, hex-encoded with no uppercase");
+    }
+
+    [Fact]
+    public void GetToken_Is_Stable_For_The_Same_Key()
+    {
+        var service = Service();
+
+        service.GetToken("deposit/dep-1").Should().Be(service.GetToken("deposit/dep-1"));
     }
 }

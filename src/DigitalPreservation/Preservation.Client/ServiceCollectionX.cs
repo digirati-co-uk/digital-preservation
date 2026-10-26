@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Guard;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Handlers;
@@ -22,6 +23,11 @@ public static class ServiceCollectionX
         IConfiguration configuration, string componentName)
     {
         serviceCollection.Configure<PreservationOptions>(configuration.GetSection(PreservationOptions.Preservation));
+        // AuthTokenInjector (added below) is this registration's only consumer - owned here rather
+        // than by each caller, since every caller of this method needs it the same way (issue #388
+        // item 1.4).
+        serviceCollection.AddSingleton<ITokenScope>(_ =>
+            new TokenScope(configuration.GetSection("AzureAd:ScopeUri").Value));
         serviceCollection
             .AddTransient<TimingHandler>()
             .AddTransient<AuthTokenInjector>()
@@ -32,9 +38,7 @@ public static class ServiceCollectionX
                 client.DefaultRequestHeaders.WithRequestedBy(componentName);
                 client.Timeout = TimeSpan.FromMinutes(preservationOptions.TimeoutMinutes);
             })
-            // 120/30/5 (issue #383 review point 7): see the comment in Storage.API's
-            // ServiceCollectionX.cs on why these values, not the previous 120/60/60.
-            .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(30), 5)
+            .ConfigurePlatformTcpKeepAlive()
             .AddHttpMessageHandler<TimingHandler>()
             .AddHttpMessageHandler<AuthTokenInjector>();
 
@@ -64,9 +68,7 @@ public static class ServiceCollectionX
                 client.DefaultRequestHeaders.Add("X-Client-Identity", componentName);
                 client.Timeout = TimeSpan.FromMinutes(preservationOptions.TimeoutMinutes);
             })
-            // 120/30/5 (issue #383 review point 7): see the comment in Storage.API's
-            // ServiceCollectionX.cs on why these values, not the previous 120/60/60.
-            .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(30), 5)
+            .ConfigurePlatformTcpKeepAlive()
             .AddHttpMessageHandler<TimingHandler>()
             .AddHttpMessageHandler<MachineAuthTokenInjector>();
 

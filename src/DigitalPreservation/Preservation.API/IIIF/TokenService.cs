@@ -13,7 +13,7 @@ public class TokenService(IMemoryCache memoryCache) : ITokenService
     private static readonly TimeSpan AbsoluteLifetime = TimeSpan.FromDays(7);
 
     private static string NewToken() =>
-        Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
 
     public string GetToken(string key)
     {

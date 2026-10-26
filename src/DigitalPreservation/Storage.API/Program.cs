@@ -1,6 +1,4 @@
-using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Core.Auth;
-using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -10,14 +8,10 @@ using Storage.API.Web;
 using Serilog;
 using Storage.API.Data;
 using Storage.API.Features.Export;
-using Storage.API.Features.Export.Data;
 using Storage.API.Features.Import;
-using Storage.API.Features.Import.Data;
 using Storage.API.Fedora;
 using Storage.API.Infrastructure;
-using Storage.API.Ocfl;
 using Storage.Repository.Common;
-using Storage.Repository.Common.S3;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -34,25 +28,16 @@ try
             .Enrich.FromLogContext()
             .Enrich.WithCorrelationId());
 
-    builder.Services
-        .ConfigureForwardedHeaders()
-        .AddHttpContextAccessor()
-        .AddMediatR(cfg =>
-        {
-            cfg.RegisterServicesFromAssemblyContaining<Program>();
-            cfg.RegisterServicesFromAssemblyContaining<IStorage>();
-        });
+    builder.Services.AddMediatR(cfg =>
+    {
+        cfg.RegisterServicesFromAssemblyContaining<Program>();
+        cfg.RegisterServicesFromAssemblyContaining<IStorage>();
+    });
 
     //Auth enabled flag
     var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
     var useLocalHostedServiceForImport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForImport");
     var useLocalHostedServiceForExport = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalHostedServiceForExport");
-
-    // ImportJobRunner (the heartbeat writer) only runs in this host in in-process mode; in SQS mode
-    // it's the separate Importer. Both hosts validate unconditionally regardless of mode - see
-    // Storage.API.Importer/Program.cs for its copy of this call - so a deployment can't end up with
-    // one host's settings checked and the other's not depending on which mode happens to be live.
-    ImportJobHeartbeatSettings.Validate(builder.Configuration);
 
     if (useAuthFeatureFlag)
     {
@@ -69,18 +54,7 @@ try
     builder.Services.AddClientDirectory(builder.Configuration);
 
     builder.Services
-        .AddMemoryCache()
-        .AddOcfl(builder.Configuration)
-        .AddFedoraClient(builder.Configuration, "Storage-API")
-        .AddFedoraDB(builder.Configuration, "Fedora")
-        .AddStorageAwsAccess(builder.Configuration)
-        .AddImportExport(builder.Configuration)
-        .AddSingleton<IIdentityMinter, IdentityMinter>()
-        .AddScoped<IImportJobResultStore, ImportJobResultStore>() // only for Storage API; happens after above for shared S3
-        .AddScoped<IExportResultStore, ExportResultStore>() // only for Storage API; happens after above for shared S3
-        .AddStorageHealthChecks()
-        .AddCorrelationIdHeaderPropagation()
-        .AddStorageContext(builder.Configuration)
+        .AddStorageCore(builder.Configuration, "Storage-API")
         .AddControllers(config =>
         {
             config.Filters.Add<RepositoryPathFilter>();
