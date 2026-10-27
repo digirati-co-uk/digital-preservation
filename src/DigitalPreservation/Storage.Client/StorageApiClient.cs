@@ -166,7 +166,7 @@ public class StorageApiClient(
             cancellationToken: cancellationToken);
         if (result.Success)
         {
-            logger.LogInformation("Received exportResult with exportResult.ArchivalGroup: {ArchivalGroup}", result.Value.ArchivalGroup);
+            logger.LogInformation("Received exportResult with exportResult.ArchivalGroup: {ArchivalGroup}", result.Value!.ArchivalGroup);
         }
         return result;
     }
