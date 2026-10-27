@@ -205,11 +205,9 @@ table.plain-link-table a:focus-visible {
     padding-top: 0.8rem;
 }
 
-.deposit-table.table-hover {
-    > tbody > tr:hover > * {
-        border-bottom: 1px solid black;
-        color: darkblue;
-    }
+.deposit-table.table-hover > tbody > tr:hover > * {
+    border-bottom: 1px solid black;
+    color: darkblue;
 }
 
 .deposit-table td:nth-child(1) {
