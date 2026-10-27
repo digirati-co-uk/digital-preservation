@@ -1,6 +1,4 @@
-using Amazon.S3;
 using DigitalPreservation.Common.Model.Identity;
-using DigitalPreservation.CommonApiClient;
 using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
 using DigitalPreservation.Workspace;
@@ -25,8 +23,6 @@ public static class ArchiverServiceCollectionX
     {
         services.AddSingleton<IConfiguration>(configuration);
 
-        services.AddSingleton<ITokenScope>(_ => new TokenScope(settings.ScopeUri));
-
         services.ConfigureForwardedHeaders()
             .AddHttpContextAccessor()
             .AddMemoryCache()
@@ -44,8 +40,6 @@ public static class ArchiverServiceCollectionX
             ResourceUri = settings.ResourceUri
         };
         services.AddAccessTokenProvider(accessTokenProviderOptions);
-
-        services.AddAWSService<IAmazonS3>();
 
         services.AddStorageAwsAccess(configuration);
         services.AddSingleton<IIdentityMinter, IdentityMinter>();

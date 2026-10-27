@@ -209,7 +209,8 @@ public class PostIIIFManifestToDepositTests
 
         var result = await controller.PostIIIFManifestToDepositWithToken(DepositId, token);
 
-        var objectResult = Assert.IsType<BadRequestObjectResult>(result);
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        objectResult.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
         var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
         problem.Title.Should().Be("Invalid IIIF Manifest");
     }
@@ -280,5 +281,59 @@ public class PostIIIFManifestToDepositTests
         await controller.PostIIIFManifestToDepositWithToken(DepositId, token);
 
         captured!.RawManifestJson.Should().Contain("\"type\": \"Manifest\"");
+    }
+}
+
+/// <summary>
+/// GetDepositAsIIIFManifestWithToken shares the same IsValidForDeposit check and
+/// IiifSessionExpiredResult response as PostIIIFManifestToDepositWithToken and MediaController's
+/// GetMedia (issue #388 item 2.9) - previously a third, differently-worded hand-rolled copy. No
+/// test previously covered this endpoint's token check at all.
+/// </summary>
+public class GetDepositAsIIIFManifestWithTokenTests
+{
+    private const string DepositId = "dep-1";
+
+    private readonly IMediator mediator = A.Fake<IMediator>();
+    private readonly ITokenService tokenService = new TokenService(new MemoryCache(new MemoryCacheOptions()));
+    private readonly DepositsController controller;
+
+    public GetDepositAsIIIFManifestWithTokenTests()
+    {
+        controller = new DepositsController(
+            A.Fake<ILogger<DepositsController>>(),
+            mediator,
+            A.Fake<WorkspaceManagerFactory>(),
+            tokenService);
+
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Scheme = "https";
+        context.Request.Host = new HostString("example.org");
+        controller.ControllerContext = new ControllerContext { HttpContext = context };
+    }
+
+    [Fact]
+    public async Task Returns401_WhenTokenNotInCache()
+    {
+        var result = await controller.GetDepositAsIIIFManifestWithToken(DepositId, "unknown-token");
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        objectResult.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+        problem.Title.Should().Be("Session expired");
+        A.CallTo(() => mediator.Send(A<GetDepositAsIIIFManifest>._, A<CancellationToken>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public async Task Returns401_WhenTokenBelongsToADifferentDeposit()
+    {
+        var token = tokenService.GetToken("someuser/deposit/dep-99");
+
+        var result = await controller.GetDepositAsIIIFManifestWithToken(DepositId, token);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        objectResult.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        A.CallTo(() => mediator.Send(A<GetDepositAsIIIFManifest>._, A<CancellationToken>._)).MustNotHaveHappened();
     }
 }

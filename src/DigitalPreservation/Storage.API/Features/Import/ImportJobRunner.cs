@@ -2,6 +2,7 @@
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Utils;
 using MediatR;
+using Microsoft.Extensions.Options;
 using Storage.API.Features.Import.Requests;
 using Storage.API.Features.Repository.Requests;
 using Storage.API.Fedora.Model;
@@ -19,13 +20,13 @@ public class ImportJobRunner(
     IMediator mediator,
     IImportJobResultStore importJobResultStore,
     IServiceScopeFactory serviceScopeFactory,
-    IConfiguration configuration)
+    IOptions<ImportJobOptions> importJobOptions)
 {
     // How often the heartbeat loop writes, not how long a missed heartbeat is tolerated for (that's
     // ImportJobResultStore.HeartbeatWindow, checked by the reaper, not here) - these are
     // deliberately two separate knobs.
     private TimeSpan HeartbeatInterval =>
-        TimeSpan.FromSeconds(configuration.GetValue("ImportJobs:HeartbeatIntervalSeconds", 60));
+        TimeSpan.FromSeconds(importJobOptions.Value.HeartbeatIntervalSeconds);
 
     public async Task Execute(string jobIdentifier, CancellationToken cancellationToken)
     {

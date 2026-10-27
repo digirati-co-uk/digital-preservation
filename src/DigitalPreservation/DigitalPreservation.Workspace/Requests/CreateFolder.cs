@@ -44,7 +44,7 @@ public class CreateFolderHandler(
 
         var s3Uri = new AmazonS3Uri(request.RootUri);
         var localPath = FolderNames.GetPathPrefix(request.IsBagItLayout) + request.Parent;
-        var fullKey = StringUtils.BuildPath(false, s3Uri.Key, localPath, request.NewFolderSlug);
+        var fullKey = S3Helpers.BuildDepositObjectKey(s3Uri.Key, localPath, request.NewFolderSlug);
         if (!fullKey.EndsWith('/'))
         {
             fullKey += "/";
@@ -55,7 +55,7 @@ public class CreateFolderHandler(
             BucketName = s3Uri.Bucket,
             Key = fullKey
         };
-        pReq.Metadata.Add(S3Helpers.OriginalNameMetadataKey, WebUtility.UrlEncode(request.Name));
+        pReq.Metadata.SetOriginalName(request.Name);
         try
         {
             var response = await s3Client.PutObjectAsync(pReq, cancellationToken);

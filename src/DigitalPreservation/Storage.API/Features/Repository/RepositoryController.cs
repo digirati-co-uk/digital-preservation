@@ -1,5 +1,4 @@
-﻿using System.Net;
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
@@ -42,13 +41,7 @@ public class RepositoryController(IMediator mediator) : ControllerBase
     {
         if (view != ViewValues.Lightweight)
         {
-            var problem = new ProblemDetails
-            {
-                Status = (int)HttpStatusCode.BadRequest,
-                Title = "Unsupported view",
-                Detail = "View " + view + " is not a valid value."
-            };
-            return BadRequest(problem);
+            return this.ProblemFor(ErrorCodes.BadRequest, "View " + view + " is not a valid value.", "Unsupported view");
         }
        
         var result = await mediator.Send(new GetResourceFromFedoraLightweight(path, version));

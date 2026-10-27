@@ -1558,7 +1558,7 @@ public class ProcessPipelineJobHandler(
             }
 
             var oldBagItSha256Values =
-                await ReadBagItSha256(new MemoryStream(oldManifestBytes));
+                await BagItManifest.ParseAsync(new MemoryStream(oldManifestBytes));
 
             if (objectsFiles.Count == 0)
             {
@@ -1569,7 +1569,7 @@ public class ProcessPipelineJobHandler(
                 $"{processFolderBagitDeposit}{separator}manifest-sha256.txt";
 
             var newBagItSha256Values =
-                await ReadBagItSha256(
+                await BagItManifest.ParseAsync(
                     new MemoryStream(
                         await File.ReadAllBytesAsync(newManifestPath, cancellationToken)));
 
@@ -1637,29 +1637,6 @@ public class ProcessPipelineJobHandler(
 
     }
 
-
-    private static async Task<Dictionary<string, string>> ReadBagItSha256(Stream stream)
-    {
-        var txt = await GetTextFromStream(stream);
-        var bagItSha256Values1 = new Dictionary<string, string>();
-        foreach (var line in txt.Split('\n'))
-        {
-            var parts = line.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 2)
-            {
-                bagItSha256Values1.Add(parts[1], parts[0]);
-            }
-        }
-
-        return bagItSha256Values1;
-    }
-
-    private static async Task<string> GetTextFromStream(Stream stream)
-    {
-        using var reader = new StreamReader(stream);
-        var txt = await reader.ReadToEndAsync();
-        return txt;
-    }
 
     private void CopyDirectory(string sourceDir, string destinationDir, bool recursive)
     {

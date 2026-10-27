@@ -3,6 +3,7 @@ using DigitalPreservation.Core.Web.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Identity.Web;
+using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Preservation.API.Data;
 using Preservation.API.Features.Activity.Readers;
@@ -42,7 +43,7 @@ try
             .Enrich.WithCorrelationId());
 
     builder.Services.Configure<PipelineOptions>(
-        builder.Configuration.GetSection("PipelineOptions"));
+        builder.Configuration.GetSection(PipelineOptions.PipelineOptionsName));
 
     builder.Services.Configure<PipelineDeliveryFlags>(
         builder.Configuration.GetSection("FeatureFlags"));
@@ -84,13 +85,10 @@ try
     //Auth enabled flag
     var useAuthFeatureFlag = !featureFlags.DisableAuth;
 
-    //Auth 
+    //Auth
     if (useAuthFeatureFlag)
     {
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"))
-            .EnableTokenAcquisitionToCallDownstreamApi()
-            .AddInMemoryTokenCaches();
+        builder.Services.AddPlatformApiAuthentication(builder.Configuration);
     }
 
     // Allow-list of known machine callers, keyed by signed azp/appid (RFC-0001 Phase 0).
@@ -134,8 +132,7 @@ try
         {
             if (useAuthFeatureFlag)
             {
-                config.Filters.Add(new AuthorizeFilter());
-                config.Filters.Add(new AuthFilterIdentifier());
+                config.AddPlatformAuthorizationFilters();
             }
         });
 

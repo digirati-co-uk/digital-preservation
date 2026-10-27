@@ -68,18 +68,18 @@ public class SearchModel(IMediator mediator) : PageModel
         }
     }
     
-    public async Task OnGet(string? text = "") =>
-        await GetResults(text?.Trim());
-    
-    public async Task OnPostSearchAsync(string? text, int page = 1, int pageSize = DefaultPageSize) =>
-        await GetResults(text, page, SearchType.All, pageSize);
-    
+    public async Task OnGet(string? text, CancellationToken cancellationToken) =>
+        await GetResults(text?.Trim(), cancellationToken: cancellationToken);
 
-    public async Task OnGetPageChangeAsync([FromQuery] int page, [FromQuery] string text, [FromQuery] int otherPage,  [FromQuery] SearchType type) =>
-        await GetResults(text, page, type, DefaultPageSize, otherPage);
-    
+    public async Task OnPostSearchAsync(string? text, CancellationToken cancellationToken, int page = 1, int pageSize = DefaultPageSize) =>
+        await GetResults(text, page, SearchType.All, pageSize, cancellationToken: cancellationToken);
 
-    private async Task GetResults(string? text, int page = 1, SearchType type = SearchType.All, int pageSize = DefaultPageSize, int otherPage = 0)
+
+    public async Task OnGetPageChangeAsync([FromQuery] int page, [FromQuery] string text, [FromQuery] int otherPage,  [FromQuery] SearchType type, CancellationToken cancellationToken) =>
+        await GetResults(text, page, type, DefaultPageSize, otherPage, cancellationToken);
+
+
+    private async Task GetResults(string? text, int page = 1, SearchType type = SearchType.All, int pageSize = DefaultPageSize, int otherPage = 0, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -100,7 +100,7 @@ public class SearchModel(IMediator mediator) : PageModel
 
             var defaultPage = page > 0 ? page - 1 : page;
             var defaultOther = otherPage > 0 ? otherPage - 1 : otherPage;
-            var searchResults = await mediator.Send(new SearchRequest(text, defaultPage, pageSize, type, defaultOther));
+            var searchResults = await mediator.Send(new SearchRequest(text, defaultPage, pageSize, type, defaultOther), cancellationToken);
             var result = searchResults.Value ?? new SearchCollection();
             result.SearchType = type;
             result.text = text;

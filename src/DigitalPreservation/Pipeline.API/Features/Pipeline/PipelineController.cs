@@ -40,10 +40,10 @@ public class PipelineController(
         CancellationToken cancellationToken = default)
     {
         if(pipelineJob.DepositName == null)
-           return BadRequest("Deposit name is required in the request.");
+           return this.ProblemFor(ErrorCodes.BadRequest, "Deposit name is required in the request.");
 
         if (!PreservedResource.ValidSlug(pipelineJob.DepositName, out var invalidDepositNameReason))
-            return BadRequest($"Deposit name is not valid: {invalidDepositNameReason}");
+            return this.ProblemFor(ErrorCodes.BadRequest, $"Deposit name is not valid: {invalidDepositNameReason}");
 
         var depositResult = await preservationApiClient.GetDeposit(pipelineJob.DepositName, cancellationToken);
         if (depositResult.Failure && depositResult.ErrorCode != ErrorCodes.NotFound)
@@ -57,7 +57,7 @@ public class PipelineController(
         if (depositResult.Failure || depositResult.Value is null)
         {
             logger.LogWarning("ExecutePipelineJob: deposit {DepositName} not found", pipelineJob.DepositName);
-            return NotFound($"Deposit {pipelineJob.DepositName} not found.");
+            return this.ProblemFor(ErrorCodes.NotFound, $"Deposit {pipelineJob.DepositName} not found.");
         }
 
         logger.LogInformation(
@@ -86,10 +86,10 @@ public class PipelineController(
         CancellationToken cancellationToken = default)
     {
         if (!pipelineJobMessage.DepositName.HasText())
-            return BadRequest("Deposit name is required in the request.");
+            return this.ProblemFor(ErrorCodes.BadRequest, "Deposit name is required in the request.");
 
         if (!pipelineJobMessage.JobIdentifier.HasText())
-            return BadRequest("Job identifier is required in the request.");
+            return this.ProblemFor(ErrorCodes.BadRequest, "Job identifier is required in the request.");
 
         if (logger.IsEnabled(LogLevel.Information))
         {
@@ -107,6 +107,8 @@ public class PipelineController(
             logger.LogWarning(
                 "QueuePipelineJob: local pipeline queue is full, refusing job {JobIdentifier} for deposit {DepositName}",
                 pipelineJobMessage.JobIdentifier, pipelineJobMessage.DepositName);
+            // Left as a plain string (issue #388 item 2.3): ErrorCodes has no 503 entry, and
+            // ProblemFor would turn this into a 500, losing the "retry me" signal a 503 gives.
             return StatusCode(StatusCodes.Status503ServiceUnavailable,
                 "Local pipeline queue is full; try again shortly.");
         }
@@ -117,7 +119,7 @@ public class PipelineController(
     [HttpGet(Name = "CheckDepositFolderExists")]
     [Produces<string[]>]
     [Produces("application/json")]
-    public async Task<DirectoryModel> CheckDepositFolderAndContents([FromQuery] DepositFilesModel depositFilesModel,
+    public DirectoryModel CheckDepositFolderAndContents([FromQuery] DepositFilesModel depositFilesModel,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Checking deposit folder {DepositId} and contents exist.", depositFilesModel.DepositId);
@@ -130,19 +132,19 @@ public class PipelineController(
             if (string.IsNullOrEmpty(depositFilesModel.DepositId))
             {
                 model.Errors.Add("DepositNameOrPath is null or empty");
-                return await Task.FromResult(model);
+                return model;
             }
 
             if (!PreservedResource.ValidSlug(depositFilesModel.DepositId, out var invalidDepositIdReason))
             {
                 model.Errors.Add($"DepositId is not valid: {invalidDepositIdReason}");
-                return await Task.FromResult(model);
+                return model;
             }
 
             if (storageOptions.Value.FileMountPath == null)
             {
                 model.Errors.Add("File Mount path option setting is null");
-                return await Task.FromResult(model);
+                return model;
             }
 
             var baseDirectory = Path.GetFullPath(storageOptions.Value.FileMountPath);
@@ -159,7 +161,7 @@ public class PipelineController(
                     "Refusing to check deposit folder for DepositId {DepositId}: {DepositPath} is not under {BaseDirectory}",
                     depositFilesModel.DepositId, depositPath, baseDirectory);
                 model.Errors.Add("DepositId does not resolve to a path under the file mount.");
-                return await Task.FromResult(model);
+                return model;
             }
 
             var allDirectories = Directory.GetDirectories(depositPath, "*", SearchOption.AllDirectories);
@@ -176,10 +178,10 @@ public class PipelineController(
         catch (Exception ex)
         {
             model.Errors.Add(ex.Message);
-            return await Task.FromResult(model);
+            return model;
         }
 
-        return await Task.FromResult(model);
+        return model;
     }
 
     private void ProcessDirectory(string? targetDirectory)

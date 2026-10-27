@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Storage.API.Data;
 using Storage.API.Fedora.Model;
 
@@ -15,7 +16,7 @@ using ImportJobEntity = Storage.API.Data.Entities.ImportJob;
 public class ImportJobResultStore(
     StorageContext dbContext,
     ILogger<ImportJobResultStore> logger,
-    IConfiguration configuration,
+    IOptions<ImportJobOptions> importJobOptions,
     Converters converters) : IImportJobResultStore
 {
     // A job whose processor crashed or was killed mid-run (e.g. an ECS task restart) stops sending
@@ -24,7 +25,7 @@ public class ImportJobResultStore(
     // older than this as abandoned. Configurable mainly so a long local debugging session (where a
     // breakpoint pauses the heartbeat loop too) can widen it rather than get reaped mid-pause.
     private TimeSpan HeartbeatWindow =>
-        TimeSpan.FromMinutes(configuration.GetValue("ImportJobs:HeartbeatWindowMinutes", 10));
+        TimeSpan.FromMinutes(importJobOptions.Value.HeartbeatWindowMinutes);
 
 
     public async Task<Result<int>> GetTotalImportJobs(CancellationToken cancellationToken)

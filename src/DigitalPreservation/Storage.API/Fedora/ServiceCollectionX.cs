@@ -38,11 +38,7 @@ public static class ServiceCollectionX
                 var authHeader = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(credentials));
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authHeader);
             })
-            // 120/30/5 (issue #383 review point 7): honouring these values (rather than the
-            // previously hard-coded 300/15/5) means a dead connection now actually gets noticed in
-            // about 120 + 5*30 = 270s - comfortably under the NAT gateway's 350s mapping timeout,
-            // and in a few minutes rather than the ~62 minutes a naive 120/60/60 would take.
-            .ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(30), 5)
+            .ConfigurePlatformTcpKeepAlive()
             .AddHttpMessageHandler<TimingHandler>();
 
         return serviceCollection;
