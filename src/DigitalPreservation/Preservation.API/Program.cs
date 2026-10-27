@@ -1,5 +1,8 @@
 ﻿using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.Core.Web.Headers;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.Identity.Web;
 using DigitalPreservation.Mets;
 using DigitalPreservation.Workspace;
 using Preservation.API.Data;
@@ -20,7 +23,6 @@ using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Core.Web;
 using Preservation.API.IIIF;
-using Storage.Repository.Common.Mets.StorageImpl;
 using DigitalPreservation.Utils;
 using Microsoft.Extensions.Options;
 
@@ -45,13 +47,18 @@ try
 
     builder.Services.Configure<PipelineDeliveryFlags>(
         builder.Configuration.GetSection("FeatureFlags"));
+    builder.Services.AddFeatureFlagOptions(builder.Configuration);
+    var featureFlags = builder.Configuration.GetFeatureFlags();
 
     // Local development/testing only (issue #352): deliver pipeline jobs to the Pipeline API
     // directly over HTTP instead of publishing to SNS. Registered only when the flag is on -
     // RunPipelineHandler's IPipelineJobDeliveryClient dependency is optional (defaults to null)
     // for exactly this reason, so a deployed instance with the flag off never even tries to
     // construct an HttpClient against a PipelineApiDelivery:BaseUrl that was never configured.
-    var useLocalPipelineDelivery = builder.Configuration.GetValue<bool>("FeatureFlags:UseLocalPipelineDelivery");
+    // Bound through PipelineDeliveryFlags - the typed class RunPipelineHandler already reads this
+    // same flag through - rather than a second, raw read of the same config key (issue #233 item 2).
+    var useLocalPipelineDelivery = builder.Configuration.GetSection("FeatureFlags").Get<PipelineDeliveryFlags>()
+        ?.UseLocalPipelineDelivery ?? false;
     if (useLocalPipelineDelivery)
     {
         // ValidateOnStart (issue #352 review): without it, a missing BaseUrl only threw when the
@@ -76,7 +83,7 @@ try
     }
 
     //Auth enabled flag
-    var useAuthFeatureFlag = !builder.Configuration.GetValue<bool>("FeatureFlags:DisableAuth");
+    var useAuthFeatureFlag = !featureFlags.DisableAuth;
 
     //Auth
     if (useAuthFeatureFlag)
@@ -114,19 +121,8 @@ try
         .AddSingleton<IIdentityMinter, IdentityMinter>()
         .AddMvpCatalogueClient(builder.Configuration)
         .AddResourceMutator(builder.Configuration)
-        .AddSingleton<IMetsLoader, S3MetsLoader>()
-        .AddSingleton<IMetsParser, MetsParser>()
-        // Issue #188 step 3: migrate a document's IDs whenever it is written, so that editing a
-        // pre-#214 METS fixes it rather than leaving it half one generation and half the other.
-        .Configure<MetsManagerOptions>(builder.Configuration.GetSection("FeatureFlags"))
-        .AddSingleton<IMetsManager, MetsManager>()
+        .AddDepositWorkspace(builder.Configuration)
         .AddSingleton<MetsFromArchivalGroup>()
-        .AddSingleton<MetadataManager>()
-        .AddSingleton<PremisManager>()
-        .AddSingleton<PremisManagerExif>()
-        .AddSingleton<PremisEventManagerVirus>()
-        .AddSingleton<IMetsStorage, S3MetsStorage>()
-        .AddSingleton<WorkspaceManagerFactory>()
         .AddSingleton<ITokenService, TokenService>()
         .AddSingleton<ManifestBuilder>()
         .AddPreservationHealthChecks()

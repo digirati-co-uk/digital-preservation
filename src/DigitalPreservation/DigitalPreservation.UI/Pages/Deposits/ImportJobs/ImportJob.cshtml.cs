@@ -1,15 +1,17 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
+using DigitalPreservation.Core.Configuration;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 
 namespace DigitalPreservation.UI.Pages.Deposits.ImportJobs;
 
-public class ImportJobModel(IMediator mediator, IConfiguration configuration) : PageModel
+public class ImportJobModel(IMediator mediator, IOptions<FeatureFlagOptions> featureFlags) : PageModel
 {
     /// <summary>
     /// Whether to offer "keep this out of the Activity Stream" alongside Preserve. The same flag
@@ -17,8 +19,7 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
     /// is for - a migration done by hand should be able to leave the same clean history the bulk
     /// tool does.
     /// </summary>
-    public bool ShowNormaliseMetsIds =>
-        configuration.GetValue<bool?>("FeatureFlags:ShowNormaliseMetsIds") ?? false;
+    public bool ShowNormaliseMetsIds => featureFlags.Value.ShowNormaliseMetsIds;
 
     public async Task OnGet(string depositId, string importJobId, CancellationToken cancellationToken)
     {
