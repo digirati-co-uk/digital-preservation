@@ -1,5 +1,4 @@
-﻿using System.Net;
-using System.Xml.Linq;
+﻿using System.Xml.Linq;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Core.Web;
 using DigitalPreservation.Core.Web.Headers;
@@ -38,13 +37,10 @@ public class RepositoryController(IMediator mediator, IMetsParser metsParser) : 
     {
         if (version.HasText() && view != ViewValues.Lightweight)
         {
-            var problem = new ProblemDetails
-            {
-                Status = (int)HttpStatusCode.BadRequest,
-                Title = "Version only supported on lightweight view",
-                Detail = "View " + (view ?? "[empty]") + " is not a valid value when a version is requested."
-            };
-            return BadRequest(problem);
+            return this.ProblemFor(
+                ErrorCodes.BadRequest,
+                "View " + (view ?? "[empty]") + " is not a valid value when a version is requested.",
+                "Version only supported on lightweight view");
         }
         
         if (view == ViewValues.Lightweight)

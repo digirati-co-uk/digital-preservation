@@ -46,19 +46,11 @@ public class ContentController(
         }
 
         var pdr = streamResult.ToProblemDetails("Cannot stream content");
-        return new ObjectResult(pdr);
+        return new ObjectResult(pdr) { StatusCode = pdr.Status };
 
-        
-        IActionResult NotABinary()
-        {
-            var pd = new ProblemDetails
-            {
-                Status = 404,
-                Detail = "No binary at path " + path,
-                Title = "Not Found"
-            };
-            return new ObjectResult(pd);
-        }
+
+        IActionResult NotABinary() =>
+            this.ProblemFor(ErrorCodes.NotFound, "No binary at path " + path, "Not Found");
     }
     
 }

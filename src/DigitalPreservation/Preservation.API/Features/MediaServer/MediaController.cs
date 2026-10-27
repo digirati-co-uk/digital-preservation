@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
 using DigitalPreservation.Core.Web;
@@ -44,7 +45,7 @@ public class MediaController(
         [FromRoute] string localPath)
     {
         if (source != "deposit")
-            return BadRequest(new ProblemDetails { Title = "Unsupported source", Detail = "Only 'deposit' is supported." });
+            return this.ProblemFor(ErrorCodes.BadRequest, "Only 'deposit' is supported.", "Unsupported source");
 
         if (!ValidateLocalPath(localPath))
             return Unauthorized();

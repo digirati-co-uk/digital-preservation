@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.PipelineApi;
@@ -182,13 +183,13 @@ public class DepositsController(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Could not deserialise POSTed IIIF manifest for deposit {Id}", id);
-            return BadRequest(new ProblemDetails { Title = "Invalid IIIF Manifest", Detail = ex.Message });
+            return this.ProblemFor(ErrorCodes.BadRequest, ex.Message, "Invalid IIIF Manifest");
         }
 
         if (manifest is null)
         {
             logger.LogWarning("POSTed IIIF manifest for deposit {Id} deserialised to null", id);
-            return BadRequest(new ProblemDetails { Title = "Invalid IIIF Manifest", Detail = "The request body did not contain a manifest." });
+            return this.ProblemFor(ErrorCodes.BadRequest, "The request body did not contain a manifest.", "Invalid IIIF Manifest");
         }
 
         var root = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
@@ -283,11 +284,7 @@ public class DepositsController(
         var deposit = depositResult.Value;
         if (!deposit.MetsETag.HasText())
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Deposit has no METS file to normalise",
-                Status = 400
-            });
+            return this.ProblemFor(ErrorCodes.BadRequest, null, "Deposit has no METS file to normalise");
         }
 
         // The same courtesy every other mutation extends: a deposit someone else holds the lock
@@ -295,12 +292,7 @@ public class DepositsController(
         var otherLockOwner = deposit.GetOtherLockOwner(User.GetCallerIdentity());
         if (otherLockOwner is not null)
         {
-            return Conflict(new ProblemDetails
-            {
-                Title = "Conflict: Deposit is locked by another user",
-                Detail = otherLockOwner,
-                Status = 409
-            });
+            return this.ProblemFor(ErrorCodes.Conflict, otherLockOwner, "Conflict: Deposit is locked by another user");
         }
 
         // If-Match is optional here, unlike the item operations: the migration tool reads the

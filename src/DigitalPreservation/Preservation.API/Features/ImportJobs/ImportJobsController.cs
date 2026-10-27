@@ -95,8 +95,7 @@ public class ImportJobsController(
                           + "on this API. It exists for maintenance that changes how an object is "
                           + "recorded rather than what it holds; ordinary changes must be announced.";
             logger.LogWarning("{Message} (deposit {DepositId})", message, depositId);
-            return this.StatusResponseFromResult(
-                Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+            return this.ProblemFor(ErrorCodes.BadRequest, message);
         }
         var depositResult = await mediator.Send(new GetDeposit(depositId), cancellationToken);
         if (depositResult.Failure)
@@ -239,8 +238,7 @@ public class ImportJobsController(
             return null;
         }
         logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
-        return this.StatusResponseFromResult(
-            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+        return this.ProblemFor(ErrorCodes.BadRequest, message);
     }
 
     /// <summary>
@@ -258,8 +256,7 @@ public class ImportJobsController(
             return null;
         }
         logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
-        return this.StatusResponseFromResult(
-            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+        return this.ProblemFor(ErrorCodes.BadRequest, message);
     }
 
     /// <summary>
@@ -323,8 +320,7 @@ public class ImportJobsController(
                       + $"metadata folders - but {problem}. "
                       + "Content changes must be announced in the Activity Stream.";
         logger.LogWarning("{Message} ({ImportJobSummary})", message, importJob.LogSummary());
-        return this.StatusResponseFromResult(
-            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+        return this.ProblemFor(ErrorCodes.BadRequest, message);
     }
 
     /// <summary>
@@ -428,8 +424,7 @@ public class ImportJobsController(
             return null;
         }
         logger.LogWarning("{Message}", message);
-        return this.StatusResponseFromResult(
-            Result.FailNotNull<ImportJobResult>(ErrorCodes.BadRequest, message));
+        return this.ProblemFor(ErrorCodes.BadRequest, message);
     }
 
     private static bool IsPostedDiffReference(ImportJob importJob, PathString path)

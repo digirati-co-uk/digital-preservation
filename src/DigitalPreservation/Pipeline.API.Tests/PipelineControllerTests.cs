@@ -114,7 +114,7 @@ public class PipelineControllerTests : IDisposable
 
         var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = "no-such-deposit" }, TestContext.Current.CancellationToken);
 
-        result.Should().BeOfType<NotFoundObjectResult>();
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(404);
         A.CallTo(() => preservationApiClient.RunPipeline(A<Deposit>._, A<CancellationToken>._)).MustNotHaveHappened();
     }
 
@@ -128,7 +128,7 @@ public class PipelineControllerTests : IDisposable
 
         var result = await controller.ExecutePipelineJob(new PipelineJob { DepositName = depositName }, TestContext.Current.CancellationToken);
 
-        result.Should().BeOfType<BadRequestObjectResult>();
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(400);
         A.CallTo(() => preservationApiClient.GetDeposit(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
     }
 
