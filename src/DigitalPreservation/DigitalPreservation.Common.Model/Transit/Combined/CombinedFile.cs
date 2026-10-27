@@ -66,7 +66,8 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
             }
 
             var bestContentType = ContentTypes.GetBestContentType(FileInDeposit);
-            if (bestContentType != FileInMets.ContentType)
+            // METS written before a synonym was added may still hold the other name for the same format
+            if (bestContentType != ContentTypes.Normalise(FileInMets.ContentType))
             {
                 var allCTs = string.Join(", ", ContentTypes.GetAllContentTypes(FileInDeposit));
                 var depositContentTypes = $"Best: {bestContentType}; wf: {FileInDeposit.ContentType}; all: {allCTs}";
@@ -388,7 +389,7 @@ public class CombinedFile(WorkingFile? fileInDeposit, WorkingFile? fileInMets, s
     {
         List<string?> allContentTypes =
         [
-            FileInMets?.ContentType,
+            ContentTypes.Normalise(FileInMets?.ContentType),
             ContentTypes.GetBestContentType(FileInDeposit)
         ];
         var distinctContentTypes = allContentTypes
