@@ -74,7 +74,8 @@ public class RoundTripWomenOfWestminster
         objects.Files[0].Metadata.OfType<FileFormatMetadata>().Single().FormatName.Should().Be("Microsoft Word");
 
         objects.Files[1].LocalPath.Should().Be("objects/amber-rudd.m4a");
-        objects.Files[1].ContentType.Should().Be("audio/m4a");
+        // MetsManager writes the preferred name for a content type (ContentTypes.Normalise)
+        objects.Files[1].ContentType.Should().Be("audio/mp4");
         objects.Files[1].Digest.Should().Be("abcd1234");
         objects.Files[1].Metadata.OfType<FileFormatMetadata>().Single().PronomKey.Should().Be("fmt/100");
 
