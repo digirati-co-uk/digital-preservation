@@ -4,6 +4,7 @@ using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.PipelineApi;
 using DigitalPreservation.Common.Model.PreservationApi;
+using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Core.Auth;
 using DigitalPreservation.UI.Features.Preservation;
@@ -165,7 +166,12 @@ public class DepositModel(
             RangeTypes = rangeTypesResult.Value;
     }
 
-    private async Task<bool> BindDeposit(string id, CancellationToken cancellationToken)
+    /// <summary>
+    /// Loads the deposit and its WorkspaceManager - the minimum every POST handler below needs to
+    /// send its one command. Separate from <see cref="BindDeposit"/>'s GET-only view-build (issue
+    /// #388 item 4.3), which every POST used to run in full just to get here.
+    /// </summary>
+    private async Task<bool> LoadDeposit(string id, CancellationToken cancellationToken)
     {
         Id = id;
         var getDepositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
@@ -177,6 +183,20 @@ public class DepositModel(
 
         Deposit = getDepositResult.Value!;
         WorkspaceManager = await workspaceManagerFactory.CreateAsync(Deposit);
+        logger.LogInformation("In Bind deposit for deposit {Deposit} Lock date: {LockDate}, Locked by: {LockedBy} ", Deposit.Id, Deposit.LockDate, Deposit.LockedBy);
+        return true;
+    }
+
+    /// <summary>
+    /// The full view-build for the GET page: <see cref="LoadDeposit"/> plus the Archival Group path
+    /// check, import/pipeline job history, logical structure maps and file-mismatch calculation.
+    /// </summary>
+    private async Task<bool> BindDeposit(string id, CancellationToken cancellationToken)
+    {
+        if (!await LoadDeposit(id, cancellationToken))
+        {
+            return false;
+        }
 
         await CheckArchivalGroupPathValidity(cancellationToken);
 
@@ -186,8 +206,24 @@ public class DepositModel(
 
         PopulateCombinedDirectoryAndMismatches();
 
-        logger.LogInformation("In Bind deposit for deposit {Deposit} Lock date: {LockDate}, Locked by: {LockedBy} ", Deposit?.Id, Deposit?.LockDate, Deposit?.LockedBy);
         return true;
+    }
+
+    /// <summary>
+    /// Writes success or error TempData for a <see cref="Result"/> from a POST handler, instead of
+    /// each one repeating the same if/else (issue #388 item 4.3). The error case always uses
+    /// <see cref="TempDataError"/>, matching every handler already here.
+    /// </summary>
+    private void ReportOutcome(Result result, string successMessage, string successKey = "Valid")
+    {
+        if (result.Success)
+        {
+            TempData[successKey] = successMessage;
+        }
+        else
+        {
+            TempData[TempDataError] = result.ErrorMessage;
+        }
     }
 
     /// <summary>
@@ -234,7 +270,6 @@ public class DepositModel(
         FileMisMatches = detailedMismatches;
         FilesWithViruses = RootCombinedDirectory.GetFilesWithVirus();
     }
-    
 
     public async Task<IActionResult> OnPostCreateFolder(
         [FromRoute] string id,
@@ -243,7 +278,7 @@ public class DepositModel(
         [FromForm] bool contextIsFile,
         CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var result = await WorkspaceManager.CreateFolder(newFolderName, newFolderContext, contextIsFile, User.GetCallerIdentity());
             if (result.Success)
@@ -257,7 +292,7 @@ public class DepositModel(
                 TempData[TempDataError] = result.ErrorMessage;
             }
         }
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
     
     
@@ -269,7 +304,7 @@ public class DepositModel(
         [FromForm] string deleteSelectionObject,
         CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var deleteSelection = JsonSerializer.Deserialize<DeleteSelection>(deleteSelectionObject)!;
             if (deleteFrom is Whereabouts.Both or Whereabouts.Deposit)
@@ -285,13 +320,13 @@ public class DepositModel(
             {
                 var details = result.Value!;
                 TempData["Deleted"] = $"{details.Items.Count} item(s) DELETED.";
-                return Redirect($"/deposits/{id}");
+                return RedirectToPage();
             }
 
             TempData[TempDataError] = result.ErrorMessage;
         }
-        
-        return Redirect($"/deposits/{id}");
+
+        return RedirectToPage();
     }
     
     
@@ -300,14 +335,14 @@ public class DepositModel(
         [FromForm] string addToMetsObject,
         CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var minimalItems = JsonSerializer.Deserialize<List<MinimalItem>>(addToMetsObject)!;
             var combinedResult = await WorkspaceManager.RefreshCombinedDirectory();
             if (combinedResult is not { Success: true, Value: not null })
             {
                 TempData[TempDataError] = "Could not read deposit file system.";
-                return Redirect($"/deposits/{id}");
+                return RedirectToPage();
             }
             var contentRoot = combinedResult.Value;
             var wbsToAdd = minimalItems
@@ -319,13 +354,13 @@ public class DepositModel(
             {
                 var details = result.Value!;
                 TempData["Created"] = $"{details.Items.Count} item(s) added to METS.";
-                return Redirect($"/deposits/{id}");
+                return RedirectToPage();
             }
 
             TempData[TempDataError] = result.ErrorMessage;
         }
-        
-        return Redirect($"/deposits/{id}");
+
+        return RedirectToPage();
     }
 
 
@@ -354,7 +389,7 @@ public class DepositModel(
         if (errorMessage.HasText())
         {
             TempData[TempDataError] = errorMessage;
-            return Redirect($"/deposits/{id}");
+            return RedirectToPage();
         }
 
         if (form.ContextIsFile && form.NewFileContext.HasText())
@@ -367,7 +402,7 @@ public class DepositModel(
         if(string.IsNullOrWhiteSpace(form.DepositFileContentType) && MimeTypes.TryGetMimeType(slug, out var foundMimeType))
             form.DepositFileContentType = foundMimeType;
 
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var result = await WorkspaceManager.UploadSingleSmallFile(
                 form.DepositFile[0].OpenReadStream(),
@@ -391,7 +426,7 @@ public class DepositModel(
             }
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
 
     }
     // This is only for small files! one at a time.
@@ -402,20 +437,13 @@ public class DepositModel(
 
     public async Task<IActionResult> OnPostRebuildDepositFileSystem([FromRoute] string id, CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var result = await WorkspaceManager.RebuildDepositFileSystem();
-            if (result.Success)
-            {
-                TempData["Valid"] = "View of storage has been updated.";
-            }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "View of storage has been updated.");
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
 
@@ -424,17 +452,17 @@ public class DepositModel(
         if (!ShowNormaliseMetsIds)
         {
             TempData[TempDataError] = "METS ID normalisation is not enabled.";
-            return Redirect($"/deposits/{id}");
+            return RedirectToPage();
         }
 
-        // A plain read, not BindDeposit: only the ETag is needed, and normalising reads the METS
-        // for itself. The ETag is what the user was looking at when they clicked, so an edit
-        // someone else saves in between comes back as a 409 rather than being overwritten.
+        // A plain read, not BindDeposit/LoadDeposit: only the ETag is needed, and normalising reads
+        // the METS for itself. The ETag is what the user was looking at when they clicked, so an
+        // edit someone else saves in between comes back as a 409 rather than being overwritten.
         var depositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
         if (depositResult is not { Success: true, Value: not null })
         {
             TempData[TempDataError] = WebUtility.HtmlEncode(depositResult.ErrorMessage);
-            return Redirect($"/deposits/{id}");
+            return RedirectToPage();
         }
 
         var result = await mediator.Send(new NormaliseMetsIds(id, depositResult.Value.MetsETag), cancellationToken);
@@ -470,13 +498,13 @@ public class DepositModel(
             TempData[TempDataError] = WebUtility.HtmlEncode(result.ErrorMessage);
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
 
     public async Task<IActionResult> OnPostValidateStorage([FromRoute] string id, CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var result = await WorkspaceManager.ValidateDepositFileSystem();
             if (result.Success)
@@ -492,98 +520,75 @@ public class DepositModel(
 
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostLock([FromRoute] string id, CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var result = await mediator.Send(new LockDeposit(Deposit!), cancellationToken);
-            if (result.Success)
-            {
-                TempData["Valid"] = "Deposit locked.";
-            }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "Deposit locked.");
         }
         else
         {
             TempData[TempDataError] = "Could not bind deposit on lock";
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
-    
+
     public async Task<IActionResult> OnPostRunPipeline([FromRoute] string id, CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             // Preservation API takes the deposit's lock itself when it queues the run - transferring
             // it from the caller's own lock if they already held one - and releases it when the run
             // ends, whichever way that happens (issue #299). No separate LockDeposit call needed.
             var result = await mediator.Send(new RunPipeline(Deposit!), cancellationToken);
-
-            if (result.Success)
-            {
-                TempData["Valid"] = "Pipeline run started; the deposit is locked until it finishes.";
-            }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "Pipeline run started; the deposit is locked until it finishes.");
         }
         else
         {
             TempData[TempDataError] = "Could not bind deposit on run pipeline";
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
     //ForceCompletePipelineRun
     public async Task<IActionResult> OnPostForceCompletePipelineRun([FromRoute] string id, CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken) && RunningPipelineJob?.JobId != null)
+        if (await LoadDeposit(id, cancellationToken))
         {
-            // Posting completedWithErrors below is itself what releases the lock now, when the run's
-            // own user still holds it (issue #299) - no separate ReleaseLock call needed.
-            var result1 = await mediator.Send(new ForceCompletePipeline(RunningPipelineJob.JobId, id, User), cancellationToken);
-            if (result1.Success)
+            // Needs the running pipeline job's id, unlike every other handler here - LoadDeposit
+            // alone isn't enough, but the full GET view-build's other work still isn't needed.
+            (_, RunningPipelineJob) = await GetRunningPipelineJob(cancellationToken);
+            if (RunningPipelineJob?.JobId != null)
             {
-                TempData["Valid"] = "Force complete of pipeline succeeded.";
+                // Posting completedWithErrors below is itself what releases the lock now, when the
+                // run's own user still holds it (issue #299) - no separate ReleaseLock call needed.
+                var result = await mediator.Send(new ForceCompletePipeline(RunningPipelineJob.JobId, id, User), cancellationToken);
+                ReportOutcome(result, "Force complete of pipeline succeeded.");
             }
             else
             {
-                TempData[TempDataError] = result1.ErrorMessage;
+                TempData[TempDataError] = "There is no running pipeline job to force-complete.";
             }
         }
-        else
-        {
-            TempData[TempDataError] = "Could not bind deposit on force complete of pipeline";
-        }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostReleaseLock([FromRoute] string id, CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var result = await mediator.Send(new ReleaseLock(Deposit!), cancellationToken);
-            if (result.Success)
-            {
-                TempData["Valid"] = "Lock released.";
-            }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "Lock released.");
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostDeleteDeposit([FromRoute] string id, CancellationToken cancellationToken)
@@ -592,16 +597,16 @@ public class DepositModel(
         if (result.Success)
         {
             TempData["Deleted"] = $"Deposit {id} successfully deleted.";
-            return Redirect($"/deposits");
+            return RedirectToPage("/Deposits/Index");
         }
         TempData[TempDataError] = result.CodeAndMessage();
         var getDepositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
         if (getDepositResult.Success)
         {
             // We can redirect to the deposits page
-            return Redirect($"/deposits/{id}");
+            return RedirectToPage();
         }
-        return Redirect($"/deposits");
+        return RedirectToPage("/Deposits/Index");
     }
     
     public async Task<IActionResult> OnPostUpdateProperties(
@@ -643,7 +648,7 @@ public class DepositModel(
             if (saveDepositResult.Success)
             {
                 TempData[TempDataUpdated] = "Deposit successfully updated";
-                return Redirect($"/deposits/{id}");
+                return RedirectToPage();
             }
             TempData[TempDataError] = saveDepositResult.CodeAndMessage();
         }
@@ -651,7 +656,7 @@ public class DepositModel(
         {
             TempData[TempDataError] = getDepositResult.CodeAndMessage();
         }
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostSetRightsAndAccess(
@@ -659,7 +664,7 @@ public class DepositModel(
         [FromForm] SetRightsAndAccessFormModel form,
         CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             List<FileLink>? fileLinks = null;
             if (form.ModsContextIsFile && !string.IsNullOrEmpty(form.FileLinksJson))
@@ -679,17 +684,10 @@ public class DepositModel(
                 Uri.TryCreate(form.RightsStatement, UriKind.Absolute, out rightsUri);
             }
             var result = await WorkspaceManager.SetModsInformation(form.ModsContext, form.AccessRestrictions, rightsUri, suppressRights, form.RecordIdentifiers, fileLinks);
-            if (result.Success)
-            {
-                TempData["AccessConditionsUpdated"] = "Access Restrictions and Rights Statement updated.";
-            }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "Access Restrictions and Rights Statement updated.", "AccessConditionsUpdated");
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
 
@@ -775,43 +773,29 @@ public class DepositModel(
 
     public async Task<IActionResult> OnPostActivateDeposit([FromRoute] string id, CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var result = await mediator.Send(new ActivateDeposit(Deposit!), cancellationToken);
-            if (result.Success)
-            {
-                TempData["Valid"] = "Activated Deposit.";
-            }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "Activated Deposit.");
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
-    
+
     public async Task<IActionResult> OnPostDeactivateDeposit([FromRoute] string id, CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var result = await mediator.Send(new DeactivateDeposit(Deposit!), cancellationToken);
-            if (result.Success)
-            {
-                TempData["Valid"] = "Deactivated Deposit.";
-            }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "Deactivated Deposit.");
         }
 
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostCreateLogicalStructMap([FromRoute] string id, CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var newId = $"LOG_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
             var stub = new LogicalRange { Id = newId, Type = "Collection", Name = "Logical" };
@@ -819,14 +803,10 @@ public class DepositModel(
             if (result.Success)
             {
                 TempData[TempDataActiveTab] = newId;
-                TempData[TempDataUpdated] = "Logical structure created.";
             }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "Logical structure created.", TempDataUpdated);
         }
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostSaveLogicalStructMap(
@@ -834,7 +814,7 @@ public class DepositModel(
         [FromForm] string logicalStructMapJson,
         CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             LogicalRange? logicalRange;
             try
@@ -844,27 +824,23 @@ public class DepositModel(
             catch (JsonException ex)
             {
                 TempData[TempDataError] = "Could not parse logical structure: " + ex.Message;
-                return Redirect($"/deposits/{id}");
+                return RedirectToPage();
             }
 
             if (logicalRange == null)
             {
                 TempData[TempDataError] = "Logical structure was empty.";
-                return Redirect($"/deposits/{id}");
+                return RedirectToPage();
             }
 
             var result = await WorkspaceManager.SetLogicalStructMap(logicalRange);
             if (result.Success)
             {
                 TempData[TempDataActiveTab] = logicalRange.Id;
-                TempData[TempDataUpdated] = "Logical structure saved.";
             }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "Logical structure saved.", TempDataUpdated);
         }
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostDeleteLogicalStructMap(
@@ -872,19 +848,12 @@ public class DepositModel(
         [FromForm] string structMapId,
         CancellationToken cancellationToken)
     {
-        if (await BindDeposit(id, cancellationToken))
+        if (await LoadDeposit(id, cancellationToken))
         {
             var result = await WorkspaceManager.RemoveLogicalStructMap(structMapId);
-            if (result.Success)
-            {
-                TempData[TempDataUpdated] = "Logical structure deleted.";
-            }
-            else
-            {
-                TempData[TempDataError] = result.ErrorMessage;
-            }
+            ReportOutcome(result, "Logical structure deleted.", TempDataUpdated);
         }
-        return Redirect($"/deposits/{id}");
+        return RedirectToPage();
     }
 }
 
