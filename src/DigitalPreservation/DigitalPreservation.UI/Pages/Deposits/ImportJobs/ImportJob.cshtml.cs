@@ -1,6 +1,7 @@
 ﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.UI.Features.Preservation.Requests;
+using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -42,12 +43,12 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
                 ViewData["Title"] = $"Diff from {depositId} to {ImportJob.ArchivalGroupName ?? ImportJob.ArchivalGroup.GetPathUnderRoot()}";
                 return;
             }
-            TempData["Error"] = result.CodeAndMessage() + (invalidSlugMessage != null ? $" ({invalidSlugMessage})" : "");
+            TempData[TempDataKeys.Error] = result.CodeAndMessage() + (invalidSlugMessage != null ? $" ({invalidSlugMessage})" : "");
         }
         else if (importJobId == "custom")
         {
             ViewData["Title"] = "To be implemented" ;
-            TempData["Error"] = "Custom import Job UI not implemented yet";
+            TempData[TempDataKeys.Error] = "Custom import Job UI not implemented yet";
         }
         else
         {
@@ -59,7 +60,7 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
                 ImportJobResult = result.Value;
                 return;
             }
-            TempData["Error"] = result.CodeAndMessage();
+            TempData[TempDataKeys.Error] = result.CodeAndMessage();
         }
     }
 
@@ -88,7 +89,7 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
             return Redirect($"/deposits/{depositId}/importjobs/{importJobResult!.Id!.GetSlug()}");
         }
         
-        TempData["Error"] = result.CodeAndMessage();
+        TempData[TempDataKeys.Error] = result.CodeAndMessage();
         return Redirect($"/deposits/{depositId}/importjobs/diff");
     }
 

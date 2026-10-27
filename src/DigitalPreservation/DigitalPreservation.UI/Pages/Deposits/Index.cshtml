@@ -2,6 +2,7 @@
 @using DigitalPreservation.Common.Model
 @using DigitalPreservation.Common.Model.PreservationApi
 @using DigitalPreservation.UI.Features
+@using DigitalPreservation.UI.Infrastructure
 @using DigitalPreservation.Utils
 @model IndexModel
 
@@ -153,19 +154,8 @@
 </div>
 
 <div>
-    @if (TempData["Error"] != null)
-    {
-    <div class="alert alert-danger" role="alert">
-        <p>@Html.Raw(TempData["Error"])</p>
-    </div>
-    }
-    @if (TempData["Deleted"] != null)
-    {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <p>@Html.Raw(TempData["Deleted"])</p>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    }
+    <status-message key="@TempDataKeys.Error" variant="danger" dismissible="false" />
+    <status-message key="@TempDataKeys.Deleted" variant="success" />
 </div>
 
 <div class="table-responsive small">

@@ -2,6 +2,7 @@
 using DigitalPreservation.Common.Model.Storage;
 using DigitalPreservation.UI.Features.Preservation.Requests;
 using DigitalPreservation.UI.Features.Repository.Requests;
+using DigitalPreservation.UI.Infrastructure;
 using DigitalPreservation.Utils;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -28,12 +29,12 @@ public class Ocfl(IMediator mediator) : PageModel
             }
             else
             {
-                TempData["Error"] = "Could not retrieve Storage Map: " + storageMapResult.CodeAndMessage();
+                TempData[TempDataKeys.Error] = "Could not retrieve Storage Map: " + storageMapResult.CodeAndMessage();
             }
         }
         else
         {
-            TempData["Error"] = "Could not retrieve 'Lightweight' Archival Group: " + lightweightAgResult.CodeAndMessage();
+            TempData[TempDataKeys.Error] = "Could not retrieve 'Lightweight' Archival Group: " + lightweightAgResult.CodeAndMessage();
         }
     }
     

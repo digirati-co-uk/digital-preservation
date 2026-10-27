@@ -17,7 +17,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using Preservation.Client;
-using System.Net;
 using System.Text.Json;
 using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Common.Model.Transit.Extensions;
@@ -89,10 +88,6 @@ public class DepositModel(
     public string RecordInfoSourcesJson => JsonSerializer.Serialize( // NOSONAR: cannot be static — Razor Pages views require instance properties on the model
         preservationOptions.Value.RecordInfoSources);
 
-    public const string TempDataUpdated = "Updated";
-    public const string TempDataError = "Error";
-    public const string TempDataActiveTab = "ActiveTab";
-    
     public string PhysicalFileLinksDataJson
     {
         get
@@ -177,7 +172,7 @@ public class DepositModel(
         var getDepositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
         if (!getDepositResult.Success)
         {
-            TempData[TempDataError] = getDepositResult.CodeAndMessage();
+            TempData[TempDataKeys.Error] = getDepositResult.CodeAndMessage();
             return false;
         }
 
@@ -212,9 +207,9 @@ public class DepositModel(
     /// <summary>
     /// Writes success or error TempData for a <see cref="Result"/> from a POST handler, instead of
     /// each one repeating the same if/else (issue #388 item 4.3). The error case always uses
-    /// <see cref="TempDataError"/>, matching every handler already here.
+    /// <see cref="TempDataKeys.Error"/>, matching every handler already here.
     /// </summary>
-    private void ReportOutcome(Result result, string successMessage, string successKey = "Valid")
+    private void ReportOutcome(Result result, string successMessage, string successKey = TempDataKeys.Valid)
     {
         if (result.Success)
         {
@@ -222,7 +217,7 @@ public class DepositModel(
         }
         else
         {
-            TempData[TempDataError] = result.ErrorMessage;
+            TempData[TempDataKeys.Error] = result.ErrorMessage;
         }
     }
 
@@ -284,19 +279,18 @@ public class DepositModel(
             if (result.Success)
             {
                 var details = result.Value!;
-                TempData["Created"] = details.Created;
-                TempData["Context"] = details.Context;
+                TempData[TempDataKeys.Context] = details.Context;
             }
             else
             {
-                TempData[TempDataError] = result.ErrorMessage;
+                TempData[TempDataKeys.Error] = result.ErrorMessage;
             }
         }
         return RedirectToPage();
     }
-    
-    
-    
+
+
+
 
     public async Task<IActionResult> OnPostDeleteItems(
         [FromRoute] string id,
@@ -319,11 +313,11 @@ public class DepositModel(
             if (result.Success)
             {
                 var details = result.Value!;
-                TempData["Deleted"] = $"{details.Items.Count} item(s) DELETED.";
-                return RedirectToPage();
+                TempData[TempDataKeys.Deleted] = $"{details.Items.Count} item(s) DELETED.";
+                return Redirect($"/deposits/{id}");
             }
 
-            TempData[TempDataError] = result.ErrorMessage;
+            TempData[TempDataKeys.Error] = result.ErrorMessage;
         }
 
         return RedirectToPage();
@@ -341,8 +335,8 @@ public class DepositModel(
             var combinedResult = await WorkspaceManager.RefreshCombinedDirectory();
             if (combinedResult is not { Success: true, Value: not null })
             {
-                TempData[TempDataError] = "Could not read deposit file system.";
-                return RedirectToPage();
+                TempData[TempDataKeys.Error] = "Could not read deposit file system.";
+                return Redirect($"/deposits/{id}");
             }
             var contentRoot = combinedResult.Value;
             var wbsToAdd = minimalItems
@@ -352,12 +346,10 @@ public class DepositModel(
             var result = await WorkspaceManager.AddItemsToMets(wbsToAdd, User.GetCallerIdentity());
             if (result.Success)
             {
-                var details = result.Value!;
-                TempData["Created"] = $"{details.Items.Count} item(s) added to METS.";
-                return RedirectToPage();
+                return Redirect($"/deposits/{id}");
             }
 
-            TempData[TempDataError] = result.ErrorMessage;
+            TempData[TempDataKeys.Error] = result.ErrorMessage;
         }
 
         return RedirectToPage();
@@ -388,8 +380,8 @@ public class DepositModel(
 
         if (errorMessage.HasText())
         {
-            TempData[TempDataError] = errorMessage;
-            return RedirectToPage();
+            TempData[TempDataKeys.Error] = errorMessage;
+            return Redirect($"/deposits/{id}");
         }
 
         if (form.ContextIsFile && form.NewFileContext.HasText())
@@ -416,13 +408,11 @@ public class DepositModel(
             );
             if (result.Success)
             {
-                var details = result.Value!;
-                TempData["Uploaded"] = details.Uploaded;
-                TempData["Context"] = details.Context;
+                TempData[TempDataKeys.Context] = result.Value!.Context;
             }
             else
             {
-                TempData[TempDataError] = result.ErrorMessage;
+                TempData[TempDataKeys.Error] = result.ErrorMessage;
             }
         }
 
@@ -451,8 +441,8 @@ public class DepositModel(
     {
         if (!ShowNormaliseMetsIds)
         {
-            TempData[TempDataError] = "METS ID normalisation is not enabled.";
-            return RedirectToPage();
+            TempData[TempDataKeys.Error] = "METS ID normalisation is not enabled.";
+            return Redirect($"/deposits/{id}");
         }
 
         // A plain read, not BindDeposit/LoadDeposit: only the ETag is needed, and normalising reads
@@ -461,8 +451,8 @@ public class DepositModel(
         var depositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
         if (depositResult is not { Success: true, Value: not null })
         {
-            TempData[TempDataError] = WebUtility.HtmlEncode(depositResult.ErrorMessage);
-            return RedirectToPage();
+            TempData[TempDataKeys.Error] = depositResult.ErrorMessage;
+            return Redirect($"/deposits/{id}");
         }
 
         var result = await mediator.Send(new NormaliseMetsIds(id, depositResult.Value.MetsETag), cancellationToken);
@@ -482,20 +472,20 @@ public class DepositModel(
             {
                 logger.LogWarning("Normalising METS IDs for deposit {DepositId} produced warnings: {Warnings}",
                     id, string.Join("; ", report.Warnings));
-                // Encoded because the banner renders with Html.Raw and a warning quotes IDs taken
-                // from the document.
+                // A warning can quote an ID taken verbatim from the document; <status-message>
+                // HTML-encodes it along with the rest of this message when it renders the banner.
                 message += $" {report.Warnings.Count} warning(s), the first being: " +
-                           WebUtility.HtmlEncode(report.Warnings[0]);
+                           report.Warnings[0];
             }
 
-            TempData["Valid"] = message;
+            TempData[TempDataKeys.Valid] = message;
         }
         else
         {
-            // Encoded for the same reason as the warning above: the banner renders with Html.Raw,
-            // and this error can quote IDs verbatim from the document - the duplicate-ID refusal
-            // does exactly that, and an XML ID can contain markup via entity escapes.
-            TempData[TempDataError] = WebUtility.HtmlEncode(result.ErrorMessage);
+            // Can quote an ID verbatim from the document - the duplicate-ID refusal does exactly
+            // that, and an XML ID can contain markup via entity escapes. <status-message>
+            // HTML-encodes this when it renders the banner.
+            TempData[TempDataKeys.Error] = result.ErrorMessage;
         }
 
         return RedirectToPage();
@@ -509,13 +499,13 @@ public class DepositModel(
             var result = await WorkspaceManager.ValidateDepositFileSystem();
             if (result.Success)
             {
-                TempData["Valid"] = "Storage validation succeeded. The Deposit File System file reflects S3 content.";
+                TempData[TempDataKeys.Valid] = "Storage validation succeeded. The Deposit File System file reflects S3 content.";
             }
             else
             {
-                // Encoded because the banner renders with Html.Raw, and this message quotes S3
-                // file paths verbatim (see WorkspaceManager.FindFirstDifference).
-                TempData[TempDataError] = WebUtility.HtmlEncode(result.ErrorMessage);
+                // Can quote an S3 file path verbatim (see WorkspaceManager.FindFirstDifference).
+                // <status-message> HTML-encodes this when it renders the banner.
+                TempData[TempDataKeys.Error] = result.ErrorMessage;
             }
 
         }
@@ -532,7 +522,7 @@ public class DepositModel(
         }
         else
         {
-            TempData[TempDataError] = "Could not bind deposit on lock";
+            TempData[TempDataKeys.Error] = "Could not bind deposit on lock";
         }
 
         return RedirectToPage();
@@ -550,7 +540,7 @@ public class DepositModel(
         }
         else
         {
-            TempData[TempDataError] = "Could not bind deposit on run pipeline";
+            TempData[TempDataKeys.Error] = "Could not bind deposit on run pipeline";
         }
 
         return RedirectToPage();
@@ -573,8 +563,12 @@ public class DepositModel(
             }
             else
             {
-                TempData[TempDataError] = "There is no running pipeline job to force-complete.";
+                TempData[TempDataKeys.Error] = "There is no running pipeline job to force-complete.";
             }
+        }
+        else
+        {
+            TempData[TempDataKeys.Error] = "Could not bind deposit on force complete of pipeline";
         }
 
         return RedirectToPage();
@@ -596,10 +590,10 @@ public class DepositModel(
         var result = await mediator.Send(new DeleteDeposit(id), cancellationToken);
         if (result.Success)
         {
-            TempData["Deleted"] = $"Deposit {id} successfully deleted.";
-            return RedirectToPage("/Deposits/Index");
+            TempData[TempDataKeys.Deleted] = $"Deposit {id} successfully deleted.";
+            return Redirect($"/deposits");
         }
-        TempData[TempDataError] = result.CodeAndMessage();
+        TempData[TempDataKeys.Error] = result.CodeAndMessage();
         var getDepositResult = await mediator.Send(new GetDeposit(id), cancellationToken);
         if (getDepositResult.Success)
         {
@@ -647,14 +641,14 @@ public class DepositModel(
             var saveDepositResult = await mediator.Send(new UpdateDeposit(deposit), cancellationToken);
             if (saveDepositResult.Success)
             {
-                TempData[TempDataUpdated] = "Deposit successfully updated";
-                return RedirectToPage();
+                TempData[TempDataKeys.Updated] = "Deposit successfully updated";
+                return Redirect($"/deposits/{id}");
             }
-            TempData[TempDataError] = saveDepositResult.CodeAndMessage();
+            TempData[TempDataKeys.Error] = saveDepositResult.CodeAndMessage();
         }
         else
         {
-            TempData[TempDataError] = getDepositResult.CodeAndMessage();
+            TempData[TempDataKeys.Error] = getDepositResult.CodeAndMessage();
         }
         return RedirectToPage();
     }
@@ -684,7 +678,7 @@ public class DepositModel(
                 Uri.TryCreate(form.RightsStatement, UriKind.Absolute, out rightsUri);
             }
             var result = await WorkspaceManager.SetModsInformation(form.ModsContext, form.AccessRestrictions, rightsUri, suppressRights, form.RecordIdentifiers, fileLinks);
-            ReportOutcome(result, "Access Restrictions and Rights Statement updated.", "AccessConditionsUpdated");
+            ReportOutcome(result, "Access Restrictions and Rights Statement updated.", TempDataKeys.AccessConditionsUpdated);
         }
 
         return RedirectToPage();
@@ -705,7 +699,7 @@ public class DepositModel(
             return importJobResults;
         }
 
-        TempData[TempDataError] = fetchResultsResult.CodeAndMessage();
+        TempData[TempDataKeys.Error] = fetchResultsResult.CodeAndMessage();
         return [];
     }
 
@@ -718,7 +712,7 @@ public class DepositModel(
             return pipelineJobResults;
         }
 
-        TempData[TempDataError] = fetchResultsResult.CodeAndMessage();
+        TempData[TempDataKeys.Error] = fetchResultsResult.CodeAndMessage();
         return [];
     }
 
@@ -802,9 +796,9 @@ public class DepositModel(
             var result = await WorkspaceManager.SetLogicalStructMap(stub);
             if (result.Success)
             {
-                TempData[TempDataActiveTab] = newId;
+                TempData[TempDataKeys.ActiveTab] = newId;
             }
-            ReportOutcome(result, "Logical structure created.", TempDataUpdated);
+            ReportOutcome(result, "Logical structure created.", TempDataKeys.Updated);
         }
         return RedirectToPage();
     }
@@ -823,22 +817,22 @@ public class DepositModel(
             }
             catch (JsonException ex)
             {
-                TempData[TempDataError] = "Could not parse logical structure: " + ex.Message;
-                return RedirectToPage();
+                TempData[TempDataKeys.Error] = "Could not parse logical structure: " + ex.Message;
+                return Redirect($"/deposits/{id}");
             }
 
             if (logicalRange == null)
             {
-                TempData[TempDataError] = "Logical structure was empty.";
-                return RedirectToPage();
+                TempData[TempDataKeys.Error] = "Logical structure was empty.";
+                return Redirect($"/deposits/{id}");
             }
 
             var result = await WorkspaceManager.SetLogicalStructMap(logicalRange);
             if (result.Success)
             {
-                TempData[TempDataActiveTab] = logicalRange.Id;
+                TempData[TempDataKeys.ActiveTab] = logicalRange.Id;
             }
-            ReportOutcome(result, "Logical structure saved.", TempDataUpdated);
+            ReportOutcome(result, "Logical structure saved.", TempDataKeys.Updated);
         }
         return RedirectToPage();
     }
@@ -851,7 +845,7 @@ public class DepositModel(
         if (await LoadDeposit(id, cancellationToken))
         {
             var result = await WorkspaceManager.RemoveLogicalStructMap(structMapId);
-            ReportOutcome(result, "Logical structure deleted.", TempDataUpdated);
+            ReportOutcome(result, "Logical structure deleted.", TempDataKeys.Updated);
         }
         return RedirectToPage();
     }
