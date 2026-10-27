@@ -129,18 +129,19 @@ public class PatchDepositHandler(
 
         logger.LogInformation("Deposit.LockedBy is {LockedBy}", entity.LockedBy);
 
-        if (entity.LockedBy is not null && entity.LockedBy != callerIdentity)
+        var otherLockOwner = Deposit.GetOtherLockOwner(entity.LockedBy, callerIdentity);
+        if (otherLockOwner is not null)
         {
             logger.LogWarning(
                 "Deposit is locked by {OtherLockOwner}, returning Conflict",
-                entity.LockedBy);
+                otherLockOwner);
 
             return (
                 false,
                 null,
                 Result.FailNotNull<Deposit>(
                     ErrorCodes.Conflict,
-                    "Deposit is locked by " + entity.LockedBy));
+                    "Deposit is locked by another user: " + otherLockOwner));
         }
 
         return (true, entity, null);

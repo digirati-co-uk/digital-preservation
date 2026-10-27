@@ -733,8 +733,8 @@ public class ExecuteImportJobHandler(
         {
             return Result.Fail(ErrorCodes.BadRequest, $"{kind} ID {id} is not a path under the repository root: {reason}");
         }
-        var groupPath = archivalGroup.GetPathUnderRoot()!.TrimEnd('/') + '/';
-        if (pathUnderRoot?.StartsWith(groupPath, StringComparison.Ordinal) != true)
+        var groupPath = archivalGroup.GetPathUnderRoot()!;
+        if (pathUnderRoot?.IsStrictlyBelow(groupPath) != true)
         {
             return Result.Fail(ErrorCodes.BadRequest, $"{kind} ID {id} is not within the job's Archival Group {archivalGroup}");
         }

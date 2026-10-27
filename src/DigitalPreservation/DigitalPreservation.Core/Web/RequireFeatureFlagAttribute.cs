@@ -1,13 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace Pipeline.API;
+namespace DigitalPreservation.Core.Web;
 
 /// <summary>
-/// Resource filter that returns 404 if the named FeatureFlags entry is false or absent. Mirrors
-/// Preservation.API.RequireFeatureFlagAttribute - kept as a separate copy rather than a shared
-/// dependency, the same call already made for the small pieces duplicated between these two
-/// services (e.g. PipelineJobMessage).
+/// Resource filter that returns 404 if the named FeatureFlags entry is false or absent. Intended
+/// for [AllowAnonymous] endpoints that should be disabled in non-development environments - a
+/// disabled feature isn't an authentication problem, and 401 on an anonymous endpoint is
+/// misleading. Existed as an identical copy in both Preservation.API and Pipeline.API (issue #388
+/// item 3.5); both already depend on this project, the same as the other cross-cutting filters
+/// here such as AuthFilterIdentifier.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
 public class RequireFeatureFlagAttribute(string flagName) : Attribute, IResourceFilter

@@ -33,7 +33,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
     [Fact]
     public async Task An_Overdue_Incomplete_Job_Is_Closed_And_Its_Lock_Released_When_The_Runs_User_Held_It()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, dateBegun: Overdue,
             runUser: "tester", depositLockedBy: "tester");
 
@@ -50,7 +50,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Lock_Held_By_Someone_Else_Is_Left_Alone()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, dateBegun: Overdue,
             runUser: "tester", depositLockedBy: "someone-else");
 
@@ -66,7 +66,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Completed_Job_Is_Untouched_Even_Though_It_Is_Old()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Completed, dateBegun: Overdue,
             runUser: "tester", depositLockedBy: null);
         var before = await ReloadJob(jobId);
@@ -83,7 +83,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
     [Fact]
     public async Task Running_The_Sweep_Twice_Is_Idempotent()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var (depositId, jobId) = await SeedJob(context, PipelineJobStates.Running, dateBegun: Overdue,
             runUser: "tester", depositLockedBy: "tester");
 
@@ -92,7 +92,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
 
         // A new run takes the lock between the two sweeps - the second sweep must not strip it from
         // this new run on behalf of the job it already closed out.
-        await using (var relockContext = fixture.CreateNewAuthServiceContext())
+        await using (var relockContext = fixture.CreateNewPreservationContext())
         {
             var deposit = await relockContext.Deposits.SingleAsync(d => d.MintedId == depositId, cancellationToken: TestContext.Current.CancellationToken);
             deposit.LockedBy = "tester";
@@ -114,7 +114,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
     [Fact]
     public async Task An_Overdue_Job_That_Is_Not_The_Deposits_Latest_Is_Closed_Without_Releasing_The_Lock()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var depositId = $"dep-{Guid.NewGuid()}";
         await SeedDeposit(context, depositId, lockedBy: "tester");
         var oldJobId = await SeedPipelineRunJob(context, depositId, PipelineJobStates.Running,
@@ -148,7 +148,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Non_Latest_Job_Is_Closed_Immediately_Even_When_Not_Yet_Overdue()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var depositId = $"dep-{Guid.NewGuid()}";
         await SeedDeposit(context, depositId, lockedBy: "tester");
         var oldJobId = await SeedPipelineRunJob(context, depositId, PipelineJobStates.Running,
@@ -173,7 +173,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
     [Fact]
     public async Task An_Overdue_Job_Whose_Deposit_No_Longer_Exists_Is_Closed_As_CompletedWithErrors()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         // Deliberately no SeedDeposit: simulates the deposit having been deleted out from under its
         // own still-non-terminal pipeline job.
         var depositId = $"dep-{Guid.NewGuid()}";
@@ -199,7 +199,7 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
     [Fact]
     public async Task A_Legacy_Job_With_No_DateSubmitted_Is_Still_Recognised_As_Not_Latest()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var depositId = $"dep-{Guid.NewGuid()}";
         await SeedDeposit(context, depositId, lockedBy: "tester");
         var legacyJobId = await SeedPipelineRunJob(context, depositId, PipelineJobStates.Running,
@@ -296,13 +296,13 @@ public class PipelineJobCleanupProcessorTests(DatabaseFixture fixture)
 
     private async Task<PipelineRunJob> ReloadJob(string jobId)
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         return await context.PipelineRunJobs.AsNoTracking().SingleAsync(job => job.Id == jobId);
     }
 
     private async Task<DepositEntity> ReloadDeposit(string depositId)
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         return await context.Deposits.AsNoTracking().SingleAsync(d => d.MintedId == depositId);
     }
 }

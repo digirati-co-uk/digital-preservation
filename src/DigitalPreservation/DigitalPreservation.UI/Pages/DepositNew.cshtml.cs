@@ -20,10 +20,10 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         // list deposits
     }
 
-    public async Task<IActionResult> OnPostCreateForArchivalGroup(string archivalGroupPath, bool export, string? submissionText, string? archivalGroupVersion)
+    public async Task<IActionResult> OnPostCreateForArchivalGroup(string archivalGroupPath, bool export, string? submissionText, string? archivalGroupVersion, CancellationToken cancellationToken)
     {
         var resourcePath = $"{PreservedResource.BasePathElement}/{archivalGroupPath}";
-        var result = await mediator.Send(new GetResource(resourcePath));
+        var result = await mediator.Send(new GetResource(resourcePath), cancellationToken);
         if (result.Success)
         {
             if (archivalGroupVersion.HasText())
@@ -39,13 +39,13 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                 Version = archivalGroupVersion,
                 UseObjectTemplate = true
             };
-            return await OnPostCreate(model);
+            return await OnPostCreate(model, cancellationToken);
         }
         TempData["CreateDepositFail"] = result.CodeAndMessage();
         return Page();
     }
 
-    public async Task<IActionResult> OnPostCreate(NewDepositModel newDepositModel)
+    public async Task<IActionResult> OnPostCreate(NewDepositModel newDepositModel, CancellationToken cancellationToken)
     {
         logger.LogDebug("OnPostNewDeposit(NewDepositModel newDepositModel)");
         NewDeposit = newDepositModel;
@@ -61,11 +61,11 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         }
         if (newDepositModel.ObjectIdentifier.HasText())
         {
-            result = await mediator.Send(new CreateDepositFromIdentifier(newDepositModel.ObjectIdentifier, templateType));
+            result = await mediator.Send(new CreateDepositFromIdentifier(newDepositModel.ObjectIdentifier, templateType), cancellationToken);
         }
         else
         {
-            if (await ValidateAndNormaliseNewDeposit(newDepositModel))
+            if (await ValidateAndNormaliseNewDeposit(newDepositModel, cancellationToken))
             {
                 result = await mediator.Send(new CreateDeposit(
                     newDepositModel.ArchivalGroupPathUnderRoot,
@@ -73,8 +73,8 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
                     newDepositModel.SubmissionText,
                     templateType,
                     newDepositModel.Export,
-                    exportVersion: newDepositModel.Version 
-                ));
+                    exportVersion: newDepositModel.Version
+                ), cancellationToken);
             }
         }
 
@@ -98,7 +98,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
     }
 
 
-    private async Task<bool> ValidateAndNormaliseNewDeposit(NewDepositModel newDepositModel)
+    private async Task<bool> ValidateAndNormaliseNewDeposit(NewDepositModel newDepositModel, CancellationToken cancellationToken)
     {
         if (newDepositModel.FromBrowseContext && newDepositModel.ArchivalGroupSlug.HasText())
         {
@@ -133,7 +133,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
         
         var archivalGroupRepositoryPath = pathUnderRoot.GetRepositoryPath()!;
         var browsePath = "/browse/" + pathUnderRoot;
-        var depositsForArchivalGroupResult = await mediator.Send(new GetDeposits(new DepositQuery{ArchivalGroupPath = archivalGroupRepositoryPath}));
+        var depositsForArchivalGroupResult = await mediator.Send(new GetDeposits(new DepositQuery{ArchivalGroupPath = archivalGroupRepositoryPath}), cancellationToken);
         if (depositsForArchivalGroupResult.Success)
         {
             if (depositsForArchivalGroupResult.Value == null) // empty list is OK though, and expected a lot of the time
@@ -161,7 +161,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             return false;
         }
         
-        var existingResourceResult = await mediator.Send(new GetResource(archivalGroupRepositoryPath));
+        var existingResourceResult = await mediator.Send(new GetResource(archivalGroupRepositoryPath), cancellationToken);
 
         if (newDepositModel.FromBrowseContext)
         {
@@ -175,7 +175,7 @@ public class DepositNewModel(IMediator mediator, ILogger<DepositNewModel> logger
             }
 
             var parentRepositoryPath = parentPath.GetRepositoryPath();
-            var parentResult = await mediator.Send(new GetResource(parentRepositoryPath!));
+            var parentResult = await mediator.Send(new GetResource(parentRepositoryPath!), cancellationToken);
             if(parentResult.ErrorCode == ErrorCodes.NotFound || parentResult.Value == null)
             {
                 TempData["CreateDepositFail"] = "There is no parent resource at " + parentRepositoryPath + ".";

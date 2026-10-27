@@ -55,6 +55,13 @@ public static class ControllerX
         return objectResult;
     }
 
-    
-    
+    /// <summary>
+    /// The one response every IIIF session-token endpoint gives for a missing, expired or
+    /// mismatched token (issue #388 item 2.9) - previously hand-rolled three times (twice in
+    /// DepositsController, once in MediaController), with differently-worded 401 detail text.
+    /// </summary>
+    public static ObjectResult IiifSessionExpiredResult(this ControllerBase controller) => controller.Problem(
+        title: "Session expired",
+        detail: "The IIIF session token has expired or is invalid. Re-open the manifest from the preservation system to get a fresh link.",
+        statusCode: 401);
 }

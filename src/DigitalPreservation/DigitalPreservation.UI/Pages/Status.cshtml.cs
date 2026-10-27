@@ -27,21 +27,21 @@ public class StatusModel(
         };
     }
     
-    public async Task OnGet()
+    public async Task OnGet(CancellationToken cancellationToken)
     {
-        var backendPreservationAlive = await mediator.Send(new VerifyPreservationRunning());
+        var backendPreservationAlive = await mediator.Send(new VerifyPreservationRunning(), cancellationToken);
         ConnectivityChecks.Add(backendPreservationAlive);
-        
-        var backendPreservationAliveNoAuth = await mediator.Send(new VerifyPreservationRunningNoAuth());
+
+        var backendPreservationAliveNoAuth = await mediator.Send(new VerifyPreservationRunningNoAuth(), cancellationToken);
         ConnectivityChecks.Add(backendPreservationAliveNoAuth);
 
-        var uiCanTalkToS3 = await mediator.Send(new VerifyS3Reachable(ConnectivityCheckResult.PreservationUIReadS3));
+        var uiCanTalkToS3 = await mediator.Send(new VerifyS3Reachable(ConnectivityCheckResult.PreservationUIReadS3), cancellationToken);
         ConnectivityChecks.Add(uiCanTalkToS3);
-        
-        var preservationCanTalkToS3 = await mediator.Send(new VerifyPreservationCanTalkToS3());
+
+        var preservationCanTalkToS3 = await mediator.Send(new VerifyPreservationCanTalkToS3(), cancellationToken);
         ConnectivityChecks.Add(preservationCanTalkToS3);
-        
-        var storageCanTalkToS3 = await mediator.Send(new VerifyStorageCanTalkToS3());
+
+        var storageCanTalkToS3 = await mediator.Send(new VerifyStorageCanTalkToS3(), cancellationToken);
         ConnectivityChecks.Add(storageCanTalkToS3);
     }
 }
