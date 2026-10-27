@@ -505,6 +505,24 @@ public class MetsParser(
                         mets.PhysicalStructure!.RecordInfo ??= recordInfo;
                 }
             }
+            else if (type == null && !div.Elements(XNames.MetsFptr).Any())
+            {
+                // Not typed as a Directory, and not a File div either (no mets:fptr of its own -
+                // those are on CHILD divs instead, handled individually as this method recurses).
+                // Real EPrints METS carries DMDID and ADMID directly on the structMap's root div
+                // with no TYPE attribute at all, wrapping the whole item rather than naming a
+                // folder (issue #237 review: the namespace fix in GetDmdForDiv alone wasn't
+                // enough, because nothing applied what it found - this div is neither branch
+                // above, so its recordInfo/access/rights were silently discarded). Same root-level
+                // inheritance anchor as the untyped-structural-div case just above, for the same
+                // reason: nothing more specific is ever going to claim this div's own DMD.
+                if (accessRestrictions != null)
+                    mets.PhysicalStructure!.AccessRestrictions ??= accessRestrictions;
+                if (rightsStatement != null)
+                    mets.PhysicalStructure!.RightsStatement ??= rightsStatement;
+                if (recordInfo != null)
+                    mets.PhysicalStructure!.RecordInfo ??= recordInfo;
+            }
 
             // type may be Directory, we need to match them up to file paths
             // but there might not be any directories in the structmap, just implied by flocats.
@@ -902,6 +920,32 @@ public class MetsParser(
                 Source = recordIdentifierEl.Attribute("source")!.Value,
                 Value = recordIdentifierEl.Value
             });
+        }
+
+        // EPrints writes its own record identifiers - including the id.library.leeds.ac.uk PID -
+        // as mets:recordIdentifier rather than mods:recordIdentifier, even though mdWrap/@MDTYPE
+        // claims the content is MODS (issue #237). Read them too, but only when that MODS claim is
+        // actually made - this is tolerance for one third party's mistake, not a general scavenge
+        // of METS-namespace elements - and only for sources the mods: form above didn't already
+        // supply: once #223 makes a document editable, a write adds genuine mods:recordIdentifier
+        // elements alongside the untouched EPrints originals, and the mods: form must win so the
+        // document is not reported as carrying the same identifier twice.
+        if (dmd.Element(XNames.MetsMdWrap)?.Attribute("MDTYPE")?.Value == Constants.ModsMdWrapType)
+        {
+            foreach (var recordIdentifierEl in dmd.Descendants(XNames.MetsRecordIdentifier))
+            {
+                var source = recordIdentifierEl.Attribute("source")?.Value;
+                if (!source.HasText() || recordInfo?.RecordIdentifiers.Any(ri => ri.Source == source) == true)
+                {
+                    continue;
+                }
+                recordInfo ??= new RecordInfo();
+                recordInfo.RecordIdentifiers.Add(new RecordIdentifier()
+                {
+                    Source = source,
+                    Value = recordIdentifierEl.Value
+                });
+            }
         }
 
         return (accessRestrictions, rightsStatement, recordInfo, rightsExplicitlySet);
