@@ -86,6 +86,9 @@ html {
 .bi {
     vertical-align: -.125em;
     fill: currentColor;
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
 }
 
 .nav-scroller {
@@ -133,12 +136,6 @@ html {
 
 
 /* Custom styles for this template - originally dashboard.css */
-
-.bi {
-    display: inline-block;
-    width: 1rem;
-    height: 1rem;
-}
 
 /*
  * Sidebar
@@ -204,8 +201,8 @@ table.plain-link-table a:focus-visible {
 
 #tableRowContext {
     font-size: small;
-    padding-right:1rem;
-    padding-top:0.8rem;
+    padding-right: 1rem;
+    padding-top: 0.8rem;
 }
 
 .deposit-table.table-hover {
@@ -215,7 +212,7 @@ table.plain-link-table a:focus-visible {
     }
 }
 
-.deposit-table td:nth-child(1)  {
+.deposit-table td:nth-child(1) {
     white-space: nowrap;
 }
 
@@ -237,7 +234,7 @@ dl.job-table dt, dl.job-table dd {
 }
 
 td.dep-actions, th.dep-actions {
-    width:0.1%;
+    width: 0.1%;
     white-space: nowrap;
 }
 
@@ -259,10 +256,10 @@ tr.where-mets td {
     color: #495057;
 }
 tr.where-deposit td {
-    color: var(bs-body-color);
+    color: var(--bs-body-color);
 }
 tr.where-both td {
-    color: var(bs-body-color);
+    color: var(--bs-body-color);
 }
 
 .form-search {
@@ -270,7 +267,7 @@ tr.where-both td {
 }
 
 .form-search-input {
-    min-width: 400px
+    min-width: 400px;
 }
 
 .container-search {
