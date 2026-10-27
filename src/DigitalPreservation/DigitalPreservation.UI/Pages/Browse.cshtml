@@ -159,7 +159,7 @@
             </tr>
             <tr>
                 <th scope="row">Created by</th>
-                <td>@ag.CreatedBy?.GetSlug()?.UnEscapeFromUri()</td>
+                <td>@ag.CreatedBy.GetAgentDisplayName()</td>
             </tr>
             <tr>
                 <th scope="row">Last modified</th>
@@ -167,7 +167,7 @@
             </tr>
             <tr>
                 <th scope="row">Last modified by</th>
-                <td>@ag.LastModifiedBy?.GetSlug()?.UnEscapeFromUri()</td>
+                <td>@ag.LastModifiedBy.GetAgentDisplayName()</td>
             </tr>
             <tr>
                 <th scope="row">Summary</th>
@@ -242,7 +242,7 @@
                             <tr>
                                 <td><a href="@path">@slug</a></td>
                                 <td>@deposit.Created.GetDateDisplay()</td>
-                                <td>@deposit.CreatedBy?.GetSlug()?.UnEscapeFromUri()</td>
+                                <td>@deposit.CreatedBy.GetAgentDisplayName()</td>
                                 <td>
                                     @deposit.Preserved.GetDateDisplay()
                                     @{
@@ -259,7 +259,7 @@
                                         }
                                     }
                                 </td>
-                                <td>@deposit.PreservedBy?.GetSlug()?.UnEscapeFromUri()</td>
+                                <td>@deposit.PreservedBy.GetAgentDisplayName()</td>
                                 <td>@deposit.VersionPreserved</td>
                             </tr>
                         }
@@ -345,11 +345,11 @@
                             <td aria-label="td-path"><a href="@path">@container.Id?.GetSlug()?.UnEscapeFromUri()</a></td>
                             <td aria-label="td-title">@LinkX.LinkOrPlain(container.Name, path)</td>
                             <td aria-label="td-last-modified"><a href="@path">@container.LastModified.GetDateDisplay()</a></td>
-                            <td aria-label="td-last-modified-by">@LinkX.LinkOrPlain(container.LastModifiedBy?.GetSlug()?.UnEscapeFromUri(), path)</td>
+                            <td aria-label="td-last-modified-by">@LinkX.LinkOrPlain(container.LastModifiedBy.GetAgentDisplayName(), path)</td>
                             @if (Model.CachedArchivalGroup == null)
                             {
                                 <td aria-label="td-created"><a href="@path">@container.Created.GetDateDisplay()</a></td>
-                                <td aria-label="td-created-by">@LinkX.LinkOrPlain(container.CreatedBy?.GetSlug()?.UnEscapeFromUri(), path)</td>
+                                <td aria-label="td-created-by">@LinkX.LinkOrPlain(container.CreatedBy.GetAgentDisplayName(), path)</td>
                                 <td aria-label="td-deposits">
                                     @if (container.Type == nameof(ArchivalGroup))
                                     {
@@ -405,11 +405,11 @@
                             <td aria-label="td-path"><a href="@path">@path.GetSlug()</a></td>
                             <td aria-label="td-title">@LinkX.LinkOrPlain(binary.Name, path)</td>
                             <td aria-label="td-last-modified"><a href="@path">@binary.LastModified.GetDateDisplay()</a></td>
-                            <td aria-label="td-last-modified-by">@LinkX.LinkOrPlain(binary.LastModifiedBy?.GetSlug()?.UnEscapeFromUri(), path)</td>
+                            <td aria-label="td-last-modified-by">@LinkX.LinkOrPlain(binary.LastModifiedBy.GetAgentDisplayName(), path)</td>
                             @if (Model.CachedArchivalGroup == null)
                             {
                                 <td aria-label="td-created"><a href="@path">@binary.Created.GetDateDisplay()</a></td>
-                                <td aria-label="td-created-by">@LinkX.LinkOrPlain(binary.CreatedBy?.GetSlug()?.UnEscapeFromUri(), path)</td>
+                                <td aria-label="td-created-by">@LinkX.LinkOrPlain(binary.CreatedBy.GetAgentDisplayName(), path)</td>
                                 <td aria-label="td-deposits"></td>
                             }
                             else

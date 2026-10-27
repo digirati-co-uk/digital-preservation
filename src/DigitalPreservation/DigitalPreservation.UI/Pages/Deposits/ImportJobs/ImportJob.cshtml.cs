@@ -20,13 +20,13 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
     public bool ShowNormaliseMetsIds =>
         configuration.GetValue<bool?>("FeatureFlags:ShowNormaliseMetsIds") ?? false;
 
-    public async Task OnGet(string depositId, string importJobId)
+    public async Task OnGet(string depositId, string importJobId, CancellationToken cancellationToken)
     {
         ImportJobId = importJobId;
         if (importJobId == "diff")
         {
             ViewData["Title"] = "Diff for deposit " + depositId;
-            var result = await mediator.Send(new GetDiffImportJob(depositId));
+            var result = await mediator.Send(new GetDiffImportJob(depositId), cancellationToken);
             List<PreservedResource> itemsWithInvalidSlugs = [];
             string? invalidSlugMessage = null;
             if (result.Value != null)
@@ -53,7 +53,7 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
         else
         {
             ViewData["Title"] = "Import Job Result " + importJobId ;
-            var result = await mediator.Send(new GetImportJobResult(depositId, importJobId));
+            var result = await mediator.Send(new GetImportJobResult(depositId, importJobId), cancellationToken);
             if (result.Success)
             {
                 // Display the existing job, which may be running or may not
@@ -67,12 +67,22 @@ public class ImportJobModel(IMediator mediator, IConfiguration configuration) : 
     public async Task<IActionResult> OnPostExecuteDiffDirect(
         [FromRoute] string depositId,
         [FromRoute] string importJobId,
-        [FromForm] bool suppressActivityStreamEvent = false)
+        [FromForm] bool suppressActivityStreamEvent)
     {
         // Belt and braces: the checkbox is only rendered under the flag, but a posted form is not
         // where the decision should be trusted from.
         var suppress = suppressActivityStreamEvent && ShowNormaliseMetsIds;
-        var result = await mediator.Send(new SendDiffImportJob(depositId, suppress));
+
+        // Deliberately CancellationToken.None, not the request's own token (review feedback on
+        // #418): SendDiffImportJob's round trip to the Preservation API hands the job to the
+        // Storage API and then records it in the Preservation API's own database - once the
+        // Storage API has accepted the job, it is already running, so a browser disconnect at that
+        // exact moment must not be allowed to abort the follow-up save and leave the job queued in
+        // Storage but unrecorded here (see issue #428, which fixes the same gap from the Preservation
+        // API's side for every caller, not just this one). Every other call on this page is a single
+        // round trip to one system, where cancelling on disconnect is the right default and stays on
+        // the real token.
+        var result = await mediator.Send(new SendDiffImportJob(depositId, suppress), CancellationToken.None);
         if (result.Success)
         {
             var importJobResult = result.Value;

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Core.Web;
 using DigitalPreservation.Utils;
 using DigitalPreservation.Workspace;
 using MediatR;
@@ -48,12 +49,8 @@ public class MediaController(
         if (!ValidateLocalPath(localPath))
             return Unauthorized();
 
-        var key = tokenService.GetKey(token);
-        if (!key.HasText() || key.GetSlug() != sourceId)
-            return Problem(
-                title: "Session expired",
-                detail: "The IIIF session token has expired or is invalid. Re-open the manifest from the preservation system.",
-                statusCode: 401);
+        if (!tokenService.IsValidForDeposit(token, sourceId))
+            return this.IiifSessionExpiredResult();
 
         var depositResult = await mediator.Send(new GetDeposit(sourceId));
         if (depositResult is not { Success: true, Value: not null })

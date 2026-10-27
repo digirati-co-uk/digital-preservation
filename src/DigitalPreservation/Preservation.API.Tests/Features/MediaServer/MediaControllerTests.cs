@@ -49,7 +49,7 @@ public class MediaControllerTests
 
     public MediaControllerTests()
     {
-        A.CallTo(() => tokenService.GetKey(Token)).Returns(SourceId);
+        A.CallTo(() => tokenService.IsValidForDeposit(Token, SourceId)).Returns(true);
 
         var deposit = new Deposit { Files = DepositFiles };
         A.CallTo(() => mediator.Send(A<GetDeposit>.That.Matches(r => r.Id == SourceId), A<CancellationToken>._))

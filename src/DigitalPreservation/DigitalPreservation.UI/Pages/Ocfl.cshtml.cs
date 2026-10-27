@@ -12,15 +12,15 @@ namespace DigitalPreservation.UI.Pages;
 
 public class Ocfl(IMediator mediator) : PageModel
 {
-    public async Task OnGet(string pathUnderRoot, [FromQuery] string? version)
+    public async Task OnGet(string pathUnderRoot, [FromQuery] string? version, CancellationToken cancellationToken)
     {
         PathUnderRoot = pathUnderRoot;
-        var lightweightAgResult = await mediator.Send(new GetLightweightResource(pathUnderRoot, version));
+        var lightweightAgResult = await mediator.Send(new GetLightweightResource(pathUnderRoot, version), cancellationToken);
         if (lightweightAgResult is { Success: true, Value: ArchivalGroup })
         {
             ArchivalGroupLightweight = (ArchivalGroup)lightweightAgResult.Value;
             Title = ArchivalGroupLightweight.Name ?? PathUnderRoot.GetSlug();
-            var storageMapResult = await mediator.Send(new GetStorageMap(pathUnderRoot, version));
+            var storageMapResult = await mediator.Send(new GetStorageMap(pathUnderRoot, version), cancellationToken);
             if (storageMapResult is { Success: true, Value: not null })
             {
                 StorageMap = storageMapResult.Value;

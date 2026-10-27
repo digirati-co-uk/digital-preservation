@@ -3,6 +3,8 @@ using Amazon.S3.Util;
 using DigitalPreservation.Common.Model;
 using Dlcs;
 using Dlcs.Hydra;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Storage.Client;
@@ -50,9 +52,11 @@ static class Program
             return;
         }
 
-        var storageApi = new StorageApiClient(
-            GetHttpClient("https://storage-dev.dlip.digirati.io"),
-            GetLogger<StorageApiClient>());
+        // Service-client ADR (docs/adr/0000-service-clients.md): go through AddStorageClient
+        // rather than constructing StorageApiClient directly, so this tool sends the same
+        // x-requested-by header and gets the same request-timing logging every other consumer does.
+        using var storageServices = BuildStorageServices();
+        var storageApi = storageServices.GetRequiredService<IStorageApiClient>();
         var archivalGroupResult = await storageApi.GetArchivalGroup(archivalGroupPath);
         if (archivalGroupResult.Failure || archivalGroupResult.Value == null)
         {
@@ -120,11 +124,22 @@ static class Program
     }
 
 
-    private static ILogger<T> GetLogger<T>()
+    /// <summary>
+    /// A minimal DI container for AddStorageClient, the only consumer registered via the
+    /// service-client ADR's pattern rather than this tool's own ad hoc HttpClient construction.
+    /// </summary>
+    private static ServiceProvider BuildStorageServices()
     {
-        using ILoggerFactory factory = LoggerFactory.Create(builder => builder.AddConsole());
-        ILogger<T> logger = factory.CreateLogger<T>();
-        return logger;
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Storage:Root"] = "https://storage-dev.dlip.digirati.io"
+            })
+            .Build();
+        return new ServiceCollection()
+            .AddLogging(builder => builder.AddConsole())
+            .AddStorageClient(configuration, "Registrant")
+            .BuildServiceProvider();
     }
 
     private static HttpClient GetHttpClient(string baseAddress, string? basicUser = null, string? basicPwd = null)

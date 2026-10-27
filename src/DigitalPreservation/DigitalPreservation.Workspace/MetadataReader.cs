@@ -511,16 +511,7 @@ public class MetadataReader : IMetadataReader
 
     private async Task ReadBagItSha256(Stream stream)
     {
-        var txt = await GetTextFromStream(stream);
-        bagItSha256Values = new Dictionary<string, string>();
-        foreach (var line in txt.Split('\n'))
-        {
-            var parts = line.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 2)
-            {
-                bagItSha256Values.Add(parts[1], parts[0]);
-            }
-        }
+        bagItSha256Values = await BagItManifest.ParseAsync(stream);
     }
 
     private static async Task<string> GetTextFromStream(Stream stream)

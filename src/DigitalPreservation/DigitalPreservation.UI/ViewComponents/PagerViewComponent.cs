@@ -11,7 +11,12 @@ public class PagerViewComponent : ViewComponent
     public const int DefaultWindow = 7;
     public const int DefaultEnds = 3;
 
-    public Task<IViewComponentResult> InvokeAsync(PagerValues values)
+    /// <summary>
+    /// Pass a <paramref name="key"/> when a page shows more than one pager (e.g. Search.cshtml's
+    /// Fedora and Deposit tabs), so each gets its own cached model instead of colliding on the
+    /// per-request cache key (issue #388 item 4.1).
+    /// </summary>
+    public Task<IViewComponentResult> InvokeAsync(PagerValues values, string? key = null)
     {
         if (values.HideForSinglePage && values.Total <= values.Size)
         {
@@ -19,83 +24,94 @@ public class PagerViewComponent : ViewComponent
             return Task.FromResult<IViewComponentResult>(Content(String.Empty));
         }
 
+        var cacheKey = key ?? nameof(PagerViewComponent);
+
         // Store the model in the request for duplicated pagers
-        if (HttpContext.Items[nameof(PagerViewComponent)] is not PagerModel model)
+        if (HttpContext.Items[cacheKey] is not PagerModel model)
         {
-            var path = Request.Path;
-            int pages = values.Total / values.Size;
-            if (values.Total % values.Size > 0) pages++;
-            model = new PagerModel
-            {
-                Links = [],
-                TotalItems = values.Total,
-                TotalPages = pages,
-                CurrentPage = values.Index
-            };
-            // we don't want to loop through the pages - there could be 100,000 of them
-            // instead we want the first few, then an ellipsis,
-            // then the current "window", then another ellipsis, then the end
-            // but only if there are enough pages to justify this.
-            // prev | 1 2 3 ... 45 46 [47] 48 49 ... 654 655 656 | next
-            if (pages < (2 * values.Ends) + values.Window + 2)
-            {
-                for (int linkPage = 1; linkPage <= pages; linkPage++)
-                {
-                    AddLinkToModel(model, path, linkPage, values);
-                }
-            }
-            else
-            {
-                int windowStart = values.Index - (values.Window / 2);
-                for (int linkPage = 1; linkPage <= values.Ends; linkPage++)
-                {
-                    AddLinkToModel(model, path, linkPage, values);
-                }
-
-                if (windowStart > values.Ends + 2)
-                {
-                    // we're not into the window yet, add an ellipsis
-                    model.Links.Add(new Link {Page = null});
-                }
-                else
-                {
-                    // we're into the window already
-                    AddLinkToModel(model, path, values.Ends + 1, values);
-                }
-
-                windowStart = Math.Max(values.Ends + 2, windowStart);
-                int tail = pages - values.Ends - values.Window;
-                if (windowStart >= tail)
-                {
-                    // just run through to the end
-                    for (int linkPage = tail; linkPage <= pages; linkPage++)
-                    {
-                        AddLinkToModel(model, path, linkPage, values);
-                    }
-                }
-                else
-                {
-                    for (int linkPage = windowStart; linkPage < Math.Min(windowStart + values.Window, pages); linkPage++)
-                    {
-                        AddLinkToModel(model, path, linkPage, values);
-                    }
-
-                    if (model.Links[^1].Page < pages - values.Ends)
-                    {
-                        model.Links.Add(new Link {Page = null});
-                    }
-
-                    for (int linkPage = pages - values.Ends + 1; linkPage <= pages; linkPage++)
-                    {
-                        AddLinkToModel(model, path, linkPage, values);
-                    }
-                }
-            }
-
-            HttpContext.Items[nameof(PagerViewComponent)] = model;
+            model = BuildModel(values, Request.Path);
+            HttpContext.Items[cacheKey] = model;
         }
 
         return Task.FromResult<IViewComponentResult>(View(model));
+    }
+
+    private static PagerModel BuildModel(PagerValues values, PathString path)
+    {
+        int pages = values.Total / values.Size;
+        if (values.Total % values.Size > 0) pages++;
+        var model = new PagerModel
+        {
+            Links = [],
+            TotalItems = values.Total,
+            TotalPages = pages,
+            CurrentPage = values.Index
+        };
+
+        // we don't want to loop through the pages - there could be 100,000 of them
+        // instead we want the first few, then an ellipsis,
+        // then the current "window", then another ellipsis, then the end
+        // but only if there are enough pages to justify this.
+        // prev | 1 2 3 ... 45 46 [47] 48 49 ... 654 655 656 | next
+        if (pages < (2 * values.Ends) + values.Window + 2)
+        {
+            AddLinkRange(model, path, 1, pages, values);
+        }
+        else
+        {
+            AddWindowedLinks(model, path, pages, values);
+        }
+
+        return model;
+    }
+
+    private static void AddWindowedLinks(PagerModel model, PathString path, int pages, PagerValues values)
+    {
+        int windowStart = values.Index - (values.Window / 2);
+        AddLinkRange(model, path, 1, values.Ends, values);
+
+        if (windowStart > values.Ends + 2)
+        {
+            // we're not into the window yet, add an ellipsis
+            model.Links.Add(new Link {Page = null});
+        }
+        else
+        {
+            // we're into the window already
+            AddLinkToModel(model, path, values.Ends + 1, values);
+        }
+
+        windowStart = Math.Max(values.Ends + 2, windowStart);
+        int tail = pages - values.Ends - values.Window;
+        if (windowStart >= tail)
+        {
+            // just run through to the end
+            AddLinkRange(model, path, tail, pages, values);
+        }
+        else
+        {
+            AddLinkRange(model, path, windowStart, Math.Min(windowStart + values.Window, pages) - 1, values);
+
+            if (model.Links[^1].Page < pages - values.Ends)
+            {
+                model.Links.Add(new Link {Page = null});
+            }
+
+            AddLinkRange(model, path, pages - values.Ends + 1, pages, values);
+        }
+    }
+
+    private static void AddLinkRange(PagerModel model, PathString path, int from, int to, PagerValues values)
+    {
+        // from/to are derived from values.Index, which carries the unsanitized "page" query
+        // string value - clamp against model.TotalPages (the actual page count) so a crafted
+        // page number can never drive this loop beyond the real number of pages.
+        var lowerBound = Math.Max(from, 1);
+        var upperBound = Math.Min(to, model.TotalPages);
+        for (int linkPage = lowerBound; linkPage <= upperBound; linkPage++)
+        {
+            AddLinkToModel(model, path, linkPage, values);
+        }
     }
 
     private static void AddLinkToModel(PagerModel model, PathString path, int linkPage, PagerValues values)

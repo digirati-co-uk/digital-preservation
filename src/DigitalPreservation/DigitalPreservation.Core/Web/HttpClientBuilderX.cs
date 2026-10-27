@@ -40,6 +40,19 @@ public static class HttpClientBuilderX
             () => CreateHttpMessageHandler(keepAliveTime, keepAliveInterval, retryCount));
     }
 
+    /// <summary>
+    /// The specific keepalive values every platform HTTP client reaching Fedora, Storage API or
+    /// Preservation API through the internet-facing ALB uses (issue #383 review point 7; previously
+    /// repeated at all four call sites, each carrying its own copy of this comment - consolidated
+    /// here per issue #388 item 1.5). 120s before the first probe, a 30s interval, and 5 retries -
+    /// rather than the previously hard-coded 300/15/5, or a naive 120/60/60 - means a dead
+    /// connection now actually gets noticed in about 120 + 5*30 = 270s: comfortably under the NAT
+    /// gateway's 350s mapping timeout, and in a few minutes rather than the ~62 minutes a naive
+    /// 120/60/60 would take.
+    /// </summary>
+    public static IHttpClientBuilder ConfigurePlatformTcpKeepAlive(this IHttpClientBuilder builder) =>
+        builder.ConfigureTcpKeepAlive(true, TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(30), 5);
+
 
     private static SocketsHttpHandler CreateHttpMessageHandler(
         TimeSpan keepAliveTime, TimeSpan keepAliveInterval, int retryCount)

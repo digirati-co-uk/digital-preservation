@@ -21,7 +21,7 @@ public class IndexModel(IMediator mediator) : PageModel
     public string[] Statuses { get; set; } = DepositStates.All;
     public PagerValues? PagerValues { get; set; }
 
-    public async Task<IActionResult> OnGet([FromQuery] DepositQuery? query)
+    public async Task<IActionResult> OnGet([FromQuery] DepositQuery? query, CancellationToken cancellationToken)
     {
         // first, tidy the query string
         var qs = Request.QueryString.ToString();
@@ -46,7 +46,7 @@ public class IndexModel(IMediator mediator) : PageModel
             Query.PageSize = PagerViewComponent.DefaultPageSize;
         }
         
-        var result = await mediator.Send(new GetDeposits(Query));
+        var result = await mediator.Send(new GetDeposits(Query), cancellationToken);
         if (result.Success)
         {
             QueryPage = result.Value!;
@@ -54,10 +54,10 @@ public class IndexModel(IMediator mediator) : PageModel
 
             PagerValues = new PagerValues(Request.QueryString, QueryPage.Total, QueryPage.PageSize);
             
-            var agentResult = await mediator.Send(new GetAllAgents());
+            var agentResult = await mediator.Send(new GetAllAgents(), cancellationToken);
             if (agentResult.Success)
             {
-                Agents = agentResult.Value!.Select(uri => uri.GetSlug()?.UnEscapeFromUri()).OrderBy(s => s).ToList()!;
+                Agents = agentResult.Value!.Select(uri => uri.GetAgentDisplayName()).OrderBy(s => s).ToList()!;
             }
         }
         else
