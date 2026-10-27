@@ -13,7 +13,9 @@ RUN dotnet build "Pipeline.API.csproj" -c Release -o /app/build
 FROM build AS publish
 RUN dotnet publish "Pipeline.API.csproj" -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# Pinned (not floating 10.0) to guarantee CVE-2026-111497's Brotli decoder fix (GHSA-p3jp-9v83-76w9)
+# is actually in this image rather than depending on the next build happening to pull a fresh one.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.14 AS base
 
 # This container has no hard memory limit set in its ECS task definition (only a 1536 MiB soft
 # memory_reservation) - deliberately, so two tasks (old + new) can overlap on this single-instance

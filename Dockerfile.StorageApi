@@ -12,7 +12,9 @@ RUN dotnet build "Storage.API.csproj" -c Release -o /app/build
 FROM build AS publish
 RUN dotnet publish "Storage.API.csproj" -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# Pinned (not floating 10.0) to guarantee CVE-2026-111497's Brotli decoder fix (GHSA-p3jp-9v83-76w9)
+# is actually in this image rather than depending on the next build happening to pull a fresh one.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.14 AS base
 
 LABEL org.opencontainers.image.source=https://github.com/uol-dlip/digital-preservation
 LABEL org.opencontainers.image.description="UoL DLIP Storage API"
