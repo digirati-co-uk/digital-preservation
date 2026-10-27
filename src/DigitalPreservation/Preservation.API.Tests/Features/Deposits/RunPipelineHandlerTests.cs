@@ -80,7 +80,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     {
         // A fresh context: AcquireLock/ReleaseLockIfHeldBy run as conditional UPDATEs in the
         // database, invisible to any change tracker that loaded the row beforehand.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         return await context.Deposits.AsNoTracking().SingleAsync(d => d.MintedId == depositId);
     }
 
@@ -104,7 +104,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_QueuesJob_ForDepositInDefaultWorkingBucket()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
@@ -127,7 +127,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     {
         // A deposit routed to a per-caller bucket (RFC-0001 §8) can't be characterised: the
         // pipeline reaches deposit files through a filesystem mount of the default bucket only.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri("s3://leeds-goobi-deposits/deposits/dep-x/"));
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
 
@@ -146,7 +146,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_Refuses_ADepositLockedBySomeoneElse()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"), lockedBy: "someone-else");
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
 
@@ -167,7 +167,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     {
         // Decided (Tom, 2026-09-23): a caller who already holds the lock has it transferred to
         // the run - no data change needed, since the run's identity is the caller's.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"), lockedBy: "tester");
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
@@ -186,7 +186,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_ReleasesALockItAcquired_WhenPublishingToSnsFails()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
@@ -216,7 +216,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [InlineData(PipelineJobStates.MetadataCreated)]
     public async Task Handle_Refuses_WhenAnotherJob_Is_Already_Active_For_The_Deposit(string activeStatus)
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         await SavePipelineRunJob(context, deposit.MintedId, activeStatus);
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
@@ -252,7 +252,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Only_One_Of_Two_Concurrent_Claims_By_The_Lock_Holder_Wins()
     {
-        await using var seedContext = fixture.CreateNewAuthServiceContext();
+        await using var seedContext = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(seedContext, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"), lockedBy: "tester");
 
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
@@ -261,8 +261,8 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
 
         // Separate contexts, so this is two concurrent requests racing rather than one change
         // tracker used twice.
-        await using var first = fixture.CreateNewAuthServiceContext();
-        await using var second = fixture.CreateNewAuthServiceContext();
+        await using var first = fixture.CreateNewPreservationContext();
+        await using var second = fixture.CreateNewPreservationContext();
 
         var results = await Task.WhenAll(
             CreateHandler(first, snsClient).Handle(new RunPipeline(deposit.MintedId, Tester()), CancellationToken.None),
@@ -273,7 +273,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
 
-        await using var assertContext = fixture.CreateNewAuthServiceContext();
+        await using var assertContext = fixture.CreateNewPreservationContext();
         assertContext.PipelineRunJobs.Count(j => j.Deposit == deposit.MintedId).Should().Be(1,
             "the losing call's insert must not leave a second active job row");
         var reloaded = await ReloadDeposit(deposit.MintedId);
@@ -291,7 +291,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_ReleasesALockItAcquired_WhenItsInsertLosesTheRaceToAnotherActiveJob()
     {
-        await using var seedContext = fixture.CreateNewAuthServiceContext();
+        await using var seedContext = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(seedContext, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
 
@@ -310,7 +310,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
             .MustNotHaveHappened();
 
-        await using var assertContext = fixture.CreateNewAuthServiceContext();
+        await using var assertContext = fixture.CreateNewPreservationContext();
         var jobs = assertContext.PipelineRunJobs.Where(j => j.Deposit == deposit.MintedId).ToList();
         jobs.Should().HaveCount(1, "only the racing job inserted by the interceptor should exist - this call's own insert must have been rolled back");
         jobs.Single().RunUser.Should().Be("someone-else", "the surviving row is the one the interceptor raced in, not this call's own");
@@ -330,7 +330,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_DoesNotReleaseALockItAcquired_WhenItLosesTheRaceToTheSameCallersOwnJob()
     {
-        await using var seedContext = fixture.CreateNewAuthServiceContext();
+        await using var seedContext = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(seedContext, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
 
@@ -350,7 +350,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
             .MustNotHaveHappened();
 
-        await using var assertContext = fixture.CreateNewAuthServiceContext();
+        await using var assertContext = fixture.CreateNewPreservationContext();
         var jobs = assertContext.PipelineRunJobs.Where(j => j.Deposit == deposit.MintedId).ToList();
         jobs.Should().HaveCount(1, "only the racing job inserted by the interceptor should exist - this call's own insert must have been rolled back");
         jobs.Single().RunUser.Should().Be("tester");
@@ -395,7 +395,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_Runs_Normally_WhenTheDepositsOnlyJobsAreTerminal()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         await SavePipelineRunJob(context, deposit.MintedId, PipelineJobStates.Completed);
         await SavePipelineRunJob(context, deposit.MintedId, PipelineJobStates.CompletedWithErrors);
@@ -417,7 +417,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_Delivers_ViaTheLocalClient_AndNeverCallsSns_WhenLocalDeliveryIsOn()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
         var deliveryClient = A.Fake<IPipelineJobDeliveryClient>();
@@ -446,7 +446,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
     [Fact]
     public async Task Handle_ReleasesALockItAcquired_WhenLocalDeliveryFails()
     {
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
         var deliveryClient = A.Fake<IPipelineJobDeliveryClient>();
@@ -473,7 +473,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         // The flag, not merely whether a client happens to be registered, decides the path - a
         // deployed instance with the flag off must behave identically whether or not a stray
         // IPipelineJobDeliveryClient is present in DI.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         var snsClient = A.Fake<IAmazonSimpleNotificationService>();
         A.CallTo(() => snsClient.PublishAsync(A<PublishRequest>._, A<CancellationToken>._))
@@ -513,7 +513,7 @@ public class RunPipelineHandlerTests(DatabaseFixture fixture)
         // agreement, and matches the UI, which shows whichever job is still running. A stale
         // non-latest job like this is closed on the very next sweep tick (PipelineJobCleanupProcessor),
         // not left to block runs indefinitely.
-        await using var context = fixture.CreateNewAuthServiceContext();
+        await using var context = fixture.CreateNewPreservationContext();
         var deposit = await SaveDeposit(context, new Uri($"s3://{DefaultBucket}/deposits/dep-x/"));
         var earlier = DateTime.UtcNow.AddHours(-2);
         await SavePipelineRunJob(context, deposit.MintedId, PipelineJobStates.Running, dateSubmitted: earlier);

@@ -135,22 +135,22 @@ public class PipelineControllerTests : IDisposable
     // --- GET: DepositId path containment ---
 
     [Fact]
-    public async Task An_Existing_Deposit_Folder_Is_Listed()
+    public void An_Existing_Deposit_Folder_Is_Listed()
     {
         var controller = Controller();
 
-        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "deposit-1" }, TestContext.Current.CancellationToken);
+        var result = controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "deposit-1" }, TestContext.Current.CancellationToken);
 
         result.Errors.Should().BeEmpty();
         result.FilesInTarget.Should().Contain(f => f.EndsWith("a.txt"));
     }
 
     [Fact]
-    public async Task A_DepositId_Containing_A_Slash_Is_Refused_By_Slug_Validation()
+    public void A_DepositId_Containing_A_Slash_Is_Refused_By_Slug_Validation()
     {
         var controller = Controller();
 
-        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "../../.." }, TestContext.Current.CancellationToken);
+        var result = controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "../../.." }, TestContext.Current.CancellationToken);
 
         result.Errors.Should().NotBeEmpty();
         result.Directories.Should().BeNull();
@@ -158,7 +158,7 @@ public class PipelineControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task A_DepositId_Of_Dots_Alone_Is_Refused_By_The_Path_Containment_Check()
+    public void A_DepositId_Of_Dots_Alone_Is_Refused_By_The_Path_Containment_Check()
     {
         // ".." is, character by character, a valid slug - PreservedResource.ValidSlug checks each
         // character in isolation and does not special-case a dots-only segment, so slug validation
@@ -166,7 +166,7 @@ public class PipelineControllerTests : IDisposable
         // Path.GetFullPath resolves the ".." lexically) is what actually refuses it here.
         var controller = Controller();
 
-        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = ".." }, TestContext.Current.CancellationToken);
+        var result = controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = ".." }, TestContext.Current.CancellationToken);
 
         result.Errors.Should().NotBeEmpty();
         result.Directories.Should().BeNull();
@@ -174,11 +174,11 @@ public class PipelineControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task An_Invalid_Slug_DepositId_Is_Refused_With_A_Clear_Reason()
+    public void An_Invalid_Slug_DepositId_Is_Refused_With_A_Clear_Reason()
     {
         var controller = Controller();
 
-        var result = await controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "deposit/1" }, TestContext.Current.CancellationToken);
+        var result = controller.CheckDepositFolderAndContents(new DepositFilesModel { DepositId = "deposit/1" }, TestContext.Current.CancellationToken);
 
         result.Errors.Should().ContainSingle(e => e.Contains("not valid"));
     }

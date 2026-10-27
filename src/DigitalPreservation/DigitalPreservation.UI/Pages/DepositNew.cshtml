@@ -1,4 +1,5 @@
 ﻿@page "{handler?}"
+@using DigitalPreservation.UI.Infrastructure
 @model DepositNewModel
 @{
 ViewData["Title"] = "Deposits";
@@ -16,13 +17,9 @@ ViewData["section"] = "deposits";
 
 
 <div>
-    @if (TempData["CreateDepositFail"] != null)
-    {
-    <div class="alert alert-danger" role="alert">
-        <p>@Html.Raw(TempData["CreateDepositFail"])</p>
-    </div>
-    }
-
+    @* raw: a few of this page's failure messages deliberately embed a <br/> and a link to the
+       existing resource (see ValidateAndNormaliseNewDeposit in the page model) *@
+    <status-message key="@TempDataKeys.CreateDepositFail" variant="danger" dismissible="false" raw="true" />
     </div>
 
 @if (Model.NewDeposit != null)

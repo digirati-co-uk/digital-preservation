@@ -228,4 +228,19 @@ public class ImportJob : Resource
                "Binary. To proceed, make the name in the METS match the name the Archival Group already has, " +
                "or remove the rename entries from the job.";
     }
+
+    /// <summary>
+    /// Every resource id named anywhere in this job, across all seven lists (issue #388 item 2.7) -
+    /// the Preservation API's "every resource lies strictly below the Archival Group" check walks
+    /// this, and the Storage API makes the identical check itself as defence in depth, kept separate
+    /// there since it reports which specific list (Binary or Container) a stray id came from.
+    /// </summary>
+    public IEnumerable<Uri?> AllResourceIds() =>
+        BinariesToAdd.Select(b => b.Id)
+            .Concat(BinariesToPatch.Select(b => b.Id))
+            .Concat(BinariesToDelete.Select(b => b.Id))
+            .Concat(BinariesToRename.Select(b => b.Id))
+            .Concat(ContainersToAdd.Select(c => c.Id))
+            .Concat(ContainersToDelete.Select(c => c.Id))
+            .Concat(ContainersToRename.Select(c => c.Id));
 }
