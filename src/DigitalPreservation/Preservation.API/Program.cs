@@ -18,6 +18,7 @@ using Storage.Repository.Common.Mets;
 using Storage.Repository.Common.S3;
 using DigitalPreservation.Core.Auth;
 using LeedsDlipServices;
+using Preservation.API.Features.AccessConditions;
 using Amazon.SimpleNotificationService;
 using DigitalPreservation.Common.Model.Identity;
 using DigitalPreservation.Common.Model.PipelineApi;
@@ -121,6 +122,7 @@ try
         .AddSingleton<IIdentityMinter, IdentityMinter>()
         .AddMvpCatalogueClient(builder.Configuration)
         .AddResourceMutator(builder.Configuration)
+        .AddAccessConditionProfile(builder.Configuration) // before AddDepositWorkspace: supplies the profile the METS writer derives from
         .AddDepositWorkspace(builder.Configuration)
         .AddSingleton<MetsFromArchivalGroup>()
         .AddSingleton<ITokenService, TokenService>()

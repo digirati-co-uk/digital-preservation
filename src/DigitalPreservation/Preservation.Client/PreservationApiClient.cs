@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model.ChangeDiscovery;
 using DigitalPreservation.Common.Model.DepositArchiver;
 using DigitalPreservation.Common.Model.Import;
@@ -523,27 +524,29 @@ public class PreservationApiClient(
     // (issue #388 item 2.2): both treat a null/absent body on success as an empty list via `?? []`,
     // not as a failure - the one place in this file an empty body isn't itself an error - and the
     // shared helper has no equivalent of that fallback.
-    public async Task<Result<List<AccessRestriction>>> GetAccessConditions(CancellationToken cancellationToken = default)
+    public async Task<Result<AccessConditionProfile>> GetAccessConditions(CancellationToken cancellationToken = default)
     {
         const string cacheKey = "preservation:access-conditions";
-        if (memoryCache.TryGetValue(cacheKey, out List<AccessRestriction>? cached))
+        if (memoryCache.TryGetValue(cacheKey, out AccessConditionProfile? cached))
             return Result.OkNotNull(cached!);
         try
         {
             var response = await preservationHttpClient.GetAsync("/access-conditions", cancellationToken);
             if (response.IsSuccessStatusCode)
             {
-                var conditions = await response.Content.ReadFromJsonAsync<List<AccessRestriction>>(
-                    cancellationToken: cancellationToken) ?? [];
-                memoryCache.Set(cacheKey, conditions, TimeSpan.FromHours(1));
-                return Result.OkNotNull(conditions);
+                var profile = await response.Content.ReadFromJsonAsync<AccessConditionProfile>(
+                    cancellationToken: cancellationToken) ?? new AccessConditionProfile();
+                // Short enough that a redeployed API profile reaches the UI without a UI restart
+                // (issue #433), long enough that the METS writer's per-write fetch is nearly free.
+                memoryCache.Set(cacheKey, profile, TimeSpan.FromMinutes(5));
+                return Result.OkNotNull(profile);
             }
-            return await response.ToFailNotNullResult<List<AccessRestriction>>("Unable to get access conditions");
+            return await response.ToFailNotNullResult<AccessConditionProfile>("Unable to get access conditions");
         }
         catch (Exception e)
         {
             logger.LogError(e, "Could not get access conditions");
-            return Result.FailNotNull<List<AccessRestriction>>(ErrorCodes.UnknownError, e.Message);
+            return Result.FailNotNull<AccessConditionProfile>(ErrorCodes.UnknownError, e.Message);
         }
     }
 

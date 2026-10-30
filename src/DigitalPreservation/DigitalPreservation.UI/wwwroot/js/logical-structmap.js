@@ -294,6 +294,12 @@ function buildMetadataSummaryText(range) {
         const label = getRightsShortLabel(range.rightsStatement);
         if (label) parts.push(label);
     }
+    // Derived conditions (issue #433) as last saved; the server recomputes them when the structMap is saved.
+    for (const derived of (typeof accessConditionProfile !== 'undefined' ? accessConditionProfile?.derived : null) ?? []) {
+        const value = range.derivedAccessConditions?.[derived.type];
+        if (value !== undefined)
+            parts.push(derived.values.find(v => v.value === value)?.label ?? value);
+    }
     if (range.recordInfo?.recordIdentifiers?.length > 0) {
         const ri = range.recordInfo.recordIdentifiers;
         parts.push(ri.length === 1 ? `${ri[0].value} (${ri[0].source})` : `${ri.length} IDs`);
@@ -605,7 +611,10 @@ function openModsModalForRange(structmapId, rangeId) {
     const range = root ? findRange(root, rangeId) : null;
     const launcher = document.createElement('span');
     launcher.dataset.access = (range?.accessRestrictions ?? []).join(',');
+    launcher.dataset.effAccess = (range?.effectiveAccessRestrictions ?? []).join(',');
     launcher.dataset.rights = getRightsShortLabel(range?.rightsStatement) ?? '';
+    launcher.dataset.effRights = getRightsShortLabel(range?.effectiveRightsStatement) ?? '';
+    launcher.dataset.effDerived = JSON.stringify(range?.effectiveDerivedAccessConditions ?? {});
     launcher.dataset.recordinfo = toRecordInfoCompact(range?.recordInfo) ?? '';
     launcher.dataset.toolOutput = '';
 

@@ -1,4 +1,5 @@
 ﻿using Amazon.S3.Util;
+using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.DepositHelpers;
 using DigitalPreservation.Common.Model.Import;
@@ -69,7 +70,14 @@ public class DepositModel(
     public List<string> FilesWithViruses { get; set; } = [];
     public List<ImportJobResult> ImportJobResults { get; set; } = [];
     public List<LogicalRange> LogicalStructMaps { get; set; } = [];
-    public List<AccessRestriction> AccessConditions { get; set; } = [];
+    /// <summary>
+    /// The installation's access-condition profile (issue #433), from the Preservation API: labels
+    /// and vocabulary for the two dropdowns, the rights grouping, and the derived conditions the
+    /// modal previews live and the tree displays. An empty profile when the API could not supply one.
+    /// </summary>
+    public AccessConditionProfile AccessConditionProfile { get; set; } = new();
+
+    public string AccessConditionProfileJson => JsonSerializer.Serialize(AccessConditionProfile);
     public List<string> RangeTypes { get; set; } = [];
 
     private static readonly JsonSerializerOptions CamelCaseOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -154,9 +162,9 @@ public class DepositModel(
         CancellationToken cancellationToken)
     {
         await BindDeposit(id, cancellationToken);
-        var conditionsResult = await preservationApiClient.GetAccessConditions(cancellationToken);
-        if (conditionsResult.Success)
-            AccessConditions = conditionsResult.Value!;
+        var profileResult = await preservationApiClient.GetAccessConditions(cancellationToken);
+        if (profileResult.Success)
+            AccessConditionProfile = profileResult.Value!;
         var rangeTypesResult = await preservationApiClient.GetRangeTypes(cancellationToken);
         if (rangeTypesResult.Success && rangeTypesResult.Value!.Count > 0)
             RangeTypes = rangeTypesResult.Value;

@@ -1,4 +1,5 @@
 ﻿using DigitalPreservation.Common.Model;
+using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Combined;
 using DigitalPreservation.Common.Model.Transit.Extensions;
@@ -8,7 +9,14 @@ namespace DigitalPreservation.UI.Pages.Shared;
 
 public static class ModsMetadataDisplayBuilder
 {
-    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(CombinedBase? combinedBase, ILogger? logger = null)
+    /// <summary>
+    /// ViewData key under which a page makes the installation's <see cref="AccessConditionProfile"/>
+    /// available to the partials that render metadata items (issue #433).
+    /// </summary>
+    public const string ProfileViewDataKey = "AccessConditionProfile";
+
+    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(
+        CombinedBase? combinedBase, ILogger? logger = null, AccessConditionProfile? profile = null)
     {
         if (combinedBase == null)
         {
@@ -20,12 +28,16 @@ public static class ModsMetadataDisplayBuilder
             combinedBase.RightsStatement,
             combinedBase.EffectiveRightsStatement,
             combinedBase.RightsStatementSuppressed,
+            combinedBase.DerivedAccessConditions,
+            combinedBase.EffectiveDerivedAccessConditions,
             combinedBase.RecordInfo,
             combinedBase.EffectiveRecordInfo,
+            profile,
             logger);
     }
 
-    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(ResourceBase? resourceBase, ILogger? logger = null)
+    public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(
+        ResourceBase? resourceBase, ILogger? logger = null, AccessConditionProfile? profile = null)
     {
         if (resourceBase == null)
         {
@@ -37,8 +49,11 @@ public static class ModsMetadataDisplayBuilder
             resourceBase.RightsStatement,
             resourceBase.EffectiveRightsStatement,
             resourceBase.RightsStatementSuppressed,
+            resourceBase.DerivedAccessConditions,
+            resourceBase.EffectiveDerivedAccessConditions,
             resourceBase.RecordInfo,
             resourceBase.EffectiveRecordInfo,
+            profile,
             logger);
     }
 
@@ -48,8 +63,11 @@ public static class ModsMetadataDisplayBuilder
         Uri? rightsStatement,
         Uri? effectiveRightsStatement,
         bool rightsStatementSuppressed,
+        Dictionary<string, string>? derivedAccessConditions,
+        Dictionary<string, string>? effectiveDerivedAccessConditions,
         RecordInfo? recordInfo,
         RecordInfo? effectiveRecordInfo,
+        AccessConditionProfile? profile,
         ILogger? logger)
     {
         // Collect display items as (label, text, inherited). Inherited items render in muted style.
@@ -67,11 +85,11 @@ public static class ModsMetadataDisplayBuilder
                     "Effective access restrictions ({Effective}) don't match explicit access restrictions ({Explicit}); showing the explicit value",
                     string.Join(", ", effectiveAccessRestrictions), string.Join(", ", accessRestrictions));
             }
-            items.Add(("Access", string.Join(", ", accessRestrictions), false));
+            items.Add(("Access", string.Join(", ", accessRestrictions.Select(v => RestrictionLabel(profile, v))), false));
         }
         else if (effectiveAccessRestrictions is { Count: > 0 })
         {
-            items.Add(("Access", string.Join(", ", effectiveAccessRestrictions), true));
+            items.Add(("Access", string.Join(", ", effectiveAccessRestrictions.Select(v => RestrictionLabel(profile, v))), true));
         }
 
         if (rightsStatement != null)
@@ -94,6 +112,27 @@ public static class ModsMetadataDisplayBuilder
             items.Add(("Rights", RightsStatement.GetShortLabel(effectiveRightsStatement) ?? "", true));
         }
 
+        // Derived conditions (issue #433). With a profile, only its derived types are shown, under
+        // their configured labels; without one (the Browse page), every other typed condition the
+        // parser found is shown under its raw type, which is still true and still useful.
+        var types = profile != null
+            ? profile.Derived.Select(d => d.Type)
+            : (effectiveDerivedAccessConditions?.Keys ?? Enumerable.Empty<string>())
+                .Union(derivedAccessConditions?.Keys ?? Enumerable.Empty<string>());
+        foreach (var type in types)
+        {
+            var derived = profile?.Derived.FirstOrDefault(d => d.Type == type);
+            var label = derived?.Label is { Length: > 0 } l ? l : type;
+            if (derivedAccessConditions != null && derivedAccessConditions.TryGetValue(type, out var explicitValue))
+            {
+                items.Add((label, derived?.LabelFor(explicitValue) ?? explicitValue, false));
+            }
+            else if (effectiveDerivedAccessConditions != null && effectiveDerivedAccessConditions.TryGetValue(type, out var effectiveValue))
+            {
+                items.Add((label, derived?.LabelFor(effectiveValue) ?? effectiveValue, true));
+            }
+        }
+
         if (recordInfo != null)
         {
             if (!recordInfo.HasSameIdentifiers(effectiveRecordInfo))
@@ -111,4 +150,8 @@ public static class ModsMetadataDisplayBuilder
 
         return items;
     }
+
+    /// <summary>The configured label for a restriction value, or the value itself when the profile has no such value (legacy or third-party content).</summary>
+    private static string RestrictionLabel(AccessConditionProfile? profile, string value) =>
+        profile?.RestrictionAxis.Values.FirstOrDefault(v => v.Value == value)?.Label ?? value;
 }
