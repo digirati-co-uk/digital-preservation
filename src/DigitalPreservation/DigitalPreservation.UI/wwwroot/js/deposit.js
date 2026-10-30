@@ -14,12 +14,121 @@ function populateModsModalFromAttributes(launcher){
     applyRightsStatement(rightsStatement, rightsSuppressed);
     applyRecordInfo(recordInfoCompact);
     applyFileLinksSection(launcher);
+    derivedPreviewContext = {
+        ownAccess: accessConditionList ? accessConditionList.split(',') : [],
+        effAccess: launcher.dataset.effAccess ?? '',
+        effRights: launcher.dataset.effRights ?? '',
+        ownRights: rightsStatement ?? '',
+        ownRightsSuppressed: rightsSuppressed,
+        effDerived: parseJsonOrEmpty(launcher.dataset.effDerived)
+    };
+    updateDerivedPreview();
 }
+
+// ---- Derived access conditions (issue #433) ----------------------------------------------------
+// The profile (const accessConditionProfile, from the Preservation API) may define conditions that
+// are never chosen but computed from the two dropdowns - for Leeds, the Access Tier. The server
+// writes the real value from the node's EFFECTIVE inputs on save; this preview mirrors that lookup
+// so the archivist sees the consequence of a choice before saving. Where an input would be
+// inherited and the parent's value cannot be known here, the preview says so instead of guessing.
+
+let derivedPreviewContext = null;
+
+function parseJsonOrEmpty(text) {
+    try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+}
+
+function selectedRestrictions() {
+    const select = document.getElementById("accessRestrictionsSelect");
+    if (!select) return null;
+    return Array.from(select.selectedOptions).map(o => o.value).filter(v => v !== '');
+}
+
+// The rights group key for a rights short label, or for "no rights" (null label), per the profile.
+function rightsGroupKey(shortLabelOrNull) {
+    const groups = accessConditionProfile?.rightsAxis?.groups ?? [];
+    const member = shortLabelOrNull ?? '__none__';
+    const exact = groups.find(g => g.members.includes(member));
+    if (exact) return exact.key;
+    return groups.find(g => g.members.includes('*'))?.key ?? null;
+}
+
+function lookupDerived(derived, row, column) {
+    const cells = derived.matrix[row] ?? derived.matrix['*'];
+    if (!cells) return null;
+    if (column && cells[column] !== undefined) return cells[column];
+    return cells['*'] ?? null;
+}
+
+// Short label for the URI currently chosen in the rights dropdown (null for none/inherit/sentinel).
+function shortLabelForRightsUri(uri) {
+    if (!uri) return null;
+    return Object.entries(rightsStatements).find(([, rs]) => rs.value === uri)?.[0] ?? null;
+}
+
+function updateDerivedPreview() {
+    const section = document.getElementById("derivedAccessConditionsSection");
+    if (!section || !accessConditionProfile?.derived?.length) return;
+    const ctx = derivedPreviewContext ?? {};
+
+    // Restriction row: the choice, else what this node currently inherits (an approximation: if the
+    // node's own value was just cleared, the parent's is not known here).
+    const chosen = selectedRestrictions() ?? [];
+    let rows = chosen.length > 0 ? chosen : (ctx.effAccess ? ctx.effAccess.split(',') : []);
+    // The node had its own value and it has just been cleared: what it will inherit is not known here.
+    const rowsKnown = !(chosen.length === 0 && (ctx.ownAccess ?? []).length > 0);
+    if (rows.length === 0) rows = ['__none__'];
+
+    // Rights column: the choice; "(none - do not inherit)" is the __none__ member; "(inherit)" is
+    // the node's current effective rights unless the node's own rights was just cleared.
+    const rightsSelect = document.getElementById("rightsStatementSelect");
+    const rightsChoice = rightsSelect ? rightsSelect.value : null;
+    let column;
+    let columnKnown = true;
+    if (rightsChoice === rightsDoNotInheritSentinel) {
+        column = rightsGroupKey(null);
+    } else if (rightsChoice) {
+        column = rightsGroupKey(shortLabelForRightsUri(rightsChoice));
+    } else if (ctx.ownRights || ctx.ownRightsSuppressed) {
+        columnKnown = false;   // own value cleared; parent's effective rights not known here
+    } else {
+        column = rightsGroupKey(ctx.effRights || null);
+    }
+
+    for (const derived of accessConditionProfile.derived) {
+        const target = section.querySelector(`.derived-access-condition[data-derived-type="${derived.type}"]`);
+        if (!target) continue;
+        if (!rowsKnown || !columnKnown) {
+            target.innerHTML = "<em>(inherits; determined on save)</em>";
+            continue;
+        }
+        let best = null, bestRank = -1;
+        for (const row of rows) {
+            const value = lookupDerived(derived, row, column);
+            if (value === null) continue;
+            const rank = derived.values.findIndex(v => v.value === value);
+            if (rank > bestRank) { best = value; bestRank = rank; }
+        }
+        if (best === null) {
+            target.innerHTML = "<em>(no value for this combination)</em>";
+        } else {
+            const label = derived.values.find(v => v.value === best)?.label ?? best;
+            target.innerHTML = `<strong>${label}</strong>`;
+        }
+    }
+}
+
+document.getElementById("accessRestrictionsSelect")?.addEventListener('change', updateDerivedPreview);
+document.getElementById("rightsStatementSelect")?.addEventListener('change', updateDerivedPreview);
 
 function applyAccessRestrictions(accessConditionList){
     const accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");
     if(accessRestrictionsSelect){
         accessRestrictionsSelect.selectedIndex = -1;
+        if(accessConditionList.length === 0 && !accessRestrictionsSelect.multiple){
+            // Single-select (issue #433): no explicit value is the "(inherit from parent)" option.
+            selectOptionByValue(accessRestrictionsSelect, "");
+        }
         if(accessConditionList.length > 0){
             const accessConditions = new Set(accessConditionList.split(","));
             const existingValues = new Set(Array.from(accessRestrictionsSelect.options).map(o => o.value));

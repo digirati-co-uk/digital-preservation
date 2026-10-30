@@ -67,6 +67,27 @@ edge case (step 1): if a file's physical div has a `use and reproduction` elemen
 unrecognised or empty value, the file's own (null) rights are used rather than inheriting —
 the explicit presence of the element is treated as an intentional override.
 
+### Physical files — Derived access conditions (issue #433)
+
+Every `accessCondition` whose `type` is neither of the two above (nor Goobi's `status`) lands in
+`DerivedAccessConditions`, a `type → value` map. The platform writes its configured derived
+conditions here (the Leeds `tier`), but the parser cannot know which types a configuration
+derives, so a third party's other typed conditions (`dz`, `player`...) appear here too.
+
+| Step | Source | Condition |
+|------|--------|-----------|
+| D1 | File's own DMDID, per type | Own value for that type present |
+| D2 | Walk up the physical directory tree, per type | Ancestor has a value for that type |
+| D3 | The file's single whole-file fptr logical range, then its structLink-associated range | The merged physical result is **empty** (no type at all) |
+| D4 | `{}` | No source found |
+
+Inheritance is **per type**, merged: a file carrying only `tier` still inherits its folder's
+`dz`. The logical fallback (D3) is all-or-nothing on the physical result, mirroring A4. Because
+`MetsManager` rewrites the configured derived types on every div that has an explicit chosen
+element - from that div's *effective* chosen inputs, on every write - the explicit and effective
+derived values are consistent with the chosen ones by construction; D1-D4 matter for documents
+written elsewhere. See `DerivedAccessConditionsParsingTests` and `DerivedAccessConditionsWriterTests`.
+
 ### Physical files — Record Info
 
 | Step | Source | Condition |

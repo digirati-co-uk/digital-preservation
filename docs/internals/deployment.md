@@ -93,7 +93,8 @@ The same sections as the Storage API, minus everything to do with serving HTTP: 
 | `AzureAd`, `KnownClients` | As for the Storage API. |
 | `TokenProvider` | The registration the API uses to obtain its *own* token when calling the Storage API. |
 | `PipelineOptions` | The SNS topic ARN pipeline run requests are published to. |
-| `AccessConditions`, `RangeTypes` | The controlled vocabularies served at `/access-conditions` and `/range-types`. |
+| `AccessConditionProfile` | The access-condition vocabulary served at `/access-conditions` (issue #433): `RestrictionAxis` (label + `Values`), `RightsAxis` (label + optional `Groups` of rights-statement short labels), `Derived` (type, label, ordered `Values`, `Matrix` of restriction value → group key → value, with `__none__` and `*` keys) and `AllowMultipleRestrictions`. Only `RestrictionAxis.Values` is needed for the simple case; `appsettings.Example.json` shows it and `appsettings.json` carries the full Leeds profile. **Validated at startup**: a matrix that names an unknown row, column or value, or multi-select together with `Derived`, stops the service with the reasons in the log. The UI has no copy of its own; it fetches the API's and caches it for five minutes, so a profile change needs only the API redeployed. The documentation site describes the JSON shape. |
+| `RangeTypes` | The logical-range type vocabulary served at `/range-types`. |
 | `FeatureFlags` | See below. |
 
 ### Pipeline API

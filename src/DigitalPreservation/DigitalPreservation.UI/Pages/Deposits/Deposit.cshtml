@@ -6,12 +6,15 @@
 @using DigitalPreservation.Core.Auth
 @using DigitalPreservation.UI.Features
 @using DigitalPreservation.UI.Infrastructure
+@using DigitalPreservation.UI.Pages.Shared
 @using DigitalPreservation.Utils
 @model DepositModel
 
 @{
     ViewData["Title"] = Model.GetDisplayTitle();
     ViewData["section"] = "deposits";
+    // Read by _AccessAndRights (via _RenderCombinedDirectoryAsTableRows) to label derived conditions (issue #433)
+    ViewData[ModsMetadataDisplayBuilder.ProfileViewDataKey] = Model.AccessConditionProfile;
 
     var jobRunningOrArchived = Model.RunningPipelineJob != null || Model.Deposit?.Archived != null;
 }
@@ -770,17 +773,31 @@
                     <div class="mb-3">
                         <p class="small" id="modsLocalPathInfo"></p>
                     </div>
+                    @{
+                        var profile = Model.AccessConditionProfile;
+                        var rightsGroups = profile.RightsAxis.Groups;
+                        var allRights = RightsStatement.RightsStatements.Concat(RightsStatement.CreativeCommons).ToList();
+                    }
                     <div class="mb-3">
-                        <label id="accessRestrictionsSelectLabel" for="accessRestrictionsSelect" class="form-label">Access Restriction(s)</label>
+                        <label id="accessRestrictionsSelectLabel" for="accessRestrictionsSelect" class="form-label">@profile.RestrictionAxis.Label</label>
                         @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
-                            <select multiple id="accessRestrictionsSelect" class="form-select" name="accessRestrictions" aria-labelledby="accessRestrictionsSelectLabel">
-                                @foreach (var accessRestriction in Model.AccessConditions)
+                            @* Single-select unless the profile allows several (issue #433). An empty choice
+                               means "inherit from the parent", as clearing a multi-select always did. *@
+                            <select multiple="@profile.AllowMultipleRestrictions" id="accessRestrictionsSelect" class="form-select" name="accessRestrictions" aria-labelledby="accessRestrictionsSelectLabel">
+                                @if (!profile.AllowMultipleRestrictions)
+                                {
+                                    <!option value="">(inherit from parent)</!option>
+                                }
+                                @foreach (var accessRestriction in profile.RestrictionAxis.Values)
                                 {
                                     <!option value="@accessRestriction.Value">@accessRestriction.Label</!option>
                                 }
                             </select>
-                            <div id="accessRestrictionsHelp" class="form-text small">Ctrl+click to deselect</div>
+                            @if (profile.AllowMultipleRestrictions)
+                            {
+                                <div id="accessRestrictionsHelp" class="form-text small">Ctrl+click to deselect</div>
+                            }
                         }
                         else
                         {
@@ -790,28 +807,61 @@
                         }
                     </div>
                     <div class="mb-3">
-                        <label id="rightsStatementSelectLabel" for="rightsStatementSelect" class="form-label">Rights statement</label>
+                        <label id="rightsStatementSelectLabel" for="rightsStatementSelect" class="form-label">@profile.RightsAxis.Label</label>
                         @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
                         {
                             <select id="rightsStatementSelect" class="form-select" name="rightsStatement" aria-labelledby="rightsStatementSelectLabel">
                                 <!option value="">(inherit from parent)</!option>
                                 <!option value="@RightsStatement.DoNotInheritSentinel">(none — do not inherit)</!option>
-                                @foreach (var rightsStatement in RightsStatement.RightsStatements)
+                                @if (rightsGroups.Count > 0)
                                 {
-                                    <!option value="@rightsStatement.Value">@rightsStatement.Label</!option>
+                                    @* Grouped: the profile's groups are the optgroups, and the matrix columns
+                                       for any derived condition. Statements in no group are not offered. *@
+                                    foreach (var group in rightsGroups)
+                                    {
+                                        var members = allRights.Where(rs => group.Members.Contains(rs.ShortLabel)).ToList();
+                                        if (members.Count == 0) continue;
+                                        <optgroup label="@group.Label">
+                                            @foreach (var rs in members)
+                                            {
+                                                <!option value="@rs.Value">@rs.Label</!option>
+                                            }
+                                        </optgroup>
+                                    }
                                 }
-                                @foreach (var creativeCommons in RightsStatement.CreativeCommons)
+                                else
                                 {
-                                    <!option value="@creativeCommons.Value">@creativeCommons.Label</!option>
+                                    foreach (var rightsStatement in RightsStatement.RightsStatements)
+                                    {
+                                        <!option value="@rightsStatement.Value">@rightsStatement.Label</!option>
+                                    }
+                                    foreach (var creativeCommons in RightsStatement.CreativeCommons)
+                                    {
+                                        <!option value="@creativeCommons.Value">@creativeCommons.Label</!option>
+                                    }
                                 }
                             </select>
-                            @* <div id="rightsStatementHelp" class="form-text"></div> *@
                         }
                         else
                         {
                             <p id="nonEditableRightsStatement">(no rights statement)</p>
                         }
                     </div>
+                    @if (profile.Derived.Count > 0)
+                    {
+                        @* Derived conditions (issue #433) are never chosen: deposit.js recomputes this
+                           preview from the two dropdowns as they change, and the server writes the
+                           real value from the EFFECTIVE inputs when the form is saved. *@
+                        <div class="mb-3" id="derivedAccessConditionsSection">
+                            @foreach (var derived in profile.Derived)
+                            {
+                                <div class="form-label mb-0">@derived.Label</div>
+                                <p class="derived-access-condition mb-2" data-derived-type="@derived.Type" aria-live="polite">
+                                    <em>(determined on save)</em>
+                                </p>
+                            }
+                        </div>
+                    }
                     <div class="mb-3">
                         <label id="recordInfoLabel" for="recordInfoDynamicForm" class="form-label">Record Identifiers</label>
                         @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
@@ -900,6 +950,7 @@
         const rightsStatements = @Html.Raw(JsonSerializer.Serialize(RightsStatement.ByShortLabel,
             new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
         const rightsDoNotInheritSentinel = @Html.Raw(JsonSerializer.Serialize(RightsStatement.DoNotInheritSentinel));
+        const accessConditionProfile = @Html.Raw(Model.AccessConditionProfileJson);
         const archivalGroupExists = @(Model.ArchivalGroupExists ? "true" : "false");
         const logicalStructMapsData = @Html.Raw(Model.LogicalStructMapsJson);
         const rangeTypes = @Html.Raw(Model.RangeTypesJson);

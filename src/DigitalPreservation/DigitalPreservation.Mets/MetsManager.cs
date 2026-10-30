@@ -6,6 +6,7 @@ using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Transit;
 using DigitalPreservation.Common.Model.Transit.Extensions;
 using DigitalPreservation.Common.Model.Transit.Extensions.Metadata;
+using DigitalPreservation.Mets.AccessConditions;
 using DigitalPreservation.Utils;
 using DigitalPreservation.XmlGen.Mets;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,8 @@ public class MetsManager(
     IMetsStorage metsStorage,
     MetadataManager metadataManager,
     IOptions<MetsManagerOptions>? options = null,
-    ILogger<MetsManager>? logger = null) : IMetsManager
+    ILogger<MetsManager>? logger = null,
+    IDerivedAccessConditionResolver? derivedAccessConditionResolver = null) : IMetsManager
 {
     private bool NormaliseOnWrite => options?.Value.NormaliseMetsIdsOnWrite ?? false;
 
@@ -68,6 +70,11 @@ public class MetsManager(
     /// </remarks>
     public async Task<Result> WriteMets(FullMets fullMets)
     {
+        // Every write recomputes the derived access conditions for the whole document first (issue
+        // #433), so a change to an ancestor's chosen values can never leave a stale derived value on
+        // a descendant. A no-op where nothing is configured to be derived.
+        await ApplyDerivedAccessConditions(fullMets);
+
         if (NormaliseOnWrite)
         {
             var normalisation = NormaliseIds(fullMets);
@@ -1050,6 +1057,104 @@ public class MetsManager(
     private static Result ModsUnavailable(DivType div) =>
         Result.Fail(ErrorCodes.BadRequest,
             $"The descriptive metadata for div '{div.Id}' could not be read or created as MODS.");
+
+    /// <summary>
+    /// Rewrite the derived access conditions (issue #433) across the whole document: on every
+    /// physical and logical div that carries an explicit <c>restriction on access</c> or
+    /// <c>use and reproduction</c> element, the resolver's value for the div's EFFECTIVE chosen
+    /// conditions is written as <c>mods:accessCondition type="{managed type}"</c>; on a div with
+    /// neither, any managed type is removed so it inherits like everything else. Only the
+    /// resolver's managed types are ever touched - a document's other typed access conditions,
+    /// and derived values written under a type no longer configured, are left exactly as found.
+    /// Called from <see cref="WriteMets"/>; a no-op without a resolver or with nothing derived.
+    /// </summary>
+    /// <returns>The IDs of the divs whose MODS changed.</returns>
+    public async Task<List<string>> ApplyDerivedAccessConditions(FullMets fullMets)
+    {
+        var changed = new List<string>();
+        if (derivedAccessConditionResolver == null) return changed;
+        var managed = await derivedAccessConditionResolver.GetManagedTypesAsync();
+        if (managed.Count == 0) return changed;
+
+        // Logical ranges inherit from the physical root (MetsParser.ComputeEffectiveMetadata), so
+        // the physical tree is walked first and its root's effective inputs seed each logical one.
+        var rootInputs = new EffectiveAccessInputs([], null);
+        var physRoot = fullMets.Mets.StructMap.FirstOrDefault(sm => sm.Type == Constants.Physical)?.Div;
+        if (physRoot != null)
+        {
+            rootInputs = await ApplyDerivedToDivTree(fullMets, physRoot, rootInputs, managed, changed);
+        }
+        foreach (var logical in fullMets.Mets.StructMap.Where(sm => sm.Type == Constants.Logical && sm.Div != null))
+        {
+            await ApplyDerivedToDivTree(fullMets, logical.Div, rootInputs, managed, changed);
+        }
+        if (changed.Count > 0)
+        {
+            logger?.LogInformation("Derived access conditions rewritten on {Count} div(s) in {MetsUri}",
+                changed.Count, fullMets.Uri);
+        }
+        return changed;
+    }
+
+    /// <returns>The div's effective chosen inputs, for its children (and, for the physical root, for the logical structMaps).</returns>
+    private async Task<EffectiveAccessInputs> ApplyDerivedToDivTree(
+        FullMets fullMets, DivType div, EffectiveAccessInputs parent,
+        IReadOnlyCollection<string> managed, List<string> changed)
+    {
+        var effective = parent;
+        var mods = ModsManager.GetModsForDiv(fullMets.Mets, div);
+        if (mods != null)
+        {
+            // Only the platform's own chosen elements are inputs. A Goobi "status" element, which
+            // the parser DISPLAYS as a restriction, is not: the writer never derives from, or
+            // rewrites the MODS of, a div it did not itself set access metadata on.
+            var restrictions = mods.GetAccessConditions(Constants.RestrictionOnAccess);
+            var rightsElements = mods.GetAccessConditions(Constants.UseAndReproduction);
+            var rightsPresent = rightsElements.Count > 0;
+            Uri? rights = null;
+            if (rightsPresent)
+            {
+                // Present but not a URI is the "explicitly none" sentinel: effective rights null,
+                // and inheritance stops here - the same reading as the parser's.
+                Uri.TryCreate(rightsElements[0], UriKind.Absolute, out rights);
+            }
+
+            effective = new EffectiveAccessInputs(
+                restrictions.Count > 0 ? restrictions : parent.Restrictions,
+                rightsPresent ? rights : parent.RightsStatement);
+
+            var before = ManagedSnapshot(mods, managed);
+            foreach (var type in managed)
+            {
+                mods.RemoveAccessConditions(type);
+            }
+            if (restrictions.Count > 0 || rightsPresent)
+            {
+                var derived = await derivedAccessConditionResolver!.ResolveAsync(effective);
+                foreach (var type in managed)
+                {
+                    if (derived.TryGetValue(type, out var value))
+                    {
+                        mods.AddAccessCondition(value, type);
+                    }
+                }
+            }
+            if (!ManagedSnapshot(mods, managed).SequenceEqual(before))
+            {
+                ModsManager.SetModsForDiv(fullMets.Mets, div, mods);
+                changed.Add(div.Id ?? string.Empty);
+            }
+        }
+
+        foreach (var child in div.Div)
+        {
+            await ApplyDerivedToDivTree(fullMets, child, effective, managed, changed);
+        }
+        return effective;
+    }
+
+    private static List<string> ManagedSnapshot(XmlGen.Mods.V3.ModsDefinition mods, IReadOnlyCollection<string> managed) =>
+        managed.Select(type => type + "=" + string.Join("|", mods.GetAccessConditions(type))).ToList();
 
     public Result SetRecordInfoByPath(FullMets mets, string localPath, RecordInfo recordInfo)
     {

@@ -47,6 +47,27 @@ public abstract class ResourceBase
     [JsonPropertyOrder(12)]
     public bool RightsStatementSuppressed { get; set; }
 
+    /// <summary>
+    /// Every <c>mods:accessCondition</c> on this resource of a type OTHER than the two chosen ones
+    /// (<c>restriction on access</c> and <c>use and reproduction</c>), keyed by <c>@type</c>, first
+    /// value per type. The platform writes its configured derived conditions here - for Leeds the
+    /// access tier (issue #433) - but the parser cannot know which types a configuration derives,
+    /// so a third-party document's other typed conditions appear here too. Read-only through the
+    /// API: derived values are recomputed from the chosen ones on every write.
+    /// </summary>
+    [JsonPropertyName("derivedAccessConditions")]
+    [JsonPropertyOrder(13)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? DerivedAccessConditions { get; set; }
+
+    /// <summary>
+    /// <see cref="DerivedAccessConditions"/> after inheritance, per type: a type set here overrides
+    /// the ancestor's value for that type and inherits the rest.
+    /// </summary>
+    [JsonPropertyName("effectiveDerivedAccessConditions")]
+    [JsonPropertyOrder(14)]
+    public Dictionary<string, string> EffectiveDerivedAccessConditions { get; set; } = [];
+
     [JsonPropertyName("recordInfo")]
     [JsonPropertyOrder(15)]
     public RecordInfo? RecordInfo { get; set; }
