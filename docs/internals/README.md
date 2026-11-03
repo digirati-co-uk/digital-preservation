@@ -13,6 +13,7 @@ What is here answers a different question, for a different reader, and changes o
 | [overview.md](./overview.md) | The six running services, how work reaches them, where the code lives. |
 | [pipeline-api.md](./pipeline-api.md) | SNS and SQS, the job claim, the tool chain, how a run proceeds and how it fails. |
 | [deployment.md](./deployment.md) | Images, build and deploy workflows, configuration sections, feature flags, databases, running locally. |
+| [access-condition-profile.md](./access-condition-profile.md) | The Preservation API's `AccessConditionProfile` section: the standard access-restriction vocabulary, the optional derived-conditions extension, and the Leeds Access Tier as a worked example. |
 
 ## Where the boundaries are
 
