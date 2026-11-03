@@ -66,34 +66,47 @@ function shortLabelForRightsUri(uri) {
     return Object.entries(rightsStatements).find(([, rs]) => rs.value === uri)?.[0] ?? null;
 }
 
+// The matrix row(s) for the preview: the chosen restriction(s), else what the node currently
+// inherits. If the node's own value has just been cleared, what it will inherit is not known here.
+function derivedPreviewRows(ctx) {
+    const chosen = selectedRestrictions() ?? [];
+    const ownValueCleared = chosen.length === 0 && (ctx.ownAccess ?? []).length > 0;
+    let rows = chosen;
+    if (rows.length === 0 && ctx.effAccess) rows = ctx.effAccess.split(',');
+    if (rows.length === 0) rows = ['__none__'];
+    return { rows, known: !ownValueCleared };
+}
+
+// The matrix column for the preview: the chosen rights statement's group; "(none - do not inherit)"
+// is the __none__ member; "(inherit)" is the node's current effective rights, unless the node's own
+// rights has just been cleared, in which case the parent's is not known here.
+function derivedPreviewColumn(ctx) {
+    const rightsSelect = document.getElementById("rightsStatementSelect");
+    const rightsChoice = rightsSelect ? rightsSelect.value : null;
+    if (rightsChoice === rightsDoNotInheritSentinel) return { column: rightsGroupKey(null), known: true };
+    if (rightsChoice) return { column: rightsGroupKey(shortLabelForRightsUri(rightsChoice)), known: true };
+    if (ctx.ownRights || ctx.ownRightsSuppressed) return { column: undefined, known: false };
+    return { column: rightsGroupKey(ctx.effRights || null), known: true };
+}
+
+// The value latest in the derived condition's values order (least to most restrictive) over the rows.
+function bestDerivedValue(derived, rows, column) {
+    let best = null, bestRank = -1;
+    for (const row of rows) {
+        const value = lookupDerived(derived, row, column);
+        if (value === null) continue;
+        const rank = derived.values.findIndex(v => v.value === value);
+        if (rank > bestRank) { best = value; bestRank = rank; }
+    }
+    return best;
+}
+
 function updateDerivedPreview() {
     const section = document.getElementById("derivedAccessConditionsSection");
     if (!section || !accessConditionProfile?.derived?.length) return;
     const ctx = derivedPreviewContext ?? {};
-
-    // Restriction row: the choice, else what this node currently inherits (an approximation: if the
-    // node's own value was just cleared, the parent's is not known here).
-    const chosen = selectedRestrictions() ?? [];
-    let rows = chosen.length > 0 ? chosen : (ctx.effAccess ? ctx.effAccess.split(',') : []);
-    // The node had its own value and it has just been cleared: what it will inherit is not known here.
-    const rowsKnown = !(chosen.length === 0 && (ctx.ownAccess ?? []).length > 0);
-    if (rows.length === 0) rows = ['__none__'];
-
-    // Rights column: the choice; "(none - do not inherit)" is the __none__ member; "(inherit)" is
-    // the node's current effective rights unless the node's own rights was just cleared.
-    const rightsSelect = document.getElementById("rightsStatementSelect");
-    const rightsChoice = rightsSelect ? rightsSelect.value : null;
-    let column;
-    let columnKnown = true;
-    if (rightsChoice === rightsDoNotInheritSentinel) {
-        column = rightsGroupKey(null);
-    } else if (rightsChoice) {
-        column = rightsGroupKey(shortLabelForRightsUri(rightsChoice));
-    } else if (ctx.ownRights || ctx.ownRightsSuppressed) {
-        columnKnown = false;   // own value cleared; parent's effective rights not known here
-    } else {
-        column = rightsGroupKey(ctx.effRights || null);
-    }
+    const { rows, known: rowsKnown } = derivedPreviewRows(ctx);
+    const { column, known: columnKnown } = derivedPreviewColumn(ctx);
 
     for (const derived of accessConditionProfile.derived) {
         const target = section.querySelector(`.derived-access-condition[data-derived-type="${derived.type}"]`);
@@ -102,13 +115,7 @@ function updateDerivedPreview() {
             target.innerHTML = "<em>(inherits; determined on save)</em>";
             continue;
         }
-        let best = null, bestRank = -1;
-        for (const row of rows) {
-            const value = lookupDerived(derived, row, column);
-            if (value === null) continue;
-            const rank = derived.values.findIndex(v => v.value === value);
-            if (rank > bestRank) { best = value; bestRank = rank; }
-        }
+        const best = bestDerivedValue(derived, rows, column);
         if (best === null) {
             target.innerHTML = "<em>(no value for this combination)</em>";
         } else {

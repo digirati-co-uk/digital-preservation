@@ -54,13 +54,26 @@ public class AccessConditionProfile
     public List<string> Validate()
     {
         var errors = new List<string>();
+        ValidateRestrictionAxis(errors);
+        var groupKeys = ValidateRightsGroups(errors);
+        if (AllowMultipleRestrictions && Derived.Count > 0)
+            errors.Add("AllowMultipleRestrictions cannot be combined with Derived access conditions: a derived value is a single matrix cell.");
+        ValidateDerived(errors, groupKeys);
+        return errors;
+    }
 
+    private void ValidateRestrictionAxis(List<string> errors)
+    {
         // No restriction values at all is allowed (an absent section is a usable, if bare, profile:
         // the dropdown then offers only "inherit"); what is not allowed is an inconsistent one.
         AddDuplicates(errors, RestrictionAxis.Values.Select(v => v.Value), "RestrictionAxis.Values");
         if (RestrictionAxis.Values.Any(v => v.Value is NoneKey or Wildcard))
             errors.Add($"RestrictionAxis.Values may not use the reserved keys '{NoneKey}' or '{Wildcard}'.");
+    }
 
+    /// <returns>The group keys, which are the valid matrix columns.</returns>
+    private List<string> ValidateRightsGroups(List<string> errors)
+    {
         var groupKeys = RightsAxis.Groups.Select(g => g.Key).ToList();
         AddDuplicates(errors, groupKeys, "RightsAxis.Groups keys");
         if (groupKeys.Contains(Wildcard))
@@ -78,41 +91,53 @@ public class AccessConditionProfile
                     errors.Add($"Rights statement '{member}' appears in more than one rights group.");
             }
         }
+        return groupKeys;
+    }
 
-        if (AllowMultipleRestrictions && Derived.Count > 0)
-            errors.Add("AllowMultipleRestrictions cannot be combined with Derived access conditions: a derived value is a single matrix cell.");
-
+    private void ValidateDerived(List<string> errors, IEnumerable<string> groupKeys)
+    {
         AddDuplicates(errors, Derived.Select(d => d.Type), "Derived types");
         var validRows = RestrictionAxis.Values.Select(v => v.Value).Append(NoneKey).Append(Wildcard).ToHashSet(StringComparer.Ordinal);
         var validColumns = groupKeys.Append(Wildcard).ToHashSet(StringComparer.Ordinal);
         foreach (var derived in Derived)
         {
-            var name = $"Derived '{derived.Type}'";
-            if (string.IsNullOrWhiteSpace(derived.Type))
-                errors.Add("A Derived access condition has no Type.");
-            else if (derived.Type is ReservedTypes.RestrictionOnAccess or ReservedTypes.UseAndReproduction)
-                errors.Add($"{name}: the type is reserved for a chosen (not derived) access condition.");
-            if (derived.Values.Count == 0)
-                errors.Add($"{name} has no Values.");
-            AddDuplicates(errors, derived.Values.Select(v => v.Value), $"{name} Values");
-            var validValues = derived.Values.Select(v => v.Value).ToHashSet(StringComparer.Ordinal);
-            if (derived.Matrix.Count == 0)
-                errors.Add($"{name} has an empty Matrix.");
-            foreach (var (row, cells) in derived.Matrix)
-            {
-                if (!validRows.Contains(row))
-                    errors.Add($"{name}: matrix row '{row}' is not a restriction value, '{NoneKey}' or '{Wildcard}'.");
-                foreach (var (column, value) in cells)
-                {
-                    if (!validColumns.Contains(column))
-                        errors.Add($"{name}: matrix column '{column}' in row '{row}' is not a rights group key or '{Wildcard}'.");
-                    if (!validValues.Contains(value))
-                        errors.Add($"{name}: matrix cell [{row}, {column}] = '{value}' is not one of its Values.");
-                }
-            }
+            ValidateDerivedCondition(errors, derived, validRows, validColumns);
         }
+    }
 
-        return errors;
+    private static void ValidateDerivedCondition(
+        List<string> errors, DerivedAccessCondition derived, HashSet<string> validRows, HashSet<string> validColumns)
+    {
+        var name = $"Derived '{derived.Type}'";
+        if (string.IsNullOrWhiteSpace(derived.Type))
+            errors.Add("A Derived access condition has no Type.");
+        else if (derived.Type is ReservedTypes.RestrictionOnAccess or ReservedTypes.UseAndReproduction)
+            errors.Add($"{name}: the type is reserved for a chosen (not derived) access condition.");
+        if (derived.Values.Count == 0)
+            errors.Add($"{name} has no Values.");
+        AddDuplicates(errors, derived.Values.Select(v => v.Value), $"{name} Values");
+        var validValues = derived.Values.Select(v => v.Value).ToHashSet(StringComparer.Ordinal);
+        if (derived.Matrix.Count == 0)
+            errors.Add($"{name} has an empty Matrix.");
+        foreach (var (row, cells) in derived.Matrix)
+        {
+            if (!validRows.Contains(row))
+                errors.Add($"{name}: matrix row '{row}' is not a restriction value, '{NoneKey}' or '{Wildcard}'.");
+            ValidateMatrixRow(errors, name, row, cells, validColumns, validValues);
+        }
+    }
+
+    private static void ValidateMatrixRow(
+        List<string> errors, string name, string row, Dictionary<string, string> cells,
+        HashSet<string> validColumns, HashSet<string> validValues)
+    {
+        foreach (var (column, value) in cells)
+        {
+            if (!validColumns.Contains(column))
+                errors.Add($"{name}: matrix column '{column}' in row '{row}' is not a rights group key or '{Wildcard}'.");
+            if (!validValues.Contains(value))
+                errors.Add($"{name}: matrix cell [{row}, {column}] = '{value}' is not one of its Values.");
+        }
     }
 
     /// <summary>
@@ -122,9 +147,11 @@ public class AccessConditionProfile
     /// </summary>
     public string? FindRightsGroupKey(Uri? effectiveRights)
     {
-        var member = effectiveRights == null
-            ? NoneKey
-            : RightsStatement.ByUri.TryGetValue(effectiveRights, out var rs) ? rs.ShortLabel : null;
+        string? member = null;
+        if (effectiveRights == null)
+            member = NoneKey;
+        else if (RightsStatement.ByUri.TryGetValue(effectiveRights, out var rs))
+            member = rs.ShortLabel;
 
         if (member != null)
         {

@@ -22,7 +22,7 @@ public static class ModsMetadataDisplayBuilder
         {
             return [];
         }
-        return GetDisplayItems(
+        return GetDisplayItems(new ModsDisplayInputs(
             combinedBase.AccessRestrictions,
             combinedBase.EffectiveAccessRestrictions,
             combinedBase.RightsStatement,
@@ -31,9 +31,7 @@ public static class ModsMetadataDisplayBuilder
             combinedBase.DerivedAccessConditions,
             combinedBase.EffectiveDerivedAccessConditions,
             combinedBase.RecordInfo,
-            combinedBase.EffectiveRecordInfo,
-            profile,
-            logger);
+            combinedBase.EffectiveRecordInfo), profile, logger);
     }
 
     public static List<(string Label, string Text, bool Inherited)> GetDisplayItems(
@@ -43,7 +41,7 @@ public static class ModsMetadataDisplayBuilder
         {
             return [];
         }
-        return GetDisplayItems(
+        return GetDisplayItems(new ModsDisplayInputs(
             resourceBase.AccessRestrictions,
             resourceBase.EffectiveAccessRestrictions,
             resourceBase.RightsStatement,
@@ -52,103 +50,133 @@ public static class ModsMetadataDisplayBuilder
             resourceBase.DerivedAccessConditions,
             resourceBase.EffectiveDerivedAccessConditions,
             resourceBase.RecordInfo,
-            resourceBase.EffectiveRecordInfo,
-            profile,
-            logger);
+            resourceBase.EffectiveRecordInfo), profile, logger);
     }
 
+    /// <summary>The explicit and effective MODS values of one node, whichever transit type it came from.</summary>
+    private sealed record ModsDisplayInputs(
+        List<string>? Access,
+        List<string>? EffectiveAccess,
+        Uri? Rights,
+        Uri? EffectiveRights,
+        bool RightsSuppressed,
+        Dictionary<string, string>? Derived,
+        Dictionary<string, string>? EffectiveDerived,
+        RecordInfo? Record,
+        RecordInfo? EffectiveRecord);
+
     private static List<(string Label, string Text, bool Inherited)> GetDisplayItems(
-        List<string>? accessRestrictions,
-        List<string>? effectiveAccessRestrictions,
-        Uri? rightsStatement,
-        Uri? effectiveRightsStatement,
-        bool rightsStatementSuppressed,
-        Dictionary<string, string>? derivedAccessConditions,
-        Dictionary<string, string>? effectiveDerivedAccessConditions,
-        RecordInfo? recordInfo,
-        RecordInfo? effectiveRecordInfo,
-        AccessConditionProfile? profile,
-        ILogger? logger)
+        ModsDisplayInputs inputs, AccessConditionProfile? profile, ILogger? logger)
     {
         // Collect display items as (label, text, inherited). Inherited items render in muted style.
         var items = new List<(string Label, string Text, bool Inherited)>();
+        AddAccess(items, inputs, profile, logger);
+        AddRights(items, inputs, logger);
+        AddDerived(items, inputs, profile);
+        AddRecord(items, inputs, logger);
+        return items;
+    }
 
-        // An explicit value always overrides to become the effective value (MetsParser.
-        // ComputeEffectiveMetadata), so a mismatch here means that invariant has been broken -
-        // defensive, not reachable today. Showing the explicit value and logging a warning keeps a
-        // future regression from turning a cosmetic inconsistency into a 500 for the whole page.
-        if (accessRestrictions is { Count: > 0 })
+    // An explicit value always overrides to become the effective value (MetsParser.
+    // ComputeEffectiveMetadata), so a mismatch in any of the three sections below means that
+    // invariant has been broken - defensive, not reachable today. Showing the explicit value and
+    // logging a warning keeps a future regression from turning a cosmetic inconsistency into a 500
+    // for the whole page.
+
+    private static void AddAccess(
+        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs,
+        AccessConditionProfile? profile, ILogger? logger)
+    {
+        if (inputs.Access is { Count: > 0 })
         {
-            if (effectiveAccessRestrictions != null && !effectiveAccessRestrictions.SequenceEqual(accessRestrictions))
+            if (inputs.EffectiveAccess != null && !inputs.EffectiveAccess.SequenceEqual(inputs.Access))
             {
                 logger?.LogWarning(
                     "Effective access restrictions ({Effective}) don't match explicit access restrictions ({Explicit}); showing the explicit value",
-                    string.Join(", ", effectiveAccessRestrictions), string.Join(", ", accessRestrictions));
+                    string.Join(", ", inputs.EffectiveAccess), string.Join(", ", inputs.Access));
             }
-            items.Add(("Access", string.Join(", ", accessRestrictions.Select(v => RestrictionLabel(profile, v))), false));
+            items.Add(("Access", string.Join(", ", inputs.Access.Select(v => RestrictionLabel(profile, v))), false));
         }
-        else if (effectiveAccessRestrictions is { Count: > 0 })
+        else if (inputs.EffectiveAccess is { Count: > 0 })
         {
-            items.Add(("Access", string.Join(", ", effectiveAccessRestrictions.Select(v => RestrictionLabel(profile, v))), true));
+            items.Add(("Access", string.Join(", ", inputs.EffectiveAccess.Select(v => RestrictionLabel(profile, v))), true));
         }
+    }
 
-        if (rightsStatement != null)
+    private static void AddRights(
+        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, ILogger? logger)
+    {
+        if (inputs.Rights != null)
         {
-            if (effectiveRightsStatement != rightsStatement)
+            if (inputs.EffectiveRights != inputs.Rights)
             {
                 logger?.LogWarning(
                     "Effective rights statement ({Effective}) does not match explicit rights statement ({Explicit}); showing the explicit value",
-                    effectiveRightsStatement, rightsStatement);
+                    inputs.EffectiveRights, inputs.Rights);
             }
-            items.Add(("Rights", RightsStatement.GetShortLabel(rightsStatement) ?? "", false));
+            items.Add(("Rights", RightsStatement.GetShortLabel(inputs.Rights) ?? "", false));
         }
-        else if (rightsStatementSuppressed)
+        else if (inputs.RightsSuppressed)
         {
             // Explicit-but-empty rights: deliberately asserts "no rights" and does not inherit.
             items.Add(("Rights", "none (not inherited)", false));
         }
-        else if (effectiveRightsStatement != null)
+        else if (inputs.EffectiveRights != null)
         {
-            items.Add(("Rights", RightsStatement.GetShortLabel(effectiveRightsStatement) ?? "", true));
+            items.Add(("Rights", RightsStatement.GetShortLabel(inputs.EffectiveRights) ?? "", true));
         }
+    }
 
-        // Derived conditions (issue #433). With a profile, only its derived types are shown, under
-        // their configured labels; without one (the Browse page), every other typed condition the
-        // parser found is shown under its raw type, which is still true and still useful.
-        var types = profile != null
-            ? profile.Derived.Select(d => d.Type)
-            : (effectiveDerivedAccessConditions?.Keys ?? Enumerable.Empty<string>())
-                .Union(derivedAccessConditions?.Keys ?? Enumerable.Empty<string>());
-        foreach (var type in types)
+    /// <summary>
+    /// Derived conditions (issue #433). With a profile, only its derived types are shown, under
+    /// their configured labels; without one (the Browse page), every other typed condition the
+    /// parser found is shown under its raw type, which is still true and still useful.
+    /// </summary>
+    private static void AddDerived(
+        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, AccessConditionProfile? profile)
+    {
+        foreach (var type in DerivedTypesToShow(inputs, profile))
         {
             var derived = profile?.Derived.FirstOrDefault(d => d.Type == type);
             var label = derived?.Label is { Length: > 0 } l ? l : type;
-            if (derivedAccessConditions != null && derivedAccessConditions.TryGetValue(type, out var explicitValue))
+            if (inputs.Derived != null && inputs.Derived.TryGetValue(type, out var explicitValue))
             {
                 items.Add((label, derived?.LabelFor(explicitValue) ?? explicitValue, false));
             }
-            else if (effectiveDerivedAccessConditions != null && effectiveDerivedAccessConditions.TryGetValue(type, out var effectiveValue))
+            else if (inputs.EffectiveDerived != null && inputs.EffectiveDerived.TryGetValue(type, out var effectiveValue))
             {
                 items.Add((label, derived?.LabelFor(effectiveValue) ?? effectiveValue, true));
             }
         }
+    }
 
-        if (recordInfo != null)
+    private static IEnumerable<string> DerivedTypesToShow(ModsDisplayInputs inputs, AccessConditionProfile? profile)
+    {
+        if (profile != null)
         {
-            if (!recordInfo.HasSameIdentifiers(effectiveRecordInfo))
+            return profile.Derived.Select(d => d.Type);
+        }
+        return (inputs.EffectiveDerived?.Keys ?? Enumerable.Empty<string>())
+            .Union(inputs.Derived?.Keys ?? Enumerable.Empty<string>());
+    }
+
+    private static void AddRecord(
+        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, ILogger? logger)
+    {
+        if (inputs.Record != null)
+        {
+            if (!inputs.Record.HasSameIdentifiers(inputs.EffectiveRecord))
             {
                 logger?.LogWarning(
                     "Effective record identifiers ({Effective}) do not match explicit record identifiers ({Explicit}); showing the explicit value",
-                    effectiveRecordInfo?.ToCompactString(", "), recordInfo.ToCompactString(", "));
+                    inputs.EffectiveRecord?.ToCompactString(", "), inputs.Record.ToCompactString(", "));
             }
-            items.Add(("Record", recordInfo.ToCompactString(", ") ?? "", false));
+            items.Add(("Record", inputs.Record.ToCompactString(", ") ?? "", false));
         }
-        else if (effectiveRecordInfo != null)
+        else if (inputs.EffectiveRecord != null)
         {
-            items.Add(("Record", effectiveRecordInfo.ToCompactString(", ") ?? "", true));
+            items.Add(("Record", inputs.EffectiveRecord.ToCompactString(", ") ?? "", true));
         }
-
-        return items;
     }
 
     /// <summary>The configured label for a restriction value, or the value itself when the profile has no such value (legacy or third-party content).</summary>

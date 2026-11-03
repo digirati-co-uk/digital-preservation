@@ -903,23 +903,20 @@ public class MetsParser(
         Dictionary<string, string>? OtherAccessConditions)
     {
         public static readonly DmdInfo Empty = new(null, null, null, false, null);
-        public bool RightsSuppressed => RightsExplicitlySet && RightsStatement == null;
     }
 
-    private static DmdInfo GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
+    /// <summary>
+    /// The access conditions in one dmdSec: the restriction values (the platform's own type and
+    /// Goobi's <c>status</c>), the rights statement with whether it was explicitly addressed at all,
+    /// and every other typed condition (see <see cref="DmdInfo.OtherAccessConditions"/>).
+    /// </summary>
+    private static (List<string>? Restrictions, Uri? Rights, bool RightsExplicitlySet, Dictionary<string, string>? Other)
+        ReadAccessConditions(XElement dmd)
     {
-        // data gathered sparsely from optional MODS
-        // We assume that the DMD is always linked from the mets:Div, never from a file
         List<string>? accessRestrictions = null;
         Uri? rightsStatement = null;
-        RecordInfo? recordInfo = null;
         bool rightsExplicitlySet = false;
         Dictionary<string, string>? otherAccessConditions = null;
-
-        var dmdId = div.Attribute("DMDID")?.Value;
-        if (!dmdId.HasText()) return DmdInfo.Empty;
-        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
-        if (dmd == null) return DmdInfo.Empty;
 
         foreach (var accessConditionEl in dmd.Descendants(XNames.ModsAccessCondition))
         {
@@ -943,6 +940,21 @@ public class MetsParser(
                 otherAccessConditions.TryAdd(condType, accessConditionEl.Value);
             }
         }
+        return (accessRestrictions, rightsStatement, rightsExplicitlySet, otherAccessConditions);
+    }
+
+    private static DmdInfo GetDmdForDiv(XElement div, MetsLookupMaps lookupMaps)
+    {
+        // data gathered sparsely from optional MODS
+        // We assume that the DMD is always linked from the mets:Div, never from a file
+        RecordInfo? recordInfo = null;
+
+        var dmdId = div.Attribute("DMDID")?.Value;
+        if (!dmdId.HasText()) return DmdInfo.Empty;
+        var dmd = IdRefs.ResolveSingle(dmdId, id => lookupMaps.DmdSecMap.GetValueOrDefault(id));
+        if (dmd == null) return DmdInfo.Empty;
+
+        var (accessRestrictions, rightsStatement, rightsExplicitlySet, otherAccessConditions) = ReadAccessConditions(dmd);
 
         foreach (var recordIdentifierEl in dmd.Descendants(XNames.ModsRecordIdentifier))
         {

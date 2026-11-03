@@ -1105,45 +1105,7 @@ public class MetsManager(
         var mods = ModsManager.GetModsForDiv(fullMets.Mets, div);
         if (mods != null)
         {
-            // Only the platform's own chosen elements are inputs. A Goobi "status" element, which
-            // the parser DISPLAYS as a restriction, is not: the writer never derives from, or
-            // rewrites the MODS of, a div it did not itself set access metadata on.
-            var restrictions = mods.GetAccessConditions(Constants.RestrictionOnAccess);
-            var rightsElements = mods.GetAccessConditions(Constants.UseAndReproduction);
-            var rightsPresent = rightsElements.Count > 0;
-            Uri? rights = null;
-            if (rightsPresent)
-            {
-                // Present but not a URI is the "explicitly none" sentinel: effective rights null,
-                // and inheritance stops here - the same reading as the parser's.
-                Uri.TryCreate(rightsElements[0], UriKind.Absolute, out rights);
-            }
-
-            effective = new EffectiveAccessInputs(
-                restrictions.Count > 0 ? restrictions : parent.Restrictions,
-                rightsPresent ? rights : parent.RightsStatement);
-
-            var before = ManagedSnapshot(mods, managed);
-            foreach (var type in managed)
-            {
-                mods.RemoveAccessConditions(type);
-            }
-            if (restrictions.Count > 0 || rightsPresent)
-            {
-                var derived = await derivedAccessConditionResolver!.ResolveAsync(effective);
-                foreach (var type in managed)
-                {
-                    if (derived.TryGetValue(type, out var value))
-                    {
-                        mods.AddAccessCondition(value, type);
-                    }
-                }
-            }
-            if (!ManagedSnapshot(mods, managed).SequenceEqual(before))
-            {
-                ModsManager.SetModsForDiv(fullMets.Mets, div, mods);
-                changed.Add(div.Id ?? string.Empty);
-            }
+            effective = await ApplyDerivedToMods(fullMets, div, mods, parent, managed, changed);
         }
 
         foreach (var child in div.Div)
@@ -1151,6 +1113,62 @@ public class MetsManager(
             await ApplyDerivedToDivTree(fullMets, child, effective, managed, changed);
         }
         return effective;
+    }
+
+    /// <summary>
+    /// Rewrites one div's managed derived elements from its effective chosen inputs.
+    /// </summary>
+    /// <returns>The div's effective chosen inputs.</returns>
+    private async Task<EffectiveAccessInputs> ApplyDerivedToMods(
+        FullMets fullMets, DivType div, XmlGen.Mods.V3.ModsDefinition mods, EffectiveAccessInputs parent,
+        IReadOnlyCollection<string> managed, List<string> changed)
+    {
+        // Only the platform's own chosen elements are inputs. A Goobi "status" element, which
+        // the parser DISPLAYS as a restriction, is not: the writer never derives from, or
+        // rewrites the MODS of, a div it did not itself set access metadata on.
+        var restrictions = mods.GetAccessConditions(Constants.RestrictionOnAccess);
+        var rightsElements = mods.GetAccessConditions(Constants.UseAndReproduction);
+        var rightsPresent = rightsElements.Count > 0;
+        Uri? rights = null;
+        if (rightsPresent)
+        {
+            // Present but not a URI is the "explicitly none" sentinel: effective rights null,
+            // and inheritance stops here - the same reading as the parser's.
+            Uri.TryCreate(rightsElements[0], UriKind.Absolute, out rights);
+        }
+
+        var effective = new EffectiveAccessInputs(
+            restrictions.Count > 0 ? restrictions : parent.Restrictions,
+            rightsPresent ? rights : parent.RightsStatement);
+
+        var before = ManagedSnapshot(mods, managed);
+        foreach (var type in managed)
+        {
+            mods.RemoveAccessConditions(type);
+        }
+        if (restrictions.Count > 0 || rightsPresent)
+        {
+            await WriteDerived(mods, effective, managed);
+        }
+        if (!ManagedSnapshot(mods, managed).SequenceEqual(before))
+        {
+            ModsManager.SetModsForDiv(fullMets.Mets, div, mods);
+            changed.Add(div.Id ?? string.Empty);
+        }
+        return effective;
+    }
+
+    private async Task WriteDerived(
+        XmlGen.Mods.V3.ModsDefinition mods, EffectiveAccessInputs effective, IReadOnlyCollection<string> managed)
+    {
+        var derived = await derivedAccessConditionResolver!.ResolveAsync(effective);
+        foreach (var type in managed)
+        {
+            if (derived.TryGetValue(type, out var value))
+            {
+                mods.AddAccessCondition(value, type);
+            }
+        }
     }
 
     private static List<string> ManagedSnapshot(XmlGen.Mods.V3.ModsDefinition mods, IReadOnlyCollection<string> managed) =>
