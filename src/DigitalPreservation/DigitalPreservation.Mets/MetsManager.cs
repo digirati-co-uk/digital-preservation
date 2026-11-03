@@ -1088,9 +1088,9 @@ public class MetsManager(
         {
             await ApplyDerivedToDivTree(fullMets, logical.Div, rootInputs, managed, changed);
         }
-        if (changed.Count > 0)
+        if (changed.Count > 0 && logger?.IsEnabled(LogLevel.Information) == true)
         {
-            logger?.LogInformation("Derived access conditions rewritten on {Count} div(s) in {MetsUri}",
+            logger.LogInformation("Derived access conditions rewritten on {Count} div(s) in {MetsUri}",
                 changed.Count, fullMets.Uri);
         }
         return changed;
