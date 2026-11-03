@@ -761,8 +761,27 @@ public class ProcessPipelineJobHandler(
 
             var metsResult = await AddObjectsToMets(request, depositPath);
 
+            // Without this METS update none of the run's outputs (format, PRONOM, virus scan, Exif)
+            // are recorded, so the run hasn't succeeded - reporting Completed here would leave the
+            // deposit looking finished while the UI shows a mismatch banner for every file.
+            // CompletedWithErrors releases the lock just as Completed does (issue #299).
             if (metsResult.Failure)
-                logger.LogInformation("Issue adding objects to METS in pipeline run: {Error}", metsResult.ErrorMessage);
+            {
+                logger.LogError("Issue adding objects to METS in pipeline run {JobIdentifier} for deposit {DepositId}: {Error}",
+                    request.JobIdentifier, request.DepositId, metsResult.ErrorMessage);
+                return new ProcessPipelineResult
+                {
+                    Status = PipelineJobStates.CompletedWithErrors,
+                    Errors =
+                    [
+                        new Error
+                        {
+                            Message = $"Pipeline job run {request.JobIdentifier} for {request.DepositId} could not add its outputs to the METS: {metsResult.ErrorMessage}"
+                        }
+                    ],
+                    CleanupProcessJob = false
+                };
+            }
 
             // Reporting this status below is what releases the deposit's lock now: Preservation API
             // does it atomically with the status write when the run's own user still holds it
