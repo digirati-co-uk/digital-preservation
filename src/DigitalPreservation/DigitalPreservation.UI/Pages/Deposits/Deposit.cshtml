@@ -485,29 +485,29 @@
             <div class="collapse show col-2" id="sidebarInfoPanel">
                 <dl aria-label="Deposit history">
                     <dt>Status</dt>
-                    <dd aria-label="status" class="@(Model.Deposit.Status == DepositStates.Error ? "text-danger" : "")">@Model.Deposit.Status</dd>
+                    <dd data-testid="status" class="@(Model.Deposit.Status == DepositStates.Error ? "text-danger" : "")">@Model.Deposit.Status</dd>
                     <dt>Created</dt>
-                    <dd aria-label="created">@Model.Deposit.Created.GetDateDisplay()</dd>
+                    <dd data-testid="created">@Model.Deposit.Created.GetDateDisplay()</dd>
                     <dt>Created by</dt>
-                    <dd aria-label="created-by"><agent-link uri="@Model.Deposit.CreatedBy"></agent-link></dd>
+                    <dd data-testid="created-by"><agent-link uri="@Model.Deposit.CreatedBy"></agent-link></dd>
                     <dt>Last modified</dt>
-                    <dd aria-label="last-modified">@Model.Deposit.LastModified.GetDateDisplay()</dd>
+                    <dd data-testid="last-modified">@Model.Deposit.LastModified.GetDateDisplay()</dd>
                     <dt>Last modified by</dt>
-                    <dd aria-label="last-modified-by"><agent-link uri="@Model.Deposit.LastModifiedBy"></agent-link></dd>
+                    <dd data-testid="last-modified-by"><agent-link uri="@Model.Deposit.LastModifiedBy"></agent-link></dd>
                     <dt>Preserved</dt>
-                    <dd aria-label="preserved">@Model.Deposit.Preserved.GetDateDisplay("-")</dd>
+                    <dd data-testid="preserved">@Model.Deposit.Preserved.GetDateDisplay("-")</dd>
                     <dt>Preserved by</dt>
-                    <dd aria-label="preserved-by"><agent-link uri="@Model.Deposit.PreservedBy"></agent-link></dd>
+                    <dd data-testid="preserved-by"><agent-link uri="@Model.Deposit.PreservedBy"></agent-link></dd>
                     <dt>Version preserved</dt>
-                    <dd aria-label="version-preserved">@(Model.Deposit.VersionPreserved ?? "-")</dd>
+                    <dd data-testid="version-preserved">@(Model.Deposit.VersionPreserved ?? "-")</dd>
                     <dt>Exported</dt>
-                    <dd aria-label="exported">@Model.Deposit.Exported.GetDateDisplay("-")</dd>
+                    <dd data-testid="exported">@Model.Deposit.Exported.GetDateDisplay("-")</dd>
                     <dt>Exported by</dt>
-                    <dd aria-label="exported-by"><agent-link uri="@Model.Deposit.ExportedBy"></agent-link></dd>
+                    <dd data-testid="exported-by"><agent-link uri="@Model.Deposit.ExportedBy"></agent-link></dd>
                     <dt>Version exported</dt>
-                    <dd aria-label="version-exported">@(Model.Deposit.VersionExported ?? "-")</dd>
+                    <dd data-testid="version-exported">@(Model.Deposit.VersionExported ?? "-")</dd>
                     <dt>Archived</dt>
-                    <dd aria-label="archived">@(Model.Deposit.Archived.GetDateDisplay("-"))</dd>
+                    <dd data-testid="archived">@(Model.Deposit.Archived.GetDateDisplay("-"))</dd>
                 </dl>
             </div>
             

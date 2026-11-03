@@ -6,9 +6,9 @@
 <dl class="row job-table" aria-label="Import Job">
 
     <dt class="col-sm-3">Deposit</dt>
-    <dd class="col-sm-9" aria-label="deposit"><a href="/deposits/@Model.Deposit!.GetSlug()">@Model.Deposit!.GetSlug()</a></dd>
+    <dd class="col-sm-9" data-testid="deposit"><a href="/deposits/@Model.Deposit!.GetSlug()">@Model.Deposit!.GetSlug()</a></dd>
     <dt class="col-sm-3">Archival Group</dt>
-    <dd class="col-sm-9" aria-label="archival group">
+    <dd class="col-sm-9" data-testid="archival group">
         @if (Model.IsUpdate)
         {
             <a href="/browse/@Model.ArchivalGroup.GetPathUnderRoot()">@Model.ArchivalGroup.GetPathUnderRoot(true)</a>
@@ -19,10 +19,10 @@
         }
     </dd>
     <dt class="col-sm-3">Archival Group Name</dt>
-    <dd class="col-sm-9" aria-label="archival group name">@Model.ArchivalGroupName</dd>
+    <dd class="col-sm-9" data-testid="archival group name">@Model.ArchivalGroupName</dd>
 
     <dt class="col-sm-3">Source Version</dt>
-    <dd class="col-sm-9" aria-label="source version">@(Model.SourceVersion?.OcflVersion ?? "(none)")</dd>
+    <dd class="col-sm-9" data-testid="source version">@(Model.SourceVersion?.OcflVersion ?? "(none)")</dd>
     
     <dt class="col-sm-3">Containers to Add</dt>
     <dd class="col-sm-9">
