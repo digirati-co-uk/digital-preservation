@@ -44,10 +44,13 @@ function selectedRestrictions() {
     return Array.from(select.selectedOptions).map(o => o.value).filter(v => v !== '');
 }
 
-// The rights group key for a rights short label, or for "no rights" (null label), per the profile.
-function rightsGroupKey(shortLabelOrNull) {
+// The profile's key for "no value": no effective restriction (a matrix row), or no effective rights
+// statement (a rights group member). Mirrors AccessConditionProfile.NoneKey.
+const noneKey = '__none__';
+
+// The rights group key for a group member - a rights short label, or noneKey - per the profile.
+function rightsGroupKey(member) {
     const groups = accessConditionProfile?.rightsAxis?.groups ?? [];
-    const member = shortLabelOrNull ?? '__none__';
     const exact = groups.find(g => g.members.includes(member));
     if (exact) return exact.key;
     return groups.find(g => g.members.includes('*'))?.key ?? null;
@@ -73,7 +76,7 @@ function derivedPreviewRows(ctx) {
     const ownValueCleared = chosen.length === 0 && (ctx.ownAccess ?? []).length > 0;
     let rows = chosen;
     if (rows.length === 0 && ctx.effAccess) rows = ctx.effAccess.split(',');
-    if (rows.length === 0) rows = ['__none__'];
+    if (rows.length === 0) rows = [noneKey];
     return { rows, known: !ownValueCleared };
 }
 
@@ -83,10 +86,10 @@ function derivedPreviewRows(ctx) {
 function derivedPreviewColumn(ctx) {
     const rightsSelect = document.getElementById("rightsStatementSelect");
     const rightsChoice = rightsSelect ? rightsSelect.value : null;
-    if (rightsChoice === rightsDoNotInheritSentinel) return { column: rightsGroupKey(null), known: true };
-    if (rightsChoice) return { column: rightsGroupKey(shortLabelForRightsUri(rightsChoice)), known: true };
+    if (rightsChoice === rightsDoNotInheritSentinel) return { column: rightsGroupKey(noneKey), known: true };
+    if (rightsChoice) return { column: rightsGroupKey(shortLabelForRightsUri(rightsChoice) ?? noneKey), known: true };
     if (ctx.ownRights || ctx.ownRightsSuppressed) return { column: undefined, known: false };
-    return { column: rightsGroupKey(ctx.effRights || null), known: true };
+    return { column: rightsGroupKey(ctx.effRights || noneKey), known: true };
 }
 
 // The value latest in the derived condition's values order (least to most restrictive) over the rows.
