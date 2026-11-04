@@ -100,14 +100,21 @@ public static class RequestX
         return requestMessage;
     }    
     
+    /// <summary>
+    /// Updates a Container's or Archival Group's metadata. A name with text replaces every existing
+    /// dc:title (issue #347, decision (a)): one title per resource, with earlier names kept only in
+    /// the OCFL versions. Without a name, the existing title is left as it is.
+    /// </summary>
     public static HttpRequestMessage WithContainerMetadataUpdate(this HttpRequestMessage requestMessage, string? title, string callerIdentity)
     {
-        string titleStatement = title.HasText() ? $"\r\n <> dc:title \"{title.EscapeForLiteralRdf(true)}\" ." : string.Empty;
+        if (title.HasText())
+        {
+            return requestMessage.AsReplaceTitlePatch(title, callerIdentity);
+        }
         var escapedCallerIdentity = callerIdentity.EscapeForLiteralRdf(true);
         var sparql = $$"""
-                       PREFIX dc: <{{RepositoryTypes.DublinCoreElementsNamespace}}>
                        PREFIX fedora: <{{RepositoryTypes.FedoraNamespace}}>
-                       INSERT {{{titleStatement}}
+                       INSERT {
                         <> fedora:lastModifiedBy "{{escapedCallerIdentity}}" .
                        }
                        WHERE { }
@@ -116,8 +123,36 @@ public static class RequestX
         requestMessage.Content = new StringContent(sparql)
             .WithContentType("application/sparql-update");
         return requestMessage;
-    }    
-    
+    }
+
+    /// <summary>
+    /// Replaces the resource's dc:title with <paramref name="title"/> - a rename (issue #347). Every
+    /// existing title is deleted, not just one, so a resource that accumulated several (Archival
+    /// Groups did before #347) ends up with exactly one. The OPTIONAL lets the INSERT still happen
+    /// when the resource has no title yet. For a Binary, send this to its fcr:metadata.
+    /// </summary>
+    public static HttpRequestMessage AsReplaceTitlePatch(this HttpRequestMessage requestMessage, string title, string callerIdentity)
+    {
+        var escapedTitle = title.EscapeForLiteralRdf(true);
+        var escapedCallerIdentity = callerIdentity.EscapeForLiteralRdf(true);
+        var sparql = $$"""
+                       PREFIX dc: <{{RepositoryTypes.DublinCoreElementsNamespace}}>
+                       PREFIX fedora: <{{RepositoryTypes.FedoraNamespace}}>
+                       DELETE {
+                        <> dc:title ?title .
+                       }
+                       INSERT {
+                        <> dc:title "{{escapedTitle}}" .
+                        <> fedora:lastModifiedBy "{{escapedCallerIdentity}}" .
+                       }
+                       WHERE { OPTIONAL { <> dc:title ?title } }
+                       """;
+
+        requestMessage.Content = new StringContent(sparql)
+            .WithContentType("application/sparql-update");
+        return requestMessage;
+    }
+
     public static HttpRequestMessage AsInsertTitlePatch(this HttpRequestMessage requestMessage,
         string title, string callerIdentity, bool isCreation)
     {

@@ -733,6 +733,38 @@ internal class FedoraClient(
         }
     }
 
+    public async Task<Result<PreservedResource>> Rename(PreservedResource resource, string callerIdentity, Transaction transaction, CancellationToken cancellationToken = default)
+    {
+        var pathUnderRoot = resource.Id.GetPathUnderRoot();
+        if (resource.Name.IsNullOrWhiteSpace())
+        {
+            return Result.FailNotNull<PreservedResource>(ErrorCodes.BadRequest, $"Cannot rename {pathUnderRoot} to an empty name");
+        }
+        try
+        {
+            var fedoraLocation = converters.GetFedoraUri(pathUnderRoot);
+            var target = resource is Binary ? fedoraLocation.MetadataUri() : fedoraLocation;
+            var req = MakeHttpRequestMessage(target, HttpMethod.Patch)
+                .InTransaction(transaction)
+                .AsReplaceTitlePatch(resource.Name!, callerIdentity);
+
+            var response = await httpClient.SendAsync(req, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return Result.OkNotNull(resource);
+            }
+            // The path under the repository root, as in PutBinary's failures: this message becomes the
+            // import job's failure verbatim, and the Storage API host must not reach Preservation API callers.
+            var message = await response.Content.ReadAsStringAsync(cancellationToken);
+            return Result.FailNotNull<PreservedResource>(ErrorCodes.GetErrorCode((int)response.StatusCode),
+                $"Rename of {pathUnderRoot} failed; response from Fedora was {response.StatusCode}: {message}");
+        }
+        catch (Exception e)
+        {
+            return Result.FailNotNull<PreservedResource>(ErrorCodes.UnknownError, $"Rename of {pathUnderRoot} failed: {e.Message}");
+        }
+    }
+
     public async Task<Result> DeleteContainerOutsideOfArchivalGroup(string pathUnderFedoraRoot, string callerIdentity, bool purge,
         CancellationToken cancellationToken)
     {
