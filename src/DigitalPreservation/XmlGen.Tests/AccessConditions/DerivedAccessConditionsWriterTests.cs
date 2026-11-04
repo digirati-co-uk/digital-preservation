@@ -437,6 +437,21 @@ public class DerivedAccessConditionsWriterTests
     }
 
     [Fact]
+    public async Task A_category_outside_the_vocabulary_gets_the_PA1_rows_wildcard_cell()
+    {
+        // SetAccessCategoryByPath accepts any string, as SetAccessRestrictionsByPath always has; a
+        // mistyped or renamed status under PA1 must still derive something (re-review of #434, D).
+        var (metsUri, fullMets) = await CreateMets("Outputs/derived-unknown-category.xml");
+        metsManager.SetAccessRestrictionsByPath(fullMets, "objects", ["PA1"]);
+        SetCategory(fullMets, "objects", "renamed-status");
+        await metsManager.WriteMets(fullMets);
+
+        TypedConditions(metsUri, "DMD_objects", "tier").Should().Equal("3");
+        TypedConditions(metsUri, "DMD_objects", Category).Should().Equal("renamed-status"); // the value itself is kept
+        AssertDerivedInvariant((await parser.GetMetsFileWrapper(metsUri)).Value!, provider.Profile!);
+    }
+
+    [Fact]
     public async Task An_unavailable_profile_fails_the_write_instead_of_saving_a_stale_tier()
     {
         var (metsUri, fullMets) = await CreateMets("Outputs/derived-profile-unavailable.xml");

@@ -845,6 +845,12 @@
                                     <!option value="@rs.Value" data-short-label="@rs.ShortLabel" data-order="@i">@rs.Label</!option>
                                 }
                             </select>
+                            @if (categoryAxis != null)
+                            {
+                                @* Shown by deposit.js when the chosen statement is not one the profile lists
+                                   for the chosen category. A warning, not a rule: the lists are advisory. *@
+                                <div id="rightsCategoryMismatch" class="form-text text-warning" role="status" hidden></div>
+                            }
                         }
                         else
                         {

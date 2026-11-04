@@ -103,6 +103,26 @@ function arrangeRightsOptions() {
         rightsSelect.append(first, rest);
     }
     selectOptionByValue(rightsSelect, current);
+    updateRightsCategoryWarning();
+}
+
+// Say so when the chosen statement is not one the profile lists for the chosen category - an
+// In Copyright statement under a public-domain status, say. It can still be saved: the lists are
+// advisory, and the effective pair on save may differ anyway where either value is inherited.
+function updateRightsCategoryWarning() {
+    const warning = document.getElementById("rightsCategoryMismatch");
+    const axis = categoryAxis();
+    if (!warning || !axis) return;
+    const chosenCategory = document.getElementById("accessCategorySelect")?.value || null;
+    const category = axis.values.find(v => v.value === chosenCategory);
+    const option = document.getElementById("rightsStatementSelect")?.selectedOptions[0];
+    const shortLabel = option?.dataset.shortLabel;
+    const mismatch = category && (category.rightsStatements ?? []).length > 0 && shortLabel
+        && !category.rightsStatements.includes(shortLabel);
+    warning.textContent = mismatch
+        ? `${shortLabel} is not one of the statements listed for ${category.label}. It can still be saved.`
+        : "";
+    warning.hidden = !mismatch;
 }
 
 // A statement permitted under exactly one category preselects that category, when the node has no
@@ -195,7 +215,7 @@ function updateDerivedPreview() {
 
 document.getElementById("accessRestrictionsSelect")?.addEventListener('change', updateDerivedPreview);
 document.getElementById("accessCategorySelect")?.addEventListener('change', () => { arrangeRightsOptions(); updateDerivedPreview(); });
-document.getElementById("rightsStatementSelect")?.addEventListener('change', () => { preselectCategoryForRights(); updateDerivedPreview(); });
+document.getElementById("rightsStatementSelect")?.addEventListener('change', () => { preselectCategoryForRights(); updateRightsCategoryWarning(); updateDerivedPreview(); });
 
 function applyAccessRestrictions(accessConditionList){
     const accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");

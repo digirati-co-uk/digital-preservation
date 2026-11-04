@@ -85,7 +85,8 @@ two chosen types or a derived type; an unknown rights short label under a catego
 twice there; a matrix row that is not a restriction value, `__none__` or `*`; a column that is not
 a category value, `__none__` or `*`; a cell that is not one of the `Values`; a **gap** - any
 restriction value (or `__none__`) that resolves to nothing for any category (or `__none__`), which a
-`*` row or column fills; duplicate restriction values, category values or derived types; an empty
+`*` row or column fills - note the check covers configured values only, so a cell or column of `*`
+is what catches a value outside the vocabulary; duplicate restriction values, category values or derived types; an empty
 `Values` or `Matrix`; and `AllowMultipleRestrictions` set. The error lists every problem it found.
 
 What then happens, in brief (the detail is on the documentation site and in
@@ -102,12 +103,18 @@ What then happens, in brief (the detail is on the documentation site and in
   gone is removed - from any dmdSec the platform itself minted. A dmdSec the platform did **not**
   mint (a Goobi export's, say) that carries a derived element and no chosen ones is left exactly as
   found: Leeds intend Goobi to hand over only the resulting tier, and the platform must not strip it.
+  One exception, which predates this feature: saving a **logical structMap** rebuilds every logical
+  div's dmdSec from the client's copy (title, record identifiers, restriction, rights, category), so
+  a logical div's other typed conditions, a Goobi tier among them, do not survive a logical-structure
+  edit in the UI. Whether that matters depends on whether Goobi puts the tier on logical divs and
+  whether Goobi deposits' logical structure is ever edited here - both open on #433.
 - Only the types in `Derived` are touched. Other typed `accessCondition` elements - a third party's,
   or a type you used to derive - are left as found.
 - Nothing is written for a node with no effective input at all; the `__none__` row and column are
   for a node that has one input but not the other.
 - The UI shows the category and the derived value in the tree and recomputes the derived value
-  live in the metadata dialogue.
+  live in the metadata dialogue. It warns, and no more than warns, when the chosen rights statement
+  is not one the chosen category lists.
 
 ## Worked example: the Leeds Access Tier
 
@@ -160,7 +167,7 @@ environment:
         { "Value": "5", "Label": "Tier 5 - Unassessed" }
       ],
       "Matrix": {
-        "PA1":           { "public-domain": "0", "low-risk": "1", "restrictions-apply": "2", "medium-risk": "2", "unassessed": "2", "high-risk": "3", "__none__": "2" },
+        "PA1":           { "public-domain": "0", "low-risk": "1", "restrictions-apply": "2", "medium-risk": "2", "unassessed": "2", "high-risk": "3", "__none__": "2", "*": "3" },
         "PA2":           { "*": "3" },
         "PA3":           { "*": "3" },
         "PA4":           { "*": "4" },
@@ -182,6 +189,7 @@ Reading the matrix:
 | `PA1` | `restrictions-apply`, `medium-risk` or `unassessed` | 2 |
 | `PA1` | `high-risk` | 3 |
 | `PA1` | none (nothing set, nothing inherited) | 2 |
+| `PA1` | a value outside the vocabulary (mistyped, or renamed since) | 3 (the `*` cell) |
 | `PA2` or `PA3` | anything | 3 |
 | `PA4` | anything | 4 |
 | `PA-unassessed`, or none | anything | 5 |

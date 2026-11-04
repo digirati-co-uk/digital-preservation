@@ -1,4 +1,4 @@
-using DigitalPreservation.Common.Model;
+﻿using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.AccessConditions;
 using FluentAssertions;
 
@@ -64,7 +64,7 @@ public class AccessConditionProfileTests
                     ["PA1"] = new()
                     {
                         ["public-domain"] = "0", ["low-risk"] = "1", ["restrictions-apply"] = "2",
-                        ["medium-risk"] = "2", ["unassessed"] = "2", ["high-risk"] = "3", ["__none__"] = "2"
+                        ["medium-risk"] = "2", ["unassessed"] = "2", ["high-risk"] = "3", ["__none__"] = "2", ["*"] = "3"
                     },
                     ["PA2"] = new() { ["*"] = "3" },
                     ["PA3"] = new() { ["*"] = "3" },
@@ -84,7 +84,9 @@ public class AccessConditionProfileTests
     public static IEnumerable<object?[]> EveryCell()
     {
         string?[] restrictions = ["PA1", "PA2", "PA3", "PA4", "PA-unassessed", null, "dlip-open"];
-        string?[] categories = ["public-domain", "low-risk", "restrictions-apply", "medium-risk", "unassessed", "high-risk", null];
+        // "renamed-status" stands for a category value outside the vocabulary - mistyped by an API caller,
+        // or left behind by a rename - which the PA1 row's '*' cell must catch (re-review of #434, D).
+        string?[] categories = ["public-domain", "low-risk", "restrictions-apply", "medium-risk", "unassessed", "high-risk", null, "renamed-status"];
         var pa1 = new Dictionary<string, string>
         {
             ["public-domain"] = "0", ["low-risk"] = "1", ["restrictions-apply"] = "2",
@@ -96,7 +98,7 @@ public class AccessConditionProfileTests
             {
                 var expected = pa switch
                 {
-                    "PA1" => category != null ? pa1[category] : "2",
+                    "PA1" => category == null ? "2" : pa1.GetValueOrDefault(category, "3"), // unknown status: the '*' cell
                     "PA2" or "PA3" => "3",
                     "PA4" => "4",
                     _ => "5" // PA-unassessed, no restriction (the __none__ row), or a value outside the vocabulary (the '*' row)
@@ -229,6 +231,8 @@ public class AccessConditionProfileTests
         var profile = Leeds();
         profile.Derived[0].Matrix.Remove("*");
         profile.Derived[0].Matrix["PA1"].Remove("low-risk");
+        profile.Validate().Should().BeEmpty("the PA1 row's '*' cell covers the gap");
+        profile.Derived[0].Matrix["PA1"].Remove("*");
         profile.Validate().Should().ContainSingle(e => e.Contains("no value for restriction 'PA1' with category 'low-risk'"));
 
         profile = Leeds();

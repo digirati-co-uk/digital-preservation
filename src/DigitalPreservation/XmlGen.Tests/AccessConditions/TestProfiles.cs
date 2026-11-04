@@ -68,7 +68,7 @@ public static class TestProfiles
                         ["PA1"] = new()
                         {
                             ["public-domain"] = "0", ["low-risk"] = "1", ["restrictions-apply"] = "2",
-                            ["medium-risk"] = "2", ["unassessed"] = "2", ["high-risk"] = "3", ["__none__"] = "2"
+                            ["medium-risk"] = "2", ["unassessed"] = "2", ["high-risk"] = "3", ["__none__"] = "2", ["*"] = "3"
                         },
                         ["PA2"] = new() { ["*"] = "3" },
                         ["PA3"] = new() { ["*"] = "3" },
