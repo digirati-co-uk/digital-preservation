@@ -7,6 +7,8 @@ namespace Storage.API.Fedora.Http;
 
 public static class RequestX
 {
+    private const string SparqlUpdateContentType = "application/sparql-update";
+
     public static HttpRequestMessage ForJsonLd(this HttpRequestMessage requestMessage)
     {
         requestMessage.Headers.Accept.Clear();
@@ -96,7 +98,7 @@ public static class RequestX
                        """;
 
         requestMessage.Content = new StringContent(sparql)
-            .WithContentType("application/sparql-update");
+            .WithContentType(SparqlUpdateContentType);
         return requestMessage;
     }    
     
@@ -121,7 +123,7 @@ public static class RequestX
                        """;
 
         requestMessage.Content = new StringContent(sparql)
-            .WithContentType("application/sparql-update");
+            .WithContentType(SparqlUpdateContentType);
         return requestMessage;
     }
 
@@ -149,7 +151,7 @@ public static class RequestX
                        """;
 
         requestMessage.Content = new StringContent(sparql)
-            .WithContentType("application/sparql-update");
+            .WithContentType(SparqlUpdateContentType);
         return requestMessage;
     }
 
@@ -170,7 +172,7 @@ public static class RequestX
                        """;
 
         requestMessage.Content = new StringContent(sparql)
-            .WithContentType("application/sparql-update");
+            .WithContentType(SparqlUpdateContentType);
         return requestMessage;
     }
     

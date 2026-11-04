@@ -746,7 +746,7 @@ internal class FedoraClient(
             var target = resource is Binary ? fedoraLocation.MetadataUri() : fedoraLocation;
             var req = MakeHttpRequestMessage(target, HttpMethod.Patch)
                 .InTransaction(transaction)
-                .AsReplaceTitlePatch(resource.Name!, callerIdentity);
+                .AsReplaceTitlePatch(resource.Name, callerIdentity);
 
             var response = await httpClient.SendAsync(req, cancellationToken);
             if (response.IsSuccessStatusCode)
