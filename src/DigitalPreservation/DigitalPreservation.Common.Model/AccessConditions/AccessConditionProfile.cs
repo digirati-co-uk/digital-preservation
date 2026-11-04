@@ -142,10 +142,9 @@ public class AccessConditionProfile
         var columns = groupKeys.Cast<string?>().DefaultIfEmpty(null).ToList();
         foreach (var row in rows)
         {
-            foreach (var column in columns)
+            foreach (var column in columns.Where(column => derived.Lookup(row, column) == null))
             {
-                if (derived.Lookup(row, column) == null)
-                    errors.Add($"{name}: no value for restriction '{row}' with rights group '{column ?? Wildcard}' (add the cell, or a '{Wildcard}' row or column).");
+                errors.Add($"{name}: no value for restriction '{row}' with rights group '{column ?? Wildcard}' (add the cell, or a '{Wildcard}' row or column).");
             }
         }
     }

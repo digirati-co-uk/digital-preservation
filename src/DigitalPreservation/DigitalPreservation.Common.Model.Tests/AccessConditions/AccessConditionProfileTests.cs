@@ -116,8 +116,7 @@ public class AccessConditionProfileTests
                     "PA1" => statement != null && AssumedPa1TierByShortLabel.TryGetValue(statement, out var t) ? t : "2",
                     "PA2" or "PA3" => "3",
                     "PA4" => "4",
-                    "PA-unassessed" or null => "5",
-                    _ => "5" // a value outside the vocabulary: the '*' row
+                    _ => "5" // PA-unassessed, no restriction (the __none__ row), or a value outside the vocabulary (the '*' row)
                 };
                 yield return [pa, statement, expected];
             }

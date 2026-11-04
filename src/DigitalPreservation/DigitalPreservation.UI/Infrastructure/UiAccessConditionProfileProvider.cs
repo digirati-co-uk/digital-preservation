@@ -16,9 +16,9 @@ public class UiAccessConditionProfileProvider(
     IPreservationApiClient preservationApiClient,
     ILogger<UiAccessConditionProfileProvider> logger) : IAccessConditionProfileProvider
 {
-    // Process-wide on purpose: the provider is a singleton, but a profile fetched by any instance
-    // is a valid fallback for all of them, and a profile changes only when the API is redeployed.
-    private static volatile AccessConditionProfile? lastKnownGood;
+    // The provider is registered as a singleton, so this lives as long as the process: a profile
+    // changes only when the API is redeployed, so the last one fetched is a sound fallback.
+    private AccessConditionProfile? lastKnownGood;
 
     public async Task<AccessConditionProfile?> GetProfileAsync(CancellationToken cancellationToken = default)
     {
