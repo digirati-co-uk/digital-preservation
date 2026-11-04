@@ -294,9 +294,15 @@ function buildMetadataSummaryText(range) {
         const label = getRightsShortLabel(range.rightsStatement);
         if (label) parts.push(label);
     }
-    // Derived conditions (issue #433) as last saved; the server recomputes them when the structMap is saved.
-    for (const derived of (typeof accessConditionProfile !== 'undefined' ? accessConditionProfile?.derived : null) ?? []) {
-        const value = range.derivedAccessConditions?.[derived.type];
+    // The chosen category and the derived conditions (issue #433), the latter as last saved; the
+    // server recomputes them when the structMap is saved.
+    const profile = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile : null;
+    const axis = profile?.categoryAxis;
+    const category = axis ? range.otherAccessConditions?.[axis.type] : undefined;
+    if (category !== undefined)
+        parts.push(axis.values.find(v => v.value === category)?.label ?? category);
+    for (const derived of profile?.derived ?? []) {
+        const value = range.otherAccessConditions?.[derived.type];
         if (value !== undefined)
             parts.push(derived.values.find(v => v.value === value)?.label ?? value);
     }
@@ -444,11 +450,18 @@ function removeFileFromRange(structmapId, rangeId, fp) {
     renderLogicalStructMap(structmapId);
 }
 
-function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatementUri, recordIdentifiers) {
+function setRangeMetadata(structmapId, rangeId, accessRestrictions, rightsStatementUri, recordIdentifiers, accessCategory) {
     const root = logicalStructMapState[structmapId];
     const range = findRange(root, rangeId);
     if (!range) return;
     range.accessRestrictions = accessRestrictions.length > 0 ? accessRestrictions : null;
+    // The chosen category rides in otherAccessConditions under the profile's type (issue #433).
+    const axis = typeof accessConditionProfile !== 'undefined' ? accessConditionProfile?.categoryAxis : null;
+    if (axis) {
+        const other = { ...(range.otherAccessConditions ?? {}) };
+        if (accessCategory) other[axis.type] = accessCategory; else delete other[axis.type];
+        range.otherAccessConditions = Object.keys(other).length > 0 ? other : null;
+    }
     range.rightsStatement = rightsStatementUri || null;
     range.recordInfo = recordIdentifiers.length > 0
         ? { recordIdentifiers }
@@ -574,8 +587,9 @@ function wireModsModalIntercept() {
         const accessRestrictions = readAccessRestrictionsFromForm();
         const rightsStatementUri = readRightsStatementUriFromForm();
         const recordIdentifiers = readRecordIdentifiersFromForm();
+        const accessCategory = readAccessCategoryFromForm();
 
-        setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers);
+        setRangeMetadata(smId, ctx, accessRestrictions, rightsStatementUri, recordIdentifiers, accessCategory);
         hideModsModal(modsModal);
     }, { capture: true });
 }
@@ -614,7 +628,8 @@ function openModsModalForRange(structmapId, rangeId) {
     launcher.dataset.effAccess = (range?.effectiveAccessRestrictions ?? []).join(',');
     launcher.dataset.rights = getRightsShortLabel(range?.rightsStatement) ?? '';
     launcher.dataset.effRights = getRightsShortLabel(range?.effectiveRightsStatement) ?? '';
-    launcher.dataset.effDerived = JSON.stringify(range?.effectiveDerivedAccessConditions ?? {});
+    launcher.dataset.other = JSON.stringify(range?.otherAccessConditions ?? {});
+    launcher.dataset.effOther = JSON.stringify(range?.effectiveOtherAccessConditions ?? {});
     launcher.dataset.recordinfo = toRecordInfoCompact(range?.recordInfo) ?? '';
     launcher.dataset.toolOutput = '';
 
@@ -633,6 +648,11 @@ function readAccessRestrictionsFromForm() {
     const sel = document.getElementById('accessRestrictionsSelect');
     if (!sel) return [];
     return Array.from(sel.selectedOptions).map(o => o.value);
+}
+
+function readAccessCategoryFromForm() {
+    const sel = document.getElementById('accessCategorySelect');
+    return sel?.value || null;
 }
 
 function readRightsStatementUriFromForm() {

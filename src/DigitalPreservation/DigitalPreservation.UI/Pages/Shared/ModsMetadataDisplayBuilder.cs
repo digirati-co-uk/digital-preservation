@@ -28,8 +28,8 @@ public static class ModsMetadataDisplayBuilder
             combinedBase.RightsStatement,
             combinedBase.EffectiveRightsStatement,
             combinedBase.RightsStatementSuppressed,
-            combinedBase.DerivedAccessConditions,
-            combinedBase.EffectiveDerivedAccessConditions,
+            combinedBase.OtherAccessConditions,
+            combinedBase.EffectiveOtherAccessConditions,
             combinedBase.RecordInfo,
             combinedBase.EffectiveRecordInfo), profile, logger);
     }
@@ -47,8 +47,8 @@ public static class ModsMetadataDisplayBuilder
             resourceBase.RightsStatement,
             resourceBase.EffectiveRightsStatement,
             resourceBase.RightsStatementSuppressed,
-            resourceBase.DerivedAccessConditions,
-            resourceBase.EffectiveDerivedAccessConditions,
+            resourceBase.OtherAccessConditions,
+            resourceBase.EffectiveOtherAccessConditions,
             resourceBase.RecordInfo,
             resourceBase.EffectiveRecordInfo), profile, logger);
     }
@@ -60,8 +60,8 @@ public static class ModsMetadataDisplayBuilder
         Uri? Rights,
         Uri? EffectiveRights,
         bool RightsSuppressed,
-        Dictionary<string, string>? Derived,
-        Dictionary<string, string>? EffectiveDerived,
+        Dictionary<string, string>? Other,
+        Dictionary<string, string>? EffectiveOther,
         RecordInfo? Record,
         RecordInfo? EffectiveRecord);
 
@@ -71,8 +71,9 @@ public static class ModsMetadataDisplayBuilder
         // Collect display items as (label, text, inherited). Inherited items render in muted style.
         var items = new List<(string Label, string Text, bool Inherited)>();
         AddAccess(items, inputs, profile, logger);
+        AddCategory(items, inputs, profile);
         AddRights(items, inputs, logger);
-        AddDerived(items, inputs, profile);
+        AddOtherTyped(items, inputs, profile);
         AddRecord(items, inputs, logger);
         return items;
     }
@@ -103,6 +104,23 @@ public static class ModsMetadataDisplayBuilder
         }
     }
 
+    /// <summary>The chosen category (issue #433), shown under its configured label; only with a profile that has one.</summary>
+    private static void AddCategory(
+        List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, AccessConditionProfile? profile)
+    {
+        var axis = profile?.CategoryAxis;
+        if (axis == null || string.IsNullOrEmpty(axis.Type)) return;
+        string Text(string value) => axis.Values.FirstOrDefault(v => v.Value == value)?.Label ?? value;
+        if (inputs.Other != null && inputs.Other.TryGetValue(axis.Type, out var explicitValue))
+        {
+            items.Add((axis.Label, Text(explicitValue), false));
+        }
+        else if (inputs.EffectiveOther != null && inputs.EffectiveOther.TryGetValue(axis.Type, out var effectiveValue))
+        {
+            items.Add((axis.Label, Text(effectiveValue), true));
+        }
+    }
+
     private static void AddRights(
         List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, ILogger? logger)
     {
@@ -128,36 +146,37 @@ public static class ModsMetadataDisplayBuilder
     }
 
     /// <summary>
-    /// Derived conditions (issue #433). With a profile, only its derived types are shown, under
-    /// their configured labels; without one (the Browse page), every other typed condition the
-    /// parser found is shown under its raw type, which is still true and still useful.
+    /// The other typed conditions (issue #433). With a profile, only its derived types are shown,
+    /// under their configured labels (the category has its own item above); without one (the
+    /// Browse page), every other typed condition the parser found is shown under its raw type,
+    /// which is still true and still useful.
     /// </summary>
-    private static void AddDerived(
+    private static void AddOtherTyped(
         List<(string Label, string Text, bool Inherited)> items, ModsDisplayInputs inputs, AccessConditionProfile? profile)
     {
-        foreach (var type in DerivedTypesToShow(inputs, profile))
+        foreach (var type in TypesToShow(inputs, profile))
         {
             var derived = profile?.Derived.FirstOrDefault(d => d.Type == type);
             var label = derived?.Label is { Length: > 0 } l ? l : type;
-            if (inputs.Derived != null && inputs.Derived.TryGetValue(type, out var explicitValue))
+            if (inputs.Other != null && inputs.Other.TryGetValue(type, out var explicitValue))
             {
                 items.Add((label, derived?.LabelFor(explicitValue) ?? explicitValue, false));
             }
-            else if (inputs.EffectiveDerived != null && inputs.EffectiveDerived.TryGetValue(type, out var effectiveValue))
+            else if (inputs.EffectiveOther != null && inputs.EffectiveOther.TryGetValue(type, out var effectiveValue))
             {
                 items.Add((label, derived?.LabelFor(effectiveValue) ?? effectiveValue, true));
             }
         }
     }
 
-    private static IEnumerable<string> DerivedTypesToShow(ModsDisplayInputs inputs, AccessConditionProfile? profile)
+    private static IEnumerable<string> TypesToShow(ModsDisplayInputs inputs, AccessConditionProfile? profile)
     {
         if (profile != null)
         {
             return profile.Derived.Select(d => d.Type);
         }
-        return (inputs.EffectiveDerived?.Keys ?? Enumerable.Empty<string>())
-            .Union(inputs.Derived?.Keys ?? Enumerable.Empty<string>());
+        return (inputs.EffectiveOther?.Keys ?? Enumerable.Empty<string>())
+            .Union(inputs.Other?.Keys ?? Enumerable.Empty<string>());
     }
 
     private static void AddRecord(

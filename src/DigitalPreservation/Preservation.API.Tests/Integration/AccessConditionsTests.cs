@@ -26,7 +26,11 @@ public class AccessConditionsTests(DigitalPreservationAppFactory<Program> factor
         root.ValueKind.Should().Be(JsonValueKind.Object, "it is a profile, not the pre-#433 list");
         root.TryGetProperty("allowMultipleRestrictions", out _).Should().BeTrue();
         root.GetProperty("restrictionAxis").GetProperty("values").ValueKind.Should().Be(JsonValueKind.Array);
-        root.GetProperty("rightsAxis").GetProperty("groups").ValueKind.Should().Be(JsonValueKind.Array);
+        root.GetProperty("rightsAxis").GetProperty("label").ValueKind.Should().Be(JsonValueKind.String);
+        // categoryAxis is present only on an installation that derives something; the test
+        // environment inherits the Leeds profile from appsettings.json.
+        if (root.TryGetProperty("categoryAxis", out var axis))
+            axis.GetProperty("type").GetString().Should().NotBeNullOrEmpty();
         root.GetProperty("derived").ValueKind.Should().Be(JsonValueKind.Array);
 
         // Round-trips through the model the client deserialises into, and is a profile the API

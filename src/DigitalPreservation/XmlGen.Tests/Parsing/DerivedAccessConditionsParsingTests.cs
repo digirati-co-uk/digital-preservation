@@ -4,7 +4,7 @@ namespace XmlGen.Tests.Parsing;
 
 /// <summary>
 /// The parser's half of issue #433: every <c>mods:accessCondition</c> of a type other than the two
-/// chosen ones (and Goobi's status) is reported under <c>DerivedAccessConditions</c>, keyed by type,
+/// chosen ones (and Goobi's status) is reported under <c>OtherAccessConditions</c>, keyed by type,
 /// and inherits per type down the physical tree, falling back to the logical range the way access does.
 /// </summary>
 public class DerivedAccessConditionsParsingTests : MetsParserTestBase
@@ -63,8 +63,8 @@ public class DerivedAccessConditionsParsingTests : MetsParserTestBase
 
         objects.AccessRestrictions.Should().Equal("PA1");
         objects.RightsStatement.Should().Be(new Uri("http://rightsstatements.org/vocab/InC/1.0/"));
-        objects.DerivedAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "3", ["dz"] = "CC-BY-NC" });
-        objects.EffectiveDerivedAccessConditions.Should().Equal(objects.DerivedAccessConditions);
+        objects.OtherAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "3", ["dz"] = "CC-BY-NC" });
+        objects.EffectiveOtherAccessConditions.Should().Equal(objects.OtherAccessConditions);
     }
 
     [Fact]
@@ -75,13 +75,13 @@ public class DerivedAccessConditionsParsingTests : MetsParserTestBase
             fileMods: """<mods:accessCondition type="tier">4</mods:accessCondition>"""));
         var file = mets.Files.Single();
 
-        file.DerivedAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "4" });
-        file.EffectiveDerivedAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "4", ["dz"] = "CC-BY-NC" },
+        file.OtherAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "4" });
+        file.EffectiveOtherAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "4", ["dz"] = "CC-BY-NC" },
             "own tier overrides the parent's, the parent's dz is inherited");
     }
 
     [Fact]
-    public void A_file_with_a_silent_physical_chain_falls_back_to_its_whole_file_logical_range()
+    public void A_file_falls_back_to_its_whole_file_logical_range_for_each_type_the_physical_chain_lacks()
     {
         var logical = """
             <mets:structMap TYPE="LOGICAL">
@@ -92,17 +92,21 @@ public class DerivedAccessConditionsParsingTests : MetsParserTestBase
             """;
         var mets = Parse(Mets("", logical: logical));
 
-        mets.LogicalStructures.Single().DerivedAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "4" });
-        mets.Files.Single().DerivedAccessConditions.Should().BeNull();
-        mets.Files.Single().EffectiveDerivedAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "4" });
+        mets.LogicalStructures.Single().OtherAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "4" });
+        mets.Files.Single().OtherAccessConditions.Should().BeNull();
+        mets.Files.Single().EffectiveOtherAccessConditions.Should().Equal(new Dictionary<string, string> { ["tier"] = "4" });
+
+        // Per type: the folder supplies dz, the range supplies the tier the folder lacks (review of #434).
+        mets = Parse(Mets("""<mods:accessCondition type="dz">CC-BY-NC</mods:accessCondition>""", logical: logical));
+        mets.Files.Single().EffectiveOtherAccessConditions.Should().Equal(new Dictionary<string, string> { ["dz"] = "CC-BY-NC", ["tier"] = "4" });
     }
 
     [Fact]
     public void Nothing_typed_means_empty_not_null_effective_dictionaries()
     {
         var mets = Parse(Mets(Pa1));
-        mets.PhysicalStructure!.Directories.Single().DerivedAccessConditions.Should().BeNull();
-        mets.PhysicalStructure!.Directories.Single().EffectiveDerivedAccessConditions.Should().BeEmpty();
-        mets.Files.Single().EffectiveDerivedAccessConditions.Should().BeEmpty();
+        mets.PhysicalStructure!.Directories.Single().OtherAccessConditions.Should().BeNull();
+        mets.PhysicalStructure!.Directories.Single().EffectiveOtherAccessConditions.Should().BeEmpty();
+        mets.Files.Single().EffectiveOtherAccessConditions.Should().BeEmpty();
     }
 }

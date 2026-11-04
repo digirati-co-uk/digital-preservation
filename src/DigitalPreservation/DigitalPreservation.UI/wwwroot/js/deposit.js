@@ -10,7 +10,9 @@ function populateModsModalFromAttributes(launcher){
 
     document.getElementById("modsLocalPathInfo").innerHTML = modsContext.value;
 
+    const other = parseJsonOrEmpty(launcher.dataset.other);
     applyAccessRestrictions(accessConditionList);
+    applyAccessCategory(categoryAxis() ? other[categoryAxis().type] : null);
     applyRightsStatement(rightsStatement, rightsSuppressed);
     applyRecordInfo(recordInfoCompact);
     applyFileLinksSection(launcher);
@@ -20,19 +22,25 @@ function populateModsModalFromAttributes(launcher){
         effRights: launcher.dataset.effRights ?? '',
         ownRights: rightsStatement ?? '',
         ownRightsSuppressed: rightsSuppressed,
-        effDerived: parseJsonOrEmpty(launcher.dataset.effDerived)
+        ownOther: other,
+        effOther: parseJsonOrEmpty(launcher.dataset.effOther)
     };
     updateDerivedPreview();
 }
 
-// ---- Derived access conditions (issue #433) ----------------------------------------------------
-// The profile (const accessConditionProfile, from the Preservation API) may define conditions that
-// are never chosen but computed from the two dropdowns - for Leeds, the Access Tier. The server
-// writes the real value from the node's EFFECTIVE inputs on save; this preview mirrors that lookup
-// so the archivist sees the consequence of a choice before saving. Where an input would be
-// inherited and the parent's value cannot be known here, the preview says so instead of guessing.
+// ---- The chosen category and the derived conditions (issue #433) -------------------------------
+// The profile (const accessConditionProfile, from the Preservation API) may have a third chosen
+// axis - for Leeds the copyright status - and conditions that are never chosen but computed from
+// restriction x category: for Leeds, the Access Tier. The server writes the real derived value
+// from the node's EFFECTIVE inputs on save; this preview mirrors that lookup so the archivist sees
+// the consequence of a choice before saving. Where an input would be inherited and the parent's
+// value cannot be known here, the preview says so instead of guessing.
 
 let derivedPreviewContext = null;
+
+// The profile's key for "no value": no effective restriction or category. Mirrors
+// AccessConditionProfile.NoneKey.
+const noneKey = '__none__';
 
 function parseJsonOrEmpty(text) {
     try { return text ? JSON.parse(text) : {}; } catch { return {}; }
@@ -44,16 +52,73 @@ function selectedRestrictions() {
     return Array.from(select.selectedOptions).map(o => o.value).filter(v => v !== '');
 }
 
-// The profile's key for "no value": no effective restriction (a matrix row), or no effective rights
-// statement (a rights group member). Mirrors AccessConditionProfile.NoneKey.
-const noneKey = '__none__';
+function categoryAxis() {
+    return accessConditionProfile?.categoryAxis ?? null;
+}
 
-// The rights group key for a group member - a rights short label, or noneKey - per the profile.
-function rightsGroupKey(member) {
-    const groups = accessConditionProfile?.rightsAxis?.groups ?? [];
-    const exact = groups.find(g => g.members.includes(member));
-    if (exact) return exact.key;
-    return groups.find(g => g.members.includes('*'))?.key ?? null;
+// Select the node's own category, or "(inherit from parent)" when it has none.
+function applyAccessCategory(category) {
+    const select = document.getElementById("accessCategorySelect");
+    if (!select) return;
+    select.selectedIndex = -1;
+    if (!category) {
+        selectOptionByValue(select, "");
+    } else {
+        if (!Array.from(select.options).some(o => o.value === category)) {
+            const option = document.createElement("option");
+            option.value = category;
+            option.text = category;
+            select.appendChild(option);
+        }
+        selectOptionByValue(select, category);
+    }
+    arrangeRightsOptions();
+}
+
+// With a category chosen, the rights statements the profile permits under it come first, under a
+// heading; everything else stays available below. Nothing is enforced.
+function arrangeRightsOptions() {
+    const rightsSelect = document.getElementById("rightsStatementSelect");
+    const axis = categoryAxis();
+    if (!rightsSelect || !axis) return;
+    const chosenCategory = document.getElementById("accessCategorySelect")?.value || null;
+    const category = axis.values.find(v => v.value === chosenCategory);
+    const permitted = new Set(category?.rightsStatements ?? []);
+    const current = rightsSelect.value;
+
+    const special = Array.from(rightsSelect.options).filter(o => o.value === '' || o.value === rightsDoNotInheritSentinel);
+    const statements = Array.from(rightsSelect.querySelectorAll('option'))
+        .filter(o => !special.includes(o))
+        .sort((a, b) => a.dataset.order - b.dataset.order);
+    rightsSelect.replaceChildren(...special);
+    if (permitted.size === 0) {
+        rightsSelect.append(...statements);
+    } else {
+        const first = document.createElement("optgroup");
+        first.label = `For ${category.label}`;
+        first.append(...statements.filter(o => permitted.has(o.dataset.shortLabel)));
+        const rest = document.createElement("optgroup");
+        rest.label = "Other rights statements";
+        rest.append(...statements.filter(o => !permitted.has(o.dataset.shortLabel)));
+        rightsSelect.append(first, rest);
+    }
+    selectOptionByValue(rightsSelect, current);
+}
+
+// A statement permitted under exactly one category preselects that category, when the node has no
+// category of its own yet.
+function preselectCategoryForRights() {
+    const axis = categoryAxis();
+    const categorySelect = document.getElementById("accessCategorySelect");
+    const rightsSelect = document.getElementById("rightsStatementSelect");
+    if (!axis || !categorySelect || !rightsSelect || categorySelect.value) return;
+    const shortLabel = rightsSelect.selectedOptions[0]?.dataset.shortLabel;
+    if (!shortLabel) return;
+    const permitting = axis.values.filter(v => v.rightsStatements.includes(shortLabel));
+    if (permitting.length === 1) {
+        selectOptionByValue(categorySelect, permitting[0].value);
+        arrangeRightsOptions();
+    }
 }
 
 function lookupDerived(derived, row, column) {
@@ -61,12 +126,6 @@ function lookupDerived(derived, row, column) {
     if (!cells) return null;
     if (column && cells[column] !== undefined) return cells[column];
     return cells['*'] ?? null;
-}
-
-// Short label for the URI currently chosen in the rights dropdown (null for none/inherit/sentinel).
-function shortLabelForRightsUri(uri) {
-    if (!uri) return null;
-    return Object.entries(rightsStatements).find(([, rs]) => rs.value === uri)?.[0] ?? null;
 }
 
 // The matrix row(s) for the preview: the chosen restriction(s), else what the node currently
@@ -80,16 +139,16 @@ function derivedPreviewRows(ctx) {
     return { rows, known: !ownValueCleared };
 }
 
-// The matrix column for the preview: the chosen rights statement's group; "(none - do not inherit)"
-// is the __none__ member; "(inherit)" is the node's current effective rights, unless the node's own
-// rights has just been cleared, in which case the parent's is not known here.
+// The matrix column for the preview: the chosen category, else what the node currently inherits,
+// unless the node's own category has just been cleared, in which case the parent's is not known here.
 function derivedPreviewColumn(ctx) {
-    const rightsSelect = document.getElementById("rightsStatementSelect");
-    const rightsChoice = rightsSelect ? rightsSelect.value : null;
-    if (rightsChoice === rightsDoNotInheritSentinel) return { column: rightsGroupKey(noneKey), known: true };
-    if (rightsChoice) return { column: rightsGroupKey(shortLabelForRightsUri(rightsChoice) ?? noneKey), known: true };
-    if (ctx.ownRights || ctx.ownRightsSuppressed) return { column: undefined, known: false };
-    return { column: rightsGroupKey(ctx.effRights || noneKey), known: true };
+    const axis = categoryAxis();
+    const chosen = document.getElementById("accessCategorySelect")?.value || null;
+    if (chosen) return { column: chosen, known: true };
+    const own = axis ? ctx.ownOther?.[axis.type] : null;
+    if (own) return { column: undefined, known: false };
+    const inherited = axis ? ctx.effOther?.[axis.type] : null;
+    return { column: inherited ?? noneKey, known: true };
 }
 
 // The value latest in the derived condition's values order (least to most restrictive) over the rows.
@@ -135,7 +194,8 @@ function updateDerivedPreview() {
 }
 
 document.getElementById("accessRestrictionsSelect")?.addEventListener('change', updateDerivedPreview);
-document.getElementById("rightsStatementSelect")?.addEventListener('change', updateDerivedPreview);
+document.getElementById("accessCategorySelect")?.addEventListener('change', () => { arrangeRightsOptions(); updateDerivedPreview(); });
+document.getElementById("rightsStatementSelect")?.addEventListener('change', () => { preselectCategoryForRights(); updateDerivedPreview(); });
 
 function applyAccessRestrictions(accessConditionList){
     const accessRestrictionsSelect = document.getElementById("accessRestrictionsSelect");

@@ -93,7 +93,8 @@ The same sections as the Storage API, minus everything to do with serving HTTP: 
 | `AzureAd`, `KnownClients` | As for the Storage API. |
 | `TokenProvider` | The registration the API uses to obtain its *own* token when calling the Storage API. |
 | `PipelineOptions` | The SNS topic ARN pipeline run requests are published to. |
-| `AccessConditionProfile` | The access-restriction vocabulary served at `/access-conditions`, and optionally the rights groups and derived conditions built on it (issue #433). The standard case is a `RestrictionAxis.Values` list and nothing else; `appsettings.Example.json` shows it. **Validated at startup**: a bad profile stops the service with the reasons in the log. The UI has no copy of its own; it fetches the API's and caches it for five minutes. See [access-condition-profile.md](./access-condition-profile.md) for the standard case, the derived-conditions extension and the Leeds worked example. |
+| `AccessConditions` | The standard form: a plain list of the access-restriction values a person can choose, served at `/access-conditions`; `appsettings.Example.json` shows it. `AllowMultipleAccessConditions` beside it allows several per node. |
+| `AccessConditionProfile` | The two-axis form, instead of `AccessConditions` (never both): restriction vocabulary, a chosen category axis and the matrix that derives a value from them - the Leeds Access Tier (issue #433). **Validated at startup**: a bad profile stops the service with the reasons in the log. The UI has no copy of its own; it fetches the API's and caches it for five minutes. See [access-condition-profile.md](./access-condition-profile.md) for both forms and the Leeds worked example. |
 | `RangeTypes` | The logical-range type vocabulary served at `/range-types`. |
 | `FeatureFlags` | See below. |
 

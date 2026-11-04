@@ -5,20 +5,17 @@ using FluentAssertions;
 namespace DigitalPreservation.Common.Model.Tests.AccessConditions;
 
 /// <summary>
-/// The configured lookup behind derived access conditions (issue #433): the Leeds matrix of
-/// Protected Access Level x rights-statement group -> Access Tier, and the profile validation
-/// that runs at Preservation API startup.
+/// The configured lookup behind derived access conditions (issue #433): the Leeds master matrix of
+/// Protected Access Level x copyright status -> Access Tier, and the profile validation that runs
+/// at Preservation API startup.
 /// </summary>
 public class AccessConditionProfileTests
 {
-    private static readonly Uri NoCUs = new("http://rightsstatements.org/vocab/NoC-US/1.0/");
-    private static readonly Uri InCEdu = new("http://rightsstatements.org/vocab/InC-EDU/1.0/");
     private static readonly Uri InC = new("http://rightsstatements.org/vocab/InC/1.0/");
-    private static readonly Uri Cne = new("http://rightsstatements.org/vocab/CNE/1.0/");
-    private static readonly Uri CcBy = new("https://creativecommons.org/licenses/by/4.0/");
+    private static readonly Uri Cc0 = new("https://creativecommons.org/publicdomain/zero/1.0/");
 
-    /// <summary>The Leeds profile as deployed to dev, minus the wildcard rights group.</summary>
-    public static AccessConditionProfile Leeds(bool wildcardGroup = false) => new()
+    /// <summary>The Leeds profile as deployed to dev (Preservation.API/appsettings.json).</summary>
+    public static AccessConditionProfile Leeds() => new()
     {
         RestrictionAxis = new AccessAxis
         {
@@ -32,21 +29,21 @@ public class AccessConditionProfileTests
                 new AccessRestriction { Value = "PA-unassessed", Label = "Unassessed" }
             ]
         },
-        RightsAxis = new RightsAxis
+        CategoryAxis = new CategoryAxis
         {
-            Label = "Copyright Statement",
-            Groups =
+            Label = "Copyright status",
+            Type = "copyright status",
+            Values =
             [
-                new RightsGroup { Key = "public-domain", Label = "Out of copyright", Members = ["NoC-US", "NKC", "CC0", "CC-BY"] },
-                new RightsGroup { Key = "low-risk", Label = "In copyright, low risk", Members = ["InC-EDU", "InC-NC"] },
-                new RightsGroup { Key = "restricted", Label = "In copyright (restrictions apply)", Members = ["InC"] },
-                new RightsGroup
-                {
-                    Key = "unassessed", Label = "Unassessed",
-                    Members = wildcardGroup ? ["CNE", "__none__", "*"] : ["CNE", "__none__"]
-                }
+                new AccessCategory { Value = "public-domain", Label = "Out of Copyright (Public Domain / CC0)", RightsStatements = ["NoC-US", "NoC-NC", "NoC-OKLR", "NoC-CR", "NKC", "CC0"] },
+                new AccessCategory { Value = "low-risk", Label = "In Copyright: Assessed (Low Risk)", RightsStatements = ["InC", "InC-EDU", "InC-NC", "InC-RUU", "InC-OW-EU", "CC-BY", "CC-BY-SA", "CC-BY-ND", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND"] },
+                new AccessCategory { Value = "restrictions-apply", Label = "In Copyright (restrictions apply)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU", "NoC-OKLR", "NoC-CR"] },
+                new AccessCategory { Value = "medium-risk", Label = "In Copyright (medium risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] },
+                new AccessCategory { Value = "unassessed", Label = "In Copyright (Unassessed)", RightsStatements = ["CNE", "UND"] },
+                new AccessCategory { Value = "high-risk", Label = "In Copyright (High Risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] }
             ]
         },
+        RightsAxis = new RightsAxis { Label = "Copyright Statement" },
         Derived =
         [
             new DerivedAccessCondition
@@ -64,115 +61,76 @@ public class AccessConditionProfileTests
                 ],
                 Matrix = new Dictionary<string, Dictionary<string, string>>
                 {
-                    ["PA1"] = new() { ["public-domain"] = "0", ["low-risk"] = "1", ["restricted"] = "2", ["unassessed"] = "2" },
+                    ["PA1"] = new()
+                    {
+                        ["public-domain"] = "0", ["low-risk"] = "1", ["restrictions-apply"] = "2",
+                        ["medium-risk"] = "2", ["unassessed"] = "2", ["high-risk"] = "3", ["__none__"] = "2"
+                    },
                     ["PA2"] = new() { ["*"] = "3" },
                     ["PA3"] = new() { ["*"] = "3" },
                     ["PA4"] = new() { ["*"] = "4" },
                     ["PA-unassessed"] = new() { ["*"] = "5" },
-                    ["__none__"] = new() { ["*"] = "5" }
+                    ["__none__"] = new() { ["*"] = "5" },
+                    ["*"] = new() { ["*"] = "5" }
                 }
             }
         ]
     };
 
     /// <summary>
-    /// The Leeds profile EXACTLY as deployed to dev (Preservation.API/appsettings.json), including
-    /// every rights statement's group. Kept separate from <see cref="Leeds"/>, whose reduced groups
-    /// leave statements unplaced on purpose for the no-group tests.
+    /// Jodie's master matrix (wiki, 16 Oct), restated here independently of the profile so that a
+    /// change to either fails loudly.
     /// </summary>
-    public static AccessConditionProfile LeedsAsDeployed()
-    {
-        var profile = Leeds(wildcardGroup: true);
-        profile.RightsAxis.Groups[0].Members = ["NoC-US", "NoC-NC", "NoC-OKLR", "NoC-CR", "NKC", "CC0", "CC-BY", "CC-BY-SA"];
-        profile.RightsAxis.Groups[1].Members = ["InC-EDU", "InC-NC", "CC-BY-NC", "CC-BY-ND", "CC-BY-NC-SA", "CC-BY-NC-ND"];
-        profile.RightsAxis.Groups[2].Members = ["InC", "InC-OW-EU", "InC-RUU"];
-        profile.RightsAxis.Groups[3].Members = ["CNE", "UND", "__none__", "*"];
-        profile.Derived[0].Matrix["*"] = new Dictionary<string, string> { ["*"] = "5" };
-        return profile;
-    }
-
-    /// <summary>
-    /// The grouping assumed on issue #433, restated here independently of the profile so that a
-    /// change to either fails loudly: PA 1 is the only row where the group matters.
-    /// </summary>
-    private static readonly Dictionary<string, string> AssumedPa1TierByShortLabel = new()
-    {
-        ["NoC-US"] = "0", ["NoC-NC"] = "0", ["NoC-OKLR"] = "0", ["NoC-CR"] = "0", ["NKC"] = "0", ["CC0"] = "0", ["CC-BY"] = "0", ["CC-BY-SA"] = "0",
-        ["InC-EDU"] = "1", ["InC-NC"] = "1", ["CC-BY-NC"] = "1", ["CC-BY-ND"] = "1", ["CC-BY-NC-SA"] = "1", ["CC-BY-NC-ND"] = "1",
-        ["InC"] = "2", ["InC-OW-EU"] = "2", ["InC-RUU"] = "2",
-        ["CNE"] = "2", ["UND"] = "2"
-    };
-
     public static IEnumerable<object?[]> EveryCell()
     {
         string?[] restrictions = ["PA1", "PA2", "PA3", "PA4", "PA-unassessed", null, "dlip-open"];
-        var statements = RightsStatement.ByShortLabel.Keys.Select(k => (string?)k).Append(null).Append("https://example.org/unknown");
+        string?[] categories = ["public-domain", "low-risk", "restrictions-apply", "medium-risk", "unassessed", "high-risk", null];
+        var pa1 = new Dictionary<string, string>
+        {
+            ["public-domain"] = "0", ["low-risk"] = "1", ["restrictions-apply"] = "2",
+            ["medium-risk"] = "2", ["unassessed"] = "2", ["high-risk"] = "3"
+        };
         foreach (var pa in restrictions)
         {
-            foreach (var statement in statements)
+            foreach (var category in categories)
             {
                 var expected = pa switch
                 {
-                    "PA1" => statement != null && AssumedPa1TierByShortLabel.TryGetValue(statement, out var t) ? t : "2",
+                    "PA1" => category != null ? pa1[category] : "2",
                     "PA2" or "PA3" => "3",
                     "PA4" => "4",
                     _ => "5" // PA-unassessed, no restriction (the __none__ row), or a value outside the vocabulary (the '*' row)
                 };
-                yield return [pa, statement, expected];
+                yield return [pa, category, expected];
             }
         }
     }
 
     [Theory]
     [MemberData(nameof(EveryCell))]
-    public void Every_cell_of_the_deployed_Leeds_matrix_resolves_to_the_assumed_tier(string? pa, string? statement, string expectedTier)
+    public void Every_cell_of_the_Leeds_master_matrix_resolves_to_the_agreed_tier(string? pa, string? category, string expectedTier)
     {
-        RightsStatement.ByShortLabel.Should().HaveCount(19, "the table above must cover the whole vocabulary");
-        var rights = statement == null ? null
-            : RightsStatement.ByShortLabel.TryGetValue(statement, out var rs) ? rs.Value : new Uri(statement);
-        var derived = LeedsAsDeployed().ResolveDerived(pa == null ? [] : [pa], rights);
+        var derived = Leeds().ResolveDerived(pa == null ? [] : [pa], category);
         derived.Should().Equal(new Dictionary<string, string> { ["tier"] = expectedTier });
     }
 
     [Fact]
-    public void The_deployed_Leeds_profile_is_valid_and_places_every_rights_statement()
+    public void The_rights_statement_is_not_an_input_to_the_matrix_but_suggests_a_category()
     {
-        var profile = LeedsAsDeployed();
-        profile.Validate().Should().BeEmpty();
-        var placed = profile.RightsAxis.Groups.SelectMany(g => g.Members).Where(m => m is not ("__none__" or "*"));
-        placed.Should().BeEquivalentTo(RightsStatement.ByShortLabel.Keys);
+        // The statement is the public claim, the status is the assessment: InC can sit under four
+        // statuses with different tiers, so it can only suggest, never decide.
+        Leeds().ResolveDerived(["PA1"], "high-risk").Should().Equal(new Dictionary<string, string> { ["tier"] = "3" });
+        Leeds().CategoriesPermitting(InC).Should().BeEquivalentTo(["low-risk", "restrictions-apply", "medium-risk", "high-risk"]);
+        Leeds().CategoriesPermitting(Cc0).Should().Equal("public-domain");
+        Leeds().CategoriesPermitting(new Uri("https://example.org/licence")).Should().BeEmpty();
+        Leeds().CategoriesPermitting(null).Should().BeEmpty();
     }
 
     [Fact]
-    public void No_effective_restriction_uses_the_none_row()
+    public void Every_rights_statement_is_permitted_under_at_least_one_Leeds_category()
     {
-        Leeds().ResolveDerived([], NoCUs).Should().Equal(new Dictionary<string, string> { ["tier"] = "5" });
-    }
-
-    [Fact]
-    public void A_rights_statement_in_no_group_has_no_derived_value_without_a_wildcard_group()
-    {
-        // CC-BY-SA is a real statement that this profile does not place in any group.
-        var ccBySa = new Uri("https://creativecommons.org/licenses/by-sa/4.0/");
-        Leeds().ResolveDerived(["PA1"], ccBySa).Should().BeEmpty();
-        Leeds(wildcardGroup: true).ResolveDerived(["PA1"], ccBySa).Should().Equal(new Dictionary<string, string> { ["tier"] = "2" });
-    }
-
-    [Fact]
-    public void An_unknown_URI_only_matches_a_wildcard_group()
-    {
-        var unknown = new Uri("https://example.org/licence");
-        Leeds().ResolveDerived(["PA1"], unknown).Should().BeEmpty();
-        Leeds(wildcardGroup: true).ResolveDerived(["PA1"], unknown)["tier"].Should().Be("2");
-    }
-
-    [Fact]
-    public void A_restriction_value_outside_the_vocabulary_has_no_row_and_no_derived_value_without_a_wildcard_row()
-    {
-        // Legacy content written before the vocabulary changed: the matrix has no row for it...
-        Leeds().ResolveDerived(["dlip-open"], NoCUs).Should().BeEmpty();
-        // ...unless the profile says what any other value gets, as the deployed one does.
-        LeedsAsDeployed().ResolveDerived(["dlip-open"], NoCUs).Should().Equal(new Dictionary<string, string> { ["tier"] = "5" });
+        var permitted = Leeds().CategoryAxis!.Values.SelectMany(c => c.RightsStatements).ToHashSet();
+        permitted.Should().BeEquivalentTo(RightsStatement.ByShortLabel.Keys);
     }
 
     [Fact]
@@ -180,27 +138,37 @@ public class AccessConditionProfileTests
     {
         // Not reachable through the UI once anything is derived, but a legacy or third-party
         // document may carry several; the latest value in the Values order wins.
-        Leeds().ResolveDerived(["PA1", "PA4"], NoCUs)["tier"].Should().Be("4");
-        Leeds().ResolveDerived(["PA4", "PA1"], NoCUs)["tier"].Should().Be("4");
+        Leeds().ResolveDerived(["PA1", "PA4"], "public-domain")["tier"].Should().Be("4");
+        Leeds().ResolveDerived(["PA4", "PA1"], "public-domain")["tier"].Should().Be("4");
     }
 
     [Fact]
-    public void Nothing_derived_resolves_to_nothing()
+    public void A_restriction_value_outside_the_vocabulary_gets_the_wildcard_row_or_nothing()
     {
-        var simple = new AccessConditionProfile
-        {
-            RestrictionAxis = new AccessAxis { Values = [new AccessRestriction { Value = "Open", Label = "Open" }] }
-        };
-        simple.ResolveDerived(["Open"], InC).Should().BeEmpty();
-        simple.Validate().Should().BeEmpty();
+        var profile = Leeds();
+        profile.ResolveDerived(["dlip-open"], "public-domain").Should().Equal(new Dictionary<string, string> { ["tier"] = "5" });
+        profile.Derived[0].Matrix.Remove("*");
+        profile.ResolveDerived(["dlip-open"], "public-domain").Should().BeEmpty();
     }
 
     [Fact]
-    public void The_Leeds_profile_and_an_empty_profile_are_valid()
+    public void The_standard_profile_derives_nothing_and_is_valid()
+    {
+        var simple = AccessConditionProfile.Simple([new AccessRestriction { Value = "Open", Label = "Open" }]);
+        simple.CategoryAxis.Should().BeNull();
+        simple.ResolveDerived(["Open"], null).Should().BeEmpty();
+        simple.Validate().Should().BeEmpty();
+        simple.CategoriesPermitting(InC).Should().BeEmpty();
+
+        AccessConditionProfile.Simple([new AccessRestriction { Value = "Open", Label = "Open" }], allowMultiple: true)
+            .Validate().Should().BeEmpty("multi-select is fine when nothing is derived");
+        new AccessConditionProfile().Validate().Should().BeEmpty("an absent section is a bare but usable profile");
+    }
+
+    [Fact]
+    public void The_Leeds_profile_is_valid()
     {
         Leeds().Validate().Should().BeEmpty();
-        Leeds(wildcardGroup: true).Validate().Should().BeEmpty();
-        new AccessConditionProfile().Validate().Should().BeEmpty("an absent section is a bare but usable profile");
     }
 
     [Fact]
@@ -209,13 +177,36 @@ public class AccessConditionProfileTests
         var profile = Leeds();
         profile.AllowMultipleRestrictions = true;
         profile.Validate().Should().ContainSingle(e => e.Contains("AllowMultipleRestrictions"));
+    }
 
-        var simple = new AccessConditionProfile
-        {
-            AllowMultipleRestrictions = true,
-            RestrictionAxis = new AccessAxis { Values = [new AccessRestriction { Value = "Open", Label = "Open" }] }
-        };
-        simple.Validate().Should().BeEmpty("multi-select is fine when nothing is derived");
+    [Fact]
+    public void A_category_axis_and_derived_conditions_go_together()
+    {
+        var profile = Leeds();
+        profile.Derived.Clear();
+        profile.Validate().Should().ContainSingle(e => e.Contains("use the standard 'AccessConditions' list"));
+
+        profile = Leeds();
+        profile.CategoryAxis = null;
+        profile.Validate().Should().Contain(e => e.Contains("need a CategoryAxis"));
+    }
+
+    [Fact]
+    public void A_category_axis_needs_a_type_and_known_rights_statements()
+    {
+        var profile = Leeds();
+        profile.CategoryAxis!.Type = "";
+        profile.CategoryAxis.Values[0].RightsStatements.Add("Not-A-Statement");
+        profile.CategoryAxis.Values[0].RightsStatements.Add("CC0"); // already listed there
+
+        var errors = profile.Validate();
+        errors.Should().Contain(e => e.Contains("CategoryAxis.Type"));
+        errors.Should().Contain(e => e.Contains("'Not-A-Statement'"));
+        errors.Should().Contain(e => e.Contains("contains 'CC0' more than once"));
+
+        profile = Leeds();
+        profile.CategoryAxis!.Type = "use and reproduction";
+        profile.Validate().Should().Contain(e => e.Contains("reserved for the restriction or rights statement"));
     }
 
     [Fact]
@@ -223,43 +214,32 @@ public class AccessConditionProfileTests
     {
         var profile = Leeds();
         profile.Derived[0].Matrix["PA9"] = new Dictionary<string, string> { ["public-domain"] = "0" };
-        profile.Derived[0].Matrix["PA1"]["medium-risk"] = "2";
+        profile.Derived[0].Matrix["PA1"]["very-high-risk"] = "2";
         profile.Derived[0].Matrix["PA2"]["*"] = "9";
 
         var errors = profile.Validate();
         errors.Should().Contain(e => e.Contains("row 'PA9'"));
-        errors.Should().Contain(e => e.Contains("column 'medium-risk'"));
+        errors.Should().Contain(e => e.Contains("column 'very-high-risk'"));
         errors.Should().Contain(e => e.Contains("= '9'"));
     }
 
     [Fact]
-    public void A_matrix_must_give_every_restriction_a_value_for_every_rights_group()
+    public void A_matrix_must_give_every_restriction_a_value_for_every_category()
     {
         var profile = Leeds();
+        profile.Derived[0].Matrix.Remove("*");
         profile.Derived[0].Matrix["PA1"].Remove("low-risk");
-        profile.Validate().Should().ContainSingle(e => e.Contains("no value for restriction 'PA1' with rights group 'low-risk'"));
+        profile.Validate().Should().ContainSingle(e => e.Contains("no value for restriction 'PA1' with category 'low-risk'"));
 
         profile = Leeds();
+        profile.Derived[0].Matrix.Remove("*");
         profile.Derived[0].Matrix.Remove("__none__");
-        profile.Validate().Should().HaveCount(4, "no restriction at all must resolve for each of the four groups")
+        profile.Validate().Should().HaveCount(7, "no restriction at all must resolve for each of the six categories and for no category")
             .And.AllSatisfy(e => e.Should().Contain("restriction '__none__'"));
 
         profile = Leeds();
         profile.Derived[0].Matrix.Remove("__none__");
-        profile.Derived[0].Matrix["*"] = new Dictionary<string, string> { ["*"] = "5" };
-        profile.Validate().Should().BeEmpty("a wildcard row covers the gap");
-    }
-
-    [Fact]
-    public void Rights_group_members_must_be_known_and_claimed_once()
-    {
-        var profile = Leeds();
-        profile.RightsAxis.Groups[0].Members.Add("Not-A-Statement");
-        profile.RightsAxis.Groups[1].Members.Add("InC"); // already in "restricted"
-
-        var errors = profile.Validate();
-        errors.Should().Contain(e => e.Contains("'Not-A-Statement'"));
-        errors.Should().Contain(e => e.Contains("'InC' appears in more than one"));
+        profile.Validate().Should().BeEmpty("the wildcard row covers the gap");
     }
 
     [Fact]
@@ -267,6 +247,10 @@ public class AccessConditionProfileTests
     {
         var profile = Leeds();
         profile.Derived[0].Type = "restriction on access";
+        profile.Validate().Should().Contain(e => e.Contains("reserved"));
+
+        profile = Leeds();
+        profile.Derived[0].Type = profile.CategoryAxis!.Type;
         profile.Validate().Should().Contain(e => e.Contains("reserved"));
 
         profile = Leeds();
@@ -287,11 +271,9 @@ public class AccessConditionProfileTests
                 ["r1"] = new() { ["*"] = "c" }
             }
         };
-        derived.Lookup("r1", "g1").Should().Be("c", "the specific row wins even though the wildcard row has the specific column");
-        derived.Lookup("r2", "g1").Should().Be("b");
-        derived.Lookup("r2", "g9").Should().Be("a");
-        derived.Lookup("r2", null).Should().Be("a");
-        derived.LabelFor("b").Should().Be("b");
-        derived.LabelFor("zzz").Should().BeNull();
+        derived.Lookup("r9", "g9").Should().Be("a");
+        derived.Lookup("r9", "g1").Should().Be("b");
+        derived.Lookup("r1", "g1").Should().Be("c", "a specific row wins even when the wildcard row has the specific column");
+        derived.Lookup("r1", null).Should().Be("c");
     }
 }

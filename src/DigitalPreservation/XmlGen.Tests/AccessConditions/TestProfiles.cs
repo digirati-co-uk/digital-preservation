@@ -9,68 +9,77 @@ namespace XmlGen.Tests.AccessConditions;
 /// </summary>
 public static class TestProfiles
 {
-    /// <summary>The Leeds profile as deployed to dev, minus the wildcard rights group and wildcard row unless asked for.</summary>
-    public static AccessConditionProfile Leeds(bool wildcardGroup = false, bool wildcardRow = false)
+    /// <summary>The <c>mods:accessCondition/@type</c> the Leeds copyright status is written under.</summary>
+    public const string CopyrightStatusType = "copyright status";
+
+    /// <summary>
+    /// The Leeds profile as deployed to dev: Protected Access Level x copyright status -> Access
+    /// Tier, from the master matrix. <paramref name="wildcardRow"/> adds the '*' row that gives a
+    /// restriction value outside the vocabulary tier 5.
+    /// </summary>
+    public static AccessConditionProfile Leeds(bool wildcardRow = false)
     {
-        var profile = LeedsCore(wildcardGroup);
+        var profile = new AccessConditionProfile
+        {
+            RestrictionAxis = new AccessAxis
+            {
+                Label = "Protected Access Level",
+                Values =
+                [
+                    new AccessRestriction { Value = "PA1", Label = "Level 1" },
+                    new AccessRestriction { Value = "PA2", Label = "Level 2" },
+                    new AccessRestriction { Value = "PA3", Label = "Level 3" },
+                    new AccessRestriction { Value = "PA4", Label = "Level 4" },
+                    new AccessRestriction { Value = "PA-unassessed", Label = "Unassessed" }
+                ]
+            },
+            CategoryAxis = new CategoryAxis
+            {
+                Label = "Copyright status",
+                Type = CopyrightStatusType,
+                Values =
+                [
+                    new AccessCategory { Value = "public-domain", Label = "Out of Copyright (Public Domain / CC0)", RightsStatements = ["NoC-US", "NoC-NC", "NoC-OKLR", "NoC-CR", "NKC", "CC0"] },
+                    new AccessCategory { Value = "low-risk", Label = "In Copyright: Assessed (Low Risk)", RightsStatements = ["InC", "InC-EDU", "InC-NC", "InC-RUU", "InC-OW-EU", "CC-BY", "CC-BY-SA", "CC-BY-ND", "CC-BY-NC", "CC-BY-NC-SA", "CC-BY-NC-ND"] },
+                    new AccessCategory { Value = "restrictions-apply", Label = "In Copyright (restrictions apply)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU", "NoC-OKLR", "NoC-CR"] },
+                    new AccessCategory { Value = "medium-risk", Label = "In Copyright (medium risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] },
+                    new AccessCategory { Value = "unassessed", Label = "In Copyright (Unassessed)", RightsStatements = ["CNE", "UND"] },
+                    new AccessCategory { Value = "high-risk", Label = "In Copyright (High Risk)", RightsStatements = ["InC", "InC-OW-EU", "InC-RUU"] }
+                ]
+            },
+            RightsAxis = new RightsAxis { Label = "Copyright Statement" },
+            Derived =
+            [
+                new DerivedAccessCondition
+                {
+                    Type = "tier",
+                    Label = "Access Tier",
+                    Values =
+                    [
+                        new AccessRestriction { Value = "0", Label = "Tier 0 - Open" },
+                        new AccessRestriction { Value = "1", Label = "Tier 1 - Open" },
+                        new AccessRestriction { Value = "2", Label = "Tier 2 - Restricted" },
+                        new AccessRestriction { Value = "3", Label = "Tier 3 - Protected" },
+                        new AccessRestriction { Value = "4", Label = "Tier 4 - Closed" },
+                        new AccessRestriction { Value = "5", Label = "Tier 5 - Unassessed" }
+                    ],
+                    Matrix = new Dictionary<string, Dictionary<string, string>>
+                    {
+                        ["PA1"] = new()
+                        {
+                            ["public-domain"] = "0", ["low-risk"] = "1", ["restrictions-apply"] = "2",
+                            ["medium-risk"] = "2", ["unassessed"] = "2", ["high-risk"] = "3", ["__none__"] = "2"
+                        },
+                        ["PA2"] = new() { ["*"] = "3" },
+                        ["PA3"] = new() { ["*"] = "3" },
+                        ["PA4"] = new() { ["*"] = "4" },
+                        ["PA-unassessed"] = new() { ["*"] = "5" },
+                        ["__none__"] = new() { ["*"] = "5" }
+                    }
+                }
+            ]
+        };
         if (wildcardRow) profile.Derived[0].Matrix["*"] = new Dictionary<string, string> { ["*"] = "5" };
         return profile;
     }
-
-    private static AccessConditionProfile LeedsCore(bool wildcardGroup) => new()
-    {
-        RestrictionAxis = new AccessAxis
-        {
-            Label = "Protected Access Level",
-            Values =
-            [
-                new AccessRestriction { Value = "PA1", Label = "Level 1" },
-                new AccessRestriction { Value = "PA2", Label = "Level 2" },
-                new AccessRestriction { Value = "PA3", Label = "Level 3" },
-                new AccessRestriction { Value = "PA4", Label = "Level 4" },
-                new AccessRestriction { Value = "PA-unassessed", Label = "Unassessed" }
-            ]
-        },
-        RightsAxis = new RightsAxis
-        {
-            Label = "Copyright Statement",
-            Groups =
-            [
-                new RightsGroup { Key = "public-domain", Label = "Out of copyright", Members = ["NoC-US", "NKC", "CC0", "CC-BY"] },
-                new RightsGroup { Key = "low-risk", Label = "In copyright, low risk", Members = ["InC-EDU", "InC-NC"] },
-                new RightsGroup { Key = "restricted", Label = "In copyright (restrictions apply)", Members = ["InC"] },
-                new RightsGroup
-                {
-                    Key = "unassessed", Label = "Unassessed",
-                    Members = wildcardGroup ? ["CNE", "__none__", "*"] : ["CNE", "__none__"]
-                }
-            ]
-        },
-        Derived =
-        [
-            new DerivedAccessCondition
-            {
-                Type = "tier",
-                Label = "Access Tier",
-                Values =
-                [
-                    new AccessRestriction { Value = "0", Label = "Tier 0 - Open" },
-                    new AccessRestriction { Value = "1", Label = "Tier 1 - Open" },
-                    new AccessRestriction { Value = "2", Label = "Tier 2 - Restricted" },
-                    new AccessRestriction { Value = "3", Label = "Tier 3 - Protected" },
-                    new AccessRestriction { Value = "4", Label = "Tier 4 - Closed" },
-                    new AccessRestriction { Value = "5", Label = "Tier 5 - Unassessed" }
-                ],
-                Matrix = new Dictionary<string, Dictionary<string, string>>
-                {
-                    ["PA1"] = new() { ["public-domain"] = "0", ["low-risk"] = "1", ["restricted"] = "2", ["unassessed"] = "2" },
-                    ["PA2"] = new() { ["*"] = "3" },
-                    ["PA3"] = new() { ["*"] = "3" },
-                    ["PA4"] = new() { ["*"] = "4" },
-                    ["PA-unassessed"] = new() { ["*"] = "5" },
-                    ["__none__"] = new() { ["*"] = "5" }
-                }
-            }
-        ]
-    };
 }

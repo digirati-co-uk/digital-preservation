@@ -775,12 +775,13 @@
                     </div>
                     @{
                         var profile = Model.AccessConditionProfile;
-                        var rightsGroups = profile.RightsAxis.Groups;
+                        var categoryAxis = profile.CategoryAxis;
                         var allRights = RightsStatement.RightsStatements.Concat(RightsStatement.CreativeCommons).ToList();
+                        var editable = Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable;
                     }
                     <div class="mb-3">
                         <label id="accessRestrictionsSelectLabel" for="accessRestrictionsSelect" class="form-label">@profile.RestrictionAxis.Label</label>
-                        @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        @if (editable)
                         {
                             @* Single-select unless the profile allows several (issue #433). An empty choice
                                means "inherit from the parent", as clearing a multi-select always did. *@
@@ -806,39 +807,42 @@
                             </ul>
                         }
                     </div>
+                    @if (categoryAxis != null)
+                    {
+                        @* The chosen category (issue #433): the second axis of the derived matrix - for
+                           Leeds, the copyright status. Inherited like the restriction. *@
+                        <div class="mb-3">
+                            <label id="accessCategorySelectLabel" for="accessCategorySelect" class="form-label">@categoryAxis.Label</label>
+                            @if (editable)
+                            {
+                                <select id="accessCategorySelect" class="form-select" name="accessCategory" aria-labelledby="accessCategorySelectLabel">
+                                    <!option value="">(inherit from parent)</!option>
+                                    @foreach (var category in categoryAxis.Values)
+                                    {
+                                        <!option value="@category.Value">@category.Label</!option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+                                <p id="nonEditableAccessCategory">(none)</p>
+                            }
+                        </div>
+                    }
                     <div class="mb-3">
                         <label id="rightsStatementSelectLabel" for="rightsStatementSelect" class="form-label">@profile.RightsAxis.Label</label>
-                        @if (Model.CanBeWorkedOn() && Model.WorkspaceManager.Editable)
+                        @if (editable)
                         {
+                            @* One flat list; with a category axis, deposit.js moves the statements the
+                               profile permits under the chosen category to the top (data-order keeps the
+                               original order for the rest). Nothing is hidden or enforced. *@
                             <select id="rightsStatementSelect" class="form-select" name="rightsStatement" aria-labelledby="rightsStatementSelectLabel">
                                 <!option value="">(inherit from parent)</!option>
                                 <!option value="@RightsStatement.DoNotInheritSentinel">(none — do not inherit)</!option>
-                                @if (rightsGroups.Count > 0)
+                                @for (var i = 0; i < allRights.Count; i++)
                                 {
-                                    @* Grouped: the profile's groups are the optgroups, and the matrix columns
-                                       for any derived condition. Statements in no group are not offered. *@
-                                    foreach (var group in rightsGroups)
-                                    {
-                                        var members = allRights.Where(rs => group.Members.Contains(rs.ShortLabel)).ToList();
-                                        if (members.Count == 0) continue;
-                                        <optgroup label="@group.Label">
-                                            @foreach (var rs in members)
-                                            {
-                                                <!option value="@rs.Value">@rs.Label</!option>
-                                            }
-                                        </optgroup>
-                                    }
-                                }
-                                else
-                                {
-                                    foreach (var rightsStatement in RightsStatement.RightsStatements)
-                                    {
-                                        <!option value="@rightsStatement.Value">@rightsStatement.Label</!option>
-                                    }
-                                    foreach (var creativeCommons in RightsStatement.CreativeCommons)
-                                    {
-                                        <!option value="@creativeCommons.Value">@creativeCommons.Label</!option>
-                                    }
+                                    var rs = allRights[i];
+                                    <!option value="@rs.Value" data-short-label="@rs.ShortLabel" data-order="@i">@rs.Label</!option>
                                 }
                             </select>
                         }
@@ -850,8 +854,8 @@
                     @if (profile.Derived.Count > 0)
                     {
                         @* Derived conditions (issue #433) are never chosen: deposit.js recomputes this
-                           preview from the two dropdowns as they change, and the server writes the
-                           real value from the EFFECTIVE inputs when the form is saved. *@
+                           preview from the restriction and category dropdowns as they change, and the
+                           server writes the real value from the EFFECTIVE inputs when the form is saved. *@
                         <div class="mb-3" id="derivedAccessConditionsSection">
                             @foreach (var derived in profile.Derived)
                             {

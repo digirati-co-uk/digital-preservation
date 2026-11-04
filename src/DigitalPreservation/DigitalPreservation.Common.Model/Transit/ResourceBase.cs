@@ -48,25 +48,26 @@ public abstract class ResourceBase
     public bool RightsStatementSuppressed { get; set; }
 
     /// <summary>
-    /// Every <c>mods:accessCondition</c> on this resource of a type OTHER than the two chosen ones
-    /// (<c>restriction on access</c> and <c>use and reproduction</c>), keyed by <c>@type</c>, first
-    /// value per type. The platform writes its configured derived conditions here - for Leeds the
-    /// access tier (issue #433) - but the parser cannot know which types a configuration derives,
-    /// so a third-party document's other typed conditions appear here too. Read-only through the
-    /// API: derived values are recomputed from the chosen ones on every write.
+    /// Every <c>mods:accessCondition</c> on this resource of a type OTHER than <c>restriction on
+    /// access</c> and <c>use and reproduction</c>, keyed by <c>@type</c>, first value per type. On an
+    /// installation with an access condition profile this holds its chosen category (for Leeds the
+    /// copyright status, under the profile's configured type) and its derived conditions (the access
+    /// tier); the profile says which is which. The parser cannot know a configuration's types, so a
+    /// third-party document's other typed conditions appear here too. Derived values are recomputed
+    /// from the chosen ones on every write (issue #433).
     /// </summary>
-    [JsonPropertyName("derivedAccessConditions")]
+    [JsonPropertyName("otherAccessConditions")]
     [JsonPropertyOrder(13)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public Dictionary<string, string>? DerivedAccessConditions { get; set; }
+    public Dictionary<string, string>? OtherAccessConditions { get; set; }
 
     /// <summary>
-    /// <see cref="DerivedAccessConditions"/> after inheritance, per type: a type set here overrides
+    /// <see cref="OtherAccessConditions"/> after inheritance, per type: a type set here overrides
     /// the ancestor's value for that type and inherits the rest.
     /// </summary>
-    [JsonPropertyName("effectiveDerivedAccessConditions")]
+    [JsonPropertyName("effectiveOtherAccessConditions")]
     [JsonPropertyOrder(14)]
-    public Dictionary<string, string> EffectiveDerivedAccessConditions { get; set; } = [];
+    public Dictionary<string, string> EffectiveOtherAccessConditions { get; set; } = [];
 
     [JsonPropertyName("recordInfo")]
     [JsonPropertyOrder(15)]

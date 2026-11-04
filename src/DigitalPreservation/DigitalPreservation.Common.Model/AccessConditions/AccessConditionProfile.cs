@@ -3,32 +3,38 @@ using System.Text.Json.Serialization;
 namespace DigitalPreservation.Common.Model.AccessConditions;
 
 /// <summary>
-/// An installation's access-condition vocabulary (issue #433). A node's access metadata is a small
-/// set of typed <c>mods:accessCondition</c> values: two are chosen by a person - the restriction
-/// (<c>restriction on access</c>) and the rights statement (<c>use and reproduction</c>) - and any
-/// number more are <em>derived</em> from those two by a configured lookup (for Leeds, the Access
-/// Tier). Everything beyond <see cref="RestrictionAxis"/>.<see cref="AccessAxis.Values"/> is optional:
-/// an installation that configures nothing else gets two dropdowns, two METS entries and nothing
-/// derived, which is the platform's pre-#433 behaviour apart from single-select restrictions.
+/// An installation's access-condition vocabulary (issue #433), as served by <c>GET /access-conditions</c>.
+/// A node's access metadata is a small set of typed <c>mods:accessCondition</c> values, two of which
+/// every installation has - the restriction (<c>restriction on access</c>) and the rights statement
+/// (<c>use and reproduction</c>), both chosen by a person. An installation that needs a value
+/// <em>computed</em> from its choices (for Leeds, the Access Tier) configures a third chosen axis -
+/// the <see cref="CategoryAxis"/>, for Leeds the copyright status - and derives from restriction x
+/// category by a matrix.
 /// </summary>
 /// <remarks>
-/// Bound from the <c>AccessConditionProfile</c> configuration section in the Preservation API and
-/// served to the UI by <c>GET /access-conditions</c>. <see cref="Validate"/> is run at startup.
+/// Two configuration forms produce this one object (see the Preservation API's
+/// <c>AddAccessConditionProfile</c>): the standard <c>AccessConditions</c> list of restriction values,
+/// which fills only <see cref="RestrictionAxis"/>; and the <c>AccessConditionProfile</c> section, which
+/// an installation uses only when it derives something. <see cref="Validate"/> is run at startup.
 /// </remarks>
 public class AccessConditionProfile
 {
+    /// <summary>The configuration section for the two-axis, derived form.</summary>
     public const string SectionName = "AccessConditionProfile";
 
+    /// <summary>The configuration key for the standard form: a plain list of restriction values.</summary>
+    public const string SimpleSectionName = "AccessConditions";
+
+    /// <summary>The configuration key that, with the standard form, allows several restrictions per node.</summary>
+    public const string AllowMultipleKey = "AllowMultipleAccessConditions";
+
     /// <summary>
-    /// The matrix key (restriction row or rights group) that stands for "no value": no effective
-    /// restriction, or no effective rights statement (absent or explicitly suppressed).
+    /// The matrix key (row or column) that stands for "no effective value": no restriction, or no
+    /// category, on or above the node.
     /// </summary>
     public const string NoneKey = "__none__";
 
-    /// <summary>
-    /// A matrix row or column key, or a rights-group member, that matches anything not matched
-    /// by a more specific key.
-    /// </summary>
+    /// <summary>A matrix row or column key that matches anything not matched by a more specific key.</summary>
     public const string Wildcard = "*";
 
     /// <summary>
@@ -42,11 +48,26 @@ public class AccessConditionProfile
     [JsonPropertyName("restrictionAxis")]
     public AccessAxis RestrictionAxis { get; set; } = new();
 
+    /// <summary>
+    /// The second chosen axis of the matrix - for Leeds, the copyright status - or null on an
+    /// installation that derives nothing.
+    /// </summary>
+    [JsonPropertyName("categoryAxis")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CategoryAxis? CategoryAxis { get; set; }
+
     [JsonPropertyName("rightsAxis")]
     public RightsAxis RightsAxis { get; set; } = new();
 
     [JsonPropertyName("derived")]
     public List<DerivedAccessCondition> Derived { get; set; } = [];
+
+    /// <summary>The standard form: a restriction vocabulary and nothing else.</summary>
+    public static AccessConditionProfile Simple(IEnumerable<AccessRestriction> restrictions, bool allowMultiple = false) => new()
+    {
+        AllowMultipleRestrictions = allowMultiple,
+        RestrictionAxis = new AccessAxis { Values = restrictions.ToList() }
+    };
 
     /// <summary>
     /// Validation errors for the whole profile; empty when it is usable. Checked at startup.
@@ -55,10 +76,14 @@ public class AccessConditionProfile
     {
         var errors = new List<string>();
         ValidateRestrictionAxis(errors);
-        var groupKeys = ValidateRightsGroups(errors);
+        ValidateCategoryAxis(errors);
         if (AllowMultipleRestrictions && Derived.Count > 0)
             errors.Add("AllowMultipleRestrictions cannot be combined with Derived access conditions: a derived value is a single matrix cell.");
-        ValidateDerived(errors, groupKeys);
+        if (CategoryAxis != null && Derived.Count == 0)
+            errors.Add($"A {nameof(CategoryAxis)} is only needed to derive something from; with nothing Derived, use the standard '{SimpleSectionName}' list instead.");
+        if (CategoryAxis == null && Derived.Count > 0)
+            errors.Add($"Derived access conditions need a {nameof(CategoryAxis)}: the matrix columns are its values.");
+        ValidateDerived(errors);
         return errors;
     }
 
@@ -71,47 +96,45 @@ public class AccessConditionProfile
             errors.Add($"RestrictionAxis.Values may not use the reserved keys '{NoneKey}' or '{Wildcard}'.");
     }
 
-    /// <returns>The group keys, which are the valid matrix columns.</returns>
-    private List<string> ValidateRightsGroups(List<string> errors)
+    private void ValidateCategoryAxis(List<string> errors)
     {
-        var groupKeys = RightsAxis.Groups.Select(g => g.Key).ToList();
-        AddDuplicates(errors, groupKeys, "RightsAxis.Groups keys");
-        if (groupKeys.Contains(Wildcard))
-            errors.Add($"A rights group may not use the reserved key '{Wildcard}'.");
-        var seenMembers = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var group in RightsAxis.Groups)
+        if (CategoryAxis == null) return;
+        if (string.IsNullOrWhiteSpace(CategoryAxis.Type))
+            errors.Add("CategoryAxis.Type (the mods:accessCondition type it is written under) is required.");
+        else if (CategoryAxis.Type is ReservedTypes.RestrictionOnAccess or ReservedTypes.UseAndReproduction)
+            errors.Add($"CategoryAxis.Type '{CategoryAxis.Type}' is reserved for the restriction or rights statement.");
+        if (CategoryAxis.Values.Count == 0)
+            errors.Add("CategoryAxis.Values is empty.");
+        AddDuplicates(errors, CategoryAxis.Values.Select(v => v.Value), "CategoryAxis.Values");
+        if (CategoryAxis.Values.Any(v => v.Value is NoneKey or Wildcard))
+            errors.Add($"CategoryAxis.Values may not use the reserved keys '{NoneKey}' or '{Wildcard}'.");
+        foreach (var category in CategoryAxis.Values)
         {
-            if (group.Members.Count == 0)
-                errors.Add($"Rights group '{group.Key}' has no members.");
-            foreach (var member in group.Members)
-            {
-                if (member is not (NoneKey or Wildcard) && !RightsStatement.ByShortLabel.ContainsKey(member))
-                    errors.Add($"Rights group '{group.Key}' member '{member}' is not a known rights statement short label.");
-                if (!seenMembers.Add(member))
-                    errors.Add($"Rights statement '{member}' appears in more than one rights group.");
-            }
+            AddDuplicates(errors, category.RightsStatements, $"CategoryAxis value '{category.Value}' RightsStatements");
+            foreach (var unknown in category.RightsStatements.Where(rs => !RightsStatement.ByShortLabel.ContainsKey(rs)))
+                errors.Add($"CategoryAxis value '{category.Value}' permits '{unknown}', which is not a known rights statement short label.");
         }
-        return groupKeys;
     }
 
-    private void ValidateDerived(List<string> errors, IEnumerable<string> groupKeys)
+    private void ValidateDerived(List<string> errors)
     {
         AddDuplicates(errors, Derived.Select(d => d.Type), "Derived types");
         var validRows = RestrictionAxis.Values.Select(v => v.Value).Append(NoneKey).Append(Wildcard).ToHashSet(StringComparer.Ordinal);
-        var validColumns = groupKeys.Append(Wildcard).ToHashSet(StringComparer.Ordinal);
+        var categories = CategoryAxis?.Values.Select(v => v.Value) ?? [];
+        var validColumns = categories.Append(NoneKey).Append(Wildcard).ToHashSet(StringComparer.Ordinal);
         foreach (var derived in Derived)
         {
             ValidateDerivedCondition(errors, derived, validRows, validColumns);
         }
     }
 
-    private static void ValidateDerivedCondition(
+    private void ValidateDerivedCondition(
         List<string> errors, DerivedAccessCondition derived, HashSet<string> validRows, HashSet<string> validColumns)
     {
         var name = $"Derived '{derived.Type}'";
         if (string.IsNullOrWhiteSpace(derived.Type))
             errors.Add("A Derived access condition has no Type.");
-        else if (derived.Type is ReservedTypes.RestrictionOnAccess or ReservedTypes.UseAndReproduction)
+        else if (derived.Type is ReservedTypes.RestrictionOnAccess or ReservedTypes.UseAndReproduction || derived.Type == CategoryAxis?.Type)
             errors.Add($"{name}: the type is reserved for a chosen (not derived) access condition.");
         if (derived.Values.Count == 0)
             errors.Add($"{name} has no Values.");
@@ -131,24 +154,6 @@ public class AccessConditionProfile
         }
     }
 
-    /// <summary>
-    /// Every restriction value (and no restriction) must resolve for every rights group (or, with
-    /// no groups, for the wildcard column): a gap would silently leave a node with no derived
-    /// value, which is what a legacy restriction value did before this check (review of #434).
-    /// </summary>
-    private static void ValidateMatrixCoverage(
-        List<string> errors, DerivedAccessCondition derived, string name, IEnumerable<string> rows, IEnumerable<string> groupKeys)
-    {
-        var columns = groupKeys.Cast<string?>().DefaultIfEmpty(null).ToList();
-        foreach (var row in rows)
-        {
-            foreach (var column in columns.Where(column => derived.Lookup(row, column) == null))
-            {
-                errors.Add($"{name}: no value for restriction '{row}' with rights group '{column ?? Wildcard}' (add the cell, or a '{Wildcard}' row or column).");
-            }
-        }
-    }
-
     private static void ValidateMatrixRow(
         List<string> errors, string name, string row, Dictionary<string, string> cells,
         HashSet<string> validColumns, HashSet<string> validValues)
@@ -156,37 +161,33 @@ public class AccessConditionProfile
         foreach (var (column, value) in cells)
         {
             if (!validColumns.Contains(column))
-                errors.Add($"{name}: matrix column '{column}' in row '{row}' is not a rights group key or '{Wildcard}'.");
+                errors.Add($"{name}: matrix column '{column}' in row '{row}' is not a category value, '{NoneKey}' or '{Wildcard}'.");
             if (!validValues.Contains(value))
                 errors.Add($"{name}: matrix cell [{row}, {column}] = '{value}' is not one of its Values.");
         }
     }
 
     /// <summary>
-    /// The rights group an effective rights statement falls in, or null when no group claims it.
-    /// Absent and explicitly-suppressed rights both resolve to the <see cref="NoneKey"/> member;
-    /// a URI is matched by its short label, then by a group holding the <see cref="Wildcard"/>.
+    /// Every restriction value (and no restriction) must resolve for every category (and no
+    /// category): a gap would silently leave a node with no derived value, which is what a legacy
+    /// restriction value did before this check (review of #434).
     /// </summary>
-    public string? FindRightsGroupKey(Uri? effectiveRights)
+    private static void ValidateMatrixCoverage(
+        List<string> errors, DerivedAccessCondition derived, string name, IEnumerable<string> rows, IEnumerable<string> columns)
     {
-        string? member = null;
-        if (effectiveRights == null)
-            member = NoneKey;
-        else if (RightsStatement.ByUri.TryGetValue(effectiveRights, out var rs))
-            member = rs.ShortLabel;
-
-        if (member != null)
+        var columnList = columns.ToList();
+        foreach (var row in rows)
         {
-            var exact = RightsAxis.Groups.FirstOrDefault(g => g.Members.Contains(member));
-            if (exact != null) return exact.Key;
+            foreach (var column in columnList.Where(column => derived.Lookup(row, column) == null))
+            {
+                errors.Add($"{name}: no value for restriction '{row}' with category '{column}' (add the cell, or a '{Wildcard}' row or column).");
+            }
         }
-        return RightsAxis.Groups.FirstOrDefault(g => g.Members.Contains(Wildcard))?.Key;
     }
 
     /// <summary>
     /// The derived access conditions for a node, keyed by type, from its EFFECTIVE restriction(s)
-    /// and rights statement. A type is absent from the result when the matrix has no cell for the
-    /// inputs (no row, no column, or no group claims the rights statement).
+    /// and category. A type is absent from the result when the matrix has no cell for the inputs.
     /// </summary>
     /// <remarks>
     /// Several effective restrictions cannot be chosen through the UI when anything is derived
@@ -194,12 +195,12 @@ public class AccessConditionProfile
     /// then each is looked up and the value latest in the derived condition's <c>Values</c> order
     /// wins, on the convention that values are listed least to most restrictive.
     /// </remarks>
-    public Dictionary<string, string> ResolveDerived(IReadOnlyList<string> effectiveRestrictions, Uri? effectiveRights)
+    public Dictionary<string, string> ResolveDerived(IReadOnlyList<string> effectiveRestrictions, string? effectiveCategory)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         if (Derived.Count == 0) return result;
 
-        var column = FindRightsGroupKey(effectiveRights);
+        var column = effectiveCategory ?? NoneKey;
         IReadOnlyList<string> rows = effectiveRestrictions.Count == 0 ? [NoneKey] : effectiveRestrictions;
 
         foreach (var derived in Derived)
@@ -222,6 +223,17 @@ public class AccessConditionProfile
         return result;
     }
 
+    /// <summary>
+    /// The categories under which a rights statement is permitted. One result lets a UI preselect
+    /// the category; none means the statement is not in any list and any category may be chosen.
+    /// </summary>
+    public IReadOnlyList<string> CategoriesPermitting(Uri? rightsStatement)
+    {
+        if (CategoryAxis == null || rightsStatement == null || !RightsStatement.ByUri.TryGetValue(rightsStatement, out var rs))
+            return [];
+        return CategoryAxis.Values.Where(c => c.RightsStatements.Contains(rs.ShortLabel)).Select(c => c.Value).ToList();
+    }
+
     private static void AddDuplicates(List<string> errors, IEnumerable<string> keys, string what)
     {
         foreach (var dup in keys.GroupBy(k => k, StringComparer.Ordinal).Where(g => g.Count() > 1))
@@ -229,8 +241,8 @@ public class AccessConditionProfile
     }
 
     /// <summary>
-    /// The two <c>mods:accessCondition/@type</c> values that are chosen, never derived. Mirrors the
-    /// constants in DigitalPreservation.Mets, which this project cannot reference.
+    /// The two <c>mods:accessCondition/@type</c> values every installation's chosen conditions use.
+    /// Mirrors the constants in DigitalPreservation.Mets, which this project cannot reference.
     /// </summary>
     public static class ReservedTypes
     {
@@ -252,41 +264,59 @@ public class AccessAxis
 }
 
 /// <summary>
-/// The rights axis. The vocabulary of record is the hard-coded <see cref="RightsStatement"/>
-/// lists; config only labels the axis and, optionally, GROUPS the statements. When there are
-/// groups, the dropdown shows them as optgroups, hides any statement not in a group, and the
-/// group keys are the columns of every derived condition's matrix.
+/// The second chosen axis of a derived condition's matrix - for Leeds, the copyright status
+/// (out of copyright, low risk, high risk...). Written to METS as <c>mods:accessCondition
+/// type="{Type}"</c> and inherited like the restriction. It exists because the rights statement,
+/// a public claim about what people may do, does not carry the internal risk assessment that
+/// decides access; the two must be chosen separately.
 /// </summary>
-public class RightsAxis
+public class CategoryAxis
 {
     [JsonPropertyName("label")]
-    public string Label { get; set; } = "Rights statement";
+    public string Label { get; set; } = "Category";
 
-    [JsonPropertyName("groups")]
-    public List<RightsGroup> Groups { get; set; } = [];
+    /// <summary>The <c>@type</c> written to METS, e.g. <c>copyright status</c>.</summary>
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "";
+
+    [JsonPropertyName("values")]
+    public List<AccessCategory> Values { get; set; } = [];
 }
 
-public class RightsGroup
+/// <summary>One category: a matrix column, with the rights statements an installation permits under it.</summary>
+public class AccessCategory
 {
-    [JsonPropertyName("key")]
-    public required string Key { get; set; }
+    [JsonPropertyName("value")]
+    public required string Value { get; set; }
 
     [JsonPropertyName("label")]
     public required string Label { get; set; }
 
     /// <summary>
-    /// Rights statement short labels (<see cref="RightsStatement.ShortLabel"/>), plus optionally
-    /// <see cref="AccessConditionProfile.NoneKey"/> (no effective rights statement) and
-    /// <see cref="AccessConditionProfile.Wildcard"/> (any statement no other group claims).
+    /// Rights statement short labels (<see cref="RightsStatement.ShortLabel"/>) that make sense
+    /// under this category. A statement may appear under several categories. The UI offers these
+    /// first once the category is chosen, and preselects the category when a chosen statement is
+    /// permitted under exactly one; nothing is enforced on save.
     /// </summary>
-    [JsonPropertyName("members")]
-    public List<string> Members { get; set; } = [];
+    [JsonPropertyName("rightsStatements")]
+    public List<string> RightsStatements { get; set; } = [];
+}
+
+/// <summary>
+/// The rights axis. The vocabulary of record is the hard-coded <see cref="RightsStatement"/>
+/// lists; config only labels the axis.
+/// </summary>
+public class RightsAxis
+{
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = "Rights statement";
 }
 
 /// <summary>
 /// One derived access condition: written as <c>mods:accessCondition type="{Type}"</c> on every
-/// node that carries an explicit restriction or rights statement, with the value the matrix gives
-/// for the node's EFFECTIVE restriction (row) and rights group (column).
+/// node that carries a chosen condition of its own (and on files whose effective inputs come
+/// partly from their logical range), with the value the matrix gives for the node's EFFECTIVE
+/// restriction (row) and category (column).
 /// </summary>
 public class DerivedAccessCondition
 {
@@ -300,17 +330,18 @@ public class DerivedAccessCondition
     [JsonPropertyName("label")]
     public string Label { get; set; } = "";
 
-    /// <summary>The possible values, listed least to most restrictive.</summary>
+    /// <summary>The possible values, least to most restrictive.</summary>
     [JsonPropertyName("values")]
     public List<AccessRestriction> Values { get; set; } = [];
 
     /// <summary>
-    /// Row key (a restriction value, <c>__none__</c> or <c>*</c>) to column key (a rights group
-    /// key or <c>*</c>) to derived value. A specific key beats the wildcard at each level.
+    /// Restriction value (or <see cref="AccessConditionProfile.NoneKey"/> / <see cref="AccessConditionProfile.Wildcard"/>)
+    /// -> category value (or the same reserved keys) -> derived value.
     /// </summary>
     [JsonPropertyName("matrix")]
     public Dictionary<string, Dictionary<string, string>> Matrix { get; set; } = new(StringComparer.Ordinal);
 
+    /// <summary>The cell for a row and column, a specific key beating the wildcard at each level.</summary>
     public string? Lookup(string row, string? column)
     {
         var cells = Matrix.GetValueOrDefault(row) ?? Matrix.GetValueOrDefault(AccessConditionProfile.Wildcard);

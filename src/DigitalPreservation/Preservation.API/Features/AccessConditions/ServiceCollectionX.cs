@@ -1,3 +1,4 @@
+using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.AccessConditions;
 using DigitalPreservation.Mets.AccessConditions;
 using Microsoft.Extensions.Options;
@@ -7,20 +8,55 @@ namespace Preservation.API.Features.AccessConditions;
 public static class ServiceCollectionX
 {
     /// <summary>
-    /// Bind and validate the <c>AccessConditionProfile</c> section (issue #433) and make it the
-    /// profile the METS writer derives from. Validation runs at startup so a matrix that names an
-    /// unknown restriction value, rights group or derived value - or multi-select restrictions
-    /// alongside derived conditions - stops the service rather than surfacing on the first edit.
-    /// Must be called before <c>AddDepositWorkspace</c>, which otherwise installs the null provider.
+    /// Build the installation's <see cref="AccessConditionProfile"/> (issue #433) from whichever of
+    /// the two configuration forms is present, validate it at startup, and make it the profile the
+    /// METS writer derives from:
+    /// <list type="bullet">
+    /// <item><c>AccessConditions</c>: the standard form, a plain list of restriction values, with
+    /// the optional <c>AllowMultipleAccessConditions</c> flag beside it.</item>
+    /// <item><c>AccessConditionProfile</c>: the two-axis form, for an installation that derives
+    /// something (the Leeds Access Tier) from its choices.</item>
+    /// </list>
+    /// Both present is a configuration error and stops the service, as does an inconsistent
+    /// profile. Must be called before <c>AddDepositWorkspace</c>, which otherwise installs the null
+    /// provider.
     /// </summary>
     public static IServiceCollection AddAccessConditionProfile(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<AccessConditionProfile>()
-            .Bind(configuration.GetSection(AccessConditionProfile.SectionName))
+            .Configure(profile => ApplyConfiguration(profile, configuration))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AccessConditionProfile>, AccessConditionProfileValidator>();
         services.AddSingleton<IAccessConditionProfileProvider, OptionsAccessConditionProfileProvider>();
         return services;
+    }
+
+    /// <summary>Fills a profile from configuration; see <see cref="AddAccessConditionProfile"/>.</summary>
+    public static void ApplyConfiguration(AccessConditionProfile profile, IConfiguration configuration)
+    {
+        var simple = configuration.GetSection(AccessConditionProfile.SimpleSectionName);
+        var full = configuration.GetSection(AccessConditionProfile.SectionName);
+        var allowMultiple = configuration.GetSection(AccessConditionProfile.AllowMultipleKey);
+
+        if (simple.Exists() && full.Exists())
+        {
+            throw new InvalidOperationException(
+                $"Configure either '{AccessConditionProfile.SimpleSectionName}' (a list of access conditions) or " +
+                $"'{AccessConditionProfile.SectionName}' (the two-axis form with derived conditions), not both.");
+        }
+        if (full.Exists())
+        {
+            if (allowMultiple.Exists())
+            {
+                throw new InvalidOperationException(
+                    $"'{AccessConditionProfile.AllowMultipleKey}' belongs with '{AccessConditionProfile.SimpleSectionName}'; " +
+                    $"in '{AccessConditionProfile.SectionName}' use AllowMultipleRestrictions (which is refused alongside Derived).");
+            }
+            full.Bind(profile);
+            return;
+        }
+        profile.RestrictionAxis.Values = simple.Get<List<AccessRestriction>>() ?? [];
+        profile.AllowMultipleRestrictions = allowMultiple.Get<bool>();
     }
 }
 

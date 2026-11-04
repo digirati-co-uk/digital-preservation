@@ -66,6 +66,12 @@ public interface IMetsManager
     Result SuppressRightsInheritanceByPath(FullMets mets, string localPath);
     Result SuppressRightsInheritanceByDivId(FullMets mets, string divId);
     Result SetAccessRestrictionsByPath(FullMets mets, string localPath, List<string> accessRestrictions);
+
+    /// <summary>The <c>@type</c> of the installation's chosen category axis (issue #433), or null without one.</summary>
+    Task<string?> GetAccessCategoryTypeAsync();
+
+    /// <summary>Set, or with null clear, a node's chosen category; see <see cref="GetAccessCategoryTypeAsync"/>.</summary>
+    Result SetAccessCategoryByPath(FullMets mets, string localPath, string? categoryType, string? category);
     Result SetAccessRestrictionsByDivId(FullMets mets, string divId, List<string> accessRestrictions);
 
 
@@ -73,7 +79,8 @@ public interface IMetsManager
     // address by ID? There will almost always be only one so we don't want to complicate the UI
     // Sets a logical struct map (never a physical one). Returns BadRequest, writing nothing, if
     // any range ID in the supplied tree could not be used as an XML ID.
-    Result SetStructMap(FullMets mets, LogicalRange logSm);
+    /// <param name="categoryType">From <see cref="GetAccessCategoryTypeAsync"/>: with one, a range's chosen category is written from its OtherAccessConditions entry of that type (issue #433).</param>
+    Result SetStructMap(FullMets mets, LogicalRange logSm, string? categoryType = null);
     // This will overwrite a structMap with the same ID, and append one if the ID is different to any currently existing.
 
     // maybe this rarely used operation, if we need to change the order:

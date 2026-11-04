@@ -486,7 +486,7 @@ public class MetsParser(
                                 workingDirectory.AccessRestrictions = accessRestrictions;
                                 workingDirectory.RightsStatement = rightsStatement;
                                 workingDirectory.RightsStatementSuppressed = rightsExplicitlySet && rightsStatement == null;
-                                workingDirectory.DerivedAccessConditions = otherAccessConditions;
+                                workingDirectory.OtherAccessConditions = otherAccessConditions;
                                 workingDirectory.RecordInfo = recordInfo;
                             }
                         }
@@ -505,7 +505,7 @@ public class MetsParser(
                     if (recordInfo != null)
                         mets.PhysicalStructure!.RecordInfo ??= recordInfo;
                     if (otherAccessConditions != null)
-                        mets.PhysicalStructure!.DerivedAccessConditions ??= otherAccessConditions;
+                        mets.PhysicalStructure!.OtherAccessConditions ??= otherAccessConditions;
                 }
             }
             else if (type == null && !div.Elements(XNames.MetsFptr).Any())
@@ -526,7 +526,7 @@ public class MetsParser(
                 if (recordInfo != null)
                     mets.PhysicalStructure!.RecordInfo ??= recordInfo;
                 if (otherAccessConditions != null)
-                    mets.PhysicalStructure!.DerivedAccessConditions ??= otherAccessConditions;
+                    mets.PhysicalStructure!.OtherAccessConditions ??= otherAccessConditions;
             }
 
             // type may be Directory, we need to match them up to file paths
@@ -811,7 +811,7 @@ public class MetsParser(
                 file.RightsStatement = rightsStatement;
                 // An explicit-but-empty rights element (present, no valid URI) suppresses inheritance.
                 file.RightsStatementSuppressed = rightsExplicitlySet && rightsStatement == null;
-                file.DerivedAccessConditions = otherAccessConditions;
+                file.OtherAccessConditions = otherAccessConditions;
                 file.RecordInfo = recordInfo;
 
                 mets.Files.Add(file);
@@ -1221,7 +1221,7 @@ public class MetsParser(
             AccessRestrictions = accessRestrictions,
             RightsStatement = rightsStatement,
             RecordInfo = recordInfo,
-            DerivedAccessConditions = otherAccessConditions
+            OtherAccessConditions = otherAccessConditions
         };
 
         foreach (var fptr in div.Elements(XNames.MetsFptr))
@@ -1421,7 +1421,7 @@ public class MetsParser(
     }
 
     /// <summary>
-    /// Inheritance for the other typed access conditions (<see cref="ResourceBase.DerivedAccessConditions"/>,
+    /// Inheritance for the other typed access conditions (<see cref="ResourceBase.OtherAccessConditions"/>,
     /// issue #433), as a separate pass over the same trees. Per TYPE: a value set on a node
     /// overrides the ancestor's value for that type and the rest are inherited; a file whose
     /// physical chain is silent falls back to its logical range the same way access does.
@@ -1432,8 +1432,8 @@ public class MetsParser(
         Dictionary<string, LogicalRange> fileToAssociatedRange)
     {
         var physRoot = mets.PhysicalStructure!;
-        var rootDerived = MergeDerived(new Dictionary<string, string>(StringComparer.Ordinal), physRoot.DerivedAccessConditions);
-        physRoot.EffectiveDerivedAccessConditions = rootDerived;
+        var rootDerived = MergeDerived(new Dictionary<string, string>(StringComparer.Ordinal), physRoot.OtherAccessConditions);
+        physRoot.EffectiveOtherAccessConditions = rootDerived;
 
         foreach (var range in mets.LogicalStructures)
         {
@@ -1455,8 +1455,8 @@ public class MetsParser(
         Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
         Dictionary<string, LogicalRange> fileToAssociatedRange)
     {
-        var effective = MergeDerived(parentDerived, dir.DerivedAccessConditions);
-        dir.EffectiveDerivedAccessConditions = effective;
+        var effective = MergeDerived(parentDerived, dir.OtherAccessConditions);
+        dir.EffectiveOtherAccessConditions = effective;
         foreach (var file in dir.Files)
         {
             SetFileEffectiveDerived(file, effective, fileToWholeFileRanges, fileToAssociatedRange);
@@ -1473,27 +1473,27 @@ public class MetsParser(
         Dictionary<string, List<LogicalRange>> fileToWholeFileRanges,
         Dictionary<string, LogicalRange> fileToAssociatedRange)
     {
-        // own → physical parent → exactly-one whole-file fptr range → smLink-associated range → {}
-        var effective = MergeDerived(parentDerived, file.DerivedAccessConditions);
-        if (effective.Count == 0)
+        // Per TYPE: own → physical parent → exactly-one whole-file fptr range → smLink-associated
+        // range. A type the physical chain lacks (the chosen category when only the range sets it,
+        // review of #434) comes from the range even when the chain supplies other types.
+        var effective = MergeDerived(parentDerived, file.OtherAccessConditions);
+        if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var wholeRanges) && wholeRanges.Count == 1)
         {
-            if (fileToWholeFileRanges.TryGetValue(file.LocalPath, out var wholeRanges)
-                && wholeRanges.Count == 1
-                && wholeRanges[0].EffectiveDerivedAccessConditions.Count > 0)
-                effective = new Dictionary<string, string>(wholeRanges[0].EffectiveDerivedAccessConditions, StringComparer.Ordinal);
-            else if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assoc)
-                     && assoc.EffectiveDerivedAccessConditions.Count > 0)
-                effective = new Dictionary<string, string>(assoc.EffectiveDerivedAccessConditions, StringComparer.Ordinal);
+            foreach (var (type, value) in wholeRanges[0].EffectiveOtherAccessConditions) effective.TryAdd(type, value);
         }
-        file.EffectiveDerivedAccessConditions = effective;
+        if (fileToAssociatedRange.TryGetValue(file.LocalPath, out var assoc))
+        {
+            foreach (var (type, value) in assoc.EffectiveOtherAccessConditions) effective.TryAdd(type, value);
+        }
+        file.EffectiveOtherAccessConditions = effective;
     }
 
     private static void ComputeEffectiveDerivedForLogicalRange(LogicalRange range, Dictionary<string, string> parentDerived)
     {
-        range.EffectiveDerivedAccessConditions = MergeDerived(parentDerived, range.DerivedAccessConditions);
+        range.EffectiveOtherAccessConditions = MergeDerived(parentDerived, range.OtherAccessConditions);
         foreach (var child in range.Ranges)
         {
-            ComputeEffectiveDerivedForLogicalRange(child, range.EffectiveDerivedAccessConditions);
+            ComputeEffectiveDerivedForLogicalRange(child, range.EffectiveOtherAccessConditions);
         }
     }
 
