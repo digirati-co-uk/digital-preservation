@@ -3,7 +3,6 @@ using DigitalPreservation.Common.Model;
 using DigitalPreservation.Common.Model.Import;
 using DigitalPreservation.Common.Model.Results;
 using DigitalPreservation.Common.Model.Storage;
-using DigitalPreservation.Common.Model.Storage;
 using FakeItEasy;
 using Microsoft.Extensions.Logging.Abstractions;
 using Storage.API.Fedora;
